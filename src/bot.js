@@ -3,6 +3,8 @@ const { getAiResponse } = require('./aiService');
 const { sendWebhookMessage } = require('./webhookManager');
 const { getPersonalityByAlias, registerPersonality } = require('./personalityManager');
 const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation } = require('./conversationManager');
+const { processCommand } = require('./commands');
+const { botPrefix } = require('../config');
 
 // Initialize the bot with necessary intents and partials
 const client = new Client({
@@ -23,16 +25,19 @@ const client = new Client({
 // Bot initialization function
 async function initBot() {
   // Set up event handlers
-  client.on('ready', () => {
+  client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     client.user.setActivity('with multiple personalities', { type: 'PLAYING' });
     
-    // Register some example personalities for testing
-    registerPersonality('SYSTEM', 'example-personality', {
-      displayName: 'Example',
-      avatarUrl: 'https://i.imgur.com/your-example-avatar.png',
-      description: 'An example personality for testing'
-    });
+    // Register a default personality for testing (if needed)
+    try {
+      await registerPersonality('SYSTEM', 'lilith-tzel-shani', {
+        description: 'System test personality'
+      });
+      console.log('Test personality registered');
+    } catch (error) {
+      console.error('Error registering test personality:', error);
+    }
   });
 
   // Handle errors
@@ -46,14 +51,12 @@ async function initBot() {
     if (message.author.bot) return;
     
     // Command handling
-    if (message.content.startsWith(process.env.PREFIX)) {
-      const args = message.content.slice(process.env.PREFIX.length).trim().split(/ +/);
+    if (message.content.startsWith(botPrefix)) {
+      const args = message.content.slice(botPrefix.length).trim().split(/ +/);
       const command = args.shift().toLowerCase();
       
-      // Handle commands (we'll implement these later)
-      if (command === 'ping') {
-        message.reply('Pong! Tzurot is operational.');
-      }
+      // Process the command
+      await processCommand(message, command, args);
       return;
     }
     
@@ -119,11 +122,15 @@ async function initBot() {
  */
 async function handlePersonalityInteraction(message, personality) {
   try {
-    // Delete the original message? (Optional, as you mentioned you want to keep it)
-    // await message.delete().catch(e => console.error('Could not delete message:', e));
-    
-    // Get AI response
-    const aiResponse = await getAiResponse(personality.fullName, message.content);
+    // Get AI response with user and channel context
+    const aiResponse = await getAiResponse(
+      personality.fullName, 
+      message.content,
+      {
+        userId: message.author.id,
+        channelId: message.channel.id
+      }
+    );
     
     // Send the response via webhook
     const sentMessage = await sendWebhookMessage(

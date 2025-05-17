@@ -1,3 +1,5 @@
+const { getProfileAvatarUrl, getProfileDisplayName } = require('./profileInfoFetcher');
+
 // In-memory personality storage
 // In a production environment, you'd use a database
 const personalityData = new Map();
@@ -8,10 +10,11 @@ const personalityAliases = new Map();
  * @param {string} userId - Discord user ID who owns this personality
  * @param {string} fullName - Full name/identifier of the personality
  * @param {Object} data - Personality data
- * @returns {boolean} Success indicator
+ * @param {boolean} fetchInfo - Whether to fetch info from shapes.inc
+ * @returns {Promise<Object>} The created personality
  */
-function registerPersonality(userId, fullName, data) {
-  // Create the personality object
+async function registerPersonality(userId, fullName, data, fetchInfo = true) {
+  // Start building the personality object
   const personality = {
     fullName,
     displayName: data.displayName || fullName,
@@ -21,6 +24,26 @@ function registerPersonality(userId, fullName, data) {
     createdAt: Date.now()
   };
   
+  // If fetchInfo is true, try to get display name and avatar from shapes.inc
+  if (fetchInfo) {
+    try {
+      // Try to get the display name
+      const profileName = await getProfileDisplayName(fullName);
+      if (profileName) {
+        personality.displayName = profileName;
+      }
+      
+      // Try to get the avatar URL
+      const avatarUrl = await getProfileAvatarUrl(fullName);
+      if (avatarUrl) {
+        personality.avatarUrl = avatarUrl;
+      }
+    } catch (error) {
+      console.error(`Error fetching info for ${fullName}:`, error);
+      // Continue with the process even if fetching fails
+    }
+  }
+
   // Store the personality
   personalityData.set(fullName, personality);
   
@@ -28,7 +51,7 @@ function registerPersonality(userId, fullName, data) {
   const defaultAlias = personality.displayName.toLowerCase();
   setPersonalityAlias(defaultAlias, fullName);
   
-  return true;
+  return personality;
 }
 
 /**
@@ -125,5 +148,6 @@ module.exports = {
   setPersonalityAlias,
   getPersonalityByAlias,
   removePersonality,
-  listPersonalitiesForUser
+  listPersonalitiesForUser,
+  personalityAliases
 };
