@@ -1,5 +1,4 @@
 const { WebhookClient, EmbedBuilder } = require('discord.js');
-const { client } = require('./bot');
 
 // Cache to store webhook instances by channel ID
 const webhookCache = new Map();
@@ -118,14 +117,16 @@ function clearAllWebhookCaches() {
   }
 }
 
-// Set up event listeners for channel deletion
-client.on('channelDelete', channel => {
-  clearWebhookCache(channel.id);
-});
+function registerEventListeners(client) {
+  client.on('channelDelete', channel => {
+    clearWebhookCache(channel.id);
+  });
+}
 
 module.exports = {
   getOrCreateWebhook,
   sendWebhookMessage,
   clearWebhookCache,
-  clearAllWebhookCaches
+  clearAllWebhookCaches,
+  registerEventListeners
 };

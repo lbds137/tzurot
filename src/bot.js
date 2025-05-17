@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
-const { sendWebhookMessage } = require('./webhookManager');
+const webhookManager = require('./webhookManager');
 const { getPersonalityByAlias, registerPersonality } = require('./personalityManager');
 const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation } = require('./conversationManager');
 const { processCommand } = require('./commands');
@@ -28,7 +28,10 @@ async function initBot() {
   client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     client.user.setActivity('with multiple personalities', { type: 'PLAYING' });
-    
+
+    // Register webhook manager event listeners AFTER client is ready
+    webhookManager.registerEventListeners(client);
+
     // Register a default personality for testing (if needed)
     try {
       await registerPersonality('SYSTEM', 'lilith-tzel-shani', {
@@ -124,31 +127,31 @@ async function handlePersonalityInteraction(message, personality) {
   try {
     // Get AI response with user and channel context
     const aiResponse = await getAiResponse(
-      personality.fullName, 
-      message.content,
-      {
-        userId: message.author.id,
-        channelId: message.channel.id
-      }
+        personality.fullName,
+        message.content,
+        {
+          userId: message.author.id,
+          channelId: message.channel.id
+        }
     );
-    
-    // Send the response via webhook
-    const sentMessage = await sendWebhookMessage(
-      message.channel, 
-      aiResponse, 
-      personality
+
+    // Send the response via webhook - use the function directly from the module
+    const sentMessage = await webhookManager.sendWebhookMessage(
+        message.channel,
+        aiResponse,
+        personality
     );
-    
+
     // Record this conversation
     recordConversation(
-      message.author.id,
-      message.channel.id,
-      sentMessage.id,
-      personality.fullName
+        message.author.id,
+        message.channel.id,
+        sentMessage.id,
+        personality.fullName
     );
   } catch (error) {
     console.error('Error in personality interaction:', error);
-    
+
     // Send error message to user
     message.reply('Sorry, I encountered an error while processing your message.').catch(e => {
       console.error('Could not send error reply:', e);

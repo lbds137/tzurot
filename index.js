@@ -1,3 +1,4 @@
+// Load environment variables
 require('dotenv').config();
 const { initStorage } = require('./src/dataStorage');
 const { initPersonalityManager } = require('./src/personalityManager');

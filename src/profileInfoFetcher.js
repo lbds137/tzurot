@@ -21,24 +21,29 @@ async function fetchProfileInfo(profileName) {
       }
     }
 
-    // Get the endpoint from our obfuscated config
+    // Get the endpoint from our config
     const endpoint = getProfileInfoEndpoint(profileName);
 
-    // Fetch the data from the API
-    const response = await fetch(endpoint);
-    
+    // Fetch the data from the API with authorization
+    const response = await fetch(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
     if (!response.ok) {
       throw new Error(`Failed to fetch profile info: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
-    
+
     // Cache the result
     profileInfoCache.set(profileName, {
       data,
       timestamp: Date.now()
     });
-    
+
     return data;
   } catch (error) {
     console.error(`Error fetching profile info for ${profileName}:`, error);
@@ -53,14 +58,14 @@ async function fetchProfileInfo(profileName) {
  */
 async function getProfileAvatarUrl(profileName) {
   const profileInfo = await fetchProfileInfo(profileName);
-  
+
   if (!profileInfo || !profileInfo.id) {
     return null;
   }
-  
-  // Get the avatar URL format from our obfuscated config
+
+  // Get the avatar URL format
   const avatarUrlFormat = getAvatarUrlFormat();
-  
+
   // Replace the placeholder with the actual profile ID
   return avatarUrlFormat.replace('{id}', profileInfo.id);
 }
@@ -72,11 +77,11 @@ async function getProfileAvatarUrl(profileName) {
  */
 async function getProfileDisplayName(profileName) {
   const profileInfo = await fetchProfileInfo(profileName);
-  
+
   if (!profileInfo || !profileInfo.name) {
     return null;
   }
-  
+
   return profileInfo.name;
 }
 
