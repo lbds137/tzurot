@@ -2,7 +2,8 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
 const { getPersonalityByAlias, registerPersonality } = require('./personalityManager');
-const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation } = require('./conversationManager');
+const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation,
+  activatePersonality, deactivatePersonality, getActivatedPersonality } = require('./conversationManager');
 const { processCommand } = require('./commands');
 const { botPrefix } = require('../config');
 
@@ -52,12 +53,17 @@ async function initBot() {
   client.on('messageCreate', async message => {
     // Ignore messages from bots to prevent loops
     if (message.author.bot) return;
-    
-    // Command handling
-    if (message.content.startsWith(botPrefix)) {
-      const args = message.content.slice(botPrefix.length).trim().split(/ +/);
-      const command = args.shift().toLowerCase();
-      
+
+    // Command handling - ensure the prefix is followed by a space
+    if (message.content.startsWith(botPrefix + ' ') || message.content === botPrefix) {
+      // Remove prefix and trim leading space
+      const content = message.content.startsWith(botPrefix + ' ') ?
+          message.content.slice(botPrefix.length + 1) :
+          '';
+
+      const args = content.trim().split(/ +/);
+      const command = args.shift()?.toLowerCase() || 'help'; // Default to help if no command
+
       // Process the command
       await processCommand(message, command, args);
       return;
@@ -99,12 +105,24 @@ async function initBot() {
         return;
       }
     }
-    
+
     // Check for active conversation
     const activePersonalityName = getActivePersonality(message.author.id, message.channel.id);
     if (activePersonalityName) {
       const personality = getPersonalityByAlias(activePersonalityName);
-      
+
+      if (personality) {
+        // Process the message with this personality
+        await handlePersonalityInteraction(message, personality);
+        return;
+      }
+    }
+
+    // Check for activated channel personality
+    const activatedPersonalityName = getActivatedPersonality(message.channel.id);
+    if (activatedPersonalityName) {
+      const personality = getPersonalityByAlias(activatedPersonalityName);
+
       if (personality) {
         // Process the message with this personality
         await handlePersonalityInteraction(message, personality);

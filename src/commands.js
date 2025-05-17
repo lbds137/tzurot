@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = require('./personalityManager');
+const { recordConversation, clearConversation, activatePersonality, deactivatePersonality } = require('./conversationManager');
 const { botPrefix } = require('../config');
 
 /**
@@ -11,39 +12,45 @@ const { botPrefix } = require('../config');
 async function processCommand(message, command, args) {
   // Get the prefix for use in help messages
   const prefix = botPrefix;
-  
+
   switch (command) {
     case 'help':
       return handleHelpCommand(message, args);
-    
+
     case 'add':
     case 'create':
       return handleAddCommand(message, args);
-    
+
     case 'list':
       return handleListCommand(message, args);
-    
+
     case 'alias':
       return handleAliasCommand(message, args);
-    
+
     case 'remove':
     case 'delete':
       return handleRemoveCommand(message, args);
-    
+
     case 'info':
       return handleInfoCommand(message, args);
-    
+
     case 'ping':
       return message.reply('Pong! Tzurot is operational.');
 
     case 'reset':
       return handleResetCommand(message, args);
 
+    case 'activate':
+      return handleActivateCommand(message, args);
+
+    case 'deactivate':
+      return handleDeactivateCommand(message, args);
+
     case 'status':
       return handleStatusCommand(message, args);
 
     default:
-      return message.reply(`Unknown command: \`${command}\`. Use \`${prefix}help\` to see available commands.`);
+      return message.reply(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
   }
 }
 
@@ -54,75 +61,93 @@ async function processCommand(message, command, args) {
  */
 async function handleHelpCommand(message, args) {
   const prefix = botPrefix;
-  
+
   if (args.length > 0) {
     // Help for a specific command
     const specificCommand = args[0].toLowerCase();
-    
+
     switch (specificCommand) {
       case 'add':
       case 'create':
         return message.reply(
-          `**${prefix}add <profile_name> [alias]**\n` +
+          `**${prefix} add <profile_name> [alias]**\n` +
           `Add a new AI personality to your collection.\n` +
           `- \`profile_name\` is the name of the personality (required)\n` +
           `- \`alias\` is an optional nickname you can use to reference this personality (optional)\n\n` +
-          `Example: \`${prefix}add lilith-tzel-shani lilith\``
+          `Example: \`${prefix} add lilith-tzel-shani lilith\``
         );
-      
+
       case 'list':
         return message.reply(
-          `**${prefix}list**\n` +
+          `**${prefix} list**\n` +
           `List all AI personalities you've added.\n\n` +
-          `Example: \`${prefix}list\``
+          `Example: \`${prefix} list\``
         );
-      
+
       case 'alias':
         return message.reply(
-          `**${prefix}alias <profile_name> <new_alias>**\n` +
+          `**${prefix} alias <profile_name> <new_alias>**\n` +
           `Add an alias/nickname for an existing personality.\n` +
           `- \`profile_name\` is the name of the personality (required)\n` +
           `- \`new_alias\` is the nickname to assign (required)\n\n` +
-          `Example: \`${prefix}alias lilith-tzel-shani lili\``
+          `Example: \`${prefix} alias lilith-tzel-shani lili\``
         );
-      
+
       case 'remove':
       case 'delete':
         return message.reply(
-          `**${prefix}remove <profile_name>**\n` +
+          `**${prefix} remove <profile_name>**\n` +
           `Remove a personality from your collection.\n` +
           `- \`profile_name\` is the name of the personality to remove (required)\n\n` +
-          `Example: \`${prefix}remove lilith-tzel-shani\``
+          `Example: \`${prefix} remove lilith-tzel-shani\``
         );
-      
+
       case 'info':
         return message.reply(
-          `**${prefix}info <profile_name>**\n` +
+          `**${prefix} info <profile_name>**\n` +
           `Show detailed information about a personality.\n` +
           `- \`profile_name\` is the name or alias of the personality (required)\n\n` +
-          `Example: \`${prefix}info lilith\``
+          `Example: \`${prefix} info lilith\``
         );
-      
+
+      case 'activate':
+        return message.reply(
+          `**${prefix} activate <personality>**\n` +
+          `Activate a personality to automatically respond to all messages in the channel.\n` +
+          `- \`personality\` is the name or alias of the personality to activate (required)\n\n` +
+          `Example: \`${prefix} activate lilith\``
+        );
+
+      case 'deactivate':
+        return message.reply(
+          `**${prefix} deactivate**\n` +
+          `Deactivate the currently active personality in this channel.\n\n` +
+          `Example: \`${prefix} deactivate\``
+        );
+
       default:
-        return message.reply(`Unknown command: \`${specificCommand}\`. Use \`${prefix}help\` to see available commands.`);
+        return message.reply(`Unknown command: \`${specificCommand}\`. Use \`${prefix} help\` to see available commands.`);
     }
   }
-  
+
   // General help
   const embed = new EmbedBuilder()
     .setTitle('Tzurot Help')
     .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
     .setColor('#5865F2')
     .addFields(
-      { name: `${prefix}add <profile_name> [alias]`, value: 'Add a new AI personality' },
-      { name: `${prefix}list`, value: 'List all your AI personalities' },
-      { name: `${prefix}alias <profile_name> <new_alias>`, value: 'Add an alias for a personality' },
-      { name: `${prefix}remove <profile_name>`, value: 'Remove a personality' },
-      { name: `${prefix}info <profile_name>`, value: 'Show details about a personality' },
-      { name: `${prefix}help [command]`, value: 'Show this help or help for a specific command' }
+      { name: `${prefix} add <profile_name> [alias]`, value: 'Add a new AI personality' },
+      { name: `${prefix} list`, value: 'List all your AI personalities' },
+      { name: `${prefix} alias <profile_name> <new_alias>`, value: 'Add an alias for a personality' },
+      { name: `${prefix} remove <profile_name>`, value: 'Remove a personality' },
+      { name: `${prefix} info <profile_name>`, value: 'Show details about a personality' },
+      { name: `${prefix} help [command]`, value: 'Show this help or help for a specific command' },
+      { name: `${prefix} activate <personality>`, value: 'Activate a personality to respond to all messages in the channel' },
+      { name: `${prefix} deactivate`, value: 'Deactivate the personality in the channel' },
+      { name: `${prefix} reset`, value: 'Clear your active conversation' }
     )
     .setFooter({ text: 'To interact with a personality, mention them with @alias or reply to their messages' });
-  
+
   return message.reply({ embeds: [embed] });
 }
 
@@ -133,35 +158,35 @@ async function handleHelpCommand(message, args) {
  */
 async function handleAddCommand(message, args) {
   if (args.length < 1) {
-    return message.reply(`Please provide a profile name. Usage: \`${botPrefix}add <profile_name> [alias]\``);
+    return message.reply(`Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``);
   }
-  
+
   const profileName = args[0];
   const alias = args[1] || null; // Optional alias
-  
+
   try {
     // Check if the personality already exists for this user
     const existingPersonalities = listPersonalitiesForUser(message.author.id);
     const alreadyExists = existingPersonalities.some(p => p.fullName.toLowerCase() === profileName.toLowerCase());
-    
+
     if (alreadyExists) {
       return message.reply(`You already have a personality with the name \`${profileName}\`.`);
     }
-    
+
     // Create a loading message
     const loadingMsg = await message.reply(`Adding personality \`${profileName}\`... This might take a moment.`);
-    
+
     // Register the new personality with fetching profile info
     const personality = await registerPersonality(message.author.id, profileName, {
       // No need to provide display name or avatar as they'll be fetched
       description: `Added by ${message.author.tag}`
     }, true);
-    
+
     // If an alias was provided, set it
     if (alias) {
       setPersonalityAlias(alias, profileName);
     }
-    
+
     // Create an embed with the personality info
     const embed = new EmbedBuilder()
       .setTitle('Personality Added')
@@ -172,12 +197,12 @@ async function handleAddCommand(message, args) {
         { name: 'Display Name', value: personality.displayName || 'Not set' },
         { name: 'Alias', value: alias || 'None set' }
       );
-    
+
     // Add the avatar to the embed if available
     if (personality.avatarUrl) {
       embed.setThumbnail(personality.avatarUrl);
     }
-    
+
     // Update the loading message with the result
     await loadingMsg.edit({ content: null, embeds: [embed] });
   } catch (error) {
@@ -193,17 +218,17 @@ async function handleAddCommand(message, args) {
 async function handleListCommand(message) {
   // Get all personalities for the user
   const personalities = listPersonalitiesForUser(message.author.id);
-  
+
   if (personalities.length === 0) {
-    return message.reply(`You haven't added any personalities yet. Use \`${botPrefix}add <profile_name>\` to add one.`);
+    return message.reply(`You haven't added any personalities yet. Use \`${botPrefix} add <profile_name>\` to add one.`);
   }
-  
+
   // Create an embed with the list
   const embed = new EmbedBuilder()
     .setTitle('Your Personalities')
     .setDescription(`You have ${personalities.length} personalities`)
     .setColor('#5865F2');
-  
+
   // Add each personality to the embed
   personalities.forEach(p => {
     // Find all aliases for this personality
@@ -213,15 +238,15 @@ async function handleListCommand(message) {
         aliases.push(alias);
       }
     }
-    
+
     const aliasText = aliases.length > 0 ? `Aliases: ${aliases.join(', ')}` : 'No aliases';
-    
+
     embed.addFields({
       name: p.displayName || p.fullName,
       value: `ID: \`${p.fullName}\`\n${aliasText}`
     });
   });
-  
+
   return message.reply({ embeds: [embed] });
 }
 
@@ -232,34 +257,34 @@ async function handleListCommand(message) {
  */
 async function handleAliasCommand(message, args) {
   if (args.length < 2) {
-    return message.reply(`Please provide a profile name and an alias. Usage: \`${botPrefix}alias <profile_name> <alias>\``);
+    return message.reply(`Please provide a profile name and an alias. Usage: \`${botPrefix} alias <profile_name> <alias>\``);
   }
-  
+
   const profileName = args[0];
   const newAlias = args[1];
-  
+
   // Check if the personality exists
   const personality = getPersonality(profileName);
-  
+
   if (!personality) {
-    return message.reply(`Personality \`${profileName}\` not found. Use \`${botPrefix}list\` to see your personalities.`);
+    return message.reply(`Personality \`${profileName}\` not found. Use \`${botPrefix} list\` to see your personalities.`);
   }
-  
+
   // Check if the personality belongs to the user
   if (personality.createdBy !== message.author.id) {
     return message.reply(`Personality \`${profileName}\` doesn't belong to you.`);
   }
-  
+
   // Check if the alias is already in use
   const existingPersonality = getPersonalityByAlias(newAlias);
-  
+
   if (existingPersonality && existingPersonality.fullName !== profileName) {
     return message.reply(`Alias \`${newAlias}\` is already in use for personality \`${existingPersonality.fullName}\`.`);
   }
-  
+
   // Set the alias
   setPersonalityAlias(newAlias, profileName);
-  
+
   return message.reply(`Alias \`${newAlias}\` set for personality \`${personality.displayName || profileName}\`.`);
 }
 
@@ -270,31 +295,31 @@ async function handleAliasCommand(message, args) {
  */
 async function handleRemoveCommand(message, args) {
   if (args.length < 1) {
-    return message.reply(`Please provide a profile name. Usage: \`${botPrefix}remove <profile_name>\``);
+    return message.reply(`Please provide a profile name. Usage: \`${botPrefix} remove <profile_name>\``);
   }
-  
+
   const profileName = args[0];
-  
+
   // Try with alias first
   let personality = getPersonalityByAlias(profileName);
-  
+
   // If not found by alias, try with full name
   if (!personality) {
     personality = getPersonality(profileName);
   }
-  
+
   if (!personality) {
-    return message.reply(`Personality \`${profileName}\` not found. Use \`${botPrefix}list\` to see your personalities.`);
+    return message.reply(`Personality \`${profileName}\` not found. Use \`${botPrefix} list\` to see your personalities.`);
   }
-  
+
   // Check if the personality belongs to the user
   if (personality.createdBy !== message.author.id) {
     return message.reply(`Personality \`${personality.fullName}\` doesn't belong to you.`);
   }
-  
+
   // Remove the personality
   const success = removePersonality(personality.fullName);
-  
+
   if (success) {
     return message.reply(`Personality \`${personality.displayName || personality.fullName}\` removed.`);
   } else {
@@ -309,23 +334,23 @@ async function handleRemoveCommand(message, args) {
  */
 async function handleInfoCommand(message, args) {
   if (args.length < 1) {
-    return message.reply(`Please provide a profile name or alias. Usage: \`${botPrefix}info <profile_name>\``);
+    return message.reply(`Please provide a profile name or alias. Usage: \`${botPrefix} info <profile_name>\``);
   }
-  
+
   const profileQuery = args[0];
-  
+
   // Try with alias first
   let personality = getPersonalityByAlias(profileQuery);
-  
+
   // If not found by alias, try with full name
   if (!personality) {
     personality = getPersonality(profileQuery);
   }
-  
+
   if (!personality) {
-    return message.reply(`Personality \`${profileQuery}\` not found. Use \`${botPrefix}list\` to see your personalities.`);
+    return message.reply(`Personality \`${profileQuery}\` not found. Use \`${botPrefix} list\` to see your personalities.`);
   }
-  
+
   // Find all aliases for this personality
   const aliases = [];
   for (const [alias, name] of Object.entries(require('./personalityManager').personalityAliases)) {
@@ -333,7 +358,7 @@ async function handleInfoCommand(message, args) {
       aliases.push(alias);
     }
   }
-  
+
   // Create an embed with the personality info
   const embed = new EmbedBuilder()
     .setTitle(personality.displayName || personality.fullName)
@@ -346,12 +371,12 @@ async function handleInfoCommand(message, args) {
       { name: 'Added By', value: `<@${personality.createdBy}>` },
       { name: 'Added On', value: new Date(personality.createdAt).toLocaleString() }
     );
-  
+
   // Add the avatar to the embed if available
   if (personality.avatarUrl) {
     embed.setThumbnail(personality.avatarUrl);
   }
-  
+
   return message.reply({ embeds: [embed] });
 }
 
@@ -361,11 +386,55 @@ async function handleInfoCommand(message, args) {
  */
 async function handleResetCommand(message) {
   const cleared = clearConversation(message.author.id, message.channel.id);
-  
+
   if (cleared) {
     return message.reply('Conversation history cleared. The next message will start a new conversation.');
   } else {
     return message.reply('No active conversation to clear.');
+  }
+}
+
+/**
+ * Handle the activate command
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleActivateCommand(message, args) {
+  if (args.length < 1) {
+    return message.reply(`Please provide a personality name or alias. Usage: \`${botPrefix} activate <personality>\``);
+  }
+
+  const personalityQuery = args[0];
+
+  // Try with alias first
+  let personality = getPersonalityByAlias(personalityQuery);
+
+  // If not found by alias, try with full name
+  if (!personality) {
+    personality = getPersonality(personalityQuery);
+  }
+
+  if (!personality) {
+    return message.reply(`Personality \`${personalityQuery}\` not found. Use \`${botPrefix} list\` to see your personalities.`);
+  }
+
+  // Activate the personality in this channel
+  activatePersonality(message.channel.id, personality.fullName, message.author.id);
+
+  return message.reply(`Activated ${personality.displayName || personality.fullName} in this channel. It will now respond to all messages. Use \`${botPrefix} deactivate\` to turn this off.`);
+}
+
+/**
+ * Handle the deactivate command
+ * @param {Object} message - Discord message object
+ */
+async function handleDeactivateCommand(message) {
+  const deactivated = deactivatePersonality(message.channel.id);
+
+  if (deactivated) {
+    return message.reply(`Personality deactivated. It will now only respond to direct mentions and replies.`);
+  } else {
+    return message.reply(`No personality was activated in this channel.`);
   }
 }
 
@@ -376,7 +445,7 @@ async function handleResetCommand(message) {
 async function handleStatusCommand(message) {
   const totalPersonalities = personalityData.size;
   const userPersonalities = listPersonalitiesForUser(message.author.id).length;
-  
+
   const embed = new EmbedBuilder()
     .setTitle('Tzurot Status')
     .setDescription('Current bot status and statistics')
@@ -389,7 +458,7 @@ async function handleStatusCommand(message) {
       { name: 'Memory Usage', value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB` }
     )
     .setFooter({ text: `Bot Version: 1.0.0` });
-  
+
   return message.reply({ embeds: [embed] });
 }
 
@@ -403,7 +472,7 @@ function formatUptime(ms) {
   const minutes = Math.floor((ms / (1000 * 60)) % 60);
   const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-  
+
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
