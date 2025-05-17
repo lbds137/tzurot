@@ -1,16 +1,66 @@
 const { getProfileAvatarUrl, getProfileDisplayName } = require('./profileInfoFetcher');
+const { saveData, loadData } = require('./dataStorage');
 
 // In-memory personality storage
-// In a production environment, you'd use a database
 const personalityData = new Map();
 const personalityAliases = new Map();
+
+// File names for stored data
+const PERSONALITIES_FILE = 'personalities';
+const ALIASES_FILE = 'aliases';
+
+/**
+ * Initialize the personality manager
+ */
+async function initPersonalityManager() {
+  try {
+    // Load personalities
+    const personalities = await loadData(PERSONALITIES_FILE);
+    if (personalities) {
+      for (const [key, value] of Object.entries(personalities)) {
+        personalityData.set(key, value);
+      }
+      console.log(`Loaded ${personalityData.size} personalities`);
+    }
+    
+    // Load aliases
+    const aliases = await loadData(ALIASES_FILE);
+    if (aliases) {
+      for (const [key, value] of Object.entries(aliases)) {
+        personalityAliases.set(key, value);
+      }
+      console.log(`Loaded ${personalityAliases.size} aliases`);
+    }
+  } catch (error) {
+    console.error('Error initializing personality manager:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save all personality data
+ */
+async function saveAllPersonalities() {
+  try {
+    // Convert Maps to objects for storage
+    const personalities = Object.fromEntries(personalityData);
+    const aliases = Object.fromEntries(personalityAliases);
+    
+    // Save to files
+    await saveData(PERSONALITIES_FILE, personalities);
+    await saveData(ALIASES_FILE, aliases);
+  } catch (error) {
+    console.error('Error saving personalities:', error);
+    throw error;
+  }
+}
 
 /**
  * Register a new personality 
  * @param {string} userId - Discord user ID who owns this personality
  * @param {string} fullName - Full name/identifier of the personality
  * @param {Object} data - Personality data
- * @param {boolean} fetchInfo - Whether to fetch info from shapes.inc
+ * @param {boolean} fetchInfo - Whether to fetch info from API
  * @returns {Promise<Object>} The created personality
  */
 async function registerPersonality(userId, fullName, data, fetchInfo = true) {
@@ -24,7 +74,7 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
     createdAt: Date.now()
   };
   
-  // If fetchInfo is true, try to get display name and avatar from shapes.inc
+  // If fetchInfo is true, try to get display name and avatar
   if (fetchInfo) {
     try {
       // Try to get the display name
@@ -43,13 +93,16 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
       // Continue with the process even if fetching fails
     }
   }
-
+  
   // Store the personality
   personalityData.set(fullName, personality);
   
   // Create the default alias (lowercase version of displayName)
   const defaultAlias = personality.displayName.toLowerCase();
   setPersonalityAlias(defaultAlias, fullName);
+  
+  // Save the data
+  await saveAllPersonalities();
   
   return personality;
 }
@@ -67,9 +120,9 @@ function getPersonality(fullName) {
  * Set an alias for a personality
  * @param {string} alias - The alias to set
  * @param {string} fullName - Full personality name
- * @returns {boolean} Success indicator
+ * @returns {Promise<boolean>} Success indicator
  */
-function setPersonalityAlias(alias, fullName) {
+async function setPersonalityAlias(alias, fullName) {
   // Convert alias to lowercase for case-insensitive lookup
   const normalizedAlias = alias.toLowerCase();
   
@@ -80,6 +133,10 @@ function setPersonalityAlias(alias, fullName) {
   
   // Set the alias
   personalityAliases.set(normalizedAlias, fullName);
+  
+  // Save the data
+  await saveAllPersonalities();
+  
   return true;
 }
 
@@ -105,9 +162,9 @@ function getPersonalityByAlias(alias) {
 /**
  * Remove a personality and all its aliases
  * @param {string} fullName - Full personality name
- * @returns {boolean} Success indicator
+ * @returns {Promise<boolean>} Success indicator
  */
-function removePersonality(fullName) {
+async function removePersonality(fullName) {
   // Verify the personality exists
   if (!personalityData.has(fullName)) {
     return false;
@@ -122,6 +179,10 @@ function removePersonality(fullName) {
   
   // Remove the personality itself
   personalityData.delete(fullName);
+  
+  // Save the data
+  await saveAllPersonalities();
+  
   return true;
 }
 
@@ -143,6 +204,7 @@ function listPersonalitiesForUser(userId) {
 }
 
 module.exports = {
+  initPersonalityManager,
   registerPersonality,
   getPersonality,
   setPersonalityAlias,

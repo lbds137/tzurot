@@ -35,7 +35,13 @@ async function processCommand(message, command, args) {
     
     case 'ping':
       return message.reply('Pong! Tzurot is operational.');
-    
+
+    case 'reset':
+      return handleResetCommand(message, args);
+
+    case 'status':
+      return handleStatusCommand(message, args);
+
     default:
       return message.reply(`Unknown command: \`${command}\`. Use \`${prefix}help\` to see available commands.`);
   }
@@ -347,6 +353,58 @@ async function handleInfoCommand(message, args) {
   }
   
   return message.reply({ embeds: [embed] });
+}
+
+/**
+ * Handle the reset command (clears conversation)
+ * @param {Object} message - Discord message object
+ */
+async function handleResetCommand(message) {
+  const cleared = clearConversation(message.author.id, message.channel.id);
+  
+  if (cleared) {
+    return message.reply('Conversation history cleared. The next message will start a new conversation.');
+  } else {
+    return message.reply('No active conversation to clear.');
+  }
+}
+
+/**
+ * Handle the status command
+ * @param {Object} message - Discord message object
+ */
+async function handleStatusCommand(message) {
+  const totalPersonalities = personalityData.size;
+  const userPersonalities = listPersonalitiesForUser(message.author.id).length;
+  
+  const embed = new EmbedBuilder()
+    .setTitle('Tzurot Status')
+    .setDescription('Current bot status and statistics')
+    .setColor('#5865F2')
+    .addFields(
+      { name: 'Uptime', value: formatUptime(client.uptime) },
+      { name: 'Total Personalities', value: totalPersonalities.toString() },
+      { name: 'Your Personalities', value: userPersonalities.toString() },
+      { name: 'Connected Servers', value: client.guilds.cache.size.toString() },
+      { name: 'Memory Usage', value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB` }
+    )
+    .setFooter({ text: `Bot Version: 1.0.0` });
+  
+  return message.reply({ embeds: [embed] });
+}
+
+/**
+ * Format milliseconds as a readable uptime string
+ * @param {number} ms - Milliseconds
+ * @returns {string} Formatted uptime
+ */
+function formatUptime(ms) {
+  const seconds = Math.floor((ms / 1000) % 60);
+  const minutes = Math.floor((ms / (1000 * 60)) % 60);
+  const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  
+  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
 module.exports = {
