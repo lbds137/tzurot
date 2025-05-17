@@ -1,0 +1,19 @@
+{
+  "name": "tzurot",
+  "version": "0.1.0",
+  "description": "A Discord bot that uses webhooks to represent multiple AI personalities",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.13.0",
+    "dotenv": "^16.3.1",
+    "node-fetch": "^2.6.9",
+    "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
