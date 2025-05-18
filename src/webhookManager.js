@@ -20,6 +20,7 @@ const fetch = require('node-fetch');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
+const audioHandler = require('./utils/audioHandler');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -639,6 +640,15 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
     messageData.files = options.files;
   }
 
+  // Add audio attachments if provided
+  if (options.attachments && options.attachments.length > 0) {
+    // Initialize files array if it doesn't exist
+    messageData.files = messageData.files || [];
+    // Add attachments to files
+    messageData.files.push(...options.attachments);
+    logger.debug(`[Webhook] Added ${options.attachments.length} audio attachments to message`);
+  }
+
   return messageData;
 }
 
@@ -940,10 +950,33 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
       );
 
+      // Process any audio URLs in the content
+      let processedContent = content;
+      let attachments = [];
+      
+      try {
+        // Only process if content is a string
+        if (typeof content === 'string') {
+          logger.debug(`[Webhook] Checking for audio URLs in message content`);
+          const { content: newContent, attachments: audioAttachments } = await audioHandler.processAudioUrls(content);
+          processedContent = newContent;
+          attachments = audioAttachments;
+          
+          if (attachments.length > 0) {
+            logger.info(`[Webhook] Processed ${attachments.length} audio URLs into attachments`);
+          }
+        }
+      } catch (error) {
+        logger.error(`[Webhook] Error processing audio URLs: ${error.message}`);
+        // Continue with original content if there's an error
+        processedContent = content;
+        attachments = [];
+      }
+      
       // Split message into chunks if needed
       let contentChunks = [''];
       try {
-        const safeContent = typeof content === 'string' ? content : String(content || '');
+        const safeContent = typeof processedContent === 'string' ? processedContent : String(processedContent || '');
         contentChunks = splitMessage(safeContent);
         logger.info(`[Webhook] Split message into ${contentChunks.length} chunks`);
       } catch (error) {
@@ -981,13 +1014,18 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         }
 
         // Prepare message data for this chunk
+        // Only include attachments in the first chunk
+        const chunkOptions = isFirstChunk 
+          ? { ...options, attachments: attachments } 
+          : {};
+          
         const messageData = prepareMessageData(
           finalContent,
           standardizedName,
           personality.avatarUrl,
           channel.isThread(),
           channel.id,
-          isFirstChunk ? options : {}
+          isFirstChunk ? chunkOptions : {}
         );
 
         try {
