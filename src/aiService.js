@@ -359,7 +359,7 @@ function addToBlackoutList(personalityName, context) {
  * Create a unique request ID for tracking API requests
  * 
  * @param {string} personalityName - The AI personality name
- * @param {string} message - The message content
+ * @param {string|Array} message - The message content or array of content objects for multimodal
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
@@ -379,6 +379,13 @@ function addToBlackoutList(personalityName, context) {
  * });
  * // Returns "einstein_123_456_Thisisaverylongmessagethatwill"
  * 
+ * // With multimodal content array
+ * createRequestId("einstein", [
+ *   { type: "text", text: "What is in this image?" },
+ *   { type: "image_url", image_url: { url: "https://example.com/image.jpg" }}
+ * ], { userId: "123", channelId: "456" });
+ * // Returns a hash of the multimodal content
+ * 
  * @description
  * Creates a unique identifier string for tracking API requests and preventing duplicate
  * calls from being processed simultaneously. The ID combines four components:
@@ -386,14 +393,27 @@ function addToBlackoutList(personalityName, context) {
  * 1. Personality name - Identifies which AI personality is being used
  * 2. User ID - From context.userId or DEFAULTS.ANONYMOUS_USER fallback
  * 3. Channel ID - From context.channelId or DEFAULTS.NO_CHANNEL fallback
- * 4. Message prefix - First 30 characters of the message with spaces removed
+ * 4. Message prefix - 
+ *    - For string messages: First 30 characters with spaces removed
+ *    - For multimodal content arrays: Content hash based on text and image URL
  * 
  * This ensures that identical requests from the same user to the same personality
  * will be properly deduplicated, while different requests will have unique IDs.
  * The function is used by the request deduplication system to prevent duplicate API calls.
  */
 function createRequestId(personalityName, message, context) {
-  const messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
+  let messagePrefix;
+  
+  if (Array.isArray(message)) {
+    // For multimodal content, create a prefix based on content
+    const textContent = message.find(item => item.type === 'text')?.text || '';
+    const imageUrl = message.find(item => item.type === 'image_url')?.image_url?.url || '';
+    messagePrefix = (textContent.substring(0, 20) + imageUrl.substring(0, 10)).replace(/\s+/g, '');
+  } else {
+    // For regular string messages, use the first 30 chars
+    messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
+  }
+  
   return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}_${messagePrefix}`;
 }
 

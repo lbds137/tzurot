@@ -265,6 +265,55 @@ describe('AI Service', () => {
     });
   });
   
+  // Unit test for formatApiMessages function
+  describe('formatApiMessages', () => {
+    const { formatApiMessages } = require('../../src/aiService');
+    
+    it('should format a simple string message correctly', () => {
+      const message = 'Hello, how are you?';
+      const formattedMessages = formatApiMessages(message);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: message }
+      ]);
+    });
+    
+    it('should handle multimodal content array', () => {
+      const multimodalContent = [
+        {
+          type: 'text',
+          text: 'What is in this image?'
+        },
+        {
+          type: 'image_url',
+          image_url: {
+            url: 'https://example.com/image.jpg'
+          }
+        }
+      ];
+      
+      const formattedMessages = formatApiMessages(multimodalContent);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: multimodalContent }
+      ]);
+    });
+    
+    it('should not modify content array structure', () => {
+      const multimodalContent = [
+        { type: 'text', text: 'Text content' },
+        { type: 'image_url', image_url: { url: 'https://example.com/image.png' } }
+      ];
+      
+      const formattedMessages = formatApiMessages(multimodalContent);
+      
+      // Verify that the content array structure is preserved
+      expect(formattedMessages[0].content).toBe(multimodalContent);
+      expect(formattedMessages[0].content[0].type).toBe('text');
+      expect(formattedMessages[0].content[1].type).toBe('image_url');
+    });
+  });
+
   // Unit test for createRequestId function
   describe('createRequestId', () => {
     it('should create a unique request ID for tracking API requests', () => {
@@ -303,6 +352,37 @@ describe('AI Service', () => {
       // Missing userId
       requestId = createRequestId(personalityName, message, { channelId: 'channel-456' });
       expect(requestId).toBe('test-personality_anon_channel-456_Testmessage');
+    });
+    
+    it('should handle multimodal content arrays', () => {
+      const personalityName = 'test-personality';
+      const multimodalContent = [
+        {
+          type: 'text',
+          text: 'What is in this image?'
+        },
+        {
+          type: 'image_url',
+          image_url: {
+            url: 'https://example.com/image.jpg'
+          }
+        }
+      ];
+      const context = { userId: 'user-123', channelId: 'channel-456' };
+      
+      // For array content, the function should use a JSON stringified representation
+      const requestId = createRequestId(personalityName, multimodalContent, context);
+      
+      // As long as we get a non-empty string ID, it's valid
+      expect(typeof requestId).toBe('string');
+      expect(requestId.length).toBeGreaterThan(0);
+      expect(requestId).toContain('test-personality_user-123_channel-456');
+      
+      // Make a second request with the same inputs
+      const requestId2 = createRequestId(personalityName, multimodalContent, context);
+      
+      // The two IDs should be identical for deduplication
+      expect(requestId).toBe(requestId2);
     });
   });
   

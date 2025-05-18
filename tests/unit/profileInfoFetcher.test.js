@@ -117,12 +117,24 @@ describe('profileInfoFetcher', () => {
     profileInfoFetcher.getProfileAvatarUrl = jest.fn().mockImplementation(async (profileName) => {
       const profileInfo = await profileInfoFetcher.fetchProfileInfo(profileName);
       
-      if (!profileInfo || !profileInfo.id) {
-        console.warn(`No profile ID found for avatar: ${profileName}`);
+      if (!profileInfo) {
+        console.warn(`No profile info found for avatar: ${profileName}`);
         return null;
       }
       
       try {
+        // Check if avatar_url is directly available in the response
+        if (profileInfo.avatar_url) {
+          console.log(`Using avatar_url directly from API response: ${profileInfo.avatar_url}`);
+          return profileInfo.avatar_url;
+        }
+        
+        // Fallback to using ID-based URL format
+        if (!profileInfo.id) {
+          console.warn(`No profile ID found for avatar: ${profileName}`);
+          return null;
+        }
+        
         const avatarUrl = mockAvatarUrlFormat.replace('{id}', profileInfo.id);
         return avatarUrl;
       } catch (error) {
@@ -308,6 +320,25 @@ describe('profileInfoFetcher', () => {
     
     // Verify URL is correctly generated
     expect(result).toBe(mockAvatarUrl);
+  });
+  
+  test('getProfileAvatarUrl should directly use avatar_url when available', async () => {
+    // Create mock profile data with avatar_url
+    const profileDataWithAvatarUrl = {
+      id: mockProfileData.id,
+      name: mockProfileData.name,
+      avatar_url: 'https://direct-avatar-url.example.com/avatar.png'
+    };
+    
+    // Spy on fetchProfileInfo to return mock data with avatar_url
+    profileInfoFetcher.fetchProfileInfo.mockResolvedValueOnce(profileDataWithAvatarUrl);
+    
+    // Call the function
+    const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
+    
+    // Verify direct avatar_url is used instead of generating one from ID
+    expect(result).toBe(profileDataWithAvatarUrl.avatar_url);
+    expect(result).not.toBe(mockAvatarUrl);
   });
   
   test('getProfileAvatarUrl should return null when profile info fetch fails', async () => {

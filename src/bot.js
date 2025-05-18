@@ -732,38 +732,37 @@ async function handlePersonalityInteraction(message, personality) {
       
       // If we found an image (either via URL or attachment), create multimodal content
       if (hasFoundImage) {
-          logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
-          
-          // Create a multimodal content array
-          const multimodalContent = [];
-          
-          // Add the text content if it exists
-          if (messageContent) {
-            multimodalContent.push({
-              type: 'text',
-              text: messageContent
-            });
-          } else {
-            // Default prompt if no text was provided
-            multimodalContent.push({
-              type: 'text',
-              text: "What's in this image?"
-            });
-          }
-          
-          // Add the image
+        logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
+        
+        // Create a multimodal content array
+        const multimodalContent = [];
+        
+        // Add the text content if it exists
+        if (messageContent) {
           multimodalContent.push({
-            type: 'image_url',
-            image_url: {
-              url: imageUrl
-            }
+            type: 'text',
+            text: messageContent
           });
-          logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
-          
-          // Replace the message content with the multimodal array
-          messageContent = multimodalContent;
-          logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
+        } else {
+          // Default prompt if no text was provided
+          multimodalContent.push({
+            type: 'text',
+            text: "What's in this image?"
+          });
         }
+        
+        // Add the image
+        multimodalContent.push({
+          type: 'image_url',
+          image_url: {
+            url: imageUrl
+          }
+        });
+        logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
+        
+        // Replace the message content with the multimodal array
+        messageContent = multimodalContent;
+        logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
       }
       
       // Get the AI response from the service
