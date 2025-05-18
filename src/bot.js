@@ -12,6 +12,8 @@ const {
 const { processCommand } = require('./commands');
 const { botPrefix } = require('../config');
 const logger = require('./logger');
+const { MARKERS, ERROR_MESSAGES } = require('./constants');
+const { messageTracker } = require('./messageTracker');
 
 // Initialize the bot with necessary intents and partials
 const client = new Client({
@@ -29,21 +31,6 @@ const client = new Client({
 // This intercepts webhook messages containing error patterns before they're processed
 const originalEmit = client.emit;
 
-// Common error patterns that should be blocked
-const ERROR_PATTERNS = [
-  "I'm having trouble connecting",
-  'ERROR_MESSAGE_PREFIX:',
-  'trouble connecting to my brain',
-  'technical issue',
-  'Error ID:',
-  'issue with my configuration',
-  'issue with my response system',
-  'momentary lapse',
-  'try again later',
-  'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  'Please try again',
-];
-
 // Override the emit function to intercept webhook messages
 client.emit = function (event, ...args) {
   // Only intercept messageCreate events from webhooks
@@ -53,7 +40,7 @@ client.emit = function (event, ...args) {
     // Filter webhook messages with error content
     if (message.webhookId && message.content) {
       // Check if message contains any error patterns
-      if (ERROR_PATTERNS.some(pattern => message.content.includes(pattern))) {
+      if (ERROR_MESSAGES.some(pattern => message.content.includes(pattern))) {
         // Try to delete the message if possible (silent fail)
         if (message.deletable) {
           message.delete().catch(() => {});
@@ -69,90 +56,47 @@ client.emit = function (event, ...args) {
   return originalEmit.apply(this, [event, ...args]);
 };
 
-// Global-level protection against double-replies
-const recentReplies = new Map();
-
 // Bot initialization function
 async function initBot() {
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
 
-  // Initialize global sets for tracking processed messages
-  global.processedBotMessages = new Set();
-
-  // Add a periodic cleaner for the global set (every 5 minutes)
-  setInterval(
-    () => {
-      if (global.processedBotMessages && global.processedBotMessages.size > 0) {
-        logger.info(
-          `Periodic cleanup of global processedBotMessages set (size: ${global.processedBotMessages.size})`
-        );
-        global.processedBotMessages.clear();
-      }
-
-      // Also clean up the recentReplies map
-      if (recentReplies.size > 0) {
-        logger.info(`Cleaning up recentReplies map (size: ${recentReplies.size})`);
-        recentReplies.clear();
-      }
-    },
-    5 * 60 * 1000
-  ).unref(); // unref() allows the process to exit even if timer is active
-
-  // CRITICAL FIX: Patch the Discord Message.prototype.reply method to prevent double replies
-  // This is the most effective way to prevent duplicate embeds at the Discord.js API level
+  // Patch the Discord Message.prototype.reply method
   const { Message } = require('discord.js');
   const originalReply = Message.prototype.reply;
 
   // Replace the original reply method with our patched version
   Message.prototype.reply = async function patchedReply(options) {
     // Create a unique signature for this reply
-    const replySignature = `reply-${this.id}-${this.channel.id}-${
-      typeof options === 'string'
-        ? options.substring(0, 20)
-        : options.content
-          ? options.content.substring(0, 20)
-          : options.embeds && options.embeds.length > 0
-            ? options.embeds[0].title || 'embed'
-            : 'unknown'
-    }`;
-
-    // Check if we've recently sent this exact reply
-    if (recentReplies.has(replySignature)) {
-      const timeAgo = Date.now() - recentReplies.get(replySignature);
-      if (timeAgo < 5000) {
-        // Consider it a duplicate if sent within 5 seconds
-        logger.warn(
-          `CRITICAL: Prevented duplicate reply with signature: ${replySignature} (${timeAgo}ms ago)`
-        );
-        // Return a dummy response to maintain API compatibility
-        return {
-          id: `prevented-dupe-${Date.now()}`,
-          content: typeof options === 'string' ? options : options.content || '',
-          isDuplicate: true,
-        };
-      }
+    const optionsSignature = typeof options === 'string'
+      ? options.substring(0, 20)
+      : options.content
+        ? options.content.substring(0, 20)
+        : options.embeds && options.embeds.length > 0
+          ? options.embeds[0].title || 'embed'
+          : 'unknown';
+          
+    // Check if this operation is a duplicate
+    if (!messageTracker.trackOperation(this.channel.id, 'reply', optionsSignature)) {
+      // Return a dummy response to maintain API compatibility
+      return {
+        id: `prevented-dupe-${Date.now()}`,
+        content: typeof options === 'string' ? options : options.content || '',
+        isDuplicate: true,
+      };
     }
-
-    // Record this reply attempt
-    recentReplies.set(replySignature, Date.now());
-
-    // Set a timeout to clean up this entry after 10 seconds
-    setTimeout(() => {
-      recentReplies.delete(replySignature);
-    }, 10000);
-
+    
     // Call the original reply method
     return originalReply.apply(this, arguments);
   };
 
-  // ALSO patch the channel.send method
+  // Patch the TextChannel.prototype.send method
   const { TextChannel } = require('discord.js');
   const originalSend = TextChannel.prototype.send;
 
   // Replace the original send method with our patched version
   TextChannel.prototype.send = async function patchedSend(options) {
-    logger.info(
+    logger.debug(
       `Channel.send called with options: ${JSON.stringify({
         channelId: this.id,
         options:
@@ -167,40 +111,23 @@ async function initBot() {
     );
 
     // Create a unique signature for this send operation
-    const sendSignature = `send-${this.id}-${
-      typeof options === 'string'
-        ? options.substring(0, 20)
-        : options.content
-          ? options.content.substring(0, 20)
-          : options.embeds && options.embeds.length > 0
-            ? options.embeds[0].title || 'embed'
-            : 'unknown'
-    }`;
-
-    // Check if we've recently sent this exact message
-    if (recentReplies.has(sendSignature)) {
-      const timeAgo = Date.now() - recentReplies.get(sendSignature);
-      if (timeAgo < 5000) {
-        // Consider it a duplicate if sent within 5 seconds
-        logger.warn(
-          `CRITICAL: Prevented duplicate send with signature: ${sendSignature} (${timeAgo}ms ago)`
-        );
-        // Return a dummy response to maintain API compatibility
-        return {
-          id: `prevented-dupe-${Date.now()}`,
-          content: typeof options === 'string' ? options : options.content || '',
-          isDuplicate: true,
-        };
-      }
+    const optionsSignature = typeof options === 'string'
+      ? options.substring(0, 20)
+      : options.content
+        ? options.content.substring(0, 20)
+        : options.embeds && options.embeds.length > 0
+          ? options.embeds[0].title || 'embed'
+          : 'unknown';
+          
+    // Check if this operation is a duplicate
+    if (!messageTracker.trackOperation(this.id, 'send', optionsSignature)) {
+      // Return a dummy response to maintain API compatibility
+      return {
+        id: `prevented-dupe-${Date.now()}`,
+        content: typeof options === 'string' ? options : options.content || '',
+        isDuplicate: true,
+      };
     }
-
-    // Record this send attempt
-    recentReplies.set(sendSignature, Date.now());
-
-    // Set a timeout to clean up this entry after 10 seconds
-    setTimeout(() => {
-      recentReplies.delete(sendSignature);
-    }, 10000);
 
     // Call the original send method
     return originalSend.apply(this, arguments);
@@ -224,8 +151,6 @@ async function initBot() {
     logger.error('Discord client error:', error);
   });
 
-  // Track webhook messages for processing
-
   // Message handling
   client.on('messageCreate', async message => {
     // Only ignore messages from bots that aren't our webhooks
@@ -233,42 +158,13 @@ async function initBot() {
       // CRITICAL: More aggressive handling of our own bot's messages
       // We need to identify these by the bot's own client ID
       if (message.author.id === client.user.id) {
-        // Create a unique ID for this bot message
-        const botMessageId = `bot-message-${message.id}`;
-
-        // Check for duplicates
-        if (global.seenBotMessages && global.seenBotMessages.has(botMessageId)) {
-          logger.warn(`DUPLICATE BOT MESSAGE DETECTED: ${message.id} - already processed`);
-          return; // Completely ignore duplicate messages
+        // Check for duplicate bot message
+        if (!messageTracker.track(message.id, 'bot-message')) {
+          return; // Skip processing if message is already tracked
         }
-
-        // Initialize global tracking set if needed
-        if (!global.seenBotMessages) {
-          global.seenBotMessages = new Set();
-
-          // Set up periodic cleanup
-          setInterval(
-            () => {
-              if (global.seenBotMessages && global.seenBotMessages.size > 0) {
-                logger.info(`Cleaning up seenBotMessages (size: ${global.seenBotMessages.size})`);
-                global.seenBotMessages.clear();
-              }
-            },
-            10 * 60 * 1000
-          ).unref(); // 10 minutes
-        }
-
-        // Track that we've seen this message
-        global.seenBotMessages.add(botMessageId);
-
-        // Extra tracking for debugging
-        logger.debug(
-          `Processing my own message with ID ${message.id} - content: "${message.content.substring(0, 30)}...", has embeds: ${message.embeds?.length > 0}`
-        );
 
         // Log detailed embed info for better debugging
         if (message.embeds && message.embeds.length > 0) {
-          // Log more detailed embed information to help diagnose issues
           const embedInfo = message.embeds.map(embed => ({
             title: embed.title,
             description: embed.description?.substring(0, 50),
@@ -323,7 +219,6 @@ async function initBot() {
           // Update global embed timestamp regardless of deletion
           // This helps us track when embeds were sent
           global.lastEmbedTime = Date.now();
-          logger.debug(`Updated global.lastEmbedTime to ${global.lastEmbedTime}`);
         }
 
         logger.debug(`This is my own message with ID ${message.id} - returning immediately`);
@@ -338,27 +233,9 @@ async function initBot() {
 
         // HARD FILTER: Ignore ANY message with error content
         // This is a very strict filter to ensure we don't process ANY error messages
-        if (
-          message.content &&
-          (message.content.includes("I'm having trouble connecting") ||
-            message.content.includes('ERROR_MESSAGE_PREFIX:') ||
-            message.content.includes('trouble connecting to my brain') ||
-            message.content.includes('technical issue') ||
-            message.content.includes('Error ID:') ||
-            message.content.startsWith("I'm experiencing") ||
-            message.content.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') ||
-            message.content.includes('issue with my configuration') ||
-            message.content.includes('issue with my response system') ||
-            message.content.includes('momentary lapse') ||
-            message.content.includes('try again later') ||
-            (message.content.includes('connection') && message.content.includes('unstable')) ||
-            message.content.includes('unable to formulate') ||
-            message.content.includes('Please try again'))
-        ) {
+        if (message.content && ERROR_MESSAGES.some(pattern => message.content.includes(pattern))) {
           logger.warn(`Blocking error message: ${message.webhookId}`);
-          logger.warn(
-            `Message content matches error pattern: ${message.content.substring(0, 50)}...`
-          );
+          logger.warn(`Message content matches error pattern: ${message.content.substring(0, 50)}...`);
           return; // CRITICAL: Completely ignore this message
         }
 
@@ -398,6 +275,12 @@ async function initBot() {
       logger.info(`Command detected from user ${message.author.tag} with ID ${message.id}`);
       logger.debug(`Message content: ${message.content}`);
 
+      // Check for duplicate message processing
+      if (!messageTracker.track(message.id, 'command')) {
+        logger.warn(`Prevented duplicate command processing for message ${message.id}`);
+        return;
+      }
+
       // Remove prefix and trim leading space
       const content = message.content.startsWith(botPrefix + ' ')
         ? message.content.slice(botPrefix.length + 1)
@@ -406,42 +289,12 @@ async function initBot() {
       const args = content.trim().split(/ +/);
       const command = args.shift()?.toLowerCase() || 'help'; // Default to help if no command
 
-      logger.debug(
-        `Calling processCommand with ID ${message.id}, command=${command}, args=${args.join(',')}`
-      );
-
-      // Use a simple in-memory Set to track command messages we've already processed
-      // This Set is maintained at the bot.js level, separate from the one in commands.js
-      if (!global.processedBotMessages) {
-        global.processedBotMessages = new Set();
-      }
-
-      // Check if this EXACT message ID has been processed already (bot-level check)
-      if (global.processedBotMessages.has(message.id)) {
-        logger.warn(
-          `CRITICAL: Message ${message.id} already processed at bot level - preventing duplicate processing`
-        );
-        return; // Stop processing entirely
-      }
-
-      // Mark this message as processed at the bot level
-      global.processedBotMessages.add(message.id);
-      logger.debug(`Added message ${message.id} to bot-level processed messages set`);
-
-      // Clean up this entry after 30 seconds
-      setTimeout(() => {
-        if (global.processedBotMessages.has(message.id)) {
-          global.processedBotMessages.delete(message.id);
-          logger.debug(`Removed message ${message.id} from bot-level processed messages set`);
-        }
-      }, 30000);
+      logger.debug(`Calling processCommand with ID ${message.id}, command=${command}, args=${args.join(',')}`);
 
       try {
-        // Process the command only once
+        // Process the command
         const result = await processCommand(message, command, args);
-        logger.debug(
-          `processCommand completed with result: ${result ? 'success' : 'null/undefined'}`
-        );
+        logger.debug(`processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
       } catch (error) {
         logger.error(`Error in processCommand:`, error);
       }
@@ -450,19 +303,13 @@ async function initBot() {
 
     // Reply-based conversation continuation
     if (message.reference) {
-      logger.debug(
-        `Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`
-      );
+      logger.debug(`Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`);
       try {
         const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
-        logger.debug(
-          `Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`
-        );
+        logger.debug(`Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
 
         // Check if the referenced message was from one of our personalities
-        logger.debug(
-          `Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`
-        );
+        logger.debug(`Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
 
         if (referencedMessage.webhookId) {
           logger.debug(`Looking up personality for message ID: ${referencedMessage.id}`);
@@ -489,9 +336,7 @@ async function initBot() {
           logger.debug(`Personality lookup result: ${personalityName || 'null'}`);
 
           if (personalityName) {
-            logger.debug(
-              `Found personality name: ${personalityName}, looking up personality details`
-            );
+            logger.debug(`Found personality name: ${personalityName}, looking up personality details`);
 
             // First try to get personality directly as it could be a full name
             let personality = getPersonality(personalityName);
@@ -501,9 +346,7 @@ async function initBot() {
               personality = getPersonalityByAlias(personalityName);
             }
 
-            logger.debug(
-              `Personality lookup result: ${personality ? personality.fullName : 'null'}`
-            );
+            logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
             if (personality) {
               // Process the message with this personality
@@ -520,9 +363,7 @@ async function initBot() {
             logger.debug(`No personality found for message ID: ${referencedMessage.id}`);
           }
         } else {
-          logger.debug(
-            `Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`
-          );
+          logger.debug(`Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
         }
       } catch (error) {
         logger.error('Error handling message reference:', error);
@@ -542,9 +383,7 @@ async function initBot() {
 
       if (standardMentionMatch && standardMentionMatch[1]) {
         const mentionName = standardMentionMatch[1];
-        logger.debug(
-          `Found standard @mention: ${mentionName}, checking if it's a valid personality`
-        );
+        logger.debug(`Found standard @mention: ${mentionName}, checking if it's a valid personality`);
 
         // Check if this is a valid personality (directly or as an alias)
         let personality = getPersonality(mentionName);
@@ -553,9 +392,7 @@ async function initBot() {
         }
 
         if (personality) {
-          logger.debug(
-            `Found standard @mention personality: ${mentionName} -> ${personality.fullName}`
-          );
+          logger.debug(`Found standard @mention personality: ${mentionName} -> ${personality.fullName}`);
           potentialMatches.push({
             mentionText: mentionName,
             personality: personality,
@@ -621,9 +458,7 @@ async function initBot() {
               // Count the number of words in this match
               const wordCount = mentionText.split(/\s+/).length;
 
-              logger.info(
-                `Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
-              );
+              logger.info(`Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`);
 
               // Add to potential matches
               potentialMatches.push({
@@ -644,17 +479,13 @@ async function initBot() {
         // If we found any matches, use the one with the most words (longest match)
         if (potentialMatches.length > 0) {
           const bestMatch = potentialMatches[0];
-          logger.info(
-            `Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
-          );
+          logger.info(`Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`);
 
           // If there were multiple matches, log them for debugging
           if (potentialMatches.length > 1) {
             logger.debug(`Chose the longest match from ${potentialMatches.length} options:`);
             potentialMatches.forEach(match => {
-              logger.debug(
-                `- ${match.mentionText} (${match.wordCount} words) -> ${match.personality.fullName}`
-              );
+              logger.debug(`- ${match.mentionText} (${match.wordCount} words) -> ${match.personality.fullName}`);
             });
           }
 
@@ -732,35 +563,6 @@ async function initBot() {
 const activeRequests = new Map();
 
 /**
- * Minimizes console logging, only showing critical error messages
- * @returns {Object} Empty object as we don't need to restore anything with structured logger
- */
-function minimizeConsoleLogging() {
-  // With structured logging in place, we don't need to minimize output anymore
-  // This function is kept for backwards compatibility
-  return {};
-}
-
-/**
- * Completely disables console logging for sensitive operations
- * @returns {Object} Empty object as we don't need to restore anything with structured logger
- */
-function disableConsoleLogging() {
-  // With structured logging in place, we don't need to disable output anymore
-  // This function is kept for backwards compatibility
-  return {};
-}
-
-/**
- * Restores console logging functions to their original state
- * @param {Object} originalFunctions - Object containing original console functions (not used with structured logger)
- */
-function restoreConsoleLogging() {
-  // With structured logging in place, we don't need to restore anything
-  // This function is kept for backwards compatibility
-}
-
-/**
  * Tracks requests to prevent duplicates
  * @param {string} userId - User ID
  * @param {string} channelId - Channel ID
@@ -825,8 +627,6 @@ function recordConversationData(userId, channelId, result, personalityName) {
  * @param {string} [triggeringMention=null] - The specific @mention text that triggered this interaction
  */
 async function handlePersonalityInteraction(message, personality, triggeringMention = null) {
-  // Minimize console logging during personality interaction
-  const originalConsoleFunctions = minimizeConsoleLogging();
   let typingInterval;
 
   try {
@@ -863,9 +663,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
           .trim();
 
         if (messageContent !== message.content) {
-          logger.info(
-            `[Bot] Removed triggering @mention "${triggeringMention}" from message content`
-          );
+          logger.info(`[Bot] Removed triggering @mention "${triggeringMention}" from message content`);
           logger.debug(`[Bot] Original: "${message.content}" -> Cleaned: "${messageContent}"`);
         }
 
@@ -904,9 +702,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
 
       // If we didn't find any media URL, check for attachments
       if (!hasFoundImage && !hasFoundAudio && message.attachments && message.attachments.size > 0) {
-        logger.info(
-          `[Bot] Message has ${message.attachments.size} attachments, checking for media`
-        );
+        logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for media`);
 
         // First check for audio attachments (prioritize audio over images per API limitation)
         const audioAttachments = message.attachments.filter(attachment => {
@@ -927,9 +723,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
 
           // If there are more audio files, log a warning
           if (audioAttachments.size > 1) {
-            logger.warn(
-              `[Bot] Ignoring ${audioAttachments.size - 1} additional audio files - API only supports one media per request`
-            );
+            logger.warn(`[Bot] Ignoring ${audioAttachments.size - 1} additional audio files - API only supports one media per request`);
           }
         } else {
           // If no audio attachments were found, check for image attachments
@@ -944,9 +738,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
 
             // If there are more images, log a warning
             if (imageAttachments.size > 1) {
-              logger.warn(
-                `[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one media per request`
-              );
+              logger.warn(`[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one media per request`);
             }
           }
         }
@@ -992,9 +784,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
 
           // If we also found an image, log that we're ignoring it due to API limitation
           if (hasFoundImage) {
-            logger.warn(
-              `[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`
-            );
+            logger.warn(`[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
           }
         } else if (hasFoundImage) {
           logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
@@ -1028,12 +818,11 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       typingInterval = null;
 
       // Check for special marker that tells us to completely ignore this response
-      if (aiResponse === 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') {
+      if (aiResponse === MARKERS.HARD_BLOCKED_RESPONSE) {
         return; // Necessary return to exit early when receiving blocked response
       }
       
       // Check for BOT_ERROR_MESSAGE marker - these should come from the bot, not the personality
-      const { MARKERS } = require('./constants');
       if (aiResponse && typeof aiResponse === 'string' && aiResponse.startsWith(MARKERS.BOT_ERROR_MESSAGE)) {
         // Extract the actual error message by removing the marker
         const errorMessage = aiResponse.replace(MARKERS.BOT_ERROR_MESSAGE, '').trim();
@@ -1048,9 +837,6 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       // This helps prevent the race condition between error messages and real responses
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Minimize console output for webhook operations
-      const webhookLoggingOriginal = disableConsoleLogging();
-
       // Send response and record conversation
       // CRITICAL: We must pass the original message to ensure we use the correct user's auth token
       // This ensures user authentication is preserved when replying to webhook messages
@@ -1064,9 +850,6 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
         },
         message // Pass the original message for user authentication
       );
-
-      // Restore logging
-      restoreConsoleLogging(webhookLoggingOriginal);
 
       // Clean up active request tracking
       activeRequests.delete(requestKey);
@@ -1096,9 +879,6 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     if (typingInterval) {
       clearInterval(typingInterval);
     }
-
-    // Restore console functions
-    restoreConsoleLogging(originalConsoleFunctions);
   }
 }
 
@@ -1120,8 +900,7 @@ function startQueueCleaner(client) {
 
   // Check for error messages periodically
   setInterval(async () => {
-    // Disable console output during queue cleaning
-    const originalConsoleFunctions = disableConsoleLogging();
+    // Using structured logging for queue cleaning
     try {
       // Get all channels the bot has access to, excluding already identified inaccessible ones
       const channels = Array.from(client.channels.cache.values()).filter(
@@ -1181,18 +960,7 @@ function startQueueCleaner(client) {
               msg.webhookId &&
               msg.author?.username && // Must have a username
               msg.content &&
-              (msg.content.includes("I'm having trouble connecting") ||
-                msg.content.includes('ERROR_MESSAGE_PREFIX:') ||
-                msg.content.includes('trouble connecting to my brain') ||
-                msg.content.includes('technical issue') ||
-                msg.content.includes('Error ID:') ||
-                msg.content.includes('issue with my configuration') ||
-                msg.content.includes('issue with my response system') ||
-                msg.content.includes('momentary lapse') ||
-                msg.content.includes('try again later') ||
-                msg.content.includes('unable to formulate') ||
-                msg.content.includes('Please try again') ||
-                (msg.content.includes('connection') && msg.content.includes('unstable')))
+              ERROR_MESSAGES.some(pattern => msg.content.includes(pattern))
           );
 
           // Delete any found error messages
@@ -1253,9 +1021,6 @@ function startQueueCleaner(client) {
     } catch (error) {
       // Silently fail
       logger.error('[QueueCleaner] Unhandled error:', error);
-    } finally {
-      // Restore console output
-      restoreConsoleLogging(originalConsoleFunctions);
     }
   }, 7000); // Check every 7 seconds
 }
