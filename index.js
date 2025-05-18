@@ -6,6 +6,8 @@ const { initConversationManager, saveAllData } = require('./src/conversationMana
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 const { createHealthServer } = require('./src/healthCheck');
+const { initAuth } = require('./src/auth');
+const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
 
 // Track whether app has been initialized
@@ -48,6 +50,14 @@ async function init() {
     // Initialize conversation manager (loads saved conversation data)
     await initConversationManager();
     logger.info('Conversation manager initialized');
+    
+    // Initialize auth system (loads saved tokens)
+    await initAuth();
+    logger.info('Auth system initialized');
+    
+    // Initialize the AI client after auth is loaded
+    initAiClient();
+    logger.info('AI client initialized');
     
     // Initialize and start the bot - this is critical for user experience
     await initBot();

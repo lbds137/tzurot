@@ -6,7 +6,7 @@ const botPrefix = process.env.PREFIX || '!tz';
 
 // Function to get the API endpoint
 function getApiEndpoint() {
-  return process.env.SERVICE_API_ENDPOINT;
+  return `${process.env.SERVICE_API_BASE_URL}/v1`;
 }
 
 // Function to get the service identifier

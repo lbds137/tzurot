@@ -2,15 +2,61 @@ const { OpenAI } = require('openai');
 const { getApiEndpoint, getModelPath } = require('../config');
 const logger = require('./logger');
 const { TIME, ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
+const auth = require('./auth');
 
-// Initialize the AI client with encoded endpoint
-const aiClient = new OpenAI({
-  apiKey: process.env.SERVICE_API_KEY,
-  baseURL: getApiEndpoint(),
-  defaultHeaders: {
-    // Add any default headers here that should be sent with every request
-  },
-});
+// Initialize the default AI client with API key (used when user doesn't have a token)
+// We need to defer creation until after auth module is loaded
+let defaultAiClient;
+
+/**
+ * Initialize the AI client - must be called after auth module is initialized
+ */
+function initAiClient() {
+  defaultAiClient = new OpenAI({
+    apiKey: auth.API_KEY,
+    baseURL: getApiEndpoint(),
+    defaultHeaders: {
+      // Add any default headers here that should be sent with every request
+    },
+  });
+  logger.info('[AIService] Default AI client initialized');
+}
+
+/**
+ * Get an AI client for a specific user, using their auth token if available
+ * @param {string} userId - The Discord user ID
+ * @returns {OpenAI} - An OpenAI client instance with appropriate auth
+ */
+function getAiClientForUser(userId) {
+  // If user has a valid token, create a client with their token
+  if (userId && auth.hasValidToken(userId)) {
+    const userToken = auth.getUserToken(userId);
+    logger.debug(`[AIService] Using user-specific auth token for user ${userId}`);
+    
+    // Updated implementation:
+    // - We need to use the actual API key (not "not-needed")
+    // - Headers still use "X-App-ID" and "X-User-Auth" format
+    return new OpenAI({
+      apiKey: auth.API_KEY,
+      baseURL: getApiEndpoint(),
+      defaultHeaders: {
+        "X-App-ID": auth.APP_ID,
+        "X-User-Auth": userToken,
+      },
+    });
+  }
+  
+  // Otherwise use the default client
+  logger.debug(`[AIService] Using default API key for user ${userId || 'unknown'}`);
+  
+  // Ensure defaultAiClient is initialized
+  if (!defaultAiClient) {
+    logger.warn('[AIService] Default AI client not initialized, initializing now');
+    initAiClient();
+  }
+  
+  return defaultAiClient;
+}
 
 // Track in-progress API requests to prevent duplicate processing
 const pendingRequests = new Map();
@@ -495,6 +541,10 @@ async function handleProblematicPersonality(
   try {
     // Format the message content properly for the API
     const messages = formatApiMessages(message);
+    
+    // Get the appropriate AI client for this user
+    const userId = context.userId || null;
+    const aiClient = getAiClientForUser(userId);
 
     // Still try the API call in case the issue has been fixed
     const response = await aiClient.chat.completions.create({
@@ -851,7 +901,11 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Format the message content properly for the API
   const messages = formatApiMessages(message);
-
+  
+  // Get the appropriate AI client for this user
+  const userId = context.userId || null;
+  const aiClient = getAiClientForUser(userId);
+  
   const response = await aiClient.chat.completions.create({
     model: modelPath,
     messages: messages,
@@ -957,6 +1011,8 @@ module.exports = {
   addToBlackoutList,
   createBlackoutKey,
   errorBlackoutPeriods,
+  getAiClientForUser,
+  initAiClient,
 
   // Export for testing
   prepareRequestHeaders,

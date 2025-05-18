@@ -44,6 +44,41 @@ async function processCommand(message, command, args) {
     `Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
   );
 
+  // Import auth module to check if user is authenticated
+  const auth = require('./auth');
+
+  // CRITICAL: Check if user is authenticated, and if not, restrict to auth commands only
+  const isAuthenticated = auth.hasValidToken(message.author.id);
+  const isAuthCommand = (command === 'auth' || command === 'help');
+  
+  if (!isAuthenticated && !isAuthCommand) {
+    // User is trying to use a non-auth command without authentication
+    logger.info(`[Commands] Unauthorized user ${message.author.tag} attempted to use command: ${command}`);
+    
+    // Try to send a DM to the user for more secure authentication
+    try {
+      // First try a DM
+      await message.author.send(
+        `**Authentication Required**\n\n` +
+        `You need to authenticate with the service before using any commands.\n\n` +
+        `Please use \`${prefix} auth start\` to begin the authentication process. ` +
+        `Once authenticated, you'll be able to use all bot commands.\n\n` +
+        `For security, I recommend completing the authentication process in DMs rather than in a public channel.`
+      );
+      
+      // Let them know in the channel that we've sent a DM
+      return await message.reply('You need to authenticate before using this command. I\'ve sent you a DM with instructions.');
+    } catch (dmError) {
+      // If DM fails, reply in the channel
+      logger.warn(`[Commands] Failed to send DM to user ${message.author.id}: ${dmError.message}`);
+      return await message.reply(
+        `**Authentication Required**\n\n` +
+        `You need to authenticate with the service before using any commands.\n\n` +
+        `Please use \`${prefix} auth start\` to begin the authentication process.`
+      );
+    }
+  }
+
   // ENHANCED LOGGING: Check processed messages in more detail
   logger.debug(
     `[Commands] Checking if message ${message.id} is in the processedMessages set (size: ${processedMessages.size})`
@@ -167,6 +202,9 @@ async function processCommand(message, command, args) {
       case 'autorespond':
       case 'auto':
         return await handleAutoRespondCommand(message, args);
+        
+      case 'auth':
+        return await handleAuthCommand(message, args);
 
       case 'status':
         return await handleStatusCommand(message, args);
@@ -236,6 +274,18 @@ async function handleHelpCommand(message, args) {
       const specificCommand = args[0].toLowerCase();
 
       switch (specificCommand) {
+        case 'auth':
+          return await directSend(
+            `**${prefix} auth <subcommand>**\n` +
+            `Authentication commands for accessing the AI service with your account.\n\n` +
+            `Subcommands:\n` +
+            `- \`start\` - Begin the authentication process and get an authorization URL\n` +
+            `- \`code <code>\` - Submit your authorization code (DM only for security)\n` +
+            `- \`status\` - Check your current authentication status\n` +
+            `- \`revoke\` - Remove your authorization\n\n` +
+            `Security Note: For your protection, authorization codes must be submitted via DM only. ` +
+            `Messages with authorization codes in public channels will be deleted.`
+          );
         case 'add':
         case 'create':
           return await directSend(
@@ -333,6 +383,7 @@ async function handleHelpCommand(message, args) {
           );
       }
     }
+    
 
     // General help
     const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -2016,6 +2067,197 @@ async function handleDebugProblematicCommand(message) {
   return message.reply({ embeds: [embed] });
 }
 
+/**
+ * Handle the auth command for Claude.ai authorization
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleAuthCommand(message, args) {
+  // Import auth module
+  const auth = require('./auth');
+  
+  // Create direct send function with proper error handling
+  const directSend = utils.createDirectSend(message);
+  
+  // Security check: Is this a DM channel?
+  const isDM = message.channel.isDMBased && message.channel.isDMBased();
+  
+  if (!args.length) {
+    // No arguments, provide help
+    return await directSend(
+      `**Authorization Commands**\n` +
+      `\n` +
+      `- \`${botPrefix} auth start\` - Get a link to start the authorization process\n` +
+      `- \`${botPrefix} auth code <your-code>\` - Submit the authorization code you received\n` +
+      `- \`${botPrefix} auth status\` - Check your current authorization status\n` +
+      `- \`${botPrefix} auth revoke\` - Revoke your authorization`
+    );
+  }
+  
+  const subCommand = args[0].toLowerCase();
+  
+  switch (subCommand) {
+    case 'start':
+      // Generate the authorization URL
+      const authUrl = auth.getAuthorizationUrl();
+      
+      // Send a DM to the user with the URL if possible
+      try {
+        await message.author.send(
+          `**AI Service Authorization**\n\n` +
+          `1. Click this link to authorize the bot: ${authUrl}\n\n` +
+          `2. Log in with your account (if not already logged in)\n\n` +
+          `3. Approve the authorization request\n\n` +
+          `4. After authorizing, you'll receive a one-time code. Copy it.\n\n` +
+          `5. Reply to this DM with your code: \`${botPrefix} auth code YOUR_CODE_HERE\`\n\n` +
+          `**IMPORTANT**: For security, if you must use a public channel, please put your code in Discord spoiler tags like this: \`${botPrefix} auth code ||YOUR_CODE_HERE||\`\n\n` +
+          `This will allow the bot to use your account for conversation history, personalized responses, and individual rate limits.`
+        );
+        
+        // Send a confirmation in the channel
+        return await directSend('I\'ve sent you a DM with authorization instructions!');
+      } catch (dmError) {
+        // If we can't DM, send the info in the channel
+        logger.warn(`Unable to DM user ${message.author.id} for auth: ${dmError.message}`);
+        return await directSend(
+          `**AI Service Authorization**\n\n` +
+          `1. Click this link to authorize the bot: ${authUrl}\n\n` +
+          `2. Log in with your account (if not already logged in)\n\n` +
+          `3. Approve the authorization request\n\n` +
+          `4. After authorizing, you'll receive a one-time code. Copy it.\n\n` +
+          `5. For security, please put your code in Discord spoiler tags: \`${botPrefix} auth code ||YOUR_CODE_HERE||\`\n\n` +
+          `Your message with the code will be deleted immediately after processing.\n\n` +
+          `This will allow the bot to use your account for conversation history, personalized responses, and individual rate limits.`
+        );
+      }
+      
+    case 'code':
+      if (args.length < 2) {
+        return await directSend(`Please provide the authorization code. Usage: \`${botPrefix} auth code ||YOUR_CODE||\``);  
+      }
+      
+      // Enforce DM-only for auth code submission for enhanced security
+      if (!isDM) {
+        // Attempt to delete the message immediately for security
+        try {
+          await message.delete();
+          logger.info(`[Auth] Deleted message with authorization code from public channel`);
+        } catch (deleteError) {
+          logger.warn(`[Auth] Unable to delete message with auth code from public channel: ${deleteError.message}`);
+        }
+        
+        // Try to send a DM to the user with instructions
+        try {
+          await message.author.send(
+            `**⚠️ Security Alert**\n\n` +
+            `For security reasons, please submit your authorization code via DM only.\n\n` +
+            `I've deleted your message from the public channel. Please submit your code again by sending me a direct message with:\n` +
+            `\`${botPrefix} auth code YOUR_CODE_HERE\``
+          );
+          
+          // Let them know in the public channel that we've sent a DM
+          return await directSend('For security, authorization codes can only be submitted via DM. I\'ve sent you instructions.');
+        } catch (dmError) {
+          logger.warn(`[Auth] Failed to send DM to user ${message.author.id} for auth code security: ${dmError.message}`);
+          
+          // If we can't DM them, provide a more vague message in the public channel
+          return await directSend(
+            `For security reasons, please submit your authorization code via DM only.\n` +
+            `Your message has been deleted. Please send me a direct message to complete the authorization process.`
+          );
+        }
+      }
+      
+      // If we're in a DM, no need to delete the message (and it would fail anyway)
+      if (!isDM) {
+        // Attempt to delete the message immediately for security, regardless of success/failure
+        try {
+          await message.delete();
+          logger.info(`[Auth] Successfully deleted message with authorization code`);
+        } catch (deleteError) {
+          logger.warn(`[Auth] Unable to immediately delete message with auth code: ${deleteError.message}`);
+          // Continue processing anyway
+        }
+      } else {
+        logger.info(`[Auth] Processing auth code securely via DM`);
+      }
+      
+      // Extract the code, handling spoiler tags if present
+      let code = args[1];
+      
+      // Check if the code is wrapped in Discord spoiler tags ||code||
+      if (code.startsWith('||') && code.endsWith('||')) {
+        // Remove the spoiler tags
+        code = code.substring(2, code.length - 2);
+        logger.info(`[Auth] Extracted code from spoiler tags`);
+      }
+      
+      // Show typing indicator while processing
+      message.channel.sendTyping().catch(() => {});
+      
+      try {
+        // Exchange the code for a token
+        logger.info(`[Auth] Exchanging code for token...`);
+        const token = await auth.exchangeCodeForToken(code);
+        
+        if (!token) {
+          return await directSend('❌ Authorization failed. The code may be invalid or expired.');
+        }
+        
+        // Store the token
+        logger.info(`[Auth] Storing token for user ${message.author.id}`);
+        const stored = await auth.storeUserToken(message.author.id, token);
+        
+        if (!stored) {
+          return await directSend('❌ Failed to store authorization token. Please try again later.');
+        }
+        
+        // Attempt to delete the message again just in case the first attempt failed,
+        // but only if we're not in a DM
+        if (!isDM) {
+          try {
+            await message.delete();
+          } catch (deleteError) {
+            // It's likely already deleted, so just log it at debug level
+            logger.debug(`[Auth] Second attempt to delete message failed (probably already deleted): ${deleteError.message}`);
+          }
+        }
+        
+        return await directSend('✅ Authorization successful! The bot will now use your account for AI interactions.');
+      } catch (error) {
+        logger.error(`Error during auth code exchange: ${error.message}`);
+        return await directSend('❌ An error occurred during authorization. Please try again later.');
+      }
+      
+    case 'status':
+      // Check if the user has a valid token
+      const hasToken = auth.hasValidToken(message.author.id);
+      
+      if (hasToken) {
+        return await directSend('✅ You have a valid authorization token. The bot is using your account for AI interactions.');
+      } else {
+        return await directSend(
+          `❌ You don't have an authorization token. Use \`${botPrefix} auth start\` to begin the authorization process.`
+        );
+      }
+      
+    case 'revoke':
+      // Delete the user's token
+      const deleted = await auth.deleteUserToken(message.author.id);
+      
+      if (deleted) {
+        return await directSend('✅ Your authorization has been revoked. The bot will no longer use your personal account.');
+      } else {
+        return await directSend('❌ Failed to revoke authorization. Please try again later.');
+      }
+      
+    default:
+      return await directSend(
+        `Unknown auth subcommand: \`${subCommand}\`. Use \`${botPrefix} auth\` to see available subcommands.`
+      );
+  }
+}
+
 module.exports = {
   processCommand,
   // Export for testing
@@ -2026,6 +2268,7 @@ module.exports = {
   handleActivateCommand,
   handleDeactivateCommand,
   handleListCommand,
+  handleAuthCommand,
   directSend: content => {
     try {
       if (typeof content === 'string') {
