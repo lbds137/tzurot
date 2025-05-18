@@ -65,7 +65,8 @@ function createPersonalityListEmbed(userId) {
   personalities.forEach(p => {
     // Find all aliases for this personality
     const aliases = [];
-    for (const [alias, name] of Object.entries(personalityAliases)) {
+    // personalityAliases is a Map, not an object, so we need to use entries() method
+    for (const [alias, name] of personalityAliases.entries()) {
       if (name === p.fullName) {
         aliases.push(alias);
       }
