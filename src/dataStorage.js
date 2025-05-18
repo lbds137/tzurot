@@ -16,6 +16,7 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('./logger');
 
 /**
  * Path to the data storage directory
@@ -40,9 +41,9 @@ async function initStorage() {
   try {
     // Create the data directory if it doesn't exist
     await fs.mkdir(DATA_DIR, { recursive: true });
-    console.log('Data storage initialized');
+    logger.info('[DataStorage] Data storage initialized');
   } catch (error) {
-    console.error('Error initializing data storage:', error);
+    logger.error(`[DataStorage] Error initializing data storage: ${error.message}`);
     throw error;
   }
 }
@@ -67,7 +68,7 @@ async function saveData(filename, data) {
     const filePath = path.join(DATA_DIR, `${filename}.json`);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
   } catch (error) {
-    console.error(`Error saving data to ${filename}:`, error);
+    logger.error(`[DataStorage] Error saving data to ${filename}: ${error.message}`);
     throw error;
   }
 }
@@ -98,7 +99,7 @@ async function loadData(filename) {
       // File doesn't exist yet, return null
       return null;
     }
-    console.error(`Error loading data from ${filename}:`, error);
+    logger.error(`[DataStorage] Error loading data from ${filename}: ${error.message}`);
     throw error;
   }
 }

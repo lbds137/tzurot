@@ -110,25 +110,14 @@ jest.mock('discord.js', () => {
   };
 });
 
-// Import the module after mocking dependencies
-let webhookManager;
-
 describe('WebhookManager - Webhook Creation and Management', () => {
-  // Original console methods
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
-  
   // Test variables
+  let webhookManager;
   let mockChannel;
   let mockWebhook;
+  let loggerMock;
   
   beforeEach(() => {
-    // Mock console methods to prevent noisy output
-    console.log = jest.fn();
-    console.error = jest.fn();
-    console.warn = jest.fn();
-    
     // Reset all mocks
     jest.clearAllMocks();
     
@@ -138,8 +127,19 @@ describe('WebhookManager - Webhook Creation and Management', () => {
     // Reset discord.js mock webhook clients
     require('discord.js')._clearMockWebhookClients();
     
-    // Ensure module is freshly loaded
+    // Ensure module is freshly loaded to get accurate coverage
     jest.resetModules();
+    
+    // Load the actual logger module and apply spies
+    const logger = require('../../src/logger');
+    loggerMock = {
+      info: jest.spyOn(logger, 'info').mockImplementation(() => {}),
+      warn: jest.spyOn(logger, 'warn').mockImplementation(() => {}),
+      error: jest.spyOn(logger, 'error').mockImplementation(() => {}),
+      debug: jest.spyOn(logger, 'debug').mockImplementation(() => {})
+    };
+    
+    // Load the module under test AFTER setting up logger spies
     webhookManager = require('../../src/webhookManager');
     
     // Create a mock channel and webhook for testing
@@ -165,17 +165,9 @@ describe('WebhookManager - Webhook Creation and Management', () => {
   });
   
   afterEach(() => {
-    // Restore console methods
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    console.warn = originalConsoleWarn;
+    // Restore all mocks and spies
+    jest.restoreAllMocks();
   });
-  
-  // warmupAvatarUrl is an internal function, so we can't test it directly
-  
-  // Let's focus on the exported functions that we can actually test
-  
-  // We need to focus our tests on functions that are actually exported
   
   describe('preloadPersonalityAvatar', () => {
     it('should preload a personality avatar', async () => {
@@ -198,6 +190,9 @@ describe('WebhookManager - Webhook Creation and Management', () => {
           signal: expect.any(Object)
         })
       );
+      
+      // Verify info was logged
+      expect(loggerMock.info).toHaveBeenCalled();
     });
     
     it('should handle personalities with no avatar URL', async () => {
@@ -215,20 +210,21 @@ describe('WebhookManager - Webhook Creation and Management', () => {
       expect(fetch).not.toHaveBeenCalled();
       
       // Verify warning was logged
-      expect(console.warn).toHaveBeenCalled();
+      expect(loggerMock.warn).toHaveBeenCalled();
+      expect(loggerMock.warn.mock.calls[0][0]).toContain('avatarUrl is not set');
     });
     
     it('should handle null or undefined personalities', async () => {
-      // Call the function with null and undefined
+      // Call the function with null personality
       await webhookManager.preloadPersonalityAvatar(null);
-      await webhookManager.preloadPersonalityAvatar(undefined);
       
       // Verify fetch was not called
       const fetch = require('node-fetch');
       expect(fetch).not.toHaveBeenCalled();
       
       // Verify error was logged
-      expect(console.error).toHaveBeenCalled();
+      expect(loggerMock.error).toHaveBeenCalled();
+      expect(loggerMock.error.mock.calls[0][0]).toContain('personality object is null or undefined');
     });
   });
   
@@ -259,7 +255,7 @@ describe('WebhookManager - Webhook Creation and Management', () => {
       };
       
       const result = webhookManager.getStandardizedUsername(personality);
-      // Should capitalize the first part of the hyphenated name
+      // Should extract the first part before the hyphen
       expect(result).toBe('Test');
     });
     
@@ -269,7 +265,6 @@ describe('WebhookManager - Webhook Creation and Management', () => {
       };
       
       const result = webhookManager.getStandardizedUsername(personality);
-      // Should capitalize the first letter
       expect(result).toBe('Shortname');
     });
     

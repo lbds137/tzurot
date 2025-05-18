@@ -53,35 +53,34 @@ describe('WebhookManager - Helper Functions', () => {
   });
   
   describe('Console output management', () => {
-    test('minimizeConsoleOutput should disable console output', () => {
+    test('minimizeConsoleOutput should return an empty object with structured logging', () => {
       // Call the function
       const originalFunctions = webhookManager.minimizeConsoleOutput();
       
-      // Verify it returns the original functions
-      expect(originalFunctions).toHaveProperty('originalConsoleLog');
-      expect(originalFunctions).toHaveProperty('originalConsoleWarn');
+      // Verify it returns an empty object now that we're using structured logging
+      expect(originalFunctions).toEqual({});
       
       // Try to log something
-      console.log('This should not be logged');
-      console.warn('This should not be logged');
+      console.log('This should be logged normally');
+      console.warn('This should be logged normally');
       
-      // Nothing should have been logged
-      expect(originalFunctions.originalConsoleLog).not.toHaveBeenCalled();
-      expect(originalFunctions.originalConsoleWarn).not.toHaveBeenCalled();
+      // Expect logs to be called since we're not disabling them anymore
+      expect(console.log).toHaveBeenCalledWith('This should be logged normally');
+      expect(console.warn).toHaveBeenCalledWith('This should be logged normally');
     });
     
-    test('restoreConsoleOutput should restore console functions', () => {
-      // First minimize
+    test('restoreConsoleOutput should be a no-op with structured logging', () => {
+      // First minimize (now returns empty object)
       const originalFunctions = webhookManager.minimizeConsoleOutput();
       
-      // Then restore
+      // Then restore (should be a no-op)
       webhookManager.restoreConsoleOutput(originalFunctions);
       
-      // Mock the restored functions for testing
+      // Mock the console functions for testing
       console.log = jest.fn();
       console.warn = jest.fn();
       
-      // Now logs should work
+      // Logs should work normally as the functions do nothing with structured logging
       console.log('This should be logged');
       console.warn('This should be logged');
       

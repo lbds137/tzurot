@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const logger = require('./logger');
 
 // File paths for storing data
 const DATA_DIR = path.join(process.cwd(), 'data');
@@ -27,7 +28,7 @@ async function ensureDataDir() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
   } catch (error) {
-    console.error(`Error creating data directory: ${error.message}`);
+    logger.error(`Error creating data directory: ${error.message}`);
   }
 }
 
@@ -63,9 +64,9 @@ async function saveAllData() {
     }
     await fs.writeFile(MESSAGE_MAP_FILE, JSON.stringify(messageMapData, null, 2));
 
-    console.log('Conversation data saved');
+    logger.info('[ConversationManager] Conversation data saved');
   } catch (error) {
-    console.error(`Error saving conversation data: ${error.message}`);
+    logger.error(`[ConversationManager] Error saving conversation data: ${error.message}`);
   }
 }
 
@@ -82,10 +83,10 @@ async function loadAllData() {
       for (const [key, value] of Object.entries(conversationsData)) {
         activeConversations.set(key, value);
       }
-      console.log(`[ConversationManager] Loaded ${activeConversations.size} active conversations`);
+      logger.info(`[ConversationManager] Loaded ${activeConversations.size} active conversations`);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading conversations: ${error.message}`);
+        logger.error(`[ConversationManager] Error loading conversations: ${error.message}`);
       }
     }
 
@@ -95,10 +96,10 @@ async function loadAllData() {
       for (const [key, value] of Object.entries(activatedChannelsData)) {
         activatedChannels.set(key, value);
       }
-      console.log(`[ConversationManager] Loaded ${activatedChannels.size} activated channels`);
+      logger.info(`[ConversationManager] Loaded ${activatedChannels.size} activated channels`);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading activated channels: ${error.message}`);
+        logger.error(`[ConversationManager] Error loading activated channels: ${error.message}`);
       }
     }
 
@@ -108,10 +109,10 @@ async function loadAllData() {
       for (const userId of autoResponseData) {
         autoResponseUsers.add(userId);
       }
-      console.log(`[ConversationManager] Loaded ${autoResponseUsers.size} auto-response users`);
+      logger.info(`[ConversationManager] Loaded ${autoResponseUsers.size} auto-response users`);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading auto-response users: ${error.message}`);
+        logger.error(`[ConversationManager] Error loading auto-response users: ${error.message}`);
       }
     }
 
@@ -121,16 +122,16 @@ async function loadAllData() {
       for (const [key, value] of Object.entries(messageMapData)) {
         messageIdMap.set(key, value);
       }
-      console.log(`[ConversationManager] Loaded ${messageIdMap.size} message ID mappings`);
+      logger.info(`[ConversationManager] Loaded ${messageIdMap.size} message ID mappings`);
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        console.error(`Error loading message ID map: ${error.message}`);
+        logger.error(`[ConversationManager] Error loading message ID map: ${error.message}`);
       }
     }
 
-    console.log('[ConversationManager] All data loaded successfully');
+    logger.info('[ConversationManager] All data loaded successfully');
   } catch (error) {
-    console.error(`Error loading conversation data: ${error.message}`);
+    logger.error(`[ConversationManager] Error loading conversation data: ${error.message}`);
   }
 }
 
@@ -143,8 +144,7 @@ async function loadAllData() {
  */
 function recordConversation(userId, channelId, messageIds, personalityName) {
   // Minimize logging during conversation recording
-  const originalConsoleLog = console.log;
-  console.log = () => {}; // Temporarily disable logging
+  // No need to disable logging with structured logger
 
   const key = `${userId}-${channelId}`;
   const timestamp = Date.now();
@@ -173,11 +173,10 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
   try {
     saveAllData();
   } catch (error) {
-    console.error(`[ConversationManager] Error saving: ${error.message}`);
+    logger.error(`[ConversationManager] Error saving: ${error.message}`);
   }
 
-  // Restore console output
-  console.log = originalConsoleLog;
+  // No need to restore logging with structured logger
 }
 
 /**
@@ -257,7 +256,7 @@ function isAutoResponseEnabled(userId) {
  */
 function getPersonalityFromMessage(messageId, options = {}) {
   // Don't log "Looking up personality" here since bot.js already logs it
-  console.log(
+  logger.debug(
     `[ConversationManager] Searching for message ID: ${messageId} (map size: ${messageIdMap.size})`
   );
 
@@ -265,41 +264,41 @@ function getPersonalityFromMessage(messageId, options = {}) {
   const conversationData = messageIdMap.get(messageId);
 
   if (conversationData) {
-    console.log(
+    logger.debug(
       `[ConversationManager] Found personality in message ID map: ${conversationData.personalityName}`
     );
     return conversationData.personalityName;
   } else {
-    console.log(`[ConversationManager] Message ID not found in direct map lookup: ${messageId}`);
+    logger.debug(`[ConversationManager] Message ID not found in direct map lookup: ${messageId}`);
   }
 
-  console.log(
+  logger.debug(
     `[ConversationManager] Falling back to active conversations search (${activeConversations.size} conversations)`
   );
 
   // Fallback to searching through all active conversations (for backward compatibility)
   for (const [convKey, conversation] of activeConversations.entries()) {
-    console.log(
+    logger.debug(
       `[ConversationManager] Checking conversation ${convKey} with personality ${conversation.personalityName}`
     );
 
     if (conversation.messageIds && Array.isArray(conversation.messageIds)) {
       if (conversation.messageIds.includes(messageId)) {
-        console.log(`[ConversationManager] Found message ID in conversation's messageIds array!`);
+        logger.debug(`[ConversationManager] Found message ID in conversation's messageIds array!`);
         return conversation.personalityName;
       }
     }
 
     // Legacy support for older conversations
     if (conversation.lastMessageId === messageId) {
-      console.log(`[ConversationManager] Found message ID in conversation's lastMessageId!`);
+      logger.debug(`[ConversationManager] Found message ID in conversation's lastMessageId!`);
       return conversation.personalityName;
     }
   }
 
   // Final fallback: check by webhook username if provided
   if (options.webhookUsername) {
-    console.log(
+    logger.debug(
       `[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`
     );
 
@@ -318,14 +317,13 @@ function getPersonalityFromMessage(messageId, options = {}) {
       const allPersonalities = listPersonalitiesForUser();
 
       if (!allPersonalities || !Array.isArray(allPersonalities)) {
-        console.error(
-          `[ConversationManager] listPersonalitiesForUser returned invalid data:`,
-          allPersonalities
+        logger.error(
+          `[ConversationManager] listPersonalitiesForUser returned invalid data: ${JSON.stringify(allPersonalities)}`
         );
         return null;
       }
 
-      console.log(
+      logger.debug(
         `[ConversationManager] Checking ${allPersonalities.length} personalities for match with: ${options.webhookUsername}`
       );
 
@@ -335,7 +333,7 @@ function getPersonalityFromMessage(messageId, options = {}) {
 
         // Exact match first
         if (personality.displayName && personality.displayName === options.webhookUsername) {
-          console.log(
+          logger.debug(
             `[ConversationManager] Found personality match by display name: ${personality.fullName}`
           );
           return personality.fullName;
@@ -349,7 +347,7 @@ function getPersonalityFromMessage(messageId, options = {}) {
 
         const displayNameLower = safeToLowerCase(personality.displayName);
         if (displayNameLower === webhookUsernameLower) {
-          console.log(
+          logger.debug(
             `[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`
           );
           return personality.fullName;
@@ -367,7 +365,7 @@ function getPersonalityFromMessage(messageId, options = {}) {
             displayNameLower.includes(webhookUsernameLower) ||
             webhookUsernameLower.includes(displayNameLower)
           ) {
-            console.log(
+            logger.debug(
               `[ConversationManager] Found personality match by partial name: ${personality.fullName}`
             );
             return personality.fullName;
@@ -375,17 +373,17 @@ function getPersonalityFromMessage(messageId, options = {}) {
         }
       }
 
-      console.log(
+      logger.debug(
         `[ConversationManager] No personality found matching webhook username: "${options.webhookUsername}"`
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `[ConversationManager] Error looking up personality by webhook username: ${error.message}`
       );
     }
   }
 
-  console.log(`[ConversationManager] No personality found for message ID: ${messageId}`);
+  logger.debug(`[ConversationManager] No personality found for message ID: ${messageId}`);
   return null;
 }
 
@@ -500,7 +498,7 @@ setInterval(
 
         // Delete the conversation
         activeConversations.delete(key);
-        console.log(`Cleaned up stale conversation for key: ${key}`);
+        logger.info(`[ConversationManager] Cleaned up stale conversation for key: ${key}`);
         didCleanup = true;
       }
     }
@@ -509,7 +507,7 @@ setInterval(
     for (const [msgId, data] of messageIdMap.entries()) {
       if (now - data.timestamp > CONVERSATION_TIMEOUT) {
         messageIdMap.delete(msgId);
-        console.log(`Cleaned up orphaned message ID mapping: ${msgId}`);
+        logger.info(`[ConversationManager] Cleaned up orphaned message ID mapping: ${msgId}`);
         didCleanup = true;
       }
     }
@@ -525,7 +523,7 @@ setInterval(
 // Periodically save data
 setInterval(
   () => {
-    console.log('[ConversationManager] Running periodic data save...');
+    logger.info('[ConversationManager] Running periodic data save...');
     saveAllData();
   },
   5 * 60 * 1000
@@ -537,9 +535,9 @@ setInterval(
 async function initConversationManager() {
   try {
     await loadAllData();
-    console.log('[ConversationManager] Initialization complete');
+    logger.info('[ConversationManager] Initialization complete');
   } catch (error) {
-    console.error(`[ConversationManager] Error initializing: ${error.message}`);
+    logger.error(`[ConversationManager] Error initializing: ${error.message}`);
   }
 }
 

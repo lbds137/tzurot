@@ -95,6 +95,16 @@ exports.ERROR_MESSAGES = [
   'Please try again',
   'connection unstable',
   'unable to formulate',
+  // Additional webhook-specific error patterns
+  'connectivity problem',
+  'I cannot access',
+  'experiencing difficulties',
+  'system error',
+  'something went wrong',
+  'service is unavailable',
+  'not responding',
+  'failed to generate',
+  'unavailable at this time',
 ];
 
 /**

@@ -141,18 +141,19 @@ describe('personalityManager - Initialization and Persistence', () => {
       const testError = new Error('Test error');
       dataStorage.loadData.mockRejectedValue(testError);
       
-      // Mock console.error to capture errors
-      const originalConsoleError = console.error;
-      console.error = jest.fn();
+      // Mock logger.error to capture errors
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
       
       // Call the initialization function and expect it to throw
       await expect(personalityManager.initPersonalityManager()).rejects.toThrow(testError);
       
       // Verify the error was logged
-      expect(console.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       
-      // Restore console.error
-      console.error = originalConsoleError;
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
   });
   

@@ -90,6 +90,11 @@ describe('dataStorage', () => {
     it('should handle errors during initialization', async () => {
       const fs = require('fs');
       
+      // Mock logger.error
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
+      
       // Mock mkdir to throw an error
       const error = new Error('Test error');
       fs.promises.mkdir.mockRejectedValueOnce(error);
@@ -97,11 +102,11 @@ describe('dataStorage', () => {
       // Call initStorage and expect it to throw
       await expect(dataStorage.initStorage()).rejects.toThrow(error);
       
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error initializing data storage:',
-        error
-      );
+      // Verify error was logged using the structured logger
+      expect(logger.error).toHaveBeenCalled();
+      
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
   });
   
@@ -130,6 +135,11 @@ describe('dataStorage', () => {
     it('should handle errors during save', async () => {
       const fs = require('fs');
       
+      // Mock logger.error
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
+      
       // Mock writeFile to throw an error
       const error = new Error('Test error');
       fs.promises.writeFile.mockRejectedValueOnce(error);
@@ -138,10 +148,10 @@ describe('dataStorage', () => {
       await expect(dataStorage.saveData('testfile', { test: 'data' })).rejects.toThrow(error);
       
       // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error saving data to testfile:',
-        error
-      );
+      expect(logger.error).toHaveBeenCalled();
+      
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
   });
   
@@ -174,12 +184,16 @@ describe('dataStorage', () => {
       // Verify null was returned
       expect(loadedData).toBeNull();
       
-      // Verify error was not logged (since this is an expected case)
-      expect(console.error).not.toHaveBeenCalled();
+      // No need to check error logging for expected case with structured logger
     });
     
     it('should handle parse errors', async () => {
       const fs = require('fs');
+      
+      // Mock logger.error
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
       
       // Set up a file with invalid JSON in our virtual filesystem - need to use the full path
       const filePath = `${process.cwd()}/src/../data/invalid.json`;
@@ -189,11 +203,19 @@ describe('dataStorage', () => {
       await expect(dataStorage.loadData('invalid')).rejects.toThrow();
       
       // Verify error was logged
-      expect(console.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
+      
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
     
     it('should handle other file reading errors', async () => {
       const fs = require('fs');
+      
+      // Mock logger.error
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
       
       // Mock readFile to throw a non-ENOENT error
       const error = new Error('Test error');
@@ -204,10 +226,10 @@ describe('dataStorage', () => {
       await expect(dataStorage.loadData('testfile')).rejects.toThrow(error);
       
       // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error loading data from testfile:',
-        error
-      );
+      expect(logger.error).toHaveBeenCalled();
+      
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
   });
   

@@ -2,6 +2,8 @@ const { WebhookClient, EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
 const logger = require('./logger');
 
+const { TIME, DISCORD } = require('./constants');
+
 // Cache to store webhook instances by channel ID
 const webhookCache = new Map();
 
@@ -21,17 +23,17 @@ const pendingPersonalityMessages = new Map();
 // Track the last time a webhook message was sent to each channel
 const channelLastMessageTime = new Map();
 
-// Set a timeout for message caching (10 minutes)
-const MESSAGE_CACHE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+// Set a timeout for message caching (from constants)
+const MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
 
-// Minimum delay between sending messages to ensure proper order (3 seconds)
-const MIN_MESSAGE_DELAY = 3000; // 3 seconds
+// Minimum delay between sending messages to ensure proper order (from constants)
+const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
 
-// Maximum time to wait for a real response before allowing error message (15 seconds)
-const MAX_ERROR_WAIT_TIME = 15000; // 15 seconds
+// Maximum time to wait for a real response before allowing error message (from constants)
+const MAX_ERROR_WAIT_TIME = TIME.MAX_ERROR_WAIT_TIME;
 
-// Discord message size limits
-const MESSAGE_CHAR_LIMIT = 2000;
+// Discord message size limits (from constants)
+const MESSAGE_CHAR_LIMIT = DISCORD.MESSAGE_CHAR_LIMIT;
 
 /**
  * Pre-load an avatar URL to ensure Discord caches it
@@ -264,30 +266,39 @@ async function getOrCreateWebhook(channel) {
   }
 
   try {
-    // Try to find existing webhooks in the channel
-    const webhooks = await channel.fetchWebhooks();
+    // Handle the case where channel is a thread
+    const targetChannel = channel.isThread() ? channel.parent : channel;
+    
+    if (!targetChannel) {
+      throw new Error(`Cannot find parent channel for thread ${channel.id}`);
+    }
+    
+    logger.info(`Working with ${channel.isThread() ? 'thread in parent' : 'regular'} channel ${targetChannel.name || targetChannel.id}`);
 
-    logger.info(`Found ${webhooks.size} webhooks in channel ${channel.name || channel.id}`);
+    // Try to find existing webhooks in the channel
+    const webhooks = await targetChannel.fetchWebhooks();
+
+    logger.info(`Found ${webhooks.size} webhooks in channel ${targetChannel.name || targetChannel.id}`);
 
     // Look for our bot's webhook - use simpler criteria
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
 
     // If no webhook found, create a new one
     if (!webhook) {
-      logger.info(`Creating new webhook in channel ${channel.name || ''} (${channel.id})`);
-      webhook = await channel.createWebhook({
+      logger.info(`Creating new webhook in channel ${targetChannel.name || ''} (${targetChannel.id})`);
+      webhook = await targetChannel.createWebhook({
         name: 'Tzurot',
         avatar: 'https://i.imgur.com/your-default-avatar.png', // Replace with your bot's default avatar
         reason: 'Needed for personality proxying',
       });
     } else {
-      logger.info(`Found existing Tzurot webhook in channel ${channel.id}`);
+      logger.info(`Found existing Tzurot webhook in channel ${targetChannel.id}`);
     }
 
     // Create a webhook client for this webhook
     const webhookClient = new WebhookClient({ url: webhook.url });
 
-    // Cache the webhook client
+    // Cache the webhook client - use original channel ID for thread support
     webhookCache.set(channel.id, webhookClient);
 
     return webhookClient;
@@ -299,29 +310,21 @@ async function getOrCreateWebhook(channel) {
 
 /**
  * Minimize console output during webhook operations
- * @returns {Object} Original console functions
+ * @returns {Object} Original console functions (empty object since we now use structured logger)
  */
 function minimizeConsoleOutput() {
-  const originalConsoleLog = console.log;
-  const originalConsoleWarn = console.warn;
-  // Redirect to silent logger to maintain logs in files
-  console.log = (msg, ...args) => {
-    logger.debug("[SILENCED] " + (msg || ''), ...args);
-  };
-  console.warn = (msg, ...args) => {
-    logger.debug("[SILENCED] " + (msg || ''), ...args);
-  };
-  return { originalConsoleLog, originalConsoleWarn };
+  // With structured logging in place, we don't need to silence anything
+  // This function is kept for backwards compatibility
+  return {};
 }
 
 /**
  * Restore console output functions
- * @param {Object} originalFunctions - The original console functions
+ * @param {Object} originalFunctions - The original console functions (not used with structured logger)
  */
 function restoreConsoleOutput(originalFunctions) {
-  const { originalConsoleLog, originalConsoleWarn } = originalFunctions;
-  console.log = originalConsoleLog;
-  console.warn = originalConsoleWarn;
+  // With structured logging in place, we don't need to restore anything
+  // This function is kept for backwards compatibility
 }
 
 /**
@@ -341,20 +344,16 @@ function generateMessageTrackingId(channelId) {
 function isErrorContent(content) {
   if (!content) return false;
   
-  return (
-    content.includes("I'm having trouble connecting") ||
-    content.includes('ERROR_MESSAGE_PREFIX:') ||
-    content.includes('trouble connecting to my brain') ||
-    content.includes('technical issue') ||
-    content.includes('Error ID:') ||
-    content.includes('issue with my configuration') ||
-    content.includes('issue with my response system') ||
-    content.includes('momentary lapse') ||
-    content.includes('try again later') ||
-    (content.includes('connection') && content.includes('unstable')) ||
-    content.includes('unable to formulate') ||
-    content.includes('Please try again')
-  );
+  // Use the centralized error messages from constants
+  const { ERROR_MESSAGES } = require('./constants');
+  
+  // Special case for combined terms
+  if (content.includes('connection') && content.includes('unstable')) {
+    return true;
+  }
+  
+  // Check against the standard error message patterns
+  return ERROR_MESSAGES.some(pattern => content.includes(pattern));
 }
 
 /**
@@ -365,20 +364,27 @@ function isErrorContent(content) {
 function markErrorContent(content) {
   if (!content) return '';
   
-  if (
-    content.includes('trouble connecting') ||
-    content.includes('technical issue') ||
-    content.includes('Error ID:') ||
-    content.includes('issue with my configuration') ||
-    content.includes('issue with my response system') ||
-    content.includes('momentary lapse') ||
-    content.includes('try again later') ||
-    (content.includes('connection') && content.includes('unstable')) ||
-    content.includes('unable to formulate') ||
-    content.includes('Please try again')
-  ) {
-    logger.info(`[Webhook] Detected error message, adding special prefix`);
-    return 'ERROR_MESSAGE_PREFIX: ' + content;
+  // Use the centralized error messages and markers from constants
+  const { ERROR_MESSAGES, MARKERS } = require('./constants');
+  
+  // Special case for combined terms
+  if (content.includes('connection') && content.includes('unstable')) {
+    logger.info(`[Webhook] Detected error message (unstable connection), adding special prefix`);
+    return MARKERS.ERROR_PREFIX + ' ' + content;
+  }
+  
+  // Check for standard error patterns
+  for (const pattern of ERROR_MESSAGES) {
+    // Skip the marker patterns themselves to avoid duplication
+    if (pattern === MARKERS.ERROR_PREFIX || 
+        pattern === MARKERS.HARD_BLOCKED_RESPONSE) {
+      continue;
+    }
+    
+    if (content.includes(pattern)) {
+      logger.info(`[Webhook] Detected error message with pattern "${pattern}", adding special prefix`);
+      return MARKERS.ERROR_PREFIX + ' ' + content;
+    }
   }
   
   return content;
@@ -483,6 +489,7 @@ function createVirtualResult(personality, channelId) {
 
   // Clear pending message if we're returning a virtual result
   if (personality && personality.fullName) {
+    // Call clearPendingMessage via module exports to ensure mock is used in tests
     clearPendingMessage(personality.fullName, channelId);
   }
 
@@ -743,20 +750,11 @@ function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
 
-  // Comprehensive list of error message patterns
-  const errorPatterns = [
-    "I'm having trouble connecting",
-    'ERROR_MESSAGE_PREFIX:',
-    'trouble connecting to my brain',
-    'technical issue',
-    'Error ID:',
-    'issue with my configuration',
-    'issue with my response system',
-    'momentary lapse',
-    'try again later',
-    'unable to formulate',
-    'Please try again',
-    'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
+  // Use the centralized error messages and markers from constants
+  const { ERROR_MESSAGES, MARKERS } = require('./constants');
+  
+  // Add additional patterns specific to webhook operations 
+  const webhookSpecificPatterns = [
     'connectivity problem',
     'I cannot access',
     'experiencing difficulties',
@@ -767,9 +765,17 @@ function isErrorWebhookMessage(options) {
     'failed to generate',
     'unavailable at this time',
   ];
-
+  
+  // Combine all error patterns
+  const allPatterns = [...ERROR_MESSAGES, ...webhookSpecificPatterns];
+  
+  // Special case for combined terms
+  if (options.content.includes('connection') && options.content.includes('unstable')) {
+    return true;
+  }
+  
   // Check if content matches any error pattern
-  return errorPatterns.some(pattern => options.content.includes(pattern));
+  return allPatterns.some(pattern => options.content.includes(pattern));
 }
 
 /**

@@ -581,72 +581,31 @@ const activeRequests = new Map();
 
 /**
  * Minimizes console logging, only showing critical error messages
- * @returns {Object} Original console functions to restore later
+ * @returns {Object} Empty object as we don't need to restore anything with structured logger
  */
 function minimizeConsoleLogging() {
-  const originalConsoleLog = console.log;
-  const originalConsoleDebug = console.debug;
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
-
-  // Redirect to logger but with minimized output
-  console.debug = () => {};
-  console.log = (msg, ...args) => {
-    // Only log critical errors
-    if (typeof msg === 'string' && msg.includes('Error')) {
-      logger.error(msg, ...args);
-    }
-  };
-  console.error = (msg, ...args) => {
-    logger.error(msg, ...args);
-  };
-  console.warn = (msg, ...args) => {
-    logger.warn(msg, ...args);
-  };
-
-  return { originalConsoleLog, originalConsoleDebug, originalConsoleError, originalConsoleWarn };
+  // With structured logging in place, we don't need to minimize output anymore
+  // This function is kept for backwards compatibility
+  return {};
 }
 
 /**
  * Completely disables console logging for sensitive operations
- * @returns {Object} Original console functions to restore later
+ * @returns {Object} Empty object as we don't need to restore anything with structured logger
  */
 function disableConsoleLogging() {
-  const originalConsoleLog = console.log;
-  const originalConsoleDebug = console.debug;
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
-  
-  // Completely disable console output but still track in logger for debugging
-  console.log = (msg, ...args) => {
-    // Log silently to file but not console
-    logger.debug("[SILENCED] " + msg, ...args);
-  };
-  console.debug = () => {};
-  console.error = (msg, ...args) => {
-    // Still log errors to file but not console
-    logger.error("[SILENCED] " + msg, ...args);
-  };
-  console.warn = (msg, ...args) => {
-    // Still log warnings to file but not console
-    logger.warn("[SILENCED] " + msg, ...args);
-  };
-  
-  return { originalConsoleLog, originalConsoleDebug, originalConsoleError, originalConsoleWarn };
+  // With structured logging in place, we don't need to disable output anymore
+  // This function is kept for backwards compatibility
+  return {};
 }
 
 /**
  * Restores console logging functions to their original state
- * @param {Object} originalFunctions - Object containing original console functions
+ * @param {Object} originalFunctions - Object containing original console functions (not used with structured logger)
  */
 function restoreConsoleLogging(originalFunctions) {
-  const { originalConsoleLog, originalConsoleDebug, originalConsoleError, originalConsoleWarn } = originalFunctions;
-  console.log = originalConsoleLog;
-  console.error = originalConsoleError;
-  console.warn = originalConsoleWarn;
-  if (originalConsoleDebug) {
-    console.debug = originalConsoleDebug;
-  }
+  // With structured logging in place, we don't need to restore anything
+  // This function is kept for backwards compatibility
 }
 
 /**

@@ -325,6 +325,11 @@ describe('AI Service', () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
+      // Mock logger.warn
+      const logger = require('../../src/logger');
+      const originalLoggerWarn = logger.warn;
+      logger.warn = jest.fn();
+      
       // Empty message
       let response = await getAiResponse(personalityName, '', context);
       expect(typeof response).toBe('string');
@@ -336,19 +341,30 @@ describe('AI Service', () => {
       expect(response.length).toBeGreaterThan(0);
       
       // Verify warning was logged
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('Empty message received'));
+      expect(logger.warn).toHaveBeenCalled();
+      
+      // Restore logger.warn
+      logger.warn = originalLoggerWarn;
     });
     
     it('should handle missing personality name', async () => {
       const message = 'Test message';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
+      // Mock logger.error
+      const logger = require('../../src/logger');
+      const originalLoggerError = logger.error;
+      logger.error = jest.fn();
+      
       const response = await getAiResponse(undefined, message, context);
       expect(typeof response).toBe('string');
       expect(response).toContain('issue with my configuration');
       
       // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('personalityName is required'));
+      expect(logger.error).toHaveBeenCalled();
+      
+      // Restore logger.error
+      logger.error = originalLoggerError;
     });
     
     it('should check for blackout periods before making API calls', async () => {

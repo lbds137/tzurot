@@ -1,6 +1,7 @@
 // Import dependencies
 const nodeFetch = require('node-fetch');
 const { getProfileInfoEndpoint, getAvatarUrlFormat } = require('../config');
+const logger = require('./logger');
 
 // Cache for profile information to reduce API calls
 const profileInfoCache = new Map();
@@ -17,29 +18,29 @@ const fetchImplementation = (...args) => nodeFetch(...args);
  */
 async function fetchProfileInfo(profileName) {
   try {
-    console.log(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
+    logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
 
     // Check if we have a valid cached entry
     if (profileInfoCache.has(profileName)) {
       const cacheEntry = profileInfoCache.get(profileName);
       // If cache entry is still valid, return it
       if (Date.now() - cacheEntry.timestamp < CACHE_DURATION) {
-        console.log(`[ProfileInfoFetcher] Using cached profile data for: ${profileName}`);
+        logger.info(`[ProfileInfoFetcher] Using cached profile data for: ${profileName}`);
         return cacheEntry.data;
       }
     }
 
     // Get the endpoint from our config
     const endpoint = getProfileInfoEndpoint(profileName);
-    console.log(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
+    logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
 
     // Check if API key is set
     if (!process.env.SERVICE_API_KEY) {
-      console.warn(`[ProfileInfoFetcher] SERVICE_API_KEY environment variable is not set!`);
+      logger.warn(`[ProfileInfoFetcher] SERVICE_API_KEY environment variable is not set!`);
     }
 
     // Fetch the data from the API with authorization
-    console.log(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
+    logger.debug(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
     const response = await fetchImplementation(endpoint, {
       headers: {
         Authorization: `Bearer ${process.env.SERVICE_API_KEY}`,
@@ -48,25 +49,24 @@ async function fetchProfileInfo(profileName) {
     });
 
     if (!response.ok) {
-      console.error(
+      logger.error(
         `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
       );
       throw new Error(`Failed to fetch profile info: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log(
-      `[ProfileInfoFetcher] Received profile data:`,
-      JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')
+    logger.debug(
+      `[ProfileInfoFetcher] Received profile data: ${JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')}`
     );
 
     // Verify we have the expected fields
     if (!data) {
-      console.error(`[ProfileInfoFetcher] Received empty data for: ${profileName}`);
+      logger.error(`[ProfileInfoFetcher] Received empty data for: ${profileName}`);
     } else if (!data.name) {
-      console.warn(`[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`);
+      logger.warn(`[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`);
     } else if (!data.id) {
-      console.warn(`[ProfileInfoFetcher] Profile data missing 'id' field for: ${profileName}`);
+      logger.warn(`[ProfileInfoFetcher] Profile data missing 'id' field for: ${profileName}`);
     }
 
     // Cache the result
@@ -74,11 +74,11 @@ async function fetchProfileInfo(profileName) {
       data,
       timestamp: Date.now(),
     });
-    console.log(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
+    logger.debug(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
 
     return data;
   } catch (error) {
-    console.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}:`, error);
+    logger.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`);
     return null;
   }
 }
@@ -89,11 +89,11 @@ async function fetchProfileInfo(profileName) {
  * @returns {Promise<string|null>} The avatar URL or null if not found
  */
 async function getProfileAvatarUrl(profileName) {
-  console.log(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
+  logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
   const profileInfo = await fetchProfileInfo(profileName);
 
   if (!profileInfo || !profileInfo.id) {
-    console.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
+    logger.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
     return null;
   }
 
@@ -103,10 +103,10 @@ async function getProfileAvatarUrl(profileName) {
 
     // Replace the placeholder with the actual profile ID
     const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
-    console.log(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
+    logger.debug(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
     return avatarUrl;
   } catch (error) {
-    console.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
+    logger.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
     return null;
   }
 }
@@ -117,20 +117,20 @@ async function getProfileAvatarUrl(profileName) {
  * @returns {Promise<string|null>} The display name or null if not found
  */
 async function getProfileDisplayName(profileName) {
-  console.log(`[ProfileInfoFetcher] Getting display name for: ${profileName}`);
+  logger.info(`[ProfileInfoFetcher] Getting display name for: ${profileName}`);
   const profileInfo = await fetchProfileInfo(profileName);
 
   if (!profileInfo) {
-    console.warn(`[ProfileInfoFetcher] No profile info found for display name: ${profileName}`);
+    logger.warn(`[ProfileInfoFetcher] No profile info found for display name: ${profileName}`);
     return profileName; // Fallback to using the full name as display name
   }
 
   if (!profileInfo.name) {
-    console.warn(`[ProfileInfoFetcher] No name field in profile info for: ${profileName}`);
+    logger.warn(`[ProfileInfoFetcher] No name field in profile info for: ${profileName}`);
     return profileName; // Fallback to using the full name as display name
   }
 
-  console.log(`[ProfileInfoFetcher] Found display name for ${profileName}: ${profileInfo.name}`);
+  logger.debug(`[ProfileInfoFetcher] Found display name for ${profileName}: ${profileInfo.name}`);
   return profileInfo.name;
 }
 

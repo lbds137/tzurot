@@ -30,8 +30,12 @@ describe('PersonalityManager Alias Handling', () => {
   const originalConsoleError = console.error;
   
   beforeEach(() => {
-    console.log = jest.fn();
-    console.error = jest.fn();
+    // Mock logger instead of console
+    const logger = require('../../src/logger');
+    logger.info = jest.fn();
+    logger.error = jest.fn();
+    logger.debug = jest.fn();
+    logger.warn = jest.fn();
     
     // Reset any in-memory storage
     const personalityManager = require('../../src/personalityManager');
@@ -39,9 +43,9 @@ describe('PersonalityManager Alias Handling', () => {
   });
   
   afterEach(() => {
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    jest.clearAllMocks();
+    // Reset logger mocks
+    const logger = require('../../src/logger');
+    jest.restoreAllMocks();
   });
   
   // Test the critical fix - don't set self-referential alias in registerPersonality
@@ -67,7 +71,8 @@ describe('PersonalityManager Alias Handling', () => {
     expect(setAliasSpy).not.toHaveBeenCalled();
     
     // Verify the specific log message about skipping self-referential alias
-    expect(console.log).toHaveBeenCalledWith(
+    const logger = require('../../src/logger');
+    expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining('CRITICAL FIX: Skipping self-referential alias creation')
     );
     
@@ -85,7 +90,8 @@ describe('PersonalityManager Alias Handling', () => {
     
     // Create our version of setPersonalityAlias for testing
     const testSetPersonalityAlias = async (alias, fullName, skipSave = true, isDisplayName = false) => {
-      console.log(`Setting alias: ${alias} -> ${fullName} (skipSave: ${skipSave})`);
+      const logger = require('../../src/logger');
+      logger.info(`Setting alias: ${alias} -> ${fullName} (skipSave: ${skipSave})`);
       
       const result = {
         success: true,
@@ -94,7 +100,7 @@ describe('PersonalityManager Alias Handling', () => {
       
       // Check if we should save
       if (!skipSave) {
-        console.log('skipSave is false, should call saveAllPersonalities');
+        logger.info('skipSave is false, should call saveAllPersonalities');
         saveAllWasCalled = true;
       }
       
@@ -220,7 +226,8 @@ describe('PersonalityManager Alias Handling', () => {
     expect(result2.success).toBe(true);
     
     // Verify the specific log message
-    expect(console.log).toHaveBeenCalledWith(
+    const logger = require('../../src/logger');
+    expect(logger.info).toHaveBeenCalledWith(
       expect.stringContaining(`Alias ${alias} already points to ${profileName} - no changes needed`)
     );
   });

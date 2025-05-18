@@ -4,6 +4,7 @@
  */
 
 const { validateCommandMiddleware, validationRules } = require('./commandValidation');
+const logger = require('./logger');
 
 // Test cases for different commands with valid and invalid arguments
 const testCases = [
@@ -123,7 +124,7 @@ const testCases = [
  * @returns {Object} - Test results with counts
  */
 function testValidationMiddleware() {
-  console.log('\n========== TESTING VALIDATION MIDDLEWARE ==========\n');
+  logger.info('\n========== TESTING VALIDATION MIDDLEWARE ==========\n');
   
   let passCount = 0;
   let failCount = 0;
@@ -132,21 +133,21 @@ function testValidationMiddleware() {
     const result = validateCommandMiddleware(test.command, test.args);
     const passed = result.success === test.shouldPass;
     
-    console.log(`Test: ${test.name}`);
-    console.log(`Command: ${test.command}, Args: ${JSON.stringify(test.args)}`);
-    console.log(`Expected: ${test.shouldPass ? 'PASS' : 'FAIL'}, Actual: ${result.success ? 'PASS' : 'FAIL'}`);
+    logger.info(`Test: ${test.name}`);
+    logger.info(`Command: ${test.command}, Args: ${JSON.stringify(test.args)}`);
+    logger.info(`Expected: ${test.shouldPass ? 'PASS' : 'FAIL'}, Actual: ${result.success ? 'PASS' : 'FAIL'}`);
     
     if (!result.success) {
-      console.log(`Errors: ${result.message}`);
+      logger.info(`Errors: ${result.message}`);
     }
     
-    console.log(`Result: ${passed ? '✅ PASSED' : '❌ FAILED'}\n`);
+    logger.info(`Result: ${passed ? '✅ PASSED' : '❌ FAILED'}\n`);
     
     if (passed) passCount++;
     else failCount++;
   });
   
-  console.log(`Validation Middleware Tests: ${passCount} passed, ${failCount} failed`);
+  logger.info(`Validation Middleware Tests: ${passCount} passed, ${failCount} failed`);
   return { passCount, failCount };
 }
 
@@ -185,7 +186,7 @@ function convertArgsToNamedParams(command, args) {
  * Tests the arguments conversion function
  */
 function testArgsConversion() {
-  console.log('\n========== TESTING ARGS CONVERSION ==========\n');
+  logger.info('\n========== TESTING ARGS CONVERSION ==========\n');
   
   let passCount = 0;
   let failCount = 0;
@@ -218,7 +219,7 @@ function testArgsConversion() {
   ];
   
   conversionTests.forEach(test => {
-    console.log(`Test: ${test.name}`);
+    logger.info(`Test: ${test.name}`);
     const result = convertArgsToNamedParams(test.command, test.rawArgs);
     
     // Remove _raw from result for comparison
@@ -229,16 +230,16 @@ function testArgsConversion() {
     
     const argsMatch = JSON.stringify(convertedArgs) === JSON.stringify(expectedArgs);
     
-    console.log(`Command: ${test.command}, Raw Args: ${JSON.stringify(test.rawArgs)}`);
-    console.log(`Expected: ${JSON.stringify(expectedArgs)}`);
-    console.log(`Actual: ${JSON.stringify(convertedArgs)}`);
-    console.log(`Result: ${argsMatch ? '✅ PASSED' : '❌ FAILED'}\n`);
+    logger.info(`Command: ${test.command}, Raw Args: ${JSON.stringify(test.rawArgs)}`);
+    logger.info(`Expected: ${JSON.stringify(expectedArgs)}`);
+    logger.info(`Actual: ${JSON.stringify(convertedArgs)}`);
+    logger.info(`Result: ${argsMatch ? '✅ PASSED' : '❌ FAILED'}\n`);
     
     if (argsMatch) passCount++;
     else failCount++;
   });
   
-  console.log(`Args Conversion Tests: ${passCount} passed, ${failCount} failed`);
+  logger.info(`Args Conversion Tests: ${passCount} passed, ${failCount} failed`);
   return { passCount, failCount };
 }
 
@@ -246,7 +247,7 @@ function testArgsConversion() {
  * Tests the end-to-end validation flow
  */
 function testEndToEndValidation() {
-  console.log('\n========== TESTING END-TO-END VALIDATION ==========\n');
+  logger.info('\n========== TESTING END-TO-END VALIDATION ==========\n');
   
   let passCount = 0;
   let failCount = 0;
@@ -295,7 +296,7 @@ function testEndToEndValidation() {
   ];
   
   e2eTests.forEach(test => {
-    console.log(`Test: ${test.name}`);
+    logger.info(`Test: ${test.name}`);
     
     // Step 1: Convert args
     const namedArgs = convertArgsToNamedParams(test.command, test.rawArgs);
@@ -304,21 +305,21 @@ function testEndToEndValidation() {
     const result = validateCommandMiddleware(test.command, namedArgs);
     const passed = result.success === test.shouldPass;
     
-    console.log(`Command: ${test.command}, Raw Args: ${JSON.stringify(test.rawArgs)}`);
-    console.log(`Converted Args: ${JSON.stringify(namedArgs)}`);
-    console.log(`Expected: ${test.shouldPass ? 'PASS' : 'FAIL'}, Actual: ${result.success ? 'PASS' : 'FAIL'}`);
+    logger.info(`Command: ${test.command}, Raw Args: ${JSON.stringify(test.rawArgs)}`);
+    logger.info(`Converted Args: ${JSON.stringify(namedArgs)}`);
+    logger.info(`Expected: ${test.shouldPass ? 'PASS' : 'FAIL'}, Actual: ${result.success ? 'PASS' : 'FAIL'}`);
     
     if (!result.success) {
-      console.log(`Errors: ${result.message}`);
+      logger.info(`Errors: ${result.message}`);
     }
     
-    console.log(`Result: ${passed ? '✅ PASSED' : '❌ FAILED'}\n`);
+    logger.info(`Result: ${passed ? '✅ PASSED' : '❌ FAILED'}\n`);
     
     if (passed) passCount++;
     else failCount++;
   });
   
-  console.log(`End-to-End Validation Tests: ${passCount} passed, ${failCount} failed`);
+  logger.info(`End-to-End Validation Tests: ${passCount} passed, ${failCount} failed`);
   return { passCount, failCount };
 }
 
@@ -326,11 +327,11 @@ function testEndToEndValidation() {
  * Run all tests and report results
  */
 function runAllTests() {
-  console.log('======================================================');
-  console.log('     COMMAND VALIDATION TESTS WITHOUT DEPENDENCIES    ');
-  console.log('======================================================');
-  console.log('\nAvailable validation rules for commands:');
-  console.log(Object.keys(validationRules).join(', '));
+  logger.info('======================================================');
+  logger.info('     COMMAND VALIDATION TESTS WITHOUT DEPENDENCIES    ');
+  logger.info('======================================================');
+  logger.info('\nAvailable validation rules for commands:');
+  logger.info(Object.keys(validationRules).join(', '));
   
   // Run all test suites
   const validationResults = testValidationMiddleware();
@@ -338,23 +339,23 @@ function runAllTests() {
   const e2eResults = testEndToEndValidation();
   
   // Report overall results
-  console.log('\n======================================================');
-  console.log('                    TEST SUMMARY                      ');
-  console.log('======================================================');
-  console.log(`Validation Tests: ${validationResults.passCount} passed, ${validationResults.failCount} failed`);
-  console.log(`Args Conversion Tests: ${conversionResults.passCount} passed, ${conversionResults.failCount} failed`);
-  console.log(`End-to-End Tests: ${e2eResults.passCount} passed, ${e2eResults.failCount} failed`);
+  logger.info('\n======================================================');
+  logger.info('                    TEST SUMMARY                      ');
+  logger.info('======================================================');
+  logger.info(`Validation Tests: ${validationResults.passCount} passed, ${validationResults.failCount} failed`);
+  logger.info(`Args Conversion Tests: ${conversionResults.passCount} passed, ${conversionResults.failCount} failed`);
+  logger.info(`End-to-End Tests: ${e2eResults.passCount} passed, ${e2eResults.failCount} failed`);
   
   const totalPassed = validationResults.passCount + conversionResults.passCount + e2eResults.passCount;
   const totalFailed = validationResults.failCount + conversionResults.failCount + e2eResults.failCount;
   const totalTests = totalPassed + totalFailed;
   
-  console.log(`\nTOTAL: ${totalPassed}/${totalTests} (${Math.round(totalPassed/totalTests*100)}%) tests passed`);
+  logger.info(`\nTOTAL: ${totalPassed}/${totalTests} (${Math.round(totalPassed/totalTests*100)}%) tests passed`);
   
   if (totalFailed > 0) {
-    console.log('\n❌ Some tests failed. Please check the detailed results above.');
+    logger.warn('\n❌ Some tests failed. Please check the detailed results above.');
   } else {
-    console.log('\n✅ All tests passed successfully!');
+    logger.info('\n✅ All tests passed successfully!');
   }
 }
 
