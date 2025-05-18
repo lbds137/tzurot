@@ -238,6 +238,11 @@ async function getOrCreateWebhook(channel) {
  * @returns {Promise<Object>} The sent message data
  */
 async function sendWebhookMessage(channel, content, personality, options = {}) {
+  // Minimize console output during webhook operations
+  const originalConsoleLog = console.log;
+  const originalConsoleWarn = console.warn;
+  console.log = () => {};
+  console.warn = () => {};
   try {
     console.log(`Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`);
     
@@ -494,13 +499,16 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       throw error;
     }
   } catch (error) {
-    console.error('Error sending webhook message:', error);
+    console.error('Webhook error:', error.message);
     
     // If webhook is invalid, remove it from cache
     if (error.code === 10015) { // Unknown Webhook
-      console.log(`Removing invalid webhook from cache for channel ${channel.id}`);
       webhookCache.delete(channel.id);
     }
+    
+    // Restore console functions
+    console.log = originalConsoleLog;
+    console.warn = originalConsoleWarn;
     
     throw error;
   }

@@ -321,6 +321,16 @@ const activeRequests = new Map();
  * @param {Object} personality - Personality data
  */
 async function handlePersonalityInteraction(message, personality) {
+  // Minimize console logging during personality interaction
+  const originalConsoleLog = console.log;
+  const originalConsoleDebug = console.debug;
+  console.debug = () => {};
+  console.log = (msg, ...args) => {
+    // Only log critical errors
+    if (typeof msg === 'string' && msg.includes('Error')) {
+      originalConsoleLog(msg, ...args);
+    }
+  };
   try {
     // Create a unique key for this user+channel+personality combination
     const requestKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
@@ -364,17 +374,23 @@ async function handlePersonalityInteraction(message, personality) {
       // This helps prevent the race condition between error messages and real responses
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Send the response via webhook
+      // Minimize console output for webhook operations
+      const originalConsoleLog = console.log;
+      console.log = () => {}; // Temporarily disable all logging
+      
+      // Send response and record conversation
       const result = await webhookManager.sendWebhookMessage(
           message.channel,
           aiResponse,
           personality
       );
       
-  
+      // Restore logging
+      console.log = originalConsoleLog;
+      
       // Clean up active request tracking
       activeRequests.delete(`${message.author.id}-${message.channel.id}-${personality.fullName}`);
-      
+    
       // Record this conversation with all message IDs
       if (result) {
         // Check if it's the new format with messageIds array or old format
@@ -410,27 +426,29 @@ async function handlePersonalityInteraction(message, personality) {
       
       // Clean up active request tracking
       const interactionKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
-      if (activeApiRequests.has(interactionKey)) {
-        console.log(`[Bot] Cleaning up failed request tracking for ${interactionKey}`);
-        activeApiRequests.delete(interactionKey);
+      if (activeRequests.has(interactionKey)) {
+        activeRequests.delete(interactionKey);
       }
       
       throw error; // Re-throw to be handled by outer catch
+    } finally {
+      console.log = originalConsoleLog; // Restore logging
     }
   } catch (error) {
-    console.error('Error in personality interaction:', error);
+    console.error('Error in personality interaction:', error.message);
 
     // Clean up active request tracking if not done already
     const interactionKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
-    if (activeApiRequests.has(interactionKey)) {
-      console.log(`[Bot] Cleaning up request tracking after error for ${interactionKey}`);
-      activeApiRequests.delete(interactionKey);
+    if (activeRequests.has(interactionKey)) {
+      activeRequests.delete(interactionKey);
     }
 
     // Send error message to user
-    message.reply('Sorry, I encountered an error while processing your message.').catch(e => {
-      console.error('Could not send error reply:', e);
-    });
+    message.reply('Sorry, I encountered an error while processing your message.').catch(() => {});
+  } finally {
+    // Restore console functions
+    console.log = originalConsoleLog;
+    console.debug = originalConsoleDebug;
   }
 }
 
@@ -452,6 +470,9 @@ function startQueueCleaner(client) {
 
   // Check for error messages periodically
   setInterval(async () => {
+    // Disable console output during queue cleaning
+    const originalConsoleLog = console.log;
+    console.log = () => {}; // Temporarily disable logging
     try {
       // Get all channels the bot has access to, excluding already identified inaccessible ones
       const channels = Array.from(client.channels.cache.values())
@@ -484,10 +505,7 @@ function startQueueCleaner(client) {
       // If we have too many channels, just check a subset to avoid rate limits
       const channelsToProcess = channelsToCheck.slice(0, 10);
       
-      // Only log when we actually find channels to check
-      if (channelsToProcess.length > 0) {
-        console.log(`[QueueCleaner] Checking ${channelsToProcess.length} priority channels for error messages`);
-      }
+      // No logging needed here
       
       for (const channel of channelsToProcess) {
         try {

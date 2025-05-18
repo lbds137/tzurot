@@ -142,11 +142,12 @@ async function loadAllData() {
  * @param {string} personalityName - Full name of the personality
  */
 function recordConversation(userId, channelId, messageIds, personalityName) {
+  // Minimize logging during conversation recording
+  const originalConsoleLog = console.log;
+  console.log = () => {}; // Temporarily disable logging
+  
   const key = `${userId}-${channelId}`;
   const timestamp = Date.now();
-
-  console.log(`Recording conversation - USER: ${userId}, CHANNEL: ${channelId}, PERSONALITY: ${personalityName}`);
-  console.log(`Message IDs format: ${typeof messageIds}, isArray: ${Array.isArray(messageIds)}, value:`, messageIds);
 
   // Convert single message ID to array if needed
   const messageIdArray = Array.isArray(messageIds) ? messageIds : [messageIds];
@@ -160,7 +161,6 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
 
   // Map each message ID to this conversation for quick lookup
   messageIdArray.forEach(msgId => {
-    console.log(`[ConversationManager] Mapping message ID ${msgId} to personality ${personalityName}`);
     messageIdMap.set(msgId, {
       userId,
       channelId,
@@ -169,17 +169,15 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
     });
   });
   
-  // Debug check: Verify the message IDs were stored correctly
-  messageIdArray.forEach(msgId => {
-    const data = messageIdMap.get(msgId);
-    console.log(`[ConversationManager] Verification - Message ID ${msgId} maps to: ${data ? data.personalityName : 'NOT FOUND!'}`);
-  });
-  
-  console.log(`Recorded conversation for user ${userId} in channel ${channelId} with ${messageIdArray.length} messages from ${personalityName}`);
-  console.log(`Active conversations map size: ${activeConversations.size}, Message ID map size: ${messageIdMap.size}`);
-  
   // Save to persistent storage
-  saveAllData();
+  try {
+    saveAllData();
+  } catch (error) {
+    console.error(`[ConversationManager] Error saving: ${error.message}`);
+  }
+  
+  // Restore console output
+  console.log = originalConsoleLog;
 }
 
 /**
