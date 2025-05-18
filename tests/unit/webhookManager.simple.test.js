@@ -49,12 +49,12 @@ describe('WebhookManager Avatar URL Handling - Simplified Tests', () => {
     expect(await webhookManager.validateAvatarUrl(undefined)).toBe(false);
   });
   
-  test('getValidAvatarUrl should return fallback URL for null input', async () => {
+  test('getValidAvatarUrl should return null for null input', async () => {
     // This is the simplest test case that should always work
-    expect(await webhookManager.getValidAvatarUrl(null)).toBe(FALLBACK_AVATAR_URL);
+    expect(await webhookManager.getValidAvatarUrl(null)).toBe(null);
   });
   
-  test('preloadPersonalityAvatar should set fallback URL for personalities without avatarUrl', async () => {
+  test('preloadPersonalityAvatar should set null for personalities without avatarUrl', async () => {
     // Create a personality without avatarUrl
     const personality = {
       fullName: 'test-personality',
@@ -64,8 +64,8 @@ describe('WebhookManager Avatar URL Handling - Simplified Tests', () => {
     // Call the function
     await webhookManager.preloadPersonalityAvatar(personality);
     
-    // Verify the fallback URL was set
-    expect(personality.avatarUrl).toBe(FALLBACK_AVATAR_URL);
+    // Verify the avatar URL was set to null
+    expect(personality.avatarUrl).toBe(null);
   });
   
   test('preloadPersonalityAvatar should handle null personality gracefully', async () => {
