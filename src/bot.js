@@ -1,12 +1,10 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { getAiResponse, isErrorResponse, registerProblematicPersonality, 
-  knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
+const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
 const { getPersonalityByAlias, getPersonality, registerPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
-const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation,
-  activatePersonality, deactivatePersonality, getActivatedPersonality,
-  enableAutoResponse, disableAutoResponse, isAutoResponseEnabled } = require('./conversationManager');
+const { recordConversation, getActivePersonality, getPersonalityFromMessage, 
+  getActivatedPersonality } = require('./conversationManager');
 const { processCommand } = require('./commands');
 const { botPrefix } = require('../config');
 
@@ -103,8 +101,7 @@ async function initBot() {
     console.error('Discord client error:', error);
   });
   
-  // Track all webhooks created by us to prevent filtering our own messages
-  const ownWebhookIds = new Set();
+  // Track webhook messages for processing
   
   // Message handling
   client.on('messageCreate', async message => {
@@ -302,7 +299,6 @@ async function initBot() {
       if (personality) {
         // Process the message with this personality
         await handlePersonalityInteraction(message, personality);
-        return;
       }
     }
   });
@@ -367,7 +363,7 @@ async function handlePersonalityInteraction(message, personality) {
       
       // Check for special marker that tells us to completely ignore this response
       if (aiResponse === "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY") {
-        return; // Exit without sending ANY message
+        return; // Necessary return to exit early when receiving blocked response
       }
       
       // Add a small delay before sending any webhook message
@@ -430,7 +426,7 @@ async function handlePersonalityInteraction(message, personality) {
         activeRequests.delete(interactionKey);
       }
       
-      throw error; // Re-throw to be handled by outer catch
+      // Let outer catch block handle this error
     } finally {
       console.log = originalConsoleLog; // Restore logging
     }
