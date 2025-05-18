@@ -13,14 +13,24 @@ const logger = require('../logger');
 const urlValidator = require('./urlValidator');
 
 /**
- * Checks if a URL has an audio file extension
- * @param {string} url - The URL to check
- * @returns {boolean} - True if the URL has an audio extension
+ * Checks if a URL or filename has an audio file extension
+ * @param {string} urlOrFilename - The URL or filename to check
+ * @returns {boolean} - True if the URL or filename has an audio extension
  */
-function hasAudioExtension(url) {
-  if (!urlValidator.isValidUrlFormat(url)) return false;
+function hasAudioExtension(urlOrFilename) {
+  if (!urlOrFilename) return false;
   
-  return !!url.match(/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i);
+  // If this appears to be a full URL, validate its format first
+  if (urlOrFilename.startsWith('http://') || urlOrFilename.startsWith('https://')) {
+    if (!urlValidator.isValidUrlFormat(urlOrFilename)) {
+      return false;
+    }
+  } else {
+    // For just filenames, we don't need URL validation
+    logger.debug(`[AudioHandler] Checking audio extension for filename: ${urlOrFilename}`);
+  }
+  
+  return !!urlOrFilename.match(/\.(mp3|wav|ogg|m4a|flac)(\?.*)?$/i);
 }
 
 /**
@@ -177,14 +187,19 @@ async function downloadAudioFile(url) {
     const pathSegments = urlObj.pathname.split('/').filter(Boolean);
     const lastSegment = pathSegments[pathSegments.length - 1];
     
-    if (lastSegment && hasAudioExtension(lastSegment)) {
-      filename = lastSegment;
+    // Remove query parameters from lastSegment if present
+    const cleanedSegment = lastSegment.includes('?') ? lastSegment.split('?')[0] : lastSegment;
+    
+    if (cleanedSegment && hasAudioExtension(cleanedSegment)) {
+      logger.debug(`[AudioHandler] Using filename from URL: ${cleanedSegment}`);
+      filename = cleanedSegment;
     } else {
       // Generate a filename based on content type
       const extension = contentType.includes('ogg') ? 'ogg' : 
                         contentType.includes('wav') ? 'wav' : 
                         'mp3'; // Default to mp3
       filename = `audio_${Date.now()}.${extension}`;
+      logger.debug(`[AudioHandler] Generated filename: ${filename} for URL: ${url}`);
     }
     
     // Read the response as an array buffer
