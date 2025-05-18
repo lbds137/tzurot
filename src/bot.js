@@ -4,7 +4,6 @@ const webhookManager = require('./webhookManager');
 const {
   getPersonalityByAlias,
   getPersonality,
-  registerPersonality,
 } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const {
@@ -211,16 +210,6 @@ async function initBot() {
 
     // Register webhook manager event listeners AFTER client is ready
     webhookManager.registerEventListeners(client);
-
-    // Register a default personality for testing (if needed)
-    try {
-      await registerPersonality('SYSTEM', 'lilith-tzel-shani', {
-        description: 'System test personality',
-      });
-      logger.info('Test personality registered');
-    } catch (error) {
-      logger.error('Error registering test personality:', error);
-    }
 
     // Start a periodic queue cleaner to check for and remove any error messages
     // This is a very aggressive approach to ensure no error messages appear
