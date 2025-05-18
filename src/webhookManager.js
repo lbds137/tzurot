@@ -6,6 +6,139 @@ const webhookCache = new Map();
 // Track all active webhooks to prevent duplicates
 const activeWebhooks = new Set();
 
+// Discord message size limits
+const MESSAGE_CHAR_LIMIT = 2000;
+
+/**
+ * Split a long message into chunks at natural break points
+ * @param {string} content - Message content to split
+ * @returns {Array<string>} Array of message chunks
+ */
+function splitMessage(content) {
+  // If message is within limits, return as is
+  if (content.length <= MESSAGE_CHAR_LIMIT) {
+    return [content];
+  }
+
+  const chunks = [];
+  let currentChunk = '';
+  
+  // First try to split by paragraphs (double newlines)
+  const paragraphs = content.split(/\n\s*\n/);
+  
+  for (const paragraph of paragraphs) {
+    // If adding this paragraph exceeds the limit
+    if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
+      // If current paragraph itself is too long, need to split further
+      if (paragraph.length > MESSAGE_CHAR_LIMIT) {
+        // If we have content in currentChunk, push it first
+        if (currentChunk.length > 0) {
+          chunks.push(currentChunk);
+          currentChunk = '';
+        }
+        
+        // Split paragraph by single newlines
+        const lines = paragraph.split(/\n/);
+        let lineChunk = '';
+        
+        for (const line of lines) {
+          // If adding this line exceeds the limit
+          if (lineChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
+            // If the line itself is too long, need to split by sentences
+            if (line.length > MESSAGE_CHAR_LIMIT) {
+              // If we have content in lineChunk, push it first
+              if (lineChunk.length > 0) {
+                chunks.push(lineChunk);
+                lineChunk = '';
+              }
+              
+              // Split by sentences
+              const sentences = line.split(/(?<=[.!?])\s+/);
+              let sentenceChunk = '';
+              
+              for (const sentence of sentences) {
+                // If adding this sentence exceeds the limit
+                if (sentenceChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
+                  // If the sentence itself is too long, split by hard character limit
+                  if (sentence.length > MESSAGE_CHAR_LIMIT) {
+                    // If we have content in sentenceChunk, push it first
+                    if (sentenceChunk.length > 0) {
+                      chunks.push(sentenceChunk);
+                      sentenceChunk = '';
+                    }
+                    
+                    // Split by character limit at word boundaries if possible
+                    let remainingSentence = sentence;
+                    while (remainingSentence.length > 0) {
+                      // Try to find last space within the limit
+                      const chunkSize = Math.min(remainingSentence.length, MESSAGE_CHAR_LIMIT);
+                      let splitIndex = remainingSentence.lastIndexOf(' ', chunkSize);
+                      
+                      // If no space found or it's too close to start, just split at limit
+                      if (splitIndex <= chunkSize * 0.5) {
+                        splitIndex = chunkSize;
+                      }
+                      
+                      chunks.push(remainingSentence.substring(0, splitIndex));
+                      
+                      // Move to next chunk of the sentence
+                      remainingSentence = remainingSentence.substring(splitIndex).trim();
+                    }
+                  } else {
+                    // Sentence is within limit but combined is too long
+                    chunks.push(sentenceChunk);
+                    sentenceChunk = sentence;
+                  }
+                } else {
+                  // Add sentence to current chunk
+                  sentenceChunk = sentenceChunk.length > 0 
+                    ? `${sentenceChunk} ${sentence}` 
+                    : sentence;
+                }
+              }
+              
+              // Add any remaining sentence chunk
+              if (sentenceChunk.length > 0) {
+                chunks.push(sentenceChunk);
+              }
+            } else {
+              // Line is within limit but combined is too long
+              chunks.push(lineChunk);
+              lineChunk = line;
+            }
+          } else {
+            // Add line to current chunk
+            lineChunk = lineChunk.length > 0 
+              ? `${lineChunk}\n${line}` 
+              : line;
+          }
+        }
+        
+        // Add any remaining line chunk
+        if (lineChunk.length > 0) {
+          chunks.push(lineChunk);
+        }
+      } else {
+        // Paragraph is within limit but combined is too long
+        chunks.push(currentChunk);
+        currentChunk = paragraph;
+      }
+    } else {
+      // Add paragraph to current chunk
+      currentChunk = currentChunk.length > 0 
+        ? `${currentChunk}\n\n${paragraph}` 
+        : paragraph;
+    }
+  }
+  
+  // Add any remaining chunk
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk);
+  }
+  
+  return chunks;
+}
+
 /**
  * Get or create a webhook for a specific channel
  * @param {Object} channel - Discord.js channel object
@@ -78,44 +211,93 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     try {
       const webhook = await getOrCreateWebhook(channel);
       
-      // Prepare message data
-      const messageData = {
-        content: content,
-        username: personality.displayName,
-        avatarURL: personality.avatarUrl,
-        allowedMentions: { parse: ['users', 'roles'] }, // Allow mentions
-        threadId: channel.isThread() ? channel.id : undefined, // Support for threads
-      };
-
-      // Add optional embed if provided
-      if (options.embed) {
-        messageData.embeds = [
-          new EmbedBuilder(options.embed)
-        ];
-      }
-
-      // Add optional files if provided
-      if (options.files) {
-        messageData.files = options.files;
-      }
+      // Check if we need to split the message
+      const contentChunks = typeof content === 'string' ? splitMessage(content) : [''];
+      let firstSentMessage = null;
       
-      // Send the message
-      console.log(`Sending webhook message with data: ${JSON.stringify({
-        username: messageData.username,
-        hasContent: !!messageData.content,
-        hasEmbeds: !!messageData.embeds?.length,
-        threadId: messageData.threadId
-      })}`);
-      
-      const sentMessage = await webhook.send(messageData);
-      console.log(`Successfully sent webhook message with ID: ${sentMessage.id}`);
+      // Now send each chunk as a separate message
+      for (let i = 0; i < contentChunks.length; i++) {
+        const isFirstChunk = i === 0;
+        const isLastChunk = i === contentChunks.length - 1;
+        
+        // Add continuation indicator if needed
+        let chunkContent = contentChunks[i];
+        if (!isLastChunk && !chunkContent.endsWith('...')) {
+          chunkContent += '...';
+        }
+        if (!isFirstChunk && !chunkContent.startsWith('...')) {
+          chunkContent = '...' + chunkContent;
+        }
+        
+        // Prepare message data for this chunk
+        const messageData = {
+          content: chunkContent,
+          username: personality.displayName,
+          avatarURL: personality.avatarUrl,
+          allowedMentions: { parse: ['users', 'roles'] }, // Allow mentions
+          threadId: channel.isThread() ? channel.id : undefined, // Support for threads
+        };
+
+        // Add optional embed if provided - only on the first chunk
+        if (isFirstChunk && options.embed) {
+          messageData.embeds = [
+            new EmbedBuilder(options.embed)
+          ];
+        }
+
+        // Add optional files if provided - only on the first chunk
+        if (isFirstChunk && options.files) {
+          messageData.files = options.files;
+        }
+        
+        // Log what we're sending
+        console.log(`Sending webhook message chunk ${i+1}/${contentChunks.length} with data: ${JSON.stringify({
+          username: messageData.username,
+          contentLength: messageData.content?.length,
+          hasEmbeds: !!messageData.embeds?.length,
+          threadId: messageData.threadId
+        })}`);
+        
+        // Send the message
+        try {
+          const sentMessage = await webhook.send(messageData);
+          console.log(`Successfully sent webhook message chunk ${i+1}/${contentChunks.length} with ID: ${sentMessage.id}`);
+          
+          // Keep track of the first message for returning
+          if (isFirstChunk) {
+            firstSentMessage = sentMessage;
+          }
+        } catch (innerError) {
+          console.error(`Error sending message chunk ${i+1}/${contentChunks.length}:`, innerError);
+          
+          // If this is because of length, try to send a simpler message indicating the error
+          if (innerError.code === 50035) { // Invalid Form Body
+            try {
+              await webhook.send({
+                content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
+                username: personality.displayName,
+                avatarURL: personality.avatarUrl,
+                threadId: channel.isThread() ? channel.id : undefined,
+              });
+            } catch (finalError) {
+              console.error('Failed to send error notification:', finalError);
+            }
+          }
+          
+          // If this is the first chunk and it failed, we need to propagate the error
+          if (isFirstChunk) {
+            throw innerError;
+          }
+        }
+      }
       
       // Remove this message from active tracking after a short delay
       setTimeout(() => {
         activeWebhooks.delete(messageTrackingId);
       }, 5000);
       
-      return sentMessage;
+      // Return the first sent message (or null if no messages were sent)
+      return firstSentMessage;
     } catch (error) {
       // Make sure to clean up on error
       activeWebhooks.delete(messageTrackingId);
