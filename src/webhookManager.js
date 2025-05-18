@@ -159,15 +159,14 @@ function processLine(line, chunks, currentChunk) {
       
       // Split by sentences and process each
       const sentences = line.split(/(?<=[.!?])\s+/);
-      let sentenceChunk = '';
-      
-      for (const sentence of sentences) {
-        sentenceChunk = processSentence(sentence, chunks, sentenceChunk);
-      }
+      const sentenceChunk = '';
+      const processedChunk = sentences.reduce((chunk, sentence) => {
+        return processSentence(sentence, chunks, chunk);
+      }, sentenceChunk);
       
       // Add any remaining content
-      if (sentenceChunk.length > 0) {
-        chunks.push(sentenceChunk);
+      if (processedChunk.length > 0) {
+        chunks.push(processedChunk);
       }
       
       return '';
@@ -201,15 +200,14 @@ function processParagraph(paragraph, chunks, currentChunk) {
       
       // Split paragraph by lines and process each
       const lines = paragraph.split(/\n/);
-      let lineChunk = '';
-      
-      for (const line of lines) {
-        lineChunk = processLine(line, chunks, lineChunk);
-      }
+      const lineChunk = '';
+      const processedChunk = lines.reduce((chunk, line) => {
+        return processLine(line, chunks, chunk);
+      }, lineChunk);
       
       // Add any remaining content
-      if (lineChunk.length > 0) {
-        chunks.push(lineChunk);
+      if (processedChunk.length > 0) {
+        chunks.push(processedChunk);
       }
       
       return '';
@@ -320,9 +318,9 @@ function minimizeConsoleOutput() {
 
 /**
  * Restore console output functions
- * @param {Object} originalFunctions - The original console functions (not used with structured logger)
+ * This is kept for backwards compatibility but does nothing with structured logging
  */
-function restoreConsoleOutput(originalFunctions) {
+function restoreConsoleOutput() {
   // With structured logging in place, we don't need to restore anything
   // This function is kept for backwards compatibility
 }
@@ -620,7 +618,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       // Send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
-        let chunkContent = contentChunks[i];
+        const chunkContent = contentChunks[i];
 
         // Skip duplicate messages
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
@@ -632,7 +630,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         updateChannelLastMessageTime(channel.id);
 
         // Mark error content appropriately
-        let finalContent = markErrorContent(chunkContent || '');
+        const finalContent = markErrorContent(chunkContent || '');
 
         // Skip hard-blocked content
         if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY')) {
@@ -750,8 +748,8 @@ function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
 
-  // Use the centralized error messages and markers from constants
-  const { ERROR_MESSAGES, MARKERS } = require('./constants');
+  // Use the centralized error messages
+  const { ERROR_MESSAGES } = require('./constants');
   
   // Add additional patterns specific to webhook operations 
   const webhookSpecificPatterns = [

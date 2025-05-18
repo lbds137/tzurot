@@ -26,10 +26,18 @@ export default [
     plugins: {
       jest: eslintPluginJest
     },
+    languageOptions: {
+      globals: {
+        ...globals.jest,
+        ...globals.nodeBuiltin
+      }
+    },
     rules: {
       ...eslintPluginJest.configs.recommended.rules,
       'jest/no-disabled-tests': 'warn',
-      'jest/no-focused-tests': 'error'
+      'jest/no-focused-tests': 'error',
+      // Relax some rules for test files
+      'no-undef': 'off'
     }
   },
   {
