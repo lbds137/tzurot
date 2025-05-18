@@ -1799,7 +1799,7 @@ async function handleStatusCommand(message) {
  */
 async function handleDebugCommand(message, args) {
   if (args.length < 1) {
-    return message.reply(`Please specify a debug subcommand. Available subcommands: \`problems\``);
+    return message.reply(`Please specify a debug subcommand. Available subcommands: \`problems\`, \`seedpersonalities\``);
   }
 
   const subCommand = args[0].toLowerCase();
@@ -1808,11 +1808,44 @@ async function handleDebugCommand(message, args) {
     case 'problems':
     case 'problematic':
       return await handleDebugProblematicCommand(message, args.slice(1));
+      
+    case 'seedpersonalities':
+    case 'seed':
+      return await handleDebugSeedPersonalitiesCommand(message);
 
     default:
       return message.reply(
-        `Unknown debug subcommand: \`${subCommand}\`. Available subcommands: \`problems\``
+        `Unknown debug subcommand: \`${subCommand}\`. Available subcommands: \`problems\`, \`seedpersonalities\``
       );
+  }
+}
+
+/**
+ * Handle the debug seed personalities command to manually trigger owner personality seeding
+ * @param {Object} message - Discord message object
+ */
+async function handleDebugSeedPersonalitiesCommand(message) {
+  // Import needed functions
+  const { USER_CONFIG } = require('./constants');
+  const { seedOwnerPersonalities } = require('./personalityManager');
+  
+  // Check if the user is the owner
+  if (message.author.id !== USER_CONFIG.OWNER_ID) {
+    return message.reply('This command can only be used by the bot owner.');
+  }
+  
+  try {
+    // Show initiating message
+    await message.reply('Seeding personalities from constants.js... This may take a moment.');
+    
+    // Run the seeding operation
+    await seedOwnerPersonalities();
+    
+    // Return success
+    return message.reply('✅ Personalities successfully seeded from constants.js configuration.');
+  } catch (error) {
+    logger.error(`[Commands] Error seeding personalities: ${error.message}`);
+    return message.reply(`❌ Error seeding personalities: ${error.message}`);
   }
 }
 

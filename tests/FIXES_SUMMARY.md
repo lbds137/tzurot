@@ -719,3 +719,90 @@ With these improvements:
 - Test coverage has improved
 
 These fixes not only resolved immediate test failures but also improved the overall code quality and maintainability of the codebase.
+
+## Implementing Personality Auto-Seeding Feature
+
+As part of improving the bot's configuration capabilities, we implemented a personality auto-seeding feature that allows the bot owner to pre-define personalities that will be automatically added to their account.
+
+### Key Features
+
+1. **Owner-Only Functionality**:
+   - Created a BOT_OWNER_ID environment variable to securely identify the bot owner
+   - Created an OWNER_PERSONALITIES environment variable for personality list
+   - Moved sensitive owner ID and personalities from constants.js to .env file for better security and easier configuration
+   - Added proper fallbacks for development environments
+
+2. **Predefined Personality List**:
+   - Implemented a comma-separated list format in the .env file for easier editing
+   - Created USER_CONFIG object in constants.js to read from environment variables
+   - Personalities are automatically seeded during bot initialization
+
+3. **Automatic Alias Generation**:
+   - Each seeded personality gets standard aliases automatically
+   - Consistent with the naming conventions from the add command
+   - Prevents duplicate aliases for existing personalities
+
+### Implementation Details
+
+1. **Modified constants.js**:
+   - Added USER_CONFIG section with OWNER_ID and OWNER_PERSONALITIES_LIST
+   - Updated to read OWNER_ID from environment variables
+   - Added documentation with JSDoc comments
+
+```javascript
+/**
+ * Predefined user configurations for personalities and settings
+ * @typedef {Object} UserConfig
+ * @property {string} OWNER_ID - Discord user ID of the bot owner (from environment variable BOT_OWNER_ID)
+ * @property {string} OWNER_PERSONALITIES_LIST - Comma-separated list of personality names to add for the owner (from environment variable OWNER_PERSONALITIES)
+ * @type {UserConfig}
+ */
+exports.USER_CONFIG = {
+  // Bot owner user ID - loaded from environment variables
+  // Set BOT_OWNER_ID in your .env file
+  OWNER_ID: process.env.BOT_OWNER_ID || '123456789012345678', // Fallback ID for development
+  
+  // Pre-seeded personalities for the owner - loaded from environment variables
+  // Set OWNER_PERSONALITIES in your .env file as a comma-separated list
+  // The bot will automatically detect each personality's display name and set up proper aliases
+  OWNER_PERSONALITIES_LIST: process.env.OWNER_PERSONALITIES || 
+    "albert-einstein,sigmund-freud,carl-jung,marie-curie" // Default personalities for development
+};
+```
+
+2. **Added seedOwnerPersonalities Function to personalityManager.js**:
+   - Parses the comma-separated personality list
+   - Checks for existing personalities to avoid duplicates
+   - Registers each personality for the owner
+   - Sets up standard aliases
+   - Saves all changes at once for efficiency
+
+3. **Added Debug Command for Testing**:
+   - Created a seedpersonalities command for manual triggering
+   - Added owner verification check
+   - Implemented proper error handling and logging
+
+4. **Environment Variable Integration**:
+   - Updated .env file to include BOT_OWNER_ID and OWNER_PERSONALITIES fields
+   - Added documentation in README.md about both environment variables
+   - Provided fallbacks for development environments
+   - Created example .env configuration
+
+### Benefits
+
+This feature provides several benefits:
+
+1. **Easier Onboarding**: New bot instances come pre-configured with useful personalities
+2. **Consistent Configuration**: Standard personalities are configured the same way for all users
+3. **Secure Owner Identification**: Using environment variables for owner ID improves security
+4. **User-Friendly**: Simple comma-separated list format is easy to edit
+5. **Automation**: Personalities are added automatically during initialization
+
+### Testing
+
+We thoroughly tested the feature:
+- Verified parsing of the comma-separated list
+- Tested duplicate handling to ensure personalities aren't added twice
+- Confirmed proper alias generation consistent with the add command
+- Validated environment variable reading with fallback values
+- Tested manual triggering with the debug command

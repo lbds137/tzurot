@@ -1,6 +1,27 @@
 # tzurot
 A Discord bot that uses webhooks to represent multiple AI personalities
 
+## Configuration
+
+### Environment Variables
+
+The bot uses the following environment variables:
+
+- `DISCORD_TOKEN` - Discord bot token
+- `SERVICE_API_KEY` - API key for the AI service
+- `SERVICE_API_ENDPOINT` - API endpoint for the AI service
+- `SERVICE_ID` - Service identifier
+- `PROFILE_INFO_ENDPOINT` - Endpoint for fetching profile information
+- `AVATAR_URL_BASE` - Base URL for avatar images
+- `PREFIX` - Command prefix (default: `!tz`)
+- `BOT_OWNER_ID` - Discord user ID of the bot owner (required for owner-only commands and personality auto-seeding)
+- `OWNER_PERSONALITIES` - Comma-separated list of personalities to automatically add for the bot owner
+- `HEALTH_PORT` - Port for the health check endpoint (optional)
+
+### User Personalities
+
+The bot can automatically seed personalities for the bot owner. Configure the list of personalities using the `OWNER_PERSONALITIES` environment variable in your `.env` file. This should be a comma-separated list of personality names that will be automatically added to the bot owner's account during initialization.
+
 ## Health Check Endpoint
 
 The bot includes a health check HTTP endpoint that allows monitoring systems to verify the application's status. By default, it runs on port 3000 and can be accessed at:

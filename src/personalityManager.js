@@ -44,6 +44,9 @@ async function initPersonalityManager() {
       }
       logger.info(`[PersonalityManager] Loaded ${personalityAliases.size} aliases`);
     }
+    
+    // Pre-seed personalities for the bot owner if needed
+    await seedOwnerPersonalities();
   } catch (error) {
     logger.error(`[PersonalityManager] Error initializing personality manager: ${error}`);
     throw error;
@@ -440,6 +443,89 @@ function listPersonalitiesForUser(userId) {
   return userPersonalities;
 }
 
+/**
+ * Pre-seeds the bot owner with default personalities from constants.js
+ * Only adds personalities if they don't already exist for the owner
+ */
+async function seedOwnerPersonalities() {
+  // Import constants
+  const { USER_CONFIG } = require('./constants');
+  
+  // Check if USER_CONFIG is defined with owner personalities
+  if (!USER_CONFIG || !USER_CONFIG.OWNER_ID || !USER_CONFIG.OWNER_PERSONALITIES_LIST) {
+    logger.debug('[PersonalityManager] No owner personalities defined in constants, skipping auto-seeding');
+    return;
+  }
+  
+  const ownerId = USER_CONFIG.OWNER_ID;
+  // Parse the comma-separated list into an array
+  const personalitiesList = USER_CONFIG.OWNER_PERSONALITIES_LIST.trim();
+  const ownerPersonalities = personalitiesList ? personalitiesList.split(',').map(p => p.trim()) : [];
+  
+  // Get current owner personalities
+  const existingPersonalities = listPersonalitiesForUser(ownerId);
+  const existingPersonalityNames = new Set(existingPersonalities.map(p => p.fullName));
+  
+  logger.info(`[PersonalityManager] Checking auto-seeding for owner (${ownerId}): ${ownerPersonalities.length} personalities defined`);
+  logger.info(`[PersonalityManager] Owner already has ${existingPersonalities.length} personalities`);
+  
+  // Track which personalities were added
+  const addedPersonalities = [];
+  
+  // Register each owner personality if it doesn't exist
+  for (const personalityName of ownerPersonalities) {
+    // Skip empty entries
+    if (!personalityName) {
+      continue;
+    }
+    
+    if (existingPersonalityNames.has(personalityName)) {
+      logger.debug(`[PersonalityManager] Owner already has personality: ${personalityName}, skipping`);
+      continue;
+    }
+    
+    logger.info(`[PersonalityManager] Auto-seeding owner personality: ${personalityName}`);
+    try {
+      // Register the personality for the owner
+      // The standard personality registration will fetch profile info and handle display names
+      const personality = await registerPersonality(ownerId, personalityName, {
+        description: `Auto-added from constants.js for bot owner`
+      }, true); // true = fetch profile info
+      
+      // After registration, the display name will be populated
+      if (personality && personality.displayName) {
+        logger.info(`[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`);
+        
+        // Handle self-referential alias (similar to the add command)
+        // This is typically handled by commands.js but we're doing it manually for auto-seeding
+        await setPersonalityAlias(personalityName.toLowerCase(), personalityName, true); // Skip save
+        
+        // For consistency with the add command, also set display name as an alias if different
+        if (personality.displayName.toLowerCase() !== personalityName.toLowerCase()) {
+          await setPersonalityAlias(personality.displayName.toLowerCase(), personalityName, true); // Skip save
+        }
+      }
+      
+      addedPersonalities.push(personality);
+      logger.info(`[PersonalityManager] Successfully added owner personality: ${personalityName}`);
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error auto-seeding personality ${personalityName}: ${error.message}`);
+    }
+  }
+  
+  // Finally, save all personalities and aliases if any were added
+  if (addedPersonalities.length > 0) {
+    try {
+      await saveAllPersonalities();
+      logger.info(`[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`);
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error saving after auto-seeding: ${error.message}`);
+    }
+  } else {
+    logger.info('[PersonalityManager] No new personalities needed to be seeded.');
+  }
+}
+
 module.exports = {
   initPersonalityManager,
   registerPersonality,
@@ -449,5 +535,6 @@ module.exports = {
   removePersonality,
   listPersonalitiesForUser,
   personalityAliases,
-  saveAllPersonalities, // Added this export
+  saveAllPersonalities,
+  seedOwnerPersonalities, // Export for testing/manual seeding
 };
