@@ -490,11 +490,12 @@ async function initBot() {
 
     // @mention personality triggering
     try {
-      // Updated regex to match word characters AND hyphens, allowing names like "ha-shem"
-      const mentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
-      if (mentionMatch && mentionMatch[1]) {
-        const mentionName = mentionMatch[1];
-        logger.debug(`Found @mention: ${mentionName}, looking up personality`);
+      // First check for standard @mentions (without spaces)
+      const standardMentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
+      
+      if (standardMentionMatch && standardMentionMatch[1]) {
+        const mentionName = standardMentionMatch[1];
+        logger.debug(`Found standard @mention: ${mentionName}, looking up personality`);
 
         // First try to get personality directly by full name
         let personality = getPersonality(mentionName);
@@ -510,6 +511,76 @@ async function initBot() {
           // Process the message with this personality
           await handlePersonalityInteraction(message, personality);
           return;
+        }
+      }
+      
+      // If standard mention didn't match, try for mentions with spaces
+      if (message.content && message.content.includes('@')) {
+        // Improved regex to match multi-word mentions
+        // This captures @word1 word2 word3 patterns more precisely
+        // Limited to a maximum of 4 words to avoid capturing too much text
+        const mentionWithSpacesRegex = /@([^\s@\n]+(?:\s+[^\s@\n.,!?;:()"']+){0,4})/g;
+        let spacedMentionMatch;
+        const mentionsWithSpaces = [];
+        
+        // Find all potential @mentions with spaces
+        while ((spacedMentionMatch = mentionWithSpacesRegex.exec(message.content)) !== null) {
+          if (spacedMentionMatch[1] && spacedMentionMatch[1].trim()) {
+            mentionsWithSpaces.push(spacedMentionMatch[1].trim());
+          }
+        }
+        
+        // Try each potential multi-word mention
+        for (const rawMentionText of mentionsWithSpaces) {
+          logger.debug(`Processing potential multi-word @mention: "${rawMentionText}"`);
+          
+          // Skip if this is just a single word (already handled by standard regex)
+          if (!rawMentionText.includes(' ')) {
+            logger.debug(`Skipping "${rawMentionText}" - single word, already checked`);
+            continue;
+          }
+          
+          // Try different word combinations from the match
+          // Start with trying the full match
+          let foundPersonality = null;
+          
+          // Split the raw text into words
+          const words = rawMentionText.split(/\s+/);
+          
+          // Try different word combinations, from most specific to least
+          const combinations = [
+            // Try 4 words (if available)
+            words.slice(0, 4).join(' '),
+            // Try 3 words (if available)  
+            words.slice(0, 3).join(' '),
+            // Try 2 words
+            words.slice(0, 2).join(' '),
+          ];
+          
+          // Remove any empty combinations (for matches with fewer words)
+          const validCombinations = combinations.filter(c => c.trim() !== '');
+          
+          // Try each combination, from most specific to least
+          for (const mentionText of validCombinations) {
+            logger.debug(`Trying mention combination: "${mentionText}"`);
+            
+            // Try as an alias
+            const personality = getPersonalityByAlias(mentionText);
+            
+            if (personality) {
+              foundPersonality = personality;
+              logger.info(`Found multi-word @mention: "${mentionText}" -> ${personality.fullName}`);
+              break;
+            }
+          }
+          
+          // If we found a personality, handle the interaction
+          if (foundPersonality) {
+            await handlePersonalityInteraction(message, foundPersonality);
+            return;
+          } else {
+            logger.debug(`No personality found for any word combination in: "${rawMentionText}"`);
+          }
         }
       }
     } catch (error) {
