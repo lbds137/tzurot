@@ -148,30 +148,52 @@ async function initBot() {
  */
 async function handlePersonalityInteraction(message, personality) {
   try {
-    // Get AI response with user and channel context
-    const aiResponse = await getAiResponse(
-        personality.fullName,
-        message.content,
-        {
-          userId: message.author.id,
-          channelId: message.channel.id
-        }
-    );
-
-    // Send the response via webhook - use the function directly from the module
-    const sentMessage = await webhookManager.sendWebhookMessage(
-        message.channel,
-        aiResponse,
-        personality
-    );
-
-    // Record this conversation
-    recordConversation(
-        message.author.id,
-        message.channel.id,
-        sentMessage.id,
-        personality.fullName
-    );
+    // Start typing indicator to show the bot is processing
+    message.channel.sendTyping();
+    
+    // Set typing interval - Discord's typing status only lasts 10 seconds
+    // so we need to repeatedly send it for longer conversations
+    const typingInterval = setInterval(() => {
+      message.channel.sendTyping()
+        .catch(err => console.warn('Error sending typing indicator:', err));
+    }, 9000); // Send typing indicator every 9 seconds
+    
+    try {
+      // Get AI response with user and channel context
+      console.log(`Getting AI response from ${personality.fullName} for ${message.author.tag}`);
+      const aiResponse = await getAiResponse(
+          personality.fullName,
+          message.content,
+          {
+            userId: message.author.id,
+            channelId: message.channel.id
+          }
+      );
+  
+      // Clear typing indicator interval
+      clearInterval(typingInterval);
+  
+      // Send the response via webhook - use the function directly from the module
+      const sentMessage = await webhookManager.sendWebhookMessage(
+          message.channel,
+          aiResponse,
+          personality
+      );
+  
+      // Record this conversation
+      if (sentMessage) {
+        recordConversation(
+            message.author.id,
+            message.channel.id,
+            sentMessage.id,
+            personality.fullName
+        );
+      }
+    } catch (error) {
+      // Clear typing indicator if there's an error
+      clearInterval(typingInterval);
+      throw error; // Re-throw to be handled by outer catch
+    }
   } catch (error) {
     console.error('Error in personality interaction:', error);
 
