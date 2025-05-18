@@ -57,7 +57,15 @@ async function initBot() {
   // Message handling
   client.on('messageCreate', async message => {
     // Ignore messages from bots to prevent loops
-    if (message.author.bot) return;
+    if (message.author.bot) {
+      // Debug: log the bot messages we're ignoring to make sure we're not filtering our own webhooks
+      if (message.webhookId) {
+        console.log(`[Bot] Ignoring message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`);
+      }
+      return;
+    }
+    
+    console.log(`[Bot] Processing message from ${message.author.tag}, id: ${message.id}, isReply: ${!!message.reference}`);
 
     // Command handling - ensure the prefix is followed by a space
     if (message.content.startsWith(botPrefix + ' ') || message.content === botPrefix) {
@@ -76,22 +84,37 @@ async function initBot() {
     
     // Reply-based conversation continuation
     if (message.reference) {
+      console.log(`[Reply Handler] Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`);
       try {
         const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
+        console.log(`[Reply Handler] Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
         
         // Check if the referenced message was from one of our personalities
+        console.log(`Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
+        
         if (referencedMessage.webhookId) {
+          console.log(`Looking up personality for message ID: ${referencedMessage.id}`);
           const personalityName = getPersonalityFromMessage(referencedMessage.id);
+          console.log(`Personality lookup result: ${personalityName || 'null'}`);
           
           if (personalityName) {
+            console.log(`Found personality name: ${personalityName}, looking up personality details`);
             const personality = getPersonalityByAlias(personalityName);
+            console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
             
             if (personality) {
               // Process the message with this personality
+              console.log(`Processing reply with personality: ${personality.fullName}`);
               await handlePersonalityInteraction(message, personality);
               return;
+            } else {
+              console.log(`No personality data found for alias: ${personalityName}`);
             }
+          } else {
+            console.log(`No personality found for message ID: ${referencedMessage.id}`);
           }
+        } else {
+          console.log(`Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
         }
       } catch (error) {
         console.error('Error handling message reference:', error);
@@ -174,20 +197,59 @@ async function handlePersonalityInteraction(message, personality) {
       clearInterval(typingInterval);
   
       // Send the response via webhook - use the function directly from the module
-      const sentMessage = await webhookManager.sendWebhookMessage(
+      console.log(`[Bot] Sending webhook message as personality: ${personality.fullName}`);
+      const result = await webhookManager.sendWebhookMessage(
           message.channel,
           aiResponse,
           personality
       );
+      console.log(`[Bot] Webhook result type: ${typeof result}, has messageIds: ${result && result.messageIds ? 'yes' : 'no'}`);
+      if (result && result.messageIds) {
+        console.log(`[Bot] Got ${result.messageIds.length} message IDs from webhook`);
+      }
   
-      // Record this conversation
-      if (sentMessage) {
-        recordConversation(
-            message.author.id,
-            message.channel.id,
-            sentMessage.id,
-            personality.fullName
-        );
+      // Record this conversation with all message IDs
+      if (result) {
+        console.log(`[Bot] Recording conversation with result format:`, {
+          hasMessageIds: !!(result.messageIds && result.messageIds.length),
+          hasSingleMessage: !!(result.message && result.message.id),
+          hasDirectId: !!result.id
+        });
+        
+        // Check if it's the new format with messageIds array or old format
+        if (result.messageIds && result.messageIds.length > 0) {
+          // New format - array of message IDs
+          console.log(`Recording ${result.messageIds.length} message IDs: ${result.messageIds.join(', ')}`);
+          recordConversation(
+              message.author.id,
+              message.channel.id,
+              result.messageIds,
+              personality.fullName
+          );
+          console.log(`Recorded ${result.messageIds.length} message IDs for conversation`);
+        } else if (result.message && result.message.id) {
+          // New format - single message
+          console.log(`Recording single message ID: ${result.message.id}`);
+          recordConversation(
+              message.author.id,
+              message.channel.id,
+              result.message.id,
+              personality.fullName
+          );
+        } else if (result.id) {
+          // Old format - direct message object
+          console.log(`Recording direct message ID: ${result.id}`);
+          recordConversation(
+              message.author.id,
+              message.channel.id,
+              result.id,
+              personality.fullName
+          );
+        } else {
+          console.warn(`Unexpected result format, cannot record conversation: ${JSON.stringify(result)}`);
+        }
+      } else {
+        console.warn('No result returned from webhook, cannot record conversation');
       }
     } catch (error) {
       // Clear typing indicator if there's an error

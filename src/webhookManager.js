@@ -215,6 +215,9 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       const contentChunks = typeof content === 'string' ? splitMessage(content) : [''];
       let firstSentMessage = null;
       
+      // Track all sent message IDs in this conversation
+      const sentMessageIds = [];
+      
       // Now send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
@@ -257,9 +260,14 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
           const sentMessage = await webhook.send(messageData);
           console.log(`Successfully sent webhook message chunk ${i+1}/${contentChunks.length} with ID: ${sentMessage.id}`);
           
+          // Track this message ID
+          console.log(`Adding message ID to tracking: ${sentMessage.id}, webhook ID: ${sentMessage.webhookId || 'unknown'}`);
+          sentMessageIds.push(sentMessage.id);
+          
           // Keep track of the first message for returning
           if (isFirstChunk) {
             firstSentMessage = sentMessage;
+            console.log(`Storing first message: ID=${sentMessage.id}, webhookId=${sentMessage.webhookId || 'unknown'}, channel=${channel.id}`);
           }
         } catch (innerError) {
           console.error(`Error sending message chunk ${i+1}/${contentChunks.length}:`, innerError);
@@ -290,8 +298,18 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         activeWebhooks.delete(messageTrackingId);
       }, 5000);
       
-      // Return the first sent message (or null if no messages were sent)
-      return firstSentMessage;
+      // Log return data for debugging
+      console.log(`Returning webhook result with ${sentMessageIds.length} message IDs:`, sentMessageIds);
+      
+      // Add debugging info before returning
+      console.log(`[Webhook] Returning result with: ${sentMessageIds.length} message IDs:`);
+      sentMessageIds.forEach(id => console.log(`[Webhook] Message ID: ${id}`));
+      
+      // Return an object with the first message and all message IDs
+      return {
+        message: firstSentMessage,
+        messageIds: sentMessageIds
+      };
     } catch (error) {
       // Make sure to clean up on error
       activeWebhooks.delete(messageTrackingId);
