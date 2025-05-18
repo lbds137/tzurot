@@ -73,6 +73,17 @@ async function initBot() {
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
   
+  // Initialize global sets for tracking processed messages
+  global.processedBotMessages = new Set();
+  
+  // Add a periodic cleaner for the global set (every 5 minutes)
+  setInterval(() => {
+    if (global.processedBotMessages && global.processedBotMessages.size > 0) {
+      console.log(`[Bot] Periodic cleanup of global processedBotMessages set (size: ${global.processedBotMessages.size})`);
+      global.processedBotMessages.clear();
+    }
+  }, 5 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+  
   // Set up event handlers
   client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -107,6 +118,13 @@ async function initBot() {
   client.on('messageCreate', async message => {
     // Only ignore messages from bots that aren't our webhooks
     if (message.author.bot) {
+      // CRITICAL: Check if this is our own bot's message (a reply from our commands)
+      // We need to identify these by the bot's own client ID
+      if (message.author.id === client.user.id) {
+        console.log(`[Bot] This is my own reply message with ID ${message.id} - returning immediately`);
+        return; // Always ignore our own bot messages completely
+      }
+      
       if (message.webhookId) {
         // Log webhook ID for debugging
         console.log(`[Bot] Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`);
@@ -149,7 +167,7 @@ async function initBot() {
           return;
         }
       } else {
-        // This is a normal bot, not a webhook, so ignore it
+        // This is a normal bot, not a webhook or our own bot message
         console.log(`[Bot] Ignoring non-webhook bot message from: ${message.author.tag}`);
         return;
       }
@@ -158,6 +176,9 @@ async function initBot() {
 
     // Command handling - ensure the prefix is followed by a space
     if (message.content.startsWith(botPrefix + ' ') || message.content === botPrefix) {
+      console.log(`[Bot] Command detected from user ${message.author.tag} with ID ${message.id}`);
+      console.log(`[Bot] Message content: ${message.content}`);
+      
       // Remove prefix and trim leading space
       const content = message.content.startsWith(botPrefix + ' ') ?
           message.content.slice(botPrefix.length + 1) :
@@ -166,8 +187,39 @@ async function initBot() {
       const args = content.trim().split(/ +/);
       const command = args.shift()?.toLowerCase() || 'help'; // Default to help if no command
 
-      // Process the command only once
-      await processCommand(message, command, args);
+      console.log(`[Bot] Calling processCommand with ID ${message.id}, command=${command}, args=${args.join(',')}`);
+      
+      // Use a simple in-memory Set to track command messages we've already processed
+      // This Set is maintained at the bot.js level, separate from the one in commands.js
+      if (!global.processedBotMessages) {
+        global.processedBotMessages = new Set();
+      }
+      
+      // Check if this EXACT message ID has been processed already (bot-level check)
+      if (global.processedBotMessages.has(message.id)) {
+        console.log(`[Bot] CRITICAL: Message ${message.id} already processed at bot level - preventing duplicate processing`);
+        return; // Stop processing entirely
+      }
+      
+      // Mark this message as processed at the bot level
+      global.processedBotMessages.add(message.id);
+      console.log(`[Bot] Added message ${message.id} to bot-level processed messages set`);
+      
+      // Clean up this entry after 30 seconds
+      setTimeout(() => {
+        if (global.processedBotMessages.has(message.id)) {
+          global.processedBotMessages.delete(message.id);
+          console.log(`[Bot] Removed message ${message.id} from bot-level processed messages set`);
+        }
+      }, 30000);
+      
+      try {
+        // Process the command only once
+        const result = await processCommand(message, command, args);
+        console.log(`[Bot] processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
+      } catch (error) {
+        console.error(`[Bot] Error in processCommand:`, error);
+      }
       return;
     }
     

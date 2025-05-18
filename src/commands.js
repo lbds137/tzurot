@@ -22,15 +22,34 @@ async function processCommand(message, command, args) {
   // Add a simple debug log to track command processing
   console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
-  // Skip if this exact message ID has already been processed 
-  // This is a stronger check than the recentCommands map
+  // ENHANCED LOGGING: Check processed messages in more detail
+  console.log(`[Commands] Checking if message ${message.id} is in the processedMessages set (size: ${processedMessages.size})`);
+  
+  // We now handle ALL command types centrally in the processedMessages check
+  // No special case handling needed for add/create commands
+  console.log(`[Commands] Processing command: ${command}`);
+  
+  // Check if this message has already been processed
+  // The check needs to handle ALL command types, including add/create
   if (processedMessages.has(message.id)) {
     console.log(`[Commands] Message ${message.id} already processed, skipping duplicate command`);
     return null;
+  } else {
+    console.log(`[Commands] Message ${message.id} will be processed`);
+    // Mark ALL messages as processed when we start handling them
+    processedMessages.add(message.id);
+    
+    // Clean up after 30 seconds
+    setTimeout(() => {
+      console.log(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
+      processedMessages.delete(message.id);
+    }, 30000); // 30 seconds
   }
 
   // Create a unique key for this command execution
   const commandKey = `${message.author.id}-${command}-${args.join('-')}`;
+  
+  console.log(`[Commands] Command key: ${commandKey}`);
   
   // Check if this exact command was recently executed (within 3 seconds)
   if (recentCommands.has(commandKey)) {
@@ -43,16 +62,19 @@ async function processCommand(message, command, args) {
   
   // Mark this command as recently executed
   recentCommands.set(commandKey, Date.now());
+  console.log(`[Commands] Marked command as recently executed with key: ${commandKey}`);
   
-  // If this is any "write" command (add, create, remove, delete, etc.), 
-  // mark the message as processed to prevent duplication
-  if (['add', 'create', 'remove', 'delete', 'alias'].includes(command)) {
+  // Skip marking other write commands as processed since we already do that above for add/create
+  // and the other commands don't have the duplicate embed issue
+  if (['remove', 'delete', 'alias'].includes(command)) {
+    console.log(`[Commands] Adding message ${message.id} to processedMessages set for command: ${command}`);
     processedMessages.add(message.id);
     
-    // Clean up after 5 minutes
+    // Clean up after 30 seconds (reduced from 5 minutes)
     setTimeout(() => {
+      console.log(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
       processedMessages.delete(message.id);
-    }, 300000);
+    }, 30000); // 30 seconds instead of 5 minutes
   }
   
   // Clean up old entries from the recentCommands map (older than 10 seconds)
@@ -323,39 +345,27 @@ const pendingAdditions = new Map();
 // This prevents multiple handlers from processing the same message
 const processedMessages = new Set();
 
+// CRITICAL: Set to track commands that are currently in the process of sending an embed response
+// This is a critical fix for the duplicate embed issue
+const sendingEmbedResponses = new Set();
+
 // Periodically clean up old processed message entries (every 10 minutes)
 setInterval(() => {
   if (processedMessages.size > 0) {
     console.log(`[Commands] Cleaning up processed messages cache (size: ${processedMessages.size})`);
     processedMessages.clear();
   }
+  
+  // Also clean up the sendingEmbedResponses set in case any entries get stuck
+  if (sendingEmbedResponses.size > 0) {
+    console.log(`[Commands] Cleaning up sendingEmbedResponses (size: ${sendingEmbedResponses.size})`);
+    sendingEmbedResponses.clear();
+  }
 }, 10 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
 
 async function handleAddCommand(message, args) {
-  // TEMPORARILY DISABLE MESSAGE ID DEDUPLICATION
-  // This was causing issues with add command not working properly
-  console.log(`[Commands] Processing message ${message.id} (deduplication temporarily disabled)`);
-  
-  /* 
-  // Skip if this exact message ID has already been processed
-  // But with a much shorter timeout to allow retries for failed attempts
-  if (processedMessages.has(message.id)) {
-    console.log(`[Commands] Message ${message.id} already processed, skipping duplicate`);
-    
-    // Show a message instead of silently ignoring
-    return message.reply(`This command is already being processed. If it failed, please try with a different message.`);
-  }
-  
-  // Mark this message as processed immediately
-  processedMessages.add(message.id);
-  
-  // Clean up processed message IDs after just 10 seconds to allow retries
-  // This is MUCH shorter than before (was 5 minutes)
-  setTimeout(() => {
-    console.log(`[Commands] Removing message ${message.id} from processed messages cache`);
-    processedMessages.delete(message.id);
-  }, 10000);
-  */
+  // Message ID deduplication is now handled centrally in processCommand
+  console.log(`[Commands] Processing add command with message ${message.id}`);
   
   if (args.length < 1) {
     return message.reply(`Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``);
@@ -367,13 +377,9 @@ async function handleAddCommand(message, args) {
   // Create a unique key for this request - normalize to lowercase for case insensitive matching
   const requestKey = `${message.author.id}-${profileName.toLowerCase()}`;
   
-  // TEMPORARILY DISABLE PENDING ADDITIONS CHECK
-  // This was causing issues with add command not working properly
-  console.log(`[Commands] Processing request key ${requestKey} (duplicate prevention temporarily disabled)`);
+  console.log(`[Commands] Processing request key ${requestKey}`);
   
-  /*
-  // Check if this exact request is already being processed - with a MUCH shorter timeout
-  // This helps prevent true duplicates but allows retries
+  // Check if this exact request is already being processed
   if (pendingAdditions.has(requestKey)) {
     const pendingData = pendingAdditions.get(requestKey);
     // Only block for 3 seconds to allow retries
@@ -387,7 +393,6 @@ async function handleAddCommand(message, args) {
   
   // Clear any existing pending requests for this user-personality combo
   pendingAdditions.delete(requestKey);
-  */
   
   // Mark this request as being processed with more metadata (still useful for cleanup)
   pendingAdditions.set(requestKey, {
@@ -652,71 +657,120 @@ async function handleAddCommand(message, args) {
       // -------------------- STEP 5: Send Final Response --------------------
       console.log(`[Commands] Step 5: Sending final response with complete info`);
       
-      // Force one more save and get very latest data
-      await personalityManagerFunctions.saveAllPersonalities();
-      const veryFinalPersonality = getPersonality(profileName);
+      // CRITICAL FIX: Check for duplicate send attempts using a mutex-like pattern
+      // Create a unique key for this specific send attempt
+      const embedSendKey = `${message.id}-${message.channel.id}-${profileName}`;
       
-      // Use this with our forced loaded data
-      const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
-      const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
-      
-      console.log(`[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`);
-      
-      // Create an embed with the finalized personality info
-      const embed = new EmbedBuilder()
-        .setTitle('Personality Added')
-        .setDescription(`Successfully added personality: ${displayNameToUse}`)
-        .setColor('#00FF00')
-        .addFields(
-          { name: 'Full Name', value: profileName },
-          { name: 'Display Name', value: displayNameToUse || 'Not set' },
-          { name: 'Alias', value: alias || (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase() ? displayNameToUse.toLowerCase() : 'None set') }
-        );
-
-      // Add the avatar to the embed if available
-      if (avatarUrlToUse) {
-        // Validate the URL format first
-        const isValidUrl = (urlString) => {
-          try {
-            return Boolean(new URL(urlString));
-          } catch (error) {
-            return false;
-          }
-        };
-        
-        if (isValidUrl(avatarUrlToUse)) {
-          console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
-          embed.setThumbnail(avatarUrlToUse);
-        } else {
-          console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
-        }
-      } else {
-        console.log(`[Commands] No avatar URL available for embed`);
+      // If we're already sending an embed for this exact command, don't send another one
+      if (sendingEmbedResponses.has(embedSendKey)) {
+        console.log(`[Commands] CRITICAL: Already sending an embed for ${embedSendKey} - preventing duplicate`);
+        // Still mark as completed for cleanup purposes
+        pendingAdditions.delete(requestKey);
+        // Return a dummy response to indicate we handled the command
+        return { id: 'duplicate-prevented', isDuplicate: true };
       }
-
-      // Send a single complete message - no loading message to update!
-      const responseMsg = await message.reply({ embeds: [embed] });
-      console.log(`[Commands] Successfully sent complete personality embed with ID: ${responseMsg.id}`);
       
-      // Clear this request from pending after a successful response
-      console.log(`[Commands] Clearing pending addition request for ${profileName}`);
-      pendingAdditions.delete(requestKey);
+      // Mark that we're in the process of sending an embed for this command
+      sendingEmbedResponses.add(embedSendKey);
+      console.log(`[Commands] Added ${embedSendKey} to sendingEmbedResponses set (size: ${sendingEmbedResponses.size})`);
+      
+      try {
+        // Force one more save and get very latest data
+        await personalityManagerFunctions.saveAllPersonalities();
+        const veryFinalPersonality = getPersonality(profileName);
+        
+        // Use this with our forced loaded data
+        const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
+        const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
+        
+        console.log(`[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`);
+        
+        // Create an embed with the finalized personality info
+        const embed = new EmbedBuilder()
+          .setTitle('Personality Added')
+          .setDescription(`Successfully added personality: ${displayNameToUse}`)
+          .setColor('#00FF00')
+          .addFields(
+            { name: 'Full Name', value: profileName },
+            { name: 'Display Name', value: displayNameToUse || 'Not set' },
+            { name: 'Alias', value: alias || (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase() ? displayNameToUse.toLowerCase() : 'None set') }
+          );
+  
+        // Add the avatar to the embed if available
+        if (avatarUrlToUse) {
+          // Validate the URL format first
+          const isValidUrl = (urlString) => {
+            try {
+              return Boolean(new URL(urlString));
+            } catch (error) {
+              return false;
+            }
+          };
+          
+          if (isValidUrl(avatarUrlToUse)) {
+            console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
+            embed.setThumbnail(avatarUrlToUse);
+          } else {
+            console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
+          }
+        } else {
+          console.log(`[Commands] No avatar URL available for embed`);
+        }
+  
+        // Send a single complete message - no loading message to update!
+        const responseMsg = await message.reply({ embeds: [embed] });
+        console.log(`[Commands] Successfully sent complete personality embed with ID: ${responseMsg.id}`);
+        return responseMsg;
+      } catch (error) {
+        console.error(`[Commands] Error sending embed:`, error);
+        throw error;
+      } finally {
+        // Always clean up our mutex-like tracking set, even if there's an error
+        console.log(`[Commands] Removing ${embedSendKey} from sendingEmbedResponses set`);
+        sendingEmbedResponses.delete(embedSendKey);
+        
+        // Also set a delayed cleanup to ensure we don't leave stale entries
+        setTimeout(() => {
+          if (sendingEmbedResponses.has(embedSendKey)) {
+            console.log(`[Commands] Cleanup: Removing stale entry ${embedSendKey} from sendingEmbedResponses set`);
+            sendingEmbedResponses.delete(embedSendKey);
+          }
+        }, 10000); // 10 seconds
+      }
+      
+      // Note: pendingAdditions cleanup is now handled inside the try/finally block above
     } catch (innerError) {
       console.error(`[Commands] Inner error during personality registration:`, innerError);
       
       // Send error message - no loading message to update
-      await message.reply(`Failed to complete the personality registration: ${innerError.message}`).catch(err => {
+      try {
+        const errorResponse = await message.reply(`Failed to complete the personality registration: ${innerError.message}`);
+        console.log(`[Commands] Sent error response with ID: ${errorResponse.id}`);
+        
+        // Clear pending even on error
+        pendingAdditions.delete(requestKey);
+        
+        // Return the error response to indicate we've handled this command
+        return errorResponse;
+      } catch (err) {
         console.error(`[Commands] Error sending error message:`, err);
-      });
-      
-      // Clear pending even on error
-      pendingAdditions.delete(requestKey);
+        // Clear pending even on error
+        pendingAdditions.delete(requestKey);
+        // Return something to indicate we've handled this command
+        return null;
+      }
     }
   } catch (error) {
     console.error(`Error adding personality ${profileName}:`, error);
     // Clear pending on error
     pendingAdditions.delete(requestKey);
-    return message.reply(`Failed to add personality \`${profileName}\`. Error: ${error.message}`);
+    
+    // Return a proper response to the user
+    const errorResponse = await message.reply(`Failed to add personality \`${profileName}\`. Error: ${error.message}`);
+    console.log(`[Commands] Sent error response with ID: ${errorResponse.id}`);
+    
+    // Return the error response to indicate we've handled this command
+    return errorResponse;
   } finally {
     // Ensure we always clean up, even if an unexpected error occurs
     setTimeout(() => {
