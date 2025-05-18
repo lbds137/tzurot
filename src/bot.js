@@ -68,6 +68,9 @@ client.emit = function(event, ...args) {
   return originalEmit.apply(this, [event, ...args]);
 };
 
+// Global-level protection against double-replies
+const recentReplies = new Map();
+
 // Bot initialization function
 async function initBot() {
   // Make client available globally to avoid circular dependencies
@@ -82,7 +85,111 @@ async function initBot() {
       console.log(`[Bot] Periodic cleanup of global processedBotMessages set (size: ${global.processedBotMessages.size})`);
       global.processedBotMessages.clear();
     }
+    
+    // Also clean up the recentReplies map
+    if (recentReplies.size > 0) {
+      console.log(`[Bot] Cleaning up recentReplies map (size: ${recentReplies.size})`);
+      recentReplies.clear();
+    }
   }, 5 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+  
+  // CRITICAL FIX: Patch the Discord Message.prototype.reply method to prevent double replies
+  // This is the most effective way to prevent duplicate embeds at the Discord.js API level
+  const { Message } = require('discord.js');
+  const originalReply = Message.prototype.reply;
+  
+  // Replace the original reply method with our patched version
+  Message.prototype.reply = async function patchedReply(options) {
+    // Create a unique signature for this reply
+    const replySignature = `reply-${this.id}-${this.channel.id}-${
+      typeof options === 'string' 
+        ? options.substring(0, 20) 
+        : (options.content 
+            ? options.content.substring(0, 20) 
+            : (options.embeds && options.embeds.length > 0 
+                ? options.embeds[0].title || 'embed' 
+                : 'unknown'))
+    }`;
+    
+    // Check if we've recently sent this exact reply
+    if (recentReplies.has(replySignature)) {
+      const timeAgo = Date.now() - recentReplies.get(replySignature);
+      if (timeAgo < 5000) { // Consider it a duplicate if sent within 5 seconds
+        console.log(`[Bot] CRITICAL: Prevented duplicate reply with signature: ${replySignature} (${timeAgo}ms ago)`);
+        // Return a dummy response to maintain API compatibility
+        return { 
+          id: `prevented-dupe-${Date.now()}`,
+          content: typeof options === 'string' ? options : (options.content || ''),
+          isDuplicate: true 
+        };
+      }
+    }
+    
+    // Record this reply attempt
+    recentReplies.set(replySignature, Date.now());
+    
+    // Set a timeout to clean up this entry after 10 seconds
+    setTimeout(() => {
+      recentReplies.delete(replySignature);
+    }, 10000);
+    
+    // Call the original reply method
+    return originalReply.apply(this, arguments);
+  };
+  
+  // ALSO patch the channel.send method
+  const { TextChannel } = require('discord.js');
+  const originalSend = TextChannel.prototype.send;
+  
+  // Replace the original send method with our patched version
+  TextChannel.prototype.send = async function patchedSend(options) {
+    console.log(`[Bot] Channel.send called with options: ${JSON.stringify({
+      channelId: this.id, 
+      options: typeof options === 'string' 
+        ? { content: options.substring(0, 30) + '...' } 
+        : { 
+            content: options.content?.substring(0, 30) + '...',
+            hasEmbeds: !!options.embeds?.length,
+            embedTitle: options.embeds?.[0]?.title
+          }
+    })}`);
+    
+    // Create a unique signature for this send operation
+    const sendSignature = `send-${this.id}-${
+      typeof options === 'string' 
+        ? options.substring(0, 20) 
+        : (options.content 
+            ? options.content.substring(0, 20) 
+            : (options.embeds && options.embeds.length > 0 
+                ? options.embeds[0].title || 'embed' 
+                : 'unknown'))
+    }`;
+    
+    // Check if we've recently sent this exact message
+    if (recentReplies.has(sendSignature)) {
+      const timeAgo = Date.now() - recentReplies.get(sendSignature);
+      if (timeAgo < 5000) { // Consider it a duplicate if sent within 5 seconds
+        console.log(`[Bot] CRITICAL: Prevented duplicate send with signature: ${sendSignature} (${timeAgo}ms ago)`);
+        // Return a dummy response to maintain API compatibility
+        return { 
+          id: `prevented-dupe-${Date.now()}`,
+          content: typeof options === 'string' ? options : (options.content || ''),
+          isDuplicate: true 
+        };
+      }
+    }
+    
+    // Record this send attempt
+    recentReplies.set(sendSignature, Date.now());
+    
+    // Set a timeout to clean up this entry after 10 seconds
+    setTimeout(() => {
+      recentReplies.delete(sendSignature);
+    }, 10000);
+    
+    // Call the original send method
+    return originalSend.apply(this, arguments);
+  };
   
   // Set up event handlers
   client.on('ready', async () => {
@@ -118,10 +225,48 @@ async function initBot() {
   client.on('messageCreate', async message => {
     // Only ignore messages from bots that aren't our webhooks
     if (message.author.bot) {
-      // CRITICAL: Check if this is our own bot's message (a reply from our commands)
+      // CRITICAL: More aggressive handling of our own bot's messages
       // We need to identify these by the bot's own client ID
       if (message.author.id === client.user.id) {
-        console.log(`[Bot] This is my own reply message with ID ${message.id} - returning immediately`);
+        // Create a unique ID for this bot message
+        const botMessageId = `bot-message-${message.id}`;
+        
+        // Check for duplicates
+        if (global.seenBotMessages && global.seenBotMessages.has(botMessageId)) {
+          console.log(`[Bot] DUPLICATE BOT MESSAGE DETECTED: ${message.id} - already processed`);
+          return; // Completely ignore duplicate messages
+        }
+        
+        // Initialize global tracking set if needed
+        if (!global.seenBotMessages) {
+          global.seenBotMessages = new Set();
+          
+          // Set up periodic cleanup
+          setInterval(() => {
+            if (global.seenBotMessages && global.seenBotMessages.size > 0) {
+              console.log(`[Bot] Cleaning up seenBotMessages (size: ${global.seenBotMessages.size})`);
+              global.seenBotMessages.clear();
+            }
+          }, 10 * 60 * 1000).unref(); // 10 minutes
+        }
+        
+        // Track that we've seen this message
+        global.seenBotMessages.add(botMessageId);
+        
+        // Extra tracking for debugging
+        console.log(`[Bot] Processing my own message with ID ${message.id} - content: "${message.content.substring(0, 30)}...", has embeds: ${message.embeds?.length > 0}`);
+        
+        // Log embed details if there are any
+        if (message.embeds && message.embeds.length > 0) {
+          const embedInfo = message.embeds.map(embed => ({
+            title: embed.title,
+            description: embed.description?.substring(0, 30),
+            fields: embed.fields?.map(f => f.name) || []
+          }));
+          console.log(`[Bot] Message ${message.id} has ${message.embeds.length} embeds:`, JSON.stringify(embedInfo));
+        }
+        
+        console.log(`[Bot] This is my own message with ID ${message.id} - returning immediately`);
         return; // Always ignore our own bot messages completely
       }
       

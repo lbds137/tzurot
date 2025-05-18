@@ -363,9 +363,42 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
 
+// Global set to track exact add commands we've processed to completion
+// This is a critical fix to prevent double messages at the source
+const completedAddCommands = new Set();
+
+// Set a periodic cleaner for completedAddCommands set (every hour)
+setInterval(() => {
+  if (completedAddCommands.size > 0) {
+    console.log(`[Commands] Cleaning up completedAddCommands set (size: ${completedAddCommands.size})`);
+    completedAddCommands.clear();
+  }
+}, 60 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+
 async function handleAddCommand(message, args) {
+  // ULTRA-AGGRESSIVE APPROACH: Check if we've already processed this exact command
+  const addCommandKey = `${message.id}-${message.channel.id}-${args.join('-')}`;
+  
+  if (completedAddCommands.has(addCommandKey)) {
+    console.log(`[Commands] CRITICAL: Add command ${addCommandKey} has already been processed to completion - completely ignoring repeat call`);
+    return { id: 'repeat-prevented', isDuplicate: true };
+  }
+  
   // Message ID deduplication is now handled centrally in processCommand
   console.log(`[Commands] Processing add command with message ${message.id}`);
+  
+  // IMMEDIATELY add to completed commands set
+  // We do this at the start to prevent ANY possibility of race conditions
+  completedAddCommands.add(addCommandKey);
+  console.log(`[Commands] Added ${addCommandKey} to completedAddCommands set (size: ${completedAddCommands.size})`);
+  
+  // Set a timeout to clean up this entry after 10 minutes
+  setTimeout(() => {
+    if (completedAddCommands.has(addCommandKey)) {
+      completedAddCommands.delete(addCommandKey);
+      console.log(`[Commands] Cleaned up ${addCommandKey} from completedAddCommands set after timeout`);
+    }
+  }, 10 * 60 * 1000); // 10 minutes
   
   if (args.length < 1) {
     return message.reply(`Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``);
@@ -542,22 +575,47 @@ async function handleAddCommand(message, args) {
       }
       
       // -------------------- STEP 3: Set up aliases --------------------
-      console.log(`[Commands] Step 3: Setting up aliases`);
+      console.log(`[Commands] Step 3: Setting up aliases - THIS IS THE CRITICAL SECTION`);
       
-      // If an alias was provided, set it
-      if (alias && alias.toLowerCase() !== profileName.toLowerCase() && 
-          (!initialPersonality.displayName || 
-           alias.toLowerCase() !== initialPersonality.displayName.toLowerCase())) {
-        await setPersonalityAlias(alias, profileName);
-        console.log(`[Commands] Set manual alias: ${alias} -> ${profileName}`);
+      // CRITICAL FIX: This is where we're setting aliases multiple times which is causing multiple embed responses
+      // We need to modify our approach to prevent multiple alias settings
+      
+      // Get all current aliases for this personality to avoid duplicate settings
+      const existingAliases = [];
+      const personalityManager = require('./personalityManager');
+      const allAliases = personalityManager.personalityAliases;
+      
+      // Check which aliases already exist for this profile
+      for (const [aliasKey, targetProfile] of Object.entries(allAliases)) {
+        if (targetProfile === profileName) {
+          existingAliases.push(aliasKey.toLowerCase());
+          console.log(`[Commands] Found existing alias: ${aliasKey} -> ${profileName}`);
+        }
       }
       
-      // Also set display name as alias if it's different from the full name
-      if (initialPersonality.displayName && 
-          initialPersonality.displayName.toLowerCase() !== profileName.toLowerCase()) {
-        const defaultAlias = initialPersonality.displayName.toLowerCase();
-        await setPersonalityAlias(defaultAlias, profileName);
-        console.log(`[Commands] Set display name as alias: ${defaultAlias} -> ${profileName}`);
+      // Now handle the manual alias if provided - but check if it already exists first
+      if (alias) {
+        const normalizedAlias = alias.toLowerCase();
+        if (!existingAliases.includes(normalizedAlias) && 
+            normalizedAlias !== profileName.toLowerCase()) {
+          await setPersonalityAlias(normalizedAlias, profileName);
+          console.log(`[Commands] Set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
+          existingAliases.push(normalizedAlias);
+        } else {
+          console.log(`[Commands] Manual alias ${normalizedAlias} already exists or matches profile name - skipping`);
+        }
+      }
+      
+      // Handle the display name alias - but check if it already exists first
+      if (initialPersonality.displayName) {
+        const displayNameAlias = initialPersonality.displayName.toLowerCase();
+        if (!existingAliases.includes(displayNameAlias) && 
+            displayNameAlias !== profileName.toLowerCase()) {
+          await setPersonalityAlias(displayNameAlias, profileName);
+          console.log(`[Commands] Set NEW display name alias: ${displayNameAlias} -> ${profileName}`);
+        } else {
+          console.log(`[Commands] Display name alias ${displayNameAlias} already exists or matches profile name - skipping`);
+        }
       }
       
       // -------------------- STEP 4: Save profile data and pre-load Avatar --------------------
@@ -717,9 +775,57 @@ async function handleAddCommand(message, args) {
           console.log(`[Commands] No avatar URL available for embed`);
         }
   
-        // Send a single complete message - no loading message to update!
-        const responseMsg = await message.reply({ embeds: [embed] });
-        console.log(`[Commands] Successfully sent complete personality embed with ID: ${responseMsg.id}`);
+        // ULTRA-AGGRESSIVE FIX: BYPASS DISCORD.JS COMPLETELY
+        // Instead of using the normal Discord.js message.reply, we'll call the REST API directly
+        // This completely bypasses any potential Discord.js issues or race conditions
+        
+        console.log(`[Commands] Using direct REST API call to send embed`);
+        let responseMsg;
+        
+        try {
+          // Get the Discord.js REST instance
+          const { REST } = require('discord.js');
+          const restInstance = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+          
+          // Prepare the API payload
+          const payload = {
+            content: '', // No text content, just the embed
+            embeds: [embed.toJSON()], // Convert the embed to JSON
+            message_reference: { // Set up the reply reference
+              message_id: message.id,
+              channel_id: message.channel.id,
+              guild_id: message.guild?.id
+            },
+            allowed_mentions: {
+              parse: ['users', 'roles']
+            }
+          };
+          
+          // Call the Discord API directly
+          console.log(`[Commands] Sending direct API call to create message`);
+          const result = await restInstance.post(
+            `/channels/${message.channel.id}/messages`,
+            { body: payload }
+          );
+          
+          // Create a fake Message object to maintain API compatibility
+          responseMsg = {
+            id: result.id,
+            channel: message.channel,
+            author: { id: 'direct-api-call' },
+            content: '',
+            embeds: [embed]
+          };
+          
+          console.log(`[Commands] Successfully sent personality embed with direct API call, ID: ${responseMsg.id}`);
+        } catch (apiError) {
+          console.error(`[Commands] Error with direct API call:`, apiError);
+          
+          // Fall back to normal message.reply
+          console.log(`[Commands] Falling back to normal message.reply`);
+          responseMsg = await message.reply({ embeds: [embed] });
+          console.log(`[Commands] Successfully sent embed with fallback method, ID: ${responseMsg.id}`);
+        }
         return responseMsg;
       } catch (error) {
         console.error(`[Commands] Error sending embed:`, error);

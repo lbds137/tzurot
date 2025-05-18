@@ -145,37 +145,34 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
   await saveAllPersonalities();
   console.log(`[PersonalityManager] Saved personality data for: ${fullName}`);
   
-  // Create the default alias (lowercase version of displayName) as a separate operation
-  // but only if we have a display name that's different from the full name
-  if (personality.displayName && personality.displayName !== fullName) {
-    const defaultAlias = safeToLowerCase(personality.displayName);
-    console.log(`[PersonalityManager] Setting default alias: ${defaultAlias} -> ${fullName}`);
-    
-    // Make sure we don't create a duplicate entry by using the alias as a key in personalityData
-    if (defaultAlias !== safeToLowerCase(fullName)) {
-      // Instead of setTimeout, do this immediately to avoid race conditions
-      try {
-        await setPersonalityAlias(defaultAlias, fullName);
-        console.log(`[PersonalityManager] Set and saved alias: ${defaultAlias} -> ${fullName}`);
-      } catch (error) {
-        console.error(`[PersonalityManager] Error setting default alias:`, error);
-        // Continue despite error
-      }
-    } else {
-      console.log(`[PersonalityManager] Skipping default alias since it matches fullName: ${defaultAlias}`);
-    }
-  } else {
-    // For now, just set the lowercase version of the full name as the alias
-    // The proper display name alias will be set later when the profile info is fully loaded
-    const defaultAlias = safeToLowerCase(fullName);
-    console.log(`[PersonalityManager] Setting fallback alias: ${defaultAlias} -> ${fullName}`);
+  // CRITICAL FIX: We're setting aliases here AND in commands.js which is causing duplicate embeds
+  // We'll only set an initial basic alias here, and let commands.js handle the display name alias
+  
+  // Just set a basic self-referential alias using the full name for initial registration
+  // This ensures the personality can at least be found by its own name
+  const selfAlias = safeToLowerCase(fullName);
+  
+  // Check if this alias already exists to avoid duplicate settings
+  if (!personalityAliases.has(selfAlias)) {
+    console.log(`[PersonalityManager] Setting basic self alias: ${selfAlias} -> ${fullName}`);
     try {
-      await setPersonalityAlias(defaultAlias, fullName);
+      // Set the alias directly without calling the function to avoid triggering a save
+      personalityAliases.set(selfAlias, fullName);
+      
+      // We already called saveAllPersonalities() above, so we don't need to do it again
+      // This prevents multiple embed responses by avoiding multiple saves
+      console.log(`[PersonalityManager] Set basic self alias (saving handled by caller): ${selfAlias} -> ${fullName}`);
     } catch (error) {
-      console.error(`[PersonalityManager] Error setting fallback alias:`, error);
+      console.error(`[PersonalityManager] Error setting basic self alias:`, error);
       // Continue despite error
     }
+  } else {
+    console.log(`[PersonalityManager] Basic self alias ${selfAlias} already exists - skipping`);
   }
+  
+  // We skip setting the display name alias here as it will be handled in commands.js
+  console.log(`[PersonalityManager] Display name alias handling deferred to commands.js`);
+  
   
   // Double-check that we're returning a valid personality object
   if (!personality || !personality.fullName) {
@@ -219,7 +216,7 @@ function safeToLowerCase(str) {
 }
 
 /**
- * Set an alias for a personality
+ * Set an alias for a personality with enhanced duplicate checking
  * @param {string} alias - The alias to set
  * @param {string} fullName - Full personality name
  * @returns {Promise<boolean>} Success indicator
@@ -239,6 +236,20 @@ async function setPersonalityAlias(alias, fullName) {
   if (!personalityData.has(fullName)) {
     console.error(`[PersonalityManager] Cannot set alias to non-existent personality: ${fullName}`);
     return false;
+  }
+  
+  // CRITICAL FIX: Check if this alias already exists and points to the same personality
+  if (personalityAliases.has(normalizedAlias)) {
+    const existingTarget = personalityAliases.get(normalizedAlias);
+    
+    // If the alias already points to the same personality, just return success without saving
+    if (existingTarget === fullName) {
+      console.log(`[PersonalityManager] Alias ${normalizedAlias} already points to ${fullName} - no changes needed`);
+      return true;
+    }
+    
+    // If it points to a different personality, log a warning but continue
+    console.warn(`[PersonalityManager] Alias ${normalizedAlias} currently points to ${existingTarget}, will be changed to ${fullName}`);
   }
   
   // Set the alias
