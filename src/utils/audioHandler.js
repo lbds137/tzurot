@@ -252,8 +252,8 @@ async function processAudioUrls(content) {
     // Create a Discord attachment
     const attachment = createDiscordAttachment(audioFile);
     
-    // Remove the URL from the content
-    const modifiedContent = content.replace(audioUrl.url, `[Audio: ${audioUrl.filename}]`);
+    // Minify the original audio link
+    const modifiedContent = content.replace(audioUrl.url, `||-# [(Audio link)](${audioUrl.url})||`);
     
     return {
       content: modifiedContent,
