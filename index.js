@@ -5,18 +5,22 @@ const { initPersonalityManager } = require('./src/personalityManager');
 const { initConversationManager, saveAllData } = require('./src/conversationManager');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
+const { createHealthServer } = require('./src/healthCheck');
+const logger = require('./src/logger');
 
 // Track whether app has been initialized
 let isInitialized = false;
+// Health check server instance
+let healthServer = null;
 
 // Error handling for uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  logger.error('Uncaught Exception:', error);
 });
 
 // Error handling for unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Promise Rejection:', reason);
+  logger.error('Unhandled Promise Rejection:', reason);
 });
 
 // Proper cleanup on exit
@@ -26,63 +30,95 @@ process.on('SIGTERM', cleanup);
 // Initialize the application only once
 async function init() {
   if (isInitialized) {
-    console.log('Application already initialized, skipping duplicate initialization');
+    logger.info('Application already initialized, skipping duplicate initialization');
     return;
   }
   
   try {
-    console.log('Starting Tzurot initialization...');
+    logger.info('Starting Tzurot initialization...');
     
     // Initialize data storage
     await initStorage();
-    console.log('Data storage initialized');
+    logger.info('Data storage initialized');
     
     // Initialize personality manager
     await initPersonalityManager();
-    console.log('Personality manager initialized');
+    logger.info('Personality manager initialized');
     
     // Initialize conversation manager (loads saved conversation data)
     await initConversationManager();
-    console.log('Conversation manager initialized');
+    logger.info('Conversation manager initialized');
     
     // Initialize and start the bot
     await initBot();
-    console.log('Bot initialized and started');
+    logger.info('Bot initialized and started');
+    
+    // Only start health check server once bot is fully initialized
+    try {
+      // Get Discord client from global scope to avoid circular dependencies
+      const botClient = global.tzurotClient || client;
+      if (!botClient) {
+        throw new Error('Discord client not properly initialized');
+      }
+      
+      // Start health check server with the initialized client
+      const healthPort = process.env.HEALTH_PORT || 3000;
+      healthServer = createHealthServer(botClient, healthPort);
+      logger.info(`Health check server started on port ${healthPort}`);
+    } catch (healthError) {
+      logger.error('Failed to start health check server:', healthError);
+      // Continue initialization despite health check failure
+      // The bot can still function without it
+    }
     
     isInitialized = true;
-    console.log('Tzurot initialization complete');
+    logger.info('Tzurot initialization complete');
   } catch (error) {
-    console.error('Failed to initialize application:', error);
+    logger.error('Failed to initialize application:', error);
     process.exit(1);
   }
 }
 
 // Cleanup function for proper shutdown
 async function cleanup() {
-  console.log('Shutting down Tzurot...');
+  logger.info('Shutting down Tzurot...');
   
   // Save all conversation data
   try {
-    console.log('Saving conversation data...');
+    logger.info('Saving conversation data...');
     await saveAllData();
   } catch (error) {
-    console.error('Error saving conversation data:', error);
+    logger.error('Error saving conversation data:', error);
   }
   
   // Clear all webhook caches
-  clearAllWebhookCaches();
+  try {
+    clearAllWebhookCaches();
+  } catch (error) {
+    logger.error('Error clearing webhook caches:', error);
+  }
   
   // Destroy client if it exists
   if (client) {
     try {
-      console.log('Destroying Discord client...');
+      logger.info('Destroying Discord client...');
       await client.destroy();
     } catch (error) {
-      console.error('Error destroying Discord client:', error);
+      logger.error('Error destroying Discord client:', error);
     }
   }
   
-  console.log('Shutdown complete.');
+  // Close health check server if it exists
+  if (healthServer) {
+    try {
+      logger.info('Closing health check server...');
+      healthServer.close();
+    } catch (error) {
+      logger.error('Error closing health check server:', error);
+    }
+  }
+  
+  logger.info('Shutdown complete.');
   process.exit(0);
 }
 

@@ -451,9 +451,6 @@ const EMBEDS_TO_BLOCK = [
   'Successfully added personality: uriel-rakhem',
 ];
 
-// Import logger
-const logger = require('./logger');
-
 /**
  * Checks if a rate limit is in effect for sending embed messages
  *
