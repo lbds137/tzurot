@@ -1,7 +1,7 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
-const { getPersonalityByAlias, registerPersonality } = require('./personalityManager');
+const { getPersonalityByAlias, getPersonality, registerPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation,
   activatePersonality, deactivatePersonality, getActivatedPersonality,
@@ -102,7 +102,15 @@ async function initBot() {
           
           if (personalityName) {
             console.log(`[Reply Handler] Found personality name: ${personalityName}, looking up personality details`);
-            const personality = getPersonalityByAlias(personalityName);
+            
+            // First try to get personality directly as it could be a full name
+            let personality = getPersonality(personalityName);
+            
+            // If not found as direct name, try it as an alias
+            if (!personality) {
+                personality = getPersonalityByAlias(personalityName);
+            }
+            
             console.log(`[Reply Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
             
             if (personality) {
@@ -111,7 +119,7 @@ async function initBot() {
               await handlePersonalityInteraction(message, personality);
               return;
             } else {
-              console.log(`[Reply Handler] No personality data found for alias: ${personalityName}`);
+              console.log(`[Reply Handler] No personality data found for name/alias: ${personalityName}`);
             }
           } else {
             console.log(`[Reply Handler] No personality found for message ID: ${referencedMessage.id}`);
@@ -127,8 +135,18 @@ async function initBot() {
     // @mention personality triggering
     const mentionMatch = message.content.match(/@(\w+)/i);
     if (mentionMatch) {
-      const alias = mentionMatch[1];
-      const personality = getPersonalityByAlias(alias);
+      const mentionName = mentionMatch[1];
+      console.log(`[Mention Handler] Found @mention: ${mentionName}, looking up personality`);
+      
+      // First try to get personality directly by full name
+      let personality = getPersonality(mentionName);
+      
+      // If not found as direct name, try it as an alias
+      if (!personality) {
+          personality = getPersonalityByAlias(mentionName);
+      }
+      
+      console.log(`[Mention Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
       
       if (personality) {
         // Process the message with this personality
@@ -140,7 +158,17 @@ async function initBot() {
     // Check for active conversation
     const activePersonalityName = getActivePersonality(message.author.id, message.channel.id);
     if (activePersonalityName) {
-      const personality = getPersonalityByAlias(activePersonalityName);
+      console.log(`[Active Conv Handler] Found active conversation with: ${activePersonalityName}`);
+      
+      // First try to get personality directly by full name
+      let personality = getPersonality(activePersonalityName);
+      
+      // If not found as direct name, try it as an alias
+      if (!personality) {
+          personality = getPersonalityByAlias(activePersonalityName);
+      }
+      
+      console.log(`[Active Conv Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
       if (personality) {
         // Process the message with this personality
@@ -152,7 +180,17 @@ async function initBot() {
     // Check for activated channel personality
     const activatedPersonalityName = getActivatedPersonality(message.channel.id);
     if (activatedPersonalityName) {
-      const personality = getPersonalityByAlias(activatedPersonalityName);
+      console.log(`[Channel Activation Handler] Found activated personality in channel: ${activatedPersonalityName}`);
+      
+      // First try to get personality directly by full name
+      let personality = getPersonality(activatedPersonalityName);
+      
+      // If not found as direct name, try it as an alias
+      if (!personality) {
+          personality = getPersonalityByAlias(activatedPersonalityName);
+      }
+      
+      console.log(`[Channel Activation Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
       if (personality) {
         // Process the message with this personality

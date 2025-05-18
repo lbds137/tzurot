@@ -17,11 +17,14 @@ async function processCommand(message, command, args) {
   console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
   // Check if this is a duplicate command execution
-  const commandKey = `${message.author.id}-${command}`;
+  // Skip duplicate check for now as it's causing issues
+  // Will handle duplicates in individual command handlers where needed
+  /*
   if (messageTracker.isDuplicate(message.author.id, command)) {
     console.log(`Skipping duplicate command execution: ${command}`);
     return null;
   }
+  */
 
   // Use a try/catch to avoid uncaught exceptions
   try {
@@ -118,11 +121,7 @@ async function handleHelpCommand(message, args) {
   const prefix = botPrefix;
   const commandName = 'help';
   
-  // Check for duplicate command
-  if (messageTracker.isDuplicate(message.author.id, commandName)) {
-    console.log('Skipping duplicate help command');
-    return null;
-  }
+  // Removed duplicate check as it's causing issues
   
   console.log(`Processing help command with args: ${args.join(', ')}`);
 
