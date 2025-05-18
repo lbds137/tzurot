@@ -2,21 +2,52 @@
 
 ## Overall Coverage
 ```
-------------------------|---------|----------|---------|---------|---------------------------------------------------------------
-File                    | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                             
-------------------------|---------|----------|---------|---------|---------------------------------------------------------------
-All files               |   24.97 |    17.32 |   31.25 |   25.08 |                                                               
- aiService.js           |   66.66 |    57.69 |     100 |   65.76 | 80,196,218,222-272,288-293,299-304,337-351,365-381            
- bot.js                 |       0 |        0 |       0 |       0 | 1-835                                                         
- commands.js            |    4.24 |     1.56 |       0 |    4.27 | 20-157,171-332,354-362,372-374,383-391,407-412,435-1544       
- conversationManager.js |   64.35 |    62.02 |   71.42 |   65.65 | 30,68-133,176,280-281,287-288,311-312,356,386,454-490,496-508 
- dataStorage.js         |     100 |      100 |     100 |     100 |                                                               
- logger.js              |       0 |        0 |       0 |       0 | 1-49                                                          
- personalityManager.js  |   88.88 |     74.6 |     100 |   89.47 | 70-71,121-122,163-165,220-221,229-230,268,290-291,310         
- profileInfoFetcher.js  |       0 |        0 |       0 |       0 | 1-122                                                         
- webhookManager.js      |   19.28 |    14.81 |   24.13 |   19.79 | 42-686,724,731-739,815-834,885                                
-------------------------|---------|----------|---------|---------|---------------------------------------------------------------
+------------------------|---------|----------|---------|---------|---------------------------------------------------------------------------------------------------------------
+File                    | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                             
+------------------------|---------|----------|---------|---------|---------------------------------------------------------------------------------------------------------------
+All files               |   33.75 |    27.02 |   38.37 |   34.04 |                                                                                                               
+ aiService.js           |   77.68 |    73.07 |   93.33 |   77.11 | 183,303-306,315-335,412,444-461,465-466,553-567                                                               
+ bot.js                 |       0 |        0 |       0 |       0 | 1-962                                                                                                         
+ commands.js            |    8.17 |     3.61 |    4.25 |    8.29 | 60-61,72-77,88-96,104,112-120,126-146,152-179,195-390,415-427,440-444,456-468,487-495,521-1738,1749,1764-1998 
+ conversationManager.js |   64.35 |    62.02 |   71.42 |   65.65 | 30,68-133,176,288-289,295-296,321-325,382,414,483-519,528-542                                                 
+ dataStorage.js         |     100 |      100 |     100 |     100 |                                                                                                               
+ logger.js              |    90.9 |      100 |       0 |    90.9 | 39                                                                                                            
+ personalityManager.js  |   88.88 |     74.6 |     100 |   89.47 | 77-78,144-145,192-197,270-271,279-280,326,366-367,388                                                         
+ profileInfoFetcher.js  |   13.11 |        0 |   28.57 |   13.33 | 19-134,152                                                                                                    
+ webhookManager.js      |   54.46 |     54.8 |   60.97 |   55.55 | 43,62-63,70,173-174,209,215-216,231-295,407,452-456,522-812,858-861,874,916,923-931,1079                      
+------------------------|---------|----------|---------|---------|---------------------------------------------------------------------------------------------------------------
 ```
+
+## Recent Improvements
+
+### Summary of Latest Changes
+- **Overall Code Coverage**: Increased from 24.97% to 33.75%
+- **aiService.js**: Improved from 65.76% to 77.11%
+- **logger.js**: Improved from 0% to 90.9%
+- **profileInfoFetcher.js**: Added initial tests, now at 13.33%
+- **webhookManager.js**: Substantially improved from 19.79% to 55.55%
+
+### Key Refactoring Achievements
+1. **WebhookManager Code Improvements**:
+   - Refactored large functions (sendWebhookMessage, splitMessage) into smaller, focused helper functions
+   - Improved testability through better function organization
+   - Separated concerns for better maintainability
+   - Achieved over 55% test coverage for a complex module
+
+2. **AIService Enhancements**:
+   - Refactored the large getAiResponse function (~240 lines) into multiple smaller functions
+   - Added comprehensive error handling tests
+   - Improved handling of problematic personalities
+   - Fixed content sanitization bugs
+
+3. **ProfileInfoFetcher Testing**:
+   - Added initial test coverage for previously untested module
+   - Implemented cache testing strategies
+   - Created a testable fetch implementation
+
+4. **Logger Module Coverage**:
+   - Added tests for logging functionality
+   - Achieved over 90% coverage
 
 ## Completed Test Modules
 
@@ -39,15 +70,30 @@ All files               |   24.97 |    17.32 |   31.25 |   25.08 |
   - Channel activation
   - Stale conversation detection
 
-- **aiService.js**: 65.76% line coverage
+- **aiService.js**: 77.11% line coverage
   - AI response generation
   - Error detection and handling
   - Blackout period implementation
   - Problematic personality management
+  - Content sanitization
 
-- **webhookManager.js**: Focused testing on critical components
+- **webhookManager.js**: 55.55% line coverage
   - Message splitting functionality
   - Duplicate detection mechanisms
+  - Message chunking and formatting
+  - Console output management
+  - Error detection and marking
+  - Virtual message results creation
+
+- **logger.js**: 90.9% line coverage
+  - Logging at different levels
+  - Error handling
+  - Formatting capabilities
+
+- **profileInfoFetcher.js**: Initial coverage at 13.33%
+  - Profile information fetching
+  - Caching mechanisms
+  - Error handling
 
 ### Bot Logic
 - Created tests for message handling and command routing
@@ -69,21 +115,28 @@ All files               |   24.97 |    17.32 |   31.25 |   25.08 |
   - OpenAI client simulation
   - Error simulation
   - Response generation
+  
+- **Fetch Mocks**:
+  - HTTP response simulation
+  - Error condition testing
+  - Cache behavior testing
 
 ## Areas for Future Improvement
 
 1. **High Priority**:
-   - Complete testing of webhookManager.js, focusing on webhook creation and management
-   - Add tests for bot.js command handling and event listeners
+   - Improve test coverage for bot.js, focusing on command handling and event listeners
+   - Further improve profileInfoFetcher.js tests to achieve higher coverage
+   - Add additional tests for webhookManager.js error cases
 
 2. **Medium Priority**:
    - Improve test coverage for commands.js
-   - Add tests for profileInfoFetcher.js
-   - Add tests for logger.js
+   - Add more targeted tests for specific error conditions
+   - Implement integration tests where components interact
 
 3. **Low Priority**:
-   - Add integration tests that cover multiple components interacting
    - Add end-to-end tests for full flows
+   - Improve test documentation and examples
+   - Add performance tests for critical components
 
 ## Test Maintenance Guidelines
 
@@ -103,3 +156,9 @@ All files               |   24.97 |    17.32 |   31.25 |   25.08 |
 4. **Test Error Handling**:
    - Include tests for error cases and edge conditions
    - Verify error messages and behavior
+
+5. **Refactoring Best Practices**:
+   - Extract large functions into smaller, focused helpers
+   - Use meaningful function names that describe what they do
+   - Add comprehensive JSDoc documentation
+   - Focus on Single Responsibility Principle

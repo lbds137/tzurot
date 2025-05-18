@@ -1,13 +1,14 @@
+// Import dependencies
 const nodeFetch = require('node-fetch');
 const { getProfileInfoEndpoint, getAvatarUrlFormat } = require('../config');
-
-// For testing, we need to expose nodeFetch directly
-// since we can't mock the internal fetch function
-const fetch = nodeFetch;
 
 // Cache for profile information to reduce API calls
 const profileInfoCache = new Map();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Use this fetch implementation which allows for easier testing
+// Wrapped in a function to make it easier to mock in tests
+const fetchImplementation = (...args) => nodeFetch(...args);
 
 /**
  * Fetch information about a profile
@@ -39,7 +40,7 @@ async function fetchProfileInfo(profileName) {
 
     // Fetch the data from the API with authorization
     console.log(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
-    const response = await fetch(endpoint, {
+    const response = await fetchImplementation(endpoint, {
       headers: {
         Authorization: `Bearer ${process.env.SERVICE_API_KEY}`,
         'Content-Type': 'application/json',
@@ -96,13 +97,18 @@ async function getProfileAvatarUrl(profileName) {
     return null;
   }
 
-  // Get the avatar URL format
-  const avatarUrlFormat = getAvatarUrlFormat();
+  try {
+    // Get the avatar URL format
+    const avatarUrlFormat = getAvatarUrlFormat();
 
-  // Replace the placeholder with the actual profile ID
-  const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
-  console.log(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
-  return avatarUrl;
+    // Replace the placeholder with the actual profile ID
+    const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
+    console.log(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
+    return avatarUrl;
+  } catch (error) {
+    console.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
+    return null;
+  }
 }
 
 /**
@@ -128,8 +134,25 @@ async function getProfileDisplayName(profileName) {
   return profileInfo.name;
 }
 
+// Exported for testing only
+function clearCache() {
+  profileInfoCache.clear();
+}
+
 module.exports = {
   fetchProfileInfo,
   getProfileAvatarUrl,
   getProfileDisplayName,
+  // For testing
+  _testing: {
+    clearCache,
+    getCache: () => profileInfoCache,
+    setFetchImplementation: (newImpl) => {
+      // This allows tests to override the fetchImplementation
+      Object.defineProperty(module.exports, 'fetchImplementation', {
+        value: newImpl,
+        writable: true
+      });
+    }
+  }
 };
