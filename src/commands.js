@@ -69,13 +69,13 @@ async function processCommand(message, command, args) {
   // Create a unique key for this command execution
   const commandKey = `${message.author.id}-${command}-${args.join('-')}`;
 
-  console.log(`[Commands] Command key: ${commandKey}`);
+  logger.debug(`[Commands] Command key: ${commandKey}`);
 
   // Check if this exact command was recently executed (within 3 seconds)
   if (recentCommands.has(commandKey)) {
     const timestamp = recentCommands.get(commandKey);
     if (Date.now() - timestamp < 3000) {
-      console.log(
+      logger.info(
         `[Commands] Detected duplicate command execution: ${command} from ${message.author.tag}, ignoring`
       );
       return null; // Silently ignore duplicate commands
@@ -84,19 +84,19 @@ async function processCommand(message, command, args) {
 
   // Mark this command as recently executed
   recentCommands.set(commandKey, Date.now());
-  console.log(`[Commands] Marked command as recently executed with key: ${commandKey}`);
+  logger.debug(`[Commands] Marked command as recently executed with key: ${commandKey}`);
 
   // Skip marking other write commands as processed since we already do that above for add/create
   // and the other commands don't have the duplicate embed issue
   if (['remove', 'delete', 'alias'].includes(command)) {
-    console.log(
+    logger.debug(
       `[Commands] Adding message ${message.id} to processedMessages set for command: ${command}`
     );
     processedMessages.add(message.id);
 
     // Clean up after 30 seconds (reduced from 5 minutes)
     setTimeout(() => {
-      console.log(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
+      logger.debug(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
       processedMessages.delete(message.id);
     }, 30000); // 30 seconds instead of 5 minutes
   }
@@ -120,7 +120,7 @@ async function processCommand(message, command, args) {
           return await message.channel.send(content);
         }
       } catch (err) {
-        console.error('Error sending message:', err);
+        logger.error('Error sending message:', err);
         return null;
       }
     };
@@ -179,7 +179,7 @@ async function processCommand(message, command, args) {
         );
     }
   } catch (error) {
-    console.error(`Error processing command ${command}:`, error);
+    logger.error(`Error processing command ${command}:`, error);
     return await message.channel.send(
       `An error occurred while processing the command. Please try again.`
     );
@@ -202,7 +202,7 @@ const messageTracker = {
 
     // Consider it a duplicate if same command from same user within 3 seconds
     if (now - lastTime < 3000) {
-      console.log(`Duplicate command detected: ${commandName} from ${userId}`);
+      logger.info(`Duplicate command detected: ${commandName} from ${userId}`);
       return true;
     }
 
@@ -352,7 +352,7 @@ const sendingEmbedResponses = new Set();
 setInterval(
   () => {
     if (processedMessages.size > 0) {
-      console.log(
+      logger.debug(
         `[Commands] Cleaning up processed messages cache (size: ${processedMessages.size})`
       );
       processedMessages.clear();
@@ -360,7 +360,7 @@ setInterval(
 
     // Also clean up the sendingEmbedResponses set in case any entries get stuck
     if (sendingEmbedResponses.size > 0) {
-      console.log(
+      logger.debug(
         `[Commands] Cleaning up sendingEmbedResponses (size: ${sendingEmbedResponses.size})`
       );
       sendingEmbedResponses.clear();
@@ -377,7 +377,7 @@ const completedAddCommands = new Set();
 setInterval(
   () => {
     if (completedAddCommands.size > 0) {
-      console.log(
+      logger.debug(
         `[Commands] Cleaning up completedAddCommands set (size: ${completedAddCommands.size})`
       );
       completedAddCommands.clear();
@@ -393,7 +393,7 @@ const hasGeneratedFirstEmbed = new Set();
 setInterval(
   () => {
     if (hasGeneratedFirstEmbed.size > 0) {
-      console.log(
+      logger.debug(
         `[Commands] Cleaning up hasGeneratedFirstEmbed set (size: ${hasGeneratedFirstEmbed.size})`
       );
       hasGeneratedFirstEmbed.clear();
@@ -401,7 +401,7 @@ setInterval(
 
     // Also clean up lastEmbedSendTimes
     if (lastEmbedSendTimes.size > 0) {
-      console.log(
+      logger.debug(
         `[Commands] Cleaning up lastEmbedSendTimes map (size: ${lastEmbedSendTimes.size})`
       );
       lastEmbedSendTimes.clear();
@@ -424,7 +424,7 @@ if (!global.addRegistryCleanupInitialized) {
   setInterval(
     () => {
       if (global.addRequestRegistry.size > 0) {
-        console.log(
+        logger.debug(
           `[Global] Periodic cleanup of addRequestRegistry (size: ${global.addRequestRegistry.size})`
         );
         const now = Date.now();
@@ -727,62 +727,62 @@ async function registerInitialPersonality(message, profileName) {
  * @returns {Promise<Object>} Display name and avatar URL
  */
 async function fetchProfileInfo(profileName, initialPersonality) {
-  console.log(`[Commands] Step 2: Fetching profile info explicitly...`);
+  logger.info(`[Commands] Step 2: Fetching profile info explicitly...`);
   const profileInfoFetcher = require('./profileInfoFetcher');
 
   let displayName = null;
   let avatarUrl = null;
 
   // Fetch basic profile data
-  console.log(`[Commands] Making direct calls to profile info fetcher for ${profileName}`);
+  logger.info(`[Commands] Making direct calls to profile info fetcher for ${profileName}`);
 
   try {
     const profileData = await profileInfoFetcher.fetchProfileInfo(profileName);
     if (profileData) {
-      console.log(`[Commands] RAW profile data:`, JSON.stringify(profileData).substring(0, 200));
+      logger.debug(`[Commands] RAW profile data: ${JSON.stringify(profileData).substring(0, 200)}`);
     } else {
-      console.warn(`[Commands] Profile data fetch returned null or undefined`);
+      logger.warn(`[Commands] Profile data fetch returned null or undefined`);
     }
   } catch (infoError) {
-    console.error(`[Commands] Error fetching profile data:`, infoError);
+    logger.error(`[Commands] Error fetching profile data:`, infoError);
     // Continue despite this error
   }
 
   // Get display name with fallback to profile name
   try {
     displayName = await profileInfoFetcher.getProfileDisplayName(profileName);
-    console.log(`[Commands] Got display name: ${displayName}`);
+    logger.info(`[Commands] Got display name: ${displayName}`);
   } catch (nameError) {
-    console.error(`[Commands] Error fetching display name:`, nameError);
+    logger.error(`[Commands] Error fetching display name:`, nameError);
     // If we can't get the display name, use the profile name
     displayName = profileName;
-    console.log(`[Commands] Using profileName as fallback: ${displayName}`);
+    logger.info(`[Commands] Using profileName as fallback: ${displayName}`);
   }
 
   // Get avatar URL
   try {
     avatarUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
-    console.log(`[Commands] Got avatar URL: ${avatarUrl}`);
+    logger.info(`[Commands] Got avatar URL: ${avatarUrl}`);
   } catch (avatarError) {
-    console.error(`[Commands] Error fetching avatar URL:`, avatarError);
+    logger.error(`[Commands] Error fetching avatar URL:`, avatarError);
   }
 
-  console.log(
+  logger.info(
     `[Commands] Fetched profile info: displayName=${displayName}, hasAvatar=${!!avatarUrl}, avatarUrl=${avatarUrl}`
   );
 
   // Update the initial personality with fetched data
   if (displayName) {
-    console.log(`[Commands] Setting display name: ${displayName}`);
+    logger.info(`[Commands] Setting display name: ${displayName}`);
     initialPersonality.displayName = displayName;
   } else {
     // Ensure we always have a display name
-    console.log(`[Commands] No display name found, using profile name`);
+    logger.info(`[Commands] No display name found, using profile name`);
     initialPersonality.displayName = profileName;
   }
 
   if (avatarUrl) {
-    console.log(`[Commands] Setting avatar URL: ${avatarUrl}`);
+    logger.info(`[Commands] Setting avatar URL: ${avatarUrl}`);
     initialPersonality.avatarUrl = avatarUrl;
   }
 
@@ -799,16 +799,16 @@ async function fetchProfileInfo(profileName, initialPersonality) {
  */
 async function updateAndSavePersonality(profileName, displayName, avatarUrl) {
   // Get the saved personality from store
-  console.log(`[Commands] Getting personality from store to ensure latest version`);
+  logger.info(`[Commands] Getting personality from store to ensure latest version`);
   const savedPersonality = getPersonality(profileName);
 
   if (!savedPersonality) {
-    console.error(`[Commands] Failed to retrieve personality from store after registration!`);
+    logger.error(`[Commands] Failed to retrieve personality from store after registration!`);
     // Don't throw, just log the error and continue
-    console.error(`[Commands] Will attempt to continue with initialPersonality object`);
+    logger.error(`[Commands] Will attempt to continue with initialPersonality object`);
   } else {
     // Update the saved personality with our fetched info
-    console.log(`[Commands] Updating saved personality with display name and avatar`);
+    logger.info(`[Commands] Updating saved personality with display name and avatar`);
     if (displayName) {
       savedPersonality.displayName = displayName;
     }
@@ -817,10 +817,10 @@ async function updateAndSavePersonality(profileName, displayName, avatarUrl) {
     }
 
     // Explicitly save all personality data to ensure it's persisted
-    console.log(`[Commands] Saving all personality data`);
+    logger.info(`[Commands] Saving all personality data`);
     const personalityManager = require('./personalityManager');
     await personalityManager.saveAllPersonalities();
-    console.log(`[Commands] Updated and saved personality with display name and avatar`);
+    logger.info(`[Commands] Updated and saved personality with display name and avatar`);
   }
 }
 
@@ -833,7 +833,7 @@ async function updateAndSavePersonality(profileName, displayName, avatarUrl) {
  * @returns {Promise<void>}
  */
 async function setupPersonalityAliases(profileName, alias, initialPersonality) {
-  console.log(`[Commands] Step 3: Setting up aliases - THIS IS THE CRITICAL SECTION`);
+  logger.info(`[Commands] Step 3: Setting up aliases - THIS IS THE CRITICAL SECTION`);
 
   // CRITICAL FIX: This is where we're setting aliases multiple times which is causing multiple embed responses
   // We need to modify our approach to prevent multiple alias settings
@@ -847,7 +847,7 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
   for (const [aliasKey, targetProfile] of Object.entries(allAliases)) {
     if (targetProfile === profileName) {
       existingAliases.push(aliasKey.toLowerCase());
-      console.log(`[Commands] Found existing alias: ${aliasKey} -> ${profileName}`);
+      logger.debug(`[Commands] Found existing alias: ${aliasKey} -> ${profileName}`);
     }
   }
 
@@ -859,12 +859,12 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
   const selfReferentialAlias = profileName.toLowerCase();
   if (!existingAliases.includes(selfReferentialAlias)) {
     aliasesToSet.push(selfReferentialAlias);
-    console.log(
+    logger.info(
       `[Commands] Will set self-referential alias: ${selfReferentialAlias} -> ${profileName}`
     );
     existingAliases.push(selfReferentialAlias);
   } else {
-    console.log(
+    logger.info(
       `[Commands] Self-referential alias ${selfReferentialAlias} already exists - skipping`
     );
   }
@@ -877,10 +877,10 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
       normalizedAlias !== profileName.toLowerCase()
     ) {
       aliasesToSet.push(normalizedAlias);
-      console.log(`[Commands] Will set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
+      logger.info(`[Commands] Will set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
       existingAliases.push(normalizedAlias);
     } else {
-      console.log(
+      logger.info(
         `[Commands] Manual alias ${normalizedAlias} already exists or matches profile name - skipping`
       );
     }
@@ -894,18 +894,18 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
       displayNameAlias !== profileName.toLowerCase()
     ) {
       aliasesToSet.push(displayNameAlias);
-      console.log(
+      logger.info(
         `[Commands] Will set NEW display name alias: ${displayNameAlias} -> ${profileName}`
       );
     } else {
-      console.log(
+      logger.info(
         `[Commands] Display name alias ${displayNameAlias} already exists or matches profile name - skipping`
       );
     }
   }
 
   // Collect all aliases to set, then set them all without saving - we'll do ONE save at the end
-  console.log(
+  logger.info(
     `[Commands] Setting ${aliasesToSet.length} aliases with deferred save (no saves until end of process)`
   );
 
@@ -926,7 +926,7 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
       currentAlias.toLowerCase() === initialPersonality.displayName?.toLowerCase();
 
     // IMPORTANT: Never save from setPersonalityAlias - all saves will happen once at the end
-    console.log(
+    logger.info(
       `[Commands] Setting alias ${i + 1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (isDisplayName: ${isDisplayName})`
     );
     const result = await setPersonalityAlias(currentAlias, profileName, true, isDisplayName);
@@ -934,27 +934,27 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
     // Collect any alternate aliases that were created for display name collisions
     if (result.alternateAliases && result.alternateAliases.length > 0) {
       alternateAliases.push(...result.alternateAliases);
-      console.log(
+      logger.info(
         `[Commands] Collected alternate aliases for collision: ${result.alternateAliases.join(', ')}`
       );
     }
 
-    console.log(
+    logger.info(
       `[Commands] Completed setting alias ${i + 1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (skipSave: true)`
     );
   }
 
   // Log the alternate aliases if any were created
   if (alternateAliases.length > 0) {
-    console.log(
+    logger.info(
       `[Commands] Created ${alternateAliases.length} alternate aliases for display name collisions: ${alternateAliases.join(', ')}`
     );
   }
 
   // CRITICAL FIX: Perform a single save for all alias operations
-  console.log(`[Commands] 💾 SINGLE SAVE OPERATION: Saving all personalities and aliases at once`);
+  logger.info(`[Commands] 💾 SINGLE SAVE OPERATION: Saving all personalities and aliases at once`);
   await personalityManagerFunctions.saveAllPersonalities();
-  console.log(`[Commands] ✅ Completed single save operation for all aliases`);
+  logger.info(`[Commands] ✅ Completed single save operation for all aliases`);
 }
 
 /**
@@ -966,19 +966,19 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
  * @returns {Promise<Object>} The finalized personality object
  */
 async function finalizePersonalityData(profileName, displayName, avatarUrl) {
-  console.log(`[Commands] Step 4: Saving profile data and pre-loading avatar`);
+  logger.info(`[Commands] Step 4: Saving profile data and pre-loading avatar`);
 
   // Get the personality with all updates - without an explicit save
   // We'll perform a single save at the end
-  console.log(`[Commands] Getting personality from store (without explicit save)`);
+  logger.info(`[Commands] Getting personality from store (without explicit save)`);
   const finalPersonality = getPersonality(profileName);
 
   if (!finalPersonality) {
-    console.error(`[Commands] Error: Personality registration returned no data for ${profileName}`);
+    logger.error(`[Commands] Error: Personality registration returned no data for ${profileName}`);
     throw new Error('Failed to register personality');
   }
 
-  console.log(`[Commands] Final personality after all updates:`, {
+  logger.debug(`[Commands] Final personality after all updates:`, {
     fullName: finalPersonality.fullName,
     displayName: finalPersonality.displayName,
     hasAvatar: !!finalPersonality.avatarUrl,
@@ -988,48 +988,48 @@ async function finalizePersonalityData(profileName, displayName, avatarUrl) {
   let needsSave = false;
 
   if (!finalPersonality.displayName && displayName) {
-    console.log(`[Commands] Setting display name again: ${displayName}`);
+    logger.info(`[Commands] Setting display name again: ${displayName}`);
     finalPersonality.displayName = displayName;
     needsSave = true;
   } else if (!finalPersonality.displayName) {
-    console.log(`[Commands] No display name found, using profile name: ${profileName}`);
+    logger.info(`[Commands] No display name found, using profile name: ${profileName}`);
     finalPersonality.displayName = profileName;
     needsSave = true;
   }
 
   if (!finalPersonality.avatarUrl && avatarUrl) {
-    console.log(`[Commands] Setting avatar URL again: ${avatarUrl}`);
+    logger.info(`[Commands] Setting avatar URL again: ${avatarUrl}`);
     finalPersonality.avatarUrl = avatarUrl;
     needsSave = true;
   } else if (!finalPersonality.avatarUrl) {
-    console.log(`[Commands] No avatar URL found in final personality object`);
+    logger.info(`[Commands] No avatar URL found in final personality object`);
     // Try one more explicit fetch from the API
     try {
-      console.log(`[Commands] Making one final attempt to fetch avatar URL...`);
+      logger.info(`[Commands] Making one final attempt to fetch avatar URL...`);
       const profileInfoFetcher = require('./profileInfoFetcher');
       const finalAttemptUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
       if (finalAttemptUrl) {
-        console.log(
+        logger.info(
           `[Commands] Successfully fetched avatar URL in final attempt: ${finalAttemptUrl}`
         );
         finalPersonality.avatarUrl = finalAttemptUrl;
         needsSave = true;
       }
     } catch (err) {
-      console.error(`[Commands] Final avatar URL fetch attempt failed:`, err);
+      logger.error(`[Commands] Final avatar URL fetch attempt failed:`, err);
     }
   }
 
   // Perform a single save if needed
   if (needsSave) {
-    console.log(`[Commands] 💾 SECOND SAVE OPERATION: Saving personality data with any updates`);
+    logger.info(`[Commands] 💾 SECOND SAVE OPERATION: Saving personality data with any updates`);
     await personalityManagerFunctions.saveAllPersonalities();
-    console.log(`[Commands] ✅ Completed second save operation for personality updates`);
+    logger.info(`[Commands] ✅ Completed second save operation for personality updates`);
   }
 
   // Pre-load avatar if available - this ensures it shows up correctly on first use
   if (finalPersonality.avatarUrl) {
-    console.log(`[Commands] Pre-loading avatar for new personality: ${finalPersonality.avatarUrl}`);
+    logger.info(`[Commands] Pre-loading avatar for new personality: ${finalPersonality.avatarUrl}`);
     try {
       // Use fetch to warm up the avatar URL first with proper error handling and timeout
       const fetch = require('node-fetch');
@@ -1043,11 +1043,11 @@ async function finalizePersonalityData(profileName, displayName, avatarUrl) {
       });
 
       if (!response.ok) {
-        console.error(`[Commands] Avatar image fetch failed with status: ${response.status}`);
+        logger.error(`[Commands] Avatar image fetch failed with status: ${response.status}`);
       } else {
         // Read the response body to fully load it into Discord's cache
         const buffer = await response.buffer();
-        console.log(`[Commands] Explicitly pre-fetched avatar URL (${buffer.length} bytes)`);
+        logger.debug(`[Commands] Explicitly pre-fetched avatar URL (${buffer.length} bytes)`);
       }
 
       // Then use the webhook manager's preload function with our own direct URL
@@ -1055,11 +1055,11 @@ async function finalizePersonalityData(profileName, displayName, avatarUrl) {
         ...finalPersonality,
         avatarUrl: finalPersonality.avatarUrl, // Ensure it's using the correct URL
       });
-      console.log(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
+      logger.info(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
 
       // No save needed here - we'll do a final save before sending the embed
     } catch (avatarError) {
-      console.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
+      logger.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
       // Continue despite error - not critical
     }
   }
@@ -1090,22 +1090,22 @@ async function createAndSendEmbed(
   avatarUrl,
   requestKey
 ) {
-  console.log(`[Commands] Step 5: Sending final response with complete info`);
+  logger.info(`[Commands] Step 5: Sending final response with complete info`);
 
   // Update our registry entry to mark this as completed
   if (global.addRequestRegistry.has(messageKey)) {
     const registryEntry = global.addRequestRegistry.get(messageKey);
     registryEntry.completed = true;
     global.addRequestRegistry.set(messageKey, registryEntry);
-    console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as completed`);
+    logger.debug(`[Commands] ✅ Updated registry: marked ${messageKey} as completed`);
   }
 
   // CRITICAL FIX: Final save operation before creating embed
-  console.log(
+  logger.info(
     `[Commands] 💾 FINAL SAVE OPERATION: Ensuring all data is persisted before creating embed`
   );
   await personalityManagerFunctions.saveAllPersonalities();
-  console.log(`[Commands] ✅ Completed final save operation`);
+  logger.info(`[Commands] ✅ Completed final save operation`);
 
   // Get the very latest data after final save
   const veryFinalPersonality = getPersonality(profileName);
@@ -1114,7 +1114,7 @@ async function createAndSendEmbed(
   const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
   const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
 
-  console.log(
+  logger.debug(
     `[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`
   );
 
@@ -1127,10 +1127,10 @@ async function createAndSendEmbed(
   // This is a last resort to prevent duplicates
   for (const blockPattern of EMBEDS_TO_BLOCK) {
     if (embedDescription.includes(blockPattern)) {
-      console.log(
+      logger.warn(
         `[Commands] 🛑 EMERGENCY BLOCK: Found blocked embed pattern "${blockPattern}" in "${embedDescription}"`
       );
-      console.log(`[Commands] Blocking this embed for a known problematic personality`);
+      logger.warn(`[Commands] Blocking this embed for a known problematic personality`);
 
       // Still mark as completed for cleanup purposes
       pendingAdditions.delete(requestKey);
@@ -1170,13 +1170,13 @@ async function createAndSendEmbed(
     };
 
     if (isValidUrl(avatarUrlToUse)) {
-      console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
+      logger.debug(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
       embed.setThumbnail(avatarUrlToUse);
     } else {
-      console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
+      logger.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
     }
   } else {
-    console.log(`[Commands] No avatar URL available for embed`);
+    logger.debug(`[Commands] No avatar URL available for embed`);
   }
 
   // Update registry to note we're sending an embed
@@ -1184,13 +1184,13 @@ async function createAndSendEmbed(
     const registryEntry = global.addRequestRegistry.get(messageKey);
     registryEntry.embedPrepared = true;
     global.addRequestRegistry.set(messageKey, registryEntry);
-    console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as embedPrepared`);
+    logger.debug(`[Commands] ✅ Updated registry: marked ${messageKey} as embedPrepared`);
   }
 
   // FINAL APPROACH: Use a globally tracked direct API call
   // This completely bypasses all Discord.js race conditions and duplicate logic
 
-  console.log(`[Commands] 📤 SENDING: Using direct REST API call to send embed`);
+  logger.info(`[Commands] 📤 SENDING: Using direct REST API call to send embed`);
   let responseMsg;
 
   try {
@@ -1200,10 +1200,10 @@ async function createAndSendEmbed(
     // We're keeping this message for debugging purposes
     const now = Date.now();
     if (global.lastEmbedTime && now - global.lastEmbedTime < global.embedDeduplicationWindow) {
-      console.log(
+      logger.info(
         `[Commands] ⚠️ NOTE: Another embed was sent ${now - global.lastEmbedTime}ms ago, but we will NOT block this complete embed`
       );
-      console.log(
+      logger.info(
         `[Commands] ✅ SENDING ANYWAY: This is the high-quality embed with complete info`
       );
     }
@@ -1212,7 +1212,7 @@ async function createAndSendEmbed(
     if (global.addRequestRegistry.has(messageKey)) {
       const registryEntry = global.addRequestRegistry.get(messageKey);
       if (registryEntry.embedSent) {
-        console.log(
+        logger.warn(
           `[Commands] ⚠️ LAST-MINUTE BLOCK: Embed already sent for ${messageKey} - preventing duplicate`
         );
         return { id: `last-minute-blocked-${Date.now()}`, isLastMinuteBlocked: true };
@@ -1221,7 +1221,7 @@ async function createAndSendEmbed(
 
     // Update global time tracker immediately to prevent race conditions
     global.lastEmbedTime = now;
-    console.log(`[Commands] ⏱️ Setting global lastEmbedTime to ${now}`);
+    logger.debug(`[Commands] ⏱️ Setting global lastEmbedTime to ${now}`);
 
     // Get the Discord.js REST instance
     const { REST } = require('discord.js');
@@ -1243,16 +1243,16 @@ async function createAndSendEmbed(
     };
 
     // Log that we're making a direct API call for better debugging
-    console.log(`[Commands] 📝 NOTE: Making direct API call to send embed with all complete data`);
+    logger.info(`[Commands] 📝 NOTE: Making direct API call to send embed with all complete data`);
 
     // Call the Discord API directly
-    console.log(
+    logger.info(
       `[Commands] 📞 API CALL: Sending direct API call to create message - WILL OVERRIDE time check`
     );
 
     // CRITICAL UPDATE: Force the API call even if we've sent an embed recently
     // The earlier embed has incomplete data, and this one has the full name, display name, and avatar
-    console.log(
+    logger.info(
       `[Commands] 🔥 FORCING SEND: This is the high-quality embed with complete data - ignoring time check`
     );
 
@@ -1272,7 +1272,7 @@ async function createAndSendEmbed(
       embeds: [embed],
     };
 
-    console.log(
+    logger.info(
       `[Commands] ✅ SUCCESS: Sent personality embed with direct API call, ID: ${responseMsg.id}`
     );
 
@@ -1282,15 +1282,15 @@ async function createAndSendEmbed(
       registryEntry.embedSent = true;
       registryEntry.embedId = responseMsg.id;
       global.addRequestRegistry.set(messageKey, registryEntry);
-      console.log(
+      logger.debug(
         `[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`
       );
     }
   } catch (apiError) {
-    console.error(`[Commands] ❌ ERROR: Direct API call failed:`, apiError);
+    logger.error(`[Commands] ❌ ERROR: Direct API call failed:`, apiError);
 
     // Fall back to normal message.reply only if we haven't sent an embed yet
-    console.log(`[Commands] 🔄 FALLBACK: Trying normal message.reply`);
+    logger.info(`[Commands] 🔄 FALLBACK: Trying normal message.reply`);
 
     let embedAlreadySentByOtherProcess = false;
 
@@ -1298,7 +1298,7 @@ async function createAndSendEmbed(
     if (global.addRequestRegistry.has(messageKey)) {
       const registryEntry = global.addRequestRegistry.get(messageKey);
       if (registryEntry.embedSent) {
-        console.log(
+        logger.warn(
           `[Commands] ⚠️ FALLBACK BLOCKED: Embed already sent for ${messageKey} by another process`
         );
         embedAlreadySentByOtherProcess = true;
@@ -1307,7 +1307,7 @@ async function createAndSendEmbed(
 
     if (!embedAlreadySentByOtherProcess) {
       responseMsg = await message.reply({ embeds: [embed] });
-      console.log(`[Commands] ✅ SUCCESS: Sent embed with fallback method, ID: ${responseMsg.id}`);
+      logger.info(`[Commands] ✅ SUCCESS: Sent embed with fallback method, ID: ${responseMsg.id}`);
 
       // Mark in global registry that we've sent an embed for this message
       if (global.addRequestRegistry.has(messageKey)) {
@@ -1315,7 +1315,7 @@ async function createAndSendEmbed(
         registryEntry.embedSent = true;
         registryEntry.embedId = responseMsg.id;
         global.addRequestRegistry.set(messageKey, registryEntry);
-        console.log(
+        logger.debug(
           `[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`
         );
       }
@@ -1326,7 +1326,7 @@ async function createAndSendEmbed(
   }
 
   // Add a small delay before sending the embed to ensure everything is complete
-  console.log(`[Commands] ⏱️ DELAY: Adding 1-second delay before sending final embed`);
+  logger.debug(`[Commands] ⏱️ DELAY: Adding 1-second delay before sending final embed`);
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Return the response
@@ -1360,7 +1360,7 @@ async function handleAddCommand(message, args) {
   if (completedResult) return completedResult;
 
   // Message ID deduplication is now handled centrally in processCommand
-  console.log(`[Commands] Processing add command with message ${message.id}`);
+  logger.info(`[Commands] Processing add command with message ${message.id}`);
 
   // Mark as completed and set up cleanup
   markCommandAsCompleted(addCommandKey);
@@ -1385,7 +1385,7 @@ async function handleAddCommand(message, args) {
     if (existingCheckResult) return existingCheckResult;
 
     // No loading message - we'll do all the work first and only send one message at the end
-    console.log(
+    logger.info(
       `[Commands] Starting personality registration process for ${profileName} (no loading message)`
     );
 
@@ -1417,14 +1417,14 @@ async function handleAddCommand(message, args) {
         requestKey
       );
     } catch (innerError) {
-      console.error(`[Commands] Inner error during personality registration:`, innerError);
+      logger.error(`[Commands] Inner error during personality registration:`, innerError);
 
       // Send error message - no loading message to update
       try {
         const errorResponse = await message.reply(
           `Failed to complete the personality registration: ${innerError.message}`
         );
-        console.log(`[Commands] Sent error response with ID: ${errorResponse.id}`);
+        logger.info(`[Commands] Sent error response with ID: ${errorResponse.id}`);
 
         // Clear pending even on error
         pendingAdditions.delete(requestKey);
@@ -1432,7 +1432,7 @@ async function handleAddCommand(message, args) {
         // Return the error response to indicate we've handled this command
         return errorResponse;
       } catch (err) {
-        console.error(`[Commands] Error sending error message:`, err);
+        logger.error(`[Commands] Error sending error message:`, err);
         // Clear pending even on error
         pendingAdditions.delete(requestKey);
         // Return something to indicate we've handled this command
@@ -1440,7 +1440,7 @@ async function handleAddCommand(message, args) {
       }
     }
   } catch (error) {
-    console.error(`Error adding personality ${profileName}:`, error);
+    logger.error(`Error adding personality ${profileName}:`, error);
 
     // Clear pending on error
     pendingAdditions.delete(requestKey);
@@ -1449,7 +1449,7 @@ async function handleAddCommand(message, args) {
     const errorResponse = await message.reply(
       `Failed to add personality \`${profileName}\`. Error: ${error.message}`
     );
-    console.log(`[Commands] Sent error response with ID: ${errorResponse.id}`);
+    logger.info(`[Commands] Sent error response with ID: ${errorResponse.id}`);
 
     // Return the error response to indicate we've handled this command
     return errorResponse;
@@ -1462,7 +1462,7 @@ async function handleAddCommand(message, args) {
         const elapsedTime = Date.now() - pendingData.timestamp;
 
         if (elapsedTime > 30000) {
-          console.log(
+          logger.debug(
             `[Commands] Cleaning up stale pending addition request for ${requestKey} after ${elapsedTime}ms`
           );
           pendingAdditions.delete(requestKey);
@@ -1476,7 +1476,7 @@ async function handleAddCommand(message, args) {
       for (const [key, data] of pendingAdditions.entries()) {
         if (now - data.timestamp > 120000) {
           // Clean entries older than 2 minutes
-          console.log(
+          logger.debug(
             `[Commands] Automatic cleanup of stale pending addition: ${data.profileName}`
           );
           pendingAdditions.delete(key);

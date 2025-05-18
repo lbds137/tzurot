@@ -1,5 +1,6 @@
 const { getProfileAvatarUrl, getProfileDisplayName } = require('./profileInfoFetcher');
 const { saveData, loadData } = require('./dataStorage');
+const logger = require('./logger');
 
 // In-memory personality storage
 const personalityData = new Map();
@@ -17,35 +18,34 @@ async function initPersonalityManager() {
     // Load personalities
     const personalities = await loadData(PERSONALITIES_FILE);
     if (personalities) {
-      console.log(
-        `[PersonalityManager] Loading personalities from file:`,
-        Object.keys(personalities)
+      logger.info(
+        `[PersonalityManager] Loading personalities from file: ${Object.keys(personalities)}`
       );
       for (const [key, value] of Object.entries(personalities)) {
-        console.log(`[PersonalityManager] Loading personality: ${key} -> ${value.fullName}`);
+        logger.info(`[PersonalityManager] Loading personality: ${key} -> ${value.fullName}`);
         // Skip entries where the key doesn't match the fullName (duplicate entries from previous bug)
         if (key !== value.fullName) {
-          console.log(
-            `[PersonalityManager] WARNING: Key ${key} doesn't match fullName ${value.fullName} - skipping this entry`
+          logger.warn(
+            `[PersonalityManager] Key ${key} doesn't match fullName ${value.fullName} - skipping this entry`
           );
           continue;
         }
         personalityData.set(key, value);
       }
-      console.log(`[PersonalityManager] Loaded ${personalityData.size} personalities`);
+      logger.info(`[PersonalityManager] Loaded ${personalityData.size} personalities`);
     }
 
     // Load aliases
     const aliases = await loadData(ALIASES_FILE);
     if (aliases) {
-      console.log(`[PersonalityManager] Loading aliases from file:`, aliases);
+      logger.info(`[PersonalityManager] Loading aliases from file: ${JSON.stringify(aliases)}`);
       for (const [key, value] of Object.entries(aliases)) {
         personalityAliases.set(key, value);
       }
-      console.log(`[PersonalityManager] Loaded ${personalityAliases.size} aliases`);
+      logger.info(`[PersonalityManager] Loaded ${personalityAliases.size} aliases`);
     }
   } catch (error) {
-    console.error('[PersonalityManager] Error initializing personality manager:', error);
+    logger.error(`[PersonalityManager] Error initializing personality manager: ${error}`);
     throw error;
   }
 }
@@ -66,7 +66,7 @@ async function saveAllPersonalities() {
       aliases[key] = value;
     }
 
-    console.log(
+    logger.info(
       `[PersonalityManager] Saving ${Object.keys(personalities).length} personalities and ${Object.keys(aliases).length} aliases`
     );
 
@@ -74,7 +74,7 @@ async function saveAllPersonalities() {
     await saveData(PERSONALITIES_FILE, personalities);
     await saveData(ALIASES_FILE, aliases);
   } catch (error) {
-    console.error('Error saving personalities:', error);
+    logger.error(`Error saving personalities: ${error}`);
     throw error;
   }
 }
@@ -104,7 +104,7 @@ async function saveAllPersonalities() {
  * registering personalities and fetching profile info from multiple code paths.
  */
 async function registerPersonality(userId, fullName, data, fetchInfo = true) {
-  console.log(`[PersonalityManager] Registering new personality: ${fullName} for user: ${userId}`);
+  logger.info(`[PersonalityManager] Registering new personality: ${fullName} for user: ${userId}`);
 
   // Start building the personality object
   const personality = {
@@ -119,7 +119,7 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
   // Skip automatic profile info fetching if requested by commands.js
   // This prevents race conditions where profile info is fetched twice
   if (fetchInfo) {
-    console.log(`[PersonalityManager] Fetching profile info for: ${fullName}`);
+    logger.info(`[PersonalityManager] Fetching profile info for: ${fullName}`);
     try {
       // Try to get the display name and avatar URL concurrently for efficiency
       const [profileName, avatarUrl] = await Promise.all([
@@ -128,50 +128,49 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
       ]);
 
       if (profileName) {
-        console.log(`[PersonalityManager] Got display name: ${profileName}`);
+        logger.info(`[PersonalityManager] Got display name: ${profileName}`);
         personality.displayName = profileName;
       }
 
       if (avatarUrl) {
-        console.log(`[PersonalityManager] Got avatar URL: ${avatarUrl}`);
+        logger.info(`[PersonalityManager] Got avatar URL: ${avatarUrl}`);
         personality.avatarUrl = avatarUrl;
       }
 
       // Verify the retrieved data is valid
       if (personality.displayName) {
-        console.log(`[PersonalityManager] Verified display name: ${personality.displayName}`);
+        logger.info(`[PersonalityManager] Verified display name: ${personality.displayName}`);
       } else {
-        console.warn(`[PersonalityManager] No display name retrieved, using fullName as fallback`);
+        logger.warn(`[PersonalityManager] No display name retrieved, using fullName as fallback`);
         personality.displayName = fullName;
       }
 
       if (personality.avatarUrl) {
-        console.log(`[PersonalityManager] Verified avatar URL: ${personality.avatarUrl}`);
+        logger.info(`[PersonalityManager] Verified avatar URL: ${personality.avatarUrl}`);
       }
     } catch (error) {
-      console.error(`[PersonalityManager] Error fetching info for ${fullName}:`, error);
+      logger.error(`[PersonalityManager] Error fetching info for ${fullName}: ${error}`);
       // Continue with the process even if fetching fails
     }
   } else {
-    console.log(
+    logger.info(
       `[PersonalityManager] Skipping auto-fetch of profile info as requested - will be handled by caller`
     );
   }
 
   // Store the personality data first - do this before setting aliases
-  console.log(
-    `[PersonalityManager] Storing personality with fullName key: ${fullName}`,
-    JSON.stringify({
+  logger.info(
+    `[PersonalityManager] Storing personality with fullName key: ${fullName} ${JSON.stringify({
       fullName: personality.fullName,
       displayName: personality.displayName,
       hasAvatar: !!personality.avatarUrl,
-    })
+    })}`
   );
   personalityData.set(fullName, personality);
 
   // Save the personality data immediately
   await saveAllPersonalities();
-  console.log(`[PersonalityManager] Saved personality data for: ${fullName}`);
+  logger.info(`[PersonalityManager] Saved personality data for: ${fullName}`);
 
   // CRITICAL FIX: We're fixing duplication between this function and commands.js
   // The only alias we set here is the self-referential alias using the full name
@@ -182,16 +181,15 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
   // Instead, commands.js will handle ALL alias creation including the self-referential one
 
   // Log this critical change for debugging
-  console.log(
+  logger.info(
     `[PersonalityManager] ⚠️ CRITICAL FIX: Skipping self-referential alias creation here to prevent double embeds`
   );
-  console.log(`[PersonalityManager] All alias handling and saving deferred to commands.js`);
+  logger.info(`[PersonalityManager] All alias handling and saving deferred to commands.js`);
 
   // Double-check that we're returning a valid personality object
   if (!personality || !personality.fullName) {
-    console.error(
-      `[PersonalityManager] ERROR: About to return invalid personality object:`,
-      personality
+    logger.error(
+      `[PersonalityManager] ERROR: About to return invalid personality object: ${JSON.stringify(personality)}`
     );
     // Create a minimal valid personality object as fallback
     return {
@@ -204,10 +202,10 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
     };
   }
 
-  console.log(`[PersonalityManager] Successfully returning personality:`, {
+  logger.info(`[PersonalityManager] Successfully returning personality: ${JSON.stringify({
     fullName: personality.fullName,
     displayName: personality.displayName,
-  });
+  })}`);
 
   return personality;
 }
@@ -257,7 +255,7 @@ function safeToLowerCase(str) {
  */
 async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayName = false) {
   // CRITICAL FIX: Default skipSave to true to prevent ANY automatic saves
-  console.log(
+  logger.info(
     `[PersonalityManager] Setting alias: ${alias} -> ${fullName} (skipSave: ${skipSave}, isDisplayName: ${isDisplayName})`
   );
 
@@ -267,7 +265,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
   };
 
   if (!alias) {
-    console.error(`[PersonalityManager] Cannot set empty alias for ${fullName}`);
+    logger.error(`[PersonalityManager] Cannot set empty alias for ${fullName}`);
     return result;
   }
 
@@ -276,7 +274,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
 
   // Verify the personality exists
   if (!personalityData.has(fullName)) {
-    console.error(`[PersonalityManager] Cannot set alias to non-existent personality: ${fullName}`);
+    logger.error(`[PersonalityManager] Cannot set alias to non-existent personality: ${fullName}`);
     return result;
   }
 
@@ -286,7 +284,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
 
     // If the alias already points to the same personality, just return success without saving
     if (existingTarget === fullName) {
-      console.log(
+      logger.info(
         `[PersonalityManager] Alias ${normalizedAlias} already points to ${fullName} - no changes needed`
       );
       result.success = true;
@@ -295,7 +293,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
 
     // Handle aliases from display names differently - avoid collisions by appending the personality's initials
     if (isDisplayName) {
-      console.warn(
+      logger.warn(
         `[PersonalityManager] Display name alias ${normalizedAlias} already exists for ${existingTarget}!`
       );
 
@@ -305,7 +303,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
       const initials = words.map(word => word.charAt(0)).join('');
       const altAlias = `${normalizedAlias}-${initials}`;
 
-      console.log(
+      logger.info(
         `[PersonalityManager] Creating alternate alias for display name collision: ${altAlias} -> ${fullName}`
       );
       personalityAliases.set(altAlias, fullName);
@@ -314,7 +312,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
       result.alternateAliases.push(altAlias);
 
       // We never automatically save here - this will be done at the end of the add process
-      console.log(
+      logger.info(
         `[PersonalityManager] No automatic save for alternate alias - will be saved at end of process`
       );
 
@@ -323,18 +321,18 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
     }
 
     // For manual aliases, we'll warn and overwrite
-    console.warn(
+    logger.warn(
       `[PersonalityManager] Alias ${normalizedAlias} currently points to ${existingTarget}, will be changed to ${fullName}`
     );
   }
 
   // Set the alias
-  console.log(`[PersonalityManager] Setting alias mapping: ${normalizedAlias} -> ${fullName}`);
+  logger.info(`[PersonalityManager] Setting alias mapping: ${normalizedAlias} -> ${fullName}`);
   personalityAliases.set(normalizedAlias, fullName);
 
   // CRITICAL: We never automatically save here - the caller is responsible for calling saveAllPersonalities
   // exactly once at the very end of the process
-  console.log(`[PersonalityManager] No automatic save for alias - will be saved at end of process`);
+  logger.info(`[PersonalityManager] No automatic save for alias - will be saved at end of process`);
 
   result.success = true;
   return result;
@@ -363,29 +361,29 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
  */
 function getPersonalityByAlias(alias) {
   if (!alias) {
-    console.warn(`[PersonalityManager] Attempted to get personality with empty alias`);
+    logger.warn(`[PersonalityManager] Attempted to get personality with empty alias`);
     return null;
   }
 
   // Convert alias to lowercase for case-insensitive lookup
   const normalizedAlias = safeToLowerCase(alias);
-  console.log(
+  logger.debug(
     `[PersonalityManager] Looking up personality by normalized alias: ${normalizedAlias}`
   );
 
   // Look up the full name from the alias
   const fullName = personalityAliases.get(normalizedAlias);
   if (!fullName) {
-    console.log(`[PersonalityManager] No personality found for alias: ${normalizedAlias}`);
+    logger.debug(`[PersonalityManager] No personality found for alias: ${normalizedAlias}`);
     return null;
   }
 
-  console.log(`[PersonalityManager] Found fullName for alias ${normalizedAlias}: ${fullName}`);
+  logger.debug(`[PersonalityManager] Found fullName for alias ${normalizedAlias}: ${fullName}`);
 
   // Return the personality data
   const personality = getPersonality(fullName);
   if (!personality) {
-    console.warn(
+    logger.warn(
       `[PersonalityManager] Found alias ${normalizedAlias} -> ${fullName}, but personality doesn't exist`
     );
   }

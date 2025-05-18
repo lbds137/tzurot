@@ -1,5 +1,6 @@
 const { WebhookClient, EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
+const logger = require('./logger');
 
 // Cache to store webhook instances by channel ID
 const webhookCache = new Map();
@@ -43,7 +44,7 @@ async function warmupAvatarUrl(avatarUrl) {
     return;
   }
 
-  console.log(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
+  logger.info(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
 
   try {
     // Make a GET request to ensure Discord caches the image
@@ -59,15 +60,15 @@ async function warmupAvatarUrl(avatarUrl) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
+      logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
       return;
     }
 
     // Add to cache so we don't warm up the same URL multiple times
     avatarWarmupCache.add(avatarUrl);
-    console.log(`[WebhookManager] Successfully warmed up avatar URL: ${avatarUrl}`);
+    logger.info(`[WebhookManager] Successfully warmed up avatar URL: ${avatarUrl}`);
   } catch (error) {
-    console.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
+    logger.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
     // Continue despite error - not critical
   }
 }
@@ -266,21 +267,21 @@ async function getOrCreateWebhook(channel) {
     // Try to find existing webhooks in the channel
     const webhooks = await channel.fetchWebhooks();
 
-    console.log(`Found ${webhooks.size} webhooks in channel ${channel.name || channel.id}`);
+    logger.info(`Found ${webhooks.size} webhooks in channel ${channel.name || channel.id}`);
 
     // Look for our bot's webhook - use simpler criteria
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
 
     // If no webhook found, create a new one
     if (!webhook) {
-      console.log(`Creating new webhook in channel ${channel.name || ''} (${channel.id})`);
+      logger.info(`Creating new webhook in channel ${channel.name || ''} (${channel.id})`);
       webhook = await channel.createWebhook({
         name: 'Tzurot',
         avatar: 'https://i.imgur.com/your-default-avatar.png', // Replace with your bot's default avatar
         reason: 'Needed for personality proxying',
       });
     } else {
-      console.log(`Found existing Tzurot webhook in channel ${channel.id}`);
+      logger.info(`Found existing Tzurot webhook in channel ${channel.id}`);
     }
 
     // Create a webhook client for this webhook
@@ -291,7 +292,7 @@ async function getOrCreateWebhook(channel) {
 
     return webhookClient;
   } catch (error) {
-    console.error(`Error getting or creating webhook for channel ${channel.id}:`, error);
+    logger.error(`Error getting or creating webhook for channel ${channel.id}: ${error}`);
     throw new Error('Failed to get or create webhook');
   }
 }
@@ -303,8 +304,13 @@ async function getOrCreateWebhook(channel) {
 function minimizeConsoleOutput() {
   const originalConsoleLog = console.log;
   const originalConsoleWarn = console.warn;
-  console.log = () => {};
-  console.warn = () => {};
+  // Redirect to silent logger to maintain logs in files
+  console.log = (msg, ...args) => {
+    logger.debug("[SILENCED] " + (msg || ''), ...args);
+  };
+  console.warn = (msg, ...args) => {
+    logger.debug("[SILENCED] " + (msg || ''), ...args);
+  };
   return { originalConsoleLog, originalConsoleWarn };
 }
 
@@ -371,7 +377,7 @@ function markErrorContent(content) {
     content.includes('unable to formulate') ||
     content.includes('Please try again')
   ) {
-    console.log(`[Webhook] Detected error message, adding special prefix`);
+    logger.info(`[Webhook] Detected error message, adding special prefix`);
     return 'ERROR_MESSAGE_PREFIX: ' + content;
   }
   
@@ -419,7 +425,7 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
  * @returns {Promise<Object>} Sent message
  */
 async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
-  console.log(
+  logger.debug(
     `Sending webhook message chunk ${chunkIndex + 1}/${totalChunks} with data: ${JSON.stringify({
       username: messageData.username,
       contentLength: messageData.content?.length,
@@ -430,12 +436,12 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
 
   try {
     const sentMessage = await webhook.send(messageData);
-    console.log(
+    logger.info(
       `Successfully sent webhook message chunk ${chunkIndex + 1}/${totalChunks} with ID: ${sentMessage.id}`
     );
     return sentMessage;
   } catch (error) {
-    console.error(`Error sending message chunk ${chunkIndex + 1}/${totalChunks}:`, error);
+    logger.error(`Error sending message chunk ${chunkIndex + 1}/${totalChunks}: ${error}`);
     
     // If this is because of length, try to send a simpler message indicating the error
     if (error.code === 50035) {
@@ -449,11 +455,11 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
           threadId: messageData.threadId,
         });
       } catch (finalError) {
-        console.error('[Webhook] Failed to send error notification:', finalError);
+        logger.error(`[Webhook] Failed to send error notification: ${finalError}`);
       }
     } else {
       // Log all error properties for better debugging
-      console.error('[Webhook] Webhook error details:', {
+      logger.error('[Webhook] Webhook error details:', {
         code: error.code,
         message: error.message,
         name: error.name,
@@ -472,7 +478,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
  * @returns {Object} Virtual result object
  */
 function createVirtualResult(personality, channelId) {
-  console.log(`[Webhook] All messages were duplicates, creating virtual result`);
+  logger.info(`[Webhook] All messages were duplicates, creating virtual result`);
   const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
 
   // Clear pending message if we're returning a virtual result
@@ -522,7 +528,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
   const originalFunctions = minimizeConsoleOutput();
   
   try {
-    console.log(
+    logger.info(
       `Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`
     );
 
@@ -531,7 +537,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
     // Check if we're already sending a very similar message
     if (activeWebhooks.has(messageTrackingId)) {
-      console.log(
+      logger.info(
         `Duplicate message detected with ID ${messageTrackingId} - preventing double send`
       );
       return null;
@@ -547,7 +553,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       personality.fullName &&
       hasPersonalityPendingMessage(personality.fullName, channel.id)
     ) {
-      console.log(
+      logger.info(
         `[Webhook] CRITICAL: Blocking error message for ${personality.fullName} due to pending message`
       );
       return null; // Do not send error message at all
@@ -556,10 +562,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     // Register message as pending based on its type
     if (personality.fullName) {
       if (!isErrorMessage) {
-        console.log(`[Webhook] Registering normal message as pending for ${personality.fullName}`);
+        logger.info(`[Webhook] Registering normal message as pending for ${personality.fullName}`);
         registerPendingMessage(personality.fullName, channel.id, content, false);
       } else {
-        console.log(`[Webhook] Detected error message for ${personality.fullName}`);
+        logger.info(`[Webhook] Detected error message for ${personality.fullName}`);
         registerPendingMessage(personality.fullName, channel.id, content, true);
       }
     }
@@ -567,7 +573,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     // Apply any needed message delay for proper ordering
     const delayNeeded = calculateMessageDelay(channel.id);
     if (delayNeeded > 0) {
-      console.log(`[Webhook] Delaying message by ${delayNeeded}ms for channel ${channel.id}`);
+      logger.info(`[Webhook] Delaying message by ${delayNeeded}ms for channel ${channel.id}`);
       await new Promise(resolve => setTimeout(resolve, delayNeeded));
     }
 
@@ -585,7 +591,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
       // Standardize the username to prevent duplicates
       const standardizedName = getStandardizedUsername(personality);
-      console.log(
+      logger.info(
         `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
       );
 
@@ -594,9 +600,9 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       try {
         const safeContent = typeof content === 'string' ? content : String(content || '');
         contentChunks = splitMessage(safeContent);
-        console.log(`[Webhook] Split message into ${contentChunks.length} chunks`);
+        logger.info(`[Webhook] Split message into ${contentChunks.length} chunks`);
       } catch (error) {
-        console.error('[Webhook] Error splitting message content:', error);
+        logger.error(`[Webhook] Error splitting message content: ${error}`);
         contentChunks = ['[Error processing message content]'];
       }
 
@@ -611,7 +617,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
         // Skip duplicate messages
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
-          console.log(`[Webhook] Skipping message chunk ${i + 1} due to duplicate detection`);
+          logger.info(`[Webhook] Skipping message chunk ${i + 1} due to duplicate detection`);
           continue;
         }
 
@@ -623,7 +629,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
         // Skip hard-blocked content
         if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY')) {
-          console.log(
+          logger.info(
             `[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`
           );
           continue;
@@ -670,8 +676,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       }
 
       // Log result information
-      console.log(`[Webhook] Returning result with: ${sentMessageIds.length} message IDs:`);
-      sentMessageIds.forEach(id => console.log(`[Webhook] Message ID: ${id}`));
+      logger.info(`[Webhook] Returning result with: ${sentMessageIds.length} message IDs:`);
+      sentMessageIds.forEach(id => logger.debug(`[Webhook] Message ID: ${id}`));
 
       // Return results or create a virtual result if needed
       if (sentMessageIds.length > 0) {
@@ -688,7 +694,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       throw error;
     }
   } catch (error) {
-    console.error('Webhook error:', error.message);
+    logger.error(`Webhook error: ${error.message}`);
 
     // If webhook is invalid, remove from cache
     if (error.code === 10015) {
@@ -786,18 +792,17 @@ function registerEventListeners(discordClient) {
 
     // Check if this is an error message
     if (isErrorWebhookMessage(normalizedOptions)) {
-      console.log(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
-      console.log(
-        `[Webhook CRITICAL] Options:`,
-        JSON.stringify({
+      logger.info(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
+      logger.info(
+        `[Webhook CRITICAL] Options: ${JSON.stringify({
           username: normalizedOptions.username,
           content: normalizedOptions.content?.substring(0, 50),
-        })
+        })}`
       );
 
       // Return a dummy ID to simulate successful sending
       // This will prevent any error handling from triggering or retries
-      console.log(`[Webhook CRITICAL] Returning dummy ID instead of sending error message`);
+      logger.info(`[Webhook CRITICAL] Returning dummy ID instead of sending error message`);
       return {
         id: `blocked-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
         content: normalizedOptions.content,
@@ -820,20 +825,20 @@ function registerEventListeners(discordClient) {
  */
 async function preloadPersonalityAvatar(personality) {
   if (!personality) {
-    console.error(
+    logger.error(
       `[WebhookManager] Cannot preload avatar: personality object is null or undefined`
     );
     return;
   }
 
   if (!personality.avatarUrl) {
-    console.warn(
+    logger.warn(
       `[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
     );
     return;
   }
 
-  console.log(
+  logger.info(
     `[WebhookManager] Preloading avatar for ${personality.displayName || personality.fullName}: ${personality.avatarUrl}`
   );
 
@@ -855,7 +860,7 @@ async function preloadPersonalityAvatar(personality) {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.warn(
+      logger.warn(
         `[WebhookManager] Personality avatar URL invalid: ${response.status} ${response.statusText}`
       );
       return;
@@ -863,15 +868,15 @@ async function preloadPersonalityAvatar(personality) {
 
     // Read a small chunk of the response to ensure it's loaded
     const buffer = await response.buffer();
-    console.log(`[WebhookManager] Avatar image loaded (${buffer.length} bytes)`);
+    logger.info(`[WebhookManager] Avatar image loaded (${buffer.length} bytes)`);
 
     // Then use our standard warmup function to cache it
     await warmupAvatarUrl(personality.avatarUrl);
-    console.log(
+    logger.info(
       `[WebhookManager] Successfully preloaded avatar for ${personality.displayName || personality.fullName}`
     );
   } catch (error) {
-    console.error(`[WebhookManager] Error preloading personality avatar:`, error.message);
+    logger.error(`[WebhookManager] Error preloading personality avatar: ${error.message}`);
   }
 }
 
@@ -928,7 +933,7 @@ function getStandardizedUsername(personality) {
       return personality.fullName.slice(0, 29) + '...';
     }
   } catch (error) {
-    console.error(`[Webhook] Error generating standard username:`, error);
+    logger.error(`[Webhook] Error generating standard username: ${error}`);
   }
 
   // Final fallback
@@ -982,7 +987,7 @@ function registerPendingMessage(personalityName, channelId, content, isError) {
     personalityName,
     channelId,
   });
-  console.log(
+  logger.info(
     `[Webhook] Registered ${isError ? 'ERROR' : 'normal'} message for ${personalityName} in channel ${channelId}`
   );
 }
@@ -996,7 +1001,7 @@ function clearPendingMessage(personalityName, channelId) {
   const key = createPersonalityChannelKey(personalityName, channelId);
   if (pendingPersonalityMessages.has(key)) {
     pendingPersonalityMessages.delete(key);
-    console.log(`[Webhook] Cleared pending message for ${personalityName} in channel ${channelId}`);
+    logger.info(`[Webhook] Cleared pending message for ${personalityName} in channel ${channelId}`);
   }
 }
 
@@ -1013,7 +1018,7 @@ function calculateMessageDelay(channelId) {
     if (timeSinceLastMessage < MIN_MESSAGE_DELAY) {
       // Need to wait to ensure proper message ordering
       const delayNeeded = MIN_MESSAGE_DELAY - timeSinceLastMessage;
-      console.log(`[Webhook] Need to delay message to channel ${channelId} by ${delayNeeded}ms`);
+      logger.info(`[Webhook] Need to delay message to channel ${channelId} by ${delayNeeded}ms`);
       return delayNeeded;
     }
   }
@@ -1064,7 +1069,7 @@ function isDuplicateMessage(content, username, channelId) {
     const timestamp = recentMessageCache.get(hash);
     // Only consider it a duplicate if it was sent within the cache timeout
     if (Date.now() - timestamp < MESSAGE_CACHE_TIMEOUT) {
-      console.log(`[Webhook] Detected duplicate message with hash: ${hash}`);
+      logger.info(`[Webhook] Detected duplicate message with hash: ${hash}`);
       return true;
     }
   }
