@@ -21,6 +21,7 @@ const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
 const audioHandler = require('./utils/audioHandler');
+const imageHandler = require('./utils/imageHandler');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -1019,25 +1020,38 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
       );
 
-      // Process any audio URLs in the content
+      // Process any audio or image URLs in the content
       let processedContent = content;
       let attachments = [];
 
       try {
         // Only process if content is a string
         if (typeof content === 'string') {
+          // First check for audio URLs (audio takes priority over images)
           logger.debug(`[Webhook] Checking for audio URLs in message content`);
-          const { content: newContent, attachments: audioAttachments } =
+          const { content: audioProcessedContent, attachments: audioAttachments } =
             await audioHandler.processAudioUrls(content);
-          processedContent = newContent;
-          attachments = audioAttachments;
-
-          if (attachments.length > 0) {
+          
+          if (audioAttachments.length > 0) {
+            // If we found audio, use that
+            processedContent = audioProcessedContent;
+            attachments = audioAttachments;
             logger.info(`[Webhook] Processed ${attachments.length} audio URLs into attachments`);
+          } else {
+            // If no audio found, check for image URLs
+            logger.debug(`[Webhook] Checking for image URLs in message content`);
+            const { content: imageProcessedContent, attachments: imageAttachments } =
+              await imageHandler.processImageUrls(content);
+            
+            if (imageAttachments.length > 0) {
+              processedContent = imageProcessedContent;
+              attachments = imageAttachments;
+              logger.info(`[Webhook] Processed ${attachments.length} image URLs into attachments`);
+            }
           }
         }
       } catch (error) {
-        logger.error(`[Webhook] Error processing audio URLs: ${error.message}`);
+        logger.error(`[Webhook] Error processing media URLs: ${error.message}`);
         // Continue with original content if there's an error
         processedContent = content;
         attachments = [];
