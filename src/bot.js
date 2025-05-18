@@ -100,6 +100,7 @@ async function initBot() {
   
   // Replace the original reply method with our patched version
   Message.prototype.reply = async function patchedReply(options) {
+    
     // Create a unique signature for this reply
     const replySignature = `reply-${this.id}-${this.channel.id}-${
       typeof options === 'string' 
@@ -256,14 +257,54 @@ async function initBot() {
         // Extra tracking for debugging
         console.log(`[Bot] Processing my own message with ID ${message.id} - content: "${message.content.substring(0, 30)}...", has embeds: ${message.embeds?.length > 0}`);
         
-        // Log embed details if there are any
+        // Log detailed embed info for better debugging
         if (message.embeds && message.embeds.length > 0) {
+          // Log more detailed embed information to help diagnose issues
           const embedInfo = message.embeds.map(embed => ({
             title: embed.title,
-            description: embed.description?.substring(0, 30),
-            fields: embed.fields?.map(f => f.name) || []
+            description: embed.description?.substring(0, 50),
+            fields: embed.fields?.map(f => ({
+              name: f.name,
+              value: f.value?.substring(0, 30) + (f.value?.length > 30 ? '...' : '')
+            })) || [],
+            hasThumbnail: !!embed.thumbnail,
+            thumbnailUrl: embed.thumbnail?.url?.substring(0, 50) + (embed.thumbnail?.url?.length > 50 ? '...' : '')
           }));
-          console.log(`[Bot] Message ${message.id} has ${message.embeds.length} embeds:`, JSON.stringify(embedInfo));
+          console.log(`[Bot] Message ${message.id} has ${message.embeds.length} embeds - DETAILED INFO:`, JSON.stringify(embedInfo, null, 2));
+          
+          // CRITICAL FIX: Detect INCOMPLETE Personality Added embeds
+          // The first embed appears before we have the display name and avatar
+          if (message.embeds[0].title === "Personality Added") {
+            // Check if this embed has incomplete information (missing display name or avatar)
+            const isIncompleteEmbed = (
+              message.embeds[0].fields?.some(field => 
+                field.name === "Display Name" && 
+                (field.value === "Not set" || field.value.includes("-ba-et-") || field.value.includes("-zeevat-"))
+              ) || 
+              !message.embeds[0].thumbnail // No avatar/thumbnail
+            );
+            
+            if (isIncompleteEmbed) {
+              console.log(`[Bot] 🚨 DETECTED INCOMPLETE EMBED: Found incomplete "Personality Added" embed - attempting to delete`);
+              
+              // Try to delete this embed to prevent confusion
+              try {
+                await message.delete();
+                console.log(`[Bot] ✅ Successfully deleted incomplete embed message ID ${message.id}`);
+                return; // Skip further processing
+              } catch (deleteError) {
+                console.error(`[Bot] ❌ Error deleting incomplete embed:`, deleteError);
+                // Continue with normal handling if deletion fails
+              }
+            } else {
+              console.log(`[Bot] ✅ GOOD EMBED: This "Personality Added" embed appears to be complete with display name and avatar`);
+            }
+          }
+          
+          // Update global embed timestamp regardless of deletion
+          // This helps us track when embeds were sent
+          global.lastEmbedTime = Date.now();
+          console.log(`[Bot] Updated global.lastEmbedTime to ${global.lastEmbedTime}`);
         }
         
         console.log(`[Bot] This is my own message with ID ${message.id} - returning immediately`);

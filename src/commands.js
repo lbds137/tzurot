@@ -396,6 +396,10 @@ setInterval(() => {
 // This will be used and shared across all components
 global.addRequestRegistry = global.addRequestRegistry || new Map();
 
+// CRITICAL: Additional global flag to prevent duplicate embeds at the source level
+global.lastEmbedTime = global.lastEmbedTime || 0;
+global.embedDeduplicationWindow = 5000; // 5 seconds deduplication window
+
 // Set a 10 minute timer to clean up old registry entries (prevent memory leaks)
 if (!global.addRegistryCleanupInitialized) {
   global.addRegistryCleanupInitialized = true;
@@ -425,8 +429,16 @@ const EMBEDS_TO_BLOCK = [
 
 // Completely reimplemented add command with global deduplication
 async function handleAddCommand(message, args) {
-  // ULTRA-EXTREME APPROACH: Create a truly unique ID for this specific add request
-  // and use it to prevent any duplicates across the entire system
+  
+  // ULTRA-EXTREME APPROACH: Global check to see if we've sent an embed in the last 5 seconds
+  // This is a last defense against duplicate embeds at the function level
+  const now = Date.now();
+  if (global.lastEmbedTime && (now - global.lastEmbedTime < global.embedDeduplicationWindow)) {
+    console.log(`[Commands] ⚠️ GLOBAL RATE LIMIT: An embed was just sent ${now - global.lastEmbedTime}ms ago - blocking this request entirely`);
+    return { id: `global-rate-limited-${now}`, isRateLimited: true };
+  }
+  
+  // Create a truly unique ID for this specific add request
   const addRequestId = `add-req-${message.id}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
   
   // Create a key specifically for this message+args combination
@@ -684,13 +696,27 @@ async function handleAddCommand(message, args) {
         }
       }
       
+      // Collect all aliases to set, then set them all at once with a single save
+      const aliasesToSet = [];
+      
+      // CRITICAL FIX: First handle the self-referential alias, which was previously causing double embeds
+      // This is now handled in commands.js rather than in personalityManager.js
+      const selfReferentialAlias = profileName.toLowerCase();
+      if (!existingAliases.includes(selfReferentialAlias)) {
+        aliasesToSet.push(selfReferentialAlias);
+        console.log(`[Commands] Will set self-referential alias: ${selfReferentialAlias} -> ${profileName}`);
+        existingAliases.push(selfReferentialAlias);
+      } else {
+        console.log(`[Commands] Self-referential alias ${selfReferentialAlias} already exists - skipping`);
+      }
+      
       // Now handle the manual alias if provided - but check if it already exists first
       if (alias) {
         const normalizedAlias = alias.toLowerCase();
         if (!existingAliases.includes(normalizedAlias) && 
             normalizedAlias !== profileName.toLowerCase()) {
-          await setPersonalityAlias(normalizedAlias, profileName);
-          console.log(`[Commands] Set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
+          aliasesToSet.push(normalizedAlias);
+          console.log(`[Commands] Will set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
           existingAliases.push(normalizedAlias);
         } else {
           console.log(`[Commands] Manual alias ${normalizedAlias} already exists or matches profile name - skipping`);
@@ -702,12 +728,53 @@ async function handleAddCommand(message, args) {
         const displayNameAlias = initialPersonality.displayName.toLowerCase();
         if (!existingAliases.includes(displayNameAlias) && 
             displayNameAlias !== profileName.toLowerCase()) {
-          await setPersonalityAlias(displayNameAlias, profileName);
-          console.log(`[Commands] Set NEW display name alias: ${displayNameAlias} -> ${profileName}`);
+          aliasesToSet.push(displayNameAlias);
+          console.log(`[Commands] Will set NEW display name alias: ${displayNameAlias} -> ${profileName}`);
         } else {
           console.log(`[Commands] Display name alias ${displayNameAlias} already exists or matches profile name - skipping`);
         }
       }
+      
+      // Collect all aliases to set, then set them all without saving - we'll do ONE save at the end
+      console.log(`[Commands] Setting ${aliasesToSet.length} aliases with deferred save (no saves until end of process)`);
+      
+      // Sort the aliases so that display name aliases come last (they're more likely to have conflicts)
+      const sortedAliases = aliasesToSet.slice().sort((a, b) => {
+        const aIsDisplayName = a.toLowerCase() === initialPersonality.displayName?.toLowerCase();
+        const bIsDisplayName = b.toLowerCase() === initialPersonality.displayName?.toLowerCase();
+        return aIsDisplayName === bIsDisplayName ? 0 : aIsDisplayName ? 1 : -1;
+      });
+      
+      // Create a collection for all alternate aliases that might be created for display name collisions
+      const alternateAliases = [];
+      
+      // Set all aliases without any saves
+      for (let i = 0; i < sortedAliases.length; i++) {
+        const currentAlias = sortedAliases[i];
+        const isDisplayName = currentAlias.toLowerCase() === initialPersonality.displayName?.toLowerCase();
+        
+        // IMPORTANT: Never save from setPersonalityAlias - all saves will happen once at the end
+        console.log(`[Commands] Setting alias ${i+1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (isDisplayName: ${isDisplayName})`);
+        const result = await setPersonalityAlias(currentAlias, profileName, true, isDisplayName);
+        
+        // Collect any alternate aliases that were created for display name collisions
+        if (result.alternateAliases && result.alternateAliases.length > 0) {
+          alternateAliases.push(...result.alternateAliases);
+          console.log(`[Commands] Collected alternate aliases for collision: ${result.alternateAliases.join(', ')}`);
+        }
+        
+        console.log(`[Commands] Completed setting alias ${i+1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (skipSave: true)`);
+      }
+      
+      // Log the alternate aliases if any were created
+      if (alternateAliases.length > 0) {
+        console.log(`[Commands] Created ${alternateAliases.length} alternate aliases for display name collisions: ${alternateAliases.join(', ')}`);
+      }
+      
+      // CRITICAL FIX: Perform a single save for all alias operations
+      console.log(`[Commands] 💾 SINGLE SAVE OPERATION: Saving all personalities and aliases at once`);
+      await personalityManagerFunctions.saveAllPersonalities();
+      console.log(`[Commands] ✅ Completed single save operation for all aliases`);
       
       // -------------------- STEP 4: Save profile data and pre-load Avatar --------------------
       console.log(`[Commands] Step 4: Saving profile data and pre-loading avatar`);
@@ -716,11 +783,9 @@ async function handleAddCommand(message, args) {
       // We already have: const personalityManagerFunctions = require('./personalityManager');
       // at the top of the file
       
-      // Important: Force save personality data after updates
-      await personalityManagerFunctions.saveAllPersonalities();
-      console.log(`[Commands] Explicitly saved all personality data`);
-      
-      // Get the final personality with all updates - AFTER explicit save
+      // Get the personality with all updates - without an explicit save
+      // We'll perform a single save at the end
+      console.log(`[Commands] Getting personality from store (without explicit save)`);
       const finalPersonality = getPersonality(profileName);
       
       if (!finalPersonality) {
@@ -735,20 +800,22 @@ async function handleAddCommand(message, args) {
       });
       
       // Add extra safety checks for display name and avatar
+      let needsSave = false;
+
       if (!finalPersonality.displayName && displayName) {
         console.log(`[Commands] Setting display name again: ${displayName}`);
         finalPersonality.displayName = displayName;
-        await personalityManagerFunctions.saveAllPersonalities();
+        needsSave = true;
       } else if (!finalPersonality.displayName) {
         console.log(`[Commands] No display name found, using profile name: ${profileName}`);
         finalPersonality.displayName = profileName;
-        await personalityManagerFunctions.saveAllPersonalities();
+        needsSave = true;
       }
       
       if (!finalPersonality.avatarUrl && avatarUrl) {
         console.log(`[Commands] Setting avatar URL again: ${avatarUrl}`);
         finalPersonality.avatarUrl = avatarUrl;
-        await personalityManagerFunctions.saveAllPersonalities();
+        needsSave = true;
       } else if (!finalPersonality.avatarUrl) {
         console.log(`[Commands] No avatar URL found in final personality object`);
         // Try one more explicit fetch from the API
@@ -759,11 +826,18 @@ async function handleAddCommand(message, args) {
           if (finalAttemptUrl) {
             console.log(`[Commands] Successfully fetched avatar URL in final attempt: ${finalAttemptUrl}`);
             finalPersonality.avatarUrl = finalAttemptUrl;
-            await personalityManagerFunctions.saveAllPersonalities();
+            needsSave = true;
           }
         } catch (err) {
           console.error(`[Commands] Final avatar URL fetch attempt failed:`, err);
         }
+      }
+      
+      // Perform a single save if needed
+      if (needsSave) {
+        console.log(`[Commands] 💾 SECOND SAVE OPERATION: Saving personality data with any updates`);
+        await personalityManagerFunctions.saveAllPersonalities();
+        console.log(`[Commands] ✅ Completed second save operation for personality updates`);
       }
       
       // Pre-load avatar if available - this ensures it shows up correctly on first use
@@ -795,8 +869,7 @@ async function handleAddCommand(message, args) {
           });
           console.log(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
           
-          // Save again after preloading to ensure data persistence
-          await personalityManagerFunctions.saveAllPersonalities();
+          // No save needed here - we'll do a final save before sending the embed
         } catch (avatarError) {
           console.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
           // Continue despite error - not critical
@@ -814,8 +887,12 @@ async function handleAddCommand(message, args) {
         console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as completed`);
       }
       
-      // Force one more save and get very latest data
+      // CRITICAL FIX: Final save operation before creating embed
+      console.log(`[Commands] 💾 FINAL SAVE OPERATION: Ensuring all data is persisted before creating embed`);
       await personalityManagerFunctions.saveAllPersonalities();
+      console.log(`[Commands] ✅ Completed final save operation`);
+      
+      // Get the very latest data after final save
       const veryFinalPersonality = getPersonality(profileName);
       
       // Use this with our forced loaded data
@@ -891,6 +968,16 @@ async function handleAddCommand(message, args) {
         let responseMsg;
         
         try {
+          // CRITICAL UPDATE: We've stopped using time-based deduplication for personality embeds
+          // Instead, we're specifically detecting and deleting incomplete embeds in bot.js
+          
+          // We're keeping this message for debugging purposes
+          const now = Date.now();
+          if (global.lastEmbedTime && (now - global.lastEmbedTime < global.embedDeduplicationWindow)) {
+            console.log(`[Commands] ⚠️ NOTE: Another embed was sent ${now - global.lastEmbedTime}ms ago, but we will NOT block this complete embed`);
+            console.log(`[Commands] ✅ SENDING ANYWAY: This is the high-quality embed with complete info`);
+          }
+          
           // Final check - has another process already sent an embed for this message?
           if (global.addRequestRegistry.has(messageKey)) {
             const registryEntry = global.addRequestRegistry.get(messageKey);
@@ -899,6 +986,10 @@ async function handleAddCommand(message, args) {
               return { id: `last-minute-blocked-${Date.now()}`, isLastMinuteBlocked: true };
             }
           }
+          
+          // Update global time tracker immediately to prevent race conditions
+          global.lastEmbedTime = now;
+          console.log(`[Commands] ⏱️ Setting global lastEmbedTime to ${now}`);
           
           // Get the Discord.js REST instance
           const { REST } = require('discord.js');
@@ -918,8 +1009,19 @@ async function handleAddCommand(message, args) {
             }
           };
           
+          // Log that we're making a direct API call for better debugging
+          console.log(`[Commands] 📝 NOTE: Making direct API call to send embed with all complete data`);
+          
           // Call the Discord API directly
-          console.log(`[Commands] 📞 API CALL: Sending direct API call to create message`);
+          console.log(`[Commands] 📞 API CALL: Sending direct API call to create message - WILL OVERRIDE time check`);
+          
+          // CRITICAL UPDATE: Force the API call even if we've sent an embed recently
+          // The earlier embed has incomplete data, and this one has the full name, display name, and avatar
+          console.log(`[Commands] 🔥 FORCING SEND: This is the high-quality embed with complete data - ignoring time check`);
+          
+          // Reset the global time tracker to avoid blocking this embed
+          global.lastEmbedTime = 0;
+          
           const result = await restInstance.post(
             `/channels/${message.channel.id}/messages`,
             { body: payload }
@@ -979,6 +1081,10 @@ async function handleAddCommand(message, args) {
           }
         }
         
+        // Add a small delay before sending the embed to ensure everything is complete
+        console.log(`[Commands] ⏱️ DELAY: Adding 1-second delay before sending final embed`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
         // Return the response
         return responseMsg;
     } catch (innerError) {
@@ -1004,6 +1110,7 @@ async function handleAddCommand(message, args) {
     }
   } catch (error) {
     console.error(`Error adding personality ${profileName}:`, error);
+    
     // Clear pending on error
     pendingAdditions.delete(requestKey);
     
@@ -1015,6 +1122,7 @@ async function handleAddCommand(message, args) {
     return errorResponse;
   } finally {
     // Ensure we always clean up, even if an unexpected error occurs
+    
     setTimeout(() => {
       if (pendingAdditions.has(requestKey)) {
         const pendingData = pendingAdditions.get(requestKey);
