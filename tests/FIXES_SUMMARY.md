@@ -828,3 +828,44 @@ This change provides several benefits:
 - Adaptation to changing API responses
 - Better handling of special formats or custom URLs
 - Reduced dependency on specific URL patterns
+
+## Added Support for Image Processing with OpenAI-Compatible API
+
+We've implemented the ability for users to send images to the Discord bot, which are then processed using the OpenAI-compatible API's multimodal capabilities.
+
+### Implementation Details
+
+1. **Attachment Detection and Filtering**:
+   - Added logic to detect and process image attachments in Discord messages
+   - Implemented filtering to identify valid image attachments by content type
+   - Added handling for both text+image and image-only messages
+
+2. **Multimodal Content Formatting**:
+   - Created a `formatApiMessages` utility function to properly format messages for the API
+   - Implemented OpenAI-compatible message structure with mixed text and image content:
+   ```json
+   {
+     "role": "user",
+     "content": [
+       {
+         "type": "text",
+         "text": "What's in this image?"
+       },
+       {
+         "type": "image_url",
+         "image_url": {
+           "url": "https://example.com/image.jpg"
+         }
+       }
+     ]
+   }
+   ```
+
+3. **Default Prompting for Image-Only Messages**:
+   - Added automatic prompting for image-only messages with "What's in this image?"
+   - Preserved original text when both text and images are provided
+
+4. **Integration with Existing API Flow**:
+   - Updated both normal and problematic personality handlers to use the new message formats
+   - Maintained backward compatibility with text-only messages
+   - Added proper logging throughout the image processing flow

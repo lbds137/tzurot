@@ -454,10 +454,13 @@ function createRequestId(personalityName, message, context) {
 async function handleProblematicPersonality(personalityName, message, context, personalityInfo, modelPath, headers) {
   logger.info(`[AIService] Handling known problematic personality: ${personalityName}`);
   try {
+    // Format the message content properly for the API
+    const messages = formatApiMessages(message);
+    
     // Still try the API call in case the issue has been fixed
     const response = await aiClient.chat.completions.create({
       model: modelPath,
-      messages: [{ role: 'user', content: message }],
+      messages: messages,
       temperature: 0.7,
       headers: headers,
     });
@@ -752,12 +755,31 @@ async function getAiResponse(personalityName, message, context = {}) {
  * The function returns sanitized AI content when successful or throws
  * appropriate errors that will be caught by the parent getAiResponse function.
  */
+/**
+ * Format messages for API request, handling text and images
+ * @param {string|Array} content - Text message or array of content objects (text and images)
+ * @returns {Array} Formatted messages array for API request
+ */
+function formatApiMessages(content) {
+  // Check if the content is already an array (multimodal content)
+  if (Array.isArray(content)) {
+    return [{ role: 'user', content }];
+  }
+  
+  // Simple text message
+  return [{ role: 'user', content }];
+}
+
 async function handleNormalPersonality(personalityName, message, context, modelPath, headers) {
   logger.info(`[AIService] Making API request for normal personality: ${personalityName}`);
   logger.debug(`[AIService] Using model path: ${modelPath}`);
+  
+  // Format the message content properly for the API
+  const messages = formatApiMessages(message);
+  
   const response = await aiClient.chat.completions.create({
     model: modelPath,
-    messages: [{ role: 'user', content: message }],
+    messages: messages,
     temperature: 0.7,
     headers: headers,
   });
@@ -867,4 +889,5 @@ module.exports = {
   handleProblematicPersonality,
   handleNormalPersonality,
   sanitizeContent,
+  formatApiMessages,
 };

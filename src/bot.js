@@ -687,8 +687,59 @@ async function handlePersonalityInteraction(message, personality) {
     typingInterval = startTypingIndicator(message.channel);
 
     try {
+      // Check for image attachments
+      let messageContent = message.content;
+      
+      // If there are attachments, check for images
+      if (message.attachments && message.attachments.size > 0) {
+        logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for images`);
+        
+        const imageAttachments = message.attachments.filter(attachment => 
+          attachment.contentType && attachment.contentType.startsWith('image/')
+        );
+        
+        if (imageAttachments.size > 0) {
+          logger.info(`[Bot] Found ${imageAttachments.size} image attachments`);
+          
+          // Create a multimodal content array
+          const multimodalContent = [];
+          
+          // Add the text content if it exists
+          if (message.content) {
+            multimodalContent.push({
+              type: 'text',
+              text: message.content
+            });
+          } else {
+            // Default prompt if no text was provided
+            multimodalContent.push({
+              type: 'text',
+              text: "What's in this image?"
+            });
+          }
+          
+          // Add the images (limit to first 5 to avoid overloading)
+          const imagesToProcess = Array.from(imageAttachments.values()).slice(0, 5);
+          
+          // Process each image
+          for (const attachment of imagesToProcess) {
+            multimodalContent.push({
+              type: 'image_url',
+              image_url: {
+                url: attachment.url
+              }
+            });
+            logger.debug(`[Bot] Added image to multimodal content: ${attachment.url}`);
+          }
+          
+          // Replace the message content with the multimodal array
+          messageContent = multimodalContent;
+          logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
+        }
+      }
+      
       // Get the AI response from the service
-      const aiResponse = await getAiResponse(personality.fullName, message.content, {
+      const aiResponse = await getAiResponse(personality.fullName, messageContent, {
         userId: message.author.id,
         channelId: message.channel.id,
       });
