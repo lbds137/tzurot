@@ -17,6 +17,10 @@ const {
 const { knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
 const { preloadPersonalityAvatar } = require('./webhookManager');
 const { botPrefix } = require('../config');
+const logger = require('./logger');
+const utils = require('./utils');
+const embedHelpers = require('./embedHelpers');
+const { Registry } = require('./requestRegistry');
 
 /**
  * Process a command
@@ -32,32 +36,32 @@ async function processCommand(message, command, args) {
   const prefix = botPrefix;
 
   // Add a simple debug log to track command processing
-  console.log(
+  logger.info(
     `Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
   );
 
   // ENHANCED LOGGING: Check processed messages in more detail
-  console.log(
+  logger.debug(
     `[Commands] Checking if message ${message.id} is in the processedMessages set (size: ${processedMessages.size})`
   );
 
   // We now handle ALL command types centrally in the processedMessages check
   // No special case handling needed for add/create commands
-  console.log(`[Commands] Processing command: ${command}`);
+  logger.info(`[Commands] Processing command: ${command}`);
 
   // Check if this message has already been processed
   // The check needs to handle ALL command types, including add/create
   if (processedMessages.has(message.id)) {
-    console.log(`[Commands] Message ${message.id} already processed, skipping duplicate command`);
+    logger.info(`[Commands] Message ${message.id} already processed, skipping duplicate command`);
     return null;
   } else {
-    console.log(`[Commands] Message ${message.id} will be processed`);
+    logger.info(`[Commands] Message ${message.id} will be processed`);
     // Mark ALL messages as processed when we start handling them
     processedMessages.add(message.id);
 
     // Clean up after 30 seconds
     setTimeout(() => {
-      console.log(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
+      logger.info(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
       processedMessages.delete(message.id);
     }, 30000); // 30 seconds
   }
@@ -212,19 +216,11 @@ async function handleHelpCommand(message, args) {
   const prefix = botPrefix;
   const commandName = 'help';
 
-  // Removed duplicate check as it's causing issues
-
-  console.log(`Processing help command with args: ${args.join(', ')}`);
+  logger.info(`Processing help command with args: ${args.join(', ')}`);
 
   try {
     // Create simpler reply function that doesn't use the reply feature
-    const directSend = async (msg, content) => {
-      if (typeof content === 'string') {
-        return await msg.channel.send(content);
-      } else {
-        return await msg.channel.send({ embeds: content.embeds });
-      }
-    };
+    const directSend = utils.createDirectSend(message);
 
     if (args.length > 0) {
       // Help for a specific command
@@ -234,7 +230,6 @@ async function handleHelpCommand(message, args) {
         case 'add':
         case 'create':
           return await directSend(
-            message,
             `**${prefix} add <profile_name> [alias]**\n` +
               `Add a new AI personality to your collection.\n` +
               `- \`profile_name\` is the name of the personality (required)\n` +
@@ -246,7 +241,6 @@ async function handleHelpCommand(message, args) {
           // Only show this for users with Administrator permission
           if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await directSend(
-              message,
               `**${prefix} debug <subcommand>**\n` +
                 `Advanced debugging tools (Requires Administrator permission).\n` +
                 `Available subcommands:\n` +
@@ -254,12 +248,11 @@ async function handleHelpCommand(message, args) {
                 `Example: \`${prefix} debug problems\``
             );
           } else {
-            return await directSend(message, `This command is only available to administrators.`);
+            return await directSend(`This command is only available to administrators.`);
           }
 
         case 'list':
           return await directSend(
-            message,
             `**${prefix} list**\n` +
               `List all AI personalities you've added.\n\n` +
               `Example: \`${prefix} list\``
@@ -267,7 +260,6 @@ async function handleHelpCommand(message, args) {
 
         case 'alias':
           return await directSend(
-            message,
             `**${prefix} alias <profile_name> <new_alias>**\n` +
               `Add an alias/nickname for an existing personality.\n` +
               `- \`profile_name\` is the name of the personality (required)\n` +
@@ -278,7 +270,6 @@ async function handleHelpCommand(message, args) {
         case 'remove':
         case 'delete':
           return await directSend(
-            message,
             `**${prefix} remove <profile_name>**\n` +
               `Remove a personality from your collection.\n` +
               `- \`profile_name\` is the name of the personality to remove (required)\n\n` +
@@ -287,7 +278,6 @@ async function handleHelpCommand(message, args) {
 
         case 'info':
           return await directSend(
-            message,
             `**${prefix} info <profile_name>**\n` +
               `Show detailed information about a personality.\n` +
               `- \`profile_name\` is the name or alias of the personality (required)\n\n` +
@@ -296,7 +286,6 @@ async function handleHelpCommand(message, args) {
 
         case 'activate':
           return await directSend(
-            message,
             `**${prefix} activate <personality>**\n` +
               `Activate a personality to automatically respond to all messages in the channel from any user.\n` +
               `- Requires the "Manage Messages" permission\n` +
@@ -306,7 +295,6 @@ async function handleHelpCommand(message, args) {
 
         case 'deactivate':
           return await directSend(
-            message,
             `**${prefix} deactivate**\n` +
               `Deactivate the currently active personality in this channel.\n` +
               `- Requires the "Manage Messages" permission\n\n` +
@@ -316,7 +304,6 @@ async function handleHelpCommand(message, args) {
         case 'autorespond':
         case 'auto':
           return await directSend(
-            message,
             `**${prefix} autorespond <on|off|status>**\n` +
               `Toggle whether personalities continue responding to your messages automatically after you tag or reply to them.\n` +
               `- \`on\` - Enable auto-response for your user\n` +
@@ -327,66 +314,18 @@ async function handleHelpCommand(message, args) {
 
         default:
           return await directSend(
-            message,
             `Unknown command: \`${specificCommand}\`. Use \`${prefix} help\` to see available commands.`
           );
       }
     }
 
     // General help
-    const embed = new EmbedBuilder()
-      .setTitle('Tzurot Help')
-      .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
-      .setColor('#5865F2')
-      .addFields(
-        { name: `${prefix} add <profile_name> [alias]`, value: 'Add a new AI personality' },
-        { name: `${prefix} list`, value: 'List all your AI personalities' },
-        {
-          name: `${prefix} alias <profile_name> <new_alias>`,
-          value: 'Add an alias for a personality',
-        },
-        { name: `${prefix} remove <profile_name>`, value: 'Remove a personality' },
-        { name: `${prefix} info <profile_name>`, value: 'Show details about a personality' },
-        {
-          name: `${prefix} help [command]`,
-          value: 'Show this help or help for a specific command',
-        },
-        {
-          name: `${prefix} activate <personality>`,
-          value:
-            'Activate a personality for all users in the channel (requires Manage Messages permission)',
-        },
-        {
-          name: `${prefix} deactivate`,
-          value: 'Deactivate the channel-wide personality (requires Manage Messages permission)',
-        },
-        {
-          name: `${prefix} autorespond <on|off|status>`,
-          value: 'Toggle whether personalities continue responding to your messages automatically',
-        },
-        { name: `${prefix} reset`, value: 'Clear your active conversation' }
-      )
-      .setFooter({
-        text: 'To interact with a personality, mention them with @alias or reply to their messages',
-      });
+    const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+    const embed = embedHelpers.createHelpEmbed(isAdmin);
 
-    // Add admin commands only for users with Administrator permission
-    if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      embed.addFields(
-        {
-          name: `Admin Commands`,
-          value: 'The following commands are only available to administrators',
-        },
-        {
-          name: `${prefix} debug <subcommand>`,
-          value: 'Advanced debugging tools (Use `help debug` for more info)',
-        }
-      );
-    }
-
-    return await directSend(message, { embeds: [embed] });
+    return await directSend({ embeds: [embed] });
   } catch (error) {
-    console.error('Error in handleHelpCommand:', error);
+    logger.error('Error in handleHelpCommand:', error);
     return message.channel.send(
       `An error occurred while processing the help command: ${error.message}`
     );
@@ -512,6 +451,9 @@ const EMBEDS_TO_BLOCK = [
   'Successfully added personality: uriel-rakhem',
 ];
 
+// Import logger
+const logger = require('./logger');
+
 /**
  * Checks if a rate limit is in effect for sending embed messages
  *
@@ -520,8 +462,8 @@ const EMBEDS_TO_BLOCK = [
 function checkRateLimit() {
   const now = Date.now();
   if (global.lastEmbedTime && now - global.lastEmbedTime < global.embedDeduplicationWindow) {
-    console.log(
-      `[Commands] ⚠️ GLOBAL RATE LIMIT: An embed was just sent ${now - global.lastEmbedTime}ms ago - blocking this request entirely`
+    logger.warn(
+      `[Commands] GLOBAL RATE LIMIT: An embed was just sent ${now - global.lastEmbedTime}ms ago - blocking this request entirely`
     );
     return { id: `global-rate-limited-${now}`, isRateLimited: true };
   }
@@ -539,22 +481,22 @@ function checkDuplicateRequest(messageKey) {
     // We've already processed this message, check how it was handled
     const existingRequest = global.addRequestRegistry.get(messageKey);
 
-    console.log(
-      `[Commands] 🔄 DUPLICATE REQUEST: This message has already been processed: ${messageKey}`
+    logger.info(
+      `[Commands] DUPLICATE REQUEST: This message has already been processed: ${messageKey}`
     );
-    console.log(`[Commands] Previous request: ${JSON.stringify(existingRequest)}`);
+    logger.debug(`[Commands] Previous request: ${JSON.stringify(existingRequest)}`);
 
     // If the previous request was completed with an embed, block this one
     if (existingRequest.embedSent) {
-      console.log(
-        `[Commands] ⚠️ BLOCKING: Previous request already sent an embed - blocking this duplicate`
+      logger.warn(
+        `[Commands] BLOCKING: Previous request already sent an embed - blocking this duplicate`
       );
       return { id: `blocked-duplicate-${Date.now()}`, isDuplicate: true };
     }
 
     // If the previous request is still in progress, wait for it to complete
     if (!existingRequest.completed) {
-      console.log(`[Commands] ⏳ WAITING: Previous request is still in progress - returning early`);
+      logger.info(`[Commands] WAITING: Previous request is still in progress - returning early`);
       return { id: `waiting-for-completion-${Date.now()}`, isWaiting: true };
     }
   }
@@ -577,8 +519,8 @@ function registerNewRequest(messageKey, addRequestId, args) {
     embedSent: false,
   });
 
-  console.log(
-    `[Commands] 🆕 NEW REQUEST: Registered new add request: ${addRequestId} for message: ${messageKey}`
+  logger.info(
+    `[Commands] NEW REQUEST: Registered new add request: ${addRequestId} for message: ${messageKey}`
   );
 }
 
@@ -590,7 +532,7 @@ function registerNewRequest(messageKey, addRequestId, args) {
  */
 function checkCompletedCommand(addCommandKey) {
   if (completedAddCommands.has(addCommandKey)) {
-    console.log(
+    logger.warn(
       `[Commands] CRITICAL: Add command ${addCommandKey} has already been processed to completion - completely ignoring repeat call`
     );
     return { id: 'repeat-prevented', isDuplicate: true };
@@ -607,7 +549,7 @@ function markCommandAsCompleted(addCommandKey) {
   // IMMEDIATELY add to completed commands set
   // We do this at the start to prevent ANY possibility of race conditions
   completedAddCommands.add(addCommandKey);
-  console.log(
+  logger.info(
     `[Commands] Added ${addCommandKey} to completedAddCommands set (size: ${completedAddCommands.size})`
   );
 
@@ -616,7 +558,7 @@ function markCommandAsCompleted(addCommandKey) {
     () => {
       if (completedAddCommands.has(addCommandKey)) {
         completedAddCommands.delete(addCommandKey);
-        console.log(
+        logger.info(
           `[Commands] Cleaned up ${addCommandKey} from completedAddCommands set after timeout`
         );
       }
@@ -666,21 +608,21 @@ function validateAndParseArgs(message, args) {
  * @returns {Object|null} Response message or null if not a duplicate
  */
 function handlePendingRequests(message, profileName, requestKey) {
-  console.log(`[Commands] Processing request key ${requestKey}`);
+  logger.info(`[Commands] Processing request key ${requestKey}`);
 
   // Check if this exact request is already being processed
   if (pendingAdditions.has(requestKey)) {
     const pendingData = pendingAdditions.get(requestKey);
     // Only block for 3 seconds to allow retries
     if (Date.now() - pendingData.timestamp < 3000) {
-      console.log(
+      logger.warn(
         `[Commands] Very recent duplicate request detected for ${profileName} by ${message.author.tag}, ignoring`
       );
       return message.reply(
         `You just tried to add this personality. Please wait a moment before trying again.`
       );
     } else {
-      console.log(
+      logger.info(
         `[Commands] Previous request found but enough time has passed, allowing new request`
       );
     }
@@ -712,7 +654,7 @@ function handlePendingRequests(message, profileName, requestKey) {
 async function checkExistingPersonality(message, profileName, requestKey) {
   // Check if the personality already exists for this user
   const existingPersonalities = listPersonalitiesForUser(message.author.id);
-  console.log(
+  logger.info(
     `[Commands] Checking if ${profileName} already exists among ${existingPersonalities.length} personalities`
   );
 
@@ -740,10 +682,10 @@ async function checkExistingPersonality(message, profileName, requestKey) {
  * @throws {Error} If registration fails
  */
 async function registerInitialPersonality(message, profileName) {
-  console.log(`[Commands] Step 1: Initial personality registration for ${profileName}`);
+  logger.info(`[Commands] Step 1: Initial personality registration for ${profileName}`);
 
   // Register the personality first - this doesn't fetch profile info
-  console.log(
+  logger.info(
     `[Commands] Calling registerPersonality with userId=${message.author.id}, profileName=${profileName}`
   );
   let initialPersonality; // Declare variable outside try block so it's accessible later
@@ -759,11 +701,11 @@ async function registerInitialPersonality(message, profileName) {
     ); // false = don't fetch profile info in the same call
 
     if (!initialPersonality) {
-      console.error(`[Commands] registerPersonality returned null or undefined!`);
+      logger.error(`[Commands] registerPersonality returned null or undefined!`);
       throw new Error('Personality registration failed - returned null');
     }
 
-    console.log(
+    logger.info(
       `[Commands] Initial registration completed successfully:`,
       JSON.stringify({
         fullName: initialPersonality.fullName,
@@ -774,7 +716,7 @@ async function registerInitialPersonality(message, profileName) {
 
     return initialPersonality;
   } catch (regError) {
-    console.error(`[Commands] Error during personality registration:`, regError);
+    logger.error(`[Commands] Error during personality registration:`, regError);
     // Include a descriptive message for the user
     throw new Error(`Failed to register personality: ${regError.message}`);
   }
@@ -1561,31 +1503,8 @@ async function handleListCommand(message) {
     );
   }
 
-  // Create an embed with the list
-  const embed = new EmbedBuilder()
-    .setTitle('Your Personalities')
-    .setDescription(`You have ${personalities.length} personalities`)
-    .setColor('#5865F2');
-
-  // Add each personality to the embed
-  personalities.forEach(p => {
-    // Find all aliases for this personality
-    const aliases = [];
-    for (const [alias, name] of Object.entries(
-      require('./personalityManager').personalityAliases
-    )) {
-      if (name === p.fullName) {
-        aliases.push(alias);
-      }
-    }
-
-    const aliasText = aliases.length > 0 ? `Aliases: ${aliases.join(', ')}` : 'No aliases';
-
-    embed.addFields({
-      name: p.displayName || p.fullName,
-      value: `ID: \`${p.fullName}\`\n${aliasText}`,
-    });
-  });
+  // Create an embed with the list using the helper function
+  const embed = embedHelpers.createPersonalityListEmbed(message.author.id);
 
   return message.reply({ embeds: [embed] });
 }
@@ -1710,30 +1629,13 @@ async function handleInfoCommand(message, args) {
   }
 
   // Find all aliases for this personality
-  const aliases = [];
-  for (const [alias, name] of Object.entries(require('./personalityManager').personalityAliases)) {
-    if (name === personality.fullName) {
-      aliases.push(alias);
-    }
-  }
+  const aliases = utils.getAllAliasesForPersonality(
+    personality.fullName,
+    personalityManagerFunctions.personalityAliases
+  );
 
   // Create an embed with the personality info
-  const embed = new EmbedBuilder()
-    .setTitle(personality.displayName || personality.fullName)
-    .setDescription(personality.description || 'No description')
-    .setColor('#5865F2')
-    .addFields(
-      { name: 'Full Name', value: personality.fullName },
-      { name: 'Display Name', value: personality.displayName || 'Not set' },
-      { name: 'Aliases', value: aliases.length > 0 ? aliases.join(', ') : 'None' },
-      { name: 'Added By', value: `<@${personality.createdBy}>` },
-      { name: 'Added On', value: new Date(personality.createdAt).toLocaleString() }
-    );
-
-  // Add the avatar to the embed if available
-  if (personality.avatarUrl) {
-    embed.setThumbnail(personality.avatarUrl);
-  }
+  const embed = embedHelpers.createPersonalityInfoEmbed(personality, aliases);
 
   return message.reply({ embeds: [embed] });
 }
@@ -1867,8 +1769,6 @@ async function handleAutoRespondCommand(message, args) {
  * @param {Object} message - Discord message object
  */
 async function handleStatusCommand(message) {
-  const { listPersonalitiesForUser } = require('./personalityManager');
-
   // Get Discord client from global scope rather than importing from bot.js to avoid circular dependency
   const client = global.tzurotClient;
 
@@ -1881,38 +1781,12 @@ async function handleStatusCommand(message) {
   const totalPersonalities = allPersonalities ? allPersonalities.length : 0;
   const userPersonalities = listPersonalitiesForUser(message.author.id).length;
 
-  const embed = new EmbedBuilder()
-    .setTitle('Tzurot Status')
-    .setDescription('Current bot status and statistics')
-    .setColor('#5865F2')
-    .addFields(
-      { name: 'Uptime', value: formatUptime(client.uptime) },
-      { name: 'Total Personalities', value: totalPersonalities.toString() },
-      { name: 'Your Personalities', value: userPersonalities.toString() },
-      { name: 'Connected Servers', value: client.guilds.cache.size.toString() },
-      {
-        name: 'Memory Usage',
-        value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`,
-      }
-    )
-    .setFooter({ text: `Bot Version: 1.0.0` });
+  const embed = embedHelpers.createStatusEmbed(client, totalPersonalities, userPersonalities);
 
   return message.reply({ embeds: [embed] });
 }
 
-/**
- * Format milliseconds as a readable uptime string
- * @param {number} ms - Milliseconds
- * @returns {string} Formatted uptime
- */
-function formatUptime(ms) {
-  const seconds = Math.floor((ms / 1000) % 60);
-  const minutes = Math.floor((ms / (1000 * 60)) % 60);
-  const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
-  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-
-  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
+// formatUptime has been moved to embedHelpers.js
 
 /**
  * Handle the debug command - only available to administrators
