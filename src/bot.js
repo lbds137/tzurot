@@ -370,7 +370,16 @@ async function initBot() {
           message.content;
 
         if (isOwnWebhook) {
-          // Don't return - process these messages normally
+          // Check if there's an activated personality in this channel
+          const activatedPersonality = getActivatedPersonality(message.channel.id);
+          
+          if (activatedPersonality) {
+            // This is a webhook from one of our activated personalities - ignore it to prevent infinite loops
+            logger.debug(`Ignoring own webhook message from activated personality: ${message.author.username} in channel ${message.channel.id}`);
+            return;
+          }
+          
+          // For non-activated channels, process webhook messages normally
           logger.debug(`Processing own webhook message from: ${message.author.username}`);
         } else {
           // This is not our webhook, ignore it
@@ -683,21 +692,31 @@ async function initBot() {
     const activatedPersonalityName = getActivatedPersonality(message.channel.id);
     if (activatedPersonalityName) {
       logger.debug(`Found activated personality in channel: ${activatedPersonalityName}`);
+      
+      // Check if this message is a command - activated personalities should ignore commands
+      // Modified check to ensure we catch any command format that would be processed by the processCommand function
+      const isCommand = message.content.startsWith(botPrefix);
+      
+      if (isCommand) {
+        logger.info(`Activated personality ignoring command message: ${message.content}`);
+      } else {
+        // Not a command, continue with personality response
+        
+        // First try to get personality directly by full name
+        let personality = getPersonality(activatedPersonalityName);
 
-      // First try to get personality directly by full name
-      let personality = getPersonality(activatedPersonalityName);
+        // If not found as direct name, try it as an alias
+        if (!personality) {
+          personality = getPersonalityByAlias(activatedPersonalityName);
+        }
 
-      // If not found as direct name, try it as an alias
-      if (!personality) {
-        personality = getPersonalityByAlias(activatedPersonalityName);
-      }
+        logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
-      logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
-
-      if (personality) {
-        // Process the message with this personality
-        // Since this is not a direct @mention, pass null for triggeringMention
-        await handlePersonalityInteraction(message, personality, null);
+        if (personality) {
+          // Process the message with this personality
+          // Since this is not a direct @mention, pass null for triggeringMention
+          await handlePersonalityInteraction(message, personality, null);
+        }
       }
     }
   });
