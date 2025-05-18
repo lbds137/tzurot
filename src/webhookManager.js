@@ -220,14 +220,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         const isFirstChunk = i === 0;
         const isLastChunk = i === contentChunks.length - 1;
         
-        // Add continuation indicator if needed
+        // Use the chunk content as is, without adding continuation indicators
         let chunkContent = contentChunks[i];
-        if (!isLastChunk && !chunkContent.endsWith('...')) {
-          chunkContent += '...';
-        }
-        if (!isFirstChunk && !chunkContent.startsWith('...')) {
-          chunkContent = '...' + chunkContent;
-        }
         
         // Prepare message data for this chunk
         const messageData = {
