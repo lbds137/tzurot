@@ -43,115 +43,120 @@ async function fetchProfileInfo(profileName) {
   }
   
   // Create a new promise that will be resolved when the request is complete
+  let resolvePromise; // Store the resolve function to use later
+  
+  // Create the promise first
   const requestPromise = new Promise((resolve) => {
-    // Define the actual fetch operation
-    const performFetch = async () => {
-      activeRequests++;
-      try {
-        logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
-
-        // Check if we have a valid cached entry
-        if (profileInfoCache.has(profileName)) {
-          const cacheEntry = profileInfoCache.get(profileName);
-          // If cache entry is still valid, return it
-          if (Date.now() - cacheEntry.timestamp < CACHE_DURATION) {
-            logger.info(`[ProfileInfoFetcher] Using cached profile data for: ${profileName}`);
-            resolve(cacheEntry.data);
-            return;
-          }
-        }
-
-        // Get the endpoint from our config
-        const endpoint = getProfileInfoEndpoint(profileName);
-        logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
-
-        // No need to check for SERVICE_API_KEY since the profile API is public
-        logger.debug(`[ProfileInfoFetcher] Using public API access for profile information`);
-
-        // Fetch the data from the API (public access)
-        logger.debug(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
-        
-        // Create an AbortController for timeout handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-        
-        try {
-          const response = await fetchImplementation(endpoint, {
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache',
-              'Referer': 'https://discord.com/'
-            },
-            signal: controller.signal
-          });
-          
-          // Clear the timeout since we got a response
-          clearTimeout(timeoutId);
-
-          if (!response.ok) {
-            logger.error(
-              `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
-            );
-            resolve(null);
-            return;
-          }
-
-          const data = await response.json();
-          logger.debug(
-            `[ProfileInfoFetcher] Received profile data: ${JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')}`
-          );
-
-          // Verify we have the expected fields
-          if (!data) {
-            logger.error(`[ProfileInfoFetcher] Received empty data for: ${profileName}`);
-          } else if (!data.name) {
-            logger.warn(`[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`);
-          } else if (!data.id) {
-            logger.warn(`[ProfileInfoFetcher] Profile data missing 'id' field for: ${profileName}`);
-          }
-
-          // Cache the result
-          profileInfoCache.set(profileName, {
-            data,
-            timestamp: Date.now(),
-          });
-          logger.debug(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
-
-          resolve(data);
-        } catch (innerError) {
-          // This inner catch handles fetch-specific errors
-          clearTimeout(timeoutId);
-          logger.error(`[ProfileInfoFetcher] Network error during profile fetch for ${profileName}: ${innerError.message}`);
-          resolve(null);
-        }
-      } catch (error) {
-        logger.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`);
-        resolve(null);
-      } finally {
-        // Always clean up - remove from ongoing requests and decrement active count
-        ongoingRequests.delete(profileName);
-        activeRequests--;
-        
-        // Check if there are more requests in the queue
-        setTimeout(processRequestQueue, 0);
-      }
-    };
-
-    // Add this request to the ongoing requests map
-    ongoingRequests.set(profileName, requestPromise);
-
-    // Either process now or queue for later
-    if (activeRequests < MAX_CONCURRENT_REQUESTS) {
-      performFetch();
-    } else {
-      // Queue the request for later
-      logger.info(`[ProfileInfoFetcher] Queueing request for ${profileName} (${requestQueue.length} pending)`);
-      requestQueue.push(performFetch);
-    }
+    resolvePromise = resolve; // Save the resolve function
   });
+  
+  // Add this request to the ongoing requests map immediately
+  ongoingRequests.set(profileName, requestPromise);
+  
+  // Define the actual fetch operation
+  const performFetch = async () => {
+    activeRequests++;
+    try {
+      logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
+
+      // Check if we have a valid cached entry
+      if (profileInfoCache.has(profileName)) {
+        const cacheEntry = profileInfoCache.get(profileName);
+        // If cache entry is still valid, return it
+        if (Date.now() - cacheEntry.timestamp < CACHE_DURATION) {
+          logger.info(`[ProfileInfoFetcher] Using cached profile data for: ${profileName}`);
+          resolvePromise(cacheEntry.data);
+          return;
+        }
+      }
+
+      // Get the endpoint from our config
+      const endpoint = getProfileInfoEndpoint(profileName);
+      logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
+
+      // No need to check for SERVICE_API_KEY since the profile API is public
+      logger.debug(`[ProfileInfoFetcher] Using public API access for profile information`);
+
+      // Fetch the data from the API (public access)
+      logger.debug(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
+      
+      // Create an AbortController for timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      try {
+        const response = await fetchImplementation(endpoint, {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': 'https://discord.com/'
+          },
+          signal: controller.signal
+        });
+        
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          logger.error(
+            `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
+          );
+          resolvePromise(null);
+          return;
+        }
+
+        const data = await response.json();
+        logger.debug(
+          `[ProfileInfoFetcher] Received profile data: ${JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')}`
+        );
+
+        // Verify we have the expected fields
+        if (!data) {
+          logger.error(`[ProfileInfoFetcher] Received empty data for: ${profileName}`);
+        } else if (!data.name) {
+          logger.warn(`[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`);
+        } else if (!data.id) {
+          logger.warn(`[ProfileInfoFetcher] Profile data missing 'id' field for: ${profileName}`);
+        }
+
+        // Cache the result
+        profileInfoCache.set(profileName, {
+          data,
+          timestamp: Date.now(),
+        });
+        logger.debug(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
+
+        resolvePromise(data);
+      } catch (innerError) {
+        // This inner catch handles fetch-specific errors
+        clearTimeout(timeoutId);
+        logger.error(`[ProfileInfoFetcher] Network error during profile fetch for ${profileName}: ${innerError.message}`);
+        resolvePromise(null);
+      }
+    } catch (error) {
+      logger.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`);
+      resolvePromise(null);
+    } finally {
+      // Always clean up - remove from ongoing requests and decrement active count
+      ongoingRequests.delete(profileName);
+      activeRequests--;
+      
+      // Check if there are more requests in the queue
+      setTimeout(processRequestQueue, 0);
+    }
+  };
+
+  // Either process now or queue for later
+  if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+    performFetch();
+  } else {
+    // Queue the request for later
+    logger.info(`[ProfileInfoFetcher] Queueing request for ${profileName} (${requestQueue.length} pending)`);
+    requestQueue.push(performFetch);
+  }
 
   return requestPromise;
 }
