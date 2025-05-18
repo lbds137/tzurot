@@ -63,7 +63,7 @@ async function saveAllData() {
     }
     await fs.writeFile(MESSAGE_MAP_FILE, JSON.stringify(messageMapData, null, 2));
     
-    console.log('[ConversationManager] All data saved successfully');
+    console.log('Conversation data saved');
   } catch (error) {
     console.error(`Error saving conversation data: ${error.message}`);
   }

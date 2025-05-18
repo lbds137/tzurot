@@ -176,23 +176,23 @@ async function initBot() {
     
     // Reply-based conversation continuation
     if (message.reference) {
-      console.log(`[Reply Handler] Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`);
+      console.log(`Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`);
       try {
         const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
-        console.log(`[Reply Handler] Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
+        console.log(`Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
         
         // Check if the referenced message was from one of our personalities
-        console.log(`[Reply Handler] Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
+        console.log(`Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
         
         if (referencedMessage.webhookId) {
-          console.log(`[Reply Handler] Looking up personality for message ID: ${referencedMessage.id}`);
+          console.log(`Looking up personality for message ID: ${referencedMessage.id}`);
           // Pass the webhook username as a fallback for finding personalities
           const webhookUsername = referencedMessage.author ? referencedMessage.author.username : null;
-          console.log(`[Reply Handler] Webhook username: ${webhookUsername || 'unknown'}`);
+          console.log(`Webhook username: ${webhookUsername || 'unknown'}`);
           
           // Log webhook details for debugging
           if (referencedMessage.author && referencedMessage.author.bot) {
-            console.log(`[Reply Handler] Referenced message is from bot: ${JSON.stringify({
+            console.log(`Referenced message is from bot: ${JSON.stringify({
               username: referencedMessage.author.username,
               id: referencedMessage.author.id,
               webhookId: referencedMessage.webhookId
@@ -200,10 +200,10 @@ async function initBot() {
           }
           
           const personalityName = getPersonalityFromMessage(referencedMessage.id, { webhookUsername });
-          console.log(`[Reply Handler] Personality lookup result: ${personalityName || 'null'}`);
+          console.log(`Personality lookup result: ${personalityName || 'null'}`);
           
           if (personalityName) {
-            console.log(`[Reply Handler] Found personality name: ${personalityName}, looking up personality details`);
+            console.log(`Found personality name: ${personalityName}, looking up personality details`);
             
             // First try to get personality directly as it could be a full name
             let personality = getPersonality(personalityName);
@@ -213,21 +213,21 @@ async function initBot() {
                 personality = getPersonalityByAlias(personalityName);
             }
             
-            console.log(`[Reply Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+            console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
             
             if (personality) {
               // Process the message with this personality
-              console.log(`[Reply Handler] Processing reply with personality: ${personality.fullName}`);
+              console.log(`Processing reply with personality: ${personality.fullName}`);
               await handlePersonalityInteraction(message, personality);
               return;
             } else {
-              console.log(`[Reply Handler] No personality data found for name/alias: ${personalityName}`);
+              console.log(`No personality data found for name/alias: ${personalityName}`);
             }
           } else {
-            console.log(`[Reply Handler] No personality found for message ID: ${referencedMessage.id}`);
+            console.log(`No personality found for message ID: ${referencedMessage.id}`);
           }
         } else {
-          console.log(`[Reply Handler] Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
+          console.log(`Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
         }
       } catch (error) {
         console.error('Error handling message reference:', error);
@@ -240,7 +240,7 @@ async function initBot() {
       const mentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
       if (mentionMatch && mentionMatch[1]) {
         const mentionName = mentionMatch[1];
-        console.log(`[Mention Handler] Found @mention: ${mentionName}, looking up personality`);
+        console.log(`Found @mention: ${mentionName}, looking up personality`);
         
         // First try to get personality directly by full name
         let personality = getPersonality(mentionName);
@@ -250,7 +250,7 @@ async function initBot() {
             personality = getPersonalityByAlias(mentionName);
         }
         
-        console.log(`[Mention Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+        console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
         
         if (personality) {
           // Process the message with this personality
@@ -259,13 +259,13 @@ async function initBot() {
         }
       }
     } catch (error) {
-      console.error(`[Mention Handler] Error processing mention:`, error);
+      console.error(`Error processing mention:`, error);
     }
 
     // Check for active conversation
     const activePersonalityName = getActivePersonality(message.author.id, message.channel.id);
     if (activePersonalityName) {
-      console.log(`[Active Conv Handler] Found active conversation with: ${activePersonalityName}`);
+      console.log(`Found active conversation with: ${activePersonalityName}`);
       
       // First try to get personality directly by full name
       let personality = getPersonality(activePersonalityName);
@@ -275,7 +275,7 @@ async function initBot() {
           personality = getPersonalityByAlias(activePersonalityName);
       }
       
-      console.log(`[Active Conv Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+      console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
       if (personality) {
         // Process the message with this personality
@@ -287,7 +287,7 @@ async function initBot() {
     // Check for activated channel personality
     const activatedPersonalityName = getActivatedPersonality(message.channel.id);
     if (activatedPersonalityName) {
-      console.log(`[Channel Activation Handler] Found activated personality in channel: ${activatedPersonalityName}`);
+      console.log(`Found activated personality in channel: ${activatedPersonalityName}`);
       
       // First try to get personality directly by full name
       let personality = getPersonality(activatedPersonalityName);
@@ -297,7 +297,7 @@ async function initBot() {
           personality = getPersonalityByAlias(activatedPersonalityName);
       }
       
-      console.log(`[Channel Activation Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+      console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
       if (personality) {
         // Process the message with this personality
