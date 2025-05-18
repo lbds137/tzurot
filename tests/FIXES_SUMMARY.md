@@ -806,3 +806,25 @@ We thoroughly tested the feature:
 - Confirmed proper alias generation consistent with the add command
 - Validated environment variable reading with fallback values
 - Tested manual triggering with the debug command
+
+## Improved Avatar URL Handling
+
+We enhanced the avatar URL handling to directly use the `avatar_url` field from the API response when available.
+
+### The Improvement
+
+Previously, the `getProfileAvatarUrl` function would always construct the avatar URL using a pattern:
+1. Extract the profile `id` from the response
+2. Use the `AVATAR_URL_BASE` environment variable
+3. Build the URL as `AVATAR_URL_BASE + id + ".png"`
+
+The improved implementation:
+1. First checks if `avatar_url` is directly available in the API response
+2. If available, uses it directly which is more efficient and eliminates one potential point of failure
+3. Falls back to the original pattern-based URL construction if `avatar_url` is not available
+
+This change provides several benefits:
+- More robust handling of avatar URLs
+- Adaptation to changing API responses
+- Better handling of special formats or custom URLs
+- Reduced dependency on specific URL patterns

@@ -92,12 +92,24 @@ async function getProfileAvatarUrl(profileName) {
   logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
   const profileInfo = await fetchProfileInfo(profileName);
 
-  if (!profileInfo || !profileInfo.id) {
-    logger.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
+  if (!profileInfo) {
+    logger.warn(`[ProfileInfoFetcher] No profile info found for avatar: ${profileName}`);
     return null;
   }
 
   try {
+    // Check if avatar_url is directly available in the response
+    if (profileInfo.avatar_url) {
+      logger.debug(`[ProfileInfoFetcher] Using avatar_url directly from API response: ${profileInfo.avatar_url}`);
+      return profileInfo.avatar_url;
+    }
+    
+    // Fallback to using ID-based URL format
+    if (!profileInfo.id) {
+      logger.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
+      return null;
+    }
+    
     // Get the avatar URL format
     const avatarUrlFormat = getAvatarUrlFormat();
 
