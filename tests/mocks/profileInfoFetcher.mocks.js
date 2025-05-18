@@ -1,68 +1,93 @@
-// Mock implementation for profileInfoFetcher
-const profileInfoFetcherMock = jest.genMockFromModule('../../src/profileInfoFetcher');
+/**
+ * Mock implementation for testing profileInfoFetcher.js
+ */
 
-// Mock cache
-const profileInfoCache = new Map();
-const CACHE_DURATION = 24 * 60 * 60 * 1000;
-
-// Mock data
-const mockData = {};
-
-// Mock fetchProfileInfo
-profileInfoFetcherMock.fetchProfileInfo = jest.fn().mockImplementation(async (profileName) => {
-  if (mockData.shouldFail) {
-    if (mockData.failWithError) {
-      throw new Error('Mock error');
-    }
-    return null;
-  }
-  
-  if (mockData.profileData && mockData.profileData[profileName]) {
-    return mockData.profileData[profileName];
-  }
-  
-  return {
-    id: `mock-id-${profileName}`,
-    name: `Mock ${profileName}`
-  };
-});
-
-// Mock getProfileAvatarUrl
-profileInfoFetcherMock.getProfileAvatarUrl = jest.fn().mockImplementation(async (profileName) => {
-  if (mockData.shouldFail) {
-    return null;
-  }
-  
-  const profileInfo = await profileInfoFetcherMock.fetchProfileInfo(profileName);
-  if (!profileInfo || !profileInfo.id) {
-    return null;
-  }
-  
-  return `https://example.com/avatars/${profileInfo.id}.png`;
-});
-
-// Mock getProfileDisplayName
-profileInfoFetcherMock.getProfileDisplayName = jest.fn().mockImplementation(async (profileName) => {
-  if (mockData.shouldFail) {
-    return profileName;
-  }
-  
-  const profileInfo = await profileInfoFetcherMock.fetchProfileInfo(profileName);
-  if (!profileInfo || !profileInfo.name) {
-    return profileName;
-  }
-  
-  return profileInfo.name;
-});
-
-// Helper to set mock data for tests
-profileInfoFetcherMock.__setMockData = (data) => {
-  Object.assign(mockData, data);
+// Mock profile data for tests
+const mockProfileData = {
+  id: '12345',
+  name: 'Test Display Name',
 };
 
-// Helper to reset mock data
-profileInfoFetcherMock.__resetMockData = () => {
-  Object.keys(mockData).forEach(key => delete mockData[key]);
-};
+// Mock API endpoint
+const mockEndpoint = 'https://api.example.com/profiles/test-profile';
 
-module.exports = profileInfoFetcherMock;
+// Mock avatar URL format
+const mockAvatarUrlFormat = 'https://cdn.example.com/avatars/{id}.png';
+
+// Setup success mock
+function setupFetchSuccess(nodeFetch) {
+  nodeFetch.mockImplementation(() => 
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve(mockProfileData)
+    })
+  );
+}
+
+// Setup error response mock
+function setupFetchError(nodeFetch, status = 404, statusText = 'Not Found') {
+  nodeFetch.mockImplementationOnce(() => 
+    Promise.resolve({
+      ok: false,
+      status,
+      statusText
+    })
+  );
+}
+
+// Setup exception mock
+function setupFetchException(nodeFetch, error = new Error('Network error')) {
+  nodeFetch.mockImplementationOnce(() => 
+    Promise.reject(error)
+  );
+}
+
+// Setup empty data mock
+function setupFetchEmptyData(nodeFetch) {
+  nodeFetch.mockImplementationOnce(() => 
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve(null)
+    })
+  );
+}
+
+// Setup missing name mock
+function setupFetchMissingName(nodeFetch) {
+  nodeFetch.mockImplementationOnce(() => 
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({ id: mockProfileData.id }) // Missing name
+    })
+  );
+}
+
+// Setup missing id mock
+function setupFetchMissingId(nodeFetch) {
+  nodeFetch.mockImplementationOnce(() => 
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({ name: mockProfileData.name }) // Missing id
+    })
+  );
+}
+
+module.exports = {
+  mockProfileData,
+  mockEndpoint,
+  mockAvatarUrlFormat,
+  setupFetchSuccess,
+  setupFetchError,
+  setupFetchException,
+  setupFetchEmptyData,
+  setupFetchMissingName,
+  setupFetchMissingId
+};
