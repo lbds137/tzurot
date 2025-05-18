@@ -112,11 +112,13 @@ exports.ERROR_MESSAGES = [
  * @typedef {Object} Markers
  * @property {string} HARD_BLOCKED_RESPONSE - Special marker to completely ignore a response
  * @property {string} ERROR_PREFIX - Prefix for error messages that should be filtered
+ * @property {string} BOT_ERROR_MESSAGE - Prefix for error messages that should come from the bot, not the personality
  * @type {Markers}
  */
 exports.MARKERS = {
   HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
   ERROR_PREFIX: 'ERROR_MESSAGE_PREFIX:',
+  BOT_ERROR_MESSAGE: 'BOT_ERROR_MESSAGE:',
 };
 
 /**

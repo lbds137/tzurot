@@ -541,7 +541,7 @@ async function handleProblematicPersonality(
     // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
     if (!aiClient) {
       logger.error(`[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`);
-      return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+      return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
     }
 
     // Still try the API call in case the issue has been fixed
@@ -753,7 +753,8 @@ async function getAiResponse(personalityName, message, context = {}) {
       const userId = context.userId || null;
       if (!userId || !auth.hasValidToken(userId)) {
         logger.warn(`[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`);
-        return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+        // Return special marker for bot-level error message, not from the personality
+        return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
       }
 
       // Check if this is a personality with known or runtime-detected API issues
@@ -780,7 +781,7 @@ async function getAiResponse(personalityName, message, context = {}) {
       } catch (apiError) {
         // Check if this is an authentication error
         if (apiError.message && apiError.message.includes('Authentication required')) {
-          return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
         }
         
         // Add this personality+user combo to blackout list

@@ -1031,6 +1031,18 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       if (aiResponse === 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') {
         return; // Necessary return to exit early when receiving blocked response
       }
+      
+      // Check for BOT_ERROR_MESSAGE marker - these should come from the bot, not the personality
+      const { MARKERS } = require('./constants');
+      if (aiResponse && typeof aiResponse === 'string' && aiResponse.startsWith(MARKERS.BOT_ERROR_MESSAGE)) {
+        // Extract the actual error message by removing the marker
+        const errorMessage = aiResponse.replace(MARKERS.BOT_ERROR_MESSAGE, '').trim();
+        logger.info(`[Bot] Sending error message from bot instead of personality: ${errorMessage}`);
+        
+        // Send the message as the bot instead of through the webhook
+        await message.reply(errorMessage);
+        return; // Exit early - we've handled this message directly
+      }
 
       // Add a small delay before sending any webhook message
       // This helps prevent the race condition between error messages and real responses
