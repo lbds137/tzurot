@@ -1,5 +1,8 @@
-const fetch = require('node-fetch');
+const nodeFetch = require('node-fetch');
 const { getProfileInfoEndpoint, getAvatarUrlFormat } = require('../config');
+
+// Use a wrapper function for fetch to allow easier mocking in tests
+const fetch = async (url, options) => nodeFetch(url, options);
 
 // Cache for profile information to reduce API calls
 const profileInfoCache = new Map();

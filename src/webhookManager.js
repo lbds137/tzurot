@@ -73,127 +73,181 @@ async function warmupAvatarUrl(avatarUrl) {
 }
 
 /**
+ * Split text by character limit at word boundaries
+ * @param {string} text - Text to split
+ * @returns {Array<string>} Array of text chunks
+ */
+function splitByCharacterLimit(text) {
+  const chunks = [];
+  let remainingText = text;
+  
+  while (remainingText.length > 0) {
+    // Calculate chunk size based on message limit
+    const chunkSize = Math.min(remainingText.length, MESSAGE_CHAR_LIMIT);
+    
+    // Try to find a natural break point (space)
+    let splitIndex = remainingText.lastIndexOf(' ', chunkSize);
+    
+    // If no good break point found, just split at the limit
+    if (splitIndex <= chunkSize * 0.5) {
+      splitIndex = chunkSize;
+    }
+    
+    // Add the chunk to our results
+    chunks.push(remainingText.substring(0, splitIndex));
+    
+    // Remove the processed chunk
+    remainingText = remainingText.substring(splitIndex).trim();
+  }
+  
+  return chunks;
+}
+
+/**
+ * Split a sentence into smaller chunks if needed
+ * @param {string} sentence - Sentence to split
+ * @param {Array<string>} chunks - Array to add chunks to
+ * @param {string} currentChunk - Current chunk being built
+ * @returns {string} Updated current chunk
+ */
+function processSentence(sentence, chunks, currentChunk) {
+  // If adding this sentence exceeds the limit
+  if (currentChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
+    // If the sentence itself is too long, split by character limit
+    if (sentence.length > MESSAGE_CHAR_LIMIT) {
+      // Add any existing content first
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
+      }
+      
+      // Split the sentence by character limit
+      const sentenceChunks = splitByCharacterLimit(sentence);
+      chunks.push(...sentenceChunks);
+      
+      // Start with a fresh chunk
+      return '';
+    } else {
+      // Sentence is within limit but combined is too long
+      chunks.push(currentChunk);
+      return sentence;
+    }
+  } else {
+    // Add sentence to current chunk with space if needed
+    return currentChunk.length > 0 ? `${currentChunk} ${sentence}` : sentence;
+  }
+}
+
+/**
+ * Process a single line of text
+ * @param {string} line - Line to process
+ * @param {Array<string>} chunks - Array to add chunks to
+ * @param {string} currentChunk - Current chunk being built
+ * @returns {string} Updated current chunk
+ */
+function processLine(line, chunks, currentChunk) {
+  // If adding this line exceeds the limit
+  if (currentChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
+    // If the line itself is too long, need to split by sentences
+    if (line.length > MESSAGE_CHAR_LIMIT) {
+      // Add any existing content first
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
+      }
+      
+      // Split by sentences and process each
+      const sentences = line.split(/(?<=[.!?])\s+/);
+      let sentenceChunk = '';
+      
+      for (const sentence of sentences) {
+        sentenceChunk = processSentence(sentence, chunks, sentenceChunk);
+      }
+      
+      // Add any remaining content
+      if (sentenceChunk.length > 0) {
+        chunks.push(sentenceChunk);
+      }
+      
+      return '';
+    } else {
+      // Line is within limit but combined is too long
+      chunks.push(currentChunk);
+      return line;
+    }
+  } else {
+    // Add line to current chunk with newline if needed
+    return currentChunk.length > 0 ? `${currentChunk}\n${line}` : line;
+  }
+}
+
+/**
+ * Process a paragraph
+ * @param {string} paragraph - Paragraph to process
+ * @param {Array<string>} chunks - Array to add chunks to
+ * @param {string} currentChunk - Current chunk being built
+ * @returns {string} Updated current chunk
+ */
+function processParagraph(paragraph, chunks, currentChunk) {
+  // If adding this paragraph exceeds the limit
+  if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
+    // If paragraph itself is too long, need to split further
+    if (paragraph.length > MESSAGE_CHAR_LIMIT) {
+      // Add any existing content first
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk);
+      }
+      
+      // Split paragraph by lines and process each
+      const lines = paragraph.split(/\n/);
+      let lineChunk = '';
+      
+      for (const line of lines) {
+        lineChunk = processLine(line, chunks, lineChunk);
+      }
+      
+      // Add any remaining content
+      if (lineChunk.length > 0) {
+        chunks.push(lineChunk);
+      }
+      
+      return '';
+    } else {
+      // Paragraph is within limit but combined is too long
+      chunks.push(currentChunk);
+      return paragraph;
+    }
+  } else {
+    // Add paragraph to current chunk with newlines if needed
+    return currentChunk.length > 0 ? `${currentChunk}\n\n${paragraph}` : paragraph;
+  }
+}
+
+/**
  * Split a long message into chunks at natural break points
  * @param {string} content - Message content to split
  * @returns {Array<string>} Array of message chunks
  */
 function splitMessage(content) {
   // If message is within limits, return as is
-  if (content.length <= MESSAGE_CHAR_LIMIT) {
-    return [content];
+  if (!content || content.length <= MESSAGE_CHAR_LIMIT) {
+    return [content || ''];
   }
-
+  
   const chunks = [];
   let currentChunk = '';
-
-  // First try to split by paragraphs (double newlines)
+  
+  // First split by paragraphs (double newlines)
   const paragraphs = content.split(/\n\s*\n/);
-
+  
+  // Process each paragraph
   for (const paragraph of paragraphs) {
-    // If adding this paragraph exceeds the limit
-    if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
-      // If current paragraph itself is too long, need to split further
-      if (paragraph.length > MESSAGE_CHAR_LIMIT) {
-        // If we have content in currentChunk, push it first
-        if (currentChunk.length > 0) {
-          chunks.push(currentChunk);
-          currentChunk = '';
-        }
-
-        // Split paragraph by single newlines
-        const lines = paragraph.split(/\n/);
-        let lineChunk = '';
-
-        for (const line of lines) {
-          // If adding this line exceeds the limit
-          if (lineChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
-            // If the line itself is too long, need to split by sentences
-            if (line.length > MESSAGE_CHAR_LIMIT) {
-              // If we have content in lineChunk, push it first
-              if (lineChunk.length > 0) {
-                chunks.push(lineChunk);
-                lineChunk = '';
-              }
-
-              // Split by sentences
-              const sentences = line.split(/(?<=[.!?])\s+/);
-              let sentenceChunk = '';
-
-              for (const sentence of sentences) {
-                // If adding this sentence exceeds the limit
-                if (sentenceChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
-                  // If the sentence itself is too long, split by hard character limit
-                  if (sentence.length > MESSAGE_CHAR_LIMIT) {
-                    // If we have content in sentenceChunk, push it first
-                    if (sentenceChunk.length > 0) {
-                      chunks.push(sentenceChunk);
-                      sentenceChunk = '';
-                    }
-
-                    // Split by character limit at word boundaries if possible
-                    let remainingSentence = sentence;
-                    while (remainingSentence.length > 0) {
-                      // Try to find last space within the limit
-                      const chunkSize = Math.min(remainingSentence.length, MESSAGE_CHAR_LIMIT);
-                      let splitIndex = remainingSentence.lastIndexOf(' ', chunkSize);
-
-                      // If no space found or it's too close to start, just split at limit
-                      if (splitIndex <= chunkSize * 0.5) {
-                        splitIndex = chunkSize;
-                      }
-
-                      chunks.push(remainingSentence.substring(0, splitIndex));
-
-                      // Move to next chunk of the sentence
-                      remainingSentence = remainingSentence.substring(splitIndex).trim();
-                    }
-                  } else {
-                    // Sentence is within limit but combined is too long
-                    chunks.push(sentenceChunk);
-                    sentenceChunk = sentence;
-                  }
-                } else {
-                  // Add sentence to current chunk
-                  sentenceChunk =
-                    sentenceChunk.length > 0 ? `${sentenceChunk} ${sentence}` : sentence;
-                }
-              }
-
-              // Add any remaining sentence chunk
-              if (sentenceChunk.length > 0) {
-                chunks.push(sentenceChunk);
-              }
-            } else {
-              // Line is within limit but combined is too long
-              chunks.push(lineChunk);
-              lineChunk = line;
-            }
-          } else {
-            // Add line to current chunk
-            lineChunk = lineChunk.length > 0 ? `${lineChunk}\n${line}` : line;
-          }
-        }
-
-        // Add any remaining line chunk
-        if (lineChunk.length > 0) {
-          chunks.push(lineChunk);
-        }
-      } else {
-        // Paragraph is within limit but combined is too long
-        chunks.push(currentChunk);
-        currentChunk = paragraph;
-      }
-    } else {
-      // Add paragraph to current chunk
-      currentChunk = currentChunk.length > 0 ? `${currentChunk}\n\n${paragraph}` : paragraph;
-    }
+    currentChunk = processParagraph(paragraph, chunks, currentChunk);
   }
-
-  // Add any remaining chunk
+  
+  // Add any remaining content
   if (currentChunk.length > 0) {
     chunks.push(currentChunk);
   }
-
+  
   return chunks;
 }
 
@@ -243,6 +297,197 @@ async function getOrCreateWebhook(channel) {
 }
 
 /**
+ * Minimize console output during webhook operations
+ * @returns {Object} Original console functions
+ */
+function minimizeConsoleOutput() {
+  const originalConsoleLog = console.log;
+  const originalConsoleWarn = console.warn;
+  console.log = () => {};
+  console.warn = () => {};
+  return { originalConsoleLog, originalConsoleWarn };
+}
+
+/**
+ * Restore console output functions
+ * @param {Object} originalFunctions - The original console functions
+ */
+function restoreConsoleOutput(originalFunctions) {
+  const { originalConsoleLog, originalConsoleWarn } = originalFunctions;
+  console.log = originalConsoleLog;
+  console.warn = originalConsoleWarn;
+}
+
+/**
+ * Generate a unique tracking ID for messages
+ * @param {string} channelId - Channel ID
+ * @returns {string} A unique tracking ID
+ */
+function generateMessageTrackingId(channelId) {
+  return `${channelId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+}
+
+/**
+ * Check if content contains error message patterns
+ * @param {string} content - Message content
+ * @returns {boolean} True if the content matches error patterns
+ */
+function isErrorContent(content) {
+  if (!content) return false;
+  
+  return (
+    content.includes("I'm having trouble connecting") ||
+    content.includes('ERROR_MESSAGE_PREFIX:') ||
+    content.includes('trouble connecting to my brain') ||
+    content.includes('technical issue') ||
+    content.includes('Error ID:') ||
+    content.includes('issue with my configuration') ||
+    content.includes('issue with my response system') ||
+    content.includes('momentary lapse') ||
+    content.includes('try again later') ||
+    (content.includes('connection') && content.includes('unstable')) ||
+    content.includes('unable to formulate') ||
+    content.includes('Please try again')
+  );
+}
+
+/**
+ * Mark content as an error message by adding a prefix
+ * @param {string} content - Message content
+ * @returns {string} Content with error prefix if needed
+ */
+function markErrorContent(content) {
+  if (!content) return '';
+  
+  if (
+    content.includes('trouble connecting') ||
+    content.includes('technical issue') ||
+    content.includes('Error ID:') ||
+    content.includes('issue with my configuration') ||
+    content.includes('issue with my response system') ||
+    content.includes('momentary lapse') ||
+    content.includes('try again later') ||
+    (content.includes('connection') && content.includes('unstable')) ||
+    content.includes('unable to formulate') ||
+    content.includes('Please try again')
+  ) {
+    console.log(`[Webhook] Detected error message, adding special prefix`);
+    return 'ERROR_MESSAGE_PREFIX: ' + content;
+  }
+  
+  return content;
+}
+
+/**
+ * Prepare message data for sending via webhook
+ * @param {string} content - Message content
+ * @param {string} username - Standardized username
+ * @param {string} avatarUrl - Avatar URL
+ * @param {boolean} isThread - Whether the channel is a thread
+ * @param {string} threadId - Thread ID if applicable
+ * @param {Object} options - Additional options
+ * @returns {Object} Prepared message data
+ */
+function prepareMessageData(content, username, avatarUrl, isThread, threadId, options = {}) {
+  const messageData = {
+    content: content,
+    username: username,
+    avatarURL: avatarUrl || null,
+    allowedMentions: { parse: ['users', 'roles'] },
+    threadId: isThread ? threadId : undefined,
+  };
+
+  // Add optional embed if provided
+  if (options.embed) {
+    messageData.embeds = [new EmbedBuilder(options.embed)];
+  }
+
+  // Add optional files if provided
+  if (options.files) {
+    messageData.files = options.files;
+  }
+
+  return messageData;
+}
+
+/**
+ * Send a single message chunk via webhook
+ * @param {Object} webhook - Webhook client
+ * @param {Object} messageData - Message data to send
+ * @param {number} chunkIndex - Index of the current chunk
+ * @param {number} totalChunks - Total number of chunks
+ * @returns {Promise<Object>} Sent message
+ */
+async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
+  console.log(
+    `Sending webhook message chunk ${chunkIndex + 1}/${totalChunks} with data: ${JSON.stringify({
+      username: messageData.username,
+      contentLength: messageData.content?.length,
+      hasEmbeds: !!messageData.embeds?.length,
+      threadId: messageData.threadId,
+    })}`
+  );
+
+  try {
+    const sentMessage = await webhook.send(messageData);
+    console.log(
+      `Successfully sent webhook message chunk ${chunkIndex + 1}/${totalChunks} with ID: ${sentMessage.id}`
+    );
+    return sentMessage;
+  } catch (error) {
+    console.error(`Error sending message chunk ${chunkIndex + 1}/${totalChunks}:`, error);
+    
+    // If this is because of length, try to send a simpler message indicating the error
+    if (error.code === 50035) {
+      // Invalid Form Body
+      try {
+        // Create a safe fallback message
+        await webhook.send({
+          content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
+          username: messageData.username,
+          avatarURL: messageData.avatarURL,
+          threadId: messageData.threadId,
+        });
+      } catch (finalError) {
+        console.error('[Webhook] Failed to send error notification:', finalError);
+      }
+    } else {
+      // Log all error properties for better debugging
+      console.error('[Webhook] Webhook error details:', {
+        code: error.code,
+        message: error.message,
+        name: error.name,
+        stack: error.stack?.split('\n')[0] || 'No stack trace',
+      });
+    }
+    
+    throw error;
+  }
+}
+
+/**
+ * Create a virtual result for when all messages were duplicates
+ * @param {Object} personality - Personality data
+ * @param {string} channelId - Channel ID
+ * @returns {Object} Virtual result object
+ */
+function createVirtualResult(personality, channelId) {
+  console.log(`[Webhook] All messages were duplicates, creating virtual result`);
+  const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
+  // Clear pending message if we're returning a virtual result
+  if (personality && personality.fullName) {
+    clearPendingMessage(personality.fullName, channelId);
+  }
+
+  return {
+    message: { id: virtualId },
+    messageIds: [virtualId],
+    isDuplicate: true,
+  };
+}
+
+/**
  * Sends a message via Discord webhook with proper personality formatting and error handling
  *
  * @param {Object} channel - Discord.js channel object to send the message to
@@ -274,17 +519,15 @@ async function getOrCreateWebhook(channel) {
  */
 async function sendWebhookMessage(channel, content, personality, options = {}) {
   // Minimize console output during webhook operations
-  const originalConsoleLog = console.log;
-  const originalConsoleWarn = console.warn;
-  console.log = () => {};
-  console.warn = () => {};
+  const originalFunctions = minimizeConsoleOutput();
+  
   try {
     console.log(
       `Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`
     );
 
     // Generate a unique tracking ID for this message to prevent duplicates
-    const messageTrackingId = `${channel.id}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    const messageTrackingId = generateMessageTrackingId(channel.id);
 
     // Check if we're already sending a very similar message
     if (activeWebhooks.has(messageTrackingId)) {
@@ -295,20 +538,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     }
 
     // Check if this is likely an error message
-    const isErrorMessage =
-      content &&
-      (content.includes("I'm having trouble connecting") ||
-        content.includes('ERROR_MESSAGE_PREFIX:') ||
-        content.includes('trouble connecting to my brain') ||
-        content.includes('technical issue') ||
-        content.includes('Error ID:') ||
-        content.includes('issue with my configuration') ||
-        content.includes('issue with my response system') ||
-        content.includes('momentary lapse') ||
-        content.includes('try again later') ||
-        (content.includes('connection') && content.includes('unstable')) ||
-        content.includes('unable to formulate') ||
-        content.includes('Please try again'));
+    const isErrorMessage = isErrorContent(content);
 
     // CRITICAL: If this is an error message AND the personality has a pending message
     // in this channel, completely drop this error message
@@ -323,16 +553,18 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       return null; // Do not send error message at all
     }
 
-    // If this isn't an error message, register it as pending
-    if (!isErrorMessage && personality.fullName) {
-      console.log(`[Webhook] Registering normal message as pending for ${personality.fullName}`);
-      registerPendingMessage(personality.fullName, channel.id, content, false);
-    } else if (isErrorMessage && personality.fullName) {
-      console.log(`[Webhook] Detected error message for ${personality.fullName}`);
-      registerPendingMessage(personality.fullName, channel.id, content, true);
+    // Register message as pending based on its type
+    if (personality.fullName) {
+      if (!isErrorMessage) {
+        console.log(`[Webhook] Registering normal message as pending for ${personality.fullName}`);
+        registerPendingMessage(personality.fullName, channel.id, content, false);
+      } else {
+        console.log(`[Webhook] Detected error message for ${personality.fullName}`);
+        registerPendingMessage(personality.fullName, channel.id, content, true);
+      }
     }
 
-    // Calculate any delay needed to ensure proper message ordering
+    // Apply any needed message delay for proper ordering
     const delayNeeded = calculateMessageDelay(channel.id);
     if (delayNeeded > 0) {
       console.log(`[Webhook] Delaying message by ${delayNeeded}ms for channel ${channel.id}`);
@@ -344,25 +576,22 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
     try {
       // Pre-load the avatar URL to ensure Discord caches it
-      // This helps with the issue where avatars don't show on first message
       if (personality.avatarUrl) {
         await warmupAvatarUrl(personality.avatarUrl);
       }
 
-      // Get the appropriate webhook client - we use a STATIC webhook shared for all messages
+      // Get the webhook client
       const webhook = await getOrCreateWebhook(channel);
 
-      // CRITICAL FIX: Force consistent username and prevent duplicate messages
-      // We MUST standardize the username completely - NEVER use fullName which causes duplicate displays
+      // Standardize the username to prevent duplicates
       const standardizedName = getStandardizedUsername(personality);
       console.log(
         `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
       );
 
-      // Check if we need to split the message
+      // Split message into chunks if needed
       let contentChunks = [''];
       try {
-        // Ensure content is a valid string
         const safeContent = typeof content === 'string' ? content : String(content || '');
         contentChunks = splitMessage(safeContent);
         console.log(`[Webhook] Split message into ${contentChunks.length} chunks`);
@@ -371,213 +600,109 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         contentChunks = ['[Error processing message content]'];
       }
 
+      // Track sent messages
       let firstSentMessage = null;
-
-      // Track all sent message IDs in this conversation
       const sentMessageIds = [];
 
-      // Now send each chunk as a separate message
+      // Send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
-        const isLastChunk = i === contentChunks.length - 1;
-
-        // Use the chunk content as is, without adding continuation indicators
         let chunkContent = contentChunks[i];
 
-        // CRITICAL FIX: Check if this exact message was recently sent to prevent duplicates
-        // This prevents the double message problem by checking content + username + channel
+        // Skip duplicate messages
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
           console.log(`[Webhook] Skipping message chunk ${i + 1} due to duplicate detection`);
-          continue; // Skip this chunk, move to the next one
+          continue;
         }
 
-        // Update last message time for this channel to ensure proper ordering
+        // Update last message time for proper ordering
         updateChannelLastMessageTime(channel.id);
 
-        // Add a special prefix to error messages to make them easy to filter
-        let finalContent = chunkContent || '';
-        if (
-          finalContent.includes('trouble connecting') ||
-          finalContent.includes('technical issue') ||
-          finalContent.includes('Error ID:') ||
-          finalContent.includes('issue with my configuration') ||
-          finalContent.includes('issue with my response system') ||
-          finalContent.includes('momentary lapse') ||
-          finalContent.includes('try again later') ||
-          (finalContent.includes('connection') && finalContent.includes('unstable')) ||
-          finalContent.includes('unable to formulate') ||
-          finalContent.includes('Please try again')
-        ) {
-          // Mark this as an error message by adding a special prefix that our bot will recognize
-          console.log(`[Webhook] Detected error message, adding special prefix`);
-          finalContent = 'ERROR_MESSAGE_PREFIX: ' + finalContent;
-        }
+        // Mark error content appropriately
+        let finalContent = markErrorContent(chunkContent || '');
 
-        // Completely discard any messages with our hard block marker
+        // Skip hard-blocked content
         if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY')) {
           console.log(
             `[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`
           );
-          continue; // Skip to the next chunk
+          continue;
         }
 
-        // Prepare message data for this chunk - using the STANDARDIZED username
-        const messageData = {
-          content: finalContent, // Use our potentially marked content
-          username: standardizedName, // Use our standardized username function
-          avatarURL: personality.avatarUrl || null,
-          allowedMentions: { parse: ['users', 'roles'] }, // Allow mentions
-          threadId: channel.isThread() ? channel.id : undefined, // Support for threads
-        };
-
-        // Add optional embed if provided - only on the first chunk
-        if (isFirstChunk && options.embed) {
-          messageData.embeds = [new EmbedBuilder(options.embed)];
-        }
-
-        // Add optional files if provided - only on the first chunk
-        if (isFirstChunk && options.files) {
-          messageData.files = options.files;
-        }
-
-        // Log what we're sending
-        console.log(
-          `Sending webhook message chunk ${i + 1}/${contentChunks.length} with data: ${JSON.stringify(
-            {
-              username: messageData.username,
-              contentLength: messageData.content?.length,
-              hasEmbeds: !!messageData.embeds?.length,
-              threadId: messageData.threadId,
-            }
-          )}`
+        // Prepare message data for this chunk
+        const messageData = prepareMessageData(
+          finalContent,
+          standardizedName,
+          personality.avatarUrl,
+          channel.isThread(),
+          channel.id,
+          isFirstChunk ? options : {}
         );
 
-        // Send the message
         try {
-          const sentMessage = await webhook.send(messageData);
-          console.log(
-            `Successfully sent webhook message chunk ${i + 1}/${contentChunks.length} with ID: ${sentMessage.id}`
-          );
-
-          // Track this message ID
-          console.log(
-            `Adding message ID to tracking: ${sentMessage.id}, webhook ID: ${sentMessage.webhookId || 'unknown'}`
-          );
+          // Send the message chunk
+          const sentMessage = await sendMessageChunk(webhook, messageData, i, contentChunks.length);
+          
+          // Track the message ID
           sentMessageIds.push(sentMessage.id);
-
-          // Keep track of the first message for returning
+          
+          // Keep track of the first message
           if (isFirstChunk) {
             firstSentMessage = sentMessage;
-            console.log(
-              `Storing first message: ID=${sentMessage.id}, webhookId=${sentMessage.webhookId || 'unknown'}, channel=${channel.id}`
-            );
           }
-        } catch (innerError) {
-          console.error(
-            `Error sending message chunk ${i + 1}/${contentChunks.length}:`,
-            innerError
-          );
-
-          // If this is because of length, try to send a simpler message indicating the error
-          if (innerError.code === 50035) {
-            // Invalid Form Body
-            try {
-              // Create a safe fallback message with proper error handling
-              // Just use the display name without the full name
-              const safeDisplayName = personality?.displayName || 'Bot';
-              const safeAvatarURL = personality?.avatarUrl || null;
-              const safeThreadId = channel.isThread() ? channel.id : undefined;
-
-              await webhook.send({
-                content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
-                username: safeDisplayName,
-                avatarURL: safeAvatarURL,
-                threadId: safeThreadId,
-              });
-            } catch (finalError) {
-              console.error('[Webhook] Failed to send error notification:', finalError);
-            }
-          } else {
-            // Log all error properties for better debugging
-            console.error('[Webhook] Webhook error details:', {
-              code: innerError.code,
-              message: innerError.message,
-              name: innerError.name,
-              stack: innerError.stack?.split('\n')[0] || 'No stack trace',
-            });
-          }
-
-          // If this is the first chunk and it failed, we need to propagate the error
+        } catch (error) {
+          // If this is the first chunk and it failed, propagate the error
           if (isFirstChunk) {
-            throw innerError;
+            throw error;
           }
+          // Otherwise, continue with the remaining chunks
         }
       }
 
-      // Remove this message from active tracking after a short delay
+      // Clean up tracking after a short delay
       setTimeout(() => {
         activeWebhooks.delete(messageTrackingId);
       }, 5000);
 
-      // Clear pending message for this personality+channel since we've sent the message
+      // Clear pending message
       if (personality && personality.fullName) {
         clearPendingMessage(personality.fullName, channel.id);
       }
 
-      // Log return data for debugging
-      console.log(
-        `Returning webhook result with ${sentMessageIds.length} message IDs:`,
-        sentMessageIds
-      );
-
-      // Add debugging info before returning
+      // Log result information
       console.log(`[Webhook] Returning result with: ${sentMessageIds.length} message IDs:`);
       sentMessageIds.forEach(id => console.log(`[Webhook] Message ID: ${id}`));
 
-      // Return an object with the first message and all message IDs
-      // If we didn't send any messages due to duplication, we'll create a "virtual" result
-      // to ensure the conversation tracking still works
+      // Return results or create a virtual result if needed
       if (sentMessageIds.length > 0) {
         return {
           message: firstSentMessage,
           messageIds: sentMessageIds,
         };
       } else {
-        // Create a "virtual" result since we skipped all messages due to duplication
-        // This ensures conversation tracking still works properly
-        console.log(`[Webhook] All messages were duplicates, creating virtual result`);
-        const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-
-        // Clear pending message if we're returning a virtual result
-        if (personality && personality.fullName) {
-          clearPendingMessage(personality.fullName, channel.id);
-        }
-
-        return {
-          message: { id: virtualId },
-          messageIds: [virtualId],
-          isDuplicate: true,
-        };
+        return createVirtualResult(personality, channel.id);
       }
     } catch (error) {
-      // Make sure to clean up on error
+      // Clean up on error
       activeWebhooks.delete(messageTrackingId);
       throw error;
     }
   } catch (error) {
     console.error('Webhook error:', error.message);
 
-    // If webhook is invalid, remove it from cache
+    // If webhook is invalid, remove from cache
     if (error.code === 10015) {
       // Unknown Webhook
       webhookCache.delete(channel.id);
     }
 
     // Restore console functions
-    console.log = originalConsoleLog;
-    console.warn = originalConsoleWarn;
+    restoreConsoleOutput(originalFunctions);
 
     throw error;
+  } finally {
+    // Always restore console functions
+    restoreConsoleOutput(originalFunctions);
   }
 }
 
@@ -959,20 +1084,43 @@ function isDuplicateMessage(content, username, channelId) {
 }
 
 module.exports = {
+  // Main webhook API functions
   getOrCreateWebhook,
   sendWebhookMessage,
   clearWebhookCache,
   clearAllWebhookCaches,
   registerEventListeners,
   preloadPersonalityAvatar,
+  
+  // Helper functions for usernames and messages
   getStandardizedUsername,
   isDuplicateMessage,
   hashMessage,
-  // Export the new message throttling functions
+  splitMessage,
+  
+  // Console handling functions
+  minimizeConsoleOutput,
+  restoreConsoleOutput,
+  
+  // Message content processing
+  isErrorContent,
+  markErrorContent,
+  prepareMessageData,
+  sendMessageChunk,
+  createVirtualResult,
+  generateMessageTrackingId,
+  
+  // Message throttling functions
   hasPersonalityPendingMessage,
   registerPendingMessage,
   clearPendingMessage,
   calculateMessageDelay,
   updateChannelLastMessageTime,
   createPersonalityChannelKey,
+  
+  // For testing purposes
+  splitByCharacterLimit,
+  processSentence,
+  processLine,
+  processParagraph,
 };

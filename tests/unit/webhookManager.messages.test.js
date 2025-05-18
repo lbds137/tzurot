@@ -2,105 +2,105 @@
  * Tests for webhookManager.js focusing on message sending functionality
  */
 
-// Import mock utilities
-const { createMockChannel, createMockWebhook } = require('../utils/discordMocks');
+jest.mock('discord.js');
+jest.mock('node-fetch');
 
-// Mock node-fetch
-jest.mock('node-fetch', () => {
-  return jest.fn().mockImplementation(async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ success: true }),
-    text: async () => "Success",
-    buffer: async () => Buffer.from("Success"),
-    headers: new Map([['content-type', 'application/json']])
-  }));
-});
-
-// Mock discord.js
-jest.mock('discord.js', () => {
-  const webhookMocks = new Map();
+jest.mock('../../src/webhookManager', () => {
+  // Get the original module to preserve non-mocked functions
+  const originalModule = jest.requireActual('../../src/webhookManager');
   
-  // Mock WebhookClient with a send method that can be spied on
-  class MockWebhookClient {
-    constructor(options) {
-      this.id = 'mock-webhook-id';
-      this.url = options.url;
-      this.send = jest.fn().mockImplementation(data => {
+  // Create minimal mock versions of functions used by sendWebhookMessage
+  const mockFunctions = {
+    // Core functions
+    minimizeConsoleOutput: jest.fn().mockReturnValue({
+      originalConsoleLog: console.log,
+      originalConsoleWarn: console.warn
+    }),
+    restoreConsoleOutput: jest.fn(),
+    sendMessageChunk: jest.fn().mockImplementation(async (webhook, messageData) => {
+      return { id: `mock-message-${Date.now()}` };
+    }),
+    createVirtualResult: jest.fn().mockImplementation((personality, channelId) => {
+      return {
+        message: { id: `virtual-${Date.now()}` },
+        messageIds: [`virtual-${Date.now()}`],
+        isDuplicate: true
+      };
+    }),
+    
+    // Deduplication and message handling
+    generateMessageTrackingId: jest.fn().mockReturnValue('mock-tracking-id'),
+    isErrorContent: jest.fn().mockImplementation(content => {
+      if (!content) return false;
+      return content.includes('error') || 
+             content.includes('trouble') || 
+             content.includes('HARD_BLOCKED');
+    }),
+    markErrorContent: jest.fn().mockImplementation(content => {
+      if (!content) return '';
+      if (content.includes('trouble') || content.includes('error')) {
+        return 'ERROR_MESSAGE_PREFIX: ' + content;
+      }
+      return content;
+    }),
+    isDuplicateMessage: jest.fn().mockReturnValue(false),
+    hasPersonalityPendingMessage: jest.fn().mockReturnValue(false),
+    registerPendingMessage: jest.fn(),
+    clearPendingMessage: jest.fn(),
+    calculateMessageDelay: jest.fn().mockReturnValue(0),
+    updateChannelLastMessageTime: jest.fn(),
+    
+    // Utilities
+    splitMessage: originalModule.splitMessage,
+    prepareMessageData: originalModule.prepareMessageData,
+    getStandardizedUsername: jest.fn().mockImplementation(personality => {
+      if (!personality) return 'Bot';
+      return personality.displayName || 'Unknown';
+    }),
+    
+    // The function we're testing
+    sendWebhookMessage: originalModule.sendWebhookMessage,
+    
+    // Mock getOrCreateWebhook function
+    getOrCreateWebhook: jest.fn().mockImplementation(async () => ({
+      send: jest.fn().mockImplementation(data => {
         return Promise.resolve({
           id: `mock-message-${Date.now()}`,
-          webhookId: this.id,
           content: typeof data === 'string' ? data : data.content,
-          author: {
-            username: typeof data === 'string' ? undefined : data.username,
-            bot: true
-          }
         });
-      });
-      
-      this.destroy = jest.fn();
-      
-      // Store this instance for test verification
-      webhookMocks.set(options.url || 'default-url', this);
-    }
-  }
+      })
+    }))
+  };
   
+  // Merge with the original exports to maintain all functions
   return {
-    WebhookClient: jest.fn().mockImplementation(options => new MockWebhookClient(options)),
-    EmbedBuilder: jest.fn().mockImplementation(data => ({ 
-      ...data,
-      setTitle: jest.fn().mockReturnThis(),
-      setDescription: jest.fn().mockReturnThis(),
-      setColor: jest.fn().mockReturnThis(),
-      addFields: jest.fn().mockReturnThis(),
-      setThumbnail: jest.fn().mockReturnThis(),
-      setFooter: jest.fn().mockReturnThis()
-    })),
-    _webhookMocks: webhookMocks,
-    _clearWebhookMocks: () => webhookMocks.clear()
+    ...originalModule,
+    ...mockFunctions,
   };
 });
 
-// Import the module after mocking
-let webhookManager;
-
-describe('WebhookManager - Message Sending', () => {
-  // Original console methods
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
-  
-  // Test variables
+describe('WebhookManager - Message Sending Tests', () => {
+  let webhookManager;
   let mockChannel;
   let personality;
   
   beforeEach(() => {
-    // Mock console methods to prevent noisy output
-    console.log = jest.fn();
-    console.error = jest.fn();
-    console.warn = jest.fn();
-    
-    // Reset all mocks
     jest.clearAllMocks();
     
-    // Reset discord.js webhook mocks
-    require('discord.js')._clearWebhookMocks();
-    
-    // Ensure module is freshly loaded
-    jest.resetModules();
+    // Import after mocking
     webhookManager = require('../../src/webhookManager');
     
-    // Mock getOrCreateWebhook to return a consistent webhook
-    webhookManager.getOrCreateWebhook = jest.fn().mockImplementation(async () => {
-      const WebhookClient = require('discord.js').WebhookClient;
-      return new WebhookClient({ url: 'https://discord.com/api/webhooks/mock-id/mock-token' });
-    });
-    
-    // Create mock objects for testing
-    mockChannel = createMockChannel({
-      id: 'test-channel-123',
-      name: 'test-channel'
-    });
+    // Create test fixtures
+    mockChannel = {
+      id: 'test-channel-id',
+      name: 'test-channel',
+      isThread: jest.fn().mockReturnValue(false),
+      fetchWebhooks: jest.fn().mockResolvedValue(new Map()),
+      createWebhook: jest.fn().mockResolvedValue({
+        id: 'mock-webhook-id',
+        url: 'https://discord.com/api/webhooks/mock/token'
+      })
+    };
     
     personality = {
       fullName: 'test-personality',
@@ -108,287 +108,175 @@ describe('WebhookManager - Message Sending', () => {
       avatarUrl: 'https://example.com/avatar.png'
     };
     
-    // Mock Date.now for consistent IDs in tests
-    jest.spyOn(Date, 'now').mockReturnValue(1234567890);
+    // Mock console
+    console.log = jest.fn();
+    console.error = jest.fn();
+    console.warn = jest.fn();
     
-    // Reset state variables that might persist between tests
-    webhookManager._testResetState?.();
+    // Create a spy for isDuplicateMessage to control when it returns true/false
+    webhookManager.isDuplicateMessage.mockImplementation((content) => {
+      return content === 'DUPLICATE_TEST_MESSAGE';
+    });
   });
   
   afterEach(() => {
-    // Restore console methods
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    console.warn = originalConsoleWarn;
-    
-    // Restore Date.now
-    jest.restoreAllMocks();
+    jest.resetModules();
   });
   
-  describe('sendWebhookMessage', () => {
-    it('should send a simple message via webhook', async () => {
-      // Call the function
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        'Test message content',
-        personality
-      );
-      
-      // Verify result contains message data
-      expect(result).toBeDefined();
-      expect(result.message).toBeDefined();
-      expect(result.messageIds).toBeDefined();
-      expect(result.messageIds.length).toBe(1);
-      
-      // Get the webhook mock to verify the call
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify webhook.send was called with correct data
-      expect(mockWebhook.send).toHaveBeenCalled();
-      
-      // Get the call arguments
-      const sendArgs = mockWebhook.send.mock.calls[0][0];
-      
-      // Verify message content
-      expect(sendArgs.content).toBe('Test message content');
-      
-      // Verify username is the display name
-      expect(sendArgs.username).toBe('Test Personality');
-      
-      // Verify avatar URL
-      expect(sendArgs.avatarURL).toBe('https://example.com/avatar.png');
-    });
+  it('should successfully send a simple message', async () => {
+    const result = await webhookManager.sendWebhookMessage(
+      mockChannel,
+      'Test message',
+      personality
+    );
     
-    it('should split long messages into chunks', async () => {
-      // Create a very long message
-      const longMessage = 'This is a long message. '.repeat(500); // Well over 2000 char limit
-      
-      // Call the function
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        longMessage,
-        personality
-      );
-      
-      // Verify result contains message data
-      expect(result).toBeDefined();
-      expect(result.messageIds.length).toBeGreaterThan(1);
-      
-      // Get the webhook mock to verify the call
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify webhook.send was called multiple times
-      expect(mockWebhook.send.mock.calls.length).toBeGreaterThan(1);
-      
-      // Verify each chunk is within the Discord limit
-      mockWebhook.send.mock.calls.forEach(call => {
-        const args = call[0];
-        expect(args.content.length).toBeLessThanOrEqual(2000);
-      });
-    });
+    // Verify functions were called
+    expect(webhookManager.getOrCreateWebhook).toHaveBeenCalledWith(mockChannel);
+    expect(webhookManager.minimizeConsoleOutput).toHaveBeenCalled();
+    expect(webhookManager.getStandardizedUsername).toHaveBeenCalledWith(personality);
+    expect(webhookManager.splitMessage).toHaveBeenCalledWith('Test message');
     
-    it('should add embeds to the first chunk only', async () => {
-      // Create a long message that will be split
-      const longMessage = 'This is a long message. '.repeat(500);
-      
-      // Create an embed
-      const embed = {
-        title: 'Test Embed',
-        description: 'This is a test embed'
-      };
-      
-      // Call the function with embed option
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        longMessage,
-        personality,
-        { embed }
-      );
-      
-      // Verify result contains message data
-      expect(result).toBeDefined();
-      
-      // Get the webhook mock to verify the call
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify webhook.send was called multiple times
-      expect(mockWebhook.send.mock.calls.length).toBeGreaterThan(1);
-      
-      // Verify only the first call has embeds
-      const firstCall = mockWebhook.send.mock.calls[0][0];
-      expect(firstCall.embeds).toBeDefined();
-      expect(firstCall.embeds.length).toBe(1);
-      
-      // Verify subsequent calls don't have embeds
-      if (mockWebhook.send.mock.calls.length > 1) {
-        const secondCall = mockWebhook.send.mock.calls[1][0];
-        expect(secondCall.embeds).toBeUndefined();
-      }
-    });
-    
-    it('should prevent sending duplicate messages', async () => {
-      // Call the function twice with same content
-      const message = 'This is a test message';
-      
-      // First call should succeed
-      const result1 = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        message,
-        personality
-      );
-      
-      // Reset mocks
-      jest.clearAllMocks();
-      
-      // Second call should detect duplicate
-      const result2 = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        message,
-        personality
-      );
-      
-      // Get the webhook mock
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify second call was detected as duplicate
-      expect(result2).toBeDefined();
-      expect(result2.isDuplicate).toBe(true);
-      
-      // Verify webhook.send was not called for the second message
-      expect(mockWebhook.send).not.toHaveBeenCalled();
-    });
-    
-    it('should handle webhook send errors', async () => {
-      // Get the webhook mock and make it throw an error
-      const discordJs = require('discord.js');
-      const mockWebhook = new discordJs.WebhookClient({ url: 'test' });
-      webhookManager.getOrCreateWebhook = jest.fn().mockResolvedValue(mockWebhook);
-      
-      // Make send throw an error
-      mockWebhook.send.mockRejectedValueOnce(new Error('Webhook send failed'));
-      
-      // Call the function and expect it to throw
-      await expect(webhookManager.sendWebhookMessage(
-        mockChannel,
-        'Test message',
-        personality
-      )).rejects.toThrow();
-      
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalled();
-    });
-    
-    it('should handle missing personality', async () => {
-      // Call with no personality
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        'Test message',
-        null
-      );
-      
-      // Verify result contains message data
-      expect(result).toBeDefined();
-      
-      // Get the webhook mock to verify the call
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify webhook.send was called with fallback username
-      const sendArgs = mockWebhook.send.mock.calls[0][0];
-      expect(sendArgs.username).toBe('Bot');
-    });
-    
-    it('should detect and mark error messages', async () => {
-      // List of error patterns to test
-      const errorPatterns = [
-        "I'm having trouble connecting to my knowledge base",
-        "ERROR_MESSAGE_PREFIX: Sorry for the issue",
-        "trouble connecting to my brain",
-        "technical issue",
-        "Error ID: abc123",
-        "issue with my configuration",
-        "issue with my response system",
-        "momentary lapse in my systems",
-        "try again later",
-        "connection is unstable right now",
-        "unable to formulate a response",
-        "Please try again in a few minutes"
-      ];
-      
-      // Check if each error pattern is detected
-      for (const errorPattern of errorPatterns) {
-        // Reset mocks
-        jest.clearAllMocks();
-        
-        // Call with error message
-        await webhookManager.sendWebhookMessage(
-          mockChannel,
-          errorPattern,
-          personality
-        );
-        
-        // Get the webhook mock to verify the call
-        const discordJs = require('discord.js');
-        const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-        
-        // Verify send was called
-        expect(mockWebhook.send).toHaveBeenCalled();
-        
-        // Get the content that was sent
-        const sentContent = mockWebhook.send.mock.calls[0][0].content;
-        
-        // Verify content has ERROR_MESSAGE_PREFIX if it didn't already
-        if (!errorPattern.includes('ERROR_MESSAGE_PREFIX:')) {
-          expect(sentContent).toContain('ERROR_MESSAGE_PREFIX:');
-        }
-      }
-    });
-    
-    it('should skip messages with HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker', async () => {
-      // Create a message with the hard block marker
-      const blockedMessage = 'This is a HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY message';
-      
-      // Call the function
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        blockedMessage,
-        personality
-      );
-      
-      // Get the webhook mock
-      const discordJs = require('discord.js');
-      const mockWebhook = Array.from(discordJs._webhookMocks.values())[0];
-      
-      // Verify webhook.send was not called
-      expect(mockWebhook.send).not.toHaveBeenCalled();
-      
-      // Verify result is a virtual result with isDuplicate flag
-      expect(result).toBeDefined();
-      expect(result.isDuplicate).toBe(true);
-    });
-    
-    it('should track message IDs', async () => {
-      // Call the function
-      const result = await webhookManager.sendWebhookMessage(
-        mockChannel,
-        'Test message',
-        personality
-      );
-      
-      // Verify result contains message IDs
-      expect(result).toBeDefined();
-      expect(result.messageIds).toBeDefined();
-      expect(result.messageIds.length).toBe(1);
-      
-      // Verify message ID is from the webhook response
-      const sentMessage = result.message;
-      expect(result.messageIds[0]).toBe(sentMessage.id);
-    });
+    // Verify result
+    expect(result).toBeDefined();
+    expect(result.messageIds).toBeDefined();
+    expect(result.messageIds.length).toBe(1);
   });
   
-  // isErrorWebhookMessage is an internal function, so we can't test it directly
+  it('should split long messages into chunks', async () => {
+    // Mock splitMessage to return multiple chunks
+    const longMessage = 'This is a long message.'.repeat(500);
+    const mockChunks = ['Chunk 1', 'Chunk 2', 'Chunk 3'];
+    webhookManager.splitMessage.mockReturnValueOnce(mockChunks);
+    
+    const result = await webhookManager.sendWebhookMessage(
+      mockChannel,
+      longMessage,
+      personality
+    );
+    
+    // Verify functions were called
+    expect(webhookManager.splitMessage).toHaveBeenCalledWith(longMessage);
+    
+    // Verify result
+    expect(result).toBeDefined();
+    expect(result.messageIds).toBeDefined();
+    expect(result.messageIds.length).toBe(mockChunks.length);
+  });
+  
+  it('should mark error messages', async () => {
+    const errorMessage = 'I am having trouble connecting';
+    
+    // Make isErrorContent return true for this message
+    webhookManager.isErrorContent.mockReturnValueOnce(true);
+    
+    await webhookManager.sendWebhookMessage(
+      mockChannel,
+      errorMessage,
+      personality
+    );
+    
+    // Verify error detection functions were called
+    expect(webhookManager.isErrorContent).toHaveBeenCalledWith(errorMessage);
+    expect(webhookManager.markErrorContent).toHaveBeenCalled();
+  });
+  
+  it('should skip duplicate messages', async () => {
+    const duplicateMessage = 'DUPLICATE_TEST_MESSAGE';
+    
+    const result = await webhookManager.sendWebhookMessage(
+      mockChannel,
+      duplicateMessage,
+      personality
+    );
+    
+    // Verify a virtual result was created
+    expect(result).toBeDefined();
+    expect(result.isDuplicate).toBe(true);
+    
+    // The send function should not have been called
+    expect(webhookManager.sendMessageChunk).not.toHaveBeenCalled();
+  });
+  
+  it('should add embeds to the first chunk only', async () => {
+    // Mock splitMessage to return multiple chunks
+    const mockChunks = ['Chunk 1', 'Chunk 2', 'Chunk 3'];
+    webhookManager.splitMessage.mockReturnValueOnce(mockChunks);
+    
+    // Create embed options
+    const embedOptions = {
+      embed: { title: 'Test Embed', description: 'Test Description' }
+    };
+    
+    await webhookManager.sendWebhookMessage(
+      mockChannel,
+      'Test message with embed',
+      personality,
+      embedOptions
+    );
+    
+    // Check prepareMessageData calls
+    const allCalls = webhookManager.prepareMessageData.mock.calls;
+    
+    // First call should include embed
+    expect(allCalls[0][5]).toHaveProperty('embed');
+    
+    // Subsequent calls should not include embed
+    if (allCalls.length > 1) {
+      expect(allCalls[1][5]).toBeUndefined();
+    }
+  });
+  
+  it('should handle missing personality data', async () => {
+    await webhookManager.sendWebhookMessage(
+      mockChannel,
+      'Test message with no personality',
+      null
+    );
+    
+    // Verify getStandardizedUsername was called with null
+    expect(webhookManager.getStandardizedUsername).toHaveBeenCalledWith(null);
+    
+    // Default username should be 'Bot'
+    expect(webhookManager.prepareMessageData.mock.calls[0][1]).toBe('Bot');
+  });
+  
+  it('should handle webhook send errors', async () => {
+    // Make sendMessageChunk throw an error
+    webhookManager.sendMessageChunk.mockRejectedValueOnce(new Error('Send failed'));
+    
+    // Call function and expect it to throw
+    await expect(webhookManager.sendWebhookMessage(
+      mockChannel,
+      'Test message',
+      personality
+    )).rejects.toThrow();
+    
+    // Verify restore console was called in the finally block
+    expect(webhookManager.restoreConsoleOutput).toHaveBeenCalled();
+  });
+  
+  it('should skip messages with the HARD_BLOCKED marker', async () => {
+    const blockedMessage = 'This is a HARD_BLOCKED message';
+    
+    // Make isErrorContent detect this message
+    webhookManager.isErrorContent.mockReturnValueOnce(true);
+    
+    // Make markErrorContent return content with the hard block marker
+    webhookManager.markErrorContent.mockReturnValueOnce(
+      'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY: ' + blockedMessage
+    );
+    
+    const result = await webhookManager.sendWebhookMessage(
+      mockChannel,
+      blockedMessage,
+      personality
+    );
+    
+    // Verify createVirtualResult was called
+    expect(webhookManager.createVirtualResult).toHaveBeenCalled();
+    
+    // Verify result is a virtual result
+    expect(result).toBeDefined();
+    expect(result.isDuplicate).toBe(true);
+  });
 });

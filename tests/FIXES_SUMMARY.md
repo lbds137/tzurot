@@ -114,3 +114,66 @@ These fixes work together to solve the duplicate embed issue:
 3. bot.js detects and deletes any incomplete embeds that might still get through
 
 The tests provide confidence that the fix is robust, and the code is well-structured to prevent future regression.
+
+## Testing `createVirtualResult` in webhookManager
+
+We created a new test file `webhookManager.createVirtual.test.js` that properly tests the `createVirtualResult` function with these key improvements:
+
+### The Problem
+
+The previous testing approach had issues properly verifying if `clearPendingMessage` was called inside the `createVirtualResult` function. This made it difficult to ensure that critical message cleanup was happening correctly.
+
+### The Solution
+
+The new test approach:
+
+1. **Partial Module Mocking**: We use Jest's module mocking system to mock only specific functions while preserving the original implementation of others.
+
+2. **Spy on Internal Functions**: We created a spy for `clearPendingMessage` which allows us to:
+   - Verify if it was called
+   - Check what arguments it was called with
+   - Confirm the number of times it was called
+   
+3. **Original Implementation Preserved**: We keep the original implementation of `createVirtualResult` to test its actual behavior instead of mocking it.
+
+4. **Multiple Test Cases**: We test various scenarios including:
+   - When a personality with fullName is provided (should call clearPendingMessage)
+   - When personality is null (should not call clearPendingMessage)
+   - When personality has no fullName (should not call clearPendingMessage)
+   - Ensuring unique IDs are generated for each call
+
+### The Technique
+
+The key technique we used is:
+
+```javascript
+// First, get the original implementation
+const originalWebhookManager = jest.requireActual('../../src/webhookManager');
+
+// Create a mock for the function we want to spy on
+clearPendingMessageMock = jest.fn();
+
+// Mock only part of the module, keeping the rest intact
+jest.mock('../../src/webhookManager', () => {
+  const original = jest.requireActual('../../src/webhookManager');
+  
+  return {
+    ...original,
+    clearPendingMessage: clearPendingMessageMock,
+    // Original createVirtualResult is preserved
+  };
+});
+```
+
+This approach enables testing the real implementation while still being able to verify internal function calls, which is perfect for functions like `createVirtualResult` that rely on other internal module functions.
+
+### How to Apply This Elsewhere
+
+This same technique can be used to test other functions that make internal calls to other functions within the same module:
+
+1. Identify the internal dependencies you need to verify
+2. Create spies/mocks for those specific functions
+3. Use Jest's module mocking to replace only those functions
+4. Keep the original implementation of the function you're actually testing
+
+This approach balances the need for realistic testing with the ability to verify complex internal behaviors.

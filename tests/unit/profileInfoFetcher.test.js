@@ -1,11 +1,11 @@
 // Tests for profileInfoFetcher
 
-// Mock dependencies first - using automatic mocks
-jest.mock('node-fetch');
+// We need to mock the modules before requiring profileInfoFetcher
 jest.mock('../../config');
+jest.mock('node-fetch');
 
-// Import the module after mocking dependencies
-const fetch = require('node-fetch');
+// Import mocked modules
+const nodeFetch = require('node-fetch');
 const config = require('../../config');
 
 describe('profileInfoFetcher', () => {
@@ -13,6 +13,7 @@ describe('profileInfoFetcher', () => {
   let originalConsoleWarn;
   let originalConsoleError;
   let originalEnv;
+  let profileInfoFetcher;
   
   // Test data
   const mockProfileName = 'test-profile';
@@ -43,25 +44,28 @@ describe('profileInfoFetcher', () => {
     originalEnv = process.env;
     
     // Set API key in environment
-    process.env = { ...process.env, SERVICE_API_KEY: mockApiKey };
+    process.env = { ...originalEnv, SERVICE_API_KEY: mockApiKey };
     
-    // Clear all mock calls
+    // Reset all mocks and the module registry
     jest.clearAllMocks();
-    
-    // Reset modules registry to clear cache
     jest.resetModules();
     
-    // Set up mock implementations
+    // Set up config mocks
     config.getProfileInfoEndpoint = jest.fn().mockReturnValue(mockEndpoint);
     config.getAvatarUrlFormat = jest.fn().mockReturnValue(mockAvatarUrlFormat);
     
-    // Set default fetch mock
-    fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: jest.fn().mockResolvedValue(mockProfileData)
-    });
+    // Set up fetch mock with successful response
+    nodeFetch.mockImplementation(() => 
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve(mockProfileData)
+      })
+    );
+    
+    // Now import the module under test
+    profileInfoFetcher = require('../../src/profileInfoFetcher');
   });
   
   afterEach(() => {
@@ -75,14 +79,11 @@ describe('profileInfoFetcher', () => {
   });
   
   test('fetchProfileInfo should fetch profile info from the API', async () => {
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
-    
     // Call the function
     const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
     // Verify fetch was called with the correct arguments
-    expect(fetch).toHaveBeenCalledWith(mockEndpoint, {
+    expect(nodeFetch).toHaveBeenCalledWith(mockEndpoint, {
       headers: {
         'Authorization': `Bearer ${mockApiKey}`,
         'Content-Type': 'application/json'
@@ -95,14 +96,13 @@ describe('profileInfoFetcher', () => {
   
   test('fetchProfileInfo should handle API errors gracefully', async () => {
     // Set up fetch to return an error response
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found'
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+    );
     
     // Call the function
     const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
@@ -116,10 +116,9 @@ describe('profileInfoFetcher', () => {
   
   test('fetchProfileInfo should handle fetch exceptions gracefully', async () => {
     // Set up fetch to throw an error
-    fetch.mockRejectedValueOnce(new Error('Network error'));
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.reject(new Error('Network error'))
+    );
     
     // Call the function
     const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
@@ -135,9 +134,6 @@ describe('profileInfoFetcher', () => {
     // Remove API key from environment
     delete process.env.SERVICE_API_KEY;
     
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
-    
     // Call the function
     await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
@@ -149,15 +145,14 @@ describe('profileInfoFetcher', () => {
   
   test('fetchProfileInfo should warn when data is empty', async () => {
     // Set up fetch to return empty data
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: jest.fn().mockResolvedValue(null)
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve(null)
+      })
+    );
     
     // Call the function
     await profileInfoFetcher.fetchProfileInfo(mockProfileName);
@@ -168,15 +163,14 @@ describe('profileInfoFetcher', () => {
   
   test('fetchProfileInfo should warn when name is missing', async () => {
     // Set up fetch to return data without name
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: jest.fn().mockResolvedValue({ id: mockProfileId }) // Missing name
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({ id: mockProfileId }) // Missing name
+      })
+    );
     
     // Call the function
     await profileInfoFetcher.fetchProfileInfo(mockProfileName);
@@ -186,29 +180,24 @@ describe('profileInfoFetcher', () => {
   });
   
   test('fetchProfileInfo should cache results', async () => {
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
-    
-    // First call - should make API request
-    await profileInfoFetcher.fetchProfileInfo(mockProfileName);
+    // Call the function twice
+    const firstResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
     // Reset mock to verify it's not called again
-    fetch.mockClear();
+    nodeFetch.mockClear();
     
-    // Second call - should use cached result
-    const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
+    // Second call
+    const secondResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
-    // Verify fetch was not called again
-    expect(fetch).not.toHaveBeenCalled();
+    // Verify fetch was not called the second time
+    expect(nodeFetch).not.toHaveBeenCalled();
     
-    // Verify correct data was returned from cache
-    expect(result).toEqual(mockProfileData);
+    // Verify both results are correct
+    expect(firstResult).toEqual(mockProfileData);
+    expect(secondResult).toEqual(mockProfileData);
   });
   
   test('getProfileAvatarUrl should return avatar URL using profile ID', async () => {
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
-    
     // Call the function
     const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
     
@@ -218,14 +207,13 @@ describe('profileInfoFetcher', () => {
   
   test('getProfileAvatarUrl should return null when profile info fetch fails', async () => {
     // Set up fetch to return an error response
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found'
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+    );
     
     // Call the function
     const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
@@ -236,15 +224,14 @@ describe('profileInfoFetcher', () => {
   
   test('getProfileAvatarUrl should return null when profile ID is missing', async () => {
     // Set up fetch to return data without ID
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: jest.fn().mockResolvedValue({ name: mockDisplayName }) // Missing ID
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({ name: mockDisplayName }) // Missing ID
+      })
+    );
     
     // Call the function
     const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
@@ -254,9 +241,6 @@ describe('profileInfoFetcher', () => {
   });
   
   test('getProfileDisplayName should return profile display name', async () => {
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
-    
     // Call the function
     const result = await profileInfoFetcher.getProfileDisplayName(mockProfileName);
     
@@ -266,14 +250,13 @@ describe('profileInfoFetcher', () => {
   
   test('getProfileDisplayName should fallback to profile name when API request fails', async () => {
     // Set up fetch to return an error response
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      statusText: 'Not Found'
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found'
+      })
+    );
     
     // Call the function
     const result = await profileInfoFetcher.getProfileDisplayName(mockProfileName);
@@ -284,15 +267,14 @@ describe('profileInfoFetcher', () => {
   
   test('getProfileDisplayName should fallback to profile name when name field is missing', async () => {
     // Set up fetch to return data without name
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: jest.fn().mockResolvedValue({ id: mockProfileId }) // Missing name
-    });
-    
-    // Import the module under test after mocking
-    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    nodeFetch.mockImplementationOnce(() => 
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({ id: mockProfileId }) // Missing name
+      })
+    );
     
     // Call the function
     const result = await profileInfoFetcher.getProfileDisplayName(mockProfileName);
