@@ -90,31 +90,34 @@ async function initBot() {
         console.log(`[Reply Handler] Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
         
         // Check if the referenced message was from one of our personalities
-        console.log(`Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
+        console.log(`[Reply Handler] Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
         
         if (referencedMessage.webhookId) {
-          console.log(`Looking up personality for message ID: ${referencedMessage.id}`);
-          const personalityName = getPersonalityFromMessage(referencedMessage.id);
-          console.log(`Personality lookup result: ${personalityName || 'null'}`);
+          console.log(`[Reply Handler] Looking up personality for message ID: ${referencedMessage.id}`);
+          // Pass the webhook username as a fallback for finding personalities
+          const webhookUsername = referencedMessage.author ? referencedMessage.author.username : null;
+          console.log(`[Reply Handler] Webhook username: ${webhookUsername || 'unknown'}`);
+          const personalityName = getPersonalityFromMessage(referencedMessage.id, { webhookUsername });
+          console.log(`[Reply Handler] Personality lookup result: ${personalityName || 'null'}`);
           
           if (personalityName) {
-            console.log(`Found personality name: ${personalityName}, looking up personality details`);
+            console.log(`[Reply Handler] Found personality name: ${personalityName}, looking up personality details`);
             const personality = getPersonalityByAlias(personalityName);
-            console.log(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+            console.log(`[Reply Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
             
             if (personality) {
               // Process the message with this personality
-              console.log(`Processing reply with personality: ${personality.fullName}`);
+              console.log(`[Reply Handler] Processing reply with personality: ${personality.fullName}`);
               await handlePersonalityInteraction(message, personality);
               return;
             } else {
-              console.log(`No personality data found for alias: ${personalityName}`);
+              console.log(`[Reply Handler] No personality data found for alias: ${personalityName}`);
             }
           } else {
-            console.log(`No personality found for message ID: ${referencedMessage.id}`);
+            console.log(`[Reply Handler] No personality found for message ID: ${referencedMessage.id}`);
           }
         } else {
-          console.log(`Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
+          console.log(`[Reply Handler] Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
         }
       } catch (error) {
         console.error('Error handling message reference:', error);

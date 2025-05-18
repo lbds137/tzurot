@@ -2,6 +2,7 @@
 require('dotenv').config();
 const { initStorage } = require('./src/dataStorage');
 const { initPersonalityManager } = require('./src/personalityManager');
+const { initConversationManager, saveAllData } = require('./src/conversationManager');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 
@@ -40,6 +41,10 @@ async function init() {
     await initPersonalityManager();
     console.log('Personality manager initialized');
     
+    // Initialize conversation manager (loads saved conversation data)
+    await initConversationManager();
+    console.log('Conversation manager initialized');
+    
     // Initialize and start the bot
     await initBot();
     console.log('Bot initialized and started');
@@ -55,6 +60,14 @@ async function init() {
 // Cleanup function for proper shutdown
 async function cleanup() {
   console.log('Shutting down Tzurot...');
+  
+  // Save all conversation data
+  try {
+    console.log('Saving conversation data...');
+    await saveAllData();
+  } catch (error) {
+    console.error('Error saving conversation data:', error);
+  }
   
   // Clear all webhook caches
   clearAllWebhookCaches();

@@ -1,3 +1,13 @@
+const fs = require('fs').promises;
+const path = require('path');
+
+// File paths for storing data
+const DATA_DIR = path.join(process.cwd(), 'data');
+const CONVERSATIONS_FILE = path.join(DATA_DIR, 'conversations.json');
+const CHANNEL_ACTIVATIONS_FILE = path.join(DATA_DIR, 'channel_activations.json');
+const AUTO_RESPONSE_FILE = path.join(DATA_DIR, 'auto_response.json');
+const MESSAGE_MAP_FILE = path.join(DATA_DIR, 'message_map.json');
+
 // Track ongoing conversations
 const activeConversations = new Map();
 
@@ -9,6 +19,120 @@ const autoResponseUsers = new Set();
 
 // Map message IDs to conversations for quicker lookup
 const messageIdMap = new Map();
+
+/**
+ * Ensure the data directory exists
+ */
+async function ensureDataDir() {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+  } catch (error) {
+    console.error(`Error creating data directory: ${error.message}`);
+  }
+}
+
+/**
+ * Save all conversation data to files
+ */
+async function saveAllData() {
+  try {
+    await ensureDataDir();
+    
+    // Save active conversations
+    const conversationsData = {};
+    for (const [key, value] of activeConversations.entries()) {
+      conversationsData[key] = value;
+    }
+    await fs.writeFile(CONVERSATIONS_FILE, JSON.stringify(conversationsData, null, 2));
+    
+    // Save activated channels
+    const activatedChannelsData = {};
+    for (const [key, value] of activatedChannels.entries()) {
+      activatedChannelsData[key] = value;
+    }
+    await fs.writeFile(CHANNEL_ACTIVATIONS_FILE, JSON.stringify(activatedChannelsData, null, 2));
+    
+    // Save auto-response users
+    const autoResponseData = Array.from(autoResponseUsers);
+    await fs.writeFile(AUTO_RESPONSE_FILE, JSON.stringify(autoResponseData, null, 2));
+    
+    // Save message ID map
+    const messageMapData = {};
+    for (const [key, value] of messageIdMap.entries()) {
+      messageMapData[key] = value;
+    }
+    await fs.writeFile(MESSAGE_MAP_FILE, JSON.stringify(messageMapData, null, 2));
+    
+    console.log('[ConversationManager] All data saved successfully');
+  } catch (error) {
+    console.error(`Error saving conversation data: ${error.message}`);
+  }
+}
+
+/**
+ * Load all conversation data from files
+ */
+async function loadAllData() {
+  try {
+    await ensureDataDir();
+    
+    // Load active conversations
+    try {
+      const conversationsData = JSON.parse(await fs.readFile(CONVERSATIONS_FILE, 'utf8'));
+      for (const [key, value] of Object.entries(conversationsData)) {
+        activeConversations.set(key, value);
+      }
+      console.log(`[ConversationManager] Loaded ${activeConversations.size} active conversations`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error(`Error loading conversations: ${error.message}`);
+      }
+    }
+    
+    // Load activated channels
+    try {
+      const activatedChannelsData = JSON.parse(await fs.readFile(CHANNEL_ACTIVATIONS_FILE, 'utf8'));
+      for (const [key, value] of Object.entries(activatedChannelsData)) {
+        activatedChannels.set(key, value);
+      }
+      console.log(`[ConversationManager] Loaded ${activatedChannels.size} activated channels`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error(`Error loading activated channels: ${error.message}`);
+      }
+    }
+    
+    // Load auto-response users
+    try {
+      const autoResponseData = JSON.parse(await fs.readFile(AUTO_RESPONSE_FILE, 'utf8'));
+      for (const userId of autoResponseData) {
+        autoResponseUsers.add(userId);
+      }
+      console.log(`[ConversationManager] Loaded ${autoResponseUsers.size} auto-response users`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error(`Error loading auto-response users: ${error.message}`);
+      }
+    }
+    
+    // Load message ID map
+    try {
+      const messageMapData = JSON.parse(await fs.readFile(MESSAGE_MAP_FILE, 'utf8'));
+      for (const [key, value] of Object.entries(messageMapData)) {
+        messageIdMap.set(key, value);
+      }
+      console.log(`[ConversationManager] Loaded ${messageIdMap.size} message ID mappings`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        console.error(`Error loading message ID map: ${error.message}`);
+      }
+    }
+    
+    console.log('[ConversationManager] All data loaded successfully');
+  } catch (error) {
+    console.error(`Error loading conversation data: ${error.message}`);
+  }
+}
 
 /**
  * Record a message as part of a conversation with a personality
@@ -53,6 +177,9 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
   
   console.log(`Recorded conversation for user ${userId} in channel ${channelId} with ${messageIdArray.length} messages from ${personalityName}`);
   console.log(`Active conversations map size: ${activeConversations.size}, Message ID map size: ${messageIdMap.size}`);
+  
+  // Save to persistent storage
+  saveAllData();
 }
 
 /**
@@ -91,6 +218,10 @@ function getActivePersonality(userId, channelId) {
  */
 function enableAutoResponse(userId) {
   autoResponseUsers.add(userId);
+  
+  // Save to persistent storage
+  saveAllData();
+  
   return true;
 }
 
@@ -100,7 +231,14 @@ function enableAutoResponse(userId) {
  * @returns {boolean} Success status
  */
 function disableAutoResponse(userId) {
-  return autoResponseUsers.delete(userId);
+  const result = autoResponseUsers.delete(userId);
+  
+  // Save to persistent storage
+  if (result) {
+    saveAllData();
+  }
+  
+  return result;
 }
 
 /**
@@ -115,47 +253,77 @@ function isAutoResponseEnabled(userId) {
 /**
  * Check if a message ID is from a known conversation
  * @param {string} messageId - Discord message ID
+ * @param {Object} [options] - Additional options
+ * @param {string} [options.webhookUsername] - Username of the webhook for fallback detection
  * @returns {string|null} The personality name or null if not found
  */
-function getPersonalityFromMessage(messageId) {
-  console.log(`Looking up personality for message ID: ${messageId}`);
-  console.log(`Current message ID map size: ${messageIdMap.size}`);
+function getPersonalityFromMessage(messageId, options = {}) {
+  // Don't log "Looking up personality" here since bot.js already logs it
+  console.log(`[ConversationManager] Searching for message ID: ${messageId} (map size: ${messageIdMap.size})`);
   
   // Use the message ID map for a quick lookup
   const conversationData = messageIdMap.get(messageId);
   
   if (conversationData) {
-    console.log(`Found personality in message ID map: ${conversationData.personalityName}`);
+    console.log(`[ConversationManager] Found personality in message ID map: ${conversationData.personalityName}`);
     return conversationData.personalityName;
   } else {
-    console.log(`Message ID not found in direct map lookup: ${messageId}`);
+    console.log(`[ConversationManager] Message ID not found in direct map lookup: ${messageId}`);
   }
   
-  console.log(`Falling back to active conversations search (${activeConversations.size} conversations)`);
+  console.log(`[ConversationManager] Falling back to active conversations search (${activeConversations.size} conversations)`);
   
   // Fallback to searching through all active conversations (for backward compatibility)
   for (const [convKey, conversation] of activeConversations.entries()) {
-    console.log(`Checking conversation ${convKey} with personality ${conversation.personalityName}`);
+    console.log(`[ConversationManager] Checking conversation ${convKey} with personality ${conversation.personalityName}`);
     
     if (conversation.messageIds && Array.isArray(conversation.messageIds)) {
-      console.log(`Conversation has ${conversation.messageIds.length} message IDs:`, conversation.messageIds);
-      
       if (conversation.messageIds.includes(messageId)) {
-        console.log(`Found message ID in conversation's messageIds array!`);
+        console.log(`[ConversationManager] Found message ID in conversation's messageIds array!`);
         return conversation.personalityName;
       }
-    } else {
-      console.log(`Conversation has no messageIds array or it's not an array`);
     }
     
     // Legacy support for older conversations
     if (conversation.lastMessageId === messageId) {
-      console.log(`Found message ID in conversation's lastMessageId!`);
+      console.log(`[ConversationManager] Found message ID in conversation's lastMessageId!`);
       return conversation.personalityName;
     }
   }
+  
+  // Final fallback: check by webhook username if provided
+  if (options.webhookUsername) {
+    console.log(`[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`);
+    
+    // Try to get all personalities from the personality manager
+    try {
+      const { listPersonalitiesForUser } = require('./personalityManager');
+      const allPersonalities = listPersonalitiesForUser();
+      
+      // Look for a personality with matching display name
+      for (const personality of allPersonalities) {
+        if (personality.displayName === options.webhookUsername) {
+          console.log(`[ConversationManager] Found personality match by display name: ${personality.fullName}`);
+          return personality.fullName;
+        }
+      }
+      
+      // No direct match, try case-insensitive
+      for (const personality of allPersonalities) {
+        if (personality.displayName && 
+            personality.displayName.toLowerCase() === options.webhookUsername.toLowerCase()) {
+          console.log(`[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`);
+          return personality.fullName;
+        }
+      }
+      
+      console.log(`[ConversationManager] No personality found matching webhook username: "${options.webhookUsername}"`);
+    } catch (error) {
+      console.error(`[ConversationManager] Error looking up personality by webhook username: ${error.message}`);
+    }
+  }
 
-  console.log(`No personality found for message ID: ${messageId}`);
+  console.log(`[ConversationManager] No personality found for message ID: ${messageId}`);
   return null;
 }
 
@@ -185,7 +353,12 @@ function clearConversation(userId, channelId) {
     }
     
     // Remove the conversation
-    return activeConversations.delete(key);
+    const result = activeConversations.delete(key);
+    
+    // Save changes to persistent storage
+    saveAllData();
+    
+    return result;
   }
   
   return false;
@@ -204,6 +377,10 @@ function activatePersonality(channelId, personalityName, userId) {
     activatedBy: userId,
     timestamp: Date.now()
   });
+  
+  // Save to persistent storage
+  saveAllData();
+  
   return true;
 }
 
@@ -213,7 +390,14 @@ function activatePersonality(channelId, personalityName, userId) {
  * @returns {boolean} Success status (true if there was a personality to deactivate)
  */
 function deactivatePersonality(channelId) {
-  return activatedChannels.delete(channelId);
+  const result = activatedChannels.delete(channelId);
+  
+  // Save to persistent storage
+  if (result) {
+    saveAllData();
+  }
+  
+  return result;
 }
 
 /**
@@ -231,9 +415,10 @@ function getActivatedPersonality(channelId) {
 }
 
 // Periodically clean up stale conversations
+const CONVERSATION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 setInterval(() => {
   const now = Date.now();
-  const CONVERSATION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+  let didCleanup = false;
 
   for (const [key, conversation] of activeConversations.entries()) {
     // If conversation is older than 30 minutes, remove it
@@ -253,6 +438,7 @@ setInterval(() => {
       // Delete the conversation
       activeConversations.delete(key);
       console.log(`Cleaned up stale conversation for key: ${key}`);
+      didCleanup = true;
     }
   }
   
@@ -261,11 +447,36 @@ setInterval(() => {
     if (now - data.timestamp > CONVERSATION_TIMEOUT) {
       messageIdMap.delete(msgId);
       console.log(`Cleaned up orphaned message ID mapping: ${msgId}`);
+      didCleanup = true;
     }
+  }
+  
+  // Save data if we did any cleanup
+  if (didCleanup) {
+    saveAllData();
   }
 }, 10 * 60 * 1000); // Run every 10 minutes
 
+// Periodically save data
+setInterval(() => {
+  console.log('[ConversationManager] Running periodic data save...');
+  saveAllData();
+}, 5 * 60 * 1000); // Save every 5 minutes
+
+/**
+ * Initialize the conversation manager
+ */
+async function initConversationManager() {
+  try {
+    await loadAllData();
+    console.log('[ConversationManager] Initialization complete');
+  } catch (error) {
+    console.error(`[ConversationManager] Error initializing: ${error.message}`);
+  }
+}
+
 module.exports = {
+  initConversationManager,
   recordConversation,
   getActivePersonality,
   getPersonalityFromMessage,
@@ -275,5 +486,6 @@ module.exports = {
   getActivatedPersonality,
   enableAutoResponse,
   disableAutoResponse,
-  isAutoResponseEnabled
+  isAutoResponseEnabled,
+  saveAllData
 };
