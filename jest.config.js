@@ -1,5 +1,5 @@
 /** @type {import('jest').Config} */
-export default {
+module.exports = {
   testEnvironment: 'node',
   verbose: true,
   collectCoverage: true,

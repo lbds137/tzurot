@@ -24,12 +24,12 @@ const channelLastMessageTime = new Map();
 const MESSAGE_CACHE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 // Minimum delay between sending messages to ensure proper order (3 seconds)
-const MIN_MESSAGE_DELAY = 3000; // 3 seconds 
+const MIN_MESSAGE_DELAY = 3000; // 3 seconds
 
 // Maximum time to wait for a real response before allowing error message (15 seconds)
 const MAX_ERROR_WAIT_TIME = 15000; // 15 seconds
 
-// Discord message size limits 
+// Discord message size limits
 const MESSAGE_CHAR_LIMIT = 2000;
 
 /**
@@ -42,27 +42,27 @@ async function warmupAvatarUrl(avatarUrl) {
   if (!avatarUrl || avatarWarmupCache.has(avatarUrl)) {
     return;
   }
-  
+
   console.log(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
-  
+
   try {
     // Make a GET request to ensure Discord caches the image
     // Use a timeout to prevent hanging on bad URLs
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(avatarUrl, { 
+
+    const response = await fetch(avatarUrl, {
       method: 'GET',
-      signal: controller.signal
+      signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       console.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
       return;
     }
-    
+
     // Add to cache so we don't warm up the same URL multiple times
     avatarWarmupCache.add(avatarUrl);
     console.log(`[WebhookManager] Successfully warmed up avatar URL: ${avatarUrl}`);
@@ -85,10 +85,10 @@ function splitMessage(content) {
 
   const chunks = [];
   let currentChunk = '';
-  
+
   // First try to split by paragraphs (double newlines)
   const paragraphs = content.split(/\n\s*\n/);
-  
+
   for (const paragraph of paragraphs) {
     // If adding this paragraph exceeds the limit
     if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
@@ -99,11 +99,11 @@ function splitMessage(content) {
           chunks.push(currentChunk);
           currentChunk = '';
         }
-        
+
         // Split paragraph by single newlines
         const lines = paragraph.split(/\n/);
         let lineChunk = '';
-        
+
         for (const line of lines) {
           // If adding this line exceeds the limit
           if (lineChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
@@ -114,11 +114,11 @@ function splitMessage(content) {
                 chunks.push(lineChunk);
                 lineChunk = '';
               }
-              
+
               // Split by sentences
               const sentences = line.split(/(?<=[.!?])\s+/);
               let sentenceChunk = '';
-              
+
               for (const sentence of sentences) {
                 // If adding this sentence exceeds the limit
                 if (sentenceChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
@@ -129,21 +129,21 @@ function splitMessage(content) {
                       chunks.push(sentenceChunk);
                       sentenceChunk = '';
                     }
-                    
+
                     // Split by character limit at word boundaries if possible
                     let remainingSentence = sentence;
                     while (remainingSentence.length > 0) {
                       // Try to find last space within the limit
                       const chunkSize = Math.min(remainingSentence.length, MESSAGE_CHAR_LIMIT);
                       let splitIndex = remainingSentence.lastIndexOf(' ', chunkSize);
-                      
+
                       // If no space found or it's too close to start, just split at limit
                       if (splitIndex <= chunkSize * 0.5) {
                         splitIndex = chunkSize;
                       }
-                      
+
                       chunks.push(remainingSentence.substring(0, splitIndex));
-                      
+
                       // Move to next chunk of the sentence
                       remainingSentence = remainingSentence.substring(splitIndex).trim();
                     }
@@ -154,12 +154,11 @@ function splitMessage(content) {
                   }
                 } else {
                   // Add sentence to current chunk
-                  sentenceChunk = sentenceChunk.length > 0 
-                    ? `${sentenceChunk} ${sentence}` 
-                    : sentence;
+                  sentenceChunk =
+                    sentenceChunk.length > 0 ? `${sentenceChunk} ${sentence}` : sentence;
                 }
               }
-              
+
               // Add any remaining sentence chunk
               if (sentenceChunk.length > 0) {
                 chunks.push(sentenceChunk);
@@ -171,12 +170,10 @@ function splitMessage(content) {
             }
           } else {
             // Add line to current chunk
-            lineChunk = lineChunk.length > 0 
-              ? `${lineChunk}\n${line}` 
-              : line;
+            lineChunk = lineChunk.length > 0 ? `${lineChunk}\n${line}` : line;
           }
         }
-        
+
         // Add any remaining line chunk
         if (lineChunk.length > 0) {
           chunks.push(lineChunk);
@@ -188,17 +185,15 @@ function splitMessage(content) {
       }
     } else {
       // Add paragraph to current chunk
-      currentChunk = currentChunk.length > 0 
-        ? `${currentChunk}\n\n${paragraph}` 
-        : paragraph;
+      currentChunk = currentChunk.length > 0 ? `${currentChunk}\n\n${paragraph}` : paragraph;
     }
   }
-  
+
   // Add any remaining chunk
   if (currentChunk.length > 0) {
     chunks.push(currentChunk);
   }
-  
+
   return chunks;
 }
 
@@ -216,9 +211,9 @@ async function getOrCreateWebhook(channel) {
   try {
     // Try to find existing webhooks in the channel
     const webhooks = await channel.fetchWebhooks();
-    
+
     console.log(`Found ${webhooks.size} webhooks in channel ${channel.name || channel.id}`);
-    
+
     // Look for our bot's webhook - use simpler criteria
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
 
@@ -228,7 +223,7 @@ async function getOrCreateWebhook(channel) {
       webhook = await channel.createWebhook({
         name: 'Tzurot',
         avatar: 'https://i.imgur.com/your-default-avatar.png', // Replace with your bot's default avatar
-        reason: 'Needed for personality proxying'
+        reason: 'Needed for personality proxying',
       });
     } else {
       console.log(`Found existing Tzurot webhook in channel ${channel.id}`);
@@ -236,10 +231,10 @@ async function getOrCreateWebhook(channel) {
 
     // Create a webhook client for this webhook
     const webhookClient = new WebhookClient({ url: webhook.url });
-    
+
     // Cache the webhook client
     webhookCache.set(channel.id, webhookClient);
-    
+
     return webhookClient;
   } catch (error) {
     console.error(`Error getting or creating webhook for channel ${channel.id}:`, error);
@@ -248,12 +243,34 @@ async function getOrCreateWebhook(channel) {
 }
 
 /**
- * Send a message via webhook with a specific personality
- * @param {Object} channel - Discord.js channel object
- * @param {string} content - Message content to send
- * @param {Object} personality - Personality data (name, avatar)
- * @param {Object} options - Additional options
- * @returns {Promise<Object>} The sent message data
+ * Sends a message via Discord webhook with proper personality formatting and error handling
+ *
+ * @param {Object} channel - Discord.js channel object to send the message to
+ * @param {string} content - Message content to send (will be split if too long)
+ * @param {Object} personality - Personality data for webhook customization
+ * @param {string} personality.displayName - The display name to show in Discord
+ * @param {string} [personality.fullName] - The full name/identifier of the personality
+ * @param {string} [personality.avatarUrl] - URL to the avatar image to use
+ * @param {Object} [options={}] - Additional configuration options
+ * @param {boolean} [options.allowMentions=false] - Whether to allow @mentions in the message
+ * @param {boolean} [options.isErrorMessage=false] - Whether this is an error notification
+ * @param {string} [options.threadId] - Thread ID if sending to a thread
+ * @param {Array<Object>} [options.embeds] - Discord embed objects to attach to the message
+ * @param {Array<Object>} [options.components] - Discord UI components to attach
+ * @returns {Promise<Object>} The sent message data with success status
+ *
+ * @description
+ * This is the core messaging function that handles all Discord webhook interactions.
+ * It includes sophisticated handling for:
+ * - Message splitting for content over Discord's character limit
+ * - Webhook creation and caching for performance
+ * - Error handling and logging for Discord API failures
+ * - Avatar URL validation and pre-loading
+ * - Message deduplication to prevent double-sends
+ * - Proper formatting of personality names and avatars
+ *
+ * All messages from AI personalities should be sent through this function
+ * to ensure consistent formatting and reliability.
  */
 async function sendWebhookMessage(channel, content, personality, options = {}) {
   // Minimize console output during webhook operations
@@ -262,40 +279,50 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
   console.log = () => {};
   console.warn = () => {};
   try {
-    console.log(`Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`);
-    
+    console.log(
+      `Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`
+    );
+
     // Generate a unique tracking ID for this message to prevent duplicates
     const messageTrackingId = `${channel.id}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-    
+
     // Check if we're already sending a very similar message
     if (activeWebhooks.has(messageTrackingId)) {
-      console.log(`Duplicate message detected with ID ${messageTrackingId} - preventing double send`);
+      console.log(
+        `Duplicate message detected with ID ${messageTrackingId} - preventing double send`
+      );
       return null;
     }
-    
+
     // Check if this is likely an error message
-    const isErrorMessage = content && (
-      content.includes("I'm having trouble connecting") ||
-      content.includes("ERROR_MESSAGE_PREFIX:") ||
-      content.includes("trouble connecting to my brain") ||
-      content.includes("technical issue") ||
-      content.includes("Error ID:") ||
-      content.includes("issue with my configuration") ||
-      content.includes("issue with my response system") ||
-      content.includes("momentary lapse") ||
-      content.includes("try again later") ||
-      (content.includes("connection") && content.includes("unstable")) ||
-      content.includes("unable to formulate") ||
-      content.includes("Please try again")
-    );
-    
+    const isErrorMessage =
+      content &&
+      (content.includes("I'm having trouble connecting") ||
+        content.includes('ERROR_MESSAGE_PREFIX:') ||
+        content.includes('trouble connecting to my brain') ||
+        content.includes('technical issue') ||
+        content.includes('Error ID:') ||
+        content.includes('issue with my configuration') ||
+        content.includes('issue with my response system') ||
+        content.includes('momentary lapse') ||
+        content.includes('try again later') ||
+        (content.includes('connection') && content.includes('unstable')) ||
+        content.includes('unable to formulate') ||
+        content.includes('Please try again'));
+
     // CRITICAL: If this is an error message AND the personality has a pending message
     // in this channel, completely drop this error message
-    if (isErrorMessage && personality.fullName && hasPersonalityPendingMessage(personality.fullName, channel.id)) {
-      console.log(`[Webhook] CRITICAL: Blocking error message for ${personality.fullName} due to pending message`);
+    if (
+      isErrorMessage &&
+      personality.fullName &&
+      hasPersonalityPendingMessage(personality.fullName, channel.id)
+    ) {
+      console.log(
+        `[Webhook] CRITICAL: Blocking error message for ${personality.fullName} due to pending message`
+      );
       return null; // Do not send error message at all
     }
-    
+
     // If this isn't an error message, register it as pending
     if (!isErrorMessage && personality.fullName) {
       console.log(`[Webhook] Registering normal message as pending for ${personality.fullName}`);
@@ -304,32 +331,34 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       console.log(`[Webhook] Detected error message for ${personality.fullName}`);
       registerPendingMessage(personality.fullName, channel.id, content, true);
     }
-    
+
     // Calculate any delay needed to ensure proper message ordering
     const delayNeeded = calculateMessageDelay(channel.id);
     if (delayNeeded > 0) {
       console.log(`[Webhook] Delaying message by ${delayNeeded}ms for channel ${channel.id}`);
       await new Promise(resolve => setTimeout(resolve, delayNeeded));
     }
-    
+
     // Mark this message as being processed
     activeWebhooks.add(messageTrackingId);
-    
+
     try {
       // Pre-load the avatar URL to ensure Discord caches it
       // This helps with the issue where avatars don't show on first message
       if (personality.avatarUrl) {
         await warmupAvatarUrl(personality.avatarUrl);
       }
-      
+
       // Get the appropriate webhook client - we use a STATIC webhook shared for all messages
       const webhook = await getOrCreateWebhook(channel);
-      
+
       // CRITICAL FIX: Force consistent username and prevent duplicate messages
       // We MUST standardize the username completely - NEVER use fullName which causes duplicate displays
       const standardizedName = getStandardizedUsername(personality);
-      console.log(`[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`);
-      
+      console.log(
+        `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
+      );
+
       // Check if we need to split the message
       let contentChunks = [''];
       try {
@@ -341,53 +370,57 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         console.error('[Webhook] Error splitting message content:', error);
         contentChunks = ['[Error processing message content]'];
       }
-      
+
       let firstSentMessage = null;
-      
+
       // Track all sent message IDs in this conversation
       const sentMessageIds = [];
-      
+
       // Now send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
         const isLastChunk = i === contentChunks.length - 1;
-        
+
         // Use the chunk content as is, without adding continuation indicators
         let chunkContent = contentChunks[i];
-        
+
         // CRITICAL FIX: Check if this exact message was recently sent to prevent duplicates
         // This prevents the double message problem by checking content + username + channel
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
-          console.log(`[Webhook] Skipping message chunk ${i+1} due to duplicate detection`);
+          console.log(`[Webhook] Skipping message chunk ${i + 1} due to duplicate detection`);
           continue; // Skip this chunk, move to the next one
         }
-        
+
         // Update last message time for this channel to ensure proper ordering
         updateChannelLastMessageTime(channel.id);
-        
+
         // Add a special prefix to error messages to make them easy to filter
-        let finalContent = chunkContent || "";
-        if (finalContent.includes("trouble connecting") || 
-            finalContent.includes("technical issue") || 
-            finalContent.includes("Error ID:") ||
-            finalContent.includes("issue with my configuration") ||
-            finalContent.includes("issue with my response system") ||
-            finalContent.includes("momentary lapse") ||
-            finalContent.includes("try again later") ||
-            (finalContent.includes("connection") && finalContent.includes("unstable")) ||
-            finalContent.includes("unable to formulate") ||
-            finalContent.includes("Please try again")) {
+        let finalContent = chunkContent || '';
+        if (
+          finalContent.includes('trouble connecting') ||
+          finalContent.includes('technical issue') ||
+          finalContent.includes('Error ID:') ||
+          finalContent.includes('issue with my configuration') ||
+          finalContent.includes('issue with my response system') ||
+          finalContent.includes('momentary lapse') ||
+          finalContent.includes('try again later') ||
+          (finalContent.includes('connection') && finalContent.includes('unstable')) ||
+          finalContent.includes('unable to formulate') ||
+          finalContent.includes('Please try again')
+        ) {
           // Mark this as an error message by adding a special prefix that our bot will recognize
           console.log(`[Webhook] Detected error message, adding special prefix`);
-          finalContent = "ERROR_MESSAGE_PREFIX: " + finalContent;
+          finalContent = 'ERROR_MESSAGE_PREFIX: ' + finalContent;
         }
-        
+
         // Completely discard any messages with our hard block marker
-        if (finalContent.includes("HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY")) {
-          console.log(`[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`);
+        if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY')) {
+          console.log(
+            `[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`
+          );
           continue; // Skip to the next chunk
         }
-        
+
         // Prepare message data for this chunk - using the STANDARDIZED username
         const messageData = {
           content: finalContent, // Use our potentially marked content
@@ -399,50 +432,62 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
         // Add optional embed if provided - only on the first chunk
         if (isFirstChunk && options.embed) {
-          messageData.embeds = [
-            new EmbedBuilder(options.embed)
-          ];
+          messageData.embeds = [new EmbedBuilder(options.embed)];
         }
 
         // Add optional files if provided - only on the first chunk
         if (isFirstChunk && options.files) {
           messageData.files = options.files;
         }
-        
+
         // Log what we're sending
-        console.log(`Sending webhook message chunk ${i+1}/${contentChunks.length} with data: ${JSON.stringify({
-          username: messageData.username,
-          contentLength: messageData.content?.length,
-          hasEmbeds: !!messageData.embeds?.length,
-          threadId: messageData.threadId
-        })}`);
-        
+        console.log(
+          `Sending webhook message chunk ${i + 1}/${contentChunks.length} with data: ${JSON.stringify(
+            {
+              username: messageData.username,
+              contentLength: messageData.content?.length,
+              hasEmbeds: !!messageData.embeds?.length,
+              threadId: messageData.threadId,
+            }
+          )}`
+        );
+
         // Send the message
         try {
           const sentMessage = await webhook.send(messageData);
-          console.log(`Successfully sent webhook message chunk ${i+1}/${contentChunks.length} with ID: ${sentMessage.id}`);
-          
+          console.log(
+            `Successfully sent webhook message chunk ${i + 1}/${contentChunks.length} with ID: ${sentMessage.id}`
+          );
+
           // Track this message ID
-          console.log(`Adding message ID to tracking: ${sentMessage.id}, webhook ID: ${sentMessage.webhookId || 'unknown'}`);
+          console.log(
+            `Adding message ID to tracking: ${sentMessage.id}, webhook ID: ${sentMessage.webhookId || 'unknown'}`
+          );
           sentMessageIds.push(sentMessage.id);
-          
+
           // Keep track of the first message for returning
           if (isFirstChunk) {
             firstSentMessage = sentMessage;
-            console.log(`Storing first message: ID=${sentMessage.id}, webhookId=${sentMessage.webhookId || 'unknown'}, channel=${channel.id}`);
+            console.log(
+              `Storing first message: ID=${sentMessage.id}, webhookId=${sentMessage.webhookId || 'unknown'}, channel=${channel.id}`
+            );
           }
         } catch (innerError) {
-          console.error(`Error sending message chunk ${i+1}/${contentChunks.length}:`, innerError);
-          
+          console.error(
+            `Error sending message chunk ${i + 1}/${contentChunks.length}:`,
+            innerError
+          );
+
           // If this is because of length, try to send a simpler message indicating the error
-          if (innerError.code === 50035) { // Invalid Form Body
+          if (innerError.code === 50035) {
+            // Invalid Form Body
             try {
               // Create a safe fallback message with proper error handling
               // Just use the display name without the full name
-              const safeDisplayName = personality?.displayName || "Bot";
+              const safeDisplayName = personality?.displayName || 'Bot';
               const safeAvatarURL = personality?.avatarUrl || null;
               const safeThreadId = channel.isThread() ? channel.id : undefined;
-              
+
               await webhook.send({
                 content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
                 username: safeDisplayName,
@@ -458,57 +503,60 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
               code: innerError.code,
               message: innerError.message,
               name: innerError.name,
-              stack: innerError.stack?.split("\n")[0] || "No stack trace"
+              stack: innerError.stack?.split('\n')[0] || 'No stack trace',
             });
           }
-          
+
           // If this is the first chunk and it failed, we need to propagate the error
           if (isFirstChunk) {
             throw innerError;
           }
         }
       }
-      
+
       // Remove this message from active tracking after a short delay
       setTimeout(() => {
         activeWebhooks.delete(messageTrackingId);
       }, 5000);
-      
+
       // Clear pending message for this personality+channel since we've sent the message
       if (personality && personality.fullName) {
         clearPendingMessage(personality.fullName, channel.id);
       }
-      
+
       // Log return data for debugging
-      console.log(`Returning webhook result with ${sentMessageIds.length} message IDs:`, sentMessageIds);
-      
+      console.log(
+        `Returning webhook result with ${sentMessageIds.length} message IDs:`,
+        sentMessageIds
+      );
+
       // Add debugging info before returning
       console.log(`[Webhook] Returning result with: ${sentMessageIds.length} message IDs:`);
       sentMessageIds.forEach(id => console.log(`[Webhook] Message ID: ${id}`));
-      
+
       // Return an object with the first message and all message IDs
       // If we didn't send any messages due to duplication, we'll create a "virtual" result
       // to ensure the conversation tracking still works
       if (sentMessageIds.length > 0) {
         return {
           message: firstSentMessage,
-          messageIds: sentMessageIds
+          messageIds: sentMessageIds,
         };
       } else {
         // Create a "virtual" result since we skipped all messages due to duplication
         // This ensures conversation tracking still works properly
         console.log(`[Webhook] All messages were duplicates, creating virtual result`);
         const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-        
+
         // Clear pending message if we're returning a virtual result
         if (personality && personality.fullName) {
           clearPendingMessage(personality.fullName, channel.id);
         }
-        
+
         return {
           message: { id: virtualId },
           messageIds: [virtualId],
-          isDuplicate: true
+          isDuplicate: true,
         };
       }
     } catch (error) {
@@ -518,16 +566,17 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     }
   } catch (error) {
     console.error('Webhook error:', error.message);
-    
+
     // If webhook is invalid, remove it from cache
-    if (error.code === 10015) { // Unknown Webhook
+    if (error.code === 10015) {
+      // Unknown Webhook
       webhookCache.delete(channel.id);
     }
-    
+
     // Restore console functions
     console.log = originalConsoleLog;
     console.warn = originalConsoleWarn;
-    
+
     throw error;
   }
 }
@@ -562,32 +611,32 @@ function clearAllWebhookCaches() {
 function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
-  
+
   // Comprehensive list of error message patterns
   const errorPatterns = [
     "I'm having trouble connecting",
-    "ERROR_MESSAGE_PREFIX:",
-    "trouble connecting to my brain",
-    "technical issue",
-    "Error ID:",
-    "issue with my configuration",
-    "issue with my response system",
-    "momentary lapse",
-    "try again later",
-    "unable to formulate",
-    "Please try again",
-    "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY",
-    "connectivity problem",
-    "I cannot access",
-    "experiencing difficulties",
-    "system error",
-    "something went wrong",
-    "service is unavailable", 
-    "not responding",
-    "failed to generate",
-    "unavailable at this time"
+    'ERROR_MESSAGE_PREFIX:',
+    'trouble connecting to my brain',
+    'technical issue',
+    'Error ID:',
+    'issue with my configuration',
+    'issue with my response system',
+    'momentary lapse',
+    'try again later',
+    'unable to formulate',
+    'Please try again',
+    'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
+    'connectivity problem',
+    'I cannot access',
+    'experiencing difficulties',
+    'system error',
+    'something went wrong',
+    'service is unavailable',
+    'not responding',
+    'failed to generate',
+    'unavailable at this time',
   ];
-  
+
   // Check if content matches any error pattern
   return errorPatterns.some(pattern => options.content.includes(pattern));
 }
@@ -601,23 +650,26 @@ function registerEventListeners(discordClient) {
   discordClient.on('channelDelete', channel => {
     clearWebhookCache(channel.id);
   });
-  
+
   // CRITICAL: Patch the WebhookClient prototype to intercept error messages at the source
   // This is an extreme measure to prevent error messages from ever being sent
   const originalSend = require('discord.js').WebhookClient.prototype.send;
-  
-  require('discord.js').WebhookClient.prototype.send = async function(options) {
+
+  require('discord.js').WebhookClient.prototype.send = async function (options) {
     // Normalize options to handle various function signatures
     const normalizedOptions = typeof options === 'string' ? { content: options } : options;
-    
+
     // Check if this is an error message
     if (isErrorWebhookMessage(normalizedOptions)) {
       console.log(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
-      console.log(`[Webhook CRITICAL] Options:`, JSON.stringify({
-        username: normalizedOptions.username,
-        content: normalizedOptions.content?.substring(0, 50)
-      }));
-      
+      console.log(
+        `[Webhook CRITICAL] Options:`,
+        JSON.stringify({
+          username: normalizedOptions.username,
+          content: normalizedOptions.content?.substring(0, 50),
+        })
+      );
+
       // Return a dummy ID to simulate successful sending
       // This will prevent any error handling from triggering or retries
       console.log(`[Webhook CRITICAL] Returning dummy ID instead of sending error message`);
@@ -625,12 +677,12 @@ function registerEventListeners(discordClient) {
         id: `blocked-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
         content: normalizedOptions.content,
         author: {
-          username: normalizedOptions.username || "Bot",
-          bot: true
-        }
+          username: normalizedOptions.username || 'Bot',
+          bot: true,
+        },
       };
     }
-    
+
     // If not an error message, send normally
     return originalSend.apply(this, [options]);
   };
@@ -643,45 +695,56 @@ function registerEventListeners(discordClient) {
  */
 async function preloadPersonalityAvatar(personality) {
   if (!personality) {
-    console.error(`[WebhookManager] Cannot preload avatar: personality object is null or undefined`);
+    console.error(
+      `[WebhookManager] Cannot preload avatar: personality object is null or undefined`
+    );
     return;
   }
-  
+
   if (!personality.avatarUrl) {
-    console.warn(`[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`);
+    console.warn(
+      `[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
+    );
     return;
   }
-  
-  console.log(`[WebhookManager] Preloading avatar for ${personality.displayName || personality.fullName}: ${personality.avatarUrl}`);
-  
+
+  console.log(
+    `[WebhookManager] Preloading avatar for ${personality.displayName || personality.fullName}: ${personality.avatarUrl}`
+  );
+
   try {
     // First try a direct fetch to validate the URL
     const fetch = require('node-fetch');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(personality.avatarUrl, { 
+
+    const response = await fetch(personality.avatarUrl, {
       method: 'GET',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
-      console.warn(`[WebhookManager] Personality avatar URL invalid: ${response.status} ${response.statusText}`);
+      console.warn(
+        `[WebhookManager] Personality avatar URL invalid: ${response.status} ${response.statusText}`
+      );
       return;
     }
-    
+
     // Read a small chunk of the response to ensure it's loaded
     const buffer = await response.buffer();
     console.log(`[WebhookManager] Avatar image loaded (${buffer.length} bytes)`);
-    
+
     // Then use our standard warmup function to cache it
     await warmupAvatarUrl(personality.avatarUrl);
-    console.log(`[WebhookManager] Successfully preloaded avatar for ${personality.displayName || personality.fullName}`);
+    console.log(
+      `[WebhookManager] Successfully preloaded avatar for ${personality.displayName || personality.fullName}`
+    );
   } catch (error) {
     console.error(`[WebhookManager] Error preloading personality avatar:`, error.message);
   }
@@ -695,22 +758,26 @@ async function preloadPersonalityAvatar(personality) {
  */
 function getStandardizedUsername(personality) {
   if (!personality) {
-    return "Bot";
+    return 'Bot';
   }
-  
+
   try {
     // ALWAYS prioritize displayName over any other field
-    if (personality.displayName && typeof personality.displayName === 'string' && personality.displayName.trim().length > 0) {
+    if (
+      personality.displayName &&
+      typeof personality.displayName === 'string' &&
+      personality.displayName.trim().length > 0
+    ) {
       const name = personality.displayName.trim();
-      
+
       // Discord has a 32 character limit for webhook usernames
       if (name.length > 32) {
-        return name.slice(0, 29) + "...";
+        return name.slice(0, 29) + '...';
       }
-      
+
       return name;
     }
-    
+
     // Fallback: Extract name from fullName
     if (personality.fullName && typeof personality.fullName === 'string') {
       // If fullName has hyphens, use first part as display name
@@ -718,29 +785,29 @@ function getStandardizedUsername(personality) {
       if (parts.length > 0 && parts[0].length > 0) {
         // Capitalize first letter for nicer display
         const extracted = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        
+
         // Discord has a 32 character limit
         if (extracted.length > 32) {
-          return extracted.slice(0, 29) + "...";
+          return extracted.slice(0, 29) + '...';
         }
-        
+
         return extracted;
       }
-      
+
       // If no hyphens, use the full name if short enough
       if (personality.fullName.length <= 32) {
         return personality.fullName;
       }
-      
+
       // Truncate long names
-      return personality.fullName.slice(0, 29) + "...";
+      return personality.fullName.slice(0, 29) + '...';
     }
   } catch (error) {
     console.error(`[Webhook] Error generating standard username:`, error);
   }
-  
+
   // Final fallback
-  return "Bot";
+  return 'Bot';
 }
 
 /**
@@ -788,9 +855,11 @@ function registerPendingMessage(personalityName, channelId, content, isError) {
     content: content?.substring(0, 100),
     isError,
     personalityName,
-    channelId
+    channelId,
   });
-  console.log(`[Webhook] Registered ${isError ? 'ERROR' : 'normal'} message for ${personalityName} in channel ${channelId}`);
+  console.log(
+    `[Webhook] Registered ${isError ? 'ERROR' : 'normal'} message for ${personalityName} in channel ${channelId}`
+  );
 }
 
 /**
@@ -815,7 +884,7 @@ function calculateMessageDelay(channelId) {
   if (channelLastMessageTime.has(channelId)) {
     const lastTime = channelLastMessageTime.get(channelId);
     const timeSinceLastMessage = Date.now() - lastTime;
-    
+
     if (timeSinceLastMessage < MIN_MESSAGE_DELAY) {
       // Need to wait to ensure proper message ordering
       const delayNeeded = MIN_MESSAGE_DELAY - timeSinceLastMessage;
@@ -861,10 +930,10 @@ function isDuplicateMessage(content, username, channelId) {
   if (!content || content.length === 0) {
     return false;
   }
-  
+
   // Create a hash key for this message
   const hash = hashMessage(content, username, channelId);
-  
+
   // Check if the hash exists in our cache
   if (recentMessageCache.has(hash)) {
     const timestamp = recentMessageCache.get(hash);
@@ -874,10 +943,10 @@ function isDuplicateMessage(content, username, channelId) {
       return true;
     }
   }
-  
+
   // Not a duplicate, add to cache
   recentMessageCache.set(hash, Date.now());
-  
+
   // Cleanup old cache entries
   const now = Date.now();
   for (const [key, timestamp] of recentMessageCache.entries()) {
@@ -885,7 +954,7 @@ function isDuplicateMessage(content, username, channelId) {
       recentMessageCache.delete(key);
     }
   }
-  
+
   return false;
 }
 
@@ -905,5 +974,5 @@ module.exports = {
   clearPendingMessage,
   calculateMessageDelay,
   updateChannelLastMessageTime,
-  createPersonalityChannelKey
+  createPersonalityChannelKey,
 };

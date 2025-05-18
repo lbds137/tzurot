@@ -37,32 +37,32 @@ async function ensureDataDir() {
 async function saveAllData() {
   try {
     await ensureDataDir();
-    
+
     // Save active conversations
     const conversationsData = {};
     for (const [key, value] of activeConversations.entries()) {
       conversationsData[key] = value;
     }
     await fs.writeFile(CONVERSATIONS_FILE, JSON.stringify(conversationsData, null, 2));
-    
+
     // Save activated channels
     const activatedChannelsData = {};
     for (const [key, value] of activatedChannels.entries()) {
       activatedChannelsData[key] = value;
     }
     await fs.writeFile(CHANNEL_ACTIVATIONS_FILE, JSON.stringify(activatedChannelsData, null, 2));
-    
+
     // Save auto-response users
     const autoResponseData = Array.from(autoResponseUsers);
     await fs.writeFile(AUTO_RESPONSE_FILE, JSON.stringify(autoResponseData, null, 2));
-    
+
     // Save message ID map
     const messageMapData = {};
     for (const [key, value] of messageIdMap.entries()) {
       messageMapData[key] = value;
     }
     await fs.writeFile(MESSAGE_MAP_FILE, JSON.stringify(messageMapData, null, 2));
-    
+
     console.log('Conversation data saved');
   } catch (error) {
     console.error(`Error saving conversation data: ${error.message}`);
@@ -75,7 +75,7 @@ async function saveAllData() {
 async function loadAllData() {
   try {
     await ensureDataDir();
-    
+
     // Load active conversations
     try {
       const conversationsData = JSON.parse(await fs.readFile(CONVERSATIONS_FILE, 'utf8'));
@@ -88,7 +88,7 @@ async function loadAllData() {
         console.error(`Error loading conversations: ${error.message}`);
       }
     }
-    
+
     // Load activated channels
     try {
       const activatedChannelsData = JSON.parse(await fs.readFile(CHANNEL_ACTIVATIONS_FILE, 'utf8'));
@@ -101,7 +101,7 @@ async function loadAllData() {
         console.error(`Error loading activated channels: ${error.message}`);
       }
     }
-    
+
     // Load auto-response users
     try {
       const autoResponseData = JSON.parse(await fs.readFile(AUTO_RESPONSE_FILE, 'utf8'));
@@ -114,7 +114,7 @@ async function loadAllData() {
         console.error(`Error loading auto-response users: ${error.message}`);
       }
     }
-    
+
     // Load message ID map
     try {
       const messageMapData = JSON.parse(await fs.readFile(MESSAGE_MAP_FILE, 'utf8'));
@@ -127,7 +127,7 @@ async function loadAllData() {
         console.error(`Error loading message ID map: ${error.message}`);
       }
     }
-    
+
     console.log('[ConversationManager] All data loaded successfully');
   } catch (error) {
     console.error(`Error loading conversation data: ${error.message}`);
@@ -145,7 +145,7 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
   // Minimize logging during conversation recording
   const originalConsoleLog = console.log;
   console.log = () => {}; // Temporarily disable logging
-  
+
   const key = `${userId}-${channelId}`;
   const timestamp = Date.now();
 
@@ -156,7 +156,7 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
   activeConversations.set(key, {
     personalityName,
     messageIds: messageIdArray,
-    timestamp: timestamp
+    timestamp: timestamp,
   });
 
   // Map each message ID to this conversation for quick lookup
@@ -165,17 +165,17 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
       userId,
       channelId,
       personalityName,
-      timestamp
+      timestamp,
     });
   });
-  
+
   // Save to persistent storage
   try {
     saveAllData();
   } catch (error) {
     console.error(`[ConversationManager] Error saving: ${error.message}`);
   }
-  
+
   // Restore console output
   console.log = originalConsoleLog;
 }
@@ -200,7 +200,7 @@ function getActivePersonality(userId, channelId) {
   }
 
   // Check if the conversation is still "fresh" (within the last 30 minutes)
-  const isStale = (Date.now() - conversation.timestamp) > 30 * 60 * 1000;
+  const isStale = Date.now() - conversation.timestamp > 30 * 60 * 1000;
   if (isStale) {
     activeConversations.delete(key);
     return null;
@@ -216,10 +216,10 @@ function getActivePersonality(userId, channelId) {
  */
 function enableAutoResponse(userId) {
   autoResponseUsers.add(userId);
-  
+
   // Save to persistent storage
   saveAllData();
-  
+
   return true;
 }
 
@@ -230,12 +230,12 @@ function enableAutoResponse(userId) {
  */
 function disableAutoResponse(userId) {
   const result = autoResponseUsers.delete(userId);
-  
+
   // Save to persistent storage
   if (result) {
     saveAllData();
   }
-  
+
   return result;
 }
 
@@ -257,103 +257,131 @@ function isAutoResponseEnabled(userId) {
  */
 function getPersonalityFromMessage(messageId, options = {}) {
   // Don't log "Looking up personality" here since bot.js already logs it
-  console.log(`[ConversationManager] Searching for message ID: ${messageId} (map size: ${messageIdMap.size})`);
-  
+  console.log(
+    `[ConversationManager] Searching for message ID: ${messageId} (map size: ${messageIdMap.size})`
+  );
+
   // Use the message ID map for a quick lookup
   const conversationData = messageIdMap.get(messageId);
-  
+
   if (conversationData) {
-    console.log(`[ConversationManager] Found personality in message ID map: ${conversationData.personalityName}`);
+    console.log(
+      `[ConversationManager] Found personality in message ID map: ${conversationData.personalityName}`
+    );
     return conversationData.personalityName;
   } else {
     console.log(`[ConversationManager] Message ID not found in direct map lookup: ${messageId}`);
   }
-  
-  console.log(`[ConversationManager] Falling back to active conversations search (${activeConversations.size} conversations)`);
-  
+
+  console.log(
+    `[ConversationManager] Falling back to active conversations search (${activeConversations.size} conversations)`
+  );
+
   // Fallback to searching through all active conversations (for backward compatibility)
   for (const [convKey, conversation] of activeConversations.entries()) {
-    console.log(`[ConversationManager] Checking conversation ${convKey} with personality ${conversation.personalityName}`);
-    
+    console.log(
+      `[ConversationManager] Checking conversation ${convKey} with personality ${conversation.personalityName}`
+    );
+
     if (conversation.messageIds && Array.isArray(conversation.messageIds)) {
       if (conversation.messageIds.includes(messageId)) {
         console.log(`[ConversationManager] Found message ID in conversation's messageIds array!`);
         return conversation.personalityName;
       }
     }
-    
+
     // Legacy support for older conversations
     if (conversation.lastMessageId === messageId) {
       console.log(`[ConversationManager] Found message ID in conversation's lastMessageId!`);
       return conversation.personalityName;
     }
   }
-  
+
   // Final fallback: check by webhook username if provided
   if (options.webhookUsername) {
-    console.log(`[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`);
-    
+    console.log(
+      `[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`
+    );
+
     // Helper function to safely get lowercase version of a string
-    const safeToLowerCase = (str) => {
+    const safeToLowerCase = str => {
       if (!str) return '';
       return String(str).toLowerCase();
     };
-    
+
     // We're now just using displayName for webhook usernames (no more full-name in parentheses)
     // So we'll skip this part and go straight to matching by display name
-    
+
     // If no match from the formatted name, fall back to the old method
     try {
       const { listPersonalitiesForUser } = require('./personalityManager');
       const allPersonalities = listPersonalitiesForUser();
-      
+
       if (!allPersonalities || !Array.isArray(allPersonalities)) {
-        console.error(`[ConversationManager] listPersonalitiesForUser returned invalid data:`, allPersonalities);
+        console.error(
+          `[ConversationManager] listPersonalitiesForUser returned invalid data:`,
+          allPersonalities
+        );
         return null;
       }
-      
-      console.log(`[ConversationManager] Checking ${allPersonalities.length} personalities for match with: ${options.webhookUsername}`);
-      
+
+      console.log(
+        `[ConversationManager] Checking ${allPersonalities.length} personalities for match with: ${options.webhookUsername}`
+      );
+
       // Look for a personality with matching display name
       for (const personality of allPersonalities) {
         if (!personality) continue;
-        
+
         // Exact match first
         if (personality.displayName && personality.displayName === options.webhookUsername) {
-          console.log(`[ConversationManager] Found personality match by display name: ${personality.fullName}`);
+          console.log(
+            `[ConversationManager] Found personality match by display name: ${personality.fullName}`
+          );
           return personality.fullName;
         }
       }
-      
+
       // No direct match, try case-insensitive
       const webhookUsernameLower = safeToLowerCase(options.webhookUsername);
       for (const personality of allPersonalities) {
         if (!personality || !personality.displayName) continue;
-        
+
         const displayNameLower = safeToLowerCase(personality.displayName);
         if (displayNameLower === webhookUsernameLower) {
-          console.log(`[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`);
+          console.log(
+            `[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`
+          );
           return personality.fullName;
         }
       }
-      
+
       // Try partial match as last resort
-      if (webhookUsernameLower.length > 3) { // Only try if username is substantial
+      if (webhookUsernameLower.length > 3) {
+        // Only try if username is substantial
         for (const personality of allPersonalities) {
           if (!personality || !personality.displayName) continue;
-          
+
           const displayNameLower = safeToLowerCase(personality.displayName);
-          if (displayNameLower.includes(webhookUsernameLower) || 
-              webhookUsernameLower.includes(displayNameLower)) {
-            console.log(`[ConversationManager] Found personality match by partial name: ${personality.fullName}`);
+          if (
+            displayNameLower.includes(webhookUsernameLower) ||
+            webhookUsernameLower.includes(displayNameLower)
+          ) {
+            console.log(
+              `[ConversationManager] Found personality match by partial name: ${personality.fullName}`
+            );
             return personality.fullName;
           }
         }
       }
-      
-      console.log(`[ConversationManager] No personality found matching webhook username: "${options.webhookUsername}"`);
+
+      console.log(
+        `[ConversationManager] No personality found matching webhook username: "${options.webhookUsername}"`
+      );
     } catch (error) {
-      console.error(`[ConversationManager] Error looking up personality by webhook username: ${error.message}`);
+      console.error(
+        `[ConversationManager] Error looking up personality by webhook username: ${error.message}`
+      );
     }
   }
 
@@ -369,10 +397,10 @@ function getPersonalityFromMessage(messageId, options = {}) {
  */
 function clearConversation(userId, channelId) {
   const key = `${userId}-${channelId}`;
-  
+
   // Get the conversation before deleting it
   const conversation = activeConversations.get(key);
-  
+
   if (conversation) {
     // Clean up the message ID mappings
     if (conversation.messageIds) {
@@ -380,21 +408,21 @@ function clearConversation(userId, channelId) {
         messageIdMap.delete(msgId);
       });
     }
-    
+
     // Legacy support
     if (conversation.lastMessageId) {
       messageIdMap.delete(conversation.lastMessageId);
     }
-    
+
     // Remove the conversation
     const result = activeConversations.delete(key);
-    
+
     // Save changes to persistent storage
     saveAllData();
-    
+
     return result;
   }
-  
+
   return false;
 }
 
@@ -409,12 +437,12 @@ function activatePersonality(channelId, personalityName, userId) {
   activatedChannels.set(channelId, {
     personalityName,
     activatedBy: userId,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
-  
+
   // Save to persistent storage
   saveAllData();
-  
+
   return true;
 }
 
@@ -425,12 +453,12 @@ function activatePersonality(channelId, personalityName, userId) {
  */
 function deactivatePersonality(channelId) {
   const result = activatedChannels.delete(channelId);
-  
+
   // Save to persistent storage
   if (result) {
     saveAllData();
   }
-  
+
   return result;
 }
 
@@ -450,52 +478,58 @@ function getActivatedPersonality(channelId) {
 
 // Periodically clean up stale conversations
 const CONVERSATION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-setInterval(() => {
-  const now = Date.now();
-  let didCleanup = false;
+setInterval(
+  () => {
+    const now = Date.now();
+    let didCleanup = false;
 
-  for (const [key, conversation] of activeConversations.entries()) {
-    // If conversation is older than 30 minutes, remove it
-    if (now - conversation.timestamp > CONVERSATION_TIMEOUT) {
-      // Clean up the message ID mappings
-      if (conversation.messageIds) {
-        conversation.messageIds.forEach(msgId => {
-          messageIdMap.delete(msgId);
-        });
+    for (const [key, conversation] of activeConversations.entries()) {
+      // If conversation is older than 30 minutes, remove it
+      if (now - conversation.timestamp > CONVERSATION_TIMEOUT) {
+        // Clean up the message ID mappings
+        if (conversation.messageIds) {
+          conversation.messageIds.forEach(msgId => {
+            messageIdMap.delete(msgId);
+          });
+        }
+
+        // Legacy support
+        if (conversation.lastMessageId) {
+          messageIdMap.delete(conversation.lastMessageId);
+        }
+
+        // Delete the conversation
+        activeConversations.delete(key);
+        console.log(`Cleaned up stale conversation for key: ${key}`);
+        didCleanup = true;
       }
-      
-      // Legacy support
-      if (conversation.lastMessageId) {
-        messageIdMap.delete(conversation.lastMessageId);
+    }
+
+    // Additional cleanup for any orphaned message ID mappings
+    for (const [msgId, data] of messageIdMap.entries()) {
+      if (now - data.timestamp > CONVERSATION_TIMEOUT) {
+        messageIdMap.delete(msgId);
+        console.log(`Cleaned up orphaned message ID mapping: ${msgId}`);
+        didCleanup = true;
       }
-      
-      // Delete the conversation
-      activeConversations.delete(key);
-      console.log(`Cleaned up stale conversation for key: ${key}`);
-      didCleanup = true;
     }
-  }
-  
-  // Additional cleanup for any orphaned message ID mappings
-  for (const [msgId, data] of messageIdMap.entries()) {
-    if (now - data.timestamp > CONVERSATION_TIMEOUT) {
-      messageIdMap.delete(msgId);
-      console.log(`Cleaned up orphaned message ID mapping: ${msgId}`);
-      didCleanup = true;
+
+    // Save data if we did any cleanup
+    if (didCleanup) {
+      saveAllData();
     }
-  }
-  
-  // Save data if we did any cleanup
-  if (didCleanup) {
-    saveAllData();
-  }
-}, 10 * 60 * 1000); // Run every 10 minutes
+  },
+  10 * 60 * 1000
+); // Run every 10 minutes
 
 // Periodically save data
-setInterval(() => {
-  console.log('[ConversationManager] Running periodic data save...');
-  saveAllData();
-}, 5 * 60 * 1000); // Save every 5 minutes
+setInterval(
+  () => {
+    console.log('[ConversationManager] Running periodic data save...');
+    saveAllData();
+  },
+  5 * 60 * 1000
+); // Save every 5 minutes
 
 /**
  * Initialize the conversation manager
@@ -521,5 +555,5 @@ module.exports = {
   enableAutoResponse,
   disableAutoResponse,
   isAutoResponseEnabled,
-  saveAllData
+  saveAllData,
 };

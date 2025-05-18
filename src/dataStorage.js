@@ -56,5 +56,5 @@ async function loadData(filename) {
 module.exports = {
   initStorage,
   saveData,
-  loadData
+  loadData,
 };

@@ -13,7 +13,7 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 async function fetchProfileInfo(profileName) {
   try {
     console.log(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
-    
+
     // Check if we have a valid cached entry
     if (profileInfoCache.has(profileName)) {
       const cacheEntry = profileInfoCache.get(profileName);
@@ -37,18 +37,23 @@ async function fetchProfileInfo(profileName) {
     console.log(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
     const response = await fetch(endpoint, {
       headers: {
-        'Authorization': `Bearer ${process.env.SERVICE_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
+        Authorization: `Bearer ${process.env.SERVICE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
     });
 
     if (!response.ok) {
-      console.error(`[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`);
+      console.error(
+        `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
+      );
       throw new Error(`Failed to fetch profile info: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log(`[ProfileInfoFetcher] Received profile data:`, JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : ''));
+    console.log(
+      `[ProfileInfoFetcher] Received profile data:`,
+      JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')
+    );
 
     // Verify we have the expected fields
     if (!data) {
@@ -62,7 +67,7 @@ async function fetchProfileInfo(profileName) {
     // Cache the result
     profileInfoCache.set(profileName, {
       data,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     console.log(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
 
@@ -89,7 +94,7 @@ async function getProfileAvatarUrl(profileName) {
 
   // Get the avatar URL format
   const avatarUrlFormat = getAvatarUrlFormat();
-  
+
   // Replace the placeholder with the actual profile ID
   const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
   console.log(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
@@ -109,7 +114,7 @@ async function getProfileDisplayName(profileName) {
     console.warn(`[ProfileInfoFetcher] No profile info found for display name: ${profileName}`);
     return profileName; // Fallback to using the full name as display name
   }
-  
+
   if (!profileInfo.name) {
     console.warn(`[ProfileInfoFetcher] No name field in profile info for: ${profileName}`);
     return profileName; // Fallback to using the full name as display name
@@ -122,5 +127,5 @@ async function getProfileDisplayName(profileName) {
 module.exports = {
   fetchProfileInfo,
   getProfileAvatarUrl,
-  getProfileDisplayName
+  getProfileDisplayName,
 };
