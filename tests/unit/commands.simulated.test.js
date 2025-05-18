@@ -214,9 +214,9 @@ describe('Commands - Add Command Deduplication Simulation', () => {
       // Collect all aliases to set
       const aliasesToSet = [];
       
-      // Add self-referential alias
+      // Skip self-referential alias - no longer needed with improved @mention support
       const selfReferentialAlias = profileName.toLowerCase();
-      aliasesToSet.push(selfReferentialAlias);
+      // Just track it to ensure we don't try to add it elsewhere
       
       // Add manual alias if provided
       if (manualAlias) {

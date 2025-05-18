@@ -47,6 +47,7 @@ Other mentions (like @user mentions) in the message will be preserved and passed
 - Mentions can appear anywhere in the message - beginning, middle, or end
 - Mentions can be followed by punctuation (e.g., "@disposal chute?")
 - Apostrophes and certain special characters in aliases are supported
+- Self-referential aliases are no longer created (e.g., no alias needed for `lilith-tzel-shani` since `@lilith-tzel-shani` works directly)
 
 ## Examples
 

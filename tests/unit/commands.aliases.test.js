@@ -28,10 +28,10 @@ describe('Alias Handling', () => {
     // Initialize the collection
     const aliasesToSet = [];
     
-    // First handle the self-referential alias, which was previously causing double embeds
+    // Skip self-referential aliases - they're no longer needed with improved @mention support
     const selfReferentialAlias = profileName.toLowerCase();
     if (!existingAliases.includes(selfReferentialAlias)) {
-      aliasesToSet.push(selfReferentialAlias);
+      // Just add to existingAliases to avoid creating it elsewhere
       existingAliases.push(selfReferentialAlias);
     }
     
@@ -57,17 +57,17 @@ describe('Alias Handling', () => {
     return aliasesToSet;
   };
   
-  it('should include self-referential alias when not already present', () => {
+  it('should only include display name alias when self-referential is not needed', () => {
     const profileName = 'test-personality';
     const displayName = 'Test Personality';
     const existingAliases = [];
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases);
     
-    // Should include self-referential and display name aliases
-    expect(aliases).toContain('test-personality');
+    // Should only include display name alias, since self-referential aliases aren't created anymore
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
   
   it('should not include self-referential alias when already present', () => {
@@ -83,7 +83,7 @@ describe('Alias Handling', () => {
     expect(aliases.length).toBe(1);
   });
   
-  it('should handle manual alias in addition to self-referential and display name', () => {
+  it('should handle manual alias in addition to display name', () => {
     const profileName = 'test-personality';
     const displayName = 'Test Personality';
     const existingAliases = [];
@@ -91,11 +91,11 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases, manualAlias);
     
-    // Should include all three aliases
-    expect(aliases).toContain('test-personality');
+    // Should include manual and display name aliases
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
     expect(aliases).toContain('custom-alias');
-    expect(aliases.length).toBe(3);
+    expect(aliases.length).toBe(2);
   });
   
   it('should handle case sensitivity correctly', () => {
@@ -105,22 +105,22 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases);
     
-    // Should normalize all aliases to lowercase
-    expect(aliases).toContain('test-personality');
+    // Should normalize all aliases to lowercase (only display name alias)
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
   
-  it('should not include display name alias when it matches profile name', () => {
+  it('should not include any aliases when display name matches profile name', () => {
     const profileName = 'test';
     const displayName = 'Test'; // Same as profile name when lowercased
     const existingAliases = [];
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases);
     
-    // Should only include the self-referential alias
-    expect(aliases).toContain('test');
-    expect(aliases.length).toBe(1);
+    // Should not include any aliases since self-referential is skipped and display name matches
+    expect(aliases).not.toContain('test');
+    expect(aliases.length).toBe(0);
   });
   
   it('should not include display name alias when already present', () => {
@@ -142,11 +142,11 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases, manualAlias);
     
-    // Should include only self-referential and display name aliases
-    expect(aliases).toContain('test-personality');
+    // Should include only display name alias
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
     expect(aliases).not.toContain('custom-alias');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
   
   it('should handle empty or null display name', () => {
@@ -156,9 +156,9 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases);
     
-    // Should include only the self-referential alias
-    expect(aliases).toContain('test-personality');
-    expect(aliases.length).toBe(1);
+    // Should not include any aliases
+    expect(aliases).not.toContain('test-personality');
+    expect(aliases.length).toBe(0);
   });
   
   it('should handle empty or null manual alias', () => {
@@ -169,10 +169,10 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases, manualAlias);
     
-    // Should include self-referential and display name aliases
-    expect(aliases).toContain('test-personality');
+    // Should include only display name alias
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
   
   it('should handle case where manual alias matches profile name', () => {
@@ -183,13 +183,13 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases, manualAlias);
     
-    // Should only include self-referential and display name aliases
-    expect(aliases).toContain('test-personality');
+    // Should only include display name alias
+    expect(aliases).not.toContain('test-personality');
     expect(aliases).toContain('test personality');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
   
-  it('should properly handle setPersonalityAlias function calls', async () => {
+  it('should properly handle setPersonalityAlias function calls without self-referential alias', async () => {
     // This is a more integrated test using personalityManager mock
     
     // Setup the mock
@@ -200,7 +200,8 @@ describe('Alias Handling', () => {
     
     // Simulate what happens in handleAddCommand
     const profileName = 'test-personality';
-    const aliasesToSet = ['test-personality', 'test', 'custom-alias'];
+    // No self-referential alias anymore
+    const aliasesToSet = ['test', 'custom-alias'];
     
     // Set each alias - this is similar to the code in commands.js
     for (let i = 0; i < aliasesToSet.length; i++) {
@@ -216,19 +217,15 @@ describe('Alias Handling', () => {
     }
     
     // Verify the mock was called correctly
-    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledTimes(3);
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledTimes(2);
     
     // Check each call had the right parameters
     expect(personalityManager.setPersonalityAlias).toHaveBeenNthCalledWith(
-      1, 'test-personality', profileName, true, false
+      1, 'test', profileName, true, true
     );
     
     expect(personalityManager.setPersonalityAlias).toHaveBeenNthCalledWith(
-      2, 'test', profileName, true, true
-    );
-    
-    expect(personalityManager.setPersonalityAlias).toHaveBeenNthCalledWith(
-      3, 'custom-alias', profileName, true, false
+      2, 'custom-alias', profileName, true, false
     );
   });
   
@@ -239,9 +236,9 @@ describe('Alias Handling', () => {
     
     const aliases = setupAndCollectAliases(profileName, displayName, existingAliases);
     
-    // Should include self-referential alias and display name alias
-    expect(aliases).toContain('test-personality-hyphenated');
+    // Should include only display name alias
+    expect(aliases).not.toContain('test-personality-hyphenated');
     expect(aliases).toContain('test-personality');
-    expect(aliases.length).toBe(2);
+    expect(aliases.length).toBe(1);
   });
 });

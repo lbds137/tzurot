@@ -97,9 +97,8 @@ describe('Add Command Functionality', () => {
     expect(detectIncompleteEmbed(completeEmbed)).toBe(false);
   });
   
-  it('should not set self-referential alias in personalityManager.registerPersonality', async () => {
-    // This test verifies our critical fix that prevents the self-referential alias
-    // from being set in the registerPersonality function
+  it('should not create any aliases during personality registration', async () => {
+    // This test verifies that no aliases are set during the registerPersonality function
     
     // Setup
     personalityManagerFunctions.registerPersonality.mockImplementation(async (userId, fullName, data) => {
@@ -115,14 +114,14 @@ describe('Add Command Functionality', () => {
     const aliasesMapMock = new Map();
     personalityManagerFunctions.personalityAliases = aliasesMapMock;
     
-    // The actual test code from personalityManager.test.js
+    // The actual test code
     const userId = 'test-user';
     const fullName = 'test-personality';
     const data = { description: 'Test description' };
     
     await personalityManagerFunctions.registerPersonality(userId, fullName, data);
     
-    // Verify that no self-referential alias was set
+    // Verify that no aliases were set at all during registration
     expect(aliasesMapMock.size).toBe(0);
     expect(aliasesMapMock.has(fullName.toLowerCase())).toBe(false);
   });

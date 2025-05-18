@@ -519,10 +519,10 @@ async function seedOwnerPersonalities() {
       if (personality && personality.displayName) {
         logger.info(`[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`);
         
-        // Handle self-referential alias (similar to the add command)
-        await setPersonalityAlias(personalityName.toLowerCase(), personalityName, true); // Skip save
+        // Skip self-referential alias - no longer needed with improved @mention support
+        logger.info(`[PersonalityManager] Skipping self-referential alias for ${personalityName}`);
         
-        // For consistency with the add command, also set display name as an alias if different
+        // Only set display name alias if different from the full name
         if (personality.displayName.toLowerCase() !== personalityName.toLowerCase()) {
           await setPersonalityAlias(personality.displayName.toLowerCase(), personalityName, true); // Skip save
         }

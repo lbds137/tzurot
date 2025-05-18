@@ -861,19 +861,16 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
   // Collect all aliases to set, then set them all at once with a single save
   const aliasesToSet = [];
 
-  // CRITICAL FIX: First handle the self-referential alias, which was previously causing double embeds
-  // This is now handled in commands.js rather than in personalityManager.js
+  // IMPROVEMENT: Skip self-referential aliases entirely since they're redundant
+  // @mentions directly work with the personality's full name without needing an alias
   const selfReferentialAlias = profileName.toLowerCase();
+  logger.info(
+    `[Commands] Skipping self-referential alias creation for ${selfReferentialAlias} - no longer needed with improved @mention support`
+  );
+  
+  // Add to existingAliases to ensure we don't try to add it elsewhere
   if (!existingAliases.includes(selfReferentialAlias)) {
-    aliasesToSet.push(selfReferentialAlias);
-    logger.info(
-      `[Commands] Will set self-referential alias: ${selfReferentialAlias} -> ${profileName}`
-    );
     existingAliases.push(selfReferentialAlias);
-  } else {
-    logger.info(
-      `[Commands] Self-referential alias ${selfReferentialAlias} already exists - skipping`
-    );
   }
 
   // Now handle the manual alias if provided - but check if it already exists first

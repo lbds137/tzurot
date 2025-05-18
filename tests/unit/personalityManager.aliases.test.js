@@ -48,7 +48,7 @@ describe('PersonalityManager Alias Handling', () => {
     jest.restoreAllMocks();
   });
   
-  // Test the critical fix - don't set self-referential alias in registerPersonality
+  // Test that self-referential aliases aren't created anymore
   it('should not set self-referential alias during registerPersonality', async () => {
     // Spy on setPersonalityAlias to verify it's not called
     const setAliasSpy = jest.spyOn(require('../../src/personalityManager'), 'setPersonalityAlias');
@@ -69,12 +69,6 @@ describe('PersonalityManager Alias Handling', () => {
     // Critical check: verify setPersonalityAlias was NOT called
     // This is testing our fix to prevent the self-referential alias from being set
     expect(setAliasSpy).not.toHaveBeenCalled();
-    
-    // Verify the specific log message about skipping self-referential alias
-    const logger = require('../../src/logger');
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining('CRITICAL FIX: Skipping self-referential alias creation')
-    );
     
     // Restore the spy
     setAliasSpy.mockRestore();
