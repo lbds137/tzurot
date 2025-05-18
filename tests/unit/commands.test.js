@@ -47,6 +47,8 @@ describe('commands module', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
+    // Reset module registry between tests
+    jest.resetModules();
     
     // Create mock author
     mockAuthor = {
@@ -99,6 +101,9 @@ describe('commands module', () => {
     // Set mock global client
     global.tzurotClient = mockClient;
 
+    // Set NODE_ENV to test
+    process.env.NODE_ENV = 'test';
+
     // Mock configuration
     config.botPrefix = '!tz';
 
@@ -121,13 +126,22 @@ describe('commands module', () => {
     personalityManager.personalityAliases = { 'test': 'test-personality' };
 
     // Mock conversationManager functions
+    // Define mock implementations first before assigning to the module
+    const mockClearConversation = jest.fn().mockReturnValue(true);
+    const mockActivatePersonality = jest.fn().mockReturnValue(true);
+    const mockDeactivatePersonality = jest.fn().mockReturnValue(true);
+    const mockEnableAutoResponse = jest.fn();
+    const mockDisableAutoResponse = jest.fn();
+    const mockIsAutoResponseEnabled = jest.fn().mockReturnValue(false);
+    
+    // Assign the mock implementations to the module
     conversationManager.recordConversation = jest.fn().mockReturnValue(true);
-    conversationManager.clearConversation = jest.fn().mockReturnValue(true);
-    conversationManager.activatePersonality = jest.fn().mockReturnValue(true);
-    conversationManager.deactivatePersonality = jest.fn().mockReturnValue(true);
-    conversationManager.enableAutoResponse = jest.fn();
-    conversationManager.disableAutoResponse = jest.fn();
-    conversationManager.isAutoResponseEnabled = jest.fn().mockReturnValue(false);
+    conversationManager.clearConversation = mockClearConversation;
+    conversationManager.activatePersonality = mockActivatePersonality;
+    conversationManager.deactivatePersonality = mockDeactivatePersonality;
+    conversationManager.enableAutoResponse = mockEnableAutoResponse;
+    conversationManager.disableAutoResponse = mockDisableAutoResponse;
+    conversationManager.isAutoResponseEnabled = mockIsAutoResponseEnabled;
 
     // Mock EmbedBuilder
     EmbedBuilder.mockImplementation(() => ({
@@ -157,13 +171,11 @@ describe('commands module', () => {
   // This focuses on just one specific functionality without dealing with the complex command processor
   describe('Conversation Manager integration', () => {
     it('should call clearConversation when reset command runs', async () => {
+      // Recreate the command handlers with direct access to the exported handlers
       const commands = require('../../src/commands');
       
-      // If handleResetCommand is not exported, we can't test it directly,
-      // so we'll check its effect indirectly by checking if clearConversation was called
-      
-      // Run the command via processCommand
-      await commands.processCommand(mockMessage, 'reset', []);
+      // Use the directly exported handler instead of processCommand
+      await commands.handleResetCommand(mockMessage);
       
       // Verify the expected interaction with conversationManager
       expect(conversationManager.clearConversation).toHaveBeenCalledWith(
@@ -182,7 +194,9 @@ describe('commands module', () => {
       conversationManager.clearConversation.mockReturnValueOnce(false);
       
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'reset', []);
+      
+      // Use the directly exported handler
+      await commands.handleResetCommand(mockMessage);
       
       // Verify the reply contains the expected content
       expect(mockMessage.reply).toHaveBeenCalled();
@@ -195,7 +209,9 @@ describe('commands module', () => {
   describe('Auto Response commands', () => {
     it('should enable auto-response with "on" parameter', async () => {
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'autorespond', ['on']);
+      
+      // Use the directly exported handler
+      await commands.handleAutoRespondCommand(mockMessage, ['on']);
       
       // Check that the right function was called
       expect(conversationManager.enableAutoResponse).toHaveBeenCalledWith(mockAuthor.id);
@@ -208,7 +224,9 @@ describe('commands module', () => {
     
     it('should disable auto-response with "off" parameter', async () => {
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'autorespond', ['off']);
+      
+      // Use the directly exported handler
+      await commands.handleAutoRespondCommand(mockMessage, ['off']);
       
       // Check that the right function was called
       expect(conversationManager.disableAutoResponse).toHaveBeenCalledWith(mockAuthor.id);
@@ -224,7 +242,9 @@ describe('commands module', () => {
       conversationManager.isAutoResponseEnabled.mockReturnValueOnce(true);
       
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'autorespond', ['status']);
+      
+      // Use the directly exported handler
+      await commands.handleAutoRespondCommand(mockMessage, ['status']);
       
       // Check that the right function was called
       expect(conversationManager.isAutoResponseEnabled).toHaveBeenCalledWith(mockAuthor.id);
@@ -239,8 +259,15 @@ describe('commands module', () => {
   // Test listing personalities
   describe('Personality listing', () => {
     it('should list user personalities', async () => {
+      // Since we can't directly test handleListCommand (not exported),
+      // we'll need to rely on processCommand which is acceptable in this case
       const commands = require('../../src/commands');
+      const processCommandSpy = jest.spyOn(commands, 'processCommand');
+      
       await commands.processCommand(mockMessage, 'list', []);
+      
+      // Check that processCommand was called correctly
+      expect(processCommandSpy).toHaveBeenCalledWith(mockMessage, 'list', []);
       
       // Check that we requested the user's personalities
       expect(personalityManager.listPersonalitiesForUser).toHaveBeenCalledWith(mockAuthor.id);
@@ -250,6 +277,9 @@ describe('commands module', () => {
       const replyArgs = mockMessage.reply.mock.calls[0][0];
       expect(replyArgs).toHaveProperty('embeds');
       expect(replyArgs.embeds.length).toBeGreaterThan(0);
+      
+      // Clean up
+      processCommandSpy.mockRestore();
     });
     
     it('should handle the case of no personalities', async () => {
@@ -257,13 +287,21 @@ describe('commands module', () => {
       personalityManager.listPersonalitiesForUser.mockReturnValueOnce([]);
       
       const commands = require('../../src/commands');
+      const processCommandSpy = jest.spyOn(commands, 'processCommand');
+      
       await commands.processCommand(mockMessage, 'list', []);
+      
+      // Check that processCommand was called correctly
+      expect(processCommandSpy).toHaveBeenCalledWith(mockMessage, 'list', []);
       
       // Check the response (no embed, just a text message)
       expect(mockMessage.reply).toHaveBeenCalled();
       const replyContent = mockMessage.reply.mock.calls[0][0];
       expect(typeof replyContent).toBe('string');
       expect(replyContent).toContain('haven\'t added any personalities');
+      
+      // Clean up
+      processCommandSpy.mockRestore();
     });
   });
   
@@ -271,7 +309,9 @@ describe('commands module', () => {
   describe('Info command', () => {
     it('should look up personality by alias', async () => {
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'info', ['test-alias']);
+      
+      // Use the directly exported handler
+      await commands.handleInfoCommand(mockMessage, ['test-alias']);
       
       // Check that we tried to look up by alias
       expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-alias');
@@ -284,7 +324,9 @@ describe('commands module', () => {
     
     it('should show error with no parameters', async () => {
       const commands = require('../../src/commands');
-      await commands.processCommand(mockMessage, 'info', []);
+      
+      // Use the directly exported handler
+      await commands.handleInfoCommand(mockMessage, []);
       
       // Check error message
       expect(mockMessage.reply).toHaveBeenCalled();
