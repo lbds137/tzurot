@@ -1,10 +1,7 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
-const {
-  getPersonalityByAlias,
-  getPersonality,
-} = require('./personalityManager');
+const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const {
   recordConversation,
@@ -87,7 +84,9 @@ async function initBot() {
   setInterval(
     () => {
       if (global.processedBotMessages && global.processedBotMessages.size > 0) {
-        logger.info(`Periodic cleanup of global processedBotMessages set (size: ${global.processedBotMessages.size})`);
+        logger.info(
+          `Periodic cleanup of global processedBotMessages set (size: ${global.processedBotMessages.size})`
+        );
         global.processedBotMessages.clear();
       }
 
@@ -123,7 +122,9 @@ async function initBot() {
       const timeAgo = Date.now() - recentReplies.get(replySignature);
       if (timeAgo < 5000) {
         // Consider it a duplicate if sent within 5 seconds
-        logger.warn(`CRITICAL: Prevented duplicate reply with signature: ${replySignature} (${timeAgo}ms ago)`);
+        logger.warn(
+          `CRITICAL: Prevented duplicate reply with signature: ${replySignature} (${timeAgo}ms ago)`
+        );
         // Return a dummy response to maintain API compatibility
         return {
           id: `prevented-dupe-${Date.now()}`,
@@ -181,7 +182,9 @@ async function initBot() {
       const timeAgo = Date.now() - recentReplies.get(sendSignature);
       if (timeAgo < 5000) {
         // Consider it a duplicate if sent within 5 seconds
-        logger.warn(`CRITICAL: Prevented duplicate send with signature: ${sendSignature} (${timeAgo}ms ago)`);
+        logger.warn(
+          `CRITICAL: Prevented duplicate send with signature: ${sendSignature} (${timeAgo}ms ago)`
+        );
         // Return a dummy response to maintain API compatibility
         return {
           id: `prevented-dupe-${Date.now()}`,
@@ -297,7 +300,9 @@ async function initBot() {
               ) || !message.embeds[0].thumbnail; // No avatar/thumbnail
 
             if (isIncompleteEmbed) {
-              logger.warn(`🚨 DETECTED INCOMPLETE EMBED: Found incomplete "Personality Added" embed - attempting to delete`);
+              logger.warn(
+                `🚨 DETECTED INCOMPLETE EMBED: Found incomplete "Personality Added" embed - attempting to delete`
+              );
 
               // Try to delete this embed to prevent confusion
               try {
@@ -309,7 +314,9 @@ async function initBot() {
                 // Continue with normal handling if deletion fails
               }
             } else {
-              logger.info(`✅ GOOD EMBED: This "Personality Added" embed appears to be complete with display name and avatar`);
+              logger.info(
+                `✅ GOOD EMBED: This "Personality Added" embed appears to be complete with display name and avatar`
+              );
             }
           }
 
@@ -325,7 +332,9 @@ async function initBot() {
 
       if (message.webhookId) {
         // Log webhook ID for debugging
-        logger.debug(`Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`);
+        logger.debug(
+          `Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`
+        );
 
         // HARD FILTER: Ignore ANY message with error content
         // This is a very strict filter to ensure we don't process ANY error messages
@@ -347,7 +356,9 @@ async function initBot() {
             message.content.includes('Please try again'))
         ) {
           logger.warn(`Blocking error message: ${message.webhookId}`);
-          logger.warn(`Message content matches error pattern: ${message.content.substring(0, 50)}...`);
+          logger.warn(
+            `Message content matches error pattern: ${message.content.substring(0, 50)}...`
+          );
           return; // CRITICAL: Completely ignore this message
         }
 
@@ -386,7 +397,9 @@ async function initBot() {
       const args = content.trim().split(/ +/);
       const command = args.shift()?.toLowerCase() || 'help'; // Default to help if no command
 
-      logger.debug(`Calling processCommand with ID ${message.id}, command=${command}, args=${args.join(',')}`);
+      logger.debug(
+        `Calling processCommand with ID ${message.id}, command=${command}, args=${args.join(',')}`
+      );
 
       // Use a simple in-memory Set to track command messages we've already processed
       // This Set is maintained at the bot.js level, separate from the one in commands.js
@@ -396,7 +409,9 @@ async function initBot() {
 
       // Check if this EXACT message ID has been processed already (bot-level check)
       if (global.processedBotMessages.has(message.id)) {
-        logger.warn(`CRITICAL: Message ${message.id} already processed at bot level - preventing duplicate processing`);
+        logger.warn(
+          `CRITICAL: Message ${message.id} already processed at bot level - preventing duplicate processing`
+        );
         return; // Stop processing entirely
       }
 
@@ -415,7 +430,9 @@ async function initBot() {
       try {
         // Process the command only once
         const result = await processCommand(message, command, args);
-        logger.debug(`processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
+        logger.debug(
+          `processCommand completed with result: ${result ? 'success' : 'null/undefined'}`
+        );
       } catch (error) {
         logger.error(`Error in processCommand:`, error);
       }
@@ -424,13 +441,19 @@ async function initBot() {
 
     // Reply-based conversation continuation
     if (message.reference) {
-      logger.debug(`Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`);
+      logger.debug(
+        `Detected reply from ${message.author.tag} to message ID: ${message.reference.messageId}`
+      );
       try {
         const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
-        logger.debug(`Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`);
+        logger.debug(
+          `Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`
+        );
 
         // Check if the referenced message was from one of our personalities
-        logger.debug(`Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`);
+        logger.debug(
+          `Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`
+        );
 
         if (referencedMessage.webhookId) {
           logger.debug(`Looking up personality for message ID: ${referencedMessage.id}`);
@@ -457,7 +480,9 @@ async function initBot() {
           logger.debug(`Personality lookup result: ${personalityName || 'null'}`);
 
           if (personalityName) {
-            logger.debug(`Found personality name: ${personalityName}, looking up personality details`);
+            logger.debug(
+              `Found personality name: ${personalityName}, looking up personality details`
+            );
 
             // First try to get personality directly as it could be a full name
             let personality = getPersonality(personalityName);
@@ -467,7 +492,9 @@ async function initBot() {
               personality = getPersonalityByAlias(personalityName);
             }
 
-            logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+            logger.debug(
+              `Personality lookup result: ${personality ? personality.fullName : 'null'}`
+            );
 
             if (personality) {
               // Process the message with this personality
@@ -482,7 +509,9 @@ async function initBot() {
             logger.debug(`No personality found for message ID: ${referencedMessage.id}`);
           }
         } else {
-          logger.debug(`Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`);
+          logger.debug(
+            `Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`
+          );
         }
       } catch (error) {
         logger.error('Error handling message reference:', error);
@@ -493,16 +522,18 @@ async function initBot() {
     try {
       // IMPROVEMENT: Check for both standard @mentions and multi-word @mentions
       // And prioritize the longest match to handle cases like @bambi vs @bambi prime
-      
+
       // We'll store all potential matches and their personalities in this array
       const potentialMatches = [];
-      
+
       // First gather standard @mentions (without spaces)
       const standardMentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
-      
+
       if (standardMentionMatch && standardMentionMatch[1]) {
         const mentionName = standardMentionMatch[1];
-        logger.debug(`Found standard @mention: ${mentionName}, checking if it's a valid personality`);
+        logger.debug(
+          `Found standard @mention: ${mentionName}, checking if it's a valid personality`
+        );
 
         // Check if this is a valid personality (directly or as an alias)
         let personality = getPersonality(mentionName);
@@ -511,15 +542,17 @@ async function initBot() {
         }
 
         if (personality) {
-          logger.debug(`Found standard @mention personality: ${mentionName} -> ${personality.fullName}`);
+          logger.debug(
+            `Found standard @mention personality: ${mentionName} -> ${personality.fullName}`
+          );
           potentialMatches.push({
             mentionText: mentionName,
             personality: personality,
-            wordCount: 1 // Single word
+            wordCount: 1, // Single word
           });
         }
       }
-      
+
       // Now check for mentions with spaces - whether or not we found standard mentions
       if (message.content && message.content.includes('@')) {
         // Improved regex to match multi-word mentions
@@ -528,86 +561,92 @@ async function initBot() {
         const mentionWithSpacesRegex = /@([^\s@\n]+(?:\s+[^\s@\n.,!?;:()"']+){0,4})/g;
         let spacedMentionMatch;
         const mentionsWithSpaces = [];
-        
+
         // Find all potential @mentions with spaces
         while ((spacedMentionMatch = mentionWithSpacesRegex.exec(message.content)) !== null) {
           if (spacedMentionMatch[1] && spacedMentionMatch[1].trim()) {
             mentionsWithSpaces.push(spacedMentionMatch[1].trim());
           }
         }
-        
+
         // Try each potential multi-word mention
         for (const rawMentionText of mentionsWithSpaces) {
           logger.debug(`Processing potential multi-word @mention: "${rawMentionText}"`);
-          
+
           // Skip if this is just a single word (already handled by standard regex)
           if (!rawMentionText.includes(' ')) {
             logger.debug(`Skipping "${rawMentionText}" - single word, already checked`);
             continue;
           }
-          
+
           // Split the raw text into words
           const words = rawMentionText.split(/\s+/);
-          
+
           // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
           // For example, match "@bambi prime" before "@bambi" when user types "@bambi prime hi"
-          
+
           // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
           const maxWords = Math.min(4, words.length);
-          
+
           // Create array of combinations from longest to shortest
           const combinations = [];
           for (let i = maxWords; i >= 2; i--) {
             combinations.push(words.slice(0, i).join(' '));
           }
-          
+
           // Remove any empty combinations (shouldn't happen, but just in case)
           const validCombinations = combinations.filter(c => c.trim() !== '');
-          
+
           logger.debug(`Trying word combinations in order: ${JSON.stringify(validCombinations)}`);
-          
+
           // Try each combination, from longest (most specific) to shortest
           for (const mentionText of validCombinations) {
             logger.debug(`Trying mention combination: "${mentionText}"`);
-            
+
             // Try as an alias
             const personality = getPersonalityByAlias(mentionText);
-            
+
             if (personality) {
               // Count the number of words in this match
               const wordCount = mentionText.split(/\s+/).length;
-              
-              logger.info(`Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`);
-              
+
+              logger.info(
+                `Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
+              );
+
               // Add to potential matches
               potentialMatches.push({
                 mentionText: mentionText,
                 personality: personality,
-                wordCount: wordCount
+                wordCount: wordCount,
               });
-              
+
               // We don't break here - we want to find all possible matches and pick the longest
             }
           }
         }
-        
+
         // After collecting all potential matches, sort by word count (descending)
         // This ensures we prioritize longer matches (e.g., "bambi prime" over "bambi")
         potentialMatches.sort((a, b) => b.wordCount - a.wordCount);
-        
+
         // If we found any matches, use the one with the most words (longest match)
         if (potentialMatches.length > 0) {
           const bestMatch = potentialMatches[0];
-          logger.info(`Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`);
-          
+          logger.info(
+            `Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
+          );
+
           // If there were multiple matches, log them for debugging
           if (potentialMatches.length > 1) {
             logger.debug(`Chose the longest match from ${potentialMatches.length} options:`);
             potentialMatches.forEach(match => {
-              logger.debug(`- ${match.mentionText} (${match.wordCount} words) -> ${match.personality.fullName}`);
+              logger.debug(
+                `- ${match.mentionText} (${match.wordCount} words) -> ${match.personality.fullName}`
+              );
             });
           }
-          
+
           // Handle the interaction with the best matching personality
           await handlePersonalityInteraction(message, bestMatch.personality, bestMatch.mentionText);
           return;
@@ -786,129 +825,138 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       let audioUrl = null;
       let hasFoundImage = false;
       let hasFoundAudio = false;
-      
+
       // Remove only the specific @mention that triggered the bot
       if (message.content && triggeringMention) {
         // Escape special regex characters in the triggering mention
         const escapedMention = triggeringMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const specificMentionRegex = new RegExp(`@${escapedMention}\\b`, 'gi');
-        
+
         // Remove only this specific mention and clean up spacing
         const withMentionRemoved = message.content.replace(specificMentionRegex, '');
-        
+
         // Fix spacing issues
         messageContent = withMentionRemoved
-          .replace(/\s{2,}/g, ' ')  // Replace multiple spaces with a single space
-          .replace(/\s,/g, ',')     // Fix spacing before commas
+          .replace(/\s{2,}/g, ' ') // Replace multiple spaces with a single space
+          .replace(/\s,/g, ',') // Fix spacing before commas
           .trim();
-        
+
         if (messageContent !== message.content) {
-          logger.info(`[Bot] Removed triggering @mention "${triggeringMention}" from message content`);
+          logger.info(
+            `[Bot] Removed triggering @mention "${triggeringMention}" from message content`
+          );
           logger.debug(`[Bot] Original: "${message.content}" -> Cleaned: "${messageContent}"`);
         }
-        
+
         // Regular expressions to match common image URLs
         const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
         const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
-        
+
         // Regular expressions to match common audio URLs
         const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg)(\?\S*)?/i;
-        
+
         // First check for audio URLs (prioritize audio over images per API limitation)
         const audioMatch = messageContent.match(audioUrlRegex);
-        
+
         if (audioMatch && audioMatch[0]) {
           audioUrl = audioMatch[0];
           logger.info(`[Bot] Found audio URL in message content: ${audioUrl}`);
           hasFoundAudio = true;
-          
+
           // Remove the URL from the message content to avoid repetition
           messageContent = messageContent.replace(audioUrl, '').trim();
         } else {
           // If no audio URL was found, check for image URLs
-          const imageMatch = messageContent.match(imageUrlRegex) || messageContent.match(discordCdnRegex);
-          
+          const imageMatch =
+            messageContent.match(imageUrlRegex) || messageContent.match(discordCdnRegex);
+
           if (imageMatch && imageMatch[0]) {
             imageUrl = imageMatch[0];
             logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
             hasFoundImage = true;
-            
+
             // Remove the URL from the message content to avoid repetition
             messageContent = messageContent.replace(imageUrl, '').trim();
           }
         }
       }
-      
+
       // If we didn't find any media URL, check for attachments
       if (!hasFoundImage && !hasFoundAudio && message.attachments && message.attachments.size > 0) {
-        logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for media`);
-        
+        logger.info(
+          `[Bot] Message has ${message.attachments.size} attachments, checking for media`
+        );
+
         // First check for audio attachments (prioritize audio over images per API limitation)
         const audioAttachments = message.attachments.filter(attachment => {
           // Check content type (if available)
           if (attachment.contentType && attachment.contentType.startsWith('audio/')) {
             return true;
           }
-          
+
           // Check file extension as fallback
           const url = attachment.url || '';
           return url.endsWith('.mp3') || url.endsWith('.wav') || url.endsWith('.ogg');
         });
-        
+
         if (audioAttachments.size > 0) {
           // Get the URL from the first audio attachment
           audioUrl = Array.from(audioAttachments.values())[0].url;
           hasFoundAudio = true;
-          
+
           // If there are more audio files, log a warning
           if (audioAttachments.size > 1) {
-            logger.warn(`[Bot] Ignoring ${audioAttachments.size - 1} additional audio files - API only supports one media per request`);
+            logger.warn(
+              `[Bot] Ignoring ${audioAttachments.size - 1} additional audio files - API only supports one media per request`
+            );
           }
         } else {
           // If no audio attachments were found, check for image attachments
-          const imageAttachments = message.attachments.filter(attachment => 
-            attachment.contentType && attachment.contentType.startsWith('image/')
+          const imageAttachments = message.attachments.filter(
+            attachment => attachment.contentType && attachment.contentType.startsWith('image/')
           );
-          
+
           if (imageAttachments.size > 0) {
             // Get the URL from the first image attachment
             imageUrl = Array.from(imageAttachments.values())[0].url;
             hasFoundImage = true;
-            
+
             // If there are more images, log a warning
             if (imageAttachments.size > 1) {
-              logger.warn(`[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one media per request`);
+              logger.warn(
+                `[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one media per request`
+              );
             }
           }
         }
       }
-      
+
       // If we found media (either via URL or attachment), create multimodal content
       if (hasFoundImage || hasFoundAudio) {
         // Create a multimodal content array
         const multimodalContent = [];
-        
+
         // Add the text content if it exists
         if (messageContent) {
           multimodalContent.push({
             type: 'text',
-            text: messageContent
+            text: messageContent,
           });
         } else {
           // Default prompt based on media type
           if (hasFoundAudio) {
             multimodalContent.push({
               type: 'text',
-              text: "Please transcribe and respond to this audio message"
+              text: 'Please transcribe and respond to this audio message',
             });
           } else if (hasFoundImage) {
             multimodalContent.push({
               type: 'text',
-              text: "What's in this image?"
+              text: "What's in this image?",
             });
           }
         }
-        
+
         // Add the media content - prioritize audio over image if both are present
         // (per API limitation: only one media type is processed, with audio taking precedence)
         if (hasFoundAudio) {
@@ -916,31 +964,33 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
           multimodalContent.push({
             type: 'audio_url',
             audio_url: {
-              url: audioUrl
-            }
+              url: audioUrl,
+            },
           });
           logger.debug(`[Bot] Added audio to multimodal content: ${audioUrl}`);
-          
+
           // If we also found an image, log that we're ignoring it due to API limitation
           if (hasFoundImage) {
-            logger.warn(`[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
+            logger.warn(
+              `[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`
+            );
           }
         } else if (hasFoundImage) {
           logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
           multimodalContent.push({
             type: 'image_url',
             image_url: {
-              url: imageUrl
-            }
+              url: imageUrl,
+            },
           });
           logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
         }
-        
+
         // Replace the message content with the multimodal array
         messageContent = multimodalContent;
         logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
       }
-      
+
       // Get the AI response from the service
       const aiResponse = await getAiResponse(personality.fullName, messageContent, {
         userId: message.author.id,
@@ -1103,7 +1153,9 @@ function startQueueCleaner(client) {
           // Delete any found error messages
           for (const errorMsg of webhookMessages.values()) {
             if (errorMsg.deletable) {
-              logger.warn(`[QueueCleaner] CRITICAL: Deleting error message in channel ${channel.name || channel.id} from ${errorMsg.author?.username}: ${errorMsg.content.substring(0, 30)}...`);
+              logger.warn(
+                `[QueueCleaner] CRITICAL: Deleting error message in channel ${channel.name || channel.id} from ${errorMsg.author?.username}: ${errorMsg.content.substring(0, 30)}...`
+              );
               try {
                 await errorMsg.delete();
                 logger.info(`[QueueCleaner] Successfully deleted error message`);
@@ -1119,10 +1171,15 @@ function startQueueCleaner(client) {
             channelError.message.includes('Missing Permissions')
           ) {
             inaccessibleChannels.add(channel.id);
-            logger.warn(`[QueueCleaner] Marked channel ${channel.id} as inaccessible due to permissions`);
+            logger.warn(
+              `[QueueCleaner] Marked channel ${channel.id} as inaccessible due to permissions`
+            );
           } else {
             // Log other errors but don't mark the channel as inaccessible
-            logger.error(`[QueueCleaner] Error processing channel ${channel.id}:`, channelError.message);
+            logger.error(
+              `[QueueCleaner] Error processing channel ${channel.id}:`,
+              channelError.message
+            );
           }
         }
       }

@@ -49,13 +49,13 @@ const runtimeProblematicPersonalities = new Map();
  * @example
  * // Returns true for error patterns
  * isErrorResponse("NoneType object has no attribute");
- * 
+ *
  * // Returns false for normal responses
  * isErrorResponse("Hello, I'm an AI assistant");
- * 
+ *
  * // Returns true for null or empty content
  * isErrorResponse(null);
- * 
+ *
  * @description
  * This function checks if the AI response contains common error patterns that
  * indicate an API issue rather than a valid response. It's used to filter out
@@ -76,14 +76,14 @@ function isErrorResponse(content) {
 
 /**
  * Register a personality as problematic during runtime
- * 
+ *
  * @param {string} personalityName - The personality name to mark as problematic
  * @param {Object} errorData - Error data including the content that triggered the error
  * @param {string} [errorData.error] - Type of error that occurred
  * @param {string} [errorData.content] - Content that triggered the error
  * @param {string} [errorData.errorType] - Error type name if applicable
  * @returns {void}
- * 
+ *
  * @example
  * // Register a personality that has returned error content
  * registerProblematicPersonality("unknown-personality", {
@@ -91,16 +91,16 @@ function isErrorResponse(content) {
  *   content: "NoneType object has no attribute 'lower'",
  *   errorType: "TypeError"
  * });
- * 
+ *
  * // Later, the personality will be handled with special care
  * const personalityInfo = getProblematicPersonalityInfo("unknown-personality");
  * // personalityInfo now contains isProblematic: true, firstDetectedAt, errorCount, etc.
- * 
+ *
  * @description
  * This function adds a personality to the runtime problematic personalities list
  * when it encounters errors during API calls. It creates generic fallback responses
  * that will be used whenever this personality encounters errors in the future.
- * 
+ *
  * Key features:
  * 1. Skips registration if the personality is already in the known problematic list
  * 2. Logs the registration of a new problematic personality
@@ -110,7 +110,7 @@ function isErrorResponse(content) {
  *    - Error count to track frequency of issues (errorCount)
  *    - The last error content for debugging purposes (lastErrorContent)
  *    - Generic fallback responses to use when errors occur (responses)
- * 
+ *
  * This tracking enables the system to automatically adapt to problematic personalities
  * without requiring manual configuration updates.
  */
@@ -144,23 +144,23 @@ function registerProblematicPersonality(personalityName, errorData) {
 
 /**
  * Create a personality-user key for blackout tracking
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
  * @returns {string} A unique key in the format "{personalityName}_{userId}_{channelId}"
- * 
+ *
  * @example
  * // Returns "albert-einstein_123456_789012"
  * createBlackoutKey("albert-einstein", { userId: "123456", channelId: "789012" });
- * 
+ *
  * // Returns "albert-einstein_anon_789012" (with default userId)
  * createBlackoutKey("albert-einstein", { channelId: "789012" });
- * 
+ *
  * // Returns "albert-einstein_123456_nochannel" (with default channelId)
  * createBlackoutKey("albert-einstein", { userId: "123456" });
- * 
+ *
  * @description
  * Creates a unique key that combines personality name, user ID, and channel ID.
  * This key is used to track which personality-user-channel combinations are
@@ -173,12 +173,12 @@ function createBlackoutKey(personalityName, context) {
 
 /**
  * Prepare request headers for the AI API call
- * 
+ *
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
  * @returns {Object} Headers object with user and channel IDs if provided
- * 
+ *
  * @example
  * // Prepare headers with both user and channel IDs
  * const headers = prepareRequestHeaders({
@@ -186,48 +186,48 @@ function createBlackoutKey(personalityName, context) {
  *   channelId: "987654321"
  * });
  * // Returns: { "X-User-Id": "123456789", "X-Channel-Id": "987654321" }
- * 
+ *
  * // Prepare headers with only userId
  * const headers = prepareRequestHeaders({ userId: "123456789" });
  * // Returns: { "X-User-Id": "123456789" }
- * 
+ *
  * // Prepare headers with neither (empty object)
  * const headers = prepareRequestHeaders({});
  * // Returns: {}
- * 
+ *
  * @description
  * Creates the headers object for the AI API request, adding any available
  * user and channel identification to help with request tracing and debugging.
- * 
+ *
  * The function:
  * 1. Creates an empty headers object
  * 2. Adds X-User-Id header if context.userId is provided
  * 3. Adds X-Channel-Id header if context.channelId is provided
  * 4. Returns the populated headers object
- * 
+ *
  * These headers enhance logging and debugging by allowing API requests
  * to be correlated with specific Discord users and channels.
  */
 function prepareRequestHeaders(context) {
   const headers = {};
-  
+
   // Add user/channel ID headers if provided
   if (context.userId) headers['X-User-Id'] = context.userId;
   if (context.channelId) headers['X-Channel-Id'] = context.channelId;
-  
+
   return headers;
 }
 
 /**
  * Get information about a problematic personality
- * 
+ *
  * @param {string} personalityName - The personality name to check
  * @returns {Object|null} Information about the problematic personality, or null if not problematic
- * 
+ *
  * @example
  * // Check if a personality is known to be problematic
  * const personalityInfo = getProblematicPersonalityInfo("lucifer-kochav-shenafal");
- * 
+ *
  * if (personalityInfo && personalityInfo.isProblematic) {
  *   // Handle with special care using personalityInfo.responses for fallbacks
  *   console.log("This is a known problematic personality");
@@ -236,16 +236,16 @@ function prepareRequestHeaders(context) {
  *   // Handle normally
  *   console.log("This is a normal personality");
  * }
- * 
+ *
  * @description
  * Checks if a personality is known to be problematic, either from the predefined list
  * or from personalities that were dynamically added to the problematic list during runtime.
- * 
+ *
  * The function:
  * 1. First checks the knownProblematicPersonalities object for predefined problematic personalities
  * 2. If not found there, checks the runtimeProblematicPersonalities Map for dynamically detected ones
  * 3. Returns the personality information object if found, or null if not problematic
- * 
+ *
  * The returned personalityInfo object typically includes:
  * - isProblematic: Boolean flag (always true for returned personalities)
  * - responses: Array of themed fallback responses
@@ -257,31 +257,31 @@ function prepareRequestHeaders(context) {
 function getProblematicPersonalityInfo(personalityName) {
   // Check if this is a personality with known API issues
   let personalityInfo = knownProblematicPersonalities[personalityName];
-  
+
   // If not in the predefined list, check the runtime-detected list
   if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
     personalityInfo = runtimeProblematicPersonalities.get(personalityName);
   }
-  
+
   return personalityInfo;
 }
 
 /**
  * Check if a personality-user combination is currently in a blackout period
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
  * @returns {boolean} True if the combination is in a blackout period
- * 
+ *
  * @example
  * // Check if a specific personality-user-channel combination is in blackout
- * const isBlocked = isInBlackoutPeriod("albert-einstein", { 
- *   userId: "123456", 
- *   channelId: "789012" 
+ * const isBlocked = isInBlackoutPeriod("albert-einstein", {
+ *   userId: "123456",
+ *   channelId: "789012"
  * });
- * 
+ *
  * // Returns true if the combination was added to blackout list within
  * // the last TIME.ERROR_BLACKOUT_DURATION (30 seconds)
  * if (isBlocked) {
@@ -289,20 +289,20 @@ function getProblematicPersonalityInfo(personalityName) {
  * } else {
  *   console.log("This request is allowed to proceed");
  * }
- * 
+ *
  * @description
  * Determines if a specific personality-user-channel combination is currently
  * in an error blackout period. A blackout period is a time window after an error
  * during which no new API requests should be made for this combination to prevent
  * duplicate error messages and improve user experience.
- * 
+ *
  * The function performs these operations:
  * 1. Creates a unique key for the personality-user-channel combination
  * 2. Checks if the key exists in the errorBlackoutPeriods Map
  * 3. If it exists, compares the current time with the expiration time
  * 4. If the blackout period has expired, removes the entry from the Map
  * 5. Returns true if the combination is still in an active blackout period
- * 
+ *
  * The automatic cleanup of expired entries prevents memory leaks and ensures
  * accurate tracking over time without requiring a separate cleanup process.
  */
@@ -322,26 +322,26 @@ function isInBlackoutPeriod(personalityName, context) {
 
 /**
  * Add a personality-user combination to the blackout list
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
  * @returns {void}
- * 
+ *
  * @example
  * // Add a specific personality-user-channel combination to blackout list
  * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" });
- * 
+ *
  * // The combination will be blocked for TIME.ERROR_BLACKOUT_DURATION (30 seconds)
  * // Any requests for this combination during the blackout period will be blocked
  * isInBlackoutPeriod("albert-einstein", { userId: "123456", channelId: "789012" }); // Returns true
- * 
+ *
  * @description
  * Adds a personality-user-channel combination to the blackout list after an error occurs.
  * During the blackout period (defined by TIME.ERROR_BLACKOUT_DURATION, currently 30 seconds),
  * all requests for this combination will be blocked to prevent duplicate error messages.
- * 
+ *
  * This is a critical function for error prevention that helps ensure users don't see
  * multiple error messages in quick succession when a personality API call is failing.
  * The function:
@@ -357,81 +357,81 @@ function addToBlackoutList(personalityName, context) {
 
 /**
  * Create a unique request ID for tracking API requests
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {string|Array} message - The message content or array of content objects for multimodal
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
  * @returns {string} A unique request ID that can be used for deduplication
- * 
+ *
  * @example
  * // Returns "einstein_123_456_HellohowareyouImfine"
  * createRequestId("einstein", "Hello how are you? I'm fine", {
  *   userId: "123",
  *   channelId: "456"
  * });
- * 
+ *
  * // With longer message, truncates to 30 chars
  * createRequestId("einstein", "This is a very long message that will be truncated", {
  *   userId: "123",
  *   channelId: "456"
  * });
  * // Returns "einstein_123_456_Thisisaverylongmessagethatwill"
- * 
+ *
  * // With multimodal content array (image)
  * createRequestId("einstein", [
  *   { type: "text", text: "What is in this image?" },
  *   { type: "image_url", image_url: { url: "https://example.com/image.jpg" }}
  * ], { userId: "123", channelId: "456" });
- * 
+ *
  * // With multimodal content array (audio)
  * createRequestId("einstein", [
  *   { type: "text", text: "Please transcribe this" },
  *   { type: "audio_url", audio_url: { url: "https://example.com/audio.mp3" }}
  * ], { userId: "123", channelId: "456" });
- * 
+ *
  * @description
  * Creates a unique identifier string for tracking API requests and preventing duplicate
  * calls from being processed simultaneously. The ID combines four components:
- * 
+ *
  * 1. Personality name - Identifies which AI personality is being used
  * 2. User ID - From context.userId or DEFAULTS.ANONYMOUS_USER fallback
  * 3. Channel ID - From context.channelId or DEFAULTS.NO_CHANNEL fallback
- * 4. Message prefix - 
+ * 4. Message prefix -
  *    - For string messages: First 30 characters with spaces removed
  *    - For multimodal content arrays: Content hash based on text and media URLs (image or audio)
- * 
+ *
  * This ensures that identical requests from the same user to the same personality
  * will be properly deduplicated, while different requests will have unique IDs.
  * The function is used by the request deduplication system to prevent duplicate API calls.
  */
 function createRequestId(personalityName, message, context) {
   let messagePrefix;
-  
+
   if (Array.isArray(message)) {
     // For multimodal content, create a prefix based on content
     const textContent = message.find(item => item.type === 'text')?.text || '';
     const imageUrl = message.find(item => item.type === 'image_url')?.image_url?.url || '';
     const audioUrl = message.find(item => item.type === 'audio_url')?.audio_url?.url || '';
-    
+
     // Create a prefix using text and any media URLs, adding type identifiers to distinguish them
     messagePrefix = (
-      textContent.substring(0, 20) + 
-      (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') + 
+      textContent.substring(0, 20) +
+      (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
       (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
     ).replace(/\s+/g, '');
   } else {
     // For regular string messages, use the first 30 chars
     messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
   }
-  
+
   return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}_${messagePrefix}`;
 }
 
 /**
  * Handle API requests for personalities with known issues
- * 
+ *
  * @async
  * @param {string} personalityName - The personality name to use for AI generation
  * @param {string} message - The user's message to respond to
@@ -447,7 +447,7 @@ function createRequestId(personalityName, message, context) {
  * @param {Object} headers - Request headers
  * @returns {Promise<string>} The AI response or fallback message
  * @throws {Error} Errors are caught internally and converted to fallback responses
- * 
+ *
  * @example
  * // Handle a known problematic personality
  * const personalityInfo = {
@@ -458,7 +458,7 @@ function createRequestId(personalityName, message, context) {
  *     'The ethereal pathways seem obscured.'
  *   ]
  * };
- * 
+ *
  * const response = await handleProblematicPersonality(
  *   "lucifer-kochav-shenafal",
  *   "Tell me about the rebellion in heaven",
@@ -467,28 +467,35 @@ function createRequestId(personalityName, message, context) {
  *   "models/lucifer-v1",
  *   { "X-User-Id": "123456" }
  * );
- * 
+ *
  * @description
  * Special handling for personalities known to have API issues.
  * This function provides robust error handling for personalities that
  * consistently return problematic responses. It:
- * 
+ *
  * 1. Still attempts the API call in case the issue has been fixed
  * 2. Performs thorough error checking on any response received
  * 3. Updates error statistics for runtime-detected problematic personalities
  * 4. Returns themed fallback responses appropriate for the personality when errors occur
  * 5. Adds the personality-user combination to the blackout list after errors
- * 
+ *
  * The function is essential for maintaining a good user experience even when
  * certain personalities have recurring API issues. It ensures users still get
  * responses that fit the personality's character rather than technical error messages.
  */
-async function handleProblematicPersonality(personalityName, message, context, personalityInfo, modelPath, headers) {
+async function handleProblematicPersonality(
+  personalityName,
+  message,
+  context,
+  personalityInfo,
+  modelPath,
+  headers
+) {
   logger.info(`[AIService] Handling known problematic personality: ${personalityName}`);
   try {
     // Format the message content properly for the API
     const messages = formatApiMessages(message);
-    
+
     // Still try the API call in case the issue has been fixed
     const response = await aiClient.chat.completions.create({
       model: modelPath,
@@ -501,13 +508,17 @@ async function handleProblematicPersonality(personalityName, message, context, p
 
     // Use the more robust error detection function
     if (!content || isErrorResponse(content)) {
-      logger.warn(`[AIService] Detected error content from problematic personality ${personalityName}`);
+      logger.warn(
+        `[AIService] Detected error content from problematic personality ${personalityName}`
+      );
       // Add this personality+user combo to blackout list
       addToBlackoutList(personalityName, context);
 
       // If this is a runtime-detected personality, increment the error count
       if (runtimeProblematicPersonalities.has(personalityName)) {
-        logger.info(`[AIService] Incrementing error count for runtime problematic personality: ${personalityName}`);
+        logger.info(
+          `[AIService] Incrementing error count for runtime problematic personality: ${personalityName}`
+        );
         const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
         runtimeInfo.errorCount++;
         runtimeInfo.lastErrorContent = content || 'Empty response';
@@ -528,12 +539,16 @@ async function handleProblematicPersonality(personalityName, message, context, p
     return personalityInfo.responses[0];
   } catch (error) {
     // Add this personality+user combo to blackout list
-    logger.error(`[AIService] Error handling problematic personality ${personalityName}: ${error.message}`);
+    logger.error(
+      `[AIService] Error handling problematic personality ${personalityName}: ${error.message}`
+    );
     addToBlackoutList(personalityName, context);
 
     // If this is a runtime-detected personality, increment the error count
     if (runtimeProblematicPersonalities.has(personalityName)) {
-      logger.info(`[AIService] Updating error stats for runtime problematic personality: ${personalityName}`);
+      logger.info(
+        `[AIService] Updating error stats for runtime problematic personality: ${personalityName}`
+      );
       const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
       runtimeInfo.errorCount++;
       runtimeInfo.lastErrorType = error.name;
@@ -549,43 +564,45 @@ async function handleProblematicPersonality(personalityName, message, context, p
 
 /**
  * Sanitize API response content
- * 
+ *
  * @param {string} content - Raw content from API response
  * @returns {string} Sanitized content with control characters and problematic sequences removed
  * @throws {TypeError} If content is not a string or cannot be converted to a string
  * @throws {Error} If content cannot be sanitized for other reasons
- * 
+ *
  * @example
  * // Returns sanitized string with control characters removed
  * sanitizeContent("Hello\x00World\x1F");  // Returns "HelloWorld"
- * 
+ *
  * // Returns sanitized string with escape sequences removed
  * sanitizeContent("Test\\u0000Message");  // Returns "TestMessage"
- * 
+ *
  * @description
  * Sanitizes the raw API response content by removing:
  * 1. Null bytes and control characters (while preserving newlines and tabs)
  * 2. Unicode escape sequences that might render as control characters
  * 3. Any non-printable characters that could cause display issues
- * 
+ *
  * This function is critical for ensuring that AI responses can be safely
  * displayed in Discord without causing formatting or rendering issues.
  */
 function sanitizeContent(content) {
   if (!content) return '';
-  
+
   try {
-    return content
-      // Remove null bytes and control characters, but preserve newlines and tabs
-      // eslint-disable-next-line no-control-regex
-      .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g, '')
-      // Remove escape sequences
-      .replace(/\\u[0-9a-fA-F]{4}/g, '')
-      // Remove any non-printable characters except newlines and tabs (using safer pattern)
-      // eslint-disable-next-line no-control-regex
-      .replace(/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF\u0100-\uFFFF]/g, '')
-      // Ensure proper string encoding
-      .toString();
+    return (
+      content
+        // Remove null bytes and control characters, but preserve newlines and tabs
+        // eslint-disable-next-line no-control-regex
+        .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g, '')
+        // Remove escape sequences
+        .replace(/\\u[0-9a-fA-F]{4}/g, '')
+        // Remove any non-printable characters except newlines and tabs (using safer pattern)
+        // eslint-disable-next-line no-control-regex
+        .replace(/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF\u0100-\uFFFF]/g, '')
+        // Ensure proper string encoding
+        .toString()
+    );
   } catch (_) {
     return '';
   }
@@ -606,28 +623,28 @@ function sanitizeContent(content) {
  *
  * @example
  * // Basic usage
- * const response = await getAiResponse('personality-name', 'Hello, how are you?', { 
- *   userId: '123456789', 
- *   channelId: '987654321' 
+ * const response = await getAiResponse('personality-name', 'Hello, how are you?', {
+ *   userId: '123456789',
+ *   channelId: '987654321'
  * });
- * 
+ *
  * // Handle blocked responses
  * if (response === MARKERS.HARD_BLOCKED_RESPONSE) {
  *   // Do not display anything to the user
  * } else {
  *   // Show the response to the user
  * }
- * 
+ *
  * @description
  * This is the core function that handles AI interactions with sophisticated
  * error handling and request deduplication. It provides these key features:
- * 
+ *
  * 1. Blackout period checking - Prevents repeated API calls for problematic combinations
  * 2. Error handling - Detects and filters error responses with custom fallbacks
  * 3. Deduplication - Prevents duplicate API calls for identical requests
  * 4. Problematic personality detection - Tracks personalities with recurring issues
  * 5. Automatic retries - Attempts to recover from temporary errors
- * 
+ *
  * The function returns either a valid AI response or a special marker (HARD_BLOCKED_RESPONSE)
  * that indicates no response should be shown to the user. This happens when an error
  * occurs or when the personality+user combination is in a blackout period.
@@ -647,7 +664,9 @@ async function getAiResponse(personalityName, message, context = {}) {
   // CRITICAL ERROR PREVENTION: Check if this personality+user is in a blackout period
   if (isInBlackoutPeriod(personalityName, context)) {
     // Return a special no-response marker that our bot will completely ignore
-    logger.info(`[AIService] Personality ${personalityName} is in blackout period, returning blocked response`);
+    logger.info(
+      `[AIService] Personality ${personalityName} is in blackout period, returning blocked response`
+    );
     return MARKERS.HARD_BLOCKED_RESPONSE;
   }
 
@@ -662,7 +681,9 @@ async function getAiResponse(personalityName, message, context = {}) {
     // If this request was created within the last minute, return the existing promise
     if (Date.now() - timestamp < TIME.ONE_MINUTE) {
       // Return the existing promise to avoid duplicate API calls
-      logger.info(`[AIService] Duplicate request detected for ${personalityName}, reusing existing promise`);
+      logger.info(
+        `[AIService] Duplicate request detected for ${personalityName}, reusing existing promise`
+      );
       return promise;
     } else {
       // Timed out, clean up and proceed with a new request
@@ -684,8 +705,17 @@ async function getAiResponse(personalityName, message, context = {}) {
       const personalityInfo = getProblematicPersonalityInfo(personalityName);
 
       if (personalityInfo && personalityInfo.isProblematic) {
-        logger.info(`[AIService] Using special handling for problematic personality: ${personalityName}`);
-        return await handleProblematicPersonality(personalityName, message, context, personalityInfo, modelPath, headers);
+        logger.info(
+          `[AIService] Using special handling for problematic personality: ${personalityName}`
+        );
+        return await handleProblematicPersonality(
+          personalityName,
+          message,
+          context,
+          personalityInfo,
+          modelPath,
+          headers
+        );
       }
 
       // NORMAL AI CALL PATH: Make the API request
@@ -694,16 +724,22 @@ async function getAiResponse(personalityName, message, context = {}) {
         return await handleNormalPersonality(personalityName, message, context, modelPath, headers);
       } catch (apiError) {
         // Add this personality+user combo to blackout list
-        logger.error(`[AIService] API error with normal personality ${personalityName}: ${apiError.message}`);
+        logger.error(
+          `[AIService] API error with normal personality ${personalityName}: ${apiError.message}`
+        );
         addToBlackoutList(personalityName, context);
 
         // Return our special HARD_BLOCKED_RESPONSE marker
-        logger.info(`[AIService] Returning HARD_BLOCKED_RESPONSE after API error for ${personalityName}`);
+        logger.info(
+          `[AIService] Returning HARD_BLOCKED_RESPONSE after API error for ${personalityName}`
+        );
         return MARKERS.HARD_BLOCKED_RESPONSE;
       }
     } catch (error) {
       // Add this personality+user combo to blackout list to prevent duplicates
-      logger.error(`[AIService] General error with personality ${personalityName}: ${error.message}`);
+      logger.error(
+        `[AIService] General error with personality ${personalityName}: ${error.message}`
+      );
       addToBlackoutList(personalityName, context);
 
       // Register this personality as potentially problematic
@@ -713,7 +749,9 @@ async function getAiResponse(personalityName, message, context = {}) {
         error.message.includes('content') ||
         error.message.includes('NoneType')
       ) {
-        logger.error(`[AIService] Registering personality ${personalityName} as problematic due to ${error.name}`);
+        logger.error(
+          `[AIService] Registering personality ${personalityName} as problematic due to ${error.name}`
+        );
         registerProblematicPersonality(personalityName, {
           error: 'api_call_error',
           errorType: error.name,
@@ -722,13 +760,17 @@ async function getAiResponse(personalityName, message, context = {}) {
       }
 
       // Return our special HARD_BLOCKED_RESPONSE marker
-      logger.info(`[AIService] Returning HARD_BLOCKED_RESPONSE after general error for ${personalityName}`);
+      logger.info(
+        `[AIService] Returning HARD_BLOCKED_RESPONSE after general error for ${personalityName}`
+      );
       return MARKERS.HARD_BLOCKED_RESPONSE;
     } finally {
       // Remove this request from the pending map after 60 seconds
       setTimeout(() => {
         if (pendingRequests.has(requestId)) {
-          logger.debug(`[AIService] Cleaning up pending request for ${personalityName} (ID: ${requestId})`);
+          logger.debug(
+            `[AIService] Cleaning up pending request for ${personalityName} (ID: ${requestId})`
+          );
           pendingRequests.delete(requestId);
         }
       }, TIME.ONE_MINUTE);
@@ -747,7 +789,7 @@ async function getAiResponse(personalityName, message, context = {}) {
 
 /**
  * Handle API requests for normal (non-problematic) personalities
- * 
+ *
  * @async
  * @param {string} personalityName - The personality name to use for AI generation
  * @param {string} message - The user's message to respond to
@@ -758,12 +800,12 @@ async function getAiResponse(personalityName, message, context = {}) {
  * @param {Object} headers - Request headers
  * @returns {Promise<string>} The AI response
  * @throws {Error} If API call fails or response validation fails
- * 
+ *
  * @example
  * // Handle a normal API request
  * try {
  *   const response = await handleNormalPersonality(
- *     "albert-einstein", 
+ *     "albert-einstein",
  *     "What's your theory of relativity?",
  *     { userId: "123456", channelId: "789012" },
  *     "models/albert-einstein-v1",
@@ -773,18 +815,18 @@ async function getAiResponse(personalityName, message, context = {}) {
  * } catch (error) {
  *   console.error("Failed to get response:", error);
  * }
- * 
+ *
  * @description
  * Handles the standard API request flow for personalities without known issues.
  * This function is the primary path for most API requests and includes:
- * 
+ *
  * 1. Making the API request to the AI service with appropriate parameters
  * 2. Comprehensive response validation to ensure proper structure
  * 3. Error detection in the content (even if response structure is valid)
  * 4. Content sanitization to remove problematic characters
  * 5. Automatic registration of personalities that show problematic behavior
  * 6. Adding personalities to blackout list when errors are detected
- * 
+ *
  * The function returns sanitized AI content when successful or throws
  * appropriate errors that will be caught by the parent getAiResponse function.
  */
@@ -798,7 +840,7 @@ function formatApiMessages(content) {
   if (Array.isArray(content)) {
     return [{ role: 'user', content }];
   }
-  
+
   // Simple text message
   return [{ role: 'user', content }];
 }
@@ -806,25 +848,20 @@ function formatApiMessages(content) {
 async function handleNormalPersonality(personalityName, message, context, modelPath, headers) {
   logger.info(`[AIService] Making API request for normal personality: ${personalityName}`);
   logger.debug(`[AIService] Using model path: ${modelPath}`);
-  
+
   // Format the message content properly for the API
   const messages = formatApiMessages(message);
-  
+
   const response = await aiClient.chat.completions.create({
     model: modelPath,
     messages: messages,
     temperature: 0.7,
     headers: headers,
   });
-  
+
   logger.debug(`[AIService] Received response for ${personalityName}`);
   // Validate and sanitize response
-  if (
-    !response ||
-    !response.choices ||
-    !response.choices[0] ||
-    !response.choices[0].message
-  ) {
+  if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
     // Register this personality as problematic
     logger.error(`[AIService] Invalid response structure from ${personalityName}`);
     registerProblematicPersonality(personalityName, {
@@ -867,13 +904,14 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Apply sanitization to all personality responses to be safe
   try {
     // Check if we're in test mode with the mock
-    const isMockRequest = process.env.NODE_ENV === 'test' || 
-                         (content && content.includes && content.includes('mock response'));
-    
+    const isMockRequest =
+      process.env.NODE_ENV === 'test' ||
+      (content && content.includes && content.includes('mock response'));
+
     // Only perform sanitization in non-test mode or when not a mock response
     if (!isMockRequest) {
       content = sanitizeContent(content);
-      
+
       if (content.length === 0) {
         // Register this personality as problematic
         logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
@@ -881,7 +919,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
           error: 'empty_after_sanitization',
           content: 'Sanitized content was empty',
         });
-  
+
         return 'I received an empty response. Please try again.';
       }
     }
@@ -889,7 +927,9 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     // Skip problematic registration in test environment
     if (process.env.NODE_ENV !== 'test') {
       // Register this personality as problematic
-      logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
+      logger.error(
+        `[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`
+      );
       registerProblematicPersonality(personalityName, {
         error: 'sanitization_error',
         content: sanitizeError.message,
@@ -899,7 +939,9 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     return 'I encountered an issue processing my response. Please try again.';
   }
 
-  logger.info(`[AIService] Successfully generated response for ${personalityName} (${content.length} chars)`);
+  logger.info(
+    `[AIService] Successfully generated response for ${personalityName} (${content.length} chars)`
+  );
   return content;
 }
 
@@ -915,7 +957,7 @@ module.exports = {
   addToBlackoutList,
   createBlackoutKey,
   errorBlackoutPeriods,
-  
+
   // Export for testing
   prepareRequestHeaders,
   getProblematicPersonalityInfo,

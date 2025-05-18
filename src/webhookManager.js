@@ -1,13 +1,13 @@
 /**
  * Webhook Manager
- * 
+ *
  * This module handles all interaction with Discord webhooks, including:
  * - Creating and caching webhook clients
  * - Formatting and sending messages via webhooks
  * - Error handling and recovery
  * - Rate limiting and message ordering
  * - Avatar URL validation and caching
- * 
+ *
  * TODO: Future improvements
  * - Implement retry mechanism for transient webhook failures
  * - Add more robust rate limiting to prevent Discord API throttling
@@ -64,47 +64,48 @@ const MESSAGE_CHAR_LIMIT = DISCORD.MESSAGE_CHAR_LIMIT;
  */
 async function validateAvatarUrl(avatarUrl) {
   if (!avatarUrl) return false;
-  
+
   // Check if URL is correctly formatted
   if (!urlValidator.isValidUrlFormat(avatarUrl)) {
     return false;
   }
-  
+
   // Handle Discord CDN URLs specially - they're always valid without checking
-  if (urlValidator.isTrustedDomain(avatarUrl, [
-    'cdn.discordapp.com', 
-    'discord.com/assets', 
-    'media.discordapp.net'
-  ])) {
+  if (
+    urlValidator.isTrustedDomain(avatarUrl, [
+      'cdn.discordapp.com',
+      'discord.com/assets',
+      'media.discordapp.net',
+    ])
+  ) {
     logger.info(`[WebhookManager] Discord CDN URL detected, skipping validation: ${avatarUrl}`);
     return true;
   }
-  
+
   try {
     // Use the enhanced URL validator
     const isValidImage = await urlValidator.isImageUrl(avatarUrl, {
       timeout: 5000,
-      trustExtensions: true
+      trustExtensions: true,
     });
-    
+
     if (!isValidImage) {
-      logger.warn(`[WebhookManager] Invalid avatar URL: ${avatarUrl}, does not point to a valid image`);
-      
-      // Track this validation error for debugging
-      errorTracker.trackError(
-        new Error(`Invalid avatar URL: ${avatarUrl}`),
-        {
-          category: errorTracker.ErrorCategory.AVATAR,
-          operation: 'validateAvatarUrl',
-          metadata: {
-            url: avatarUrl,
-            urlParts: new URL(avatarUrl)
-          },
-          isCritical: false
-        }
+      logger.warn(
+        `[WebhookManager] Invalid avatar URL: ${avatarUrl}, does not point to a valid image`
       );
+
+      // Track this validation error for debugging
+      errorTracker.trackError(new Error(`Invalid avatar URL: ${avatarUrl}`), {
+        category: errorTracker.ErrorCategory.AVATAR,
+        operation: 'validateAvatarUrl',
+        metadata: {
+          url: avatarUrl,
+          urlParts: new URL(avatarUrl),
+        },
+        isCritical: false,
+      });
     }
-    
+
     return isValidImage;
   } catch (error) {
     // Record the error with our error tracker
@@ -112,19 +113,21 @@ async function validateAvatarUrl(avatarUrl) {
       category: errorTracker.ErrorCategory.AVATAR,
       operation: 'validateAvatarUrl',
       metadata: {
-        url: avatarUrl
+        url: avatarUrl,
       },
-      isCritical: false
+      isCritical: false,
     });
-    
+
     logger.warn(`[WebhookManager] Error validating avatar URL: ${error.message} for ${avatarUrl}`);
-    
+
     // Special case: if it has an image extension, trust it despite fetch errors
     if (urlValidator.hasImageExtension(avatarUrl)) {
-      logger.info(`[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`);
+      logger.info(
+        `[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`
+      );
       return true;
     }
-    
+
     return false;
   }
 }
@@ -140,10 +143,10 @@ async function getValidAvatarUrl(avatarUrl) {
     logger.debug(`[WebhookManager] No avatar URL provided, returning null`);
     return null;
   }
-  
+
   // Check if the URL is valid
   const isValid = await validateAvatarUrl(avatarUrl);
-  
+
   if (isValid) {
     return avatarUrl;
   } else {
@@ -165,7 +168,7 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
     logger.debug(`[WebhookManager] No avatar URL to warm up, returning null`);
     return null;
   }
-  
+
   if (avatarWarmupCache.has(avatarUrl)) {
     logger.debug(`[WebhookManager] Avatar URL already warmed up: ${avatarUrl}`);
     return avatarUrl;
@@ -185,13 +188,15 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
     'i.imgur.com',
     'imgur.com',
     'media.discordapp.net',
-    'cdn.discordapp.com'
+    'cdn.discordapp.com',
   ];
-  
+
   const urlObj = new URL(avatarUrl);
   if (skipWarmupDomains.some(domain => urlObj.hostname.includes(domain))) {
-    logger.info(`[WebhookManager] Known reliable domain detected (${urlObj.hostname}), skipping warmup for: ${avatarUrl}`);
-    
+    logger.info(
+      `[WebhookManager] Known reliable domain detected (${urlObj.hostname}), skipping warmup for: ${avatarUrl}`
+    );
+
     // Trust URLs with image extensions without validation
     if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
       avatarWarmupCache.add(avatarUrl);
@@ -202,12 +207,12 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
   try {
     // First ensure the avatar URL is valid
     const validUrl = await getValidAvatarUrl(avatarUrl);
-    
+
     // If we got null, it means the original URL was invalid
     if (validUrl === null) {
       return null; // Don't bother warming up an invalid URL
     }
-    
+
     // Make a GET request to ensure Discord caches the image
     // Use a timeout to prevent hanging on bad URLs
     const controller = new AbortController();
@@ -217,11 +222,12 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
       method: 'GET',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://discord.com/',
-        'Cache-Control': 'no-cache'
+        Referer: 'https://discord.com/',
+        'Cache-Control': 'no-cache',
       },
     });
 
@@ -229,27 +235,37 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
 
     if (!response.ok) {
       logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
-      
+
       // If it's imgur or certain other domains and has an image extension, consider it valid
       // despite the response error (might be anti-hotlinking measures)
-      if (skipWarmupDomains.some(domain => urlObj.hostname.includes(domain)) && 
-          avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
-        logger.info(`[WebhookManager] Likely valid image despite error response, accepting: ${avatarUrl}`);
+      if (
+        skipWarmupDomains.some(domain => urlObj.hostname.includes(domain)) &&
+        avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)
+      ) {
+        logger.info(
+          `[WebhookManager] Likely valid image despite error response, accepting: ${avatarUrl}`
+        );
         avatarWarmupCache.add(avatarUrl);
         return avatarUrl;
       }
-      
+
       throw new Error(`Failed to warm up avatar: ${response.status} ${response.statusText}`);
     }
-    
+
     // Check content type to ensure it's an image or a generic binary file
     const contentType = response.headers.get('content-type');
     // Log the content type for debugging purposes
     logger.debug(`[WebhookManager] Avatar URL content type: ${contentType} for ${avatarUrl}`);
-    
+
     // Skip this check for application/octet-stream as it's a generic binary content type often used for images
-    if (contentType && !contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
-      logger.warn(`[WebhookManager] Avatar URL has non-image content type: ${contentType} for ${avatarUrl}`);
+    if (
+      contentType &&
+      !contentType.startsWith('image/') &&
+      contentType !== 'application/octet-stream'
+    ) {
+      logger.warn(
+        `[WebhookManager] Avatar URL has non-image content type: ${contentType} for ${avatarUrl}`
+      );
       // Don't reject here, just log a warning - the image extension or reader check will validate further
     }
 
@@ -261,17 +277,17 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
         const reader = response.body.getReader();
         const { done, value } = await reader.read();
         reader.cancel();
-        
+
         if (done || !value || value.length === 0) {
           logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
           throw new Error('Empty response from avatar URL');
         }
-        
+
         logger.debug(`[WebhookManager] Avatar loaded (${value.length} bytes) using streams API`);
       } else {
         // Fallback: try to use buffer/arrayBuffer approach
         // This handles older node-fetch versions or environments without streams support
-        
+
         // Try arrayBuffer first (more modern)
         if (typeof response.arrayBuffer === 'function') {
           const buffer = await response.arrayBuffer();
@@ -279,8 +295,10 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
             logger.warn(`[WebhookManager] Avatar URL returned an empty arrayBuffer: ${avatarUrl}`);
             throw new Error('Empty arrayBuffer from avatar URL');
           }
-          logger.debug(`[WebhookManager] Avatar loaded (${buffer.byteLength} bytes) using arrayBuffer`);
-        } 
+          logger.debug(
+            `[WebhookManager] Avatar loaded (${buffer.byteLength} bytes) using arrayBuffer`
+          );
+        }
         // Fall back to text/blob or just trust the status
         else if (typeof response.text === 'function') {
           const text = await response.text();
@@ -291,36 +309,44 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
           logger.debug(`[WebhookManager] Avatar loaded (${text.length} chars) using text API`);
         } else {
           // If we can't read in any way but response was OK, still consider it valid
-          logger.info(`[WebhookManager] Cannot read avatar response body, but status is OK. Considering valid.`);
+          logger.info(
+            `[WebhookManager] Cannot read avatar response body, but status is OK. Considering valid.`
+          );
         }
       }
     } catch (readError) {
       // If we can't read the body but response was OK, still consider it valid
-      logger.warn(`[WebhookManager] Couldn't read avatar response but status was OK: ${readError.message}`);
+      logger.warn(
+        `[WebhookManager] Couldn't read avatar response but status was OK: ${readError.message}`
+      );
     }
-    
+
     // Add to cache so we don't warm up the same URL multiple times
     avatarWarmupCache.add(validUrl);
     logger.info(`[WebhookManager] Successfully warmed up avatar URL: ${validUrl}`);
-    
+
     return validUrl;
   } catch (error) {
     logger.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
-    
+
     // Check if it's a URL with image extension despite errors
     if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
-      logger.info(`[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`);
+      logger.info(
+        `[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`
+      );
       avatarWarmupCache.add(avatarUrl);
       return avatarUrl;
     }
-    
+
     // Retry logic - up to 2 retries (3 attempts total)
     if (retryCount < 3) {
-      logger.info(`[WebhookManager] Retrying avatar warmup (attempt ${retryCount + 1}/3) for: ${avatarUrl}`);
+      logger.info(
+        `[WebhookManager] Retrying avatar warmup (attempt ${retryCount + 1}/3) for: ${avatarUrl}`
+      );
       await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
       return warmupAvatarUrl(avatarUrl, retryCount + 1);
     }
-    
+
     // After all retries failed, return null
     logger.warn(`[WebhookManager] All warmup attempts failed for ${avatarUrl}, returning null`);
     return null;
@@ -335,26 +361,26 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
 function splitByCharacterLimit(text) {
   const chunks = [];
   let remainingText = text;
-  
+
   while (remainingText.length > 0) {
     // Calculate chunk size based on message limit
     const chunkSize = Math.min(remainingText.length, MESSAGE_CHAR_LIMIT);
-    
+
     // Try to find a natural break point (space)
     let splitIndex = remainingText.lastIndexOf(' ', chunkSize);
-    
+
     // If no good break point found, just split at the limit
     if (splitIndex <= chunkSize * 0.5) {
       splitIndex = chunkSize;
     }
-    
+
     // Add the chunk to our results
     chunks.push(remainingText.substring(0, splitIndex));
-    
+
     // Remove the processed chunk
     remainingText = remainingText.substring(splitIndex).trim();
   }
-  
+
   return chunks;
 }
 
@@ -374,11 +400,11 @@ function processSentence(sentence, chunks, currentChunk) {
       if (currentChunk.length > 0) {
         chunks.push(currentChunk);
       }
-      
+
       // Split the sentence by character limit
       const sentenceChunks = splitByCharacterLimit(sentence);
       chunks.push(...sentenceChunks);
-      
+
       // Start with a fresh chunk
       return '';
     } else {
@@ -408,19 +434,19 @@ function processLine(line, chunks, currentChunk) {
       if (currentChunk.length > 0) {
         chunks.push(currentChunk);
       }
-      
+
       // Split by sentences and process each
       const sentences = line.split(/(?<=[.!?])\s+/);
       const sentenceChunk = '';
       const processedChunk = sentences.reduce((chunk, sentence) => {
         return processSentence(sentence, chunks, chunk);
       }, sentenceChunk);
-      
+
       // Add any remaining content
       if (processedChunk.length > 0) {
         chunks.push(processedChunk);
       }
-      
+
       return '';
     } else {
       // Line is within limit but combined is too long
@@ -449,19 +475,19 @@ function processParagraph(paragraph, chunks, currentChunk) {
       if (currentChunk.length > 0) {
         chunks.push(currentChunk);
       }
-      
+
       // Split paragraph by lines and process each
       const lines = paragraph.split(/\n/);
       const lineChunk = '';
       const processedChunk = lines.reduce((chunk, line) => {
         return processLine(line, chunks, chunk);
       }, lineChunk);
-      
+
       // Add any remaining content
       if (processedChunk.length > 0) {
         chunks.push(processedChunk);
       }
-      
+
       return '';
     } else {
       // Paragraph is within limit but combined is too long
@@ -484,23 +510,23 @@ function splitMessage(content) {
   if (!content || content.length <= MESSAGE_CHAR_LIMIT) {
     return [content || ''];
   }
-  
+
   const chunks = [];
   let currentChunk = '';
-  
+
   // First split by paragraphs (double newlines)
   const paragraphs = content.split(/\n\s*\n/);
-  
+
   // Process each paragraph
   for (const paragraph of paragraphs) {
     currentChunk = processParagraph(paragraph, chunks, currentChunk);
   }
-  
+
   // Add any remaining content
   if (currentChunk.length > 0) {
     chunks.push(currentChunk);
   }
-  
+
   return chunks;
 }
 
@@ -518,24 +544,30 @@ async function getOrCreateWebhook(channel) {
   try {
     // Handle the case where channel is a thread
     const targetChannel = channel.isThread() ? channel.parent : channel;
-    
+
     if (!targetChannel) {
       throw new Error(`Cannot find parent channel for thread ${channel.id}`);
     }
-    
-    logger.info(`Working with ${channel.isThread() ? 'thread in parent' : 'regular'} channel ${targetChannel.name || targetChannel.id}`);
+
+    logger.info(
+      `Working with ${channel.isThread() ? 'thread in parent' : 'regular'} channel ${targetChannel.name || targetChannel.id}`
+    );
 
     // Try to find existing webhooks in the channel
     const webhooks = await targetChannel.fetchWebhooks();
 
-    logger.info(`Found ${webhooks.size} webhooks in channel ${targetChannel.name || targetChannel.id}`);
+    logger.info(
+      `Found ${webhooks.size} webhooks in channel ${targetChannel.name || targetChannel.id}`
+    );
 
     // Look for our bot's webhook - use simpler criteria
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
 
     // If no webhook found, create a new one
     if (!webhook) {
-      logger.info(`Creating new webhook in channel ${targetChannel.name || ''} (${targetChannel.id})`);
+      logger.info(
+        `Creating new webhook in channel ${targetChannel.name || ''} (${targetChannel.id})`
+      );
       webhook = await targetChannel.createWebhook({
         name: 'Tzurot',
         reason: 'Needed for personality proxying',
@@ -592,15 +624,15 @@ function generateMessageTrackingId(channelId) {
  */
 function isErrorContent(content) {
   if (!content) return false;
-  
+
   // Use the centralized error messages from constants
   const { ERROR_MESSAGES } = require('./constants');
-  
+
   // Special case for combined terms
   if (content.includes('connection') && content.includes('unstable')) {
     return true;
   }
-  
+
   // Check against the standard error message patterns
   return ERROR_MESSAGES.some(pattern => content.includes(pattern));
 }
@@ -612,30 +644,31 @@ function isErrorContent(content) {
  */
 function markErrorContent(content) {
   if (!content) return '';
-  
+
   // Use the centralized error messages and markers from constants
   const { ERROR_MESSAGES, MARKERS } = require('./constants');
-  
+
   // Special case for combined terms
   if (content.includes('connection') && content.includes('unstable')) {
     logger.info(`[Webhook] Detected error message (unstable connection), adding special prefix`);
     return MARKERS.ERROR_PREFIX + ' ' + content;
   }
-  
+
   // Check for standard error patterns
   for (const pattern of ERROR_MESSAGES) {
     // Skip the marker patterns themselves to avoid duplication
-    if (pattern === MARKERS.ERROR_PREFIX || 
-        pattern === MARKERS.HARD_BLOCKED_RESPONSE) {
+    if (pattern === MARKERS.ERROR_PREFIX || pattern === MARKERS.HARD_BLOCKED_RESPONSE) {
       continue;
     }
-    
+
     if (content.includes(pattern)) {
-      logger.info(`[Webhook] Detected error message with pattern "${pattern}", adding special prefix`);
+      logger.info(
+        `[Webhook] Detected error message with pattern "${pattern}", adding special prefix`
+      );
       return MARKERS.ERROR_PREFIX + ' ' + content;
     }
   }
-  
+
   return content;
 }
 
@@ -699,9 +732,9 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     threadId: messageData.threadId,
     chunkIndex: chunkIndex + 1,
     totalChunks,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
-  
+
   logger.debug(
     `Sending webhook message chunk ${chunkIndex + 1}/${totalChunks} with data: ${JSON.stringify({
       username: messageData.username,
@@ -725,11 +758,11 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       metadata: {
         ...messageContext,
         errorCode: error.code,
-        errorName: error.name
+        errorName: error.name,
       },
-      isCritical: true
+      isCritical: true,
     });
-    
+
     // If this is because of length, try to send a simpler message indicating the error
     if (error.code === 50035) {
       // Invalid Form Body - usually means the message content was too long
@@ -749,17 +782,19 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
           metadata: {
             originalError: {
               message: error.message,
-              code: error.code
+              code: error.code,
             },
-            ...messageContext
+            ...messageContext,
           },
-          isCritical: false
+          isCritical: false,
         });
       }
     } else if (error.code === 10015) {
       // Unknown Webhook - usually means the webhook was deleted
-      logger.error(`[Webhook] Webhook no longer exists. Will need to be recreated on next attempt.`);
-      
+      logger.error(
+        `[Webhook] Webhook no longer exists. Will need to be recreated on next attempt.`
+      );
+
       // Clear the webhook from cache so it will be recreated next time
       const channelId = messageData.threadId || findChannelIdForWebhook(webhook);
       if (channelId) {
@@ -779,12 +814,12 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
           contentLastChars: messageData.content?.substring(messageData.content.length - 100),
           hasEmbeds: !!messageData.embeds?.length,
           threadId: messageData.threadId,
-        }
+        },
       };
-      
+
       logger.error('[Webhook] Webhook error details:', diagnosticInfo);
     }
-    
+
     throw error;
   }
 }
@@ -860,7 +895,7 @@ function createVirtualResult(personality, channelId) {
 async function sendWebhookMessage(channel, content, personality, options = {}) {
   // Minimize console output during webhook operations
   const originalFunctions = minimizeConsoleOutput();
-  
+
   try {
     // Ensure personality is an object with at least fullName
     if (!personality) {
@@ -873,24 +908,30 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
     // If displayName is missing but fullName is present, ensure we set a display name
     if (!personality.displayName && personality.fullName) {
-      logger.warn(`[Webhook] No displayName provided for ${personality.fullName}, attempting to fetch or generate one`);
-      
+      logger.warn(
+        `[Webhook] No displayName provided for ${personality.fullName}, attempting to fetch or generate one`
+      );
+
       // Try to fetch display name if needed (only for real personalities)
       if (personality.fullName !== 'unknown') {
         try {
           // Import here to avoid circular dependencies
           const { getProfileDisplayName } = require('./profileInfoFetcher');
           const displayName = await getProfileDisplayName(personality.fullName);
-          
+
           if (displayName) {
-            logger.info(`[Webhook] Successfully fetched displayName: ${displayName} for ${personality.fullName}`);
+            logger.info(
+              `[Webhook] Successfully fetched displayName: ${displayName} for ${personality.fullName}`
+            );
             personality.displayName = displayName;
           } else {
             // Extract from fullName as fallback
             const parts = personality.fullName.split('-');
             if (parts.length > 0) {
               const extracted = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-              logger.info(`[Webhook] Using extracted displayName: ${extracted} for ${personality.fullName}`);
+              logger.info(
+                `[Webhook] Using extracted displayName: ${extracted} for ${personality.fullName}`
+              );
               personality.displayName = extracted;
             } else {
               personality.displayName = personality.fullName;
@@ -959,10 +1000,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     try {
       // Pre-load and validate the avatar URL to ensure Discord caches it
       // This returns either the validated avatar URL or null
-      const validatedAvatarUrl = personality.avatarUrl 
+      const validatedAvatarUrl = personality.avatarUrl
         ? await warmupAvatarUrl(personality.avatarUrl)
         : null;
-      
+
       // Update the personality object with the validated URL
       if (validatedAvatarUrl !== personality.avatarUrl) {
         logger.info(`[Webhook] Updated personality avatar URL to validated version`);
@@ -981,15 +1022,16 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       // Process any audio URLs in the content
       let processedContent = content;
       let attachments = [];
-      
+
       try {
         // Only process if content is a string
         if (typeof content === 'string') {
           logger.debug(`[Webhook] Checking for audio URLs in message content`);
-          const { content: newContent, attachments: audioAttachments } = await audioHandler.processAudioUrls(content);
+          const { content: newContent, attachments: audioAttachments } =
+            await audioHandler.processAudioUrls(content);
           processedContent = newContent;
           attachments = audioAttachments;
-          
+
           if (attachments.length > 0) {
             logger.info(`[Webhook] Processed ${attachments.length} audio URLs into attachments`);
           }
@@ -1000,11 +1042,12 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         processedContent = content;
         attachments = [];
       }
-      
+
       // Split message into chunks if needed
       let contentChunks = [''];
       try {
-        const safeContent = typeof processedContent === 'string' ? processedContent : String(processedContent || '');
+        const safeContent =
+          typeof processedContent === 'string' ? processedContent : String(processedContent || '');
         contentChunks = splitMessage(safeContent);
         logger.info(`[Webhook] Split message into ${contentChunks.length} chunks`);
       } catch (error) {
@@ -1043,10 +1086,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
 
         // Prepare message data for this chunk
         // Only include attachments in the first chunk
-        const chunkOptions = isFirstChunk 
-          ? { ...options, attachments: attachments } 
-          : {};
-          
+        const chunkOptions = isFirstChunk ? { ...options, attachments: attachments } : {};
+
         const messageData = prepareMessageData(
           finalContent,
           standardizedName,
@@ -1059,10 +1100,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         try {
           // Send the message chunk
           const sentMessage = await sendMessageChunk(webhook, messageData, i, contentChunks.length);
-          
+
           // Track the message ID
           sentMessageIds.push(sentMessage.id);
-          
+
           // Keep track of the first message
           if (isFirstChunk) {
             firstSentMessage = sentMessage;
@@ -1112,7 +1153,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       // Unknown Webhook
       webhookCache.delete(channel.id);
     }
-    
+
     // Clear pending message to prevent hanging states
     if (personality && personality.fullName) {
       clearPendingMessage(personality.fullName, channel.id);
@@ -1161,8 +1202,8 @@ function isErrorWebhookMessage(options) {
 
   // Use the centralized error messages
   const { ERROR_MESSAGES } = require('./constants');
-  
-  // Add additional patterns specific to webhook operations 
+
+  // Add additional patterns specific to webhook operations
   const webhookSpecificPatterns = [
     'connectivity problem',
     'I cannot access',
@@ -1174,15 +1215,15 @@ function isErrorWebhookMessage(options) {
     'failed to generate',
     'unavailable at this time',
   ];
-  
+
   // Combine all error patterns
   const allPatterns = [...ERROR_MESSAGES, ...webhookSpecificPatterns];
-  
+
   // Special case for combined terms
   if (options.content.includes('connection') && options.content.includes('unstable')) {
     return true;
   }
-  
+
   // Check if content matches any error pattern
   return allPatterns.some(pattern => options.content.includes(pattern));
 }
@@ -1240,9 +1281,7 @@ function registerEventListeners(discordClient) {
  */
 async function preloadPersonalityAvatar(personality) {
   if (!personality) {
-    logger.error(
-      `[WebhookManager] Cannot preload avatar: personality object is null or undefined`
-    );
+    logger.error(`[WebhookManager] Cannot preload avatar: personality object is null or undefined`);
     return;
   }
 
@@ -1252,7 +1291,9 @@ async function preloadPersonalityAvatar(personality) {
     );
     // Set a fallback avatar URL rather than simply returning
     personality.avatarUrl = null;
-    logger.info(`[WebhookManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`);
+    logger.info(
+      `[WebhookManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
+    );
     return;
   }
 
@@ -1263,7 +1304,7 @@ async function preloadPersonalityAvatar(personality) {
   try {
     // Use our improved validation and warmup methods
     const validatedUrl = await getValidAvatarUrl(personality.avatarUrl);
-    
+
     // If the URL is invalid, update the personality object with the fallback
     if (validatedUrl !== personality.avatarUrl) {
       logger.warn(
@@ -1296,11 +1337,13 @@ function getStandardizedUsername(personality) {
 
   try {
     // Log the full personality object to diagnose issues
-    logger.debug(`[WebhookManager] getStandardizedUsername called with personality: ${JSON.stringify({
-      fullName: personality.fullName || 'N/A',
-      displayName: personality.displayName || 'N/A',
-      hasAvatar: !!personality.avatarUrl
-    })}`);
+    logger.debug(
+      `[WebhookManager] getStandardizedUsername called with personality: ${JSON.stringify({
+        fullName: personality.fullName || 'N/A',
+        displayName: personality.displayName || 'N/A',
+        hasAvatar: !!personality.avatarUrl,
+      })}`
+    );
 
     // ALWAYS prioritize displayName over any other field
     if (
@@ -1319,7 +1362,9 @@ function getStandardizedUsername(personality) {
       return name;
     } else {
       // Log when displayName is missing to help diagnose the issue
-      logger.warn(`[WebhookManager] displayName missing for personality: ${personality.fullName || 'unknown'}`);
+      logger.warn(
+        `[WebhookManager] displayName missing for personality: ${personality.fullName || 'unknown'}`
+      );
     }
 
     // Fallback: Extract name from fullName
@@ -1346,7 +1391,9 @@ function getStandardizedUsername(personality) {
       }
 
       // Truncate long names
-      logger.debug(`[WebhookManager] Using truncated fullName: ${personality.fullName.slice(0, 29)}...`);
+      logger.debug(
+        `[WebhookManager] Using truncated fullName: ${personality.fullName.slice(0, 29)}...`
+      );
       return personality.fullName.slice(0, 29) + '...';
     }
   } catch (error) {
@@ -1514,17 +1561,17 @@ module.exports = {
   clearAllWebhookCaches,
   registerEventListeners,
   preloadPersonalityAvatar,
-  
+
   // Helper functions for usernames and messages
   getStandardizedUsername,
   isDuplicateMessage,
   hashMessage,
   splitMessage,
-  
+
   // Console handling functions
   minimizeConsoleOutput,
   restoreConsoleOutput,
-  
+
   // Message content processing
   isErrorContent,
   markErrorContent,
@@ -1532,7 +1579,7 @@ module.exports = {
   sendMessageChunk,
   createVirtualResult,
   generateMessageTrackingId,
-  
+
   // Message throttling functions
   hasPersonalityPendingMessage,
   registerPendingMessage,
@@ -1540,12 +1587,12 @@ module.exports = {
   calculateMessageDelay,
   updateChannelLastMessageTime,
   createPersonalityChannelKey,
-  
+
   // Avatar URL handling
   validateAvatarUrl,
   getValidAvatarUrl,
   warmupAvatarUrl,
-  
+
   // For testing purposes
   splitByCharacterLimit,
   processSentence,

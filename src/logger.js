@@ -1,12 +1,12 @@
 /**
  * Logger module for the Tzurot Discord bot
- * 
+ *
  * @module logger
  * @description
  * This module provides a centralized logging system using Winston.
  * It handles log formatting, rotation, and outputs logs to both the console
  * and files. Error logs are stored separately from general logs.
- * 
+ *
  * Usage:
  * ```javascript
  * const logger = require('./logger');
@@ -39,7 +39,7 @@ const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !==
  * Configured with appropriate transports based on environment:
  * - Test environment: Only console output
  * - Production environment: Console and file outputs
- * 
+ *
  * File outputs include automatic rotation when files reach 5MB
  */
 const logger = createLogger({
@@ -49,7 +49,7 @@ const logger = createLogger({
     // Console output
     new transports.Console({
       format: combine(colorize(), timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-    })
+    }),
   ],
 });
 
@@ -61,20 +61,24 @@ if (!isTest) {
     if (!require('fs').existsSync(path.join(__dirname, '..', 'logs'))) {
       require('fs').mkdirSync(path.join(__dirname, '..', 'logs'));
     }
-    
+
     // Add file transports
-    logger.add(new transports.File({
-      filename: path.join(__dirname, '..', 'logs', 'tzurot.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }));
-    
-    logger.add(new transports.File({
-      filename: path.join(__dirname, '..', 'logs', 'error.log'),
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }));
+    logger.add(
+      new transports.File({
+        filename: path.join(__dirname, '..', 'logs', 'tzurot.log'),
+        maxsize: 5242880, // 5MB
+        maxFiles: 5,
+      })
+    );
+
+    logger.add(
+      new transports.File({
+        filename: path.join(__dirname, '..', 'logs', 'error.log'),
+        level: 'error',
+        maxsize: 5242880, // 5MB
+        maxFiles: 5,
+      })
+    );
   } catch (error) {
     console.error('Error setting up file logging:', error);
   }

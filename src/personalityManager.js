@@ -39,21 +39,29 @@ async function initPersonalityManager(deferOwnerPersonalities = true) {
     // Load aliases
     const aliases = await loadData(ALIASES_FILE);
     if (aliases) {
-      logger.info(`[PersonalityManager] Loading aliases from file: ${Object.keys(aliases).length} found`);
+      logger.info(
+        `[PersonalityManager] Loading aliases from file: ${Object.keys(aliases).length} found`
+      );
       for (const [key, value] of Object.entries(aliases)) {
         personalityAliases.set(key, value);
       }
       logger.info(`[PersonalityManager] Loaded ${personalityAliases.size} aliases`);
     }
-    
+
     // Pre-seed personalities for the bot owner if needed
     if (deferOwnerPersonalities) {
       // Schedule owner personalities loading to happen in the background
       logger.info('[PersonalityManager] Deferring owner personality seeding to run in background');
       setTimeout(() => {
         seedOwnerPersonalities()
-          .then(() => logger.info('[PersonalityManager] Background owner personality seeding completed'))
-          .catch(err => logger.error(`[PersonalityManager] Background owner personality seeding error: ${err.message}`));
+          .then(() =>
+            logger.info('[PersonalityManager] Background owner personality seeding completed')
+          )
+          .catch(err =>
+            logger.error(
+              `[PersonalityManager] Background owner personality seeding error: ${err.message}`
+            )
+          );
       }, 500); // Small delay to let other initialization finish
     } else {
       // Directly load owner personalities (the old way)
@@ -144,7 +152,9 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
       ]);
 
       // Log the raw results to help with debugging
-      logger.debug(`[PersonalityManager] Raw profile fetch results - name: ${profileName}, avatar: ${avatarUrl}`);
+      logger.debug(
+        `[PersonalityManager] Raw profile fetch results - name: ${profileName}, avatar: ${avatarUrl}`
+      );
 
       // Check if we successfully got a display name
       if (profileName) {
@@ -152,7 +162,9 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
         personality.displayName = profileName;
       } else {
         // If we didn't get a display name from the API, maintain the default
-        logger.warn(`[PersonalityManager] Failed to get display name from API, keeping default: ${personality.displayName}`);
+        logger.warn(
+          `[PersonalityManager] Failed to get display name from API, keeping default: ${personality.displayName}`
+        );
       }
 
       // Check if we successfully got an avatar URL
@@ -161,7 +173,9 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
         personality.avatarUrl = avatarUrl;
       } else {
         // If we didn't get an avatar URL, log this clearly
-        logger.warn(`[PersonalityManager] Failed to get avatar URL from API, keeping default: ${personality.avatarUrl || 'null'}`);
+        logger.warn(
+          `[PersonalityManager] Failed to get avatar URL from API, keeping default: ${personality.avatarUrl || 'null'}`
+        );
       }
 
       // Verify the retrieved data is valid
@@ -229,10 +243,12 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
     };
   }
 
-  logger.info(`[PersonalityManager] Successfully returning personality: ${JSON.stringify({
-    fullName: personality.fullName,
-    displayName: personality.displayName,
-  })}`);
+  logger.info(
+    `[PersonalityManager] Successfully returning personality: ${JSON.stringify({
+      fullName: personality.fullName,
+      displayName: personality.displayName,
+    })}`
+  );
 
   return personality;
 }
@@ -302,18 +318,23 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
   // Verify the personality exists
   if (!personalityData.has(fullName)) {
     logger.error(`[PersonalityManager] Cannot set alias to non-existent personality: ${fullName}`);
-    
+
     // IMPROVEMENT: For testing only - if the fullName follows our naming convention, create a dummy entry
     // This helps with test scripts that mock the data structure but may not fully populate it
-    if (fullName.includes('-') && (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development')) {
-      logger.warn(`[PersonalityManager] TEST/DEV MODE: Creating dummy personality entry for testing: ${fullName}`);
-      
+    if (
+      fullName.includes('-') &&
+      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development')
+    ) {
+      logger.warn(
+        `[PersonalityManager] TEST/DEV MODE: Creating dummy personality entry for testing: ${fullName}`
+      );
+
       // Create a basic personality entry to allow the test to continue
       personalityData.set(fullName, {
         fullName,
         displayName: fullName.split('-')[0],
         createdBy: 'test-user',
-        createdAt: Date.now()
+        createdAt: Date.now(),
       });
     } else {
       return result;
@@ -341,11 +362,11 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
 
       // For display name collisions, we'll generate a more meaningful alias based on the personality's name
       const words = fullName.split('-');
-      
+
       // IMPROVED APPROACH: Create a more user-friendly alias by adding a distinguishing part of the name
       // 1. If the display name is a common first name like "Lilith", add the second word
       // 2. For longer display names with collisions, use initials
-      
+
       let altAlias;
       if (words.length >= 2 && normalizedAlias.length < 15) {
         // For short display names like "Lilith", add the second word from the full name
@@ -369,7 +390,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
           `[PersonalityManager] Creating alias with initials for longer name: ${altAlias}`
         );
       }
-      
+
       // Check if the generated alternate alias also collides, if so, go to initials
       if (personalityAliases.has(altAlias) && personalityAliases.get(altAlias) !== fullName) {
         logger.warn(
@@ -377,10 +398,12 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
         );
         const initials = words.map(word => word.charAt(0)).join('');
         altAlias = `${normalizedAlias}-${initials}`;
-        
+
         // If even the initials version collides, add a random suffix
         if (personalityAliases.has(altAlias) && personalityAliases.get(altAlias) !== fullName) {
-          const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+          const randomSuffix = Math.floor(Math.random() * 100)
+            .toString()
+            .padStart(2, '0');
           altAlias = `${normalizedAlias}-${initials}${randomSuffix}`;
           logger.warn(
             `[PersonalityManager] Even initials collide, adding random suffix: ${altAlias}`
@@ -533,90 +556,115 @@ function listPersonalitiesForUser(userId) {
 async function seedOwnerPersonalities() {
   // Import constants
   const { USER_CONFIG } = require('./constants');
-  
+
   // Check if USER_CONFIG is defined with owner personalities
   if (!USER_CONFIG || !USER_CONFIG.OWNER_ID || !USER_CONFIG.OWNER_PERSONALITIES_LIST) {
-    logger.debug('[PersonalityManager] No owner personalities defined in constants, skipping auto-seeding');
+    logger.debug(
+      '[PersonalityManager] No owner personalities defined in constants, skipping auto-seeding'
+    );
     return;
   }
-  
+
   const ownerId = USER_CONFIG.OWNER_ID;
   // Parse the comma-separated list into an array
   const personalitiesList = USER_CONFIG.OWNER_PERSONALITIES_LIST.trim();
-  const ownerPersonalities = personalitiesList ? personalitiesList.split(',').map(p => p.trim()) : [];
-  
+  const ownerPersonalities = personalitiesList
+    ? personalitiesList.split(',').map(p => p.trim())
+    : [];
+
   // Get current owner personalities
   const existingPersonalities = listPersonalitiesForUser(ownerId);
   const existingPersonalityNames = new Set(existingPersonalities.map(p => p.fullName));
-  
-  logger.info(`[PersonalityManager] Checking auto-seeding for owner (${ownerId}): ${ownerPersonalities.length} personalities defined`);
-  logger.info(`[PersonalityManager] Owner already has ${existingPersonalities.length} personalities`);
-  
-  // Filter out personalities that already exist or are empty
-  const personalitiesToAdd = ownerPersonalities.filter(name => 
-    name && !existingPersonalityNames.has(name)
+
+  logger.info(
+    `[PersonalityManager] Checking auto-seeding for owner (${ownerId}): ${ownerPersonalities.length} personalities defined`
   );
-  
+  logger.info(
+    `[PersonalityManager] Owner already has ${existingPersonalities.length} personalities`
+  );
+
+  // Filter out personalities that already exist or are empty
+  const personalitiesToAdd = ownerPersonalities.filter(
+    name => name && !existingPersonalityNames.has(name)
+  );
+
   if (personalitiesToAdd.length === 0) {
     logger.info('[PersonalityManager] No new personalities needed to be seeded.');
     return;
   }
-  
-  logger.info(`[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities in parallel`);
-  
+
+  logger.info(
+    `[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities in parallel`
+  );
+
   // Create an array of promises for parallel execution
-  const personalityPromises = personalitiesToAdd.map(async (personalityName) => {
+  const personalityPromises = personalitiesToAdd.map(async personalityName => {
     logger.info(`[PersonalityManager] Auto-seeding owner personality: ${personalityName}`);
     try {
       // Register the personality for the owner
-      const personality = await registerPersonality(ownerId, personalityName, {
-        description: `Auto-added from constants.js for bot owner`
-      }, true); // true = fetch profile info
-      
+      const personality = await registerPersonality(
+        ownerId,
+        personalityName,
+        {
+          description: `Auto-added from constants.js for bot owner`,
+        },
+        true
+      ); // true = fetch profile info
+
       // After registration, the display name will be populated
       if (personality && personality.displayName) {
-        logger.info(`[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`);
-        
+        logger.info(
+          `[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`
+        );
+
         // Skip self-referential alias - no longer needed with improved @mention support
         logger.info(`[PersonalityManager] Skipping self-referential alias for ${personalityName}`);
-        
+
         // Only set display name alias if different from the full name
         if (personality.displayName.toLowerCase() !== personalityName.toLowerCase()) {
           // IMPORTANT: Mark this as a display name alias (isDisplayName=true) to ensure
           // proper collision handling when multiple personalities have the same display name
           // This is critical for ensuring names like "Lilith" generate unique aliases
-          logger.info(`[PersonalityManager] Setting display name alias: ${personality.displayName.toLowerCase()} -> ${personalityName} with isDisplayName=true`);
+          logger.info(
+            `[PersonalityManager] Setting display name alias: ${personality.displayName.toLowerCase()} -> ${personalityName} with isDisplayName=true`
+          );
           await setPersonalityAlias(
-            personality.displayName.toLowerCase(), 
-            personalityName, 
-            true,  // skipSave=true to avoid unnecessary saves
-            true   // isDisplayName=true for proper collision handling
+            personality.displayName.toLowerCase(),
+            personalityName,
+            true, // skipSave=true to avoid unnecessary saves
+            true // isDisplayName=true for proper collision handling
           );
         }
       }
-      
+
       logger.info(`[PersonalityManager] Successfully added owner personality: ${personalityName}`);
       return personality;
     } catch (error) {
-      logger.error(`[PersonalityManager] Error auto-seeding personality ${personalityName}: ${error.message}`);
+      logger.error(
+        `[PersonalityManager] Error auto-seeding personality ${personalityName}: ${error.message}`
+      );
       return null;
     }
   });
-  
+
   // Execute all registration requests in parallel and wait for completion
   try {
     const results = await Promise.all(personalityPromises);
     const addedPersonalities = results.filter(p => p !== null);
-    
+
     // Finally, save all personalities and aliases if any were added
     if (addedPersonalities.length > 0) {
       await saveAllPersonalities();
-      logger.info(`[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`);
+      logger.info(
+        `[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`
+      );
     } else {
       logger.info('[PersonalityManager] No personalities were successfully seeded.');
     }
   } catch (error) {
-    logger.error(`[PersonalityManager] Error during parallel personality seeding: ${error.message}`);
+    logger.error(
+      `[PersonalityManager] Error during parallel personality seeding: ${error.message}`
+    );
   }
 }
 

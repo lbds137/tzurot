@@ -100,7 +100,9 @@ async function processCommand(message, command, args) {
 
     // Clean up after 30 seconds (reduced from 5 minutes)
     setTimeout(() => {
-      logger.debug(`[Commands] Removing message ${message.id} from processedMessages after timeout`);
+      logger.debug(
+        `[Commands] Removing message ${message.id} from processedMessages after timeout`
+      );
       processedMessages.delete(message.id);
     }, 30000); // 30 seconds instead of 5 minutes
   }
@@ -870,7 +872,7 @@ async function setupPersonalityAliases(profileName, alias, initialPersonality) {
   logger.info(
     `[Commands] Skipping self-referential alias creation for ${selfReferentialAlias} - no longer needed with improved @mention support`
   );
-  
+
   // Add to existingAliases to ensure we don't try to add it elsewhere
   if (!existingAliases.includes(selfReferentialAlias)) {
     existingAliases.push(selfReferentialAlias);
@@ -1502,15 +1504,19 @@ async function handleListCommand(message, args) {
   try {
     // Debug logging
     logger.info(`[Commands] List command called by user: ${message.author.id}`);
-    
+
     // Get all personalities for the user
     const personalities = listPersonalitiesForUser(message.author.id);
     logger.info(`[Commands] Found ${personalities?.length || 0} personalities for user`);
-    
+
     // Check if personalities is undefined or not an array
     if (!Array.isArray(personalities)) {
-      logger.error(`[Commands] Error in list command: personalities is not an array: ${typeof personalities}`);
-      return message.reply('An error occurred while retrieving your personalities. Please try again later.');
+      logger.error(
+        `[Commands] Error in list command: personalities is not an array: ${typeof personalities}`
+      );
+      return message.reply(
+        'An error occurred while retrieving your personalities. Please try again later.'
+      );
     }
 
     if (personalities.length === 0) {
@@ -1531,46 +1537,63 @@ async function handleListCommand(message, args) {
         logger.info(`[Commands] Invalid page number provided: ${args[0]}, using default page 1`);
       }
     }
-    
+
     // Debug logging of personality data to diagnose issues (but limit to avoid excessive logs)
     if (personalities.length <= 10) {
-      logger.info(`[Commands] Personalities data: ${JSON.stringify(personalities.map(p => ({ 
-        fullName: p.fullName, 
-        displayName: p.displayName 
-      })))}`);
+      logger.info(
+        `[Commands] Personalities data: ${JSON.stringify(
+          personalities.map(p => ({
+            fullName: p.fullName,
+            displayName: p.displayName,
+          }))
+        )}`
+      );
     } else {
-      logger.info(`[Commands] Personalities data: [too many personalities to log (${personalities.length})]`);
+      logger.info(
+        `[Commands] Personalities data: [too many personalities to log (${personalities.length})]`
+      );
     }
-    
+
     // Create an embed with the list using the helper function
-    logger.info(`[Commands] Creating personality list embed for user: ${message.author.id}, page ${page}`);
-    
+    logger.info(
+      `[Commands] Creating personality list embed for user: ${message.author.id}, page ${page}`
+    );
+
     try {
       // Add special error handling for the list command
       const result = embedHelpers.createPersonalityListEmbed(message.author.id, page);
-      
+
       // Verify that the result was created successfully
       if (!result || typeof result !== 'object' || !result.embed) {
         logger.error(`[Commands] Invalid result object created: ${JSON.stringify(result)}`);
-        return message.reply('An error occurred while generating the personality list. Please try again later.');
+        return message.reply(
+          'An error occurred while generating the personality list. Please try again later.'
+        );
       }
-      
+
       const { embed, totalPages, currentPage } = result;
-      
+
       // Log pagination info
       logger.info(`[Commands] Successfully created embed for page ${currentPage}/${totalPages}`);
-      
+
       // Only try to send the embed if it was successfully created
       if (embed && embed.data) {
         return message.reply({ embeds: [embed] });
       } else {
         // Fallback if something went wrong but we didn't catch it above
         logger.error(`[Commands] Generated embed is invalid: ${JSON.stringify(embed)}`);
-        return message.reply('An error occurred while generating the personality list. Please try again later.');
+        return message.reply(
+          'An error occurred while generating the personality list. Please try again later.'
+        );
       }
     } catch (embedError) {
-      logger.error(`[Commands] Error creating embed for list command: ${embedError.message}`, embedError);
-      return message.reply('An error occurred while generating the personality list. Please try again later.');
+      logger.error(
+        `[Commands] Error creating embed for list command: ${embedError.message}`,
+        embedError
+      );
+      return message.reply(
+        'An error occurred while generating the personality list. Please try again later.'
+      );
     }
   } catch (error) {
     logger.error(`[Commands] Error processing list command: ${error.message}`, error);
@@ -1864,7 +1887,9 @@ async function handleStatusCommand(message) {
  */
 async function handleDebugCommand(message, args) {
   if (args.length < 1) {
-    return message.reply(`Please specify a debug subcommand. Available subcommands: \`problems\`, \`seedpersonalities\``);
+    return message.reply(
+      `Please specify a debug subcommand. Available subcommands: \`problems\`, \`seedpersonalities\``
+    );
   }
 
   const subCommand = args[0].toLowerCase();
@@ -1873,7 +1898,7 @@ async function handleDebugCommand(message, args) {
     case 'problems':
     case 'problematic':
       return await handleDebugProblematicCommand(message, args.slice(1));
-      
+
     case 'seedpersonalities':
     case 'seed':
       return await handleDebugSeedPersonalitiesCommand(message);
@@ -1893,19 +1918,19 @@ async function handleDebugSeedPersonalitiesCommand(message) {
   // Import needed functions
   const { USER_CONFIG } = require('./constants');
   const { seedOwnerPersonalities } = require('./personalityManager');
-  
+
   // Check if the user is the owner
   if (message.author.id !== USER_CONFIG.OWNER_ID) {
     return message.reply('This command can only be used by the bot owner.');
   }
-  
+
   try {
     // Show initiating message
     await message.reply('Seeding personalities from constants.js... This may take a moment.');
-    
+
     // Run the seeding operation
     await seedOwnerPersonalities();
-    
+
     // Return success
     return message.reply('✅ Personalities successfully seeded from constants.js configuration.');
   } catch (error) {
@@ -1980,12 +2005,12 @@ module.exports = {
   handleResetCommand,
   handleAutoRespondCommand,
   handleInfoCommand,
-  directSend: (content) => {
+  directSend: content => {
     try {
       if (typeof content === 'string') {
-        return Promise.resolve({id: 'mock-message-id', content});
+        return Promise.resolve({ id: 'mock-message-id', content });
       } else {
-        return Promise.resolve({id: 'mock-message-id', content: 'mock-embed'});
+        return Promise.resolve({ id: 'mock-message-id', content: 'mock-embed' });
       }
     } catch (err) {
       console.error('Error sending message:', err);

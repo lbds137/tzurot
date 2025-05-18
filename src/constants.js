@@ -1,6 +1,6 @@
 /**
  * Constants used throughout the Tzurot Discord bot
- * 
+ *
  * @module constants
  * @description
  * This module centralizes constant values used across multiple files
@@ -32,7 +32,7 @@ exports.TIME = {
   TEN_MINUTES: 10 * 60 * 1000,
   ONE_HOUR: 60 * 60 * 1000,
   ONE_DAY: 24 * 60 * 60 * 1000,
-  
+
   // Specific durations
   ERROR_BLACKOUT_DURATION: 30 * 1000, // 30 seconds
   CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours
@@ -54,7 +54,7 @@ exports.TIME = {
 exports.DISCORD = {
   MESSAGE_CHAR_LIMIT: 2000,
   USERNAME_CHAR_LIMIT: 32,
-  MAX_EMBED_FIELDS: 25
+  MAX_EMBED_FIELDS: 25,
 };
 
 /**
@@ -116,7 +116,7 @@ exports.ERROR_MESSAGES = [
  */
 exports.MARKERS = {
   HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  ERROR_PREFIX: 'ERROR_MESSAGE_PREFIX:'
+  ERROR_PREFIX: 'ERROR_MESSAGE_PREFIX:',
 };
 
 /**
@@ -132,7 +132,7 @@ exports.DEFAULTS = {
   ANONYMOUS_USER: 'anon',
   NO_CHANNEL: 'nochannel',
   DEFAULT_PROMPT: 'Hello',
-  DEFAULT_LOG_LEVEL: 'info'
+  DEFAULT_LOG_LEVEL: 'info',
 };
 
 /**
@@ -146,11 +146,11 @@ exports.USER_CONFIG = {
   // Bot owner user ID - loaded from environment variables
   // Set BOT_OWNER_ID in your .env file
   OWNER_ID: process.env.BOT_OWNER_ID || '123456789012345678', // Fallback ID for development
-  
+
   // Pre-seeded personalities for the owner - loaded from environment variables
   // Set OWNER_PERSONALITIES in your .env file as a comma-separated list
   // Example: "albert-einstein,sigmund-freud,carl-jung,marie-curie"
   // The bot will automatically detect each personality's display name and set up proper aliases
-  OWNER_PERSONALITIES_LIST: process.env.OWNER_PERSONALITIES || 
-    "albert-einstein,sigmund-freud,carl-jung,marie-curie" // Default personalities for development
+  OWNER_PERSONALITIES_LIST:
+    process.env.OWNER_PERSONALITIES || 'albert-einstein,sigmund-freud,carl-jung,marie-curie', // Default personalities for development
 };

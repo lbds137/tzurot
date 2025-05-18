@@ -1,13 +1,13 @@
 /**
  * Health Check module for the Tzurot Discord bot
- * 
+ *
  * @module healthCheck
  * @description
  * This module provides health check functionality for the bot, including:
  * - Status information about various components (Discord, AI service)
  * - Basic metrics like uptime and memory usage
  * - An HTTP endpoint for external monitoring systems
- * 
+ *
  * Usage:
  * ```javascript
  * const { createHealthServer } = require('./healthCheck');
@@ -40,7 +40,7 @@ function formatUptime(uptime) {
   const hours = Math.floor((uptime % 86400) / 3600);
   const minutes = Math.floor((uptime % 3600) / 60);
   const seconds = uptime % 60;
-  
+
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
@@ -55,7 +55,7 @@ function getMemoryUsage() {
     heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
     heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
     external: `${Math.round(memoryUsage.external / 1024 / 1024)} MB`,
-    memoryUsagePercent: `${Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100)}%`
+    memoryUsagePercent: `${Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100)}%`,
   };
 }
 
@@ -71,7 +71,7 @@ function getSystemInfo() {
     cpuCores: os.cpus().length,
     totalMemory: `${Math.round(os.totalmem() / 1024 / 1024)} MB`,
     freeMemory: `${Math.round(os.freemem() / 1024 / 1024)} MB`,
-    loadAverage: os.loadavg()
+    loadAverage: os.loadavg(),
   };
 }
 
@@ -82,18 +82,18 @@ function getSystemInfo() {
  */
 function checkDiscordStatus(client) {
   if (!client) {
-    return { 
+    return {
       status: 'unavailable',
-      message: 'Discord client not initialized'
+      message: 'Discord client not initialized',
     };
   }
-  
+
   return {
     status: client.isReady() ? 'ok' : 'error',
     message: client.isReady() ? 'Connected to Discord' : 'Not connected to Discord',
     ping: client.ws.ping ? `${client.ws.ping}ms` : 'Unknown',
     servers: client.guilds.cache.size,
-    uptime: client.uptime ? formatUptime(Math.floor(client.uptime / 1000)) : 'Unknown'
+    uptime: client.uptime ? formatUptime(Math.floor(client.uptime / 1000)) : 'Unknown',
   };
 }
 
@@ -105,9 +105,9 @@ function checkAIStatus() {
   // This is a placeholder. In a real implementation,
   // you might want to make a test request to the OpenAI API
   // to check if it's responding correctly.
-  return { 
+  return {
     status: 'ok',
-    message: 'AI service assumed operational (no direct health check implemented)'
+    message: 'AI service assumed operational (no direct health check implemented)',
   };
 }
 
@@ -125,7 +125,7 @@ function createHealthChecksRunner(client) {
     const uptimeSeconds = getUptime();
     const discordStatus = checkDiscordStatus(client);
     const aiStatus = checkAIStatus();
-    
+
     // Determine overall status
     let overallStatus = 'ok';
     if (discordStatus.status !== 'ok' || aiStatus.status !== 'ok') {
@@ -134,20 +134,20 @@ function createHealthChecksRunner(client) {
     if (discordStatus.status === 'error' && aiStatus.status === 'error') {
       overallStatus = 'critical';
     }
-    
+
     return {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: {
         seconds: uptimeSeconds,
-        formatted: formatUptime(uptimeSeconds)
+        formatted: formatUptime(uptimeSeconds),
       },
       memory: getMemoryUsage(),
       system: getSystemInfo(),
       components: {
         discord: discordStatus,
-        ai: aiStatus
-      }
+        ai: aiStatus,
+      },
     };
   };
 }
@@ -161,29 +161,33 @@ function createHealthChecksRunner(client) {
 function createHealthServer(client, port = 3000) {
   // Create a health checks runner specifically for this client
   const runHealthChecks = createHealthChecksRunner(client);
-  
+
   const server = http.createServer((req, res) => {
     if (req.url === '/health' || req.url === '/health/') {
       try {
         const healthData = runHealthChecks();
-        
+
         // Set appropriate status code based on health status
         let statusCode = 200;
         if (healthData.status === 'degraded') statusCode = 200; // Still return 200 but with degraded status in body
         if (healthData.status === 'critical') statusCode = 503; // Service Unavailable
-        
+
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(healthData, null, 2));
-        
+
         // Log health check requests
-        logger.info(`Health check request from ${req.socket.remoteAddress} - Status: ${healthData.status}`);
+        logger.info(
+          `Health check request from ${req.socket.remoteAddress} - Status: ${healthData.status}`
+        );
       } catch (error) {
         logger.error('Error generating health check data', error);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          error: 'Internal Server Error',
-          message: error.message
-        }));
+        res.end(
+          JSON.stringify({
+            error: 'Internal Server Error',
+            message: error.message,
+          })
+        );
       }
     } else {
       // For any other route, return 404
@@ -191,15 +195,15 @@ function createHealthServer(client, port = 3000) {
       res.end(JSON.stringify({ error: 'Not Found' }));
     }
   });
-  
-  server.on('error', (error) => {
+
+  server.on('error', error => {
     logger.error(`Health check server error: ${error.message}`, error);
   });
-  
+
   server.listen(port, () => {
     logger.info(`Health check server running on port ${port}`);
   });
-  
+
   return server;
 }
 
@@ -208,5 +212,5 @@ module.exports = {
   getUptime,
   formatUptime,
   getMemoryUsage,
-  getSystemInfo
+  getSystemInfo,
 };

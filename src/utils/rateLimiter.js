@@ -4,7 +4,7 @@
  * - Request spacing with configurable delays
  * - Exponential backoff for 429 responses
  * - Global cooldown periods after multiple rate limit hits
- * 
+ *
  * TODO: Future improvements
  * - Add per-host rate limiting for different API endpoints
  * - Implement token bucket algorithm for more precise rate control
@@ -32,7 +32,7 @@ class RateLimiter {
     this.cooldownPeriod = options.cooldownPeriod || 60000; // 1 minute cooldown
     this.maxRetries = options.maxRetries || 5;
     this.logPrefix = options.logPrefix || '[RateLimiter]';
-    
+
     // State tracking
     this.lastRequestTime = 0;
     this.consecutiveRateLimits = 0;
@@ -40,14 +40,14 @@ class RateLimiter {
     this.requestQueue = [];
     this.inCooldown = false;
   }
-  
+
   /**
    * Adds a request to the rate limiter queue
    * @param {Function} requestFn The function to execute when the request is processed
    * @returns {Promise} A promise that resolves when the request is processed
    */
   async enqueue(requestFn) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       // Define the task to be executed
       const task = async () => {
         this.activeRequests++;
@@ -63,16 +63,18 @@ class RateLimiter {
           this.processQueue();
         }
       };
-      
+
       // Add to queue
       this.requestQueue.push(task);
-      logger.debug(`${this.logPrefix} Request added to queue (length: ${this.requestQueue.length})`);
-      
+      logger.debug(
+        `${this.logPrefix} Request added to queue (length: ${this.requestQueue.length})`
+      );
+
       // Try to process the queue immediately
       this.processQueue();
     });
   }
-  
+
   /**
    * Processes the request queue according to rate limiting rules
    */
@@ -81,14 +83,16 @@ class RateLimiter {
     if (this.inCooldown) {
       return;
     }
-    
+
     // Check if we've hit too many consecutive rate limits
     if (this.consecutiveRateLimits >= this.maxConsecutiveRateLimits) {
-      logger.warn(`${this.logPrefix} Too many consecutive rate limits (${this.consecutiveRateLimits}), enforcing global cooldown of ${this.cooldownPeriod/1000}s`);
-      
+      logger.warn(
+        `${this.logPrefix} Too many consecutive rate limits (${this.consecutiveRateLimits}), enforcing global cooldown of ${this.cooldownPeriod / 1000}s`
+      );
+
       // Enter cooldown mode
       this.inCooldown = true;
-      
+
       // Schedule end of cooldown
       setTimeout(() => {
         logger.info(`${this.logPrefix} Global cooldown period ended, resuming normal operation`);
@@ -96,35 +100,37 @@ class RateLimiter {
         this.consecutiveRateLimits = 0;
         this.processQueue(); // Try processing queue again
       }, this.cooldownPeriod);
-      
+
       return;
     }
-    
+
     // If we have capacity and pending requests, process them
     if (this.activeRequests < this.maxConcurrent && this.requestQueue.length > 0) {
       const now = Date.now();
       const timeSinceLastRequest = now - this.lastRequestTime;
-      
+
       // Add jitter to avoid synchronized requests
       const jitter = Math.floor(Math.random() * 500);
-      
+
       // If we need to wait before making another request
       if (timeSinceLastRequest < this.minRequestSpacing) {
         // Schedule the next request after the delay
         const waitTime = this.minRequestSpacing - timeSinceLastRequest + jitter;
-        logger.debug(`${this.logPrefix} Rate limiting: waiting ${waitTime}ms before next request (queue length: ${this.requestQueue.length})`);
-        
+        logger.debug(
+          `${this.logPrefix} Rate limiting: waiting ${waitTime}ms before next request (queue length: ${this.requestQueue.length})`
+        );
+
         setTimeout(() => this.processQueue(), waitTime);
         return;
       }
-      
+
       // Process one request at a time with proper spacing
       const nextRequest = this.requestQueue.shift();
       this.lastRequestTime = now;
-      
+
       // Execute the request
       nextRequest();
-      
+
       // If there are more requests, schedule the next check with sufficient delay
       if (this.requestQueue.length > 0) {
         // Use the configured delay plus jitter
@@ -133,7 +139,7 @@ class RateLimiter {
       }
     }
   }
-  
+
   /**
    * Records a rate limit event and implements backoff strategy
    * @param {string} identifier An identifier for the rate limited resource
@@ -143,46 +149,54 @@ class RateLimiter {
   async handleRateLimit(identifier, retryAfter = null, retryCount = 0) {
     // Increment consecutive rate limits counter
     this.consecutiveRateLimits++;
-    
+
     // If we've hit too many rate limits, enter cooldown mode
     if (this.consecutiveRateLimits >= this.maxConsecutiveRateLimits) {
-      logger.warn(`${this.logPrefix} Too many consecutive rate limits (${this.consecutiveRateLimits}), enforcing global cooldown`);
-      
+      logger.warn(
+        `${this.logPrefix} Too many consecutive rate limits (${this.consecutiveRateLimits}), enforcing global cooldown`
+      );
+
       // The processQueue method will handle the actual cooldown
       // We just return a value to indicate we're at the retry limit
       return this.maxRetries;
     }
-    
+
     // If we've exceeded max retries, give up
     if (retryCount >= this.maxRetries) {
-      logger.error(`${this.logPrefix} Exceeded maximum retries (${this.maxRetries}) for ${identifier}`);
+      logger.error(
+        `${this.logPrefix} Exceeded maximum retries (${this.maxRetries}) for ${identifier}`
+      );
       return retryCount;
     }
-    
+
     // Calculate backoff time using exponential backoff
     const baseWaitTime = 3000; // 3 seconds base wait time
     const jitter = Math.floor(Math.random() * 500);
-    
+
     // Use retry-after header if provided, otherwise use exponential backoff
-    const waitTime = retryAfter 
-      ? (retryAfter * 1000) 
-      : (baseWaitTime * Math.pow(2, retryCount) + jitter);
-    
-    logger.warn(`${this.logPrefix} Rate limited for ${identifier}, retry ${retryCount + 1}/${this.maxRetries} after ${waitTime}ms. Consecutive rate limits: ${this.consecutiveRateLimits}`);
-    
+    const waitTime = retryAfter
+      ? retryAfter * 1000
+      : baseWaitTime * Math.pow(2, retryCount) + jitter;
+
+    logger.warn(
+      `${this.logPrefix} Rate limited for ${identifier}, retry ${retryCount + 1}/${this.maxRetries} after ${waitTime}ms. Consecutive rate limits: ${this.consecutiveRateLimits}`
+    );
+
     // Wait for the backoff period
     await new Promise(resolve => setTimeout(resolve, waitTime));
-    
+
     // Return updated retry count
     return retryCount + 1;
   }
-  
+
   /**
    * Resets the consecutive rate limit counter when a successful request is made
    */
   recordSuccess() {
     if (this.consecutiveRateLimits > 0) {
-      logger.debug(`${this.logPrefix} Resetting consecutive rate limit counter after successful request`);
+      logger.debug(
+        `${this.logPrefix} Resetting consecutive rate limit counter after successful request`
+      );
       this.consecutiveRateLimits = 0;
     }
   }

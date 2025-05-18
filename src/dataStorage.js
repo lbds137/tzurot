@@ -1,11 +1,11 @@
 /**
  * Data Storage Module
- * 
+ *
  * @module dataStorage
  * @description
  * Provides functions for managing persistent data storage for the bot.
  * Data is stored as JSON files in the /data directory.
- * 
+ *
  * This module handles:
  * - Creating the data directory if it doesn't exist
  * - Serializing and deserializing JSON data
@@ -26,12 +26,12 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 
 /**
  * Initialize the data storage
- * 
+ *
  * @async
  * @function initStorage
  * @returns {Promise<void>} Resolves when initialization is complete
  * @throws {Error} If the data directory cannot be created
- * 
+ *
  * @description
  * Creates the data directory if it doesn't exist yet.
  * This should be called when the bot starts up to ensure
@@ -50,14 +50,14 @@ async function initStorage() {
 
 /**
  * Save data to a file
- * 
+ *
  * @async
  * @function saveData
  * @param {string} filename - The name of the file (without .json extension)
  * @param {Object} data - The data to save (will be converted to JSON)
  * @returns {Promise<void>} Resolves when the data is saved
  * @throws {Error} If the data cannot be saved
- * 
+ *
  * @description
  * Serializes the provided data object to JSON and writes it to a file
  * in the data directory. The .json extension is automatically added to the filename.
@@ -75,13 +75,13 @@ async function saveData(filename, data) {
 
 /**
  * Load data from a file
- * 
+ *
  * @async
  * @function loadData
  * @param {string} filename - The name of the file (without .json extension)
  * @returns {Promise<Object|null>} The loaded data or null if the file doesn't exist
  * @throws {Error} If the file exists but cannot be read or parsed
- * 
+ *
  * @description
  * Loads and parses JSON data from a file in the data directory.
  * The .json extension is automatically added to the filename.

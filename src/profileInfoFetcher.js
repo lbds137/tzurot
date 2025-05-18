@@ -1,9 +1,9 @@
 /**
  * Profile Info Fetcher
- * 
+ *
  * This module is responsible for fetching profile information from the API,
  * handling caching, rate limiting, and error recovery.
- * 
+ *
  * TODO: Future improvements
  * - Implement more sophisticated caching with stale-while-revalidate pattern
  * - Add circuit breaker pattern for failing endpoints
@@ -32,7 +32,7 @@ const rateLimiter = new RateLimiter({
   maxConsecutiveRateLimits: 3,
   cooldownPeriod: 60000, // 1 minute cooldown if we hit too many rate limits
   maxRetries: 5,
-  logPrefix: '[ProfileInfoFetcher]'
+  logPrefix: '[ProfileInfoFetcher]',
 });
 
 // Use this fetch implementation which allows for easier testing
@@ -50,21 +50,21 @@ async function fetchProfileInfo(profileName) {
     logger.info(`[ProfileInfoFetcher] Reusing existing request for: ${profileName}`);
     return ongoingRequests.get(profileName);
   }
-  
+
   // Create a new promise that will be completed when the request is done
   let resolvePromise;
   const requestPromise = new Promise(resolve => {
     resolvePromise = resolve;
   });
-  
+
   // Add this request to the ongoing requests map immediately
   ongoingRequests.set(profileName, requestPromise);
-  
+
   // Use the rate limiter to handle this request
   rateLimiter.enqueue(async () => {
     try {
       logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
-      
+
       // Check if we have a valid cached entry
       if (profileInfoCache.has(profileName)) {
         const cacheEntry = profileInfoCache.get(profileName);
@@ -75,38 +75,40 @@ async function fetchProfileInfo(profileName) {
           return;
         }
       }
-      
+
       // Get the endpoint from our config
       const endpoint = getProfileInfoEndpoint(profileName);
       logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
-      
+
       // Fetch the profile data
       const data = await fetchWithRetry(endpoint, profileName);
-      
+
       // If we couldn't get the data, resolve with null
       if (!data) {
         resolvePromise(null);
         return;
       }
-      
+
       // Cache the result
       profileInfoCache.set(profileName, {
         data,
         timestamp: Date.now(),
       });
       logger.debug(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
-      
+
       // Resolve the promise with the data
       resolvePromise(data);
     } catch (error) {
-      logger.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`);
+      logger.error(
+        `[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`
+      );
       resolvePromise(null);
     } finally {
       // Always clean up - remove from ongoing requests
       ongoingRequests.delete(profileName);
     }
   });
-  
+
   return requestPromise;
 }
 
@@ -119,67 +121,70 @@ async function fetchProfileInfo(profileName) {
 async function fetchWithRetry(endpoint, profileName) {
   let retryCount = 0;
   const maxRetries = rateLimiter.maxRetries;
-  
+
   // Create an AbortController for timeout handling
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-  
+
   try {
     while (retryCount <= maxRetries) {
       try {
         const response = await fetchImplementation(endpoint, {
           headers: {
             'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json',
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            Accept: 'application/json',
             'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Referer': 'https://discord.com/'
+            Pragma: 'no-cache',
+            Referer: 'https://discord.com/',
           },
-          signal: controller.signal
+          signal: controller.signal,
         });
-        
+
         // If we get a successful response, clear rate limit counter
         if (response.ok) {
           rateLimiter.recordSuccess();
-          
+
           // Parse and return the data
           const data = await response.json();
           logger.debug(
             `[ProfileInfoFetcher] Received profile data: ${JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : '')}`
           );
-          
+
           // Verify we have the expected fields
           if (!data) {
             logger.error(`[ProfileInfoFetcher] Received empty data for: ${profileName}`);
           } else if (!data.name) {
-            logger.warn(`[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`);
+            logger.warn(
+              `[ProfileInfoFetcher] Profile data missing 'name' field for: ${profileName}`
+            );
           } else if (!data.id) {
             logger.warn(`[ProfileInfoFetcher] Profile data missing 'id' field for: ${profileName}`);
           }
-          
+
           return data;
         }
-        
+
         // Handle rate limiting (429)
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
           retryCount = await rateLimiter.handleRateLimit(
-            profileName, 
+            profileName,
             retryAfter ? parseInt(retryAfter, 10) : null,
             retryCount
           );
-          
+
           // If we've hit max retries, give up
           if (retryCount >= maxRetries) {
             logger.error(`[ProfileInfoFetcher] Max retries reached for ${profileName}`);
             return null;
           }
-          
+
           // Otherwise, continue to next retry iteration
           continue;
         }
-        
+
         // For other errors, log and return null
         logger.error(
           `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText} for ${profileName}`
@@ -188,9 +193,11 @@ async function fetchWithRetry(endpoint, profileName) {
       } catch (fetchError) {
         // Handle network errors, like timeouts or connection issues
         if (fetchError.name === 'AbortError' || fetchError.type === 'aborted') {
-          logger.warn(`[ProfileInfoFetcher] Request timed out for ${profileName}, retry ${retryCount + 1}/${maxRetries}`);
+          logger.warn(
+            `[ProfileInfoFetcher] Request timed out for ${profileName}, retry ${retryCount + 1}/${maxRetries}`
+          );
           retryCount++;
-          
+
           if (retryCount <= maxRetries) {
             // Add some jitter to avoid synchronized retries
             const jitter = Math.floor(Math.random() * 500);
@@ -198,17 +205,21 @@ async function fetchWithRetry(endpoint, profileName) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
             continue; // Try again
           } else {
-            logger.error(`[ProfileInfoFetcher] Max retries reached for ${profileName} after timeout`);
+            logger.error(
+              `[ProfileInfoFetcher] Max retries reached for ${profileName} after timeout`
+            );
             return null;
           }
         }
-        
+
         // For other fetch errors, log and return null
-        logger.error(`[ProfileInfoFetcher] Network error during profile fetch for ${profileName}: ${fetchError.message}`);
+        logger.error(
+          `[ProfileInfoFetcher] Network error during profile fetch for ${profileName}: ${fetchError.message}`
+        );
         return null;
       }
     }
-    
+
     // If we get here, we've exhausted retries
     return null;
   } finally {
@@ -237,40 +248,51 @@ async function getProfileAvatarUrl(profileName) {
   try {
     // Check if avatar_url is directly available in the response
     if (profileInfo.avatar_url) {
-      logger.debug(`[ProfileInfoFetcher] Using avatar_url directly from API response: ${profileInfo.avatar_url}`);
-      
+      logger.debug(
+        `[ProfileInfoFetcher] Using avatar_url directly from API response: ${profileInfo.avatar_url}`
+      );
+
       // Validate the URL format
       if (!urlValidator.isValidUrlFormat(profileInfo.avatar_url)) {
-        logger.warn(`[ProfileInfoFetcher] Received invalid avatar_url from API: ${profileInfo.avatar_url}`);
+        logger.warn(
+          `[ProfileInfoFetcher] Received invalid avatar_url from API: ${profileInfo.avatar_url}`
+        );
       } else {
         // Special handling for test environment with test values
         if (process.env.NODE_ENV === 'test' && profileInfo.avatar_url === 'not-a-valid-url') {
-          logger.warn(`[ProfileInfoFetcher] Test environment detected with invalid URL - falling back to ID-based URL`);
+          logger.warn(
+            `[ProfileInfoFetcher] Test environment detected with invalid URL - falling back to ID-based URL`
+          );
           // Continue to fallback by not returning here
         } else {
           return profileInfo.avatar_url;
         }
       }
     }
-    
+
     // Fallback to using ID-based URL format
     if (!profileInfo.id) {
       logger.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
       return null;
     }
-    
+
     // Get the avatar URL format from config
     const avatarUrlFormat = getAvatarUrlFormat();
-    
+
     // Validate the avatar URL format from config
     if (!avatarUrlFormat || !avatarUrlFormat.includes('{id}')) {
-      logger.error(`[ProfileInfoFetcher] Invalid avatarUrlFormat: "${avatarUrlFormat}". Check AVATAR_URL_BASE env variable.`);
-      
+      logger.error(
+        `[ProfileInfoFetcher] Invalid avatarUrlFormat: "${avatarUrlFormat}". Check AVATAR_URL_BASE env variable.`
+      );
+
       // Special handling for tests
-      if (process.env.NODE_ENV === 'test' || avatarUrlFormat === 'invalid-url-without-id-placeholder') {
+      if (
+        process.env.NODE_ENV === 'test' ||
+        avatarUrlFormat === 'invalid-url-without-id-placeholder'
+      ) {
         return null;
       }
-      
+
       // In production, try to continue anyway
       return null;
     }
@@ -278,13 +300,13 @@ async function getProfileAvatarUrl(profileName) {
     // Replace the placeholder with the actual profile ID
     const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
     logger.debug(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
-    
+
     // Validate the generated URL
     if (!urlValidator.isValidUrlFormat(avatarUrl)) {
       logger.error(`[ProfileInfoFetcher] Generated invalid avatar URL: ${avatarUrl}`);
       return null;
     }
-    
+
     return avatarUrl;
   } catch (error) {
     logger.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
@@ -332,14 +354,14 @@ module.exports = {
   _testing: {
     clearCache,
     getCache: () => profileInfoCache,
-    setFetchImplementation: (newImpl) => {
+    setFetchImplementation: newImpl => {
       // This allows tests to override the fetchImplementation
       Object.defineProperty(module.exports, 'fetchImplementation', {
         value: newImpl,
-        writable: true
+        writable: true,
       });
     },
     // Expose our utils for testing
-    getRateLimiter: () => rateLimiter
-  }
+    getRateLimiter: () => rateLimiter,
+  },
 };

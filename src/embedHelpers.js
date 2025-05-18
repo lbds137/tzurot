@@ -66,16 +66,18 @@ function createPersonalityListEmbed(userId, page = 1) {
           .setDescription('An error occurred while retrieving personalities')
           .setColor('#FF0000'),
         totalPages: 1,
-        currentPage: 1
+        currentPage: 1,
       };
     }
-    
+
     // Get all personalities for the user
     const personalities = listPersonalitiesForUser(userId);
-    
+
     // Handle non-array return values
     if (!Array.isArray(personalities)) {
-      console.error(`[EmbedHelpers] listPersonalitiesForUser returned a non-array: ${typeof personalities}`);
+      console.error(
+        `[EmbedHelpers] listPersonalitiesForUser returned a non-array: ${typeof personalities}`
+      );
       // Return a basic error embed
       return {
         embed: new EmbedBuilder()
@@ -83,34 +85,36 @@ function createPersonalityListEmbed(userId, page = 1) {
           .setDescription('An error occurred while retrieving personalities')
           .setColor('#FF0000'),
         totalPages: 1,
-        currentPage: 1
+        currentPage: 1,
       };
     }
-    
+
     // Constants for pagination
     const FIELDS_PER_PAGE = 20; // Discord allows 25 max, but we'll use 20 for better display
-    
+
     // Calculate pagination
     const personalityCount = personalities.length;
     const totalPages = Math.max(1, Math.ceil(personalityCount / FIELDS_PER_PAGE));
-    
+
     // Validate and normalize page number
     page = Number.isFinite(page) ? Math.max(1, Math.min(page, totalPages)) : 1;
-    
+
     // Get personalities for the current page
     const startIdx = (page - 1) * FIELDS_PER_PAGE;
     const endIdx = Math.min(startIdx + FIELDS_PER_PAGE, personalityCount);
     const paginatedPersonalities = personalities.slice(startIdx, endIdx);
-    
-    console.log(`[EmbedHelpers] Creating page ${page}/${totalPages} with personalities ${startIdx}-${endIdx-1} of ${personalityCount}`);
-    
-    // Create the embed with explicit checks for number safety    
+
+    console.log(
+      `[EmbedHelpers] Creating page ${page}/${totalPages} with personalities ${startIdx}-${endIdx - 1} of ${personalityCount}`
+    );
+
+    // Create the embed with explicit checks for number safety
     const embed = new EmbedBuilder()
       .setTitle(`Your Personalities (Page ${page}/${totalPages})`)
       .setDescription(`You have ${personalityCount} personalities`)
       .setColor('#5865F2')
       .setFooter({ text: `Page ${page} of ${totalPages}` });
-      
+
     // Check if personalityAliases is a Map
     let aliasesMap;
     if (!(personalityAliases instanceof Map)) {
@@ -133,11 +137,11 @@ function createPersonalityListEmbed(userId, page = 1) {
         console.error(`[EmbedHelpers] Invalid personality object: ${typeof p}`);
         return; // Skip this personality
       }
-      
+
       // Default fallback for fullName if missing
       const fullName = p.fullName || 'unknown';
       const displayName = p.displayName || fullName;
-      
+
       // Find all aliases for this personality
       const aliases = [];
       try {
@@ -170,7 +174,7 @@ function createPersonalityListEmbed(userId, page = 1) {
       const safeDisplayName = displayName ? String(displayName) : 'Unknown';
       const safeFullName = fullName ? String(fullName) : 'unknown';
       const safeAliasText = aliasText ? String(aliasText) : 'No aliases';
-      
+
       embed.addFields({
         name: safeDisplayName,
         value: `ID: \`${safeFullName}\`\n${safeAliasText}`,
@@ -181,45 +185,50 @@ function createPersonalityListEmbed(userId, page = 1) {
     if (totalPages > 1 && page < totalPages) {
       embed.addFields({
         name: 'Navigation',
-        value: `Use \`!tz list ${page+1}\` to see the next page`
+        value: `Use \`!tz list ${page + 1}\` to see the next page`,
       });
     }
-    
+
     // Add navigation to previous page if not on the first page
     if (page > 1) {
       embed.addFields({
         name: 'Navigation',
-        value: `Use \`!tz list ${page-1}\` to go back to the previous page`
+        value: `Use \`!tz list ${page - 1}\` to go back to the previous page`,
       });
     }
 
     return {
       embed,
       totalPages,
-      currentPage: page
+      currentPage: page,
     };
   } catch (error) {
     console.error(`[EmbedHelpers] Error creating personality list embed: ${error.message}`, error);
-    
+
     // Create a dump of the problematic data for debugging
+    // Note: personalities might not be defined in the catch block scope
     const debugInfo = {
-      personalitiesType: typeof personalities !== 'undefined' ? typeof personalities : 'undefined',
-      isArray: typeof personalities !== 'undefined' ? Array.isArray(personalities) : 'undefined',
-      count: typeof personalities !== 'undefined' && Array.isArray(personalities) ? personalities.length : 'N/A',
-      aliasesType: typeof personalityAliases !== 'undefined' ? typeof personalityAliases : 'undefined',
-      isMap: typeof personalityAliases !== 'undefined' ? personalityAliases instanceof Map : 'undefined',
+      personalitiesType: 'unknown', // Can't reference personalities variable here as it's not in scope
+      isArray: false,
+      count: 'N/A',
+      aliasesType:
+        typeof personalityAliases !== 'undefined' ? typeof personalityAliases : 'undefined',
+      isMap:
+        typeof personalityAliases !== 'undefined' ? personalityAliases instanceof Map : 'undefined',
     };
-    
+
     console.error(`[EmbedHelpers] Debug data: ${JSON.stringify(debugInfo)}`);
-    
+
     // Return a basic error embed
     return {
       embed: new EmbedBuilder()
         .setTitle('Error')
-        .setDescription(`Sorry, there was a problem displaying your personalities. Please try again later.`)
+        .setDescription(
+          `Sorry, there was a problem displaying your personalities. Please try again later.`
+        )
         .setColor('#FF0000'),
       totalPages: 1,
-      currentPage: 1
+      currentPage: 1,
     };
   }
 }
@@ -358,5 +367,5 @@ module.exports = {
   createPersonalityInfoEmbed,
   createStatusEmbed,
   createHelpEmbed,
-  formatUptime
+  formatUptime,
 };

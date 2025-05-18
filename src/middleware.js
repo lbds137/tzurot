@@ -32,7 +32,7 @@ class MiddlewareManager {
   constructor() {
     this.middlewares = [];
     this.name = 'MiddlewareManager';
-    
+
     // Initialize with validation middleware
     this.use(this.validationMiddleware.bind(this));
   }
@@ -56,21 +56,23 @@ class MiddlewareManager {
    * @returns {Promise<Object>} - The final context after all middleware has executed
    */
   async execute(context) {
-    logger.debug(`[${this.name}] Starting middleware pipeline with ${this.middlewares.length} middleware functions`);
-    
+    logger.debug(
+      `[${this.name}] Starting middleware pipeline with ${this.middlewares.length} middleware functions`
+    );
+
     // Make a copy of the original context to avoid mutation issues
     let currentContext = { ...context };
-    
+
     // Process each middleware in sequence
     for (const middleware of this.middlewares) {
       try {
         // Each middleware can modify the context or return early
         const result = await middleware(currentContext);
-        
+
         // If middleware returned false or a result with earlyReturn: true, stop processing
         if (result === false || (result && result.earlyReturn === true)) {
           logger.debug(`[${this.name}] Middleware pipeline stopped early`);
-          
+
           // If we have a result object with earlyReturn, use it as the new context
           if (result && result.earlyReturn === true) {
             currentContext = result;
@@ -78,10 +80,10 @@ class MiddlewareManager {
             // Otherwise, add an explicit early return flag
             currentContext.earlyReturn = true;
           }
-          
+
           break;
         }
-        
+
         // Update context with middleware result if one was returned
         if (result) {
           currentContext = { ...currentContext, ...result };
@@ -91,15 +93,17 @@ class MiddlewareManager {
         return {
           earlyReturn: true,
           error: true,
-          message: `Middleware error: ${error.message}`
+          message: `Middleware error: ${error.message}`,
         };
       }
     }
-    
-    logger.debug(`[${this.name}] Middleware pipeline completed for command: ${currentContext.command}`);
+
+    logger.debug(
+      `[${this.name}] Middleware pipeline completed for command: ${currentContext.command}`
+    );
     return currentContext;
   }
-  
+
   /**
    * Validation middleware that uses the existing command validation system
    * @param {Object} context - The context object containing command info and args
@@ -110,10 +114,10 @@ class MiddlewareManager {
     if (!context.requiresValidation) {
       return context;
     }
-    
+
     const { command, args } = context;
     logger.debug(`[${this.name}] Validating command: ${command}`);
-    
+
     // Lazy-load the validation rules and middleware if not already loaded
     if (!validateCommandMiddleware) {
       try {
@@ -124,17 +128,17 @@ class MiddlewareManager {
         return {
           earlyReturn: true,
           error: true,
-          message: `Validation system not available: ${error.message}`
+          message: `Validation system not available: ${error.message}`,
         };
       }
     }
-    
+
     // Convert args array to named parameters according to the command's expected format
     const namedArgs = this.convertArgsToNamedParams(command, args);
-    
+
     // Run the validation middleware
     const validationResult = validateCommandMiddleware(command, namedArgs);
-    
+
     if (!validationResult.success) {
       // If validation failed, return early with errors
       logger.debug(`[${this.name}] Validation failed for command: ${command}`);
@@ -142,18 +146,18 @@ class MiddlewareManager {
         earlyReturn: true,
         error: true,
         validationErrors: validationResult.errors,
-        message: validationResult.message
+        message: validationResult.message,
       };
     }
-    
+
     // Update the context with validated args
     return {
       ...context,
       namedArgs: validationResult.validatedArgs,
-      validated: true
+      validated: true,
     };
   }
-  
+
   /**
    * Convert array arguments to named parameters based on command validation rules
    * @param {string} command - Command name
@@ -163,26 +167,26 @@ class MiddlewareManager {
   convertArgsToNamedParams(command, args) {
     // Get validation rules, loading them if necessary
     const rules = getValidationRules()[command];
-    
+
     // If no rules exist for this command, return args as is
     if (!rules) {
       return { _raw: args };
     }
-    
+
     const namedArgs = {};
-    
+
     // Map the positional arguments to named parameters based on required and optional arrays
     const paramNames = [...(rules.required || []), ...(rules.optional || [])];
-    
+
     paramNames.forEach((paramName, index) => {
       if (index < args.length) {
         namedArgs[paramName] = args[index];
       }
     });
-    
+
     // Store the raw args as well
     namedArgs._raw = args;
-    
+
     return namedArgs;
   }
 }
@@ -195,9 +199,11 @@ const middlewareManager = new MiddlewareManager();
  * @returns {Function} - Logging middleware function
  */
 const createLoggingMiddleware = () => {
-  return async (context) => {
+  return async context => {
     const { command, args, message } = context;
-    logger.info(`Executing command: ${command} with args: ${JSON.stringify(args)} from user: ${message.author.tag}`);
+    logger.info(
+      `Executing command: ${command} with args: ${JSON.stringify(args)} from user: ${message.author.tag}`
+    );
     return context;
   };
 };
@@ -207,19 +213,19 @@ const createLoggingMiddleware = () => {
  * @param {Function} permissionCheckFn - Function to check permissions
  * @returns {Function} - Permission middleware function
  */
-const createPermissionMiddleware = (permissionCheckFn) => {
-  return async (context) => {
+const createPermissionMiddleware = permissionCheckFn => {
+  return async context => {
     const { command, message } = context;
-    
+
     const hasPermission = await permissionCheckFn(message, command);
     if (!hasPermission) {
       return {
         earlyReturn: true,
         error: true,
-        message: 'You do not have permission to execute this command.'
+        message: 'You do not have permission to execute this command.',
       };
     }
-    
+
     return context;
   };
 };
@@ -232,30 +238,30 @@ const createPermissionMiddleware = (permissionCheckFn) => {
  */
 const createRateLimitMiddleware = (limit = 5, timeWindow = 10000) => {
   const requests = new Map();
-  
-  return async (context) => {
+
+  return async context => {
     const { message, command } = context;
     const key = `${message.author.id}:${command}`;
-    
+
     const now = Date.now();
     const userRequests = requests.get(key) || [];
-    
+
     // Filter out old requests outside the time window
     const recentRequests = userRequests.filter(timestamp => now - timestamp < timeWindow);
-    
+
     // Check if user has exceeded the limit
     if (recentRequests.length >= limit) {
       return {
         earlyReturn: true,
         error: true,
-        message: `Rate limit exceeded for command: ${command}. Please try again later.`
+        message: `Rate limit exceeded for command: ${command}. Please try again later.`,
       };
     }
-    
+
     // Add the current request timestamp
     recentRequests.push(now);
     requests.set(key, recentRequests);
-    
+
     return context;
   };
 };
@@ -264,5 +270,5 @@ module.exports = {
   middlewareManager,
   createLoggingMiddleware,
   createPermissionMiddleware,
-  createRateLimitMiddleware
+  createRateLimitMiddleware,
 };

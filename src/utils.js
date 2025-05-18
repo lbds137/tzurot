@@ -12,14 +12,14 @@ const logger = require('./logger');
  */
 function validateAlias(alias) {
   if (!alias) return false;
-  
+
   // Minimum length check
   if (alias.length < 2) return false;
-  
+
   // Check for invalid characters (only allow alphanumeric, dash, and underscore)
   const validPattern = /^[a-zA-Z0-9-_]+$/;
   if (!validPattern.test(alias)) return false;
-  
+
   return true;
 }
 
@@ -56,7 +56,7 @@ function safeToLowerCase(str) {
  * @returns {Function} A function that safely sends messages
  */
 function createDirectSend(message) {
-  return async (content) => {
+  return async content => {
     try {
       if (typeof content === 'string') {
         return await message.channel.send(content);
@@ -78,16 +78,16 @@ function createDirectSend(message) {
  */
 function getAllAliasesForPersonality(profileName, aliasMap) {
   const aliases = [];
-  
+
   if (!profileName || !aliasMap) return aliases;
-  
+
   // Look through all aliases for those pointing to this personality
   for (const [alias, target] of aliasMap.entries()) {
     if (target === profileName) {
       aliases.push(alias);
     }
   }
-  
+
   return aliases;
 }
 
@@ -96,5 +96,5 @@ module.exports = {
   cleanupTimeout,
   safeToLowerCase,
   createDirectSend,
-  getAllAliasesForPersonality
+  getAllAliasesForPersonality,
 };

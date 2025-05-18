@@ -1,6 +1,6 @@
 /**
  * Request Registry module for managing request deduplication
- * 
+ *
  * @module requestRegistry
  * @description
  * This module provides a centralized system for tracking and deduplicating
@@ -27,17 +27,19 @@ class Registry {
     this.entryLifetime = options.entryLifetime || 30000; // Default: 30 seconds
     this.cleanupInterval = options.cleanupInterval || 60000; // Default: 60 seconds
     this.enableLogging = options.enableLogging !== false; // Default: true
-    
+
     // Start periodic cleanup to prevent memory leaks
     this.cleanupIntervalId = setInterval(() => {
       this.cleanupOldEntries();
     }, this.cleanupInterval).unref(); // unref() allows the process to exit even if timer is active
-    
+
     if (this.enableLogging) {
-      logger.info(`[RequestRegistry] Initialized with entryLifetime=${this.entryLifetime}ms, cleanupInterval=${this.cleanupInterval}ms`);
+      logger.info(
+        `[RequestRegistry] Initialized with entryLifetime=${this.entryLifetime}ms, cleanupInterval=${this.cleanupInterval}ms`
+      );
     }
   }
-  
+
   /**
    * Generate a unique request ID
    * @param {string} baseName - Base name for the request ID
@@ -46,7 +48,7 @@ class Registry {
   generateRequestId(baseName) {
     return `${baseName}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
   }
-  
+
   /**
    * Add a request to the registry
    * @param {string} key - Unique key to identify the request
@@ -57,25 +59,25 @@ class Registry {
     if (!key) {
       throw new Error('Request key is required');
     }
-    
+
     const requestId = this.generateRequestId(key.split('-')[0] || 'req');
-    
+
     const entry = {
       requestId,
       timestamp: Date.now(),
       completed: false,
-      ...data
+      ...data,
     };
-    
+
     this.registry.set(key, entry);
-    
+
     if (this.enableLogging) {
       logger.info(`[RequestRegistry] Added request: ${requestId} for key: ${key}`);
     }
-    
+
     return entry;
   }
-  
+
   /**
    * Check if a request exists and get its status
    * @param {string} key - The request key to check
@@ -85,20 +87,22 @@ class Registry {
     if (!key) {
       return null;
     }
-    
+
     if (this.registry.has(key)) {
       const entry = this.registry.get(key);
-      
+
       if (this.enableLogging) {
-        logger.debug(`[RequestRegistry] Found request: ${key}, status: ${entry.completed ? 'completed' : 'pending'}`);
+        logger.debug(
+          `[RequestRegistry] Found request: ${key}, status: ${entry.completed ? 'completed' : 'pending'}`
+        );
       }
-      
+
       return { ...entry };
     }
-    
+
     return null;
   }
-  
+
   /**
    * Check if a request is a duplicate that should be blocked
    * @param {string} key - The request key to check
@@ -110,38 +114,40 @@ class Registry {
   isDuplicate(key, options = {}) {
     const timeWindow = options.timeWindow || this.entryLifetime;
     const blockIncomplete = options.blockIncomplete !== false;
-    
+
     const entry = this.checkRequest(key);
-    
+
     if (!entry) {
       return null;
     }
-    
+
     const now = Date.now();
     const timeSinceRequest = now - entry.timestamp;
-    
+
     // Check if the request is within the time window for deduplication
     if (timeSinceRequest < timeWindow) {
       // Check if we should block based on completion status
       if (!entry.completed && !blockIncomplete) {
         return null;
       }
-      
+
       if (this.enableLogging) {
-        logger.warn(`[RequestRegistry] Duplicate request detected: ${key}, age: ${timeSinceRequest}ms`);
+        logger.warn(
+          `[RequestRegistry] Duplicate request detected: ${key}, age: ${timeSinceRequest}ms`
+        );
       }
-      
+
       return {
         isDuplicate: true,
         requestId: entry.requestId,
         timeSinceOriginal: timeSinceRequest,
-        originalEntry: { ...entry }
+        originalEntry: { ...entry },
       };
     }
-    
+
     return null;
   }
-  
+
   /**
    * Update request status or data
    * @param {string} key - The request key to update
@@ -155,19 +161,21 @@ class Registry {
       }
       return false;
     }
-    
+
     const entry = this.registry.get(key);
     const updatedEntry = { ...entry, ...updates };
-    
+
     this.registry.set(key, updatedEntry);
-    
+
     if (this.enableLogging) {
-      logger.info(`[RequestRegistry] Updated request: ${key}, updates: ${JSON.stringify(Object.keys(updates))}`);
+      logger.info(
+        `[RequestRegistry] Updated request: ${key}, updates: ${JSON.stringify(Object.keys(updates))}`
+      );
     }
-    
+
     return true;
   }
-  
+
   /**
    * Mark a request as completed
    * @param {string} key - The request key to mark as completed
@@ -178,10 +186,10 @@ class Registry {
     return this.updateRequest(key, {
       completed: true,
       completedAt: Date.now(),
-      ...additionalData
+      ...additionalData,
     });
   }
-  
+
   /**
    * Remove a request from the registry
    * @param {string} key - The request key to remove
@@ -191,16 +199,16 @@ class Registry {
     if (!this.registry.has(key)) {
       return false;
     }
-    
+
     this.registry.delete(key);
-    
+
     if (this.enableLogging) {
       logger.info(`[RequestRegistry] Removed request: ${key}`);
     }
-    
+
     return true;
   }
-  
+
   /**
    * Clean up old entries from the registry
    * @param {number} maxAge - Maximum age in milliseconds (default: registry's entryLifetime)
@@ -209,21 +217,23 @@ class Registry {
   cleanupOldEntries(maxAge) {
     const cutoffTime = Date.now() - (maxAge || this.entryLifetime);
     let removedCount = 0;
-    
+
     for (const [key, entry] of this.registry.entries()) {
       if (entry.timestamp < cutoffTime) {
         this.registry.delete(key);
         removedCount++;
       }
     }
-    
+
     if (removedCount > 0 && this.enableLogging) {
-      logger.info(`[RequestRegistry] Cleaned up ${removedCount} old entries, registry size: ${this.registry.size}`);
+      logger.info(
+        `[RequestRegistry] Cleaned up ${removedCount} old entries, registry size: ${this.registry.size}`
+      );
     }
-    
+
     return removedCount;
   }
-  
+
   /**
    * Get current registry size
    * @returns {number} Number of entries in the registry
@@ -231,7 +241,7 @@ class Registry {
   get size() {
     return this.registry.size;
   }
-  
+
   /**
    * Get all registry entries
    * @returns {Object} Map of all registry entries
@@ -239,7 +249,7 @@ class Registry {
   getAllEntries() {
     return new Map(this.registry);
   }
-  
+
   /**
    * Destroy the registry and clean up resources
    */
@@ -248,9 +258,9 @@ class Registry {
       clearInterval(this.cleanupIntervalId);
       this.cleanupIntervalId = null;
     }
-    
+
     this.registry.clear();
-    
+
     if (this.enableLogging) {
       logger.info(`[RequestRegistry] Registry destroyed and resources cleaned up`);
     }
@@ -258,5 +268,5 @@ class Registry {
 }
 
 module.exports = {
-  Registry
+  Registry,
 };

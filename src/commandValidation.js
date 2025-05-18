@@ -14,63 +14,63 @@ const validationRules = {
     optional: ['alias'],
     types: {
       profileName: 'string',
-      alias: 'string'
+      alias: 'string',
     },
     errorMessages: {
       profileName: 'Profile name is required and must be a string',
-      alias: 'Alias must be a string if provided'
-    }
+      alias: 'Alias must be a string if provided',
+    },
   },
   alias: {
     required: ['profileName', 'newAlias'],
     types: {
       profileName: 'string',
-      newAlias: 'string'
+      newAlias: 'string',
     },
     errorMessages: {
       profileName: 'Profile name is required and must be a string',
-      newAlias: 'New alias is required and must be a string'
-    }
+      newAlias: 'New alias is required and must be a string',
+    },
   },
   remove: {
     required: ['profileName'],
     types: {
-      profileName: 'string'
+      profileName: 'string',
     },
     errorMessages: {
-      profileName: 'Profile name is required and must be a string'
-    }
+      profileName: 'Profile name is required and must be a string',
+    },
   },
   info: {
     required: ['profileName'],
     types: {
-      profileName: 'string'
+      profileName: 'string',
     },
     errorMessages: {
-      profileName: 'Profile name is required and must be a string'
-    }
+      profileName: 'Profile name is required and must be a string',
+    },
   },
   activate: {
     required: ['personalityName'],
     types: {
-      personalityName: 'string'
+      personalityName: 'string',
     },
     errorMessages: {
-      personalityName: 'Personality name is required and must be a string'
-    }
+      personalityName: 'Personality name is required and must be a string',
+    },
   },
   autorespond: {
     required: ['status'],
     types: {
-      status: 'string'
+      status: 'string',
     },
     validation: {
-      status: (value) => ['on', 'off', 'status'].includes(value.toLowerCase())
+      status: value => ['on', 'off', 'status'].includes(value.toLowerCase()),
     },
     errorMessages: {
-      status: 'Status must be one of: on, off, status'
-    }
-  }
+      status: 'Status must be one of: on, off, status',
+    },
+  },
 };
 
 /**
@@ -86,7 +86,10 @@ const validateType = (value, expectedType) => {
     case 'number':
       return typeof value === 'number' || (typeof value === 'string' && !isNaN(Number(value)));
     case 'boolean':
-      return typeof value === 'boolean' || (typeof value === 'string' && ['true', 'false'].includes(value.toLowerCase()));
+      return (
+        typeof value === 'boolean' ||
+        (typeof value === 'string' && ['true', 'false'].includes(value.toLowerCase()))
+      );
     case 'array':
       return Array.isArray(value);
     default:
@@ -102,7 +105,7 @@ const validateType = (value, expectedType) => {
  */
 const validateCommand = (commandName, args) => {
   const rules = validationRules[commandName];
-  
+
   if (!rules) {
     logger.debug(`[CommandValidation] No validation rules found for command: ${commandName}`);
     return { isValid: true, errors: [] }; // No validation rules for this command
@@ -124,9 +127,15 @@ const validateCommand = (commandName, args) => {
   // Check parameter types
   if (rules.types) {
     for (const [param, expectedType] of Object.entries(rules.types)) {
-      if (args[param] !== undefined && args[param] !== null && !validateType(args[param], expectedType)) {
+      if (
+        args[param] !== undefined &&
+        args[param] !== null &&
+        !validateType(args[param], expectedType)
+      ) {
         const errorMessage = rules.errorMessages[param] || `${param} must be a ${expectedType}`;
-        logger.debug(`[CommandValidation] Parameter type mismatch: ${param} should be ${expectedType}`);
+        logger.debug(
+          `[CommandValidation] Parameter type mismatch: ${param} should be ${expectedType}`
+        );
         errors.push(errorMessage);
       }
     }
@@ -145,14 +154,16 @@ const validateCommand = (commandName, args) => {
 
   const isValid = errors.length === 0;
   if (!isValid) {
-    logger.debug(`[CommandValidation] Validation failed for command ${commandName}: ${errors.join(', ')}`);
+    logger.debug(
+      `[CommandValidation] Validation failed for command ${commandName}: ${errors.join(', ')}`
+    );
   } else {
     logger.debug(`[CommandValidation] Command ${commandName} passed validation`);
   }
 
   return {
     isValid,
-    errors
+    errors,
   };
 };
 
@@ -165,29 +176,29 @@ const validateCommand = (commandName, args) => {
 const validateCommandMiddleware = (commandName, args) => {
   try {
     const { isValid, errors } = validateCommand(commandName, args);
-    
+
     if (!isValid) {
       return {
         success: false,
         message: `Validation failed: ${errors.join(', ')}`,
-        errors
+        errors,
       };
     }
 
     // For successful validation, return processed args (could include type conversions)
     const processedArgs = { ...args };
-    
+
     return {
       success: true,
       message: 'Validation successful',
-      validatedArgs: processedArgs
+      validatedArgs: processedArgs,
     };
   } catch (error) {
     logger.error(`[CommandValidation] Error in validation middleware: ${error.message}`, error);
     return {
       success: false,
       message: `Validation error: ${error.message}`,
-      errors: [error.message]
+      errors: [error.message],
     };
   }
 };
@@ -195,5 +206,5 @@ const validateCommandMiddleware = (commandName, args) => {
 module.exports = {
   validateCommand,
   validateCommandMiddleware,
-  validationRules
+  validationRules,
 };

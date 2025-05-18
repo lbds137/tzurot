@@ -1,11 +1,11 @@
 /**
  * Error Tracking Utility
- * 
+ *
  * This module provides enhanced error tracking functionality for better debugging,
  * especially for intermittent or hard-to-reproduce issues.
- * 
+ *
  * TODO: Future improvements
- * - Add integration with external error monitoring services 
+ * - Add integration with external error monitoring services
  * - Implement more sophisticated error categorization
  * - Add performance metrics tracking for critical operations
  * - Consider adding error rate limiting to prevent log flooding
@@ -23,12 +23,12 @@ const ErrorCategory = {
   AVATAR: 'avatar',
   MESSAGE: 'message',
   RATE_LIMIT: 'rate_limit',
-  UNKNOWN: 'unknown'
+  UNKNOWN: 'unknown',
 };
 
 /**
  * Record an error with additional context for better debugging
- * 
+ *
  * @param {Error} error - The error object
  * @param {Object} context - Additional context about the error
  * @param {string} context.category - Error category for grouping
@@ -37,16 +37,16 @@ const ErrorCategory = {
  * @param {boolean} context.isCritical - Whether this is a critical error
  */
 function trackError(error, context = {}) {
-  const { 
+  const {
     category = ErrorCategory.UNKNOWN,
     operation = 'unknown',
     metadata = {},
-    isCritical = false
+    isCritical = false,
   } = context;
 
   // Generate a unique error ID for reference
   const errorId = generateErrorId(category, operation);
-  
+
   // Combine error information with context
   const errorInfo = {
     errorId,
@@ -57,51 +57,57 @@ function trackError(error, context = {}) {
     metadata,
     isCritical,
     timestamp: Date.now(),
-    count: 1
+    count: 1,
   };
-  
+
   // Check if we've seen this error recently
   const errorKey = `${category}:${operation}:${error.message}`;
   if (recentErrors.has(errorKey)) {
     const existingError = recentErrors.get(errorKey);
-    
+
     // Update the count and timestamp
     existingError.count++;
     existingError.timestamp = Date.now();
-    
+
     // If we're seeing this error frequently, increase log level
     if (existingError.count > 5) {
       errorInfo.frequent = true;
-      logger.error(`[ErrorTracker] Frequent error detected (${existingError.count} occurrences): ${error.message}`, {
-        errorId,
-        category,
-        operation,
-        metadata
-      });
+      logger.error(
+        `[ErrorTracker] Frequent error detected (${existingError.count} occurrences): ${error.message}`,
+        {
+          errorId,
+          category,
+          operation,
+          metadata,
+        }
+      );
     }
   } else {
     // Record this new error
     recentErrors.set(errorKey, errorInfo);
-    
+
     // Clean up old errors
     cleanupOldErrors();
   }
-  
+
   // Log the error with context
   const logMethod = isCritical ? logger.error : logger.warn;
-  logMethod(`[ErrorTracker] ${isCritical ? 'CRITICAL ' : ''}${category.toUpperCase()}: ${error.message} (${errorId})`, {
-    errorId,
-    category,
-    operation,
-    metadata
-  });
-  
+  logMethod(
+    `[ErrorTracker] ${isCritical ? 'CRITICAL ' : ''}${category.toUpperCase()}: ${error.message} (${errorId})`,
+    {
+      errorId,
+      category,
+      operation,
+      metadata,
+    }
+  );
+
   return errorId;
 }
 
 /**
  * Generate a unique error ID for reference in logs
- * 
+ *
  * @param {string} category - Error category
  * @param {string} operation - Operation that caused the error
  * @returns {string} A unique error ID
@@ -126,7 +132,7 @@ function cleanupOldErrors() {
 
 /**
  * Creates a wrapped Discord webhook client that includes better error handling
- * 
+ *
  * @param {Object} webhookClient - The Discord webhook client to wrap
  * @param {Object} metadata - Additional metadata about this webhook
  * @returns {Object} A wrapped webhook client with enhanced error reporting
@@ -139,9 +145,9 @@ function createEnhancedWebhookClient(webhookClient, metadata = {}) {
       if (typeof target[property] !== 'function') {
         return target[property];
       }
-      
+
       // Return a wrapped function
-      return async function(...args) {
+      return async function (...args) {
         try {
           // Call the original method
           return await target[property](...args);
@@ -157,31 +163,32 @@ function createEnhancedWebhookClient(webhookClient, metadata = {}) {
                 if (arg && typeof arg === 'object' && arg.content) {
                   return {
                     ...arg,
-                    content: arg.content.length > 50 ? 
-                      `${arg.content.substring(0, 50)}... (${arg.content.length} chars)` : 
-                      arg.content
+                    content:
+                      arg.content.length > 50
+                        ? `${arg.content.substring(0, 50)}... (${arg.content.length} chars)`
+                        : arg.content,
                   };
                 }
                 return arg;
-              })
+              }),
             },
-            isCritical: true
+            isCritical: true,
           });
-          
+
           // Add the error ID to the error for reference
           error.errorId = errorId;
-          
+
           // Re-throw the error
           throw error;
         }
       };
-    }
+    },
   });
 }
 
 /**
  * Creates a specialized error object with enhanced metadata
- * 
+ *
  * @param {string} message - Error message
  * @param {string} category - Error category
  * @param {string} operation - Operation that failed
@@ -194,15 +201,15 @@ function createEnhancedError(message, category, operation, metadata = {}) {
   error.operation = operation;
   error.metadata = metadata;
   error.timestamp = Date.now();
-  
+
   // Track the error immediately
   error.errorId = trackError(error, {
     category,
     operation,
     metadata,
-    isCritical: false
+    isCritical: false,
   });
-  
+
   return error;
 }
 
@@ -211,5 +218,5 @@ module.exports = {
   trackError,
   createEnhancedWebhookClient,
   createEnhancedError,
-  ErrorCategory
+  ErrorCategory,
 };
