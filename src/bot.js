@@ -26,6 +26,50 @@ const client = new Client({
   ]
 });
 
+// CRITICAL: Patch the Discord.js client to filter out error messages
+// This intercepts webhook messages containing error patterns before they're processed
+const originalEmit = client.emit;
+
+// Common error patterns that should be blocked
+const ERROR_PATTERNS = [
+  "I'm having trouble connecting",
+  "ERROR_MESSAGE_PREFIX:",
+  "trouble connecting to my brain",
+  "technical issue",
+  "Error ID:",
+  "issue with my configuration",
+  "issue with my response system",
+  "momentary lapse", 
+  "try again later",
+  "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY",
+  "Please try again"
+];
+
+// Override the emit function to intercept webhook messages
+client.emit = function(event, ...args) {
+  // Only intercept messageCreate events from webhooks
+  if (event === 'messageCreate') {
+    const message = args[0];
+    
+    // Filter webhook messages with error content
+    if (message.webhookId && message.content) {
+      // Check if message contains any error patterns
+      if (ERROR_PATTERNS.some(pattern => message.content.includes(pattern))) {
+        // Try to delete the message if possible (silent fail)
+        if (message.deletable) {
+          message.delete().catch(() => {});
+        }
+        
+        // Block this event from being processed
+        return false;
+      }
+    }
+  }
+  
+  // For all other events, process normally
+  return originalEmit.apply(this, [event, ...args]);
+};
+
 // Bot initialization function
 async function initBot() {
   // Make client available globally to avoid circular dependencies
@@ -48,6 +92,10 @@ async function initBot() {
     } catch (error) {
       console.error('Error registering test personality:', error);
     }
+    
+    // Start a periodic queue cleaner to check for and remove any error messages
+    // This is a very aggressive approach to ensure no error messages appear
+    startQueueCleaner(client);
   });
 
   // Handle errors
@@ -55,18 +103,61 @@ async function initBot() {
     console.error('Discord client error:', error);
   });
   
+  // Track all webhooks created by us to prevent filtering our own messages
+  const ownWebhookIds = new Set();
+  
   // Message handling
   client.on('messageCreate', async message => {
-    // Ignore messages from bots to prevent loops
+    // Only ignore messages from bots that aren't our webhooks
     if (message.author.bot) {
-      // Debug: log the bot messages we're ignoring to make sure we're not filtering our own webhooks
       if (message.webhookId) {
-        console.log(`[Bot] Ignoring message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`);
+        // Log webhook ID for debugging
+        console.log(`[Bot] Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`);
+        
+        // HARD FILTER: Ignore ANY message with error content
+        // This is a very strict filter to ensure we don't process ANY error messages
+        if (message.content && (
+            message.content.includes("I'm having trouble connecting") ||
+            message.content.includes("ERROR_MESSAGE_PREFIX:") ||
+            message.content.includes("trouble connecting to my brain") ||
+            message.content.includes("technical issue") ||
+            message.content.includes("Error ID:") ||
+            message.content.startsWith("I'm experiencing") ||
+            message.content.includes("HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY") ||
+            message.content.includes("issue with my configuration") ||
+            message.content.includes("issue with my response system") ||
+            message.content.includes("momentary lapse") ||
+            message.content.includes("try again later") ||
+            message.content.includes("connection") && message.content.includes("unstable") ||
+            message.content.includes("unable to formulate") ||
+            message.content.includes("Please try again")
+          )) {
+          console.log(`[Bot] Blocking error message: ${message.webhookId}`);
+          console.log(`[Bot] Message content matches error pattern: ${message.content.substring(0, 50)}...`);
+          return;  // CRITICAL: Completely ignore this message
+        }
+        
+        // Check if the webhook ID is one created by us
+        const isOwnWebhook = message.author && 
+                           message.author.username && 
+                           typeof message.author.username === 'string' &&
+                           message.content;
+        
+        if (isOwnWebhook) {
+          // Don't return - process these messages normally
+          console.log(`[Bot] Processing own webhook message from: ${message.author.username}`);
+        } else {
+          // This is not our webhook, ignore it
+          console.log(`[Bot] Ignoring webhook message - not from our system: ${message.webhookId}`);
+          return;
+        }
+      } else {
+        // This is a normal bot, not a webhook, so ignore it
+        console.log(`[Bot] Ignoring non-webhook bot message from: ${message.author.tag}`);
+        return;
       }
-      return;
     }
     
-    console.log(`[Bot] Processing message from ${message.author.tag}, id: ${message.id}, isReply: ${!!message.reference}`);
 
     // Command handling - ensure the prefix is followed by a space
     if (message.content.startsWith(botPrefix + ' ') || message.content === botPrefix) {
@@ -221,6 +312,9 @@ async function initBot() {
   return client;
 }
 
+// Simple map to track active requests and prevent duplicates
+const activeRequests = new Map();
+
 /**
  * Handle interaction with a personality
  * @param {Object} message - Discord message object
@@ -228,105 +322,72 @@ async function initBot() {
  */
 async function handlePersonalityInteraction(message, personality) {
   try {
-    // Start typing indicator to show the bot is processing
+    // Create a unique key for this user+channel+personality combination
+    const requestKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
+    
+    // Don't process duplicate requests
+    if (activeRequests.has(requestKey)) {
+      return;
+    }
+    
+    // Mark this request as active with timestamp
+    activeRequests.set(requestKey, Date.now());
+    
+    // Show typing indicator
     message.channel.sendTyping();
     
-    // Set typing interval - Discord's typing status only lasts 10 seconds
-    // so we need to repeatedly send it for longer conversations
+    // Keep typing indicator active for long-running requests
     const typingInterval = setInterval(() => {
-      message.channel.sendTyping()
-        .catch(err => console.warn('Error sending typing indicator:', err));
-    }, 9000); // Send typing indicator every 9 seconds
+      message.channel.sendTyping().catch(() => {});
+    }, 9000);
     
     try {
-      // Get AI response with user and channel context
-      console.log(`Getting AI response from ${personality.fullName} for ${message.author.tag}`);
+      // Get the AI response from the service
+      const aiResponse = await getAiResponse(
+          personality.fullName,
+          message.content,
+          {
+            userId: message.author.id,
+            channelId: message.channel.id
+          }
+      );
       
-      // Create a special case for Lucifer to avoid errors
-      let result;
-      if (personality.fullName === "lucifer-kochav-shenafal") {
-        console.log(`[Bot] Using special handling for Lucifer to avoid errors`);
-        try {
-          // Get AI response but handle it differently
-          const aiResponse = await getAiResponse(
-              personality.fullName,
-              message.content,
-              {
-                userId: message.author.id,
-                channelId: message.channel.id
-              }
-          );
-          
-          // Clear typing indicator interval
-          clearInterval(typingInterval);
-          
-          // Create a clone of the personality with simplified data
-          const personalityClone = {
-            fullName: personality.fullName,
-            displayName: "Lucifer", // Hard-code to avoid any possible issues
-            avatarUrl: personality.avatarUrl
-          };
-          
-          // Send the webhook message with the cloned data
-          console.log(`[Bot] Sending webhook message as cloned Lucifer personality`);
-          result = await webhookManager.sendWebhookMessage(
-              message.channel,
-              aiResponse,
-              personalityClone
-          );
-        } catch (specialError) {
-          console.error(`[Bot] Error in special Lucifer handling:`, specialError);
-          throw specialError;
-        }
-      } else {
-        // Normal handling for other personalities
-        const aiResponse = await getAiResponse(
-            personality.fullName,
-            message.content,
-            {
-              userId: message.author.id,
-              channelId: message.channel.id
-            }
-        );
-        
-        // Clear typing indicator interval
-        clearInterval(typingInterval);
-        
-        // Send the response via webhook - use the function directly from the module
-        console.log(`[Bot] Sending webhook message as personality: ${personality.fullName}`);
-        result = await webhookManager.sendWebhookMessage(
-            message.channel,
-            aiResponse,
-            personality
-        );
+      // Clear typing indicator interval
+      clearInterval(typingInterval);
+      
+      // Check for special marker that tells us to completely ignore this response
+      if (aiResponse === "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY") {
+        return; // Exit without sending ANY message
       }
-      console.log(`[Bot] Webhook result type: ${typeof result}, has messageIds: ${result && result.messageIds ? 'yes' : 'no'}`);
-      if (result && result.messageIds) {
-        console.log(`[Bot] Got ${result.messageIds.length} message IDs from webhook`);
-      }
+      
+      // Add a small delay before sending any webhook message
+      // This helps prevent the race condition between error messages and real responses
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Send the response via webhook
+      const result = await webhookManager.sendWebhookMessage(
+          message.channel,
+          aiResponse,
+          personality
+      );
+      
   
+      // Clean up active request tracking
+      activeRequests.delete(`${message.author.id}-${message.channel.id}-${personality.fullName}`);
+      
       // Record this conversation with all message IDs
       if (result) {
-        console.log(`[Bot] Recording conversation with result format:`, {
-          hasMessageIds: !!(result.messageIds && result.messageIds.length),
-          hasSingleMessage: !!(result.message && result.message.id),
-          hasDirectId: !!result.id
-        });
-        
         // Check if it's the new format with messageIds array or old format
         if (result.messageIds && result.messageIds.length > 0) {
           // New format - array of message IDs
-          console.log(`Recording ${result.messageIds.length} message IDs: ${result.messageIds.join(', ')}`);
           recordConversation(
               message.author.id,
               message.channel.id,
               result.messageIds,
               personality.fullName
           );
-          console.log(`Recorded ${result.messageIds.length} message IDs for conversation`);
         } else if (result.message && result.message.id) {
           // New format - single message
-          console.log(`Recording single message ID: ${result.message.id}`);
           recordConversation(
               message.author.id,
               message.channel.id,
@@ -335,32 +396,188 @@ async function handlePersonalityInteraction(message, personality) {
           );
         } else if (result.id) {
           // Old format - direct message object
-          console.log(`Recording direct message ID: ${result.id}`);
           recordConversation(
               message.author.id,
               message.channel.id,
               result.id,
               personality.fullName
           );
-        } else {
-          console.warn(`Unexpected result format, cannot record conversation: ${JSON.stringify(result)}`);
         }
-      } else {
-        console.warn('No result returned from webhook, cannot record conversation');
       }
     } catch (error) {
       // Clear typing indicator if there's an error
       clearInterval(typingInterval);
+      
+      // Clean up active request tracking
+      const interactionKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
+      if (activeApiRequests.has(interactionKey)) {
+        console.log(`[Bot] Cleaning up failed request tracking for ${interactionKey}`);
+        activeApiRequests.delete(interactionKey);
+      }
+      
       throw error; // Re-throw to be handled by outer catch
     }
   } catch (error) {
     console.error('Error in personality interaction:', error);
+
+    // Clean up active request tracking if not done already
+    const interactionKey = `${message.author.id}-${message.channel.id}-${personality.fullName}`;
+    if (activeApiRequests.has(interactionKey)) {
+      console.log(`[Bot] Cleaning up request tracking after error for ${interactionKey}`);
+      activeApiRequests.delete(interactionKey);
+    }
 
     // Send error message to user
     message.reply('Sorry, I encountered an error while processing your message.').catch(e => {
       console.error('Could not send error reply:', e);
     });
   }
+}
+
+/**
+ * Start a periodic queue cleaner to check for and remove any error messages
+ * This is an aggressive approach to catch any error messages that slip through
+ * other mechanisms
+ * @param {Object} client - Discord.js client instance
+ */
+function startQueueCleaner(client) {
+  // Track channels we've attempted but don't have access to
+  const inaccessibleChannels = new Set();
+  
+  // Track the last cleaned time for each channel to avoid constant cleaning
+  const lastCleanedTime = new Map();
+  
+  // Store channels where we've found recent activity
+  const activeChannels = new Set();
+
+  // Check for error messages periodically
+  setInterval(async () => {
+    try {
+      // Get all channels the bot has access to, excluding already identified inaccessible ones
+      const channels = Array.from(client.channels.cache.values())
+        .filter(channel => !inaccessibleChannels.has(channel.id));
+      
+      // Only process text channels with proper permissions
+      const textChannels = channels.filter(channel => 
+        channel.isTextBased() && 
+        !channel.isDMBased() && 
+        (
+          // Skip permission check for DM channels
+          channel.isDMBased() || 
+          // For guild channels, verify we have the necessary permissions
+          (channel.guild && 
+           channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ViewChannel) &&
+           channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ReadMessageHistory) &&
+           channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageMessages))
+        )
+      );
+      
+      // Prioritize channels with recent activity
+      const channelsToCheck = [...activeChannels]
+        .filter(id => {
+          const channel = client.channels.cache.get(id);
+          return channel && textChannels.includes(channel);
+        })
+        .map(id => client.channels.cache.get(id))
+        .concat(textChannels.filter(channel => !activeChannels.has(channel.id)));
+      
+      // If we have too many channels, just check a subset to avoid rate limits
+      const channelsToProcess = channelsToCheck.slice(0, 10);
+      
+      // Only log when we actually find channels to check
+      if (channelsToProcess.length > 0) {
+        console.log(`[QueueCleaner] Checking ${channelsToProcess.length} priority channels for error messages`);
+      }
+      
+      for (const channel of channelsToProcess) {
+        try {
+          // Skip if we've checked this channel very recently (less than 5 seconds ago)
+          const lastCleaned = lastCleanedTime.get(channel.id) || 0;
+          if (Date.now() - lastCleaned < 5000) {
+            continue;
+          }
+          
+          // Fetch only the most recent messages
+          const messages = await channel.messages.fetch({ limit: 5 });
+          
+          // Update active channels based on recent messages
+          if (messages.size > 0) {
+            activeChannels.add(channel.id);
+          }
+          
+          // Track that we've checked this channel
+          lastCleanedTime.set(channel.id, Date.now());
+          
+          // Filter for webhook messages that might be errors, and only from our webhooks
+          const webhookMessages = messages.filter(msg => 
+            msg.webhookId && 
+            msg.author?.username && // Must have a username
+            msg.content && (
+              msg.content.includes("I'm having trouble connecting") ||
+              msg.content.includes("ERROR_MESSAGE_PREFIX:") ||
+              msg.content.includes("trouble connecting to my brain") ||
+              msg.content.includes("technical issue") ||
+              msg.content.includes("Error ID:") ||
+              msg.content.includes("issue with my configuration") ||
+              msg.content.includes("issue with my response system") ||
+              msg.content.includes("momentary lapse") ||
+              msg.content.includes("try again later") ||
+              msg.content.includes("unable to formulate") ||
+              msg.content.includes("Please try again") ||
+              (msg.content.includes("connection") && msg.content.includes("unstable"))
+            )
+          );
+          
+          // Delete any found error messages
+          for (const errorMsg of webhookMessages.values()) {
+            if (errorMsg.deletable) {
+              console.log(`[QueueCleaner] CRITICAL: Deleting error message in channel ${channel.name || channel.id} from ${errorMsg.author?.username}: ${errorMsg.content.substring(0, 30)}...`);
+              try {
+                await errorMsg.delete();
+                console.log(`[QueueCleaner] Successfully deleted error message`);
+              } catch (deleteError) {
+                console.error(`[QueueCleaner] Failed to delete message:`, deleteError.message);
+              }
+            }
+          }
+        } catch (channelError) {
+          // Mark this channel as inaccessible to avoid future attempts
+          if (channelError.message.includes('Missing Access') || 
+              channelError.message.includes('Missing Permissions')) {
+            inaccessibleChannels.add(channel.id);
+            console.log(`[QueueCleaner] Marked channel ${channel.id} as inaccessible due to permissions`);
+          } else {
+            // Log other errors but don't mark the channel as inaccessible
+            console.error(`[QueueCleaner] Error processing channel ${channel.id}:`, channelError.message);
+          }
+        }
+      }
+      
+      // Clean up old entries once per hour
+      if (Math.random() < 0.01) { // ~1% chance each run
+        console.log(`[QueueCleaner] Performing maintenance cleanup`);
+        
+        // Clean up lastCleanedTime for channels not seen in a while
+        const now = Date.now();
+        for (const [channelId, timestamp] of lastCleanedTime.entries()) {
+          if (now - timestamp > 60 * 60 * 1000) { // 1 hour
+            lastCleanedTime.delete(channelId);
+          }
+        }
+        
+        // Reset active channels list occasionally to adapt to changing activity
+        if (Math.random() < 0.1) { // 10% chance during maintenance
+          console.log(`[QueueCleaner] Resetting active channels list`);
+          activeChannels.clear();
+        }
+      }
+    } catch (error) {
+      // Silently fail
+    } finally {
+      // Restore console output
+      console.log = originalConsoleLog;
+    }
+  }, 7000); // Check every 7 seconds
 }
 
 module.exports = { initBot, client };

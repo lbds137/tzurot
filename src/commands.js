@@ -2,6 +2,7 @@ const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = require('./personalityManager');
 const { recordConversation, clearConversation, activatePersonality, deactivatePersonality } = require('./conversationManager');
 const { knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
+const { preloadPersonalityAvatar } = require('./webhookManager');
 const { botPrefix } = require('../config');
 
 /**
@@ -10,6 +11,9 @@ const { botPrefix } = require('../config');
  * @param {string} command - Command name
  * @param {Array<string>} args - Command arguments
  */
+// Create a Map to track recently executed commands to prevent duplicates
+const recentCommands = new Map();
+
 async function processCommand(message, command, args) {
   // Get the prefix for use in help messages
   const prefix = botPrefix;
@@ -17,15 +21,28 @@ async function processCommand(message, command, args) {
   // Add a simple debug log to track command processing
   console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
-  // Check if this is a duplicate command execution
-  // Skip duplicate check for now as it's causing issues
-  // Will handle duplicates in individual command handlers where needed
-  /*
-  if (messageTracker.isDuplicate(message.author.id, command)) {
-    console.log(`Skipping duplicate command execution: ${command}`);
-    return null;
+  // Create a unique key for this command execution
+  const commandKey = `${message.author.id}-${command}-${args.join('-')}`;
+  
+  // Check if this exact command was recently executed (within 3 seconds)
+  if (recentCommands.has(commandKey)) {
+    const timestamp = recentCommands.get(commandKey);
+    if (Date.now() - timestamp < 3000) {
+      console.log(`[Commands] Detected duplicate command execution: ${command} from ${message.author.tag}, ignoring`);
+      return null; // Silently ignore duplicate commands
+    }
   }
-  */
+  
+  // Mark this command as recently executed
+  recentCommands.set(commandKey, Date.now());
+  
+  // Clean up old entries from the recentCommands map (older than 10 seconds)
+  const now = Date.now();
+  for (const [key, timestamp] of recentCommands.entries()) {
+    if (now - timestamp > 10000) {
+      recentCommands.delete(key);
+    }
+  }
 
   // Use a try/catch to avoid uncaught exceptions
   try {
@@ -280,6 +297,9 @@ async function handleHelpCommand(message, args) {
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
+// Track in-progress personality additions to prevent duplicate messages
+const pendingAdditions = new Map();
+
 async function handleAddCommand(message, args) {
   if (args.length < 1) {
     return message.reply(`Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``);
@@ -287,6 +307,18 @@ async function handleAddCommand(message, args) {
 
   const profileName = args[0];
   const alias = args[1] || null; // Optional alias
+  
+  // Create a unique key for this request
+  const requestKey = `${message.author.id}-${profileName}`;
+  
+  // Check if this exact request is already being processed
+  if (pendingAdditions.has(requestKey)) {
+    console.log(`[Commands] Duplicate add request detected for ${profileName} by ${message.author.tag}, ignoring`);
+    return; // Silently ignore to prevent duplicate messages
+  }
+  
+  // Mark this request as being processed
+  pendingAdditions.set(requestKey, Date.now());
 
   try {
     // Helper function to safely get lowercase version of a string
@@ -307,6 +339,7 @@ async function handleAddCommand(message, args) {
     });
 
     if (alreadyExists) {
+      pendingAdditions.delete(requestKey); // Remove from pending
       return message.reply(`You already have a personality with the name \`${profileName}\`.`);
     }
 
@@ -318,6 +351,11 @@ async function handleAddCommand(message, args) {
       console.log(`[Commands] Starting personality registration for ${profileName}`);
       const startTime = Date.now();
       
+      // Pause a moment to avoid potential race condition where the message edit happens twice
+      // due to timing issues with fetching profile info and the message update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Register the personality
       const personality = await registerPersonality(message.author.id, profileName, {
         // No need to provide display name or avatar as they'll be fetched
         description: `Added by ${message.author.tag}`
@@ -329,37 +367,81 @@ async function handleAddCommand(message, args) {
       if (alias) {
         setPersonalityAlias(alias, profileName);
       }
+      
+      // GET THE PERSONALITY AGAIN after registration to ensure we have final data
+      // This ensures we have the most up-to-date data that includes API-fetched info
+      console.log(`[Commands] Retrieving final personality data for ${profileName}`);
+      const finalPersonality = getPersonality(profileName);
+      
+      if (!finalPersonality) {
+        console.error(`[Commands] Error: Could not retrieve final personality data for ${profileName}`);
+        throw new Error("Failed to retrieve personality data after registration");
+      }
+      
+      console.log(`[Commands] Final personality data received: ${finalPersonality.fullName}, display name: ${finalPersonality.displayName}`);
+      
+      // Pre-load avatar if available - this ensures it shows up correctly on first use
+      if (finalPersonality.avatarUrl) {
+        console.log(`[Commands] Pre-loading avatar for new personality: ${finalPersonality.avatarUrl}`);
+        try {
+          await preloadPersonalityAvatar(finalPersonality);
+          console.log(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
+        } catch (avatarError) {
+          console.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
+          // Continue despite error - not critical
+        }
+      }
 
-      // Create an embed with the personality info
+      // Create an embed with the finalized personality info
       const embed = new EmbedBuilder()
         .setTitle('Personality Added')
-        .setDescription(`Successfully added personality: ${personality.displayName}`)
+        .setDescription(`Successfully added personality: ${finalPersonality.displayName}`)
         .setColor('#00FF00')
         .addFields(
-          { name: 'Full Name', value: personality.fullName },
-          { name: 'Display Name', value: personality.displayName || 'Not set' },
+          { name: 'Full Name', value: finalPersonality.fullName },
+          { name: 'Display Name', value: finalPersonality.displayName || 'Not set' },
           { name: 'Alias', value: alias || 'None set' }
         );
 
       // Add the avatar to the embed if available
-      if (personality.avatarUrl) {
-        embed.setThumbnail(personality.avatarUrl);
+      if (finalPersonality.avatarUrl) {
+        embed.setThumbnail(finalPersonality.avatarUrl);
       }
 
-      // Update the loading message with the result instead of sending a new one
-      console.log(`[Commands] Updating loading message with final personality info`);
+      // Ensure we only update the loading message once, with the complete and final data
+      console.log(`[Commands] Updating loading message with final personality info for ${finalPersonality.displayName}`);
+      
       await loadingMsg.edit({ content: null, embeds: [embed] }).catch(err => {
         console.error(`[Commands] Error updating loading message:`, err);
       });
+      
+      // Clear this request from pending after a successful update
+      console.log(`[Commands] Clearing pending addition request for ${profileName}`);
+      pendingAdditions.delete(requestKey);
     } catch (innerError) {
       console.error(`[Commands] Inner error during personality registration:`, innerError);
+      
+      // Update message with error
       await loadingMsg.edit(`Failed to complete the personality registration: ${innerError.message}`).catch(err => {
         console.error(`[Commands] Error updating error message:`, err);
       });
+      
+      // Clear pending even on error
+      pendingAdditions.delete(requestKey);
     }
   } catch (error) {
     console.error(`Error adding personality ${profileName}:`, error);
+    // Clear pending on error
+    pendingAdditions.delete(requestKey);
     return message.reply(`Failed to add personality \`${profileName}\`. Error: ${error.message}`);
+  } finally {
+    // Ensure we always clean up, even if an unexpected error occurs
+    setTimeout(() => {
+      if (pendingAdditions.has(requestKey)) {
+        console.log(`[Commands] Cleaning up stale pending addition request for ${requestKey}`);
+        pendingAdditions.delete(requestKey);
+      }
+    }, 30000); // Clean up after 30 seconds no matter what
   }
 }
 

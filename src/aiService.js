@@ -10,6 +10,16 @@ const aiClient = new OpenAI({
   }
 });
 
+// Track in-progress API requests to prevent duplicate processing
+const pendingRequests = new Map();
+
+// Track personality-user pairs that should be blocked from generating ANY response
+// after experiencing an error - essential to prevent double messages
+const errorBlackoutPeriods = new Map();
+
+// Maximum time (in ms) to block a personality-user combination after an error
+const ERROR_BLACKOUT_DURATION = 30000; // 30 seconds
+
 // There's a known issue with certain personalities returning errors as content
 // Let's handle this gracefully for any personality that might be affected
 const knownProblematicPersonalities = {
@@ -27,7 +37,6 @@ const knownProblematicPersonalities = {
 };
 
 // Track dynamically identified problematic personalities during runtime
-// This helps identify and handle new problematic personalities without requiring code changes
 const runtimeProblematicPersonalities = new Map();
 
 /**
@@ -91,8 +100,59 @@ function registerProblematicPersonality(personalityName, errorData) {
     lastErrorContent: errorData.content || "Unknown error",
     responses: genericResponses
   });
-  
-  console.log(`[AIService] Added ${personalityName} to runtime problematic personalities list`);
+}
+
+/**
+ * Create a personality-user key for blackout tracking
+ * @param {string} personalityName - The AI personality name
+ * @param {Object} context - The context object with userId and channelId
+ * @returns {string} A key for the personality-user combination
+ */
+function createBlackoutKey(personalityName, context) {
+  return `${personalityName}_${context.userId || 'anon'}_${context.channelId || 'nochannel'}`;
+}
+
+/**
+ * Check if a personality-user combination is currently in a blackout period
+ * @param {string} personalityName - The AI personality name 
+ * @param {Object} context - The context object with userId and channelId
+ * @returns {boolean} True if the combination is in a blackout period
+ */
+function isInBlackoutPeriod(personalityName, context) {
+  const key = createBlackoutKey(personalityName, context);
+  if (errorBlackoutPeriods.has(key)) {
+    const expirationTime = errorBlackoutPeriods.get(key);
+    if (Date.now() < expirationTime) {
+      return true;
+    } else {
+      // Clean up expired entry
+      errorBlackoutPeriods.delete(key);
+    }
+  }
+  return false;
+}
+
+/**
+ * Add a personality-user combination to the blackout list
+ * @param {string} personalityName - The AI personality name
+ * @param {Object} context - The context object with userId and channelId
+ */
+function addToBlackoutList(personalityName, context) {
+  const key = createBlackoutKey(personalityName, context);
+  const expirationTime = Date.now() + ERROR_BLACKOUT_DURATION;
+  errorBlackoutPeriods.set(key, expirationTime);
+}
+
+/**
+ * Create a unique request ID for tracking API requests
+ * @param {string} personalityName - The AI personality name
+ * @param {string} message - The message content
+ * @param {Object} context - The context object with userId and channelId
+ * @returns {string} A unique request ID
+ */
+function createRequestId(personalityName, message, context) {
+  const messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
+  return `${personalityName}_${context.userId || 'anon'}_${context.channelId || 'nochannel'}_${messagePrefix}`;
 }
 
 /**
@@ -114,217 +174,242 @@ async function getAiResponse(personalityName, message, context = {}) {
     message = "Hello";
   }
   
-  console.log(`[AIService] Getting response for personality: ${personalityName}`);
-  console.log(`[AIService] User message: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
-  console.log(`[AIService] Context:`, context);
+  // CRITICAL ERROR PREVENTION: Check if this personality+user is in a blackout period
+  if (isInBlackoutPeriod(personalityName, context)) {
+    // Return a special no-response marker that our bot will completely ignore
+    return "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY";
+  }
   
-  try {
-    // Get the complete model path
-    const modelPath = getModelPath(personalityName);
-    console.log(`[AIService] Using model path: ${modelPath}`);
+  // CRITICAL DUPLICATE PREVENTION: Create a unique request ID to prevent duplicates 
+  const requestId = createRequestId(personalityName, message, context);
+  
+  // Check if this exact request is already in progress
+  if (pendingRequests.has(requestId)) {
+    const { timestamp, promise } = pendingRequests.get(requestId);
     
-    // Set request-specific headers for user/channel identification
-    const headers = {};
-    
-    // Add user ID header if provided
-    if (context.userId) {
-      headers['X-User-Id'] = context.userId;
+    // If this request was created within the last 60 seconds, return the existing promise
+    if (Date.now() - timestamp < 60000) {
+      // Return the existing promise to avoid duplicate API calls
+      return promise;
+    } else {
+      // Timed out, clean up and proceed with a new request
+      pendingRequests.delete(requestId);
     }
-    
-    // Add channel ID header if provided
-    if (context.channelId) {
-      headers['X-Channel-Id'] = context.channelId;
-    }
-    
-    // Check for problematic personalities with a simple log for debugging
-    console.log(`[AIService] Checking if ${personalityName} is in problematic personalities list`);
-    
-    // Check if this is a personality with known or runtime-detected API issues
-    let personalityInfo = knownProblematicPersonalities[personalityName];
-    
-    // If not in the predefined list, check the runtime-detected list
-    if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
-      personalityInfo = runtimeProblematicPersonalities.get(personalityName);
-    }
-    
-    if (personalityInfo && personalityInfo.isProblematic) {
-      console.log(`[AIService] Personality ${personalityName} is known to have API issues, proceeding with caution`);
+  }
+  
+  // Create a promise that we'll store to prevent duplicate calls
+  const responsePromise = (async () => {
+    try {
+      // Get the complete model path
+      const modelPath = getModelPath(personalityName);
       
+      // Set request-specific headers for user/channel identification
+      const headers = {};
+      
+      // Add user/channel ID headers if provided
+      if (context.userId) headers['X-User-Id'] = context.userId;
+      if (context.channelId) headers['X-Channel-Id'] = context.channelId;
+      
+      // Check if this is a personality with known or runtime-detected API issues
+      let personalityInfo = knownProblematicPersonalities[personalityName];
+      
+      // If not in the predefined list, check the runtime-detected list
+      if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
+        personalityInfo = runtimeProblematicPersonalities.get(personalityName);
+      }
+      
+      if (personalityInfo && personalityInfo.isProblematic) {
+        try {
+          // Still try the API call in case the issue has been fixed
+          const response = await aiClient.chat.completions.create({
+            model: modelPath,
+            messages: [{ role: "user", content: message }],
+            temperature: 0.7,
+            headers: headers
+          });
+          
+          const content = response.choices?.[0]?.message?.content;
+          
+          // Use the more robust error detection function
+          if (!content || isErrorResponse(content)) {
+            // Add this personality+user combo to blackout list
+            addToBlackoutList(personalityName, context);
+            
+            // If this is a runtime-detected personality, increment the error count
+            if (runtimeProblematicPersonalities.has(personalityName)) {
+              const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
+              runtimeInfo.errorCount++;
+              runtimeInfo.lastErrorContent = content || "Empty response";
+              runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
+            }
+            
+            // Return a themed response for this personality
+            const responses = personalityInfo.responses;
+            const selected = responses[Math.floor(Math.random() * responses.length)];
+            return selected;
+          }
+          
+          // If we get here, we got a valid response despite the known issues!
+          if (typeof content === 'string' && content.length > 0) {
+            return content;
+          }
+          
+          // Default fallback for empty but not error content
+          return personalityInfo.responses[0];
+        } catch (error) {
+          // Add this personality+user combo to blackout list
+          addToBlackoutList(personalityName, context);
+          
+          // If this is a runtime-detected personality, increment the error count
+          if (runtimeProblematicPersonalities.has(personalityName)) {
+            const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
+            runtimeInfo.errorCount++;
+            runtimeInfo.lastErrorType = error.name;
+            runtimeInfo.lastErrorMessage = error.message;
+            runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
+          }
+          
+          // Return our special HARD_BLOCKED_RESPONSE marker
+          return "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY";
+        }
+      }
+      
+      // NORMAL AI CALL PATH: Make the API request
       try {
-        // Still try the API call in case the issue has been fixed
         const response = await aiClient.chat.completions.create({
           model: modelPath,
           messages: [{ role: "user", content: message }],
           temperature: 0.7,
           headers: headers
         });
-        
-        const content = response.choices?.[0]?.message?.content;
-        
-        // Use the more robust error detection function
-        if (!content || isErrorResponse(content)) {
-          console.log(`[AIService] Detected API error in ${personalityName} response: "${content}"`);
+      
+        // Validate and sanitize response
+        if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
+          // Register this personality as problematic
+          registerProblematicPersonality(personalityName, {
+            error: "invalid_response_structure",
+            content: JSON.stringify(response)
+          });
           
-          // If this is a runtime-detected personality, increment the error count
-          if (runtimeProblematicPersonalities.has(personalityName)) {
-            const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
-            runtimeInfo.errorCount++;
-            runtimeInfo.lastErrorContent = content || "Empty response";
-            runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
+          return "I received an incomplete response. Please try again.";
+        }
+        
+        let content = response.choices[0].message.content;
+        if (typeof content !== 'string') {
+          // Register this personality as problematic
+          registerProblematicPersonality(personalityName, {
+            error: "non_string_content",
+            content: typeof content
+          });
+          
+          return "I received an unusual response format. Please try again.";
+        }
+        
+        // Check if the content appears to be an error before sanitization
+        if (isErrorResponse(content)) {
+          // Register this personality as problematic
+          registerProblematicPersonality(personalityName, {
+            error: "error_in_content",
+            content: content
+          });
+          
+          // Add this personality+user combo to blackout list
+          addToBlackoutList(personalityName, context);
+          
+          // Return a generic error message with an error ID
+          const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+          return `I'm experiencing a technical issue with my response system (Error ID: ${errorId}). Please try again later.`;
+        }
+        
+        // Apply sanitization to all personality responses to be safe
+        try {
+          content = content
+            // Remove null bytes and control characters
+            .replace(/[\x00-\x1F\x7F]/g, '') 
+            // Remove escape sequences
+            .replace(/\\u[0-9a-fA-F]{4}/g, '')
+            // Remove any non-printable characters
+            .replace(/[^\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '')
+            // Ensure proper string encoding
+            .toString();
+            
+          if (content.length === 0) {
+            // Register this personality as problematic
+            registerProblematicPersonality(personalityName, {
+              error: "empty_after_sanitization",
+              content: "Sanitized content was empty"
+            });
+            
+            return "I received an empty response. Please try again.";
           }
+        } catch (sanitizeError) {
+          // Register this personality as problematic
+          registerProblematicPersonality(personalityName, {
+            error: "sanitization_error",
+            content: sanitizeError.message
+          });
           
-          // Return a themed response for this personality
-          const responses = personalityInfo.responses;
-          const selected = responses[Math.floor(Math.random() * responses.length)];
-          return selected;
+          return "I encountered an issue processing my response. Please try again.";
         }
         
-        // If we get here, we got a valid response despite the known issues!
-        if (typeof content === 'string' && content.length > 0) {
-          console.log(`[AIService] Received valid response from ${personalityName} API`);
-          return content;
-        }
+        return content;
         
-        // Default fallback for empty but not error content
-        return personalityInfo.responses[0];
-      } catch (error) {
-        console.error(`[AIService] Error with ${personalityName} API call:`, error);
+      } catch (apiError) {
+        // Add this personality+user combo to blackout list
+        addToBlackoutList(personalityName, context);
         
-        // If this is a runtime-detected personality, increment the error count
-        if (runtimeProblematicPersonalities.has(personalityName)) {
-          const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
-          runtimeInfo.errorCount++;
-          runtimeInfo.lastErrorType = error.name;
-          runtimeInfo.lastErrorMessage = error.message;
-          runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
-        }
-        
-        const selected = personalityInfo.responses[Math.floor(Math.random() * personalityInfo.responses.length)];
-        return selected;
+        // Return our special HARD_BLOCKED_RESPONSE marker
+        return "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY";
       }
-    }
-    
-    // Call the AI service with the headers
-    console.log(`[AIService] Sending request to AI service with headers:`, headers);
-    const response = await aiClient.chat.completions.create({
-      model: modelPath,
-      messages: [
-        { role: "user", content: message }
-      ],
-      temperature: 0.7,
-      headers: headers // Pass the headers to the request
-    });
-    
-    // Validate and sanitize response
-    if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
-      console.error('[AIService] Received invalid response structure:', response);
+    } catch (error) {
+      // Add this personality+user combo to blackout list to prevent duplicates
+      addToBlackoutList(personalityName, context);
       
-      // Register this personality as problematic
-      registerProblematicPersonality(personalityName, {
-        error: "invalid_response_structure",
-        content: JSON.stringify(response)
-      });
-      
-      return "I received an incomplete response. Please try again.";
-    }
-    
-    let content = response.choices[0].message.content;
-    if (typeof content !== 'string') {
-      console.error('[AIService] Response content is not a string:', content);
-      
-      // Register this personality as problematic
-      registerProblematicPersonality(personalityName, {
-        error: "non_string_content",
-        content: typeof content
-      });
-      
-      return "I received an unusual response format. Please try again.";
-    }
-    
-    // Check if the content appears to be an error before sanitization
-    if (isErrorResponse(content)) {
-      console.error(`[AIService] Detected potential API error from ${personalityName}: "${content}"`);
-      
-      // Register this personality as problematic
-      registerProblematicPersonality(personalityName, {
-        error: "error_in_content",
-        content: content
-      });
-      
-      // Return a generic error message since we don't have themed responses for this personality yet
-      return "I'm experiencing a technical issue with my response system. Please try again later.";
-    }
-    
-    // Apply same sanitization to all personality responses to be safe
-    try {
-      content = content
-        // Remove null bytes and control characters
-        .replace(/[\x00-\x1F\x7F]/g, '') 
-        // Remove escape sequences
-        .replace(/\\u[0-9a-fA-F]{4}/g, '')
-        // Remove any non-printable characters
-        .replace(/[^\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '')
-        // Ensure proper string encoding
-        .toString();
+      // Register this personality as potentially problematic
+      if (error.name === 'TypeError' || 
+          error.name === 'SyntaxError' || 
+          error.message.includes('content') || 
+          error.message.includes('NoneType')) {
         
-      if (content.length === 0) {
-        console.error('[AIService] Sanitized content resulted in empty string');
-        
-        // Register this personality as problematic
         registerProblematicPersonality(personalityName, {
-          error: "empty_after_sanitization",
-          content: "Sanitized content was empty"
+          error: "api_call_error",
+          errorType: error.name,
+          content: error.message
         });
-        
-        return "I received an empty response. Please try again.";
       }
-    } catch (sanitizeError) {
-      console.error('[AIService] Error during content sanitization:', sanitizeError);
       
-      // Register this personality as problematic
-      registerProblematicPersonality(personalityName, {
-        error: "sanitization_error",
-        content: sanitizeError.message
-      });
-      
-      return "I encountered an issue processing my response. Please try again.";
+      // Return our special HARD_BLOCKED_RESPONSE marker
+      return "HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY";
+    } finally {
+      // Remove this request from the pending map after 60 seconds
+      setTimeout(() => {
+        if (pendingRequests.has(requestId)) {
+          pendingRequests.delete(requestId);
+        }
+      }, 60000);
     }
-    
-    console.log(`[AIService] Received response (${content.length} chars): ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`);
-    return content;
-  } catch (error) {
-    console.error('[AIService] Error getting AI response:', error);
-    console.error('[AIService] Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack?.split('\n')[0] || 'No stack trace',
-      personality: personalityName
-    });
-    
-    // Register this personality as potentially problematic
-    // We only do this after seeing multiple issues to avoid false positives from network issues
-    if (error.name === 'TypeError' || 
-        error.name === 'SyntaxError' || 
-        error.message.includes('content') || 
-        error.message.includes('NoneType')) {
-      
-      console.log(`[AIService] This appears to be a structural error with ${personalityName}, registering as problematic`);
-      registerProblematicPersonality(personalityName, {
-        error: "api_call_error",
-        errorType: error.name,
-        content: error.message
-      });
-    }
-    
-    return "I'm having trouble connecting to my brain right now. Please try again later.";
-  }
+  })();
+  
+  // Store this promise in our pending requests map
+  pendingRequests.set(requestId, {
+    timestamp: Date.now(),
+    promise: responsePromise
+  });
+  
+  // Return the promise that will resolve to the API response
+  return responsePromise;
 }
 
 module.exports = {
   getAiResponse,
-  // Export these for potential future debugging and monitoring
   isErrorResponse,
   registerProblematicPersonality,
   knownProblematicPersonalities,
-  runtimeProblematicPersonalities
+  runtimeProblematicPersonalities,
+  pendingRequests,
+  createRequestId,
+  isInBlackoutPeriod,
+  addToBlackoutList,
+  createBlackoutKey,
+  errorBlackoutPeriods
 };
