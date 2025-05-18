@@ -48,7 +48,7 @@ Other mentions (like @user mentions) in the message will be preserved and passed
 - Mentions can be followed by punctuation (e.g., "@disposal chute?")
 - Apostrophes and certain special characters in aliases are supported
 - Self-referential aliases are no longer created (e.g., no alias needed for `lilith-tzel-shani` since `@lilith-tzel-shani` works directly)
-- The bot prioritizes the longest matching alias first. For example, if both `bambi` and `bambi prime` are valid aliases, the message `@bambi prime hi` will trigger the `bambi prime` personality, not `bambi`
+- The bot prioritizes the longest matching alias first. For example, if both `bambi` and `bambi prime` are valid aliases, the message `@bambi prime hi` will trigger the `bambi prime` personality, not `bambi`. This ensures that more specific aliases take precedence over less specific ones.
 
 ## Examples
 
@@ -60,6 +60,18 @@ I need help from @robot disposal chute system
 Is this working, @disposal chute?
 Let's ask @bill's disposal system about this
 ```
+
+### Longest Match Priority Example
+
+When you have overlapping aliases like `bambi` and `bambi prime`, the bot will correctly prioritize the longer match:
+
+```
+@bambi can you help me?            // Triggers bambi personality
+@bambi prime can you help me?      // Triggers bambi prime personality, NOT bambi
+@robot disposal chute system help! // Triggers the full 4-word personality
+```
+
+This prioritization ensures that more specific personalities are triggered correctly when their name starts with the same words as another personality.
 
 ## Limitations
 

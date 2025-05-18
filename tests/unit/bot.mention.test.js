@@ -149,9 +149,29 @@ describe('Bot @Mention Regex Tests', () => {
     const fullCapture = match[1].trim();
     expect(fullCapture).toBe("bambi prime");
     
-    // This test just verifies the regex captures the full text
-    // The actual prioritization of "bambi prime" over "bambi" 
-    // is handled in the bot.js implementation logic that tries
-    // the longest word combinations first
+    // This verifies the regex captures the full text
+    // The actual prioritization happens in bot.js
+  });
+  
+  // Test for the improved implementation that collects all matches and selects the longest
+  it('should simulate the improved implementation logic that prioritizes longest matches', () => {
+    // Mock the actual bot.js implementation logic for handling @mentions
+    
+    // Step 1: Collect all potential matches with their word counts
+    const potentialMatches = [
+      { mentionText: "bambi", personality: { fullName: "bambi-character" }, wordCount: 1 },
+      { mentionText: "bambi prime", personality: { fullName: "bambi-prime-character" }, wordCount: 2 },
+    ];
+    
+    // Step 2: Sort by word count (descending) to prioritize longer matches
+    potentialMatches.sort((a, b) => b.wordCount - a.wordCount);
+    
+    // Step 3: Select the best match (first item after sorting)
+    const bestMatch = potentialMatches[0];
+    
+    // Verify the correct match was selected
+    expect(bestMatch.mentionText).toBe("bambi prime");
+    expect(bestMatch.personality.fullName).toBe("bambi-prime-character");
+    expect(bestMatch.wordCount).toBe(2);
   });
 });

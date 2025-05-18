@@ -491,32 +491,36 @@ async function initBot() {
 
     // @mention personality triggering
     try {
-      // First check for standard @mentions (without spaces)
+      // IMPROVEMENT: Check for both standard @mentions and multi-word @mentions
+      // And prioritize the longest match to handle cases like @bambi vs @bambi prime
+      
+      // We'll store all potential matches and their personalities in this array
+      const potentialMatches = [];
+      
+      // First gather standard @mentions (without spaces)
       const standardMentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
       
       if (standardMentionMatch && standardMentionMatch[1]) {
         const mentionName = standardMentionMatch[1];
-        logger.debug(`Found standard @mention: ${mentionName}, looking up personality`);
+        logger.debug(`Found standard @mention: ${mentionName}, checking if it's a valid personality`);
 
-        // First try to get personality directly by full name
+        // Check if this is a valid personality (directly or as an alias)
         let personality = getPersonality(mentionName);
-
-        // If not found as direct name, try it as an alias
         if (!personality) {
           personality = getPersonalityByAlias(mentionName);
         }
 
-        logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
-
         if (personality) {
-          // Process the message with this personality
-          // Standard mention doesn't have spaces, use match[1] as the triggering mention
-          await handlePersonalityInteraction(message, personality, mentionName);
-          return;
+          logger.debug(`Found standard @mention personality: ${mentionName} -> ${personality.fullName}`);
+          potentialMatches.push({
+            mentionText: mentionName,
+            personality: personality,
+            wordCount: 1 // Single word
+          });
         }
       }
       
-      // If standard mention didn't match, try for mentions with spaces
+      // Now check for mentions with spaces - whether or not we found standard mentions
       if (message.content && message.content.includes('@')) {
         // Improved regex to match multi-word mentions
         // This captures @word1 word2 word3 patterns more precisely
@@ -541,10 +545,6 @@ async function initBot() {
             logger.debug(`Skipping "${rawMentionText}" - single word, already checked`);
             continue;
           }
-          
-          // Try different word combinations from the match
-          // Start with trying the full match
-          let foundPersonality = null;
           
           // Split the raw text into words
           const words = rawMentionText.split(/\s+/);
@@ -574,24 +574,43 @@ async function initBot() {
             const personality = getPersonalityByAlias(mentionText);
             
             if (personality) {
-              foundPersonality = personality;
-              logger.info(`Found multi-word @mention: "${mentionText}" -> ${personality.fullName}`);
-              break;
+              // Count the number of words in this match
+              const wordCount = mentionText.split(/\s+/).length;
+              
+              logger.info(`Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`);
+              
+              // Add to potential matches
+              potentialMatches.push({
+                mentionText: mentionText,
+                personality: personality,
+                wordCount: wordCount
+              });
+              
+              // We don't break here - we want to find all possible matches and pick the longest
             }
           }
+        }
+        
+        // After collecting all potential matches, sort by word count (descending)
+        // This ensures we prioritize longer matches (e.g., "bambi prime" over "bambi")
+        potentialMatches.sort((a, b) => b.wordCount - a.wordCount);
+        
+        // If we found any matches, use the one with the most words (longest match)
+        if (potentialMatches.length > 0) {
+          const bestMatch = potentialMatches[0];
+          logger.info(`Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`);
           
-          // If we found a personality, handle the interaction
-          if (foundPersonality) {
-            // For multi-word mentions, use the matched mention text that worked
-            // We can safely use the current mentionText since we break the loop when we find a match
-            const matchedMentionText = mentionText;
-            
-            logger.info(`Using matched multi-word mention: "${matchedMentionText}" for personality ${foundPersonality.fullName}`);
-            await handlePersonalityInteraction(message, foundPersonality, matchedMentionText);
-            return;
-          } else {
-            logger.debug(`No personality found for any word combination in: "${rawMentionText}"`);
+          // If there were multiple matches, log them for debugging
+          if (potentialMatches.length > 1) {
+            logger.debug(`Chose the longest match from ${potentialMatches.length} options:`);
+            potentialMatches.forEach(match => {
+              logger.debug(`- ${match.mentionText} (${match.wordCount} words) -> ${match.personality.fullName}`);
+            });
           }
+          
+          // Handle the interaction with the best matching personality
+          await handlePersonalityInteraction(message, bestMatch.personality, bestMatch.mentionText);
+          return;
         }
       }
     } catch (error) {
