@@ -10,16 +10,38 @@ jest.mock('node-fetch', () => {
     statusText: 'OK',
     headers: {
       get: (header) => header.toLowerCase() === 'content-type' ? 'image/png' : null
+    },
+    body: {
+      getReader: () => ({
+        read: () => Promise.resolve({ done: false, value: new Uint8Array([1, 2, 3]) }),
+        cancel: jest.fn()
+      })
     }
   }));
 });
 
-// Mock the logger
+// Mock the required dependencies
 jest.mock('../../src/logger', () => ({
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
   debug: jest.fn(),
+}));
+
+// Mock errorTracker to avoid dependencies
+jest.mock('../../src/utils/errorTracker', () => ({
+  trackError: jest.fn(),
+  ErrorCategory: {
+    AVATAR: 'avatar'
+  }
+}));
+
+// Mock urlValidator for direct import in webhookManager
+jest.mock('../../src/utils/urlValidator', () => ({
+  isValidUrlFormat: jest.fn(() => true), 
+  isTrustedDomain: jest.fn(() => false),
+  hasImageExtension: jest.fn(() => true),
+  isImageUrl: jest.fn(() => Promise.resolve(true))
 }));
 
 describe('validateAvatarUrl Success Test', () => {
@@ -39,6 +61,9 @@ describe('validateAvatarUrl Success Test', () => {
         href: url,
         protocol: 'https:',
         host: 'example.com',
+        hostname: 'example.com',
+        pathname: '/valid.png',
+        includes: () => false, // Mock includes function to always return false for tests
       };
     });
     

@@ -34,8 +34,9 @@ function isValidUrlFormat(url) {
  * @param {Array<string>} trustedDomains - List of trusted domains
  * @returns {boolean} - True if the URL is from a trusted domain
  */
-function isTrustedDomain(url, trustedDomains) {
+function isTrustedDomain(url, trustedDomains = []) {
   if (!isValidUrlFormat(url)) return false;
+  if (!trustedDomains || !Array.isArray(trustedDomains) || trustedDomains.length === 0) return false;
   
   const urlObj = new URL(url);
   return trustedDomains.some(domain => urlObj.hostname.includes(domain));
@@ -58,10 +59,15 @@ function hasImageExtension(url) {
  * @param {Object} options - Options for validation
  * @param {number} options.timeout - Timeout in ms (default: 5000)
  * @param {boolean} options.trustExtensions - Trust URLs with image extensions
+ * @param {Array<string>} options.trustedDomains - List of domains to trust without validation
  * @returns {Promise<boolean>} - True if the URL points to an image
  */
 async function isImageUrl(url, options = {}) {
-  const { timeout = 5000, trustExtensions = true } = options;
+  const { 
+    timeout = 5000, 
+    trustExtensions = true,
+    trustedDomains
+  } = options;
   
   // Check if URL is formatted correctly
   if (!isValidUrlFormat(url)) {
@@ -75,14 +81,17 @@ async function isImageUrl(url, options = {}) {
   }
   
   // Trusted domains list - no need to validate these
-  const trustedDomains = [
+  const defaultTrustedDomains = [
     'cdn.discordapp.com',
     'discord.com/assets',
     'media.discordapp.net'
   ];
   
+  // Use provided trusted domains or defaults
+  const domainsToCheck = options.trustedDomains || defaultTrustedDomains;
+  
   // Skip validation for trusted domains
-  if (isTrustedDomain(url, trustedDomains)) {
+  if (isTrustedDomain(url, domainsToCheck)) {
     logger.debug(`[UrlValidator] URL is from trusted domain, skipping validation: ${url}`);
     return true;
   }
