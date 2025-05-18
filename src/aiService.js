@@ -245,8 +245,7 @@ async function getAiResponse(personalityName, message, context = {}) {
             
             // Return a themed response for this personality
             const responses = personalityInfo.responses;
-            const selected = responses[Math.floor(Math.random() * responses.length)];
-            return selected;
+            return responses[Math.floor(Math.random() * responses.length)];
           }
           
           // If we get here, we got a valid response despite the known issues!
@@ -324,12 +323,12 @@ async function getAiResponse(personalityName, message, context = {}) {
         // Apply sanitization to all personality responses to be safe
         try {
           content = content
-            // Remove null bytes and control characters
-            .replace(/[\x00-\x1F\x7F]/g, '') 
+            // Remove null bytes and control characters, but preserve newlines and tabs
+            .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '') 
             // Remove escape sequences
             .replace(/\\u[0-9a-fA-F]{4}/g, '')
-            // Remove any non-printable characters
-            .replace(/[^\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '')
+            // Remove any non-printable characters except newlines and tabs
+            .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '')
             // Ensure proper string encoding
             .toString();
             
