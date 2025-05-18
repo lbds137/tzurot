@@ -301,8 +301,11 @@ async function handleHelpCommand(message, args) {
             `**${prefix} activate <personality>**\n` +
               `Activate a personality to automatically respond to all messages in the channel from any user.\n` +
               `- Requires the "Manage Messages" permission\n` +
-              `- \`personality\` is the name or alias of the personality to activate (required)\n\n` +
-              `Example: \`${prefix} activate lilith\``
+              `- \`personality\` is the name or alias of the personality to activate (required)\n` +
+              `- Multi-word personality names are supported (like \`${prefix} activate lucifer-seraph-ha-lev-nafal\`)\n\n` +
+              `Examples:\n` +
+              `\`${prefix} activate lilith\` - Activate personality with alias 'lilith'\n` +
+              `\`${prefix} activate lucifer-seraph-ha-lev-nafal\` - Activate personality with multi-word name`
           );
 
         case 'deactivate':
@@ -1765,14 +1768,27 @@ async function handleActivateCommand(message, args) {
     );
   }
 
-  const personalityQuery = args[0];
+  // Join all arguments to support multi-word personality names
+  const personalityQuery = args.join('-');
+  logger.info(`[Commands] Attempting to activate personality with query: ${personalityQuery}`);
 
   // Try with alias first
   let personality = getPersonalityByAlias(personalityQuery);
-
+  
   // If not found by alias, try with full name
   if (!personality) {
+    logger.info(`[Commands] Personality not found by alias, trying with full name: ${personalityQuery}`);
     personality = getPersonality(personalityQuery);
+  }
+
+  // If still not found, try with just the first argument as a fallback for backwards compatibility
+  if (!personality && args.length > 1) {
+    logger.info(`[Commands] Personality not found, trying with just the first argument: ${args[0]}`);
+    personality = getPersonalityByAlias(args[0]);
+    
+    if (!personality) {
+      personality = getPersonality(args[0]);
+    }
   }
 
   if (!personality) {
@@ -1781,6 +1797,8 @@ async function handleActivateCommand(message, args) {
     );
   }
 
+  logger.info(`[Commands] Found personality: ${personality.fullName}, activating in channel: ${message.channel.id}`);
+  
   // Activate the personality in this channel
   activatePersonality(message.channel.id, personality.fullName, message.author.id);
 
@@ -2005,6 +2023,9 @@ module.exports = {
   handleResetCommand,
   handleAutoRespondCommand,
   handleInfoCommand,
+  handleActivateCommand,
+  handleDeactivateCommand,
+  handleListCommand,
   directSend: content => {
     try {
       if (typeof content === 'string') {
