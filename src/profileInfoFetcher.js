@@ -17,6 +17,7 @@ const nodeFetch = require('node-fetch');
 const { getProfileInfoEndpoint, getAvatarUrlFormat } = require('../config');
 const logger = require('./logger');
 const RateLimiter = require('./utils/rateLimiter');
+const auth = require('./auth'); // Import auth module for user tokens
 
 // Cache for profile information to reduce API calls
 const profileInfoCache = new Map();
@@ -42,13 +43,17 @@ const fetchImplementation = (...args) => nodeFetch(...args);
 /**
  * Fetch information about a profile
  * @param {string} profileName - The profile's username
+ * @param {string} [userId] - Optional Discord user ID for user-specific authentication
  * @returns {Promise<Object>} The profile information object
  */
-async function fetchProfileInfo(profileName) {
-  // If there's already an ongoing request for this personality, return its promise
-  if (ongoingRequests.has(profileName)) {
-    logger.info(`[ProfileInfoFetcher] Reusing existing request for: ${profileName}`);
-    return ongoingRequests.get(profileName);
+async function fetchProfileInfo(profileName, userId = null) {
+  // Create a unique key that includes both profile name and userId to prevent auth leakage
+  const requestKey = userId ? `${profileName}:${userId}` : profileName;
+  
+  // If there's already an ongoing request with the same profile name and userId, return its promise
+  if (ongoingRequests.has(requestKey)) {
+    logger.info(`[ProfileInfoFetcher] Reusing existing request for: ${profileName} (userId: ${userId || 'none'})`);
+    return ongoingRequests.get(requestKey);
   }
 
   // Create a new promise that will be completed when the request is done
@@ -57,11 +62,14 @@ async function fetchProfileInfo(profileName) {
     resolvePromise = resolve;
   });
 
-  // Add this request to the ongoing requests map immediately
-  ongoingRequests.set(profileName, requestPromise);
+  // Add this request to the ongoing requests map immediately with the proper key
+  ongoingRequests.set(requestKey, requestPromise);
 
-  // Use the rate limiter to handle this request
-  rateLimiter.enqueue(async () => {
+  // Create a context object with the user ID to pass through the rate limiter
+  const context = { userId };
+  
+  // Use the rate limiter to handle this request with the user context
+  rateLimiter.enqueue(async (_, enqueueContext) => {
     try {
       logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
 
@@ -80,8 +88,11 @@ async function fetchProfileInfo(profileName) {
       const endpoint = getProfileInfoEndpoint(profileName);
       logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
 
-      // Fetch the profile data
-      const data = await fetchWithRetry(endpoint, profileName);
+      // Use the userId passed to this function directly, not from rate limiter context
+      // This ensures we don't have context leakage between concurrent requests
+      
+      // Fetch the profile data with user authentication if available
+      const data = await fetchWithRetry(endpoint, profileName, userId);
 
       // If we couldn't get the data, resolve with null
       if (!data) {
@@ -105,7 +116,7 @@ async function fetchProfileInfo(profileName) {
       resolvePromise(null);
     } finally {
       // Always clean up - remove from ongoing requests
-      ongoingRequests.delete(profileName);
+      ongoingRequests.delete(requestKey);
     }
   });
 
@@ -116,9 +127,10 @@ async function fetchProfileInfo(profileName) {
  * Fetch data from the API with retry and rate limit handling
  * @param {string} endpoint - The API endpoint to fetch from
  * @param {string} profileName - The profile name (for logging)
+ * @param {string} [userId] - Optional Discord user ID for user-specific authentication
  * @returns {Promise<Object|null>} - The fetched data or null on failure
  */
-async function fetchWithRetry(endpoint, profileName) {
+async function fetchWithRetry(endpoint, profileName, userId = null) {
   let retryCount = 0;
   const maxRetries = rateLimiter.maxRetries;
 
@@ -129,16 +141,27 @@ async function fetchWithRetry(endpoint, profileName) {
   try {
     while (retryCount <= maxRetries) {
       try {
+        // Prepare headers for the request
+        const headers = {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+          Referer: 'https://discord.com/',
+        };
+
+        // Add auth headers if user ID is provided and has a valid token
+        if (userId && auth.hasValidToken(userId)) {
+          const userToken = auth.getUserToken(userId);
+          logger.debug(`[ProfileInfoFetcher] Using user-specific auth token for user ${userId}`);
+          headers['X-App-ID'] = auth.APP_ID;
+          headers['X-User-Auth'] = userToken;
+        }
+
         const response = await fetchImplementation(endpoint, {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            Accept: 'application/json',
-            'Cache-Control': 'no-cache',
-            Pragma: 'no-cache',
-            Referer: 'https://discord.com/',
-          },
+          headers,
           signal: controller.signal,
         });
 
@@ -236,9 +259,14 @@ const urlValidator = require('./utils/urlValidator');
  * @param {string} profileName - The profile's username
  * @returns {Promise<string|null>} The avatar URL or null if not found
  */
-async function getProfileAvatarUrl(profileName) {
+async function getProfileAvatarUrl(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
-  const profileInfo = await fetchProfileInfo(profileName);
+  
+  // Create a context object with the user ID if provided
+  const context = userId ? { userId } : {};
+  
+  // Use the rateLimiter to execute the request with context
+  const profileInfo = await fetchProfileInfo(profileName, userId);
 
   if (!profileInfo) {
     logger.warn(`[ProfileInfoFetcher] No profile info found for avatar: ${profileName}`);
@@ -319,13 +347,18 @@ async function getProfileAvatarUrl(profileName) {
  * @param {string} profileName - The profile's username
  * @returns {Promise<string|null>} The display name or null if not found
  */
-async function getProfileDisplayName(profileName) {
+async function getProfileDisplayName(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting display name for: ${profileName}`);
-  const profileInfo = await fetchProfileInfo(profileName);
+  
+  // Create a context object with the user ID if provided
+  const context = userId ? { userId } : {};
+  
+  // Use the rateLimiter to execute the request with context
+  const profileInfo = await fetchProfileInfo(profileName, userId);
 
   if (!profileInfo) {
     logger.warn(`[ProfileInfoFetcher] No profile info found for display name: ${profileName}`);
-    return null; // Return null to indicate failure, don't automatically use profileName
+    return profileName; // Return profileName as fallback instead of null
   }
 
   if (!profileInfo.name) {

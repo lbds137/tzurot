@@ -893,9 +893,16 @@ function createVirtualResult(personality, channelId) {
  * All messages from AI personalities should be sent through this function
  * to ensure consistent formatting and reliability.
  */
-async function sendWebhookMessage(channel, content, personality, options = {}) {
+async function sendWebhookMessage(channel, content, personality, options = {}, message = null) {
   // Minimize console output during webhook operations
   const originalFunctions = minimizeConsoleOutput();
+  
+  // Extract user ID from message for authentication if available
+  // This is CRITICAL for ensuring we use the correct user's auth token
+  // when they reply to a webhook message
+  const userId = message?.author?.id;
+  logger.debug(`[WebhookManager] Using user ID for authentication: ${userId || 'none'} from ${message?.author?.tag || 'unknown user'}`);
+  
 
   try {
     // Ensure personality is an object with at least fullName
@@ -918,7 +925,9 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         try {
           // Import here to avoid circular dependencies
           const { getProfileDisplayName } = require('./profileInfoFetcher');
-          const displayName = await getProfileDisplayName(personality.fullName);
+          
+          // Pass user ID to ensure authentication works
+          const displayName = await getProfileDisplayName(personality.fullName, userId);
 
           if (displayName) {
             logger.info(
@@ -1292,8 +1301,9 @@ function registerEventListeners(discordClient) {
  * Pre-load a personality's avatar
  * Helper function to ensure Discord caches the avatar before first use
  * @param {Object} personality - The personality object with avatarUrl
+ * @param {string} [userId] - Optional Discord user ID for user-specific authentication
  */
-async function preloadPersonalityAvatar(personality) {
+async function preloadPersonalityAvatar(personality, userId = null) {
   if (!personality) {
     logger.error(`[WebhookManager] Cannot preload avatar: personality object is null or undefined`);
     return;
@@ -1303,12 +1313,42 @@ async function preloadPersonalityAvatar(personality) {
     logger.warn(
       `[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
     );
-    // Set a fallback avatar URL rather than simply returning
-    personality.avatarUrl = null;
-    logger.info(
-      `[WebhookManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
-    );
-    return;
+    
+    // Attempt to fetch avatar URL using profile info fetcher with user auth
+    if (personality.fullName) {
+      try {
+        // Import here to avoid circular dependencies
+        const { getProfileAvatarUrl } = require('./profileInfoFetcher');
+        
+        // Pass the user ID for authentication
+        const fetchedAvatarUrl = await getProfileAvatarUrl(personality.fullName, userId);
+        
+        if (fetchedAvatarUrl) {
+          logger.info(
+            `[WebhookManager] Successfully fetched avatar URL with user auth (${userId ? 'user-specific' : 'default'}): ${fetchedAvatarUrl}`
+          );
+          personality.avatarUrl = fetchedAvatarUrl;
+        } else {
+          // Set a fallback avatar URL rather than simply returning
+          personality.avatarUrl = null;
+          logger.info(
+            `[WebhookManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
+          );
+          return;
+        }
+      } catch (fetchError) {
+        logger.error(`[WebhookManager] Error fetching avatar URL: ${fetchError.message}`);
+        personality.avatarUrl = null;
+        return;
+      }
+    } else {
+      // Set a fallback avatar URL rather than simply returning
+      personality.avatarUrl = null;
+      logger.info(
+        `[WebhookManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
+      );
+      return;
+    }
   }
 
   logger.info(

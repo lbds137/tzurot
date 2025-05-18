@@ -25,7 +25,7 @@ function initAiClient() {
 /**
  * Get an AI client for a specific user, using their auth token if available
  * @param {string} userId - The Discord user ID
- * @returns {OpenAI} - An OpenAI client instance with appropriate auth
+ * @returns {OpenAI|null} - An OpenAI client instance with appropriate auth, or null if no auth available
  */
 function getAiClientForUser(userId) {
   // If user has a valid token, create a client with their token
@@ -33,9 +33,7 @@ function getAiClientForUser(userId) {
     const userToken = auth.getUserToken(userId);
     logger.debug(`[AIService] Using user-specific auth token for user ${userId}`);
     
-    // Updated implementation:
-    // - We need to use the actual API key (not "not-needed")
-    // - Headers still use "X-App-ID" and "X-User-Auth" format
+    // Return a client with the user's auth token
     return new OpenAI({
       apiKey: auth.API_KEY,
       baseURL: getApiEndpoint(),
@@ -46,16 +44,10 @@ function getAiClientForUser(userId) {
     });
   }
   
-  // Otherwise use the default client
-  logger.debug(`[AIService] Using default API key for user ${userId || 'unknown'}`);
-  
-  // Ensure defaultAiClient is initialized
-  if (!defaultAiClient) {
-    logger.warn('[AIService] Default AI client not initialized, initializing now');
-    initAiClient();
-  }
-  
-  return defaultAiClient;
+  // SECURITY UPDATE: For unauthenticated users, we should NOT use the owner's API key
+  // Instead, return null to indicate auth is required
+  logger.warn(`[AIService] User ${userId || 'unknown'} is not authenticated and cannot use the AI service`);
+  return null;
 }
 
 // Track in-progress API requests to prevent duplicate processing
@@ -545,6 +537,12 @@ async function handleProblematicPersonality(
     // Get the appropriate AI client for this user
     const userId = context.userId || null;
     const aiClient = getAiClientForUser(userId);
+    
+    // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
+    if (!aiClient) {
+      logger.error(`[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`);
+      return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+    }
 
     // Still try the API call in case the issue has been fixed
     const response = await aiClient.chat.completions.create({
@@ -751,6 +749,13 @@ async function getAiResponse(personalityName, message, context = {}) {
       // Set request-specific headers for user/channel identification
       const headers = prepareRequestHeaders(context);
 
+      // SECURITY UPDATE: Check if the user is authenticated
+      const userId = context.userId || null;
+      if (!userId || !auth.hasValidToken(userId)) {
+        logger.warn(`[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`);
+        return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+      }
+
       // Check if this is a personality with known or runtime-detected API issues
       const personalityInfo = getProblematicPersonalityInfo(personalityName);
 
@@ -773,6 +778,11 @@ async function getAiResponse(personalityName, message, context = {}) {
       try {
         return await handleNormalPersonality(personalityName, message, context, modelPath, headers);
       } catch (apiError) {
+        // Check if this is an authentication error
+        if (apiError.message && apiError.message.includes('Authentication required')) {
+          return "⚠️ Authentication required. Please use `!tz auth` to set up your account before using this service.";
+        }
+        
         // Add this personality+user combo to blackout list
         logger.error(
           `[AIService] API error with normal personality ${personalityName}: ${apiError.message}`
@@ -905,6 +915,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Get the appropriate AI client for this user
   const userId = context.userId || null;
   const aiClient = getAiClientForUser(userId);
+  
+  // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
+  if (!aiClient) {
+    logger.error(`[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`);
+    throw new Error('Authentication required to use this service');
+  }
   
   const response = await aiClient.chat.completions.create({
     model: modelPath,

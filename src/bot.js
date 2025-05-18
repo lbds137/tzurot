@@ -507,8 +507,10 @@ async function initBot() {
 
             if (personality) {
               // Process the message with this personality
-              logger.debug(`Processing reply with personality: ${personality.fullName}`);
+              logger.debug(`Processing reply with personality: ${personality.fullName} from user ${message.author.id}`);
               // Since this is a reply, not a direct @mention, pass null for triggeringMention
+              // IMPORTANT: Use message.author.id to ensure the replying user's ID is used
+              // This ensures authentication context is preserved correctly
               await handlePersonalityInteraction(message, personality, null);
               return;
             } else {
@@ -1011,8 +1013,13 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       }
 
       // Get the AI response from the service
+      // Always use the message author's user ID for proper authentication
+      // This ensures that when replying to a webhook, we use the replying user's auth token
+      const userId = message.author?.id;
+      logger.debug(`[Bot] Using user ID for authentication: ${userId || 'none'}`);
+      
       const aiResponse = await getAiResponse(personality.fullName, messageContent, {
-        userId: message.author.id,
+        userId: userId,
         channelId: message.channel.id,
       });
 
@@ -1033,10 +1040,17 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       const webhookLoggingOriginal = disableConsoleLogging();
 
       // Send response and record conversation
+      // CRITICAL: We must pass the original message to ensure we use the correct user's auth token
+      // This ensures user authentication is preserved when replying to webhook messages
       const result = await webhookManager.sendWebhookMessage(
         message.channel,
         aiResponse,
-        personality
+        personality,
+        {
+          // Include user ID in options for enhanced tracking
+          userId: message.author?.id
+        },
+        message // Pass the original message for user authentication
       );
 
       // Restore logging

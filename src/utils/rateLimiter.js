@@ -39,20 +39,23 @@ class RateLimiter {
     this.activeRequests = 0;
     this.requestQueue = [];
     this.inCooldown = false;
+    this.currentRequestContext = null; // Add context tracking for current request
   }
 
   /**
    * Adds a request to the rate limiter queue
    * @param {Function} requestFn The function to execute when the request is processed
+   * @param {Object} [context] Optional context data to associate with this request
    * @returns {Promise} A promise that resolves when the request is processed
    */
-  async enqueue(requestFn) {
+  async enqueue(requestFn, context = {}) {
     return new Promise(resolve => {
       // Define the task to be executed
       const task = async () => {
         this.activeRequests++;
+        this.currentRequestContext = context; // Set current context before executing
         try {
-          const result = await requestFn();
+          const result = await requestFn(this, context);
           resolve(result);
         } catch (_) {
           // Silently resolve with null in case of error
@@ -60,6 +63,7 @@ class RateLimiter {
           resolve(null);
         } finally {
           this.activeRequests--;
+          this.currentRequestContext = null; // Clear context after execution
           this.processQueue();
         }
       };
@@ -199,6 +203,13 @@ class RateLimiter {
       );
       this.consecutiveRateLimits = 0;
     }
+  }
+  /**
+   * Gets the context for the currently executing request
+   * @returns {Object|null} The context object or null if no request is executing
+   */
+  getCurrentRequestContext() {
+    return this.currentRequestContext;
   }
 }
 

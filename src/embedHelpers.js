@@ -299,6 +299,32 @@ function createHelpEmbed(isAdmin) {
     .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
     .setColor('#5865F2')
     .addFields(
+      // Authentication commands
+      {
+        name: 'Authentication',
+        value: 'You must authenticate before using the bot. Use these commands:',
+      },
+      {
+        name: `${prefix} auth start`,
+        value: 'Start the authentication process and get a link',
+      },
+      {
+        name: `${prefix} auth code <code>`,
+        value: 'Submit your authorization code (DM only for security)',
+      },
+      {
+        name: `${prefix} auth status`,
+        value: 'Check your current authorization status',
+      },
+      {
+        name: `${prefix} auth revoke`,
+        value: 'Revoke your authorization',
+      },
+      // Personality management
+      {
+        name: 'Personality Management',
+        value: 'Commands for adding and managing personalities:',
+      },
       { name: `${prefix} add <profile_name> [alias]`, value: 'Add a new AI personality' },
       { name: `${prefix} list`, value: 'List all your AI personalities' },
       {
@@ -310,6 +336,11 @@ function createHelpEmbed(isAdmin) {
       {
         name: `${prefix} help [command]`,
         value: 'Show this help or help for a specific command',
+      },
+      // Channel and conversation management
+      {
+        name: 'Channel and Conversation Management',
+        value: 'Commands for managing conversations:',
       },
       {
         name: `${prefix} activate <personality>`,
