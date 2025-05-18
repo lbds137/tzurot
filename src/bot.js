@@ -472,7 +472,8 @@ async function initBot() {
             if (personality) {
               // Process the message with this personality
               logger.debug(`Processing reply with personality: ${personality.fullName}`);
-              await handlePersonalityInteraction(message, personality);
+              // Since this is a reply, not a direct @mention, pass null for triggeringMention
+              await handlePersonalityInteraction(message, personality, null);
               return;
             } else {
               logger.debug(`No personality data found for name/alias: ${personalityName}`);
@@ -509,7 +510,8 @@ async function initBot() {
 
         if (personality) {
           // Process the message with this personality
-          await handlePersonalityInteraction(message, personality);
+          // Standard mention doesn't have spaces, use match[1] as the triggering mention
+          await handlePersonalityInteraction(message, personality, mentionName);
           return;
         }
       }
@@ -576,7 +578,11 @@ async function initBot() {
           
           // If we found a personality, handle the interaction
           if (foundPersonality) {
-            await handlePersonalityInteraction(message, foundPersonality);
+            // For multi-word mentions, use the matched mention text that worked
+            const matchedMentionText = combinations.find(combo => 
+              getPersonalityByAlias(combo) === foundPersonality);
+            
+            await handlePersonalityInteraction(message, foundPersonality, matchedMentionText);
             return;
           } else {
             logger.debug(`No personality found for any word combination in: "${rawMentionText}"`);
@@ -604,7 +610,8 @@ async function initBot() {
 
       if (personality) {
         // Process the message with this personality
-        await handlePersonalityInteraction(message, personality);
+        // Since this is not a direct @mention, pass null for triggeringMention
+        await handlePersonalityInteraction(message, personality, null);
         return;
       }
     }
@@ -626,7 +633,8 @@ async function initBot() {
 
       if (personality) {
         // Process the message with this personality
-        await handlePersonalityInteraction(message, personality);
+        // Since this is not a direct @mention, pass null for triggeringMention
+        await handlePersonalityInteraction(message, personality, null);
       }
     }
   });
@@ -730,8 +738,9 @@ function recordConversationData(userId, channelId, result, personalityName) {
  * Handle interaction with a personality
  * @param {Object} message - Discord message object
  * @param {Object} personality - Personality data
+ * @param {string} [triggeringMention=null] - The specific @mention text that triggered this interaction
  */
-async function handlePersonalityInteraction(message, personality) {
+async function handlePersonalityInteraction(message, personality, triggeringMention = null) {
   // Minimize console logging during personality interaction
   const originalConsoleFunctions = minimizeConsoleLogging();
   let typingInterval;
@@ -754,8 +763,26 @@ async function handlePersonalityInteraction(message, personality) {
       let hasFoundImage = false;
       let hasFoundAudio = false;
       
-      // First check for media URLs in the message content
-      if (message.content) {
+      // Remove only the specific @mention that triggered the bot
+      if (message.content && triggeringMention) {
+        // Escape special regex characters in the triggering mention
+        const escapedMention = triggeringMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const specificMentionRegex = new RegExp(`@${escapedMention}\\b`, 'gi');
+        
+        // Remove only this specific mention and clean up spacing
+        const withMentionRemoved = message.content.replace(specificMentionRegex, '');
+        
+        // Fix spacing issues
+        messageContent = withMentionRemoved
+          .replace(/\s{2,}/g, ' ')  // Replace multiple spaces with a single space
+          .replace(/\s,/g, ',')     // Fix spacing before commas
+          .trim();
+        
+        if (messageContent !== message.content) {
+          logger.info(`[Bot] Removed triggering @mention "${triggeringMention}" from message content`);
+          logger.debug(`[Bot] Original: "${message.content}" -> Cleaned: "${messageContent}"`);
+        }
+        
         // Regular expressions to match common image URLs
         const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
         const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
@@ -764,7 +791,7 @@ async function handlePersonalityInteraction(message, personality) {
         const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg)(\?\S*)?/i;
         
         // First check for audio URLs (prioritize audio over images per API limitation)
-        const audioMatch = message.content.match(audioUrlRegex);
+        const audioMatch = messageContent.match(audioUrlRegex);
         
         if (audioMatch && audioMatch[0]) {
           audioUrl = audioMatch[0];
@@ -772,10 +799,10 @@ async function handlePersonalityInteraction(message, personality) {
           hasFoundAudio = true;
           
           // Remove the URL from the message content to avoid repetition
-          messageContent = message.content.replace(audioUrl, '').trim();
+          messageContent = messageContent.replace(audioUrl, '').trim();
         } else {
           // If no audio URL was found, check for image URLs
-          const imageMatch = message.content.match(imageUrlRegex) || message.content.match(discordCdnRegex);
+          const imageMatch = messageContent.match(imageUrlRegex) || messageContent.match(discordCdnRegex);
           
           if (imageMatch && imageMatch[0]) {
             imageUrl = imageMatch[0];
@@ -783,7 +810,7 @@ async function handlePersonalityInteraction(message, personality) {
             hasFoundImage = true;
             
             // Remove the URL from the message content to avoid repetition
-            messageContent = message.content.replace(imageUrl, '').trim();
+            messageContent = messageContent.replace(imageUrl, '').trim();
           }
         }
       }
