@@ -13,6 +13,9 @@ const activeWebhooks = new Set();
 // Cache to track avatar URLs we've already warmed up
 const avatarWarmupCache = new Set();
 
+// Fallback avatar URL to use when avatar URLs are invalid or missing
+const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
+
 // Cache to track recently sent messages to prevent duplicates
 const recentMessageCache = new Map();
 
@@ -36,42 +39,150 @@ const MAX_ERROR_WAIT_TIME = TIME.MAX_ERROR_WAIT_TIME;
 const MESSAGE_CHAR_LIMIT = DISCORD.MESSAGE_CHAR_LIMIT;
 
 /**
+ * Validate if an avatar URL is accessible and correctly formatted
+ * @param {string} avatarUrl - The URL to validate
+ * @returns {Promise<boolean>} - True if the avatar URL is valid
+ */
+async function validateAvatarUrl(avatarUrl) {
+  if (!avatarUrl) return false;
+  
+  // Check if URL is correctly formatted
+  try {
+    new URL(avatarUrl); // Will throw if URL is invalid
+  } catch (error) {
+    logger.warn(`[WebhookManager] Invalid avatar URL format: ${avatarUrl}`);
+    return false;
+  }
+  
+  // Try to fetch the image to verify it exists
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(avatarUrl, {
+      method: 'HEAD', // Only fetch headers to be more efficient
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status} for ${avatarUrl}`);
+      return false;
+    }
+    
+    // Check content type to ensure it's an image
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.startsWith('image/')) {
+      logger.warn(`[WebhookManager] Avatar URL does not point to an image: ${contentType} for ${avatarUrl}`);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    logger.warn(`[WebhookManager] Error validating avatar URL: ${error.message} for ${avatarUrl}`);
+    return false;
+  }
+}
+
+/**
+ * Get a valid avatar URL, with fallbacks
+ * @param {string} avatarUrl - The original avatar URL to try
+ * @returns {Promise<string>} - A valid avatar URL or the fallback URL
+ */
+async function getValidAvatarUrl(avatarUrl) {
+  // If no URL provided, use fallback immediately
+  if (!avatarUrl) {
+    logger.debug(`[WebhookManager] No avatar URL provided, using fallback`);
+    return FALLBACK_AVATAR_URL;
+  }
+  
+  // Check if the URL is valid
+  const isValid = await validateAvatarUrl(avatarUrl);
+  
+  if (isValid) {
+    return avatarUrl;
+  } else {
+    logger.info(`[WebhookManager] Using fallback avatar URL for invalid: ${avatarUrl}`);
+    return FALLBACK_AVATAR_URL;
+  }
+}
+
+/**
  * Pre-load an avatar URL to ensure Discord caches it
  * This helps with the issue where avatars don't show on first message
  * @param {string} avatarUrl - The URL of the avatar to pre-load
+ * @param {number} [retryCount=1] - Number of retries if warmup fails (internal parameter)
+ * @returns {Promise<string>} - The warmed up avatar URL or fallback URL
  */
-async function warmupAvatarUrl(avatarUrl) {
+async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
   // Skip if null or already warmed up
-  if (!avatarUrl || avatarWarmupCache.has(avatarUrl)) {
-    return;
+  if (!avatarUrl) {
+    logger.debug(`[WebhookManager] No avatar URL to warm up, using fallback`);
+    return FALLBACK_AVATAR_URL;
+  }
+  
+  if (avatarWarmupCache.has(avatarUrl)) {
+    logger.debug(`[WebhookManager] Avatar URL already warmed up: ${avatarUrl}`);
+    return avatarUrl;
   }
 
   logger.info(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
 
   try {
+    // First ensure the avatar URL is valid
+    const validUrl = await getValidAvatarUrl(avatarUrl);
+    
+    // If we got the fallback URL, it means the original URL was invalid
+    if (validUrl === FALLBACK_AVATAR_URL && avatarUrl !== FALLBACK_AVATAR_URL) {
+      return validUrl; // Don't bother warming up the fallback URL
+    }
+    
     // Make a GET request to ensure Discord caches the image
     // Use a timeout to prevent hanging on bad URLs
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch(avatarUrl, {
+    const response = await fetch(validUrl, {
       method: 'GET',
       signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      },
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
       logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
-      return;
+      throw new Error(`Failed to warm up avatar: ${response.status} ${response.statusText}`);
     }
 
+    // Read a small chunk of the response to ensure it's properly loaded
+    const buffer = await response.buffer();
+    logger.debug(`[WebhookManager] Avatar loaded (${buffer.length} bytes)`);
+    
     // Add to cache so we don't warm up the same URL multiple times
-    avatarWarmupCache.add(avatarUrl);
-    logger.info(`[WebhookManager] Successfully warmed up avatar URL: ${avatarUrl}`);
+    avatarWarmupCache.add(validUrl);
+    logger.info(`[WebhookManager] Successfully warmed up avatar URL: ${validUrl}`);
+    
+    return validUrl;
   } catch (error) {
     logger.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
-    // Continue despite error - not critical
+    
+    // Retry logic - up to 2 retries (3 attempts total)
+    if (retryCount < 3) {
+      logger.info(`[WebhookManager] Retrying avatar warmup (attempt ${retryCount + 1}/3) for: ${avatarUrl}`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      return warmupAvatarUrl(avatarUrl, retryCount + 1);
+    }
+    
+    // After all retries failed, use fallback
+    logger.warn(`[WebhookManager] All warmup attempts failed for ${avatarUrl}, using fallback avatar`);
+    return FALLBACK_AVATAR_URL;
   }
 }
 
@@ -286,7 +397,7 @@ async function getOrCreateWebhook(channel) {
       logger.info(`Creating new webhook in channel ${targetChannel.name || ''} (${targetChannel.id})`);
       webhook = await targetChannel.createWebhook({
         name: 'Tzurot',
-        avatar: 'https://i.imgur.com/your-default-avatar.png', // Replace with your bot's default avatar
+        avatar: FALLBACK_AVATAR_URL, // Use our reliable fallback avatar
         reason: 'Needed for personality proxying',
       });
     } else {
@@ -533,8 +644,50 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
   const originalFunctions = minimizeConsoleOutput();
   
   try {
+    // Ensure personality is an object with at least fullName
+    if (!personality) {
+      logger.error(`[Webhook] Missing personality object in sendWebhookMessage`);
+      personality = { fullName: 'unknown' };
+    } else if (!personality.fullName) {
+      logger.error(`[Webhook] Missing fullName in personality object`);
+      personality.fullName = 'unknown';
+    }
+
+    // If displayName is missing but fullName is present, ensure we set a display name
+    if (!personality.displayName && personality.fullName) {
+      logger.warn(`[Webhook] No displayName provided for ${personality.fullName}, attempting to fetch or generate one`);
+      
+      // Try to fetch display name if needed (only for real personalities)
+      if (personality.fullName !== 'unknown') {
+        try {
+          // Import here to avoid circular dependencies
+          const { getProfileDisplayName } = require('./profileInfoFetcher');
+          const displayName = await getProfileDisplayName(personality.fullName);
+          
+          if (displayName) {
+            logger.info(`[Webhook] Successfully fetched displayName: ${displayName} for ${personality.fullName}`);
+            personality.displayName = displayName;
+          } else {
+            // Extract from fullName as fallback
+            const parts = personality.fullName.split('-');
+            if (parts.length > 0) {
+              const extracted = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+              logger.info(`[Webhook] Using extracted displayName: ${extracted} for ${personality.fullName}`);
+              personality.displayName = extracted;
+            } else {
+              personality.displayName = personality.fullName;
+            }
+          }
+        } catch (error) {
+          logger.error(`[Webhook] Error fetching displayName: ${error.message}`);
+          // Set displayName to match fullName as fallback
+          personality.displayName = personality.fullName;
+        }
+      }
+    }
+
     logger.info(
-      `Attempting to send webhook message in channel ${channel.id} as ${personality.displayName}`
+      `Attempting to send webhook message in channel ${channel.id} as ${personality.displayName || personality.fullName}`
     );
 
     // Generate a unique tracking ID for this message to prevent duplicates
@@ -586,9 +739,16 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
     activeWebhooks.add(messageTrackingId);
 
     try {
-      // Pre-load the avatar URL to ensure Discord caches it
-      if (personality.avatarUrl) {
-        await warmupAvatarUrl(personality.avatarUrl);
+      // Pre-load and validate the avatar URL to ensure Discord caches it
+      // This returns either the validated avatar URL or a fallback
+      const validatedAvatarUrl = personality.avatarUrl 
+        ? await warmupAvatarUrl(personality.avatarUrl)
+        : FALLBACK_AVATAR_URL;
+      
+      // Update the personality object with the validated URL
+      if (validatedAvatarUrl !== personality.avatarUrl) {
+        logger.info(`[Webhook] Updated personality avatar URL to validated version`);
+        personality.avatarUrl = validatedAvatarUrl;
       }
 
       // Get the webhook client
@@ -839,6 +999,9 @@ async function preloadPersonalityAvatar(personality) {
     logger.warn(
       `[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
     );
+    // Set a fallback avatar URL rather than simply returning
+    personality.avatarUrl = FALLBACK_AVATAR_URL;
+    logger.info(`[WebhookManager] Set fallback avatar URL for ${personality.fullName || 'unknown personality'}`);
     return;
   }
 
@@ -847,32 +1010,16 @@ async function preloadPersonalityAvatar(personality) {
   );
 
   try {
-    // First try a direct fetch to validate the URL
-    const fetch = require('node-fetch');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(personality.avatarUrl, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      },
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
+    // Use our improved validation and warmup methods
+    const validatedUrl = await getValidAvatarUrl(personality.avatarUrl);
+    
+    // If the URL is invalid, update the personality object with the fallback
+    if (validatedUrl !== personality.avatarUrl) {
       logger.warn(
-        `[WebhookManager] Personality avatar URL invalid: ${response.status} ${response.statusText}`
+        `[WebhookManager] Personality avatar URL invalid, using fallback: ${personality.avatarUrl}`
       );
-      return;
+      personality.avatarUrl = validatedUrl;
     }
-
-    // Read a small chunk of the response to ensure it's loaded
-    const buffer = await response.buffer();
-    logger.info(`[WebhookManager] Avatar image loaded (${buffer.length} bytes)`);
 
     // Then use our standard warmup function to cache it
     await warmupAvatarUrl(personality.avatarUrl);
@@ -892,10 +1039,18 @@ async function preloadPersonalityAvatar(personality) {
  */
 function getStandardizedUsername(personality) {
   if (!personality) {
+    logger.warn(`[WebhookManager] getStandardizedUsername called with null/undefined personality`);
     return 'Bot';
   }
 
   try {
+    // Log the full personality object to diagnose issues
+    logger.debug(`[WebhookManager] getStandardizedUsername called with personality: ${JSON.stringify({
+      fullName: personality.fullName || 'N/A',
+      displayName: personality.displayName || 'N/A',
+      hasAvatar: !!personality.avatarUrl
+    })}`);
+
     // ALWAYS prioritize displayName over any other field
     if (
       personality.displayName &&
@@ -903,6 +1058,7 @@ function getStandardizedUsername(personality) {
       personality.displayName.trim().length > 0
     ) {
       const name = personality.displayName.trim();
+      logger.debug(`[WebhookManager] Using displayName: ${name}`);
 
       // Discord has a 32 character limit for webhook usernames
       if (name.length > 32) {
@@ -910,6 +1066,9 @@ function getStandardizedUsername(personality) {
       }
 
       return name;
+    } else {
+      // Log when displayName is missing to help diagnose the issue
+      logger.warn(`[WebhookManager] displayName missing for personality: ${personality.fullName || 'unknown'}`);
     }
 
     // Fallback: Extract name from fullName
@@ -919,6 +1078,7 @@ function getStandardizedUsername(personality) {
       if (parts.length > 0 && parts[0].length > 0) {
         // Capitalize first letter for nicer display
         const extracted = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        logger.debug(`[WebhookManager] Using extracted name from fullName: ${extracted}`);
 
         // Discord has a 32 character limit
         if (extracted.length > 32) {
@@ -930,17 +1090,20 @@ function getStandardizedUsername(personality) {
 
       // If no hyphens, use the full name if short enough
       if (personality.fullName.length <= 32) {
+        logger.debug(`[WebhookManager] Using fullName directly: ${personality.fullName}`);
         return personality.fullName;
       }
 
       // Truncate long names
+      logger.debug(`[WebhookManager] Using truncated fullName: ${personality.fullName.slice(0, 29)}...`);
       return personality.fullName.slice(0, 29) + '...';
     }
   } catch (error) {
-    logger.error(`[Webhook] Error generating standard username: ${error}`);
+    logger.error(`[WebhookManager] Error generating standard username: ${error}`);
   }
 
   // Final fallback
+  logger.warn(`[WebhookManager] Using 'Bot' as final fallback for username`);
   return 'Bot';
 }
 
@@ -1126,6 +1289,11 @@ module.exports = {
   calculateMessageDelay,
   updateChannelLastMessageTime,
   createPersonalityChannelKey,
+  
+  // Avatar URL handling
+  validateAvatarUrl,
+  getValidAvatarUrl,
+  warmupAvatarUrl,
   
   // For testing purposes
   splitByCharacterLimit,

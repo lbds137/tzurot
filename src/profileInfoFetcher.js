@@ -101,7 +101,15 @@ async function getProfileAvatarUrl(profileName) {
     // Check if avatar_url is directly available in the response
     if (profileInfo.avatar_url) {
       logger.debug(`[ProfileInfoFetcher] Using avatar_url directly from API response: ${profileInfo.avatar_url}`);
-      return profileInfo.avatar_url;
+      
+      // Validate that it's a properly formatted URL
+      try {
+        new URL(profileInfo.avatar_url); // Will throw if invalid URL
+        return profileInfo.avatar_url;
+      } catch (urlError) {
+        logger.warn(`[ProfileInfoFetcher] Received invalid avatar_url from API: ${profileInfo.avatar_url}`);
+        // Continue to fallback instead of returning invalid URL
+      }
     }
     
     // Fallback to using ID-based URL format
@@ -110,13 +118,27 @@ async function getProfileAvatarUrl(profileName) {
       return null;
     }
     
-    // Get the avatar URL format
+    // Get the avatar URL format from config
     const avatarUrlFormat = getAvatarUrlFormat();
+    
+    // Validate the avatar URL format from config
+    if (!avatarUrlFormat || !avatarUrlFormat.includes('{id}')) {
+      logger.error(`[ProfileInfoFetcher] Invalid avatarUrlFormat: "${avatarUrlFormat}". Check AVATAR_URL_BASE env variable.`);
+      return null;
+    }
 
     // Replace the placeholder with the actual profile ID
     const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
     logger.debug(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
-    return avatarUrl;
+    
+    // Validate the generated URL
+    try {
+      new URL(avatarUrl); // Will throw if invalid URL
+      return avatarUrl;
+    } catch (urlError) {
+      logger.error(`[ProfileInfoFetcher] Generated invalid avatar URL: ${avatarUrl}`);
+      return null;
+    }
   } catch (error) {
     logger.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
     return null;

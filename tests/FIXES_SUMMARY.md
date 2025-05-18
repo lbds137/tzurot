@@ -909,3 +909,76 @@ We've implemented the ability for users to send images and audio files to the Di
    - Enhanced request ID generation to properly handle and distinguish between different media types
    - Added proper logging throughout the media processing flow
    - Added comprehensive test coverage for all new functionality
+
+## Enhanced Avatar URL Handling for Webhook Messages
+
+We've significantly improved the reliability of avatar URLs in webhook messages to address the issue where profile pictures sometimes fail to load correctly.
+
+### The Problem
+
+We identified several issues with avatar URL handling that were causing profile pictures to sometimes not load properly:
+
+1. Hardcoded placeholder avatar URL was using an invalid format (`https://i.imgur.com/your-default-avatar.png`)
+2. No validation was performed on avatar URLs before using them
+3. No retry mechanism for avatar warmup if it failed the first time
+4. Potential timing issues where messages were sent before avatar warmup completed
+5. Lack of validation for environment variables related to avatar URLs
+6. No fallback mechanism if an avatar URL was invalid or inaccessible
+
+### Our Solution
+
+We implemented comprehensive improvements to avatar URL handling:
+
+1. **Reliable Fallback Avatar**:
+   - Added a constant `FALLBACK_AVATAR_URL` using Discord's default avatar system (`https://cdn.discordapp.com/embed/avatars/0.png`)
+   - Ensured webhook creation uses the verified fallback avatar URL
+   - Guaranteed that users will always see some avatar, even when the original fails
+
+2. **Robust URL Validation**:
+   - Implemented `validateAvatarUrl` function to verify URLs are:
+     - Properly formatted (valid URL syntax)
+     - Accessible (returns 200 OK status)
+     - Actually images (checks content-type header)
+   - Added a HEAD request approach for efficiency when validating URLs
+   - Detailed logging for all avatar validation failures to help with debugging
+
+3. **Avatar URL Fallback System**:
+   - Created `getValidAvatarUrl` function to:
+     - Try the original avatar URL first
+     - Fall back to default if the original URL is invalid
+     - Properly log all fallback operations
+   - Ensured personality objects are updated with validated URLs
+
+4. **Enhanced Warmup with Retry Logic**:
+   - Improved `warmupAvatarUrl` function with:
+     - Proper validation before attempting warmup
+     - Retry mechanism (up to 3 attempts) for transient network issues
+     - 1-second delay between retry attempts
+     - Fallback to default avatar after all retries fail
+     - Better error handling and logging
+   - Added proper User-Agent headers to help with API rate limiting
+
+5. **Better profileInfoFetcher Integration**:
+   - Enhanced `getProfileAvatarUrl` function to:
+     - Validate URLs from the API before returning them
+     - Check if API response contains a valid avatar_url format
+     - Verify that the AVATAR_URL_BASE environment variable is properly set
+     - Validate generated URLs before returning them
+   - Improved error handling and logging for better diagnosis
+
+6. **Testing Improvements**:
+   - Added dedicated tests for avatar URL validation
+   - Created specific tests for validating success and failure scenarios
+   - Ensured test coverage for critical fallback mechanisms
+   - Implemented tests for personality avatar URL preloading
+   - Enhanced test organization for better maintainability
+
+These changes ensure that profile pictures load reliably in webhook messages, providing a consistent user experience. The system is now resilient against various failure modes, including:
+
+- Invalid URLs in API responses
+- Network issues when fetching avatars
+- Misconfigured environment variables
+- API changes in avatar URL formats
+- Temporary service outages
+
+All changes maintain backward compatibility while significantly improving reliability.
