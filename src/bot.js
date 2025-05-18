@@ -27,6 +27,9 @@ const client = new Client({
 
 // Bot initialization function
 async function initBot() {
+  // Make client available globally to avoid circular dependencies
+  global.tzurotClient = client;
+  
   // Set up event handlers
   client.on('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);

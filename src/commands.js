@@ -16,8 +16,29 @@ async function processCommand(message, command, args) {
   // Add a simple debug log to track command processing
   console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
+  // Check if this is a duplicate command execution
+  const commandKey = `${message.author.id}-${command}`;
+  if (messageTracker.isDuplicate(message.author.id, command)) {
+    console.log(`Skipping duplicate command execution: ${command}`);
+    return null;
+  }
+
   // Use a try/catch to avoid uncaught exceptions
   try {
+    // Create a direct send function to avoid Discord.js reply bug
+    const directSend = async (content) => {
+      try {
+        if (typeof content === 'string') {
+          return await message.channel.send(content);
+        } else {
+          return await message.channel.send(content);
+        }
+      } catch (err) {
+        console.error('Error sending message:', err);
+        return null;
+      }
+    };
+    
     switch (command) {
       case 'help':
         return await handleHelpCommand(message, args);
@@ -40,7 +61,7 @@ async function processCommand(message, command, args) {
         return await handleInfoCommand(message, args);
 
       case 'ping':
-        return await message.reply('Pong! Tzurot is operational.');
+        return await directSend('Pong! Tzurot is operational.');
 
       case 'reset':
         return await handleResetCommand(message, args);
@@ -59,11 +80,11 @@ async function processCommand(message, command, args) {
         return await handleStatusCommand(message, args);
 
       default:
-        return await message.reply(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
+        return await directSend(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
     }
   } catch (error) {
     console.error(`Error processing command ${command}:`, error);
-    return await message.reply(`An error occurred while processing the command. Please try again.`);
+    return await message.channel.send(`An error occurred while processing the command. Please try again.`);
   }
 }
 
@@ -72,110 +93,154 @@ async function processCommand(message, command, args) {
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
+// Static tracking object to prevent duplicate messages
+// This might be a workaround for a Discord.js bug
+const messageTracker = {
+  lastCommandTime: {},
+  isDuplicate: function(userId, commandName) {
+    const key = `${userId}-${commandName}`;
+    const now = Date.now();
+    const lastTime = this.lastCommandTime[key] || 0;
+    
+    // Consider it a duplicate if same command from same user within 3 seconds
+    if (now - lastTime < 3000) {
+      console.log(`Duplicate command detected: ${commandName} from ${userId}`);
+      return true;
+    }
+    
+    // Update the timestamp
+    this.lastCommandTime[key] = now;
+    return false;
+  }
+};
+
 async function handleHelpCommand(message, args) {
   const prefix = botPrefix;
-
-  if (args.length > 0) {
-    // Help for a specific command
-    const specificCommand = args[0].toLowerCase();
-
-    switch (specificCommand) {
-      case 'add':
-      case 'create':
-        return message.reply(
-          `**${prefix} add <profile_name> [alias]**\n` +
-          `Add a new AI personality to your collection.\n` +
-          `- \`profile_name\` is the name of the personality (required)\n` +
-          `- \`alias\` is an optional nickname you can use to reference this personality (optional)\n\n` +
-          `Example: \`${prefix} add lilith-tzel-shani lilith\``
-        );
-
-      case 'list':
-        return message.reply(
-          `**${prefix} list**\n` +
-          `List all AI personalities you've added.\n\n` +
-          `Example: \`${prefix} list\``
-        );
-
-      case 'alias':
-        return message.reply(
-          `**${prefix} alias <profile_name> <new_alias>**\n` +
-          `Add an alias/nickname for an existing personality.\n` +
-          `- \`profile_name\` is the name of the personality (required)\n` +
-          `- \`new_alias\` is the nickname to assign (required)\n\n` +
-          `Example: \`${prefix} alias lilith-tzel-shani lili\``
-        );
-
-      case 'remove':
-      case 'delete':
-        return message.reply(
-          `**${prefix} remove <profile_name>**\n` +
-          `Remove a personality from your collection.\n` +
-          `- \`profile_name\` is the name of the personality to remove (required)\n\n` +
-          `Example: \`${prefix} remove lilith-tzel-shani\``
-        );
-
-      case 'info':
-        return message.reply(
-          `**${prefix} info <profile_name>**\n` +
-          `Show detailed information about a personality.\n` +
-          `- \`profile_name\` is the name or alias of the personality (required)\n\n` +
-          `Example: \`${prefix} info lilith\``
-        );
-
-      case 'activate':
-        return message.reply(
-          `**${prefix} activate <personality>**\n` +
-          `Activate a personality to automatically respond to all messages in the channel from any user.\n` +
-          `- Requires the "Manage Messages" permission\n` +
-          `- \`personality\` is the name or alias of the personality to activate (required)\n\n` +
-          `Example: \`${prefix} activate lilith\``
-        );
-
-      case 'deactivate':
-        return message.reply(
-          `**${prefix} deactivate**\n` +
-          `Deactivate the currently active personality in this channel.\n` +
-          `- Requires the "Manage Messages" permission\n\n` +
-          `Example: \`${prefix} deactivate\``
-        );
-
-      case 'autorespond':
-      case 'auto':
-        return message.reply(
-          `**${prefix} autorespond <on|off|status>**\n` +
-          `Toggle whether personalities continue responding to your messages automatically after you tag or reply to them.\n` +
-          `- \`on\` - Enable auto-response for your user\n` +
-          `- \`off\` - Disable auto-response (default)\n` +
-          `- \`status\` - Check your current setting\n\n` +
-          `Example: \`${prefix} autorespond on\``
-        );
-
-      default:
-        return message.reply(`Unknown command: \`${specificCommand}\`. Use \`${prefix} help\` to see available commands.`);
-    }
+  const commandName = 'help';
+  
+  // Check for duplicate command
+  if (messageTracker.isDuplicate(message.author.id, commandName)) {
+    console.log('Skipping duplicate help command');
+    return null;
   }
+  
+  console.log(`Processing help command with args: ${args.join(', ')}`);
 
-  // General help
-  const embed = new EmbedBuilder()
-    .setTitle('Tzurot Help')
-    .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
-    .setColor('#5865F2')
-    .addFields(
-      { name: `${prefix} add <profile_name> [alias]`, value: 'Add a new AI personality' },
-      { name: `${prefix} list`, value: 'List all your AI personalities' },
-      { name: `${prefix} alias <profile_name> <new_alias>`, value: 'Add an alias for a personality' },
-      { name: `${prefix} remove <profile_name>`, value: 'Remove a personality' },
-      { name: `${prefix} info <profile_name>`, value: 'Show details about a personality' },
-      { name: `${prefix} help [command]`, value: 'Show this help or help for a specific command' },
-      { name: `${prefix} activate <personality>`, value: 'Activate a personality for all users in the channel (requires Manage Messages permission)' },
-      { name: `${prefix} deactivate`, value: 'Deactivate the channel-wide personality (requires Manage Messages permission)' },
-      { name: `${prefix} autorespond <on|off|status>`, value: 'Toggle whether personalities continue responding to your messages automatically' },
-      { name: `${prefix} reset`, value: 'Clear your active conversation' }
-    )
-    .setFooter({ text: 'To interact with a personality, mention them with @alias or reply to their messages' });
+  try {
+    // Create simpler reply function that doesn't use the reply feature
+    const directSend = async (msg, content) => {
+      if (typeof content === 'string') {
+        return await msg.channel.send(content);
+      } else {
+        return await msg.channel.send({ embeds: content.embeds });
+      }
+    };
 
-  return message.reply({ embeds: [embed] });
+    if (args.length > 0) {
+      // Help for a specific command
+      const specificCommand = args[0].toLowerCase();
+
+      switch (specificCommand) {
+        case 'add':
+        case 'create':
+          return await directSend(message,
+            `**${prefix} add <profile_name> [alias]**\n` +
+            `Add a new AI personality to your collection.\n` +
+            `- \`profile_name\` is the name of the personality (required)\n` +
+            `- \`alias\` is an optional nickname you can use to reference this personality (optional)\n\n` +
+            `Example: \`${prefix} add lilith-tzel-shani lilith\``
+          );
+
+        case 'list':
+          return await directSend(message,
+            `**${prefix} list**\n` +
+            `List all AI personalities you've added.\n\n` +
+            `Example: \`${prefix} list\``
+          );
+
+        case 'alias':
+          return await directSend(message,
+            `**${prefix} alias <profile_name> <new_alias>**\n` +
+            `Add an alias/nickname for an existing personality.\n` +
+            `- \`profile_name\` is the name of the personality (required)\n` +
+            `- \`new_alias\` is the nickname to assign (required)\n\n` +
+            `Example: \`${prefix} alias lilith-tzel-shani lili\``
+          );
+
+        case 'remove':
+        case 'delete':
+          return await directSend(message,
+            `**${prefix} remove <profile_name>**\n` +
+            `Remove a personality from your collection.\n` +
+            `- \`profile_name\` is the name of the personality to remove (required)\n\n` +
+            `Example: \`${prefix} remove lilith-tzel-shani\``
+          );
+
+        case 'info':
+          return await directSend(message,
+            `**${prefix} info <profile_name>**\n` +
+            `Show detailed information about a personality.\n` +
+            `- \`profile_name\` is the name or alias of the personality (required)\n\n` +
+            `Example: \`${prefix} info lilith\``
+          );
+
+        case 'activate':
+          return await directSend(message,
+            `**${prefix} activate <personality>**\n` +
+            `Activate a personality to automatically respond to all messages in the channel from any user.\n` +
+            `- Requires the "Manage Messages" permission\n` +
+            `- \`personality\` is the name or alias of the personality to activate (required)\n\n` +
+            `Example: \`${prefix} activate lilith\``
+          );
+
+        case 'deactivate':
+          return await directSend(message,
+            `**${prefix} deactivate**\n` +
+            `Deactivate the currently active personality in this channel.\n` +
+            `- Requires the "Manage Messages" permission\n\n` +
+            `Example: \`${prefix} deactivate\``
+          );
+
+        case 'autorespond':
+        case 'auto':
+          return await directSend(message,
+            `**${prefix} autorespond <on|off|status>**\n` +
+            `Toggle whether personalities continue responding to your messages automatically after you tag or reply to them.\n` +
+            `- \`on\` - Enable auto-response for your user\n` +
+            `- \`off\` - Disable auto-response (default)\n` +
+            `- \`status\` - Check your current setting\n\n` +
+            `Example: \`${prefix} autorespond on\``
+          );
+
+        default:
+          return await directSend(message, `Unknown command: \`${specificCommand}\`. Use \`${prefix} help\` to see available commands.`);
+      }
+    }
+
+    // General help
+    const embed = new EmbedBuilder()
+      .setTitle('Tzurot Help')
+      .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
+      .setColor('#5865F2')
+      .addFields(
+        { name: `${prefix} add <profile_name> [alias]`, value: 'Add a new AI personality' },
+        { name: `${prefix} list`, value: 'List all your AI personalities' },
+        { name: `${prefix} alias <profile_name> <new_alias>`, value: 'Add an alias for a personality' },
+        { name: `${prefix} remove <profile_name>`, value: 'Remove a personality' },
+        { name: `${prefix} info <profile_name>`, value: 'Show details about a personality' },
+        { name: `${prefix} help [command]`, value: 'Show this help or help for a specific command' },
+        { name: `${prefix} activate <personality>`, value: 'Activate a personality for all users in the channel (requires Manage Messages permission)' },
+        { name: `${prefix} deactivate`, value: 'Deactivate the channel-wide personality (requires Manage Messages permission)' },
+        { name: `${prefix} autorespond <on|off|status>`, value: 'Toggle whether personalities continue responding to your messages automatically' },
+        { name: `${prefix} reset`, value: 'Clear your active conversation' }
+      )
+      .setFooter({ text: 'To interact with a personality, mention them with @alias or reply to their messages' });
+
+    return await directSend(message, { embeds: [embed] });
+  } catch (error) {
+    console.error('Error in handleHelpCommand:', error);
+    return message.channel.send(`An error occurred while processing the help command: ${error.message}`);
+  }
 }
 
 /**
@@ -515,7 +580,13 @@ async function handleAutoRespondCommand(message, args) {
  */
 async function handleStatusCommand(message) {
   const { listPersonalitiesForUser } = require('./personalityManager');
-  const { client } = require('./bot');
+  
+  // Get Discord client from global scope rather than importing from bot.js to avoid circular dependency
+  const client = global.tzurotClient;
+  
+  if (!client) {
+    return message.reply('Bot client not properly initialized. Please try again later.');
+  }
   
   // Count total personalities - use the personalityManager's listPersonalitiesForUser with no filter
   const allPersonalities = listPersonalitiesForUser();
