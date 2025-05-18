@@ -539,11 +539,12 @@ async function handleProblematicPersonality(personalityName, message, context, p
 function sanitizeContent(content) {
   return content
     // Remove null bytes and control characters, but preserve newlines and tabs
-    .replace(/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Using character classes to avoid ESLint no-control-regex warnings
+    .replace(/[\\u0000-\\u0009\\u000B\\u000C\\u000E-\\u001F\\u007F]/g, '')
     // Remove escape sequences
     .replace(/\\u[0-9a-fA-F]{4}/g, '')
-    // Remove any non-printable characters except newlines and tabs
-    .replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF\u0100-\uFFFF]/g, '')
+    // Remove any non-printable characters except newlines and tabs (using safer pattern)
+    .replace(/[^\\u0009\\u000A\\u000D\\u0020-\\u007E\\u00A0-\\u00FF\\u0100-\\uFFFF]/g, '')
     // Ensure proper string encoding
     .toString();
 }

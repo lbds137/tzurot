@@ -603,7 +603,7 @@ function disableConsoleLogging() {
  * Restores console logging functions to their original state
  * @param {Object} originalFunctions - Object containing original console functions (not used with structured logger)
  */
-function restoreConsoleLogging(originalFunctions) {
+function restoreConsoleLogging() {
   // With structured logging in place, we don't need to restore anything
   // This function is kept for backwards compatibility
 }

@@ -222,11 +222,11 @@ function testArgsConversion() {
     logger.info(`Test: ${test.name}`);
     const result = convertArgsToNamedParams(test.command, test.rawArgs);
     
-    // Remove _raw from result for comparison
-    const { _raw, ...convertedArgs } = result;
+    // Remove _raw from result for comparison (unused in tests)
+    const { /* _raw */ ...convertedArgs } = result;
     
-    // Remove _raw from expected if it exists
-    const { _raw: expectedRaw, ...expectedArgs } = test.expected;
+    // Remove _raw from expected if it exists (unused in tests)
+    const { /* _raw: expectedRaw */ ...expectedArgs } = test.expected;
     
     const argsMatch = JSON.stringify(convertedArgs) === JSON.stringify(expectedArgs);
     

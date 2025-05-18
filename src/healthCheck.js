@@ -102,21 +102,13 @@ function checkDiscordStatus(client) {
  * @returns {Object} AI service status
  */
 function checkAIStatus() {
-  try {
-    // This is a placeholder. In a real implementation,
-    // you might want to make a test request to the OpenAI API
-    // to check if it's responding correctly.
-    return { 
-      status: 'ok',
-      message: 'AI service assumed operational (no direct health check implemented)'
-    };
-  } catch (error) {
-    logger.error('Error checking AI service status', error);
-    return {
-      status: 'error',
-      message: `AI service error: ${error.message}`
-    };
-  }
+  // This is a placeholder. In a real implementation,
+  // you might want to make a test request to the OpenAI API
+  // to check if it's responding correctly.
+  return { 
+    status: 'ok',
+    message: 'AI service assumed operational (no direct health check implemented)'
+  };
 }
 
 /**

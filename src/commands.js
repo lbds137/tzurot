@@ -8,8 +8,10 @@ const {
   removePersonality,
   listPersonalitiesForUser,
 } = personalityManagerFunctions;
+// Note: Some imports like recordConversation and Registry are currently imported
+// but not used in this file. They're kept for future use or documentation.
 const {
-  recordConversation,
+  /* recordConversation (currently unused but kept for future), */
   clearConversation,
   activatePersonality,
   deactivatePersonality,
@@ -20,6 +22,8 @@ const { botPrefix } = require('../config');
 const logger = require('./logger');
 const utils = require('./utils');
 const embedHelpers = require('./embedHelpers');
+// Registry is imported for documentation but not currently used
+// eslint-disable-next-line no-unused-vars
 const { Registry } = require('./requestRegistry');
 
 /**
@@ -191,8 +195,13 @@ async function processCommand(message, command, args) {
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
-// Static tracking object to prevent duplicate messages
+// Static tracking objects to prevent duplicate messages
 // This might be a workaround for a Discord.js bug
+const lastEmbedSendTimes = new Map();
+
+// Message tracker is defined but currently not actively used
+// It's kept for potential use in handling message duplicates
+// eslint-disable-next-line no-unused-vars
 const messageTracker = {
   lastCommandTime: {},
   isDuplicate: function (userId, commandName) {
@@ -214,7 +223,6 @@ const messageTracker = {
 
 async function handleHelpCommand(message, args) {
   const prefix = botPrefix;
-  const commandName = 'help';
 
   logger.info(`Processing help command with args: ${args.join(', ')}`);
 
@@ -1164,7 +1172,7 @@ async function createAndSendEmbed(
     const isValidUrl = urlString => {
       try {
         return Boolean(new URL(urlString));
-      } catch (error) {
+      } catch {
         return false;
       }
     };
@@ -1812,9 +1820,8 @@ async function handleDebugCommand(message, args) {
 /**
  * Handle the debug problematic command to show problematic personalities
  * @param {Object} message - Discord message object
- * @param {Array<string>} args - Command arguments
  */
-async function handleDebugProblematicCommand(message, args) {
+async function handleDebugProblematicCommand(message) {
   // Gather information about known and runtime problematic personalities
   const knownCount = Object.keys(knownProblematicPersonalities).length;
   const runtimeCount = runtimeProblematicPersonalities.size;
