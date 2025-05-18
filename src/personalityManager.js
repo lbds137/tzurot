@@ -143,14 +143,25 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
         getProfileAvatarUrl(fullName),
       ]);
 
+      // Log the raw results to help with debugging
+      logger.debug(`[PersonalityManager] Raw profile fetch results - name: ${profileName}, avatar: ${avatarUrl}`);
+
+      // Check if we successfully got a display name
       if (profileName) {
         logger.info(`[PersonalityManager] Got display name: ${profileName}`);
         personality.displayName = profileName;
+      } else {
+        // If we didn't get a display name from the API, maintain the default
+        logger.warn(`[PersonalityManager] Failed to get display name from API, keeping default: ${personality.displayName}`);
       }
 
+      // Check if we successfully got an avatar URL
       if (avatarUrl) {
         logger.info(`[PersonalityManager] Got avatar URL: ${avatarUrl}`);
         personality.avatarUrl = avatarUrl;
+      } else {
+        // If we didn't get an avatar URL, log this clearly
+        logger.warn(`[PersonalityManager] Failed to get avatar URL from API, keeping default: ${personality.avatarUrl || 'null'}`);
       }
 
       // Verify the retrieved data is valid

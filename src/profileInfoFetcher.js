@@ -34,23 +34,35 @@ async function fetchProfileInfo(profileName) {
     const endpoint = getProfileInfoEndpoint(profileName);
     logger.debug(`[ProfileInfoFetcher] Using endpoint: ${endpoint}`);
 
-    // Check if API key is set
-    if (!process.env.SERVICE_API_KEY) {
-      logger.warn(`[ProfileInfoFetcher] SERVICE_API_KEY environment variable is not set!`);
-    }
+    // No need to check for SERVICE_API_KEY since the profile API is public
+    logger.debug(`[ProfileInfoFetcher] Using public API access for profile information`)
 
-    // Fetch the data from the API with authorization
+    // Fetch the data from the API (public access)
     logger.debug(`[ProfileInfoFetcher] Sending API request for: ${profileName}`);
-    const response = await fetchImplementation(endpoint, {
-      headers: {
-        Authorization: `Bearer ${process.env.SERVICE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    
+    // Create an AbortController for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    try {
+      const response = await fetchImplementation(endpoint, {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Referer': 'https://discord.com/'
+        },
+        signal: controller.signal
+      });
+      
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      logger.error(
-        `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
+      if (!response.ok) {
+        logger.error(
+          `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
       );
       throw new Error(`Failed to fetch profile info: ${response.status} ${response.statusText}`);
     }
@@ -77,6 +89,12 @@ async function fetchProfileInfo(profileName) {
     logger.debug(`[ProfileInfoFetcher] Cached profile data for: ${profileName}`);
 
     return data;
+    } catch (innerError) {
+      // This inner catch handles fetch-specific errors
+      clearTimeout(timeoutId);
+      logger.error(`[ProfileInfoFetcher] Network error during profile fetch for ${profileName}: ${innerError.message}`);
+      throw innerError; // Re-throw to be caught by the outer catch
+    }
   } catch (error) {
     logger.error(`[ProfileInfoFetcher] Error fetching profile info for ${profileName}: ${error.message}`);
     return null;
@@ -156,12 +174,12 @@ async function getProfileDisplayName(profileName) {
 
   if (!profileInfo) {
     logger.warn(`[ProfileInfoFetcher] No profile info found for display name: ${profileName}`);
-    return profileName; // Fallback to using the full name as display name
+    return null; // Return null to indicate failure, don't automatically use profileName
   }
 
   if (!profileInfo.name) {
     logger.warn(`[ProfileInfoFetcher] No name field in profile info for: ${profileName}`);
-    return profileName; // Fallback to using the full name as display name
+    return null; // Return null to indicate failure
   }
 
   logger.debug(`[ProfileInfoFetcher] Found display name for ${profileName}: ${profileInfo.name}`);
