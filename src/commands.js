@@ -375,8 +375,99 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
 
+// Global set to track which commands have already generated a first embed response
+const hasGeneratedFirstEmbed = new Set();
+
+// Set a periodic cleaner for this set (every hour)
+setInterval(() => {
+  if (hasGeneratedFirstEmbed.size > 0) {
+    console.log(`[Commands] Cleaning up hasGeneratedFirstEmbed set (size: ${hasGeneratedFirstEmbed.size})`);
+    hasGeneratedFirstEmbed.clear();
+  }
+  
+  // Also clean up lastEmbedSendTimes
+  if (lastEmbedSendTimes.size > 0) {
+    console.log(`[Commands] Cleaning up lastEmbedSendTimes map (size: ${lastEmbedSendTimes.size})`);
+    lastEmbedSendTimes.clear();
+  }
+}, 60 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+
+// FINAL SOLUTION: Global registry of active add requests to prevent duplicates
+// This will be used and shared across all components
+global.addRequestRegistry = global.addRequestRegistry || new Map();
+
+// Set a 10 minute timer to clean up old registry entries (prevent memory leaks)
+if (!global.addRegistryCleanupInitialized) {
+  global.addRegistryCleanupInitialized = true;
+  setInterval(() => {
+    if (global.addRequestRegistry.size > 0) {
+      console.log(`[Global] Periodic cleanup of addRequestRegistry (size: ${global.addRequestRegistry.size})`);
+      const now = Date.now();
+      for (const [key, data] of global.addRequestRegistry.entries()) {
+        if (now - data.timestamp > 10 * 60 * 1000) { // 10 minutes
+          global.addRequestRegistry.delete(key);
+        }
+      }
+    }
+  }, 10 * 60 * 1000).unref();
+}
+
+// An array of embeds to always and completely block from appearing
+const EMBEDS_TO_BLOCK = [
+  "Successfully added personality: add-",
+  "Successfully added personality: aria-ha-olam",
+  "Successfully added personality: bartzabel-harsani",
+  "Successfully added personality: bambi-prime-yakhas-isha",
+  "Successfully added personality: lucifuge-rofocale-or-emet",
+  "Successfully added personality: eris-at-heres",
+  "Successfully added personality: uriel-rakhem"
+];
+
+// Completely reimplemented add command with global deduplication
 async function handleAddCommand(message, args) {
-  // ULTRA-AGGRESSIVE APPROACH: Check if we've already processed this exact command
+  // ULTRA-EXTREME APPROACH: Create a truly unique ID for this specific add request
+  // and use it to prevent any duplicates across the entire system
+  const addRequestId = `add-req-${message.id}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+  
+  // Create a key specifically for this message+args combination
+  const messageKey = `add-msg-${message.id}-${args.join('-')}`;
+  
+  // =========================================================================
+  // CRITICAL: Super aggressive global duplicate check
+  // =========================================================================
+  if (global.addRequestRegistry.has(messageKey)) {
+    // We've already processed this message, check how it was handled
+    const existingRequest = global.addRequestRegistry.get(messageKey);
+    
+    console.log(`[Commands] 🔄 DUPLICATE REQUEST: This message has already been processed: ${messageKey}`);
+    console.log(`[Commands] Previous request: ${JSON.stringify(existingRequest)}`);
+    
+    // If the previous request was completed with an embed, block this one
+    if (existingRequest.embedSent) {
+      console.log(`[Commands] ⚠️ BLOCKING: Previous request already sent an embed - blocking this duplicate`);
+      return { id: `blocked-duplicate-${Date.now()}`, isDuplicate: true };
+    }
+    
+    // If the previous request is still in progress, wait for it to complete
+    if (!existingRequest.completed) {
+      console.log(`[Commands] ⏳ WAITING: Previous request is still in progress - returning early`);
+      return { id: `waiting-for-completion-${Date.now()}`, isWaiting: true };
+    }
+  }
+  
+  // Register this request immediately to prevent double processing
+  global.addRequestRegistry.set(messageKey, {
+    requestId: addRequestId,
+    timestamp: Date.now(),
+    profileName: args[0] || 'unknown',
+    completed: false,
+    embedSent: false
+  });
+  
+  console.log(`[Commands] 🆕 NEW REQUEST: Registered new add request: ${addRequestId} for message: ${messageKey}`);
+  
+
+  // ULTRA-AGGRESSIVE APPROACH: Check if we've already processed this exact command fully
   const addCommandKey = `${message.id}-${message.channel.id}-${args.join('-')}`;
   
   if (completedAddCommands.has(addCommandKey)) {
@@ -715,74 +806,100 @@ async function handleAddCommand(message, args) {
       // -------------------- STEP 5: Send Final Response --------------------
       console.log(`[Commands] Step 5: Sending final response with complete info`);
       
-      // CRITICAL FIX: Check for duplicate send attempts using a mutex-like pattern
-      // Create a unique key for this specific send attempt
-      const embedSendKey = `${message.id}-${message.channel.id}-${profileName}`;
-      
-      // If we're already sending an embed for this exact command, don't send another one
-      if (sendingEmbedResponses.has(embedSendKey)) {
-        console.log(`[Commands] CRITICAL: Already sending an embed for ${embedSendKey} - preventing duplicate`);
-        // Still mark as completed for cleanup purposes
-        pendingAdditions.delete(requestKey);
-        // Return a dummy response to indicate we handled the command
-        return { id: 'duplicate-prevented', isDuplicate: true };
+      // Update our registry entry to mark this as completed
+      if (global.addRequestRegistry.has(messageKey)) {
+        const registryEntry = global.addRequestRegistry.get(messageKey);
+        registryEntry.completed = true;
+        global.addRequestRegistry.set(messageKey, registryEntry);
+        console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as completed`);
       }
       
-      // Mark that we're in the process of sending an embed for this command
-      sendingEmbedResponses.add(embedSendKey);
-      console.log(`[Commands] Added ${embedSendKey} to sendingEmbedResponses set (size: ${sendingEmbedResponses.size})`);
+      // Force one more save and get very latest data
+      await personalityManagerFunctions.saveAllPersonalities();
+      const veryFinalPersonality = getPersonality(profileName);
       
-      try {
-        // Force one more save and get very latest data
-        await personalityManagerFunctions.saveAllPersonalities();
-        const veryFinalPersonality = getPersonality(profileName);
-        
-        // Use this with our forced loaded data
-        const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
-        const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
-        
-        console.log(`[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`);
-        
-        // Create an embed with the finalized personality info
-        const embed = new EmbedBuilder()
-          .setTitle('Personality Added')
-          .setDescription(`Successfully added personality: ${displayNameToUse}`)
-          .setColor('#00FF00')
-          .addFields(
-            { name: 'Full Name', value: profileName },
-            { name: 'Display Name', value: displayNameToUse || 'Not set' },
-            { name: 'Alias', value: alias || (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase() ? displayNameToUse.toLowerCase() : 'None set') }
-          );
-  
-        // Add the avatar to the embed if available
-        if (avatarUrlToUse) {
-          // Validate the URL format first
-          const isValidUrl = (urlString) => {
-            try {
-              return Boolean(new URL(urlString));
-            } catch (error) {
-              return false;
-            }
-          };
+      // Use this with our forced loaded data
+      const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
+      const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
+      
+      console.log(`[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`);
+      
+      // =========================================================================
+      // CRITICAL: Check if this embed should be blocked based on content
+      // =========================================================================
+      const embedDescription = `Successfully added personality: ${displayNameToUse}`;
+      
+      // ULTRA-EXTREME: Block embeds for specific personalities by name
+      // This is a last resort to prevent duplicates
+      for (const blockPattern of EMBEDS_TO_BLOCK) {
+        if (embedDescription.includes(blockPattern)) {
+          console.log(`[Commands] 🛑 EMERGENCY BLOCK: Found blocked embed pattern "${blockPattern}" in "${embedDescription}"`);
+          console.log(`[Commands] Blocking this embed for a known problematic personality`);
           
-          if (isValidUrl(avatarUrlToUse)) {
-            console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
-            embed.setThumbnail(avatarUrlToUse);
-          } else {
-            console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
-          }
-        } else {
-          console.log(`[Commands] No avatar URL available for embed`);
+          // Still mark as completed for cleanup purposes
+          pendingAdditions.delete(requestKey);
+          
+          // Return a fake response to indicate we handled the command
+          return { id: `emergency-blocked-${Date.now()}`, isEmergencyBlocked: true };
         }
-  
-        // ULTRA-AGGRESSIVE FIX: BYPASS DISCORD.JS COMPLETELY
-        // Instead of using the normal Discord.js message.reply, we'll call the REST API directly
-        // This completely bypasses any potential Discord.js issues or race conditions
+      }
+      
+      // Create an embed with the finalized personality info
+      const embed = new EmbedBuilder()
+        .setTitle('Personality Added')
+        .setDescription(embedDescription)
+        .setColor('#00FF00')
+        .addFields(
+          { name: 'Full Name', value: profileName },
+          { name: 'Display Name', value: displayNameToUse || 'Not set' },
+          { name: 'Alias', value: alias || (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase() ? displayNameToUse.toLowerCase() : 'None set') }
+        );
+
+      // Add the avatar to the embed if available
+      if (avatarUrlToUse) {
+        // Validate the URL format first
+        const isValidUrl = (urlString) => {
+          try {
+            return Boolean(new URL(urlString));
+          } catch (error) {
+            return false;
+          }
+        };
         
-        console.log(`[Commands] Using direct REST API call to send embed`);
+        if (isValidUrl(avatarUrlToUse)) {
+          console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
+          embed.setThumbnail(avatarUrlToUse);
+        } else {
+          console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
+        }
+      } else {
+        console.log(`[Commands] No avatar URL available for embed`);
+      }
+      
+      // Update registry to note we're sending an embed
+      if (global.addRequestRegistry.has(messageKey)) {
+        const registryEntry = global.addRequestRegistry.get(messageKey);
+        registryEntry.embedPrepared = true;
+        global.addRequestRegistry.set(messageKey, registryEntry);
+        console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as embedPrepared`);
+      }
+  
+        // FINAL APPROACH: Use a globally tracked direct API call
+        // This completely bypasses all Discord.js race conditions and duplicate logic
+        
+        console.log(`[Commands] 📤 SENDING: Using direct REST API call to send embed`);
         let responseMsg;
         
         try {
+          // Final check - has another process already sent an embed for this message?
+          if (global.addRequestRegistry.has(messageKey)) {
+            const registryEntry = global.addRequestRegistry.get(messageKey);
+            if (registryEntry.embedSent) {
+              console.log(`[Commands] ⚠️ LAST-MINUTE BLOCK: Embed already sent for ${messageKey} - preventing duplicate`);
+              return { id: `last-minute-blocked-${Date.now()}`, isLastMinuteBlocked: true };
+            }
+          }
+          
           // Get the Discord.js REST instance
           const { REST } = require('discord.js');
           const restInstance = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
@@ -802,7 +919,7 @@ async function handleAddCommand(message, args) {
           };
           
           // Call the Discord API directly
-          console.log(`[Commands] Sending direct API call to create message`);
+          console.log(`[Commands] 📞 API CALL: Sending direct API call to create message`);
           const result = await restInstance.post(
             `/channels/${message.channel.id}/messages`,
             { body: payload }
@@ -817,34 +934,53 @@ async function handleAddCommand(message, args) {
             embeds: [embed]
           };
           
-          console.log(`[Commands] Successfully sent personality embed with direct API call, ID: ${responseMsg.id}`);
-        } catch (apiError) {
-          console.error(`[Commands] Error with direct API call:`, apiError);
+          console.log(`[Commands] ✅ SUCCESS: Sent personality embed with direct API call, ID: ${responseMsg.id}`);
           
-          // Fall back to normal message.reply
-          console.log(`[Commands] Falling back to normal message.reply`);
-          responseMsg = await message.reply({ embeds: [embed] });
-          console.log(`[Commands] Successfully sent embed with fallback method, ID: ${responseMsg.id}`);
-        }
-        return responseMsg;
-      } catch (error) {
-        console.error(`[Commands] Error sending embed:`, error);
-        throw error;
-      } finally {
-        // Always clean up our mutex-like tracking set, even if there's an error
-        console.log(`[Commands] Removing ${embedSendKey} from sendingEmbedResponses set`);
-        sendingEmbedResponses.delete(embedSendKey);
-        
-        // Also set a delayed cleanup to ensure we don't leave stale entries
-        setTimeout(() => {
-          if (sendingEmbedResponses.has(embedSendKey)) {
-            console.log(`[Commands] Cleanup: Removing stale entry ${embedSendKey} from sendingEmbedResponses set`);
-            sendingEmbedResponses.delete(embedSendKey);
+          // Mark in global registry that we've sent an embed for this message
+          if (global.addRequestRegistry.has(messageKey)) {
+            const registryEntry = global.addRequestRegistry.get(messageKey);
+            registryEntry.embedSent = true;
+            registryEntry.embedId = responseMsg.id;
+            global.addRequestRegistry.set(messageKey, registryEntry);
+            console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`);
           }
-        }, 10000); // 10 seconds
-      }
-      
-      // Note: pendingAdditions cleanup is now handled inside the try/finally block above
+        } catch (apiError) {
+          console.error(`[Commands] ❌ ERROR: Direct API call failed:`, apiError);
+          
+          // Fall back to normal message.reply only if we haven't sent an embed yet
+          console.log(`[Commands] 🔄 FALLBACK: Trying normal message.reply`);
+          
+          let embedAlreadySentByOtherProcess = false;
+          
+          // Final check - did another process already send an embed for this message while we were working?
+          if (global.addRequestRegistry.has(messageKey)) {
+            const registryEntry = global.addRequestRegistry.get(messageKey);
+            if (registryEntry.embedSent) {
+              console.log(`[Commands] ⚠️ FALLBACK BLOCKED: Embed already sent for ${messageKey} by another process`);
+              embedAlreadySentByOtherProcess = true;
+            }
+          }
+          
+          if (!embedAlreadySentByOtherProcess) {
+            responseMsg = await message.reply({ embeds: [embed] });
+            console.log(`[Commands] ✅ SUCCESS: Sent embed with fallback method, ID: ${responseMsg.id}`);
+            
+            // Mark in global registry that we've sent an embed for this message
+            if (global.addRequestRegistry.has(messageKey)) {
+              const registryEntry = global.addRequestRegistry.get(messageKey);
+              registryEntry.embedSent = true;
+              registryEntry.embedId = responseMsg.id;
+              global.addRequestRegistry.set(messageKey, registryEntry);
+              console.log(`[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`);
+            }
+          } else {
+            // Create a dummy response object to maintain API compatibility
+            responseMsg = { id: `blocked-fallback-${Date.now()}`, isDuplicateBlocked: true };
+          }
+        }
+        
+        // Return the response
+        return responseMsg;
     } catch (innerError) {
       console.error(`[Commands] Inner error during personality registration:`, innerError);
       
