@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = require('./personalityManager');
 const { recordConversation, clearConversation, activatePersonality, deactivatePersonality } = require('./conversationManager');
 const { botPrefix } = require('../config');
@@ -12,45 +12,58 @@ const { botPrefix } = require('../config');
 async function processCommand(message, command, args) {
   // Get the prefix for use in help messages
   const prefix = botPrefix;
+  
+  // Add a simple debug log to track command processing
+  console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
-  switch (command) {
-    case 'help':
-      return handleHelpCommand(message, args);
+  // Use a try/catch to avoid uncaught exceptions
+  try {
+    switch (command) {
+      case 'help':
+        return await handleHelpCommand(message, args);
 
-    case 'add':
-    case 'create':
-      return handleAddCommand(message, args);
+      case 'add':
+      case 'create':
+        return await handleAddCommand(message, args);
 
-    case 'list':
-      return handleListCommand(message, args);
+      case 'list':
+        return await handleListCommand(message, args);
 
-    case 'alias':
-      return handleAliasCommand(message, args);
+      case 'alias':
+        return await handleAliasCommand(message, args);
 
-    case 'remove':
-    case 'delete':
-      return handleRemoveCommand(message, args);
+      case 'remove':
+      case 'delete':
+        return await handleRemoveCommand(message, args);
 
-    case 'info':
-      return handleInfoCommand(message, args);
+      case 'info':
+        return await handleInfoCommand(message, args);
 
-    case 'ping':
-      return message.reply('Pong! Tzurot is operational.');
+      case 'ping':
+        return await message.reply('Pong! Tzurot is operational.');
 
-    case 'reset':
-      return handleResetCommand(message, args);
+      case 'reset':
+        return await handleResetCommand(message, args);
 
-    case 'activate':
-      return handleActivateCommand(message, args);
+      case 'activate':
+        return await handleActivateCommand(message, args);
 
-    case 'deactivate':
-      return handleDeactivateCommand(message, args);
+      case 'deactivate':
+        return await handleDeactivateCommand(message, args);
 
-    case 'status':
-      return handleStatusCommand(message, args);
+      case 'autorespond':
+      case 'auto':
+        return await handleAutoRespondCommand(message, args);
 
-    default:
-      return message.reply(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
+      case 'status':
+        return await handleStatusCommand(message, args);
+
+      default:
+        return await message.reply(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
+    }
+  } catch (error) {
+    console.error(`Error processing command ${command}:`, error);
+    return await message.reply(`An error occurred while processing the command. Please try again.`);
   }
 }
 
@@ -113,7 +126,8 @@ async function handleHelpCommand(message, args) {
       case 'activate':
         return message.reply(
           `**${prefix} activate <personality>**\n` +
-          `Activate a personality to automatically respond to all messages in the channel.\n` +
+          `Activate a personality to automatically respond to all messages in the channel from any user.\n` +
+          `- Requires the "Manage Messages" permission\n` +
           `- \`personality\` is the name or alias of the personality to activate (required)\n\n` +
           `Example: \`${prefix} activate lilith\``
         );
@@ -121,8 +135,20 @@ async function handleHelpCommand(message, args) {
       case 'deactivate':
         return message.reply(
           `**${prefix} deactivate**\n` +
-          `Deactivate the currently active personality in this channel.\n\n` +
+          `Deactivate the currently active personality in this channel.\n` +
+          `- Requires the "Manage Messages" permission\n\n` +
           `Example: \`${prefix} deactivate\``
+        );
+
+      case 'autorespond':
+      case 'auto':
+        return message.reply(
+          `**${prefix} autorespond <on|off|status>**\n` +
+          `Toggle whether personalities continue responding to your messages automatically after you tag or reply to them.\n` +
+          `- \`on\` - Enable auto-response for your user\n` +
+          `- \`off\` - Disable auto-response (default)\n` +
+          `- \`status\` - Check your current setting\n\n` +
+          `Example: \`${prefix} autorespond on\``
         );
 
       default:
@@ -142,8 +168,9 @@ async function handleHelpCommand(message, args) {
       { name: `${prefix} remove <profile_name>`, value: 'Remove a personality' },
       { name: `${prefix} info <profile_name>`, value: 'Show details about a personality' },
       { name: `${prefix} help [command]`, value: 'Show this help or help for a specific command' },
-      { name: `${prefix} activate <personality>`, value: 'Activate a personality to respond to all messages in the channel' },
-      { name: `${prefix} deactivate`, value: 'Deactivate the personality in the channel' },
+      { name: `${prefix} activate <personality>`, value: 'Activate a personality for all users in the channel (requires Manage Messages permission)' },
+      { name: `${prefix} deactivate`, value: 'Deactivate the channel-wide personality (requires Manage Messages permission)' },
+      { name: `${prefix} autorespond <on|off|status>`, value: 'Toggle whether personalities continue responding to your messages automatically' },
       { name: `${prefix} reset`, value: 'Clear your active conversation' }
     )
     .setFooter({ text: 'To interact with a personality, mention them with @alias or reply to their messages' });
@@ -395,11 +422,16 @@ async function handleResetCommand(message) {
 }
 
 /**
- * Handle the activate command
+ * Handle the activate command (channel-wide activation)
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
 async function handleActivateCommand(message, args) {
+  // Check if user has Manage Messages permission
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    return message.reply('You need the "Manage Messages" permission to use this command.');
+  }
+
   if (args.length < 1) {
     return message.reply(`Please provide a personality name or alias. Usage: \`${botPrefix} activate <personality>\``);
   }
@@ -421,20 +453,59 @@ async function handleActivateCommand(message, args) {
   // Activate the personality in this channel
   activatePersonality(message.channel.id, personality.fullName, message.author.id);
 
-  return message.reply(`Activated ${personality.displayName || personality.fullName} in this channel. It will now respond to all messages. Use \`${botPrefix} deactivate\` to turn this off.`);
+  return message.reply(`**Channel-wide activation:** ${personality.displayName || personality.fullName} will now respond to all messages in this channel from any user. Use \`${botPrefix} deactivate\` to turn this off.`);
 }
 
 /**
- * Handle the deactivate command
+ * Handle the deactivate command (channel-wide deactivation)
  * @param {Object} message - Discord message object
  */
 async function handleDeactivateCommand(message) {
+  // Check if user has Manage Messages permission
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    return message.reply('You need the "Manage Messages" permission to use this command.');
+  }
+
   const deactivated = deactivatePersonality(message.channel.id);
 
   if (deactivated) {
-    return message.reply(`Personality deactivated. It will now only respond to direct mentions and replies.`);
+    return message.reply(`**Channel-wide activation disabled.** Personalities will now only respond to direct mentions, replies, or users with auto-response enabled.`);
   } else {
     return message.reply(`No personality was activated in this channel.`);
+  }
+}
+
+/**
+ * Handle the autorespond command (user-specific toggle)
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleAutoRespondCommand(message, args) {
+  // Import the functions we need from conversationManager
+  const { enableAutoResponse, disableAutoResponse, isAutoResponseEnabled } = require('./conversationManager');
+  
+  // Parse the on/off argument
+  const subCommand = args[0]?.toLowerCase();
+
+  if (!subCommand || !['on', 'off', 'status'].includes(subCommand)) {
+    return message.reply(`Please specify 'on', 'off', or 'status'. Usage: \`${botPrefix} autorespond <on|off|status>\``);
+  }
+
+  const userId = message.author.id;
+
+  if (subCommand === 'status') {
+    const status = isAutoResponseEnabled(userId) ? 'enabled' : 'disabled';
+    return message.reply(`Your auto-response is currently **${status}**. When enabled, a personality will continue responding to your messages after you mention or reply to it.`);
+  }
+
+  if (subCommand === 'on') {
+    enableAutoResponse(userId);
+    return message.reply(`**Auto-response enabled.** After mentioning or replying to a personality, it will continue responding to your messages in that channel without needing to tag it again.`);
+  }
+
+  if (subCommand === 'off') {
+    disableAutoResponse(userId);
+    return message.reply(`**Auto-response disabled.** Personalities will now only respond when you directly mention or reply to them.`);
   }
 }
 
@@ -443,7 +514,12 @@ async function handleDeactivateCommand(message) {
  * @param {Object} message - Discord message object
  */
 async function handleStatusCommand(message) {
-  const totalPersonalities = personalityData.size;
+  const { listPersonalitiesForUser } = require('./personalityManager');
+  const { client } = require('./bot');
+  
+  // Count total personalities - use the personalityManager's listPersonalitiesForUser with no filter
+  const allPersonalities = listPersonalitiesForUser();
+  const totalPersonalities = allPersonalities ? allPersonalities.length : 0;
   const userPersonalities = listPersonalitiesForUser(message.author.id).length;
 
   const embed = new EmbedBuilder()

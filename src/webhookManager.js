@@ -20,7 +20,7 @@ async function getOrCreateWebhook(channel) {
     
     // Look for our bot's webhook
     let webhook = webhooks.find(wh => 
-      wh.owner && wh.owner.id === client.user.id && wh.name === 'Tzurot'
+      wh.owner && wh.name === 'Tzurot'
     );
 
     // If no webhook found, create a new one
@@ -117,8 +117,12 @@ function clearAllWebhookCaches() {
   }
 }
 
-function registerEventListeners(client) {
-  client.on('channelDelete', channel => {
+/**
+ * Register event listeners for the Discord client
+ * @param {Object} discordClient - Discord.js client instance
+ */
+function registerEventListeners(discordClient) {
+  discordClient.on('channelDelete', channel => {
     clearWebhookCache(channel.id);
   });
 }

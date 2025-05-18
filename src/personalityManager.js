@@ -188,11 +188,16 @@ async function removePersonality(fullName) {
 
 /**
  * List all personalities for a user
- * @param {string} userId - Discord user ID
+ * @param {string} userId - Discord user ID (optional)
  * @returns {Array} Array of personality objects
  */
 function listPersonalitiesForUser(userId) {
   const userPersonalities = [];
+  
+  // If no userId provided, return all personalities
+  if (!userId) {
+    return Array.from(personalityData.values());
+  }
   
   for (const personality of personalityData.values()) {
     if (personality.createdBy === userId) {

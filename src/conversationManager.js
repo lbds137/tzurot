@@ -4,6 +4,9 @@ const activeConversations = new Map();
 // Track activated channels (where bot responds to all messages)
 const activatedChannels = new Map();
 
+// Track users with auto-response enabled
+const autoResponseUsers = new Set();
+
 /**
  * Record a message as part of a conversation with a personality
  * @param {string} userId - Discord user ID
@@ -28,6 +31,11 @@ function recordConversation(userId, channelId, messageId, personalityName) {
  * @returns {string|null} The personality name or null if no active conversation
  */
 function getActivePersonality(userId, channelId) {
+  // Only check for active conversation if auto-response is enabled for this user
+  if (!isAutoResponseEnabled(userId)) {
+    return null;
+  }
+
   const key = `${userId}-${channelId}`;
 
   const conversation = activeConversations.get(key);
@@ -43,6 +51,34 @@ function getActivePersonality(userId, channelId) {
   }
 
   return conversation.personalityName;
+}
+
+/**
+ * Enable auto-response for a user
+ * @param {string} userId - Discord user ID
+ * @returns {boolean} Success status
+ */
+function enableAutoResponse(userId) {
+  autoResponseUsers.add(userId);
+  return true;
+}
+
+/**
+ * Disable auto-response for a user
+ * @param {string} userId - Discord user ID
+ * @returns {boolean} Success status
+ */
+function disableAutoResponse(userId) {
+  return autoResponseUsers.delete(userId);
+}
+
+/**
+ * Check if auto-response is enabled for a user
+ * @param {string} userId - Discord user ID
+ * @returns {boolean} Whether auto-response is enabled
+ */
+function isAutoResponseEnabled(userId) {
+  return autoResponseUsers.has(userId);
 }
 
 /**
@@ -129,5 +165,8 @@ module.exports = {
   clearConversation,
   activatePersonality,
   deactivatePersonality,
-  getActivatedPersonality
+  getActivatedPersonality,
+  enableAutoResponse,
+  disableAutoResponse,
+  isAutoResponseEnabled
 };

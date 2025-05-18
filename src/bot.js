@@ -2,8 +2,10 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
 const { getPersonalityByAlias, registerPersonality } = require('./personalityManager');
+const { PermissionFlagsBits } = require('discord.js');
 const { recordConversation, getActivePersonality, getPersonalityFromMessage, clearConversation,
-  activatePersonality, deactivatePersonality, getActivatedPersonality } = require('./conversationManager');
+  activatePersonality, deactivatePersonality, getActivatedPersonality,
+  enableAutoResponse, disableAutoResponse, isAutoResponseEnabled } = require('./conversationManager');
 const { processCommand } = require('./commands');
 const { botPrefix } = require('../config');
 
@@ -64,7 +66,7 @@ async function initBot() {
       const args = content.trim().split(/ +/);
       const command = args.shift()?.toLowerCase() || 'help'; // Default to help if no command
 
-      // Process the command
+      // Process the command only once
       await processCommand(message, command, args);
       return;
     }
