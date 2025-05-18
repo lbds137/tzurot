@@ -1,6 +1,25 @@
+/**
+ * Webhook Manager
+ * 
+ * This module handles all interaction with Discord webhooks, including:
+ * - Creating and caching webhook clients
+ * - Formatting and sending messages via webhooks
+ * - Error handling and recovery
+ * - Rate limiting and message ordering
+ * - Avatar URL validation and caching
+ * 
+ * TODO: Future improvements
+ * - Implement retry mechanism for transient webhook failures
+ * - Add more robust rate limiting to prevent Discord API throttling
+ * - Enhance error classification for better debugging
+ * - Consider implementing webhook rotation for high-volume channels
+ */
+
 const { WebhookClient, EmbedBuilder } = require('discord.js');
 const fetch = require('node-fetch');
 const logger = require('./logger');
+const errorTracker = require('./utils/errorTracker');
+const urlValidator = require('./utils/urlValidator');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -46,89 +65,65 @@ async function validateAvatarUrl(avatarUrl) {
   if (!avatarUrl) return false;
   
   // Check if URL is correctly formatted
-  try {
-    new URL(avatarUrl); // Will throw if URL is invalid
-  } catch (_) {
-    logger.warn(`[WebhookManager] Invalid avatar URL format: ${avatarUrl}`);
+  if (!urlValidator.isValidUrlFormat(avatarUrl)) {
     return false;
   }
   
   // Handle Discord CDN URLs specially - they're always valid without checking
-  if (avatarUrl.includes('cdn.discordapp.com') || avatarUrl.includes('discord.com/assets')) {
+  if (urlValidator.isTrustedDomain(avatarUrl, [
+    'cdn.discordapp.com', 
+    'discord.com/assets', 
+    'media.discordapp.net'
+  ])) {
     logger.info(`[WebhookManager] Discord CDN URL detected, skipping validation: ${avatarUrl}`);
     return true;
   }
   
-  // Try to fetch the image to verify it exists
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    // Use the enhanced URL validator
+    const isValidImage = await urlValidator.isImageUrl(avatarUrl, {
+      timeout: 5000,
+      trustExtensions: true
+    });
     
-    // First try with GET request instead of HEAD (more compatible with CDNs that block HEAD)
-    try {
-      // In test environment, we need to handle mock responses differently
-      const response = await fetch(avatarUrl, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Referer': 'https://discord.com/',
-          'Cache-Control': 'no-cache'
-        },
-      });
+    if (!isValidImage) {
+      logger.warn(`[WebhookManager] Invalid avatar URL: ${avatarUrl}, does not point to a valid image`);
       
-      clearTimeout(timeoutId);
-      
-      // Check if the response has ok property and it's false (for test mocks)
-      if (response.ok === false) {
-        logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status} for ${avatarUrl}`);
-        return false;
-      }
-      
-      // Check content type to ensure it's an image
-      const contentType = response.headers.get('content-type');
-      if (!contentType) {
-        logger.warn(`[WebhookManager] Avatar URL has no content-type header: ${avatarUrl}`);
-        return false;
-      }
-      
-      // Accept both image/* and application/octet-stream (commonly used for binary files like images)
-      if (!contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
-        logger.warn(`[WebhookManager] Avatar URL does not point to an image: ${contentType} for ${avatarUrl}`);
-        return false;
-      }
-      
-      // Try to read a small amount of data to check if it's readable
-      const reader = response.body.getReader();
-      const { done } = await reader.read();
-      reader.cancel();
-      
-      if (done) {
-        logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
-        return false;
-      }
-      
-      return true;
-    } catch (getError) {
-      // If GET fails, log the error but consider the URL valid only if it has an image extension
-      logger.warn(`[WebhookManager] Error validating avatar URL with GET: ${getError.message} for ${avatarUrl}`);
-      // For compatibility with tests, immediately return false for errors
-      // If we're running in a test environment (detectable by explicit throwing of 'Network error')
-      if (getError.message && getError.message.includes('Network error')) {
-        return false;
-      }
-      // Consider some types of URLs valid even if we can't validate them
-      // This is a compromise to avoid blocking valid URLs due to CDN restrictions
-      if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
-        logger.info(`[WebhookManager] URL appears to be an image based on extension, treating as valid: ${avatarUrl}`);
-        return true;
-      }
-      return false;
+      // Track this validation error for debugging
+      errorTracker.trackError(
+        new Error(`Invalid avatar URL: ${avatarUrl}`),
+        {
+          category: errorTracker.ErrorCategory.AVATAR,
+          operation: 'validateAvatarUrl',
+          metadata: {
+            url: avatarUrl,
+            urlParts: new URL(avatarUrl)
+          },
+          isCritical: false
+        }
+      );
     }
+    
+    return isValidImage;
   } catch (error) {
+    // Record the error with our error tracker
+    errorTracker.trackError(error, {
+      category: errorTracker.ErrorCategory.AVATAR,
+      operation: 'validateAvatarUrl',
+      metadata: {
+        url: avatarUrl
+      },
+      isCritical: false
+    });
+    
     logger.warn(`[WebhookManager] Error validating avatar URL: ${error.message} for ${avatarUrl}`);
+    
+    // Special case: if it has an image extension, trust it despite fetch errors
+    if (urlValidator.hasImageExtension(avatarUrl)) {
+      logger.info(`[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`);
+      return true;
+    }
+    
     return false;
   }
 }
@@ -656,6 +651,19 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
  * @returns {Promise<Object>} Sent message
  */
 async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
+  // Create a detailed context object for error tracking
+  const messageContext = {
+    username: messageData.username,
+    contentLength: messageData.content?.length,
+    contentPreview: messageData.content?.substring(0, 50),
+    hasEmbeds: !!messageData.embeds?.length,
+    embedCount: messageData.embeds?.length || 0,
+    threadId: messageData.threadId,
+    chunkIndex: chunkIndex + 1,
+    totalChunks,
+    timestamp: Date.now()
+  };
+  
   logger.debug(
     `Sending webhook message chunk ${chunkIndex + 1}/${totalChunks} with data: ${JSON.stringify({
       username: messageData.username,
@@ -672,34 +680,90 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     );
     return sentMessage;
   } catch (error) {
-    logger.error(`Error sending message chunk ${chunkIndex + 1}/${totalChunks}: ${error}`);
+    // Track this error with our enhanced error tracking
+    errorTracker.trackError(error, {
+      category: errorTracker.ErrorCategory.WEBHOOK,
+      operation: 'sendMessageChunk',
+      metadata: {
+        ...messageContext,
+        errorCode: error.code,
+        errorName: error.name
+      },
+      isCritical: true
+    });
     
     // If this is because of length, try to send a simpler message indicating the error
     if (error.code === 50035) {
-      // Invalid Form Body
+      // Invalid Form Body - usually means the message content was too long
       try {
-        // Create a safe fallback message
+        // Create a safe fallback message with detailed error information
         await webhook.send({
-          content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
+          content: `*[Error: Message chunk was too long to send (${messageData.content?.length} chars). Some content may be missing.]*`,
           username: messageData.username,
           avatarURL: messageData.avatarURL,
           threadId: messageData.threadId,
         });
       } catch (finalError) {
-        logger.error(`[Webhook] Failed to send error notification: ${finalError}`);
+        // Track this secondary error separately
+        errorTracker.trackError(finalError, {
+          category: errorTracker.ErrorCategory.WEBHOOK,
+          operation: 'sendFallbackMessage',
+          metadata: {
+            originalError: {
+              message: error.message,
+              code: error.code
+            },
+            ...messageContext
+          },
+          isCritical: false
+        });
+      }
+    } else if (error.code === 10015) {
+      // Unknown Webhook - usually means the webhook was deleted
+      logger.error(`[Webhook] Webhook no longer exists. Will need to be recreated on next attempt.`);
+      
+      // Clear the webhook from cache so it will be recreated next time
+      const channelId = messageData.threadId || findChannelIdForWebhook(webhook);
+      if (channelId) {
+        webhookCache.delete(channelId);
       }
     } else {
-      // Log all error properties for better debugging
-      logger.error('[Webhook] Webhook error details:', {
+      // For other errors, collect detailed diagnostic information
+      const diagnosticInfo = {
         code: error.code,
         message: error.message,
         name: error.name,
-        stack: error.stack?.split('\n')[0] || 'No stack trace',
-      });
+        stack: error.stack?.split('\n').slice(0, 3).join('\n') || 'No stack trace',
+        messageData: {
+          username: messageData.username,
+          contentLength: messageData.content?.length,
+          contentFirstChars: messageData.content?.substring(0, 100),
+          contentLastChars: messageData.content?.substring(messageData.content.length - 100),
+          hasEmbeds: !!messageData.embeds?.length,
+          threadId: messageData.threadId,
+        }
+      };
+      
+      logger.error('[Webhook] Webhook error details:', diagnosticInfo);
     }
     
     throw error;
   }
+}
+
+/**
+ * Find the channel ID for a webhook client
+ * A utility function to help identify which channel a webhook belongs to
+ * @param {WebhookClient} webhook - The webhook client
+ * @returns {string|null} The channel ID or null if not found
+ */
+function findChannelIdForWebhook(webhook) {
+  for (const [channelId, cachedWebhook] of webhookCache.entries()) {
+    if (cachedWebhook === webhook) {
+      return channelId;
+    }
+  }
+  return null;
 }
 
 /**
