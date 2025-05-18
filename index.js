@@ -41,7 +41,7 @@ async function init() {
     await initStorage();
     logger.info('Data storage initialized');
     
-    // Initialize personality manager
+    // Initialize basic personality manager (loads existing data)
     await initPersonalityManager();
     logger.info('Personality manager initialized');
     
@@ -49,11 +49,13 @@ async function init() {
     await initConversationManager();
     logger.info('Conversation manager initialized');
     
-    // Initialize and start the bot
+    // Initialize and start the bot - this is critical for user experience
     await initBot();
     logger.info('Bot initialized and started');
     
-    // Only start health check server once bot is fully initialized
+    // Now that the bot is started, we can do non-blocking background tasks
+    
+    // Start health check server
     try {
       // Get Discord client from global scope to avoid circular dependencies
       const botClient = global.tzurotClient || client;

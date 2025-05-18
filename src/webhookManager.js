@@ -54,34 +54,67 @@ async function validateAvatarUrl(avatarUrl) {
     return false;
   }
   
+  // Handle Discord CDN URLs specially - they're always valid without checking
+  if (avatarUrl.includes('cdn.discordapp.com') || avatarUrl.includes('discord.com/assets')) {
+    logger.info(`[WebhookManager] Discord CDN URL detected, skipping validation: ${avatarUrl}`);
+    return true;
+  }
+  
   // Try to fetch the image to verify it exists
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(avatarUrl, {
-      method: 'HEAD', // Only fetch headers to be more efficient
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      },
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status} for ${avatarUrl}`);
+    // First try with GET request instead of HEAD (more compatible with CDNs that block HEAD)
+    try {
+      const response = await fetch(avatarUrl, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': 'https://discord.com/',
+          'Cache-Control': 'no-cache'
+        },
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status} for ${avatarUrl}`);
+        return false;
+      }
+      
+      // Check content type to ensure it's an image
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('image/')) {
+        logger.warn(`[WebhookManager] Avatar URL does not point to an image: ${contentType} for ${avatarUrl}`);
+        return false;
+      }
+      
+      // Try to read a small amount of data to check if it's readable
+      const reader = response.body.getReader();
+      const { done } = await reader.read();
+      reader.cancel();
+      
+      if (done) {
+        logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
+        return false;
+      }
+      
+      return true;
+    } catch (getError) {
+      // If GET fails, log the error but consider the URL valid if we've tried our best
+      logger.warn(`[WebhookManager] Error validating avatar URL with GET: ${getError.message} for ${avatarUrl}`);
+      // Consider some types of URLs valid even if we can't validate them
+      // This is a compromise to avoid blocking valid URLs due to CDN restrictions
+      if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+        logger.info(`[WebhookManager] URL appears to be an image based on extension, treating as valid: ${avatarUrl}`);
+        return true;
+      }
       return false;
     }
-    
-    // Check content type to ensure it's an image
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.startsWith('image/')) {
-      logger.warn(`[WebhookManager] Avatar URL does not point to an image: ${contentType} for ${avatarUrl}`);
-      return false;
-    }
-    
-    return true;
   } catch (error) {
     logger.warn(`[WebhookManager] Error validating avatar URL: ${error.message} for ${avatarUrl}`);
     return false;
@@ -132,6 +165,32 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
 
   logger.info(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
 
+  // Handle Discord CDN URLs specially - they're always valid and don't need warmup
+  if (avatarUrl.includes('cdn.discordapp.com') || avatarUrl.includes('discord.com/assets')) {
+    logger.info(`[WebhookManager] Discord CDN URL detected, skipping warmup: ${avatarUrl}`);
+    avatarWarmupCache.add(avatarUrl);
+    return avatarUrl;
+  }
+
+  // Skip warmup for specific known domains that are likely to block direct fetches
+  const skipWarmupDomains = [
+    'i.imgur.com',
+    'imgur.com',
+    'media.discordapp.net',
+    'cdn.discordapp.com'
+  ];
+  
+  const urlObj = new URL(avatarUrl);
+  if (skipWarmupDomains.some(domain => urlObj.hostname.includes(domain))) {
+    logger.info(`[WebhookManager] Known reliable domain detected (${urlObj.hostname}), skipping warmup for: ${avatarUrl}`);
+    
+    // Trust URLs with image extensions without validation
+    if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+      avatarWarmupCache.add(avatarUrl);
+      return avatarUrl;
+    }
+  }
+
   try {
     // First ensure the avatar URL is valid
     const validUrl = await getValidAvatarUrl(avatarUrl);
@@ -151,6 +210,10 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://discord.com/',
+        'Cache-Control': 'no-cache'
       },
     });
 
@@ -158,12 +221,36 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
 
     if (!response.ok) {
       logger.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
+      
+      // If it's imgur or certain other domains and has an image extension, consider it valid
+      // despite the response error (might be anti-hotlinking measures)
+      if (skipWarmupDomains.some(domain => urlObj.hostname.includes(domain)) && 
+          avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+        logger.info(`[WebhookManager] Likely valid image despite error response, accepting: ${avatarUrl}`);
+        avatarWarmupCache.add(avatarUrl);
+        return avatarUrl;
+      }
+      
       throw new Error(`Failed to warm up avatar: ${response.status} ${response.statusText}`);
     }
 
     // Read a small chunk of the response to ensure it's properly loaded
-    const buffer = await response.buffer();
-    logger.debug(`[WebhookManager] Avatar loaded (${buffer.length} bytes)`);
+    try {
+      // Try to read a small amount of data to check if it's readable
+      const reader = response.body.getReader();
+      const { done, value } = await reader.read();
+      reader.cancel();
+      
+      if (done || !value || value.length === 0) {
+        logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
+        throw new Error('Empty response from avatar URL');
+      }
+      
+      logger.debug(`[WebhookManager] Avatar loaded (${value.length} bytes)`);
+    } catch (readError) {
+      // If we can't read the body but response was OK, still consider it valid
+      logger.warn(`[WebhookManager] Couldn't read avatar response but status was OK: ${readError.message}`);
+    }
     
     // Add to cache so we don't warm up the same URL multiple times
     avatarWarmupCache.add(validUrl);
@@ -172,6 +259,13 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
     return validUrl;
   } catch (error) {
     logger.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
+    
+    // Check if it's a URL with image extension despite errors
+    if (avatarUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+      logger.info(`[WebhookManager] URL appears to be an image based on extension, accepting despite errors: ${avatarUrl}`);
+      avatarWarmupCache.add(avatarUrl);
+      return avatarUrl;
+    }
     
     // Retry logic - up to 2 retries (3 attempts total)
     if (retryCount < 3) {

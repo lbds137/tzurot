@@ -924,6 +924,8 @@ We identified several issues with avatar URL handling that were causing profile 
 4. Potential timing issues where messages were sent before avatar warmup completed
 5. Lack of validation for environment variables related to avatar URLs
 6. No fallback mechanism if an avatar URL was invalid or inaccessible
+7. Some image CDNs block HEAD requests or requests without proper browser headers
+8. Anti-hotlinking measures on some CDNs cause 404 responses
 
 ### Our Solution
 
@@ -934,12 +936,15 @@ We implemented comprehensive improvements to avatar URL handling:
    - Ensured webhook creation uses the verified fallback avatar URL
    - Guaranteed that users will always see some avatar, even when the original fails
 
-2. **Robust URL Validation**:
+2. **Smart URL Validation**:
    - Implemented `validateAvatarUrl` function to verify URLs are:
      - Properly formatted (valid URL syntax)
      - Accessible (returns 200 OK status)
      - Actually images (checks content-type header)
-   - Added a HEAD request approach for efficiency when validating URLs
+   - Switched from HEAD to GET requests for better CDN compatibility
+   - Added special handling for Discord CDN URLs (always considered valid)
+   - Improved browser-like headers to avoid anti-hotlinking measures
+   - Added extension-based fallback for URLs with image extensions
    - Detailed logging for all avatar validation failures to help with debugging
 
 3. **Avatar URL Fallback System**:
@@ -952,11 +957,13 @@ We implemented comprehensive improvements to avatar URL handling:
 4. **Enhanced Warmup with Retry Logic**:
    - Improved `warmupAvatarUrl` function with:
      - Proper validation before attempting warmup
+     - Special handling for known CDN domains (imgur, Discord, etc.)
+     - Automatic detection of image URLs by file extension
      - Retry mechanism (up to 3 attempts) for transient network issues
      - 1-second delay between retry attempts
      - Fallback to default avatar after all retries fail
      - Better error handling and logging
-   - Added proper User-Agent headers to help with API rate limiting
+   - Added proper browser-like headers including User-Agent, Accept, and Referer
 
 5. **Better profileInfoFetcher Integration**:
    - Enhanced `getProfileAvatarUrl` function to:
@@ -972,6 +979,48 @@ We implemented comprehensive improvements to avatar URL handling:
    - Ensured test coverage for critical fallback mechanisms
    - Implemented tests for personality avatar URL preloading
    - Enhanced test organization for better maintainability
+
+7. **Anti-Hotlinking Mitigation**:
+   - Added full browser-like headers including Referer set to Discord
+   - Created domain-specific handling for known CDNs
+   - Added extension-based validation for URLs that might block direct requests
+   - Implemented graceful degradation when validation fails but URL looks legitimate
+
+## Parallelized Owner Personality Loading
+
+We've improved application startup time by parallelizing the personality loading process, particularly for the bot owner's predefined personalities. This significantly reduces the time the application spends initializing before becoming responsive.
+
+### The Problem
+
+The application was experiencing slow startup times because:
+
+1. Owner personalities were loaded sequentially during initialization, blocking the application startup
+2. Each personality registration made separate API calls to fetch profile information
+3. The application wouldn't be responsive until all personalities were loaded
+4. No background loading mechanism existed for non-critical initialization tasks
+
+### Our Solution
+
+We implemented several improvements to speed up application startup:
+
+1. **Parallelized Personality Registration**:
+   - Modified `seedOwnerPersonalities` to process multiple personalities in parallel using `Promise.all`
+   - Filtered personalities that need to be created before starting the parallel process
+   - Handled errors from individual personality registrations without failing the entire batch
+
+2. **Deferred Background Loading**:
+   - Updated `initPersonalityManager` to accept a `deferOwnerPersonalities` parameter
+   - Added background loading mechanism using `setTimeout` to defer personality registration
+   - Ensured the application can start and become responsive while personalities are still loading
+   - Provided better logging for background processes
+
+3. **Improved Initialization Flow**:
+   - Modified the main initialization sequence to prioritize critical services first
+   - Added comments to clarify which initialization steps are critical vs. background tasks
+   - Ensured background tasks don't block main application functionality
+   - Maintained full compatibility with existing code
+
+These improvements allow the application to start more quickly while still loading all required personalities in the background. Users will experience faster startup times without any loss of functionality.
 
 These changes ensure that profile pictures load reliably in webhook messages, providing a consistent user experience. The system is now resilient against various failure modes, including:
 

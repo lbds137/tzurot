@@ -12,17 +12,18 @@ const ALIASES_FILE = 'aliases';
 
 /**
  * Initialize the personality manager
+ * @param {boolean} [deferOwnerPersonalities=false] - Whether to defer loading owner personalities
+ * @returns {Promise<void>}
  */
-async function initPersonalityManager() {
+async function initPersonalityManager(deferOwnerPersonalities = true) {
   try {
     // Load personalities
     const personalities = await loadData(PERSONALITIES_FILE);
     if (personalities) {
       logger.info(
-        `[PersonalityManager] Loading personalities from file: ${Object.keys(personalities)}`
+        `[PersonalityManager] Loading personalities from file: ${Object.keys(personalities).length} found`
       );
       for (const [key, value] of Object.entries(personalities)) {
-        logger.info(`[PersonalityManager] Loading personality: ${key} -> ${value.fullName}`);
         // Skip entries where the key doesn't match the fullName (duplicate entries from previous bug)
         if (key !== value.fullName) {
           logger.warn(
@@ -38,7 +39,7 @@ async function initPersonalityManager() {
     // Load aliases
     const aliases = await loadData(ALIASES_FILE);
     if (aliases) {
-      logger.info(`[PersonalityManager] Loading aliases from file: ${JSON.stringify(aliases)}`);
+      logger.info(`[PersonalityManager] Loading aliases from file: ${Object.keys(aliases).length} found`);
       for (const [key, value] of Object.entries(aliases)) {
         personalityAliases.set(key, value);
       }
@@ -46,7 +47,19 @@ async function initPersonalityManager() {
     }
     
     // Pre-seed personalities for the bot owner if needed
-    await seedOwnerPersonalities();
+    if (deferOwnerPersonalities) {
+      // Schedule owner personalities loading to happen in the background
+      logger.info('[PersonalityManager] Deferring owner personality seeding to run in background');
+      setTimeout(() => {
+        seedOwnerPersonalities()
+          .then(() => logger.info('[PersonalityManager] Background owner personality seeding completed'))
+          .catch(err => logger.error(`[PersonalityManager] Background owner personality seeding error: ${err.message}`));
+      }, 500); // Small delay to let other initialization finish
+    } else {
+      // Directly load owner personalities (the old way)
+      logger.info('[PersonalityManager] Loading owner personalities synchronously');
+      await seedOwnerPersonalities();
+    }
   } catch (error) {
     logger.error(`[PersonalityManager] Error initializing personality manager: ${error}`);
     throw error;
@@ -446,6 +459,7 @@ function listPersonalitiesForUser(userId) {
 /**
  * Pre-seeds the bot owner with default personalities from constants.js
  * Only adds personalities if they don't already exist for the owner
+ * Uses parallel processing to avoid blocking app startup
  */
 async function seedOwnerPersonalities() {
   // Import constants
@@ -469,25 +483,23 @@ async function seedOwnerPersonalities() {
   logger.info(`[PersonalityManager] Checking auto-seeding for owner (${ownerId}): ${ownerPersonalities.length} personalities defined`);
   logger.info(`[PersonalityManager] Owner already has ${existingPersonalities.length} personalities`);
   
-  // Track which personalities were added
-  const addedPersonalities = [];
+  // Filter out personalities that already exist or are empty
+  const personalitiesToAdd = ownerPersonalities.filter(name => 
+    name && !existingPersonalityNames.has(name)
+  );
   
-  // Register each owner personality if it doesn't exist
-  for (const personalityName of ownerPersonalities) {
-    // Skip empty entries
-    if (!personalityName) {
-      continue;
-    }
-    
-    if (existingPersonalityNames.has(personalityName)) {
-      logger.debug(`[PersonalityManager] Owner already has personality: ${personalityName}, skipping`);
-      continue;
-    }
-    
+  if (personalitiesToAdd.length === 0) {
+    logger.info('[PersonalityManager] No new personalities needed to be seeded.');
+    return;
+  }
+  
+  logger.info(`[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities in parallel`);
+  
+  // Create an array of promises for parallel execution
+  const personalityPromises = personalitiesToAdd.map(async (personalityName) => {
     logger.info(`[PersonalityManager] Auto-seeding owner personality: ${personalityName}`);
     try {
       // Register the personality for the owner
-      // The standard personality registration will fetch profile info and handle display names
       const personality = await registerPersonality(ownerId, personalityName, {
         description: `Auto-added from constants.js for bot owner`
       }, true); // true = fetch profile info
@@ -497,7 +509,6 @@ async function seedOwnerPersonalities() {
         logger.info(`[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`);
         
         // Handle self-referential alias (similar to the add command)
-        // This is typically handled by commands.js but we're doing it manually for auto-seeding
         await setPersonalityAlias(personalityName.toLowerCase(), personalityName, true); // Skip save
         
         // For consistency with the add command, also set display name as an alias if different
@@ -506,23 +517,28 @@ async function seedOwnerPersonalities() {
         }
       }
       
-      addedPersonalities.push(personality);
       logger.info(`[PersonalityManager] Successfully added owner personality: ${personalityName}`);
+      return personality;
     } catch (error) {
       logger.error(`[PersonalityManager] Error auto-seeding personality ${personalityName}: ${error.message}`);
+      return null;
     }
-  }
+  });
   
-  // Finally, save all personalities and aliases if any were added
-  if (addedPersonalities.length > 0) {
-    try {
+  // Execute all registration requests in parallel and wait for completion
+  try {
+    const results = await Promise.all(personalityPromises);
+    const addedPersonalities = results.filter(p => p !== null);
+    
+    // Finally, save all personalities and aliases if any were added
+    if (addedPersonalities.length > 0) {
       await saveAllPersonalities();
       logger.info(`[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`);
-    } catch (error) {
-      logger.error(`[PersonalityManager] Error saving after auto-seeding: ${error.message}`);
+    } else {
+      logger.info('[PersonalityManager] No personalities were successfully seeded.');
     }
-  } else {
-    logger.info('[PersonalityManager] No new personalities needed to be seeded.');
+  } catch (error) {
+    logger.error(`[PersonalityManager] Error during parallel personality seeding: ${error.message}`);
   }
 }
 
