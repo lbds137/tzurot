@@ -224,6 +224,95 @@ describe('WebhookManager Avatar URL Handling', () => {
         webhookManager.getValidAvatarUrl = originalGetValidAvatarUrl;
       }
     });
+    
+    test('should handle non-stream response bodies correctly', async () => {
+      // Mock getValidAvatarUrl to return the original URL
+      const originalGetValidAvatarUrl = webhookManager.getValidAvatarUrl;
+      webhookManager.getValidAvatarUrl = jest.fn().mockResolvedValue(validUrl);
+      
+      // Mock fetch to return a response without getReader method
+      nodeFetch.mockImplementation(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (header) => header === 'content-type' ? 'image/png' : null
+        },
+        // No body.getReader method, but has arrayBuffer
+        body: {
+          // getReader is intentionally missing
+        },
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(1024))
+      }));
+      
+      try {
+        // Should complete successfully using arrayBuffer fallback
+        const result = await webhookManager.warmupAvatarUrl(validUrl);
+        expect(result).toBe(validUrl);
+      } finally {
+        // Restore original function
+        webhookManager.getValidAvatarUrl = originalGetValidAvatarUrl;
+      }
+    });
+    
+    test('should handle response with only text method available', async () => {
+      // Mock getValidAvatarUrl to return the original URL
+      const originalGetValidAvatarUrl = webhookManager.getValidAvatarUrl;
+      webhookManager.getValidAvatarUrl = jest.fn().mockResolvedValue(validUrl);
+      
+      // Mock fetch to return a response with only text method
+      nodeFetch.mockImplementation(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (header) => header === 'content-type' ? 'image/png' : null
+        },
+        // No body.getReader or arrayBuffer methods
+        body: {},
+        // Only text method available
+        text: () => Promise.resolve('fake image data as text'),
+        // arrayBuffer is intentionally missing
+      }));
+      
+      try {
+        // Should complete successfully using text fallback
+        const result = await webhookManager.warmupAvatarUrl(validUrl);
+        expect(result).toBe(validUrl);
+      } finally {
+        // Restore original function
+        webhookManager.getValidAvatarUrl = originalGetValidAvatarUrl;
+      }
+    });
+    
+    test('should handle response with no read methods available', async () => {
+      // Mock getValidAvatarUrl to return the original URL
+      const originalGetValidAvatarUrl = webhookManager.getValidAvatarUrl;
+      webhookManager.getValidAvatarUrl = jest.fn().mockResolvedValue(validUrl);
+      
+      // Mock fetch to return a response with no read methods
+      nodeFetch.mockImplementation(() => Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: (header) => header === 'content-type' ? 'image/png' : null
+        },
+        // No body.getReader method
+        body: {},
+        // No read methods available
+        // arrayBuffer, text, and buffer are all intentionally missing
+      }));
+      
+      try {
+        // Should still complete successfully using status code
+        const result = await webhookManager.warmupAvatarUrl(validUrl);
+        expect(result).toBe(validUrl);
+      } finally {
+        // Restore original function
+        webhookManager.getValidAvatarUrl = originalGetValidAvatarUrl;
+      }
+    });
   });
   
   describe('preloadPersonalityAvatar function', () => {

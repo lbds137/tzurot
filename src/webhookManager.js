@@ -255,17 +255,45 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
 
     // Read a small chunk of the response to ensure it's properly loaded
     try {
-      // Try to read a small amount of data to check if it's readable
-      const reader = response.body.getReader();
-      const { done, value } = await reader.read();
-      reader.cancel();
-      
-      if (done || !value || value.length === 0) {
-        logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
-        throw new Error('Empty response from avatar URL');
+      // Check if response body has a getReader method (streams API)
+      if (response.body && typeof response.body.getReader === 'function') {
+        // Modern streams approach
+        const reader = response.body.getReader();
+        const { done, value } = await reader.read();
+        reader.cancel();
+        
+        if (done || !value || value.length === 0) {
+          logger.warn(`[WebhookManager] Avatar URL returned an empty response: ${avatarUrl}`);
+          throw new Error('Empty response from avatar URL');
+        }
+        
+        logger.debug(`[WebhookManager] Avatar loaded (${value.length} bytes) using streams API`);
+      } else {
+        // Fallback: try to use buffer/arrayBuffer approach
+        // This handles older node-fetch versions or environments without streams support
+        
+        // Try arrayBuffer first (more modern)
+        if (typeof response.arrayBuffer === 'function') {
+          const buffer = await response.arrayBuffer();
+          if (!buffer || buffer.byteLength === 0) {
+            logger.warn(`[WebhookManager] Avatar URL returned an empty arrayBuffer: ${avatarUrl}`);
+            throw new Error('Empty arrayBuffer from avatar URL');
+          }
+          logger.debug(`[WebhookManager] Avatar loaded (${buffer.byteLength} bytes) using arrayBuffer`);
+        } 
+        // Fall back to text/blob or just trust the status
+        else if (typeof response.text === 'function') {
+          const text = await response.text();
+          if (!text || text.length === 0) {
+            logger.warn(`[WebhookManager] Avatar URL returned empty text: ${avatarUrl}`);
+            throw new Error('Empty text from avatar URL');
+          }
+          logger.debug(`[WebhookManager] Avatar loaded (${text.length} chars) using text API`);
+        } else {
+          // If we can't read in any way but response was OK, still consider it valid
+          logger.info(`[WebhookManager] Cannot read avatar response body, but status is OK. Considering valid.`);
+        }
       }
-      
-      logger.debug(`[WebhookManager] Avatar loaded (${value.length} bytes)`);
     } catch (readError) {
       // If we can't read the body but response was OK, still consider it valid
       logger.warn(`[WebhookManager] Couldn't read avatar response but status was OK: ${readError.message}`);
