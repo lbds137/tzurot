@@ -577,15 +577,16 @@ function sanitizeContent(content) {
   try {
     return content
       // Remove null bytes and control characters, but preserve newlines and tabs
-      // Using character classes to avoid ESLint no-control-regex warnings
+      // eslint-disable-next-line no-control-regex
       .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g, '')
       // Remove escape sequences
       .replace(/\\u[0-9a-fA-F]{4}/g, '')
       // Remove any non-printable characters except newlines and tabs (using safer pattern)
+      // eslint-disable-next-line no-control-regex
       .replace(/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF\u0100-\uFFFF]/g, '')
       // Ensure proper string encoding
       .toString();
-  } catch (error) {
+  } catch (_) {
     return '';
   }
 }

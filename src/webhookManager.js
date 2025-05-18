@@ -48,7 +48,7 @@ async function validateAvatarUrl(avatarUrl) {
   // Check if URL is correctly formatted
   try {
     new URL(avatarUrl); // Will throw if URL is invalid
-  } catch (error) {
+  } catch (_) {
     logger.warn(`[WebhookManager] Invalid avatar URL format: ${avatarUrl}`);
     return false;
   }

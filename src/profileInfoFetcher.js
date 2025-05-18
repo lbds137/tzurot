@@ -191,7 +191,7 @@ async function getProfileAvatarUrl(profileName) {
         } else {
           return profileInfo.avatar_url;
         }
-      } catch (urlError) {
+      } catch (_) {
         logger.warn(`[ProfileInfoFetcher] Received invalid avatar_url from API: ${profileInfo.avatar_url}`);
         // Continue to fallback instead of returning invalid URL
       }
@@ -227,7 +227,7 @@ async function getProfileAvatarUrl(profileName) {
     try {
       new URL(avatarUrl); // Will throw if invalid URL
       return avatarUrl;
-    } catch (urlError) {
+    } catch (_) {
       logger.error(`[ProfileInfoFetcher] Generated invalid avatar URL: ${avatarUrl}`);
       return null;
     }
