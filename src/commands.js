@@ -1,5 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = require('./personalityManager');
+const personalityManagerFunctions = require('./personalityManager');
+const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = personalityManagerFunctions;
 const { recordConversation, clearConversation, activatePersonality, deactivatePersonality } = require('./conversationManager');
 const { knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
 const { preloadPersonalityAvatar } = require('./webhookManager');
@@ -21,6 +22,13 @@ async function processCommand(message, command, args) {
   // Add a simple debug log to track command processing
   console.log(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
+  // Skip if this exact message ID has already been processed 
+  // This is a stronger check than the recentCommands map
+  if (processedMessages.has(message.id)) {
+    console.log(`[Commands] Message ${message.id} already processed, skipping duplicate command`);
+    return null;
+  }
+
   // Create a unique key for this command execution
   const commandKey = `${message.author.id}-${command}-${args.join('-')}`;
   
@@ -35,6 +43,17 @@ async function processCommand(message, command, args) {
   
   // Mark this command as recently executed
   recentCommands.set(commandKey, Date.now());
+  
+  // If this is any "write" command (add, create, remove, delete, etc.), 
+  // mark the message as processed to prevent duplication
+  if (['add', 'create', 'remove', 'delete', 'alias'].includes(command)) {
+    processedMessages.add(message.id);
+    
+    // Clean up after 5 minutes
+    setTimeout(() => {
+      processedMessages.delete(message.id);
+    }, 300000);
+  }
   
   // Clean up old entries from the recentCommands map (older than 10 seconds)
   const now = Date.now();
@@ -300,7 +319,44 @@ async function handleHelpCommand(message, args) {
 // Track in-progress personality additions to prevent duplicate messages
 const pendingAdditions = new Map();
 
+// Global variable to track message IDs that have already been processed
+// This prevents multiple handlers from processing the same message
+const processedMessages = new Set();
+
+// Periodically clean up old processed message entries (every 10 minutes)
+setInterval(() => {
+  if (processedMessages.size > 0) {
+    console.log(`[Commands] Cleaning up processed messages cache (size: ${processedMessages.size})`);
+    processedMessages.clear();
+  }
+}, 10 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+
 async function handleAddCommand(message, args) {
+  // TEMPORARILY DISABLE MESSAGE ID DEDUPLICATION
+  // This was causing issues with add command not working properly
+  console.log(`[Commands] Processing message ${message.id} (deduplication temporarily disabled)`);
+  
+  /* 
+  // Skip if this exact message ID has already been processed
+  // But with a much shorter timeout to allow retries for failed attempts
+  if (processedMessages.has(message.id)) {
+    console.log(`[Commands] Message ${message.id} already processed, skipping duplicate`);
+    
+    // Show a message instead of silently ignoring
+    return message.reply(`This command is already being processed. If it failed, please try with a different message.`);
+  }
+  
+  // Mark this message as processed immediately
+  processedMessages.add(message.id);
+  
+  // Clean up processed message IDs after just 10 seconds to allow retries
+  // This is MUCH shorter than before (was 5 minutes)
+  setTimeout(() => {
+    console.log(`[Commands] Removing message ${message.id} from processed messages cache`);
+    processedMessages.delete(message.id);
+  }, 10000);
+  */
+  
   if (args.length < 1) {
     return message.reply(`Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``);
   }
@@ -308,17 +364,39 @@ async function handleAddCommand(message, args) {
   const profileName = args[0];
   const alias = args[1] || null; // Optional alias
   
-  // Create a unique key for this request
-  const requestKey = `${message.author.id}-${profileName}`;
+  // Create a unique key for this request - normalize to lowercase for case insensitive matching
+  const requestKey = `${message.author.id}-${profileName.toLowerCase()}`;
   
-  // Check if this exact request is already being processed
+  // TEMPORARILY DISABLE PENDING ADDITIONS CHECK
+  // This was causing issues with add command not working properly
+  console.log(`[Commands] Processing request key ${requestKey} (duplicate prevention temporarily disabled)`);
+  
+  /*
+  // Check if this exact request is already being processed - with a MUCH shorter timeout
+  // This helps prevent true duplicates but allows retries
   if (pendingAdditions.has(requestKey)) {
-    console.log(`[Commands] Duplicate add request detected for ${profileName} by ${message.author.tag}, ignoring`);
-    return; // Silently ignore to prevent duplicate messages
+    const pendingData = pendingAdditions.get(requestKey);
+    // Only block for 3 seconds to allow retries
+    if (Date.now() - pendingData.timestamp < 3000) {
+      console.log(`[Commands] Very recent duplicate request detected for ${profileName} by ${message.author.tag}, ignoring`);
+      return message.reply(`You just tried to add this personality. Please wait a moment before trying again.`);
+    } else {
+      console.log(`[Commands] Previous request found but enough time has passed, allowing new request`);
+    }
   }
   
-  // Mark this request as being processed
-  pendingAdditions.set(requestKey, Date.now());
+  // Clear any existing pending requests for this user-personality combo
+  pendingAdditions.delete(requestKey);
+  */
+  
+  // Mark this request as being processed with more metadata (still useful for cleanup)
+  pendingAdditions.set(requestKey, {
+    timestamp: Date.now(),
+    profileName: profileName,
+    userId: message.author.id,
+    channelId: message.channel.id,
+    messageId: message.id
+  });
 
   try {
     // Helper function to safely get lowercase version of a string
@@ -343,87 +421,292 @@ async function handleAddCommand(message, args) {
       return message.reply(`You already have a personality with the name \`${profileName}\`.`);
     }
 
-    // Create a loading message
-    const loadingMsg = await message.reply(`Adding personality \`${profileName}\`... This might take a moment.`);
+    // No loading message - we'll do all the work first and only send one message at the end
+    console.log(`[Commands] Starting personality registration process for ${profileName} (no loading message)`);
 
     try {
-      // Register the new personality with fetching profile info - track the time it takes
-      console.log(`[Commands] Starting personality registration for ${profileName}`);
-      const startTime = Date.now();
+      // -------------------- STEP 1: Register the base personality --------------------
+      console.log(`[Commands] Step 1: Initial personality registration for ${profileName}`);
       
-      // Pause a moment to avoid potential race condition where the message edit happens twice
-      // due to timing issues with fetching profile info and the message update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Register the personality first - this doesn't fetch profile info
+      console.log(`[Commands] Calling registerPersonality with userId=${message.author.id}, profileName=${profileName}`);
+      let initialPersonality; // Declare variable outside try block so it's accessible later
       
-      // Register the personality
-      const personality = await registerPersonality(message.author.id, profileName, {
-        // No need to provide display name or avatar as they'll be fetched
-        description: `Added by ${message.author.tag}`
-      }, true);
-      
-      console.log(`[Commands] Completed personality registration in ${Date.now() - startTime}ms`);
-
-      // If an alias was provided, set it
-      if (alias) {
-        setPersonalityAlias(alias, profileName);
+      try {
+        initialPersonality = await registerPersonality(message.author.id, profileName, {
+          description: `Added by ${message.author.tag}`
+        }, false); // false = don't fetch profile info in the same call
+        
+        if (!initialPersonality) {
+          console.error(`[Commands] registerPersonality returned null or undefined!`);
+          throw new Error("Personality registration failed - returned null");
+        }
+        
+        console.log(`[Commands] Initial registration completed successfully:`, JSON.stringify({
+          fullName: initialPersonality.fullName,
+          displayName: initialPersonality.displayName,
+          hasAvatar: !!initialPersonality.avatarUrl
+        }));
+      } catch (regError) {
+        console.error(`[Commands] Error during personality registration:`, regError);
+        // Include a descriptive message for the user
+        throw new Error(`Failed to register personality: ${regError.message}`);
       }
       
-      // GET THE PERSONALITY AGAIN after registration to ensure we have final data
-      // This ensures we have the most up-to-date data that includes API-fetched info
-      console.log(`[Commands] Retrieving final personality data for ${profileName}`);
+      // -------------------- STEP 2: Fetch profile info separately --------------------
+      console.log(`[Commands] Step 2: Fetching profile info explicitly...`);
+      const profileInfoFetcher = require('./profileInfoFetcher');
+      
+      let displayName = null;
+      let avatarUrl = null;
+
+      // Fetch basic profile data
+      console.log(`[Commands] Making direct calls to profile info fetcher for ${profileName}`);
+      
+      try {
+        const profileData = await profileInfoFetcher.fetchProfileInfo(profileName);
+        if (profileData) {
+          console.log(`[Commands] RAW profile data:`, JSON.stringify(profileData).substring(0, 200));
+        } else {
+          console.warn(`[Commands] Profile data fetch returned null or undefined`);
+        }
+      } catch (infoError) {
+        console.error(`[Commands] Error fetching profile data:`, infoError);
+        // Continue despite this error
+      }
+      
+      // Get display name with fallback to profile name
+      try {
+        displayName = await profileInfoFetcher.getProfileDisplayName(profileName);
+        console.log(`[Commands] Got display name: ${displayName}`);
+      } catch (nameError) {
+        console.error(`[Commands] Error fetching display name:`, nameError);
+        // If we can't get the display name, use the profile name
+        displayName = profileName;
+        console.log(`[Commands] Using profileName as fallback: ${displayName}`);
+      }
+      
+      // Get avatar URL
+      try {
+        avatarUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
+        console.log(`[Commands] Got avatar URL: ${avatarUrl}`);
+      } catch (avatarError) {
+        console.error(`[Commands] Error fetching avatar URL:`, avatarError);
+      }
+      
+      console.log(`[Commands] Fetched profile info: displayName=${displayName}, hasAvatar=${!!avatarUrl}, avatarUrl=${avatarUrl}`);
+      
+      // Update the initial personality with fetched data
+      if (displayName) {
+        console.log(`[Commands] Setting display name: ${displayName}`);
+        initialPersonality.displayName = displayName;
+      } else {
+        // Ensure we always have a display name
+        console.log(`[Commands] No display name found, using profile name`);
+        initialPersonality.displayName = profileName;
+      }
+      
+      if (avatarUrl) {
+        console.log(`[Commands] Setting avatar URL: ${avatarUrl}`);
+        initialPersonality.avatarUrl = avatarUrl;
+      }
+      
+      // Get the saved personality from store
+      console.log(`[Commands] Getting personality from store to ensure latest version`);
+      const savedPersonality = getPersonality(profileName);
+      
+      if (!savedPersonality) {
+        console.error(`[Commands] Failed to retrieve personality from store after registration!`);
+        // Don't throw, just log the error and continue
+        console.error(`[Commands] Will attempt to continue with initialPersonality object`);
+      } else {
+        // Update the saved personality with our fetched info
+        console.log(`[Commands] Updating saved personality with display name and avatar`);
+        if (displayName) {
+          savedPersonality.displayName = displayName;
+        }
+        if (avatarUrl) {
+          savedPersonality.avatarUrl = avatarUrl;
+        }
+        
+        // Explicitly save all personality data to ensure it's persisted
+        console.log(`[Commands] Saving all personality data`);
+        const personalityManager = require('./personalityManager');
+        await personalityManager.saveAllPersonalities();
+        console.log(`[Commands] Updated and saved personality with display name and avatar`);
+      }
+      
+      // -------------------- STEP 3: Set up aliases --------------------
+      console.log(`[Commands] Step 3: Setting up aliases`);
+      
+      // If an alias was provided, set it
+      if (alias && alias.toLowerCase() !== profileName.toLowerCase() && 
+          (!initialPersonality.displayName || 
+           alias.toLowerCase() !== initialPersonality.displayName.toLowerCase())) {
+        await setPersonalityAlias(alias, profileName);
+        console.log(`[Commands] Set manual alias: ${alias} -> ${profileName}`);
+      }
+      
+      // Also set display name as alias if it's different from the full name
+      if (initialPersonality.displayName && 
+          initialPersonality.displayName.toLowerCase() !== profileName.toLowerCase()) {
+        const defaultAlias = initialPersonality.displayName.toLowerCase();
+        await setPersonalityAlias(defaultAlias, profileName);
+        console.log(`[Commands] Set display name as alias: ${defaultAlias} -> ${profileName}`);
+      }
+      
+      // -------------------- STEP 4: Save profile data and pre-load Avatar --------------------
+      console.log(`[Commands] Step 4: Saving profile data and pre-loading avatar`);
+      
+      // Use the already imported personalityManager for consistency
+      // We already have: const personalityManagerFunctions = require('./personalityManager');
+      // at the top of the file
+      
+      // Important: Force save personality data after updates
+      await personalityManagerFunctions.saveAllPersonalities();
+      console.log(`[Commands] Explicitly saved all personality data`);
+      
+      // Get the final personality with all updates - AFTER explicit save
       const finalPersonality = getPersonality(profileName);
       
       if (!finalPersonality) {
-        console.error(`[Commands] Error: Could not retrieve final personality data for ${profileName}`);
-        throw new Error("Failed to retrieve personality data after registration");
+        console.error(`[Commands] Error: Personality registration returned no data for ${profileName}`);
+        throw new Error("Failed to register personality");
       }
       
-      console.log(`[Commands] Final personality data received: ${finalPersonality.fullName}, display name: ${finalPersonality.displayName}`);
+      console.log(`[Commands] Final personality after all updates:`, {
+        fullName: finalPersonality.fullName,
+        displayName: finalPersonality.displayName,
+        hasAvatar: !!finalPersonality.avatarUrl
+      });
+      
+      // Add extra safety checks for display name and avatar
+      if (!finalPersonality.displayName && displayName) {
+        console.log(`[Commands] Setting display name again: ${displayName}`);
+        finalPersonality.displayName = displayName;
+        await personalityManagerFunctions.saveAllPersonalities();
+      } else if (!finalPersonality.displayName) {
+        console.log(`[Commands] No display name found, using profile name: ${profileName}`);
+        finalPersonality.displayName = profileName;
+        await personalityManagerFunctions.saveAllPersonalities();
+      }
+      
+      if (!finalPersonality.avatarUrl && avatarUrl) {
+        console.log(`[Commands] Setting avatar URL again: ${avatarUrl}`);
+        finalPersonality.avatarUrl = avatarUrl;
+        await personalityManagerFunctions.saveAllPersonalities();
+      } else if (!finalPersonality.avatarUrl) {
+        console.log(`[Commands] No avatar URL found in final personality object`);
+        // Try one more explicit fetch from the API
+        try {
+          console.log(`[Commands] Making one final attempt to fetch avatar URL...`);
+          const profileInfoFetcher = require('./profileInfoFetcher');
+          const finalAttemptUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
+          if (finalAttemptUrl) {
+            console.log(`[Commands] Successfully fetched avatar URL in final attempt: ${finalAttemptUrl}`);
+            finalPersonality.avatarUrl = finalAttemptUrl;
+            await personalityManagerFunctions.saveAllPersonalities();
+          }
+        } catch (err) {
+          console.error(`[Commands] Final avatar URL fetch attempt failed:`, err);
+        }
+      }
       
       // Pre-load avatar if available - this ensures it shows up correctly on first use
       if (finalPersonality.avatarUrl) {
         console.log(`[Commands] Pre-loading avatar for new personality: ${finalPersonality.avatarUrl}`);
         try {
-          await preloadPersonalityAvatar(finalPersonality);
+          // Use fetch to warm up the avatar URL first with proper error handling and timeout
+          const fetch = require('node-fetch');
+          const response = await fetch(finalPersonality.avatarUrl, { 
+            method: 'GET',
+            timeout: 5000, // 5 second timeout to prevent hanging
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+          });
+          
+          if (!response.ok) {
+            console.error(`[Commands] Avatar image fetch failed with status: ${response.status}`);
+          } else {
+            // Read the response body to fully load it into Discord's cache
+            const buffer = await response.buffer();
+            console.log(`[Commands] Explicitly pre-fetched avatar URL (${buffer.length} bytes)`);
+          }
+          
+          // Then use the webhook manager's preload function with our own direct URL
+          await preloadPersonalityAvatar({
+            ...finalPersonality,
+            avatarUrl: finalPersonality.avatarUrl // Ensure it's using the correct URL
+          });
           console.log(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
+          
+          // Save again after preloading to ensure data persistence
+          await personalityManagerFunctions.saveAllPersonalities();
         } catch (avatarError) {
           console.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
           // Continue despite error - not critical
         }
       }
 
+      // -------------------- STEP 5: Send Final Response --------------------
+      console.log(`[Commands] Step 5: Sending final response with complete info`);
+      
+      // Force one more save and get very latest data
+      await personalityManagerFunctions.saveAllPersonalities();
+      const veryFinalPersonality = getPersonality(profileName);
+      
+      // Use this with our forced loaded data
+      const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
+      const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
+      
+      console.log(`[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`);
+      
       // Create an embed with the finalized personality info
       const embed = new EmbedBuilder()
         .setTitle('Personality Added')
-        .setDescription(`Successfully added personality: ${finalPersonality.displayName}`)
+        .setDescription(`Successfully added personality: ${displayNameToUse}`)
         .setColor('#00FF00')
         .addFields(
-          { name: 'Full Name', value: finalPersonality.fullName },
-          { name: 'Display Name', value: finalPersonality.displayName || 'Not set' },
-          { name: 'Alias', value: alias || 'None set' }
+          { name: 'Full Name', value: profileName },
+          { name: 'Display Name', value: displayNameToUse || 'Not set' },
+          { name: 'Alias', value: alias || (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase() ? displayNameToUse.toLowerCase() : 'None set') }
         );
 
       // Add the avatar to the embed if available
-      if (finalPersonality.avatarUrl) {
-        embed.setThumbnail(finalPersonality.avatarUrl);
+      if (avatarUrlToUse) {
+        // Validate the URL format first
+        const isValidUrl = (urlString) => {
+          try {
+            return Boolean(new URL(urlString));
+          } catch (error) {
+            return false;
+          }
+        };
+        
+        if (isValidUrl(avatarUrlToUse)) {
+          console.log(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
+          embed.setThumbnail(avatarUrlToUse);
+        } else {
+          console.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
+        }
+      } else {
+        console.log(`[Commands] No avatar URL available for embed`);
       }
 
-      // Ensure we only update the loading message once, with the complete and final data
-      console.log(`[Commands] Updating loading message with final personality info for ${finalPersonality.displayName}`);
+      // Send a single complete message - no loading message to update!
+      const responseMsg = await message.reply({ embeds: [embed] });
+      console.log(`[Commands] Successfully sent complete personality embed with ID: ${responseMsg.id}`);
       
-      await loadingMsg.edit({ content: null, embeds: [embed] }).catch(err => {
-        console.error(`[Commands] Error updating loading message:`, err);
-      });
-      
-      // Clear this request from pending after a successful update
+      // Clear this request from pending after a successful response
       console.log(`[Commands] Clearing pending addition request for ${profileName}`);
       pendingAdditions.delete(requestKey);
     } catch (innerError) {
       console.error(`[Commands] Inner error during personality registration:`, innerError);
       
-      // Update message with error
-      await loadingMsg.edit(`Failed to complete the personality registration: ${innerError.message}`).catch(err => {
-        console.error(`[Commands] Error updating error message:`, err);
+      // Send error message - no loading message to update
+      await message.reply(`Failed to complete the personality registration: ${innerError.message}`).catch(err => {
+        console.error(`[Commands] Error sending error message:`, err);
       });
       
       // Clear pending even on error
@@ -438,10 +721,26 @@ async function handleAddCommand(message, args) {
     // Ensure we always clean up, even if an unexpected error occurs
     setTimeout(() => {
       if (pendingAdditions.has(requestKey)) {
-        console.log(`[Commands] Cleaning up stale pending addition request for ${requestKey}`);
-        pendingAdditions.delete(requestKey);
+        const pendingData = pendingAdditions.get(requestKey);
+        const elapsedTime = Date.now() - pendingData.timestamp;
+        
+        if (elapsedTime > 30000) {
+          console.log(`[Commands] Cleaning up stale pending addition request for ${requestKey} after ${elapsedTime}ms`);
+          pendingAdditions.delete(requestKey);
+        }
       }
     }, 30000); // Clean up after 30 seconds no matter what
+    
+    // Add a periodic cleaner for all pending additions - runs every 2 minutes
+    setInterval(() => {
+      const now = Date.now();
+      for (const [key, data] of pendingAdditions.entries()) {
+        if (now - data.timestamp > 120000) { // Clean entries older than 2 minutes
+          console.log(`[Commands] Automatic cleanup of stale pending addition: ${data.profileName}`);
+          pendingAdditions.delete(key);
+        }
+      }
+    }, 120000).unref(); // unref() allows the process to exit even if timer is active
   }
 }
 

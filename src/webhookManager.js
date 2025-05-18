@@ -43,14 +43,32 @@ async function warmupAvatarUrl(avatarUrl) {
     return;
   }
   
+  console.log(`[WebhookManager] Warming up avatar URL: ${avatarUrl}`);
+  
   try {
-    // Make a HEAD request to ensure Discord caches the image
-    await fetch(avatarUrl, { method: 'GET' });
+    // Make a GET request to ensure Discord caches the image
+    // Use a timeout to prevent hanging on bad URLs
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(avatarUrl, { 
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn(`[WebhookManager] Avatar URL returned non-OK status: ${response.status}`);
+      return;
+    }
     
     // Add to cache so we don't warm up the same URL multiple times
     avatarWarmupCache.add(avatarUrl);
+    console.log(`[WebhookManager] Successfully warmed up avatar URL: ${avatarUrl}`);
   } catch (error) {
-    // Silent fail - not critical
+    console.error(`[WebhookManager] Error warming up avatar URL: ${error.message}`);
+    // Continue despite error - not critical
   }
 }
 
@@ -624,8 +642,48 @@ function registerEventListeners(discordClient) {
  * @param {Object} personality - The personality object with avatarUrl
  */
 async function preloadPersonalityAvatar(personality) {
-  if (personality && personality.avatarUrl) {
+  if (!personality) {
+    console.error(`[WebhookManager] Cannot preload avatar: personality object is null or undefined`);
+    return;
+  }
+  
+  if (!personality.avatarUrl) {
+    console.warn(`[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`);
+    return;
+  }
+  
+  console.log(`[WebhookManager] Preloading avatar for ${personality.displayName || personality.fullName}: ${personality.avatarUrl}`);
+  
+  try {
+    // First try a direct fetch to validate the URL
+    const fetch = require('node-fetch');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(personality.avatarUrl, { 
+      method: 'GET',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      console.warn(`[WebhookManager] Personality avatar URL invalid: ${response.status} ${response.statusText}`);
+      return;
+    }
+    
+    // Read a small chunk of the response to ensure it's loaded
+    const buffer = await response.buffer();
+    console.log(`[WebhookManager] Avatar image loaded (${buffer.length} bytes)`);
+    
+    // Then use our standard warmup function to cache it
     await warmupAvatarUrl(personality.avatarUrl);
+    console.log(`[WebhookManager] Successfully preloaded avatar for ${personality.displayName || personality.fullName}`);
+  } catch (error) {
+    console.error(`[WebhookManager] Error preloading personality avatar:`, error.message);
   }
 }
 
