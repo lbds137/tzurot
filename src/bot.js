@@ -687,11 +687,31 @@ async function handlePersonalityInteraction(message, personality) {
     typingInterval = startTypingIndicator(message.channel);
 
     try {
-      // Check for image attachments
+      // Check for image attachments or image URLs in text
       let messageContent = message.content;
+      let imageUrl = null;
+      let hasFoundImage = false;
       
-      // If there are attachments, check for images
-      if (message.attachments && message.attachments.size > 0) {
+      // First check for image URLs in the message content
+      if (message.content) {
+        // Regular expressions to match common image URLs
+        const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
+        const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
+        
+        const urlMatch = message.content.match(imageUrlRegex) || message.content.match(discordCdnRegex);
+        
+        if (urlMatch && urlMatch[0]) {
+          imageUrl = urlMatch[0];
+          logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
+          hasFoundImage = true;
+          
+          // Remove the URL from the message content to avoid repetition
+          messageContent = message.content.replace(imageUrl, '').trim();
+        }
+      }
+      
+      // If we didn't find an image URL, check for attachments
+      if (!hasFoundImage && message.attachments && message.attachments.size > 0) {
         logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for images`);
         
         const imageAttachments = message.attachments.filter(attachment => 
@@ -699,16 +719,29 @@ async function handlePersonalityInteraction(message, personality) {
         );
         
         if (imageAttachments.size > 0) {
-          logger.info(`[Bot] Found ${imageAttachments.size} image attachments`);
+          // Get the URL from the first image attachment
+          imageUrl = Array.from(imageAttachments.values())[0].url;
+          hasFoundImage = true;
+          
+          // If there are more images, log a warning
+          if (imageAttachments.size > 1) {
+            logger.warn(`[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one image per request`);
+          }
+        }
+      }
+      
+      // If we found an image (either via URL or attachment), create multimodal content
+      if (hasFoundImage) {
+          logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
           
           // Create a multimodal content array
           const multimodalContent = [];
           
           // Add the text content if it exists
-          if (message.content) {
+          if (messageContent) {
             multimodalContent.push({
               type: 'text',
-              text: message.content
+              text: messageContent
             });
           } else {
             // Default prompt if no text was provided
@@ -718,19 +751,14 @@ async function handlePersonalityInteraction(message, personality) {
             });
           }
           
-          // Add the images (limit to first 5 to avoid overloading)
-          const imagesToProcess = Array.from(imageAttachments.values()).slice(0, 5);
-          
-          // Process each image
-          for (const attachment of imagesToProcess) {
-            multimodalContent.push({
-              type: 'image_url',
-              image_url: {
-                url: attachment.url
-              }
-            });
-            logger.debug(`[Bot] Added image to multimodal content: ${attachment.url}`);
-          }
+          // Add the image
+          multimodalContent.push({
+            type: 'image_url',
+            image_url: {
+              url: imageUrl
+            }
+          });
+          logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
           
           // Replace the message content with the multimodal array
           messageContent = multimodalContent;

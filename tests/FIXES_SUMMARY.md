@@ -861,11 +861,23 @@ We've implemented the ability for users to send images to the Discord bot, which
    }
    ```
 
-3. **Default Prompting for Image-Only Messages**:
+3. **Support for Both Image Attachments and URLs**:
+   - Added detection for image attachments in Discord messages
+   - Implemented URL detection in message content using regex patterns
+   - Supports both direct image uploads and pasted image links
+   - Automatically extracts and removes the image URL from the text to avoid repetition
+
+4. **Single Image Handling**:
+   - Implemented support for just one image per message (API limitation)
+   - Added a warning when users send multiple images
+   - Takes the first image when multiple are provided
+
+5. **Default Prompting for Image-Only Messages**:
    - Added automatic prompting for image-only messages with "What's in this image?"
    - Preserved original text when both text and images are provided
+   - Ensures sensible default behavior when users send images without text
 
-4. **Integration with Existing API Flow**:
+6. **Integration with Existing API Flow**:
    - Updated both normal and problematic personality handlers to use the new message formats
    - Maintained backward compatibility with text-only messages
    - Added proper logging throughout the image processing flow
