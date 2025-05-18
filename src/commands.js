@@ -260,9 +260,12 @@ async function handleHelpCommand(message, args) {
 
         case 'list':
           return await directSend(
-            `**${prefix} list**\n` +
-              `List all AI personalities you've added.\n\n` +
-              `Example: \`${prefix} list\``
+            `**${prefix} list [page]**\n` +
+              `List all AI personalities you've added.\n` +
+              `- \`page\` is an optional page number for pagination (default: 1)\n\n` +
+              `Examples:\n` +
+              `\`${prefix} list\` - Show first page of personalities\n` +
+              `\`${prefix} list 2\` - Show second page of personalities`
           );
 
         case 'alias':
@@ -1493,21 +1496,86 @@ async function handleAddCommand(message, args) {
 /**
  * Handle the list command
  * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
  */
-async function handleListCommand(message) {
-  // Get all personalities for the user
-  const personalities = listPersonalitiesForUser(message.author.id);
+async function handleListCommand(message, args) {
+  try {
+    // Debug logging
+    logger.info(`[Commands] List command called by user: ${message.author.id}`);
+    
+    // Get all personalities for the user
+    const personalities = listPersonalitiesForUser(message.author.id);
+    logger.info(`[Commands] Found ${personalities?.length || 0} personalities for user`);
+    
+    // Check if personalities is undefined or not an array
+    if (!Array.isArray(personalities)) {
+      logger.error(`[Commands] Error in list command: personalities is not an array: ${typeof personalities}`);
+      return message.reply('An error occurred while retrieving your personalities. Please try again later.');
+    }
 
-  if (personalities.length === 0) {
-    return message.reply(
-      `You haven't added any personalities yet. Use \`${botPrefix} add <profile_name>\` to add one.`
-    );
+    if (personalities.length === 0) {
+      logger.info(`[Commands] User has no personalities, sending empty message`);
+      return message.reply(
+        `You haven't added any personalities yet. Use \`${botPrefix} add <profile_name>\` to add one.`
+      );
+    }
+
+    // Parse page number from args if provided
+    let page = 1;
+    if (args.length > 0) {
+      const parsedPage = parseInt(args[0], 10);
+      if (!isNaN(parsedPage) && parsedPage > 0) {
+        page = parsedPage;
+        logger.info(`[Commands] Requested page ${page}`);
+      } else {
+        logger.info(`[Commands] Invalid page number provided: ${args[0]}, using default page 1`);
+      }
+    }
+    
+    // Debug logging of personality data to diagnose issues (but limit to avoid excessive logs)
+    if (personalities.length <= 10) {
+      logger.info(`[Commands] Personalities data: ${JSON.stringify(personalities.map(p => ({ 
+        fullName: p.fullName, 
+        displayName: p.displayName 
+      })))}`);
+    } else {
+      logger.info(`[Commands] Personalities data: [too many personalities to log (${personalities.length})]`);
+    }
+    
+    // Create an embed with the list using the helper function
+    logger.info(`[Commands] Creating personality list embed for user: ${message.author.id}, page ${page}`);
+    
+    try {
+      // Add special error handling for the list command
+      const result = embedHelpers.createPersonalityListEmbed(message.author.id, page);
+      
+      // Verify that the result was created successfully
+      if (!result || typeof result !== 'object' || !result.embed) {
+        logger.error(`[Commands] Invalid result object created: ${JSON.stringify(result)}`);
+        return message.reply('An error occurred while generating the personality list. Please try again later.');
+      }
+      
+      const { embed, totalPages, currentPage } = result;
+      
+      // Log pagination info
+      logger.info(`[Commands] Successfully created embed for page ${currentPage}/${totalPages}`);
+      
+      // Only try to send the embed if it was successfully created
+      if (embed && embed.data) {
+        return message.reply({ embeds: [embed] });
+      } else {
+        // Fallback if something went wrong but we didn't catch it above
+        logger.error(`[Commands] Generated embed is invalid: ${JSON.stringify(embed)}`);
+        return message.reply('An error occurred while generating the personality list. Please try again later.');
+      }
+    } catch (embedError) {
+      logger.error(`[Commands] Error creating embed for list command: ${embedError.message}`, embedError);
+      return message.reply('An error occurred while generating the personality list. Please try again later.');
+    }
+  } catch (error) {
+    logger.error(`[Commands] Error processing list command: ${error.message}`, error);
+    return message.reply(`An error occurred while processing the command: ${error.message}`);
   }
-
-  // Create an embed with the list using the helper function
-  const embed = embedHelpers.createPersonalityListEmbed(message.author.id);
-
-  return message.reply({ embeds: [embed] });
 }
 
 /**
