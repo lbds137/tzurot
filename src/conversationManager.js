@@ -295,7 +295,24 @@ function getPersonalityFromMessage(messageId, options = {}) {
   if (options.webhookUsername) {
     console.log(`[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`);
     
-    // Try to get all personalities from the personality manager
+    // First check if the webhook username follows our format "DisplayName (full-name)"
+    const webhookNameMatch = options.webhookUsername.match(/^(.+) \((.+)\)$/);
+    if (webhookNameMatch) {
+      // Extract the full name from parentheses
+      const fullName = webhookNameMatch[2];
+      console.log(`[ConversationManager] Extracted full name from webhook username: ${fullName}`);
+      
+      // Check if this full name exists in our personalities
+      const { getPersonality } = require('./personalityManager');
+      const personality = getPersonality(fullName);
+      
+      if (personality) {
+        console.log(`[ConversationManager] Found personality match by extracted full name: ${personality.fullName}`);
+        return personality.fullName;
+      }
+    }
+    
+    // If no match from the formatted name, fall back to the old method
     try {
       const { listPersonalitiesForUser } = require('./personalityManager');
       const allPersonalities = listPersonalitiesForUser();

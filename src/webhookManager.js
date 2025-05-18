@@ -229,7 +229,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         // Prepare message data for this chunk
         const messageData = {
           content: chunkContent,
-          username: personality.displayName,
+          // Format username as "DisplayName (full-name)" to avoid confusion
+          username: `${personality.displayName} (${personality.fullName})`,
           avatarURL: personality.avatarUrl,
           allowedMentions: { parse: ['users', 'roles'] }, // Allow mentions
           threadId: channel.isThread() ? channel.id : undefined, // Support for threads
