@@ -295,42 +295,61 @@ function getPersonalityFromMessage(messageId, options = {}) {
   if (options.webhookUsername) {
     console.log(`[ConversationManager] Attempting to identify personality by webhook username: "${options.webhookUsername}"`);
     
-    // First check if the webhook username follows our format "DisplayName (full-name)"
-    const webhookNameMatch = options.webhookUsername.match(/^(.+) \((.+)\)$/);
-    if (webhookNameMatch) {
-      // Extract the full name from parentheses
-      const fullName = webhookNameMatch[2];
-      console.log(`[ConversationManager] Extracted full name from webhook username: ${fullName}`);
-      
-      // Check if this full name exists in our personalities
-      const { getPersonality } = require('./personalityManager');
-      const personality = getPersonality(fullName);
-      
-      if (personality) {
-        console.log(`[ConversationManager] Found personality match by extracted full name: ${personality.fullName}`);
-        return personality.fullName;
-      }
-    }
+    // Helper function to safely get lowercase version of a string
+    const safeToLowerCase = (str) => {
+      if (!str) return '';
+      return String(str).toLowerCase();
+    };
+    
+    // We're now just using displayName for webhook usernames (no more full-name in parentheses)
+    // So we'll skip this part and go straight to matching by display name
     
     // If no match from the formatted name, fall back to the old method
     try {
       const { listPersonalitiesForUser } = require('./personalityManager');
       const allPersonalities = listPersonalitiesForUser();
       
+      if (!allPersonalities || !Array.isArray(allPersonalities)) {
+        console.error(`[ConversationManager] listPersonalitiesForUser returned invalid data:`, allPersonalities);
+        return null;
+      }
+      
+      console.log(`[ConversationManager] Checking ${allPersonalities.length} personalities for match with: ${options.webhookUsername}`);
+      
       // Look for a personality with matching display name
       for (const personality of allPersonalities) {
-        if (personality.displayName === options.webhookUsername) {
+        if (!personality) continue;
+        
+        // Exact match first
+        if (personality.displayName && personality.displayName === options.webhookUsername) {
           console.log(`[ConversationManager] Found personality match by display name: ${personality.fullName}`);
           return personality.fullName;
         }
       }
       
       // No direct match, try case-insensitive
+      const webhookUsernameLower = safeToLowerCase(options.webhookUsername);
       for (const personality of allPersonalities) {
-        if (personality.displayName && 
-            personality.displayName.toLowerCase() === options.webhookUsername.toLowerCase()) {
+        if (!personality || !personality.displayName) continue;
+        
+        const displayNameLower = safeToLowerCase(personality.displayName);
+        if (displayNameLower === webhookUsernameLower) {
           console.log(`[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`);
           return personality.fullName;
+        }
+      }
+      
+      // Try partial match as last resort
+      if (webhookUsernameLower.length > 3) { // Only try if username is substantial
+        for (const personality of allPersonalities) {
+          if (!personality || !personality.displayName) continue;
+          
+          const displayNameLower = safeToLowerCase(personality.displayName);
+          if (displayNameLower.includes(webhookUsernameLower) || 
+              webhookUsernameLower.includes(displayNameLower)) {
+            console.log(`[ConversationManager] Found personality match by partial name: ${personality.fullName}`);
+            return personality.fullName;
+          }
         }
       }
       

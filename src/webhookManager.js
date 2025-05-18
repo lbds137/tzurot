@@ -212,7 +212,17 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
       const webhook = await getOrCreateWebhook(channel);
       
       // Check if we need to split the message
-      const contentChunks = typeof content === 'string' ? splitMessage(content) : [''];
+      let contentChunks = [''];
+      try {
+        // Ensure content is a valid string
+        const safeContent = typeof content === 'string' ? content : String(content || '');
+        contentChunks = splitMessage(safeContent);
+        console.log(`[Webhook] Split message into ${contentChunks.length} chunks`);
+      } catch (error) {
+        console.error('[Webhook] Error splitting message content:', error);
+        contentChunks = ['[Error processing message content]'];
+      }
+      
       let firstSentMessage = null;
       
       // Track all sent message IDs in this conversation
@@ -226,12 +236,32 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
         // Use the chunk content as is, without adding continuation indicators
         let chunkContent = contentChunks[i];
         
+        // Safely format username to avoid NoneType errors - use ONLY the display name
+        let formattedUsername = "Bot";
+        try {
+          // Ensure displayName is set - only use displayName
+          const displayName = personality.displayName || "Unknown";
+          
+          // Just use the display name without the full name
+          formattedUsername = displayName;
+          
+          // Discord has a 32 character limit for webhook usernames
+          if (formattedUsername.length > 32) {
+            // If too long, truncate and add ellipsis
+            formattedUsername = formattedUsername.slice(0, 29) + "...";
+          }
+          
+          console.log(`[Webhook] Using simple username: ${formattedUsername}`);
+        } catch (error) {
+          console.error(`[Webhook] Error formatting username:`, error);
+          formattedUsername = "Bot"; // Fallback to simple name
+        }
+        
         // Prepare message data for this chunk
         const messageData = {
-          content: chunkContent,
-          // Format username as "DisplayName (full-name)" to avoid confusion
-          username: `${personality.displayName} (${personality.fullName})`,
-          avatarURL: personality.avatarUrl,
+          content: chunkContent || "", // Ensure content is never null/undefined
+          username: formattedUsername,
+          avatarURL: personality.avatarUrl || null,
           allowedMentions: { parse: ['users', 'roles'] }, // Allow mentions
           threadId: channel.isThread() ? channel.id : undefined, // Support for threads
         };
@@ -276,15 +306,29 @@ async function sendWebhookMessage(channel, content, personality, options = {}) {
           // If this is because of length, try to send a simpler message indicating the error
           if (innerError.code === 50035) { // Invalid Form Body
             try {
+              // Create a safe fallback message with proper error handling
+              // Just use the display name without the full name
+              const safeDisplayName = personality?.displayName || "Bot";
+              const safeAvatarURL = personality?.avatarUrl || null;
+              const safeThreadId = channel.isThread() ? channel.id : undefined;
+              
               await webhook.send({
                 content: `*[Error: Message chunk was too long to send. Some content may be missing.]*`,
-                username: personality.displayName,
-                avatarURL: personality.avatarUrl,
-                threadId: channel.isThread() ? channel.id : undefined,
+                username: safeDisplayName,
+                avatarURL: safeAvatarURL,
+                threadId: safeThreadId,
               });
             } catch (finalError) {
-              console.error('Failed to send error notification:', finalError);
+              console.error('[Webhook] Failed to send error notification:', finalError);
             }
+          } else {
+            // Log all error properties for better debugging
+            console.error('[Webhook] Webhook error details:', {
+              code: innerError.code,
+              message: innerError.message,
+              name: innerError.name,
+              stack: innerError.stack?.split("\n")[0] || "No stack trace"
+            });
           }
           
           // If this is the first chunk and it failed, we need to propagate the error

@@ -1,6 +1,7 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const { registerPersonality, getPersonality, setPersonalityAlias, getPersonalityByAlias, removePersonality, listPersonalitiesForUser } = require('./personalityManager');
 const { recordConversation, clearConversation, activatePersonality, deactivatePersonality } = require('./conversationManager');
+const { knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
 const { botPrefix } = require('../config');
 
 /**
@@ -81,6 +82,14 @@ async function processCommand(message, command, args) {
 
       case 'status':
         return await handleStatusCommand(message, args);
+        
+      case 'debug':
+        // Only server admins should have access to debug commands
+        if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          return await handleDebugCommand(message, args);
+        } else {
+          return await directSend(`You need Administrator permission to use this command.`);
+        }
 
       default:
         return await directSend(`Unknown command: \`${command}\`. Use \`${prefix} help\` to see available commands.`);
@@ -149,6 +158,22 @@ async function handleHelpCommand(message, args) {
             `- \`alias\` is an optional nickname you can use to reference this personality (optional)\n\n` +
             `Example: \`${prefix} add lilith-tzel-shani lilith\``
           );
+        
+        case 'debug':
+          // Only show this for users with Administrator permission
+          if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return await directSend(message,
+              `**${prefix} debug <subcommand>**\n` +
+              `Advanced debugging tools (Requires Administrator permission).\n` +
+              `Available subcommands:\n` +
+              `- \`problems\` - Display information about problematic personalities\n\n` +
+              `Example: \`${prefix} debug problems\``
+            );
+          } else {
+            return await directSend(message, 
+              `This command is only available to administrators.`
+            );
+          }
 
         case 'list':
           return await directSend(message,
@@ -234,6 +259,14 @@ async function handleHelpCommand(message, args) {
         { name: `${prefix} reset`, value: 'Clear your active conversation' }
       )
       .setFooter({ text: 'To interact with a personality, mention them with @alias or reply to their messages' });
+    
+    // Add admin commands only for users with Administrator permission
+    if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      embed.addFields(
+        { name: `Admin Commands`, value: 'The following commands are only available to administrators' },
+        { name: `${prefix} debug <subcommand>`, value: 'Advanced debugging tools (Use `help debug` for more info)' }
+      );
+    }
 
     return await directSend(message, { embeds: [embed] });
   } catch (error) {
@@ -256,9 +289,22 @@ async function handleAddCommand(message, args) {
   const alias = args[1] || null; // Optional alias
 
   try {
+    // Helper function to safely get lowercase version of a string
+    const safeToLowerCase = (str) => {
+      if (!str) return '';
+      return String(str).toLowerCase();
+    };
+
     // Check if the personality already exists for this user
     const existingPersonalities = listPersonalitiesForUser(message.author.id);
-    const alreadyExists = existingPersonalities.some(p => p.fullName.toLowerCase() === profileName.toLowerCase());
+    console.log(`[Commands] Checking if ${profileName} already exists among ${existingPersonalities.length} personalities`);
+    
+    // Safely check for existing personality
+    const normalizedProfileName = safeToLowerCase(profileName);
+    const alreadyExists = existingPersonalities.some(p => {
+      if (!p || !p.fullName) return false;
+      return safeToLowerCase(p.fullName) === normalizedProfileName;
+    });
 
     if (alreadyExists) {
       return message.reply(`You already have a personality with the name \`${profileName}\`.`);
@@ -267,35 +313,50 @@ async function handleAddCommand(message, args) {
     // Create a loading message
     const loadingMsg = await message.reply(`Adding personality \`${profileName}\`... This might take a moment.`);
 
-    // Register the new personality with fetching profile info
-    const personality = await registerPersonality(message.author.id, profileName, {
-      // No need to provide display name or avatar as they'll be fetched
-      description: `Added by ${message.author.tag}`
-    }, true);
+    try {
+      // Register the new personality with fetching profile info - track the time it takes
+      console.log(`[Commands] Starting personality registration for ${profileName}`);
+      const startTime = Date.now();
+      
+      const personality = await registerPersonality(message.author.id, profileName, {
+        // No need to provide display name or avatar as they'll be fetched
+        description: `Added by ${message.author.tag}`
+      }, true);
+      
+      console.log(`[Commands] Completed personality registration in ${Date.now() - startTime}ms`);
 
-    // If an alias was provided, set it
-    if (alias) {
-      setPersonalityAlias(alias, profileName);
+      // If an alias was provided, set it
+      if (alias) {
+        setPersonalityAlias(alias, profileName);
+      }
+
+      // Create an embed with the personality info
+      const embed = new EmbedBuilder()
+        .setTitle('Personality Added')
+        .setDescription(`Successfully added personality: ${personality.displayName}`)
+        .setColor('#00FF00')
+        .addFields(
+          { name: 'Full Name', value: personality.fullName },
+          { name: 'Display Name', value: personality.displayName || 'Not set' },
+          { name: 'Alias', value: alias || 'None set' }
+        );
+
+      // Add the avatar to the embed if available
+      if (personality.avatarUrl) {
+        embed.setThumbnail(personality.avatarUrl);
+      }
+
+      // Update the loading message with the result instead of sending a new one
+      console.log(`[Commands] Updating loading message with final personality info`);
+      await loadingMsg.edit({ content: null, embeds: [embed] }).catch(err => {
+        console.error(`[Commands] Error updating loading message:`, err);
+      });
+    } catch (innerError) {
+      console.error(`[Commands] Inner error during personality registration:`, innerError);
+      await loadingMsg.edit(`Failed to complete the personality registration: ${innerError.message}`).catch(err => {
+        console.error(`[Commands] Error updating error message:`, err);
+      });
     }
-
-    // Create an embed with the personality info
-    const embed = new EmbedBuilder()
-      .setTitle('Personality Added')
-      .setDescription(`Successfully added personality: ${personality.displayName}`)
-      .setColor('#00FF00')
-      .addFields(
-        { name: 'Full Name', value: personality.fullName },
-        { name: 'Display Name', value: personality.displayName || 'Not set' },
-        { name: 'Alias', value: alias || 'None set' }
-      );
-
-    // Add the avatar to the embed if available
-    if (personality.avatarUrl) {
-      embed.setThumbnail(personality.avatarUrl);
-    }
-
-    // Update the loading message with the result
-    await loadingMsg.edit({ content: null, embeds: [embed] });
   } catch (error) {
     console.error(`Error adding personality ${profileName}:`, error);
     return message.reply(`Failed to add personality \`${profileName}\`. Error: ${error.message}`);
@@ -620,6 +681,82 @@ function formatUptime(ms) {
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
 
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
+/**
+ * Handle the debug command - only available to administrators
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleDebugCommand(message, args) {
+  if (args.length < 1) {
+    return message.reply(`Please specify a debug subcommand. Available subcommands: \`problems\``);
+  }
+
+  const subCommand = args[0].toLowerCase();
+
+  switch (subCommand) {
+    case 'problems':
+    case 'problematic':
+      return await handleDebugProblematicCommand(message, args.slice(1));
+    
+    default:
+      return message.reply(`Unknown debug subcommand: \`${subCommand}\`. Available subcommands: \`problems\``);
+  }
+}
+
+/**
+ * Handle the debug problematic command to show problematic personalities
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleDebugProblematicCommand(message, args) {
+  // Gather information about known and runtime problematic personalities
+  const knownCount = Object.keys(knownProblematicPersonalities).length;
+  const runtimeCount = runtimeProblematicPersonalities.size;
+  
+  // Create the embed
+  const embed = new EmbedBuilder()
+    .setTitle('Problematic Personalities Debug')
+    .setDescription('These personalities have been detected as having issues with the API')
+    .setColor('#FF5555')
+    .addFields(
+      { name: 'Known Problematic Personalities', value: knownCount > 0 ? `${knownCount} personalities` : 'None' },
+      { name: 'Runtime Detected Problematic Personalities', value: runtimeCount > 0 ? `${runtimeCount} personalities` : 'None' }
+    );
+  
+  // Add known problematic personalities
+  if (knownCount > 0) {
+    for (const [name, info] of Object.entries(knownProblematicPersonalities)) {
+      embed.addFields({
+        name: `Known: ${name}`,
+        value: `Error Patterns: ${info.errorPatterns ? info.errorPatterns.join(', ') : 'Not specified'}\nCustom Responses: ${info.responses ? 'Yes' : 'No'}`
+      });
+    }
+  }
+  
+  // Add runtime detected problematic personalities
+  if (runtimeCount > 0) {
+    for (const [name, info] of runtimeProblematicPersonalities.entries()) {
+      const detectedAt = new Date(info.firstDetectedAt).toLocaleString();
+      embed.addFields({
+        name: `Runtime: ${name}`,
+        value: `Detected: ${detectedAt}\nError Count: ${info.errorCount}\nLast Error: ${info.lastErrorContent?.substring(0, 100) || 'Unknown'}${info.lastErrorContent?.length > 100 ? '...' : ''}`
+      });
+    }
+  }
+  
+  // Add tips for handling problematic personalities
+  embed.addFields({
+    name: 'Tips for Handling',
+    value: [
+      '1. Consider adding recurring problematic personalities to the knownProblematicPersonalities in aiService.js',
+      '2. Create custom themed responses for known problematic personalities',
+      '3. Runtime-detected problematic personalities are reset when the bot restarts'
+    ].join('\n')
+  });
+  
+  return message.reply({ embeds: [embed] });
 }
 
 module.exports = {

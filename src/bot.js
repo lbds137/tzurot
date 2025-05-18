@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
-const { getAiResponse } = require('./aiService');
+const { getAiResponse, isErrorResponse, registerProblematicPersonality, 
+  knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
 const webhookManager = require('./webhookManager');
 const { getPersonalityByAlias, getPersonality, registerPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
@@ -97,6 +98,16 @@ async function initBot() {
           // Pass the webhook username as a fallback for finding personalities
           const webhookUsername = referencedMessage.author ? referencedMessage.author.username : null;
           console.log(`[Reply Handler] Webhook username: ${webhookUsername || 'unknown'}`);
+          
+          // Log webhook details for debugging
+          if (referencedMessage.author && referencedMessage.author.bot) {
+            console.log(`[Reply Handler] Referenced message is from bot: ${JSON.stringify({
+              username: referencedMessage.author.username,
+              id: referencedMessage.author.id,
+              webhookId: referencedMessage.webhookId
+            })}`);
+          }
+          
           const personalityName = getPersonalityFromMessage(referencedMessage.id, { webhookUsername });
           console.log(`[Reply Handler] Personality lookup result: ${personalityName || 'null'}`);
           
@@ -133,26 +144,31 @@ async function initBot() {
     }
     
     // @mention personality triggering
-    const mentionMatch = message.content.match(/@(\w+)/i);
-    if (mentionMatch) {
-      const mentionName = mentionMatch[1];
-      console.log(`[Mention Handler] Found @mention: ${mentionName}, looking up personality`);
-      
-      // First try to get personality directly by full name
-      let personality = getPersonality(mentionName);
-      
-      // If not found as direct name, try it as an alias
-      if (!personality) {
-          personality = getPersonalityByAlias(mentionName);
+    try {
+      // Updated regex to match word characters AND hyphens, allowing names like "ha-shem"
+      const mentionMatch = message.content ? message.content.match(/@([\w-]+)/i) : null;
+      if (mentionMatch && mentionMatch[1]) {
+        const mentionName = mentionMatch[1];
+        console.log(`[Mention Handler] Found @mention: ${mentionName}, looking up personality`);
+        
+        // First try to get personality directly by full name
+        let personality = getPersonality(mentionName);
+        
+        // If not found as direct name, try it as an alias
+        if (!personality) {
+            personality = getPersonalityByAlias(mentionName);
+        }
+        
+        console.log(`[Mention Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+        
+        if (personality) {
+          // Process the message with this personality
+          await handlePersonalityInteraction(message, personality);
+          return;
+        }
       }
-      
-      console.log(`[Mention Handler] Personality lookup result: ${personality ? personality.fullName : 'null'}`);
-      
-      if (personality) {
-        // Process the message with this personality
-        await handlePersonalityInteraction(message, personality);
-        return;
-      }
+    } catch (error) {
+      console.error(`[Mention Handler] Error processing mention:`, error);
     }
 
     // Check for active conversation
@@ -225,25 +241,65 @@ async function handlePersonalityInteraction(message, personality) {
     try {
       // Get AI response with user and channel context
       console.log(`Getting AI response from ${personality.fullName} for ${message.author.tag}`);
-      const aiResponse = await getAiResponse(
-          personality.fullName,
-          message.content,
-          {
-            userId: message.author.id,
-            channelId: message.channel.id
-          }
-      );
-  
-      // Clear typing indicator interval
-      clearInterval(typingInterval);
-  
-      // Send the response via webhook - use the function directly from the module
-      console.log(`[Bot] Sending webhook message as personality: ${personality.fullName}`);
-      const result = await webhookManager.sendWebhookMessage(
-          message.channel,
-          aiResponse,
-          personality
-      );
+      
+      // Create a special case for Lucifer to avoid errors
+      let result;
+      if (personality.fullName === "lucifer-kochav-shenafal") {
+        console.log(`[Bot] Using special handling for Lucifer to avoid errors`);
+        try {
+          // Get AI response but handle it differently
+          const aiResponse = await getAiResponse(
+              personality.fullName,
+              message.content,
+              {
+                userId: message.author.id,
+                channelId: message.channel.id
+              }
+          );
+          
+          // Clear typing indicator interval
+          clearInterval(typingInterval);
+          
+          // Create a clone of the personality with simplified data
+          const personalityClone = {
+            fullName: personality.fullName,
+            displayName: "Lucifer", // Hard-code to avoid any possible issues
+            avatarUrl: personality.avatarUrl
+          };
+          
+          // Send the webhook message with the cloned data
+          console.log(`[Bot] Sending webhook message as cloned Lucifer personality`);
+          result = await webhookManager.sendWebhookMessage(
+              message.channel,
+              aiResponse,
+              personalityClone
+          );
+        } catch (specialError) {
+          console.error(`[Bot] Error in special Lucifer handling:`, specialError);
+          throw specialError;
+        }
+      } else {
+        // Normal handling for other personalities
+        const aiResponse = await getAiResponse(
+            personality.fullName,
+            message.content,
+            {
+              userId: message.author.id,
+              channelId: message.channel.id
+            }
+        );
+        
+        // Clear typing indicator interval
+        clearInterval(typingInterval);
+        
+        // Send the response via webhook - use the function directly from the module
+        console.log(`[Bot] Sending webhook message as personality: ${personality.fullName}`);
+        result = await webhookManager.sendWebhookMessage(
+            message.channel,
+            aiResponse,
+            personality
+        );
+      }
       console.log(`[Bot] Webhook result type: ${typeof result}, has messageIds: ${result && result.messageIds ? 'yes' : 'no'}`);
       if (result && result.messageIds) {
         console.log(`[Bot] Got ${result.messageIds.length} message IDs from webhook`);
