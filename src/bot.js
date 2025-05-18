@@ -549,20 +549,24 @@ async function initBot() {
           // Split the raw text into words
           const words = rawMentionText.split(/\s+/);
           
-          // Try different word combinations, from most specific to least
-          const combinations = [
-            // Try 4 words (if available)
-            words.slice(0, 4).join(' '),
-            // Try 3 words (if available)  
-            words.slice(0, 3).join(' '),
-            // Try 2 words
-            words.slice(0, 2).join(' '),
-          ];
+          // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
+          // For example, match "@bambi prime" before "@bambi" when user types "@bambi prime hi"
           
-          // Remove any empty combinations (for matches with fewer words)
+          // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
+          const maxWords = Math.min(4, words.length);
+          
+          // Create array of combinations from longest to shortest
+          const combinations = [];
+          for (let i = maxWords; i >= 2; i--) {
+            combinations.push(words.slice(0, i).join(' '));
+          }
+          
+          // Remove any empty combinations (shouldn't happen, but just in case)
           const validCombinations = combinations.filter(c => c.trim() !== '');
           
-          // Try each combination, from most specific to least
+          logger.debug(`Trying word combinations in order: ${JSON.stringify(validCombinations)}`);
+          
+          // Try each combination, from longest (most specific) to shortest
           for (const mentionText of validCombinations) {
             logger.debug(`Trying mention combination: "${mentionText}"`);
             
@@ -579,9 +583,10 @@ async function initBot() {
           // If we found a personality, handle the interaction
           if (foundPersonality) {
             // For multi-word mentions, use the matched mention text that worked
-            const matchedMentionText = combinations.find(combo => 
-              getPersonalityByAlias(combo) === foundPersonality);
+            // We can safely use the current mentionText since we break the loop when we find a match
+            const matchedMentionText = mentionText;
             
+            logger.info(`Using matched multi-word mention: "${matchedMentionText}" for personality ${foundPersonality.fullName}`);
             await handlePersonalityInteraction(message, foundPersonality, matchedMentionText);
             return;
           } else {

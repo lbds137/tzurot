@@ -48,6 +48,7 @@ Other mentions (like @user mentions) in the message will be preserved and passed
 - Mentions can be followed by punctuation (e.g., "@disposal chute?")
 - Apostrophes and certain special characters in aliases are supported
 - Self-referential aliases are no longer created (e.g., no alias needed for `lilith-tzel-shani` since `@lilith-tzel-shani` works directly)
+- The bot prioritizes the longest matching alias first. For example, if both `bambi` and `bambi prime` are valid aliases, the message `@bambi prime hi` will trigger the `bambi prime` personality, not `bambi`
 
 ## Examples
 

@@ -134,4 +134,24 @@ describe('Bot @Mention Regex Tests', () => {
     const extracted = match[1].trim().split(/\s+/).slice(0, 3).join(' ');
     expect(extracted).toBe("bill's disposal system");
   });
+  
+  // Test for the longest match priority case
+  it('should capture the full multi-word mention when part of it could be a valid mention too', () => {
+    const message = "Hey @bambi prime, can you help me?";
+    
+    // Reset regex
+    spacedMentionRegex.lastIndex = 0;
+    const match = spacedMentionRegex.exec(message);
+    
+    expect(match).not.toBeNull();
+    
+    // The full mention "bambi prime" should be captured
+    const fullCapture = match[1].trim();
+    expect(fullCapture).toBe("bambi prime");
+    
+    // This test just verifies the regex captures the full text
+    // The actual prioritization of "bambi prime" over "bambi" 
+    // is handled in the bot.js implementation logic that tries
+    // the longest word combinations first
+  });
 });
