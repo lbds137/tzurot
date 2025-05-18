@@ -89,7 +89,13 @@ async function validateAvatarUrl(avatarUrl) {
       
       // Check content type to ensure it's an image
       const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.startsWith('image/')) {
+      if (!contentType) {
+        logger.warn(`[WebhookManager] Avatar URL has no content-type header: ${avatarUrl}`);
+        return false;
+      }
+      
+      // Accept both image/* and application/octet-stream (commonly used for binary files like images)
+      if (!contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
         logger.warn(`[WebhookManager] Avatar URL does not point to an image: ${contentType} for ${avatarUrl}`);
         return false;
       }
@@ -238,6 +244,17 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
       }
       
       throw new Error(`Failed to warm up avatar: ${response.status} ${response.statusText}`);
+    }
+    
+    // Check content type to ensure it's an image or a generic binary file
+    const contentType = response.headers.get('content-type');
+    // Log the content type for debugging purposes
+    logger.debug(`[WebhookManager] Avatar URL content type: ${contentType} for ${avatarUrl}`);
+    
+    // Skip this check for application/octet-stream as it's a generic binary content type often used for images
+    if (contentType && !contentType.startsWith('image/') && contentType !== 'application/octet-stream') {
+      logger.warn(`[WebhookManager] Avatar URL has non-image content type: ${contentType} for ${avatarUrl}`);
+      // Don't reject here, just log a warning - the image extension or reader check will validate further
     }
 
     // Read a small chunk of the response to ensure it's properly loaded

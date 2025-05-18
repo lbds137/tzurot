@@ -12,21 +12,72 @@ const ongoingRequests = new Map();
 
 // Queue for pending profile info requests to prevent too many requests at once
 const requestQueue = [];
-const MAX_CONCURRENT_REQUESTS = 2; // Maximum number of concurrent requests
+const MAX_CONCURRENT_REQUESTS = 1; // Reduced from 2 to 1 to avoid rate limiting
 let activeRequests = 0;
+
+// Time in ms to wait between API requests to avoid rate limiting
+const REQUEST_DELAY = 3000; // 3 seconds between requests (increased from 1.5s)
+let lastRequestTime = 0;
+
+// Global rate limit tracking to handle server-wide limits
+let consecutiveRateLimits = 0;
+const MAX_CONSECUTIVE_RATE_LIMITS = 3;
+const RATE_LIMIT_COOLDOWN_PERIOD = 60000; // 1 minute cooldown if we hit too many rate limits
 
 // Use this fetch implementation which allows for easier testing
 // Wrapped in a function to make it easier to mock in tests
 const fetchImplementation = (...args) => nodeFetch(...args);
 
 /**
- * Process the queue of pending profile info requests
+ * Process the queue of pending profile info requests with rate limiting
  */
 function processRequestQueue() {
+  // Check if we have too many consecutive rate limits
+  if (consecutiveRateLimits >= MAX_CONSECUTIVE_RATE_LIMITS) {
+    logger.warn(`[ProfileInfoFetcher] Queue processing paused due to rate limiting (${consecutiveRateLimits} consecutive 429s)`);
+    // Wait for a significant cooldown to avoid hitting rate limits again
+    setTimeout(processRequestQueue, RATE_LIMIT_COOLDOWN_PERIOD);
+    return;
+  }
+
   // If we have capacity and pending requests, process them
-  while (activeRequests < MAX_CONCURRENT_REQUESTS && requestQueue.length > 0) {
+  if (activeRequests < MAX_CONCURRENT_REQUESTS && requestQueue.length > 0) {
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    
+    // Add some random jitter to avoid synchronized requests
+    const jitter = Math.floor(Math.random() * 500);
+    
+    // If we need to wait before making another request
+    if (timeSinceLastRequest < REQUEST_DELAY) {
+      // Schedule the next request after the delay plus jitter
+      const waitTime = REQUEST_DELAY - timeSinceLastRequest + jitter;
+      logger.debug(`[ProfileInfoFetcher] Rate limiting: waiting ${waitTime}ms before next request (queue length: ${requestQueue.length})`);
+      
+      setTimeout(processRequestQueue, waitTime);
+      return;
+    }
+    
+    // Process one request at a time with proper spacing
     const nextRequest = requestQueue.shift();
+    lastRequestTime = now;
+    
+    // Log the current queue state
+    logger.debug(`[ProfileInfoFetcher] Processing next request from queue (${requestQueue.length} remaining)`);
+    
+    // Execute the request
     nextRequest();
+    
+    // If there are more requests, schedule the next check with sufficient delay
+    if (requestQueue.length > 0) {
+      // Use the configured delay plus a bit of jitter
+      const nextCheckDelay = REQUEST_DELAY + jitter;
+      logger.debug(`[ProfileInfoFetcher] Scheduling next queue check in ${nextCheckDelay}ms`);
+      setTimeout(processRequestQueue, nextCheckDelay);
+    }
+  } else if (requestQueue.length > 0) {
+    // If we don't have capacity, check again soon
+    setTimeout(processRequestQueue, 1000);
   }
 }
 
@@ -85,24 +136,110 @@ async function fetchProfileInfo(profileName) {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       
       try {
-        const response = await fetchImplementation(endpoint, {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache',
-            'Referer': 'https://discord.com/'
-          },
-          signal: controller.signal
-        });
+        // Implement retry with exponential backoff for rate limiting
+        let retryCount = 0;
+        const maxRetries = 5; // Increased from 3 to 5
+        let response;
         
-        // Clear the timeout since we got a response
+        // Check if we've hit too many consecutive rate limits globally
+        if (consecutiveRateLimits >= MAX_CONSECUTIVE_RATE_LIMITS) {
+          const cooldownTime = RATE_LIMIT_COOLDOWN_PERIOD;
+          logger.warn(`[ProfileInfoFetcher] Too many consecutive rate limits (${consecutiveRateLimits}), enforcing global cooldown of ${cooldownTime/1000}s`);
+          
+          // Wait for the global cooldown period
+          await new Promise(resolve => setTimeout(resolve, cooldownTime));
+          
+          // Reset counter after cooldown
+          consecutiveRateLimits = 0;
+        }
+        
+        while (retryCount <= maxRetries) {
+          // Add jitter to avoid synchronized requests
+          const jitter = Math.floor(Math.random() * 500);
+          
+          // Ensure minimum spacing between requests to API
+          const timeSinceLastRequest = Date.now() - lastRequestTime;
+          if (timeSinceLastRequest < REQUEST_DELAY) {
+            const waitTime = REQUEST_DELAY - timeSinceLastRequest + jitter;
+            logger.debug(`[ProfileInfoFetcher] Enforcing spacing between requests: waiting ${waitTime}ms before fetch for ${profileName}`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+          }
+          
+          // Update last request time
+          lastRequestTime = Date.now();
+          
+          try {
+            response = await fetchImplementation(endpoint, {
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Referer': 'https://discord.com/'
+              },
+              signal: controller.signal,
+              // Add a proper timeout for the fetch call
+              timeout: 15000 // 15 second timeout
+            });
+            
+            // Reset consecutive rate limits if we get a successful response
+            if (response.status !== 429) {
+              consecutiveRateLimits = 0;
+            }
+            
+            // If we got rate limited, implement exponential backoff
+            if (response.status === 429) {
+              retryCount++;
+              consecutiveRateLimits++;
+              
+              if (retryCount <= maxRetries) {
+                // Get retry-after header or use exponential backoff with larger base wait time
+                const retryAfter = response.headers.get('retry-after');
+                // Use a more aggressive backoff strategy
+                const baseWaitTime = 3000; // 3 seconds base wait time
+                const waitTime = retryAfter 
+                  ? (parseInt(retryAfter, 10) * 1000) 
+                  : (baseWaitTime * Math.pow(2, retryCount) + jitter);
+                
+                logger.warn(`[ProfileInfoFetcher] Rate limited (429) for ${profileName}, retry ${retryCount}/${maxRetries} after ${waitTime}ms. Consecutive rate limits: ${consecutiveRateLimits}`);
+                
+                // Update last request time to ensure proper spacing in the queue
+                lastRequestTime = Date.now();
+                
+                // Wait for the backoff period
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue; // Try again
+              }
+            }
+          } catch (fetchError) {
+            // Handle network errors, like timeouts or connection issues
+            if (fetchError.name === 'AbortError' || fetchError.type === 'aborted') {
+              logger.warn(`[ProfileInfoFetcher] Request timed out for ${profileName}, retry ${retryCount + 1}/${maxRetries}`);
+              retryCount++;
+              
+              if (retryCount <= maxRetries) {
+                // Use exponential backoff for network errors too
+                const waitTime = 2000 * Math.pow(2, retryCount) + jitter;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                continue; // Try again
+              }
+            }
+            
+            // Re-throw for other types of errors
+            throw fetchError;
+          }
+          
+          // If we get here, either the request succeeded or we got a non-429 error or exhausted retries
+          break;
+        }
+        
+        // Clear the timeout since we got a response (do this whether it's OK or not)
         clearTimeout(timeoutId);
 
         if (!response.ok) {
           logger.error(
-            `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText}`
+            `[ProfileInfoFetcher] API response error: ${response.status} ${response.statusText} for ${profileName}`
           );
           resolvePromise(null);
           return;
@@ -144,8 +281,11 @@ async function fetchProfileInfo(profileName) {
       ongoingRequests.delete(profileName);
       activeRequests--;
       
-      // Check if there are more requests in the queue
-      setTimeout(processRequestQueue, 0);
+      // Update the last request time to ensure proper spacing
+      lastRequestTime = Date.now();
+      
+      // Check if there are more requests in the queue, but respect the rate limiting delay
+      setTimeout(processRequestQueue, REQUEST_DELAY);
     }
   };
 
