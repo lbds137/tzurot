@@ -687,53 +687,93 @@ async function handlePersonalityInteraction(message, personality) {
     typingInterval = startTypingIndicator(message.channel);
 
     try {
-      // Check for image attachments or image URLs in text
+      // Check for image/audio attachments or URLs in text
       let messageContent = message.content;
       let imageUrl = null;
+      let audioUrl = null;
       let hasFoundImage = false;
+      let hasFoundAudio = false;
       
-      // First check for image URLs in the message content
+      // First check for media URLs in the message content
       if (message.content) {
         // Regular expressions to match common image URLs
         const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
         const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
         
-        const urlMatch = message.content.match(imageUrlRegex) || message.content.match(discordCdnRegex);
+        // Regular expressions to match common audio URLs
+        const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg)(\?\S*)?/i;
         
-        if (urlMatch && urlMatch[0]) {
-          imageUrl = urlMatch[0];
-          logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
-          hasFoundImage = true;
+        // First check for audio URLs (prioritize audio over images per API limitation)
+        const audioMatch = message.content.match(audioUrlRegex);
+        
+        if (audioMatch && audioMatch[0]) {
+          audioUrl = audioMatch[0];
+          logger.info(`[Bot] Found audio URL in message content: ${audioUrl}`);
+          hasFoundAudio = true;
           
           // Remove the URL from the message content to avoid repetition
-          messageContent = message.content.replace(imageUrl, '').trim();
-        }
-      }
-      
-      // If we didn't find an image URL, check for attachments
-      if (!hasFoundImage && message.attachments && message.attachments.size > 0) {
-        logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for images`);
-        
-        const imageAttachments = message.attachments.filter(attachment => 
-          attachment.contentType && attachment.contentType.startsWith('image/')
-        );
-        
-        if (imageAttachments.size > 0) {
-          // Get the URL from the first image attachment
-          imageUrl = Array.from(imageAttachments.values())[0].url;
-          hasFoundImage = true;
+          messageContent = message.content.replace(audioUrl, '').trim();
+        } else {
+          // If no audio URL was found, check for image URLs
+          const imageMatch = message.content.match(imageUrlRegex) || message.content.match(discordCdnRegex);
           
-          // If there are more images, log a warning
-          if (imageAttachments.size > 1) {
-            logger.warn(`[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one image per request`);
+          if (imageMatch && imageMatch[0]) {
+            imageUrl = imageMatch[0];
+            logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
+            hasFoundImage = true;
+            
+            // Remove the URL from the message content to avoid repetition
+            messageContent = message.content.replace(imageUrl, '').trim();
           }
         }
       }
       
-      // If we found an image (either via URL or attachment), create multimodal content
-      if (hasFoundImage) {
-        logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
+      // If we didn't find any media URL, check for attachments
+      if (!hasFoundImage && !hasFoundAudio && message.attachments && message.attachments.size > 0) {
+        logger.info(`[Bot] Message has ${message.attachments.size} attachments, checking for media`);
         
+        // First check for audio attachments (prioritize audio over images per API limitation)
+        const audioAttachments = message.attachments.filter(attachment => {
+          // Check content type (if available)
+          if (attachment.contentType && attachment.contentType.startsWith('audio/')) {
+            return true;
+          }
+          
+          // Check file extension as fallback
+          const url = attachment.url || '';
+          return url.endsWith('.mp3') || url.endsWith('.wav') || url.endsWith('.ogg');
+        });
+        
+        if (audioAttachments.size > 0) {
+          // Get the URL from the first audio attachment
+          audioUrl = Array.from(audioAttachments.values())[0].url;
+          hasFoundAudio = true;
+          
+          // If there are more audio files, log a warning
+          if (audioAttachments.size > 1) {
+            logger.warn(`[Bot] Ignoring ${audioAttachments.size - 1} additional audio files - API only supports one media per request`);
+          }
+        } else {
+          // If no audio attachments were found, check for image attachments
+          const imageAttachments = message.attachments.filter(attachment => 
+            attachment.contentType && attachment.contentType.startsWith('image/')
+          );
+          
+          if (imageAttachments.size > 0) {
+            // Get the URL from the first image attachment
+            imageUrl = Array.from(imageAttachments.values())[0].url;
+            hasFoundImage = true;
+            
+            // If there are more images, log a warning
+            if (imageAttachments.size > 1) {
+              logger.warn(`[Bot] Ignoring ${imageAttachments.size - 1} additional images - API only supports one media per request`);
+            }
+          }
+        }
+      }
+      
+      // If we found media (either via URL or attachment), create multimodal content
+      if (hasFoundImage || hasFoundAudio) {
         // Create a multimodal content array
         const multimodalContent = [];
         
@@ -744,21 +784,46 @@ async function handlePersonalityInteraction(message, personality) {
             text: messageContent
           });
         } else {
-          // Default prompt if no text was provided
-          multimodalContent.push({
-            type: 'text',
-            text: "What's in this image?"
-          });
+          // Default prompt based on media type
+          if (hasFoundAudio) {
+            multimodalContent.push({
+              type: 'text',
+              text: "Please transcribe and respond to this audio message"
+            });
+          } else if (hasFoundImage) {
+            multimodalContent.push({
+              type: 'text',
+              text: "What's in this image?"
+            });
+          }
         }
         
-        // Add the image
-        multimodalContent.push({
-          type: 'image_url',
-          image_url: {
-            url: imageUrl
+        // Add the media content - prioritize audio over image if both are present
+        // (per API limitation: only one media type is processed, with audio taking precedence)
+        if (hasFoundAudio) {
+          logger.info(`[Bot] Processing audio with URL: ${audioUrl}`);
+          multimodalContent.push({
+            type: 'audio_url',
+            audio_url: {
+              url: audioUrl
+            }
+          });
+          logger.debug(`[Bot] Added audio to multimodal content: ${audioUrl}`);
+          
+          // If we also found an image, log that we're ignoring it due to API limitation
+          if (hasFoundImage) {
+            logger.warn(`[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
           }
-        });
-        logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
+        } else if (hasFoundImage) {
+          logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
+          multimodalContent.push({
+            type: 'image_url',
+            image_url: {
+              url: imageUrl
+            }
+          });
+          logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
+        }
         
         // Replace the message content with the multimodal array
         messageContent = multimodalContent;

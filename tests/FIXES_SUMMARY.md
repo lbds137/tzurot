@@ -829,20 +829,23 @@ This change provides several benefits:
 - Better handling of special formats or custom URLs
 - Reduced dependency on specific URL patterns
 
-## Added Support for Image Processing with OpenAI-Compatible API
+## Added Support for Image and Audio Processing with OpenAI-Compatible API
 
-We've implemented the ability for users to send images to the Discord bot, which are then processed using the OpenAI-compatible API's multimodal capabilities.
+We've implemented the ability for users to send images and audio files to the Discord bot, which are then processed using the OpenAI-compatible API's multimodal capabilities.
 
 ### Implementation Details
 
-1. **Attachment Detection and Filtering**:
-   - Added logic to detect and process image attachments in Discord messages
-   - Implemented filtering to identify valid image attachments by content type
-   - Added handling for both text+image and image-only messages
+1. **Media Attachment Detection and Filtering**:
+   - Added logic to detect and process image and audio attachments in Discord messages
+   - Implemented filtering to identify valid media attachments by content type
+   - Added handling for both text+media and media-only messages
+   - Prioritized processing of images over audio (if both are present)
 
 2. **Multimodal Content Formatting**:
    - Created a `formatApiMessages` utility function to properly format messages for the API
-   - Implemented OpenAI-compatible message structure with mixed text and image content:
+   - Implemented OpenAI-compatible message structure with mixed text and media content:
+   
+   **For Images:**
    ```json
    {
      "role": "user",
@@ -860,24 +863,49 @@ We've implemented the ability for users to send images to the Discord bot, which
      ]
    }
    ```
+   
+   **For Audio:**
+   ```json
+   {
+     "role": "user",
+     "content": [
+       {
+         "type": "text",
+         "text": "Please transcribe and respond to this audio message"
+       },
+       {
+         "type": "audio_url",
+         "audio_url": {
+           "url": "https://example.com/audio.mp3"
+         }
+       }
+     ]
+   }
+   ```
 
-3. **Support for Both Image Attachments and URLs**:
-   - Added detection for image attachments in Discord messages
+3. **Support for Both Attachments and URLs**:
+   - Added detection for media attachments in Discord messages
    - Implemented URL detection in message content using regex patterns
-   - Supports both direct image uploads and pasted image links
-   - Automatically extracts and removes the image URL from the text to avoid repetition
+   - Supports both direct uploads and pasted links
+   - Added support for common audio formats (mp3, wav, ogg)
+   - Automatically extracts and removes the media URL from the text to avoid repetition
 
-4. **Single Image Handling**:
-   - Implemented support for just one image per message (API limitation)
-   - Added a warning when users send multiple images
-   - Takes the first image when multiple are provided
+4. **Single Media Handling**:
+   - Implemented support for just one media file per message (API limitation)
+   - Added a warning when users send multiple media files
+   - Takes the first media file when multiple of the same type are provided
+   - Prioritizes audio over images when both are present (per API limitation: if both image and audio URLs are provided, only the audio URL is processed)
 
-5. **Default Prompting for Image-Only Messages**:
-   - Added automatic prompting for image-only messages with "What's in this image?"
-   - Preserved original text when both text and images are provided
-   - Ensures sensible default behavior when users send images without text
+5. **Context-Aware Default Prompting**:
+   - Added automatic prompting based on media type:
+     - For images: "What's in this image?"
+     - For audio: "Please transcribe and respond to this audio message"
+   - Preserved original text when both text and media are provided
+   - Ensures sensible default behavior when users send media without text
 
 6. **Integration with Existing API Flow**:
    - Updated both normal and problematic personality handlers to use the new message formats
    - Maintained backward compatibility with text-only messages
-   - Added proper logging throughout the image processing flow
+   - Enhanced request ID generation to properly handle and distinguish between different media types
+   - Added proper logging throughout the media processing flow
+   - Added comprehensive test coverage for all new functionality

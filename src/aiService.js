@@ -379,12 +379,17 @@ function addToBlackoutList(personalityName, context) {
  * });
  * // Returns "einstein_123_456_Thisisaverylongmessagethatwill"
  * 
- * // With multimodal content array
+ * // With multimodal content array (image)
  * createRequestId("einstein", [
  *   { type: "text", text: "What is in this image?" },
  *   { type: "image_url", image_url: { url: "https://example.com/image.jpg" }}
  * ], { userId: "123", channelId: "456" });
- * // Returns a hash of the multimodal content
+ * 
+ * // With multimodal content array (audio)
+ * createRequestId("einstein", [
+ *   { type: "text", text: "Please transcribe this" },
+ *   { type: "audio_url", audio_url: { url: "https://example.com/audio.mp3" }}
+ * ], { userId: "123", channelId: "456" });
  * 
  * @description
  * Creates a unique identifier string for tracking API requests and preventing duplicate
@@ -395,7 +400,7 @@ function addToBlackoutList(personalityName, context) {
  * 3. Channel ID - From context.channelId or DEFAULTS.NO_CHANNEL fallback
  * 4. Message prefix - 
  *    - For string messages: First 30 characters with spaces removed
- *    - For multimodal content arrays: Content hash based on text and image URL
+ *    - For multimodal content arrays: Content hash based on text and media URLs (image or audio)
  * 
  * This ensures that identical requests from the same user to the same personality
  * will be properly deduplicated, while different requests will have unique IDs.
@@ -408,7 +413,14 @@ function createRequestId(personalityName, message, context) {
     // For multimodal content, create a prefix based on content
     const textContent = message.find(item => item.type === 'text')?.text || '';
     const imageUrl = message.find(item => item.type === 'image_url')?.image_url?.url || '';
-    messagePrefix = (textContent.substring(0, 20) + imageUrl.substring(0, 10)).replace(/\s+/g, '');
+    const audioUrl = message.find(item => item.type === 'audio_url')?.audio_url?.url || '';
+    
+    // Create a prefix using text and any media URLs, adding type identifiers to distinguish them
+    messagePrefix = (
+      textContent.substring(0, 20) + 
+      (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') + 
+      (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
+    ).replace(/\s+/g, '');
   } else {
     // For regular string messages, use the first 30 chars
     messagePrefix = message.substring(0, 30).replace(/\s+/g, '');

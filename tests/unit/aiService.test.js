@@ -278,7 +278,7 @@ describe('AI Service', () => {
       ]);
     });
     
-    it('should handle multimodal content array', () => {
+    it('should handle multimodal content array with image', () => {
       const multimodalContent = [
         {
           type: 'text',
@@ -288,6 +288,27 @@ describe('AI Service', () => {
           type: 'image_url',
           image_url: {
             url: 'https://example.com/image.jpg'
+          }
+        }
+      ];
+      
+      const formattedMessages = formatApiMessages(multimodalContent);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: multimodalContent }
+      ]);
+    });
+    
+    it('should handle multimodal content array with audio', () => {
+      const multimodalContent = [
+        {
+          type: 'text',
+          text: 'Please transcribe this audio file'
+        },
+        {
+          type: 'audio_url',
+          audio_url: {
+            url: 'https://example.com/audio.mp3'
           }
         }
       ];
@@ -311,6 +332,21 @@ describe('AI Service', () => {
       expect(formattedMessages[0].content).toBe(multimodalContent);
       expect(formattedMessages[0].content[0].type).toBe('text');
       expect(formattedMessages[0].content[1].type).toBe('image_url');
+    });
+    
+    it('should preserve audio content in multimodal array', () => {
+      const multimodalContent = [
+        { type: 'text', text: 'Transcribe this' },
+        { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } }
+      ];
+      
+      const formattedMessages = formatApiMessages(multimodalContent);
+      
+      // Verify that the audio content structure is preserved
+      expect(formattedMessages[0].content).toBe(multimodalContent);
+      expect(formattedMessages[0].content[0].type).toBe('text');
+      expect(formattedMessages[0].content[1].type).toBe('audio_url');
+      expect(formattedMessages[0].content[1].audio_url.url).toBe('https://example.com/audio.mp3');
     });
   });
 
@@ -354,7 +390,7 @@ describe('AI Service', () => {
       expect(requestId).toBe('test-personality_anon_channel-456_Testmessage');
     });
     
-    it('should handle multimodal content arrays', () => {
+    it('should handle multimodal content arrays with images', () => {
       const personalityName = 'test-personality';
       const multimodalContent = [
         {
@@ -383,6 +419,54 @@ describe('AI Service', () => {
       
       // The two IDs should be identical for deduplication
       expect(requestId).toBe(requestId2);
+    });
+    
+    it('should handle multimodal content arrays with audio', () => {
+      const personalityName = 'test-personality';
+      const multimodalContent = [
+        {
+          type: 'text',
+          text: 'Please transcribe this audio'
+        },
+        {
+          type: 'audio_url',
+          audio_url: {
+            url: 'https://example.com/audio.mp3'
+          }
+        }
+      ];
+      const context = { userId: 'user-123', channelId: 'channel-456' };
+      
+      // Generate request ID for audio content
+      const requestId = createRequestId(personalityName, multimodalContent, context);
+      
+      // Verify basic properties of the ID
+      expect(typeof requestId).toBe('string');
+      expect(requestId.length).toBeGreaterThan(0);
+      expect(requestId).toContain('test-personality_user-123_channel-456');
+      
+      // Make a second request with the same inputs
+      const requestId2 = createRequestId(personalityName, multimodalContent, context);
+      
+      // The two IDs should be identical for deduplication
+      expect(requestId).toBe(requestId2);
+      
+      // Make sure audio and image IDs are different for the same text
+      const imageContent = [
+        {
+          type: 'text',
+          text: 'Please transcribe this audio' // Same text
+        },
+        {
+          type: 'image_url',
+          image_url: {
+            url: 'https://example.com/image.jpg'
+          }
+        }
+      ];
+      
+      const imageRequestId = createRequestId(personalityName, imageContent, context);
+      expect(imageRequestId).not.toBe(requestId);
     });
   });
   
