@@ -578,6 +578,20 @@ async function getOrCreateWebhook(channel) {
 
     // Create a webhook client for this webhook
     const webhookClient = new WebhookClient({ url: webhook.url });
+    
+    // Store additional metadata about the channel/thread
+    webhookClient._tzurotMeta = {
+      isThread: channel.isThread(),
+      threadId: channel.isThread() ? channel.id : undefined,
+      parentChannelId: channel.isThread() ? channel.parentId : channel.id,
+      createdAt: Date.now()
+    };
+    
+    // Log detailed information about the webhook
+    logger.info(`[WebhookManager] Created webhook client for ${channel.isThread() ? 'thread' : 'channel'} ${channel.id}`);
+    if (channel.isThread()) {
+      logger.info(`[WebhookManager] Thread parent channel ID: ${channel.parentId}`);
+    }
 
     // Cache the webhook client - use original channel ID for thread support
     webhookCache.set(channel.id, webhookClient);
@@ -683,6 +697,14 @@ function markErrorContent(content) {
  * @returns {Object} Prepared message data
  */
 function prepareMessageData(content, username, avatarUrl, isThread, threadId, options = {}) {
+  // Enhanced logging for thread troubleshooting
+  if (isThread) {
+    logger.info(`[WebhookManager] Preparing message data for thread with ID: ${threadId}`);
+    if (!threadId) {
+      logger.warn('[WebhookManager] Thread flagged as true but no threadId provided!');
+    }
+  }
+
   const messageData = {
     content: content,
     username: username,
@@ -690,6 +712,13 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
     allowedMentions: { parse: ['users', 'roles'] },
     threadId: isThread ? threadId : undefined,
   };
+  
+  // Double-check threadId was properly set if isThread is true
+  if (isThread && !messageData.threadId) {
+    logger.error('[WebhookManager] CRITICAL: threadId not set properly in messageData despite isThread=true');
+  } else if (isThread) {
+    logger.info(`[WebhookManager] Successfully set threadId ${messageData.threadId} in messageData`);
+  }
 
   // Add optional embed if provided
   if (options.embed) {
@@ -741,14 +770,60 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       contentLength: messageData.content?.length,
       hasEmbeds: !!messageData.embeds?.length,
       threadId: messageData.threadId,
+      isInThread: !!messageData.threadId
     })}`
   );
+  
+  // IMPORTANT: Log critical info about thread handling
+  if (messageData.threadId) {
+    logger.info(`[Webhook] Sending message to thread ID: ${messageData.threadId}`);
+  }
 
   try {
-    const sentMessage = await webhook.send(messageData);
+    // Enhanced debugging specifically for threads
+    if (messageData.threadId) {
+      logger.info(`[WebhookManager] THREAD DEBUG: About to send webhook message to thread ${messageData.threadId}`);
+      
+      // Check for Discord.js version specific handling
+      const webhookSendData = { ...messageData };
+      
+      // Explicitly log what we're sending to discord.js
+      logger.debug(`[WebhookManager] Raw webhook data with threadId: ${JSON.stringify({
+        threadId: webhookSendData.threadId,
+        hasContent: !!webhookSendData.content,
+        contentLength: webhookSendData.content?.length || 0,
+        username: webhookSendData.username,
+      })}`);
+    }
+    
+    // Handle thread messages with special handling using Discord.js 14 format
+    let sentMessage;
+    
+    if (messageData.threadId) {
+      // For thread messages, we need to use the specific discord.js v14 format
+      // Create a copy of messageData without threadId for the main options
+      const { threadId, ...mainOptions } = messageData;
+      
+      // Send with thread_id in the options format (discord.js v14 format)
+      logger.info(`[WebhookManager] Using specific thread format to send to thread ID: ${threadId}`);
+      sentMessage = await webhook.send({
+        ...mainOptions,
+        thread_id: threadId // Use thread_id here which is what discord.js v14 expects
+      });
+    } else {
+      // Regular channel, use normal send
+      sentMessage = await webhook.send(messageData);
+    }
+    
     logger.info(
       `Successfully sent webhook message chunk ${chunkIndex + 1}/${totalChunks} with ID: ${sentMessage.id}`
     );
+    
+    // Add additional logging for thread-specific responses
+    if (messageData.threadId) {
+      logger.info(`[WebhookManager] Successfully sent message to thread ${messageData.threadId}, message ID: ${sentMessage.id}`);
+    }
+    
     return sentMessage;
   } catch (error) {
     // Track this error with our enhanced error tracking
@@ -759,9 +834,18 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
         ...messageContext,
         errorCode: error.code,
         errorName: error.name,
+        isThread: !!messageData.threadId,
+        threadId: messageData.threadId,
+        threadSpecificError: messageData.threadId ? true : false
       },
       isCritical: true,
     });
+    
+    // Enhanced error logging specifically for thread issues
+    if (messageData.threadId) {
+      logger.error(`[WebhookManager] THREAD ERROR: Failed to send message to thread ${messageData.threadId}`);
+      logger.error(`[WebhookManager] THREAD ERROR details: ${error.code} - ${error.message}`);
+    }
 
     // If this is because of length, try to send a simpler message indicating the error
     if (error.code === 50035) {
@@ -1088,11 +1172,23 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
 
     // Check if this is likely an error message
     const isErrorMessage = isErrorContent(content);
+    
+    // Check if this is a thread
+    const isThread = channel.isThread();
+    
+    // Log thread-specific info
+    if (isThread) {
+      logger.info(`[Webhook] Processing potential message for thread ${channel.id}`);
+      if (isErrorMessage) {
+        logger.info(`[Webhook] Thread message contains error pattern but will NOT be blocked`);
+      }
+    }
 
     // CRITICAL: If this is an error message AND the personality has a pending message
-    // in this channel, completely drop this error message
+    // in this channel, completely drop this error message UNLESS it's a thread
     if (
       isErrorMessage &&
+      !isThread && // Don't block thread messages!
       personality.fullName &&
       hasPersonalityPendingMessage(personality.fullName, channel.id)
     ) {
@@ -1201,14 +1297,21 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         updateChannelLastMessageTime(channel.id);
 
         // Mark error content appropriately
-        const finalContent = markErrorContent(chunkContent || '');
+        let finalContent = markErrorContent(chunkContent || '');
 
-        // Skip hard-blocked content
-        if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY')) {
+        // Skip hard-blocked content - but only if not in a thread
+        if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') && !channel.isThread()) {
           logger.info(
             `[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`
           );
           continue;
+        } else if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') && channel.isThread()) {
+          // For threads, log but don't skip
+          logger.info(
+            `[Webhook] Detected HARD_BLOCKED_RESPONSE in thread message but allowing it to continue`
+          );
+          // Remove the marker to avoid downstream filtering
+          finalContent = finalContent.replace('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY', '');
         }
 
         // Prepare message data for this chunk
@@ -1327,6 +1430,13 @@ function clearAllWebhookCaches() {
 function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
+  
+  // CRITICAL: Allow ALL thread messages to pass through, regardless of content
+  // This prevents the error filter from blocking @mentions in threads
+  if (options.threadId || options.thread_id) {
+    logger.info(`[Webhook] Allowing potential error message in thread ${options.threadId || options.thread_id}`);
+    return false;
+  }
 
   // Use the centralized error messages
   const { ERROR_MESSAGES } = require('./constants');
@@ -1374,13 +1484,18 @@ function registerEventListeners(discordClient) {
     // Normalize options to handle various function signatures
     const normalizedOptions = typeof options === 'string' ? { content: options } : options;
 
-    // Check if this is an error message
-    if (isErrorWebhookMessage(normalizedOptions)) {
+    // CRITICAL: Always allow messages to threads, even if they contain error patterns
+    const isThread = !!(normalizedOptions.threadId || normalizedOptions.thread_id);
+    
+    // Check if this is an error message (and not in a thread)
+    if (!isThread && isErrorWebhookMessage(normalizedOptions)) {
       logger.info(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
       logger.info(
         `[Webhook CRITICAL] Options: ${JSON.stringify({
           username: normalizedOptions.username,
           content: normalizedOptions.content?.substring(0, 50),
+          isThread: isThread,
+          threadId: normalizedOptions.threadId || normalizedOptions.thread_id
         })}`
       );
 
@@ -1396,8 +1511,13 @@ function registerEventListeners(discordClient) {
         },
       };
     }
+    
+    // Special logging for thread messages
+    if (isThread) {
+      logger.info(`[Webhook] Thread message being sent normally (bypassing error filter) to thread: ${normalizedOptions.threadId || normalizedOptions.thread_id}`);
+    }
 
-    // If not an error message, send normally
+    // If not an error message (or is a thread message), send normally
     return originalSend.apply(this, [options]);
   };
 }
