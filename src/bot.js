@@ -767,50 +767,44 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     // Show typing indicator
     typingInterval = startTypingIndicator(message.channel);
 
-    try {
-      // Check for image/audio attachments or URLs in text
-      let messageContent = message.content;
-      let imageUrl = null;
-      let audioUrl = null;
-      let hasFoundImage = false;
-      let hasFoundAudio = false;
+    // Check for image/audio attachments or URLs in text
+    let messageContent = message.content || '';
+    let imageUrl = null;
+    let audioUrl = null;
+    let hasFoundImage = false;
+    let hasFoundAudio = false;
 
-      // Don't remove @mentions from the message
-      if (message.content) {
-        messageContent = message.content;
+    // Regular expressions to match common image URLs
+    const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
+    const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
 
-        // Regular expressions to match common image URLs
-        const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
-        const discordCdnRegex = /https?:\/\/cdn\.discordapp\.com\/\S+/i;
+    // Regular expressions to match common audio URLs
+    const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg)(\?\S*)?/i;
 
-        // Regular expressions to match common audio URLs
-        const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg)(\?\S*)?/i;
+    // First check for audio URLs (prioritize audio over images per API limitation)
+    const audioMatch = messageContent.match(audioUrlRegex);
 
-        // First check for audio URLs (prioritize audio over images per API limitation)
-        const audioMatch = messageContent.match(audioUrlRegex);
+    if (audioMatch && audioMatch[0]) {
+      audioUrl = audioMatch[0];
+      logger.info(`[Bot] Found audio URL in message content: ${audioUrl}`);
+      hasFoundAudio = true;
 
-        if (audioMatch && audioMatch[0]) {
-          audioUrl = audioMatch[0];
-          logger.info(`[Bot] Found audio URL in message content: ${audioUrl}`);
-          hasFoundAudio = true;
+      // Remove the URL from the message content to avoid repetition
+      messageContent = messageContent.replace(audioUrl, '').trim();
+    } else {
+      // If no audio URL was found, check for image URLs
+      const imageMatch =
+        messageContent.match(imageUrlRegex) || messageContent.match(discordCdnRegex);
 
-          // Remove the URL from the message content to avoid repetition
-          messageContent = messageContent.replace(audioUrl, '').trim();
-        } else {
-          // If no audio URL was found, check for image URLs
-          const imageMatch =
-            messageContent.match(imageUrlRegex) || messageContent.match(discordCdnRegex);
-
-          if (imageMatch && imageMatch[0]) {
-            imageUrl = imageMatch[0];
-            logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
-            hasFoundImage = true;
+      if (imageMatch && imageMatch[0]) {
+        imageUrl = imageMatch[0];
+        logger.info(`[Bot] Found image URL in message content: ${imageUrl}`);
+        hasFoundImage = true;
 
             // Remove the URL from the message content to avoid repetition
             messageContent = messageContent.replace(imageUrl, '').trim();
-          }
-        }
       }
+    }
 
       // If we didn't find any media URL, check for attachments
       if (!hasFoundImage && !hasFoundAudio && message.attachments && message.attachments.size > 0) {
@@ -970,8 +964,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       } 
       // Next, check for message links in the content
       else if (typeof messageContent === 'string') {
-        // Look for Discord message links in the format https://discord.com/channels/server_id/channel_id/message_id
-        const messageLinkRegex = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+        // Look for Discord message links in all domain variations (regular, PTB, canary)
+        const messageLinkRegex = /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
         const messageLinkMatch = messageContent.match(messageLinkRegex);
         
         // If we have multiple links, only process the first one
@@ -979,16 +973,17 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
           logger.info(`[Bot] Found message link in content: ${messageLinkMatch[0]}`);
           
           // Check if there are multiple links (log for info purposes)
-          const allLinks = [...messageContent.matchAll(new RegExp(messageLinkRegex, 'g'))];
+          const allLinks = [...messageContent.matchAll(new RegExp(/https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/, 'g'))];
           if (allLinks.length > 1) {
             logger.info(`[Bot] Multiple message links found (${allLinks.length}), processing only the first one`);
           }
           
           try {
-            // Extract channel and message IDs from the first link
-            const linkedGuildId = messageLinkMatch[1];
-            const linkedChannelId = messageLinkMatch[2];
-            const linkedMessageId = messageLinkMatch[3];
+            // Extract channel and message IDs from the first link - account for subdomain capture group
+            // Group 1 is the optional subdomain (ptb. or canary.), so we need to offset indexes
+            const linkedGuildId = messageLinkMatch[2]; 
+            const linkedChannelId = messageLinkMatch[3];
+            const linkedMessageId = messageLinkMatch[4];
             
             // Remove the message link from the content
             messageContent = messageContent.replace(messageLinkMatch[0], '').trim();
@@ -1126,19 +1121,6 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
 
       // Record this conversation with all message IDs
       recordConversationData(message.author.id, message.channel.id, result, personality.fullName);
-    } catch (error) {
-      // Clear typing indicator if there's an error
-      if (typingInterval) {
-        clearInterval(typingInterval);
-        typingInterval = null;
-      }
-
-      // Clean up active request tracking
-      activeRequests.delete(requestKey);
-
-      // Let outer catch block handle this error
-      throw error;
-    }
   } catch (error) {
     // Enhanced error logging with full error details
     logger.error(`Error in personality interaction: ${error.message || 'No message'}`);
@@ -1156,9 +1138,9 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     // Log the personality data that was being used
     try {
       logger.error(`Personality being used: ${personality ? personality.fullName : 'Unknown'}`);
-      logger.error(`Message content: ${typeof messageContent === 'string' ? 
-        messageContent.substring(0, 100) + '...' : 
-        'Non-string content type: ' + typeof messageContent}`);
+      logger.error(`Message content: ${typeof message.content === 'string' ? 
+        message.content.substring(0, 100) + '...' : 
+        'Non-string content type or no content'}`);
     } catch (logError) {
       logger.error(`Error logging details: ${logError.message}`);
     }
