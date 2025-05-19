@@ -32,6 +32,59 @@ const client = new Client({
 // This intercepts webhook messages containing error patterns before they're processed
 const originalEmit = client.emit;
 
+/**
+ * Helper function to parse Discord embeds into text representation
+ * @param {Array} embeds - Array of Discord embed objects
+ * @param {string} source - Source description for logging (e.g., "referenced message", "linked message")
+ * @returns {string} Formatted text representation of the embeds
+ */
+function parseEmbedsToText(embeds, source) {
+  if (!embeds || !embeds.length) return '';
+  
+  logger.info(`[Bot] ${source} contains ${embeds.length} embeds`);
+  let embedContent = '';
+  
+  embeds.forEach(embed => {
+    // Add title if available
+    if (embed.title) {
+      embedContent += `\n[Embed Title: ${embed.title}]`;
+    }
+    
+    // Add description if available
+    if (embed.description) {
+      embedContent += `\n[Embed Description: ${embed.description}]`;
+    }
+    
+    // Add fields if available
+    if (embed.fields && embed.fields.length > 0) {
+      embed.fields.forEach(field => {
+        embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
+      });
+    }
+    
+    // Add image if available
+    if (embed.image && embed.image.url) {
+      embedContent += `\n[Embed Image: ${embed.image.url}]`;
+    }
+    
+    // Add thumbnail if available
+    if (embed.thumbnail && embed.thumbnail.url) {
+      embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
+    }
+    
+    // Add footer if available
+    if (embed.footer && embed.footer.text) {
+      embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
+    }
+  });
+  
+  if (embedContent) {
+    logger.debug(`[Bot] Added embed content from ${source}: ${embedContent.substring(0, 100)}...`);
+  }
+  
+  return embedContent;
+}
+
 // Override the emit function to intercept webhook messages
 client.emit = function (event, ...args) {
   // Only intercept messageCreate events from webhooks
@@ -849,69 +902,37 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
           }
         }
       }
-
-      // If we found media (either via URL or attachment), create multimodal content
-      if (hasFoundImage || hasFoundAudio) {
-        // Create a multimodal content array
-        const multimodalContent = [];
-
-        // Add the text content if it exists
-        if (messageContent) {
-          multimodalContent.push({
-            type: 'text',
-            text: messageContent,
-          });
-        } else {
-          // Default prompt based on media type
-          if (hasFoundAudio) {
-            multimodalContent.push({
-              type: 'text',
-              text: 'Please transcribe and respond to this audio message',
-            });
-          } else if (hasFoundImage) {
-            multimodalContent.push({
-              type: 'text',
-              text: "What's in this image?",
-            });
+      
+      // If we still haven't found any media, check for embeds in the message itself
+      if (!hasFoundImage && !hasFoundAudio && message.embeds && message.embeds.length > 0) {
+        logger.info(`[Bot] Message has ${message.embeds.length} embeds, checking for media`);
+        
+        // Go through embeds looking for images or thumbnails
+        for (const embed of message.embeds) {
+          // Check for image first (typically larger/more prominent than thumbnail)
+          if (embed.image && embed.image.url) {
+            imageUrl = embed.image.url;
+            hasFoundImage = true;
+            logger.info(`[Bot] Found image in message embed: ${imageUrl}`);
+            break;
+          }
+          
+          // If no image, check for thumbnail
+          if (embed.thumbnail && embed.thumbnail.url) {
+            imageUrl = embed.thumbnail.url;
+            hasFoundImage = true;
+            logger.info(`[Bot] Found thumbnail in message embed: ${imageUrl}`);
+            break;
           }
         }
-
-        // Add the media content - prioritize audio over image if both are present
-        // (per API limitation: only one media type is processed, with audio taking precedence)
-        if (hasFoundAudio) {
-          logger.info(`[Bot] Processing audio with URL: ${audioUrl}`);
-          multimodalContent.push({
-            type: 'audio_url',
-            audio_url: {
-              url: audioUrl,
-            },
-          });
-          logger.debug(`[Bot] Added audio to multimodal content: ${audioUrl}`);
-
-          // If we also found an image, log that we're ignoring it due to API limitation
-          if (hasFoundImage) {
-            logger.warn(`[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
-          }
-        } else if (hasFoundImage) {
-          logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
-          multimodalContent.push({
-            type: 'image_url',
-            image_url: {
-              url: imageUrl,
-            },
-          });
-          logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
-        }
-
-        // Replace the message content with the multimodal array
-        messageContent = multimodalContent;
-        logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
       }
 
       // Check if this message is a reply to another message or contains a message link
       let referencedMessageContent = null;
       let referencedMessageAuthor = null;
       let isReferencedMessageFromBot = false;
+      let referencedImageUrl = null;
+      let referencedAudioUrl = null;
       
       // First, handle direct replies
       if (message.reference && message.reference.messageId) {
@@ -929,18 +950,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
             if (repliedToMessage.attachments && repliedToMessage.attachments.size > 0) {
               const attachments = Array.from(repliedToMessage.attachments.values());
               
-              // Check for image attachments
-              const imageAttachment = attachments.find(
-                attachment => attachment.contentType && attachment.contentType.startsWith('image/')
-              );
-              
-              if (imageAttachment) {
-                // Add image URL to the content 
-                referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
-                logger.info(`[Bot] Referenced message contains an image: ${imageAttachment.url}`);
-              }
-              
-              // Check for audio attachments
+              // Check for audio attachments first (priority over images)
               const audioAttachment = attachments.find(
                 attachment => (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
                 attachment.url?.endsWith('.mp3') || 
@@ -951,56 +961,47 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
               if (audioAttachment) {
                 // Add audio URL to the content
                 referencedMessageContent += `\n[Audio: ${audioAttachment.url}]`;
+                referencedAudioUrl = audioAttachment.url;
                 logger.info(`[Bot] Referenced message contains audio: ${audioAttachment.url}`);
+              } else {
+                // Check for image attachments if no audio
+                const imageAttachment = attachments.find(
+                  attachment => attachment.contentType && attachment.contentType.startsWith('image/')
+                );
+                
+                if (imageAttachment) {
+                  // Add image URL to the content 
+                  referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
+                  referencedImageUrl = imageAttachment.url;
+                  logger.info(`[Bot] Referenced message contains an image: ${imageAttachment.url}`);
+                }
               }
             }
             
             // Process embeds in the referenced message
             if (repliedToMessage.embeds && repliedToMessage.embeds.length > 0) {
-              logger.info(`[Bot] Referenced message contains ${repliedToMessage.embeds.length} embeds`);
+              // Use the helper function to parse embeds
+              referencedMessageContent += parseEmbedsToText(repliedToMessage.embeds, "referenced message");
               
-              repliedToMessage.embeds.forEach(embed => {
-                // Create a formatted representation of the embed
-                let embedContent = '';
-                
-                // Add title if available
-                if (embed.title) {
-                  embedContent += `\n[Embed Title: ${embed.title}]`;
+              // If we haven't found media yet, check for embed images or thumbnails
+              if (!referencedImageUrl && !referencedAudioUrl) {
+                // Go through embeds looking for images or thumbnails
+                for (const embed of repliedToMessage.embeds) {
+                  // Check for image first (typically larger/more prominent than thumbnail)
+                  if (embed.image && embed.image.url) {
+                    referencedImageUrl = embed.image.url;
+                    logger.info(`[Bot] Found image in referenced message embed: ${referencedImageUrl}`);
+                    break;
+                  }
+                  
+                  // If no image, check for thumbnail
+                  if (embed.thumbnail && embed.thumbnail.url) {
+                    referencedImageUrl = embed.thumbnail.url;
+                    logger.info(`[Bot] Found thumbnail in referenced message embed: ${referencedImageUrl}`);
+                    break;
+                  }
                 }
-                
-                // Add description if available
-                if (embed.description) {
-                  embedContent += `\n[Embed Description: ${embed.description}]`;
-                }
-                
-                // Add fields if available
-                if (embed.fields && embed.fields.length > 0) {
-                  embed.fields.forEach(field => {
-                    embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
-                  });
-                }
-                
-                // Add image if available
-                if (embed.image && embed.image.url) {
-                  embedContent += `\n[Embed Image: ${embed.image.url}]`;
-                }
-                
-                // Add thumbnail if available
-                if (embed.thumbnail && embed.thumbnail.url) {
-                  embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
-                }
-                
-                // Add footer if available
-                if (embed.footer && embed.footer.text) {
-                  embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
-                }
-                
-                // Append the embed content to the referenced message content
-                if (embedContent) {
-                  referencedMessageContent += embedContent;
-                  logger.debug(`[Bot] Added embed content from referenced message: ${embedContent.substring(0, 100)}...`);
-                }
-              });
+              }
             }
             
             logger.info(`[Bot] Found referenced message (reply) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
@@ -1054,18 +1055,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                   if (linkedMessage.attachments && linkedMessage.attachments.size > 0) {
                     const attachments = Array.from(linkedMessage.attachments.values());
                     
-                    // Check for image attachments
-                    const imageAttachment = attachments.find(
-                      attachment => attachment.contentType && attachment.contentType.startsWith('image/')
-                    );
-                    
-                    if (imageAttachment) {
-                      // Add image URL to the content
-                      referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
-                      logger.info(`[Bot] Linked message contains an image: ${imageAttachment.url}`);
-                    }
-                    
-                    // Check for audio attachments
+                    // Check for audio attachments first (priority over images)
                     const audioAttachment = attachments.find(
                       attachment => (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
                       attachment.url?.endsWith('.mp3') || 
@@ -1076,56 +1066,47 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                     if (audioAttachment) {
                       // Add audio URL to the content
                       referencedMessageContent += `\n[Audio: ${audioAttachment.url}]`;
+                      referencedAudioUrl = audioAttachment.url;
                       logger.info(`[Bot] Linked message contains audio: ${audioAttachment.url}`);
+                    } else {
+                      // Check for image attachments if no audio
+                      const imageAttachment = attachments.find(
+                        attachment => attachment.contentType && attachment.contentType.startsWith('image/')
+                      );
+                      
+                      if (imageAttachment) {
+                        // Add image URL to the content
+                        referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
+                        referencedImageUrl = imageAttachment.url;
+                        logger.info(`[Bot] Linked message contains an image: ${imageAttachment.url}`);
+                      }
                     }
                   }
                   
                   // Process embeds in the linked message
                   if (linkedMessage.embeds && linkedMessage.embeds.length > 0) {
-                    logger.info(`[Bot] Linked message contains ${linkedMessage.embeds.length} embeds`);
+                    // Use the helper function to parse embeds
+                    referencedMessageContent += parseEmbedsToText(linkedMessage.embeds, "linked message");
                     
-                    linkedMessage.embeds.forEach(embed => {
-                      // Create a formatted representation of the embed
-                      let embedContent = '';
-                      
-                      // Add title if available
-                      if (embed.title) {
-                        embedContent += `\n[Embed Title: ${embed.title}]`;
+                    // If we haven't found media yet, check for embed images or thumbnails
+                    if (!referencedImageUrl && !referencedAudioUrl) {
+                      // Go through embeds looking for images or thumbnails
+                      for (const embed of linkedMessage.embeds) {
+                        // Check for image first (typically larger/more prominent than thumbnail)
+                        if (embed.image && embed.image.url) {
+                          referencedImageUrl = embed.image.url;
+                          logger.info(`[Bot] Found image in linked message embed: ${referencedImageUrl}`);
+                          break;
+                        }
+                        
+                        // If no image, check for thumbnail
+                        if (embed.thumbnail && embed.thumbnail.url) {
+                          referencedImageUrl = embed.thumbnail.url;
+                          logger.info(`[Bot] Found thumbnail in linked message embed: ${referencedImageUrl}`);
+                          break;
+                        }
                       }
-                      
-                      // Add description if available
-                      if (embed.description) {
-                        embedContent += `\n[Embed Description: ${embed.description}]`;
-                      }
-                      
-                      // Add fields if available
-                      if (embed.fields && embed.fields.length > 0) {
-                        embed.fields.forEach(field => {
-                          embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
-                        });
-                      }
-                      
-                      // Add image if available
-                      if (embed.image && embed.image.url) {
-                        embedContent += `\n[Embed Image: ${embed.image.url}]`;
-                      }
-                      
-                      // Add thumbnail if available
-                      if (embed.thumbnail && embed.thumbnail.url) {
-                        embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
-                      }
-                      
-                      // Add footer if available
-                      if (embed.footer && embed.footer.text) {
-                        embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
-                      }
-                      
-                      // Append the embed content to the referenced message content
-                      if (embedContent) {
-                        referencedMessageContent += embedContent;
-                        logger.debug(`[Bot] Added embed content from linked message: ${embedContent.substring(0, 100)}...`);
-                      }
-                    });
+                    }
                   }
                   
                   logger.info(`[Bot] Found referenced message (link) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
@@ -1137,6 +1118,101 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
             // Continue without the referenced message if there's an error
           }
         }
+      }
+      
+      // After processing referenced message, check if we should use its media when no media is found
+      let useReferencedMedia = false;
+      if (!hasFoundImage && !hasFoundAudio) {
+        if (referencedAudioUrl) {
+          audioUrl = referencedAudioUrl;
+          hasFoundAudio = true;
+          useReferencedMedia = true;
+          logger.info(`[Bot] Using audio from referenced message: ${audioUrl}`);
+        } else if (referencedImageUrl) {
+          imageUrl = referencedImageUrl;
+          hasFoundImage = true;
+          useReferencedMedia = true;
+          logger.info(`[Bot] Using image from referenced message: ${imageUrl}`);
+        }
+      }
+      
+      // If we found media (either in the message or referenced message), create multimodal content
+      if (hasFoundImage || hasFoundAudio) {
+        // Create a multimodal content array
+        const multimodalContent = [];
+
+        // Add the text content if it exists
+        if (typeof messageContent === 'string' && messageContent) {
+          multimodalContent.push({
+            type: 'text',
+            text: messageContent,
+          });
+        } else if (!messageContent || (Array.isArray(messageContent) && messageContent.length === 0)) {
+          // Default prompt based on media type
+          if (hasFoundAudio) {
+            multimodalContent.push({
+              type: 'text',
+              text: useReferencedMedia 
+                ? 'Please listen to this audio from the referenced message and respond' 
+                : 'Please transcribe and respond to this audio message',
+            });
+          } else if (hasFoundImage) {
+            multimodalContent.push({
+              type: 'text',
+              text: useReferencedMedia 
+                ? "What's in this image from the referenced message?" 
+                : "What's in this image?",
+            });
+          }
+        } else if (Array.isArray(messageContent)) {
+          // Copy any existing text elements from the multimodal array
+          messageContent.forEach(item => {
+            if (item.type === 'text') {
+              multimodalContent.push(item);
+            }
+          });
+          
+          // If we didn't find any text elements, add default prompt
+          if (!multimodalContent.some(item => item.type === 'text')) {
+            multimodalContent.push({
+              type: 'text',
+              text: useReferencedMedia 
+                ? 'Please analyze this media from the referenced message' 
+                : 'Please analyze this media',
+            });
+          }
+        }
+
+        // Add the media content - prioritize audio over image if both are present
+        // (per API limitation: only one media type is processed, with audio taking precedence)
+        if (hasFoundAudio) {
+          logger.info(`[Bot] Processing audio with URL: ${audioUrl}`);
+          multimodalContent.push({
+            type: 'audio_url',
+            audio_url: {
+              url: audioUrl,
+            },
+          });
+          logger.debug(`[Bot] Added audio to multimodal content: ${audioUrl}`);
+
+          // If we also found an image, log that we're ignoring it due to API limitation
+          if (hasFoundImage) {
+            logger.warn(`[Bot] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
+          }
+        } else if (hasFoundImage) {
+          logger.info(`[Bot] Processing image with URL: ${imageUrl}`);
+          multimodalContent.push({
+            type: 'image_url',
+            image_url: {
+              url: imageUrl,
+            },
+          });
+          logger.debug(`[Bot] Added image to multimodal content: ${imageUrl}`);
+        }
+
+        // Replace the message content with the multimodal array
+        messageContent = multimodalContent;
+        logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
       }
       
       // If we found referenced content, modify how we send to the AI service
