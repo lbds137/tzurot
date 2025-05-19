@@ -659,11 +659,8 @@ async function handleProblematicPersonality(
 
     // If we get here, we got a valid response despite the known issues!
     if (typeof content === 'string' && content.length > 0) {
-      // Apply aggressive system prompt artifact removal first
-      let sanitizedContent = sanitizeSystemPromptArtifacts(content, personalityName);
-      
-      // Then apply normal content sanitization
-      sanitizedContent = sanitizeContent(sanitizedContent);
+      // Apply content sanitization
+      let sanitizedContent = sanitizeContent(content);
       
       return sanitizedContent;
     }
@@ -727,7 +724,7 @@ function sanitizeContent(content) {
       content
         // Remove null bytes and control characters, but preserve newlines and tabs
         // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F]/g, '')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
         // Remove escape sequences
         .replace(/\\u[0-9a-fA-F]{4}/g, '')
         // Remove any non-printable characters except newlines and tabs (using safer pattern)
@@ -1006,167 +1003,6 @@ function sanitizeApiText(text) {
   return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 }
 
-/**
- * Aggressively sanitize any leaked system prompts from AI response text
- * This function removes any "You are..." text and other system-prompt artifacts
- * @param {string} content - The AI response content to sanitize
- * @param {string} personalityName - The personality name for context
- * @returns {string} The sanitized content
- */
-function sanitizeSystemPromptArtifacts(content, personalityName) {
-  if (!content) return '';
-  
-  // Start by getting original length for logging
-  const originalLength = content.length;
-  
-  // Get personality name components for more targeted filtering
-  const personalityNameLower = personalityName.toLowerCase();
-  const personalityParts = personalityNameLower.split(/[-_\s]/);
-  const firstNamePart = personalityParts[0] || '';
-  
-  // Extract display name format (capitalize first letter of each word)
-  const displayNameParts = personalityParts.map(part => 
-    part.charAt(0).toUpperCase() + part.slice(1)
-  );
-  const displayName = displayNameParts.join(' ');
-  
-  // Create more comprehensive detection patterns
-  const patterns = [
-    "you are", "you're", "youre", "your role is", "your character is",
-    "you will be", "you shall be", "you must be", "you should be",
-    "you represent", "you embody", "acting as", "roleplaying as",
-    "in character as", "portray", "assume the role of", "behave as",
-    "respond as", "emulate", "pretending to be", "in the persona of",
-    "roleplay as", "speaking as", "pretend you are", "pretend you're",
-    "roleplay a", "you will roleplay", "character instructions",
-    "as a character", "as an ai", "as a language model", "as an assistant",
-    "as a virtual", "as a fictional", "personality",
-    "never break character", "stay in character", "maintain your character",
-    "return to your character", "remember your character",
-    "answer in character", "remember to be", "remember that you are"
-  ];
-  
-  // Add personality-specific patterns
-  if (firstNamePart) {
-    patterns.push(`as ${personalityNameLower}`);
-    patterns.push(`as ${firstNamePart}`);
-    patterns.push(`${firstNamePart} would`);
-    patterns.push(`${firstNamePart} is`);
-    patterns.push(`${firstNamePart} character`);
-  }
-  
-  // Create a regex pattern for complete system prompt phrases
-  const systemPromptRegexes = [
-    new RegExp(`\\b(?:you are|you're|youre)\\s+${personalityNameLower}\\b`, 'gi'),
-    new RegExp(`\\b(?:you are|you're|youre)\\s+${displayName}\\b`, 'gi'),
-    new RegExp(`\\b(?:you are|you're|youre)\\s+${firstNamePart}\\b`, 'gi'),
-    new RegExp(`\\bresponding as\\s+${personalityNameLower}\\b`, 'gi'),
-    new RegExp(`\\bresponding as\\s+${firstNamePart}\\b`, 'gi'),
-    new RegExp(`\\bin (?:the role|character) of\\s+${personalityNameLower}\\b`, 'gi'),
-    new RegExp(`\\bin (?:the role|character) of\\s+${firstNamePart}\\b`, 'gi'),
-    /\byour name is\s+\w+\b/gi,
-    /\byour personality is\b/gi,
-    /\byou are (?:a|an) [a-z]+(?:\s+[a-z]+)?\b/gi,
-    /\byou're (?:a|an) [a-z]+(?:\s+[a-z]+)?\b/gi,
-    /\byour role is to\b/gi,
-    /\bas (?:a|an) [a-z]+(?:\s+[a-z]+)?,\s+you\b/gi,
-    /\bpretend to be\b/gi,
-    /\bkey traits(?:[\s:]|$)/gi
-  ];
-  
-  // First attempt: Paragraph-level filtering to remove entire paragraphs with system prompt artifacts
-  const paragraphs = content.split("\n");
-  const filteredParagraphs = paragraphs.filter(paragraph => {
-    const lowerParagraph = paragraph.toLowerCase();
-    
-    // Skip empty paragraphs
-    if (!lowerParagraph.trim()) return true;
-    
-    // Skip paragraphs containing any of our suspicious phrases
-    for (const pattern of patterns) {
-      if (lowerParagraph.includes(pattern)) {
-        logger.debug(`[AIService] Removing paragraph with pattern "${pattern}": "${paragraph.substring(0, 50)}..."`);
-        return false;
-      }
-    }
-    
-    // Also check for regex patterns that might indicate system instructions
-    for (const regex of systemPromptRegexes) {
-      if (regex.test(paragraph)) {
-        logger.debug(`[AIService] Removing paragraph with regex "${regex}": "${paragraph.substring(0, 50)}..."`);
-        return false;
-      }
-    }
-    
-    // Keep paragraphs that don't contain any suspicious patterns
-    return true;
-  });
-  
-  // Re-join paragraphs
-  let sanitizedContent = filteredParagraphs.join("\n");
-  
-  // Second attempt: Regex replacements for any remaining artifacts
-  const regexReplacements = [
-    [/\bYou are\s+[\w\s-]{1,30}\b/gi, ''], // "You are X [anything up to 30 chars]"
-    [/\bYou're\s+[\w\s-]{1,30}\b/gi, ''],  // "You're X [anything up to 30 chars]"
-    [/\bYoure\s+[\w\s-]{1,30}\b/gi, ''],   // "Youre X [anything up to 30 chars]" (no apostrophe)
-    [/\bAs\s+[\w\s-]{1,20},\s+you\s+(?:are|will|must|should)\b/gi, ''], // "As X, you are/will/must/should"
-    [/\bAs\s+[\w\s-]{1,20},\s+you\b/gi, ''], // "As X, you"
-    [/\bActing as\s+[\w\s-]{1,20}\b/gi, ''], // "Acting as X"
-    [/\bRoleplaying as\s+[\w\s-]{1,20}\b/gi, ''], // "Roleplaying as X"
-    [/\bResponding as\s+[\w\s-]{1,20}\b/gi, ''], // "Responding as X"
-    [/\bYour (?:role|character|persona) is[\s:][\w\s-]{1,30}\b/gi, ''], // "Your role/character/persona is X"
-    [/\bYou will (?:act|behave|respond) as[\s:][\w\s-]{1,30}\b/gi, ''], // "You will act/behave/respond as X"
-    [/\bYou (?:must|should|will) (?:be|act as|behave as|respond as)[\s:][\w\s-]{1,30}\b/gi, ''], // "You must/should/will be/act as X"
-    [/\bNever break character\b/gi, ''], // "Never break character"
-    [/\bStay in character\b/gi, ''], // "Stay in character"
-    [/\bMaintain your character\b/gi, ''], // "Maintain your character"
-    [/\bRemember (?:that )?you are[\s:][\w\s-]{1,30}\b/gi, ''], // "Remember (that) you are X"
-    [/\bkey traits[\s:][\w\s-]{1,50}\b/gi, ''] // "Key traits: X"
-  ];
-  
-  // Add personality-specific regex patterns
-  if (firstNamePart) {
-    regexReplacements.push([new RegExp(`\\bYou are ${personalityNameLower}\\b`, 'gi'), '']);
-    regexReplacements.push([new RegExp(`\\bYou are ${displayName}\\b`, 'gi'), '']);
-    regexReplacements.push([new RegExp(`\\bYou are ${firstNamePart}\\b`, 'gi'), '']);
-    regexReplacements.push([new RegExp(`\\bYou're ${personalityNameLower}\\b`, 'gi'), '']);
-    regexReplacements.push([new RegExp(`\\bYou're ${displayName}\\b`, 'gi'), '']);
-    regexReplacements.push([new RegExp(`\\bYou're ${firstNamePart}\\b`, 'gi'), '']);
-  }
-  
-  // Apply all regex replacements
-  for (const [regex, replacement] of regexReplacements) {
-    const before = sanitizedContent;
-    sanitizedContent = sanitizedContent.replace(regex, replacement);
-    
-    // Log if this particular regex made a change
-    if (before !== sanitizedContent) {
-      logger.debug(`[AIService] Regex "${regex}" removed system prompt artifact from ${personalityName}'s response`);
-    }
-  }
-  
-  // Fix formatting issues from removals
-  sanitizedContent = sanitizedContent
-    .replace(/\s{2,}/g, ' ') // Fix multiple spaces
-    .replace(/\n{3,}/g, '\n\n') // Fix excessive newlines
-    .trim();
-  
-  // Log if we found and removed any artifacts
-  if (sanitizedContent.length !== originalLength) {
-    const removedChars = originalLength - sanitizedContent.length;
-    const percentRemoved = Math.round((removedChars / originalLength) * 100);
-    
-    logger.warn(`[AIService] Sanitized response for ${personalityName}: removed ${removedChars} chars (${percentRemoved}%) from ${originalLength} total`);
-    
-    // Extra detailed logging for significant changes
-    if (percentRemoved > 10) {
-      logger.warn(`[AIService] Major sanitization for ${personalityName}: ${originalLength} -> ${sanitizedContent.length} chars (${percentRemoved}% removed)`);
-    }
-  }
-  
-  return sanitizedContent;
-}
 
 /**
  * Format messages for API request, handling text, images, and referenced messages
@@ -1525,13 +1361,9 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     if (!isMockRequest) {
       logger.debug(`[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`);
       
-      // Apply aggressive system prompt artifact removal first
-      let sanitizedContent = sanitizeSystemPromptArtifacts(content, personalityName);
-      logger.debug(`[AIService] After system prompt sanitization for ${personalityName}, length: ${sanitizedContent.length}`);
-      
-      // Then apply normal content sanitization
-      sanitizedContent = sanitizeContent(sanitizedContent);
-      logger.debug(`[AIService] After general content sanitization for ${personalityName}, length: ${sanitizedContent.length}`);
+      // Apply content sanitization
+      let sanitizedContent = sanitizeContent(content);
+      logger.debug(`[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`);
 
       if (sanitizedContent.length === 0) {
         // Register this personality as problematic
@@ -1591,6 +1423,5 @@ module.exports = {
   handleNormalPersonality,
   sanitizeContent,
   sanitizeApiText,
-  sanitizeSystemPromptArtifacts,
   formatApiMessages,
 };
