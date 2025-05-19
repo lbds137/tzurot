@@ -206,6 +206,10 @@ async function processCommand(message, command, args) {
       case 'auth':
         return await handleAuthCommand(message, args);
 
+      case 'verify':
+      case 'nsfw':
+        return await handleVerifyCommand(message, args);
+
       case 'status':
         return await handleStatusCommand(message, args);
 
@@ -368,6 +372,17 @@ async function handleHelpCommand(message, args) {
               `Deactivate the currently active personality in this channel.\n` +
               `- Requires the "Manage Messages" permission\n\n` +
               `Example: \`${prefix} deactivate\``
+          );
+          
+        case 'verify':
+        case 'nsfw':
+          return await directSend(
+            `**${prefix} verify**\n` +
+              `Verify your age to use AI personalities in Direct Messages.\n` +
+              `- Must be run in a NSFW-marked channel in a server\n` +
+              `- Checks if you have access to NSFW content on Discord\n` +
+              `- Required for using personalities in DMs\n\n` +
+              `Example: \`${prefix} verify\``
           );
 
         case 'autorespond':
@@ -1821,6 +1836,12 @@ async function handleActivateCommand(message, args) {
   if (!isDMActivate && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
     return message.reply('You need the "Manage Messages" permission to use this command.');
   }
+  
+  // SAFETY CHECK: Only allow personality activation in DMs or NSFW channels
+  const isNSFW = message.channel.nsfw;
+  if (!isDMActivate && !isNSFW) {
+    return message.reply("⚠️ For safety and compliance reasons, personalities can only be activated in Direct Messages or channels marked as NSFW. Please ask a server admin to mark this channel as NSFW in the channel settings before activating personalities.");
+  }
 
   if (args.length < 1) {
     return message.reply(
@@ -1940,6 +1961,116 @@ async function handleAutoRespondCommand(message, args) {
  * Handle the status command
  * @param {Object} message - Discord message object
  */
+/**
+ * Handle the verify command for age/NSFW verification
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleVerifyCommand(message, args) {
+  // Import auth module
+  const auth = require('./auth');
+  
+  // Create direct send function with proper error handling
+  const directSend = content => message.reply(content);
+  
+  // Check if verification system is already complete
+  const isAlreadyVerified = auth.isNsfwVerified(message.author.id);
+  
+  // Check if this is a DM channel
+  const isDM = message.channel.isDMBased();
+  
+  // If the command is run in a DM, explain it needs to be run in a server
+  if (isDM) {
+    return await directSend(
+      "⚠️ **Age Verification Required**\n\n" +
+      "This command must be run in a server channel marked as NSFW to verify your age.\n\n" +
+      "Please join a server, find a channel marked as NSFW, and run `!tz verify` there. This will verify that you meet Discord's age requirements for NSFW content.\n\n" +
+      "This verification is required to use AI personalities in Direct Messages."
+    );
+  }
+  
+  // Check if the current channel is NSFW
+  const isCurrentChannelNSFW = message.channel.nsfw === true;
+  
+  if (isAlreadyVerified) {
+    return await directSend(
+      "✅ **Already Verified**\n\n" +
+      "You are already verified to access AI personalities in Direct Messages. No further action is needed."
+    );
+  }
+  
+  // If the current channel is NSFW, the user is automatically verified
+  if (isCurrentChannelNSFW) {
+    // Store the verification status
+    const success = await auth.storeNsfwVerification(message.author.id, true);
+    
+    if (success) {
+      return await directSend(
+        "✅ **Verification Successful**\n\n" +
+        "You have been successfully verified to use AI personalities in Direct Messages.\n\n" +
+        "This verification confirms you meet Discord's age requirements for accessing NSFW content."
+      );
+    } else {
+      return await directSend(
+        "❌ **Verification Error**\n\n" +
+        "There was an error storing your verification status. Please try again later."
+      );
+    }
+  }
+  
+  // If not in a NSFW channel, check if the user has access to any NSFW channels in this server
+  try {
+    const guild = message.guild;
+    
+    if (!guild) {
+      return await directSend(
+        "❌ **Verification Error**\n\n" +
+        "Unable to verify server information. Please try again in a server channel."
+      );
+    }
+    
+    // Find NSFW channels that the user has access to
+    const nsfwChannels = guild.channels.cache.filter(
+      channel => 
+        channel.isTextBased() && 
+        channel.nsfw === true && 
+        channel.permissionsFor(message.author).has('ViewChannel')
+    );
+    
+    // If the user has access to any NSFW channels, they pass verification
+    if (nsfwChannels.size > 0) {
+      // Store the verification status
+      const success = await auth.storeNsfwVerification(message.author.id, true);
+      
+      if (success) {
+        return await directSend(
+          "✅ **Verification Successful**\n\n" +
+          "You have been successfully verified to use AI personalities in Direct Messages.\n\n" +
+          "This verification confirms you meet Discord's age requirements for accessing NSFW content."
+        );
+      } else {
+        return await directSend(
+          "❌ **Verification Error**\n\n" +
+          "There was an error storing your verification status. Please try again later."
+        );
+      }
+    } else {
+      // User doesn't have access to any NSFW channels
+      return await directSend(
+        "❌ **Verification Failed**\n\n" +
+        "You don't have access to any NSFW channels in this server, which means you may not meet Discord's age requirements.\n\n" +
+        "Please try again in a server where you have access to NSFW-marked channels, or ask a server admin to mark a channel as NSFW for verification purposes."
+      );
+    }
+  } catch (error) {
+    logger.error(`[Commands] Error during verification:`, error);
+    return await directSend(
+      "❌ **Verification Error**\n\n" +
+      "There was an error during the verification process. Please try again later."
+    );
+  }
+}
+
 async function handleStatusCommand(message) {
   // Get Discord client from global scope rather than importing from bot.js to avoid circular dependency
   const client = global.tzurotClient;
@@ -1953,7 +2084,21 @@ async function handleStatusCommand(message) {
   const totalPersonalities = allPersonalities ? allPersonalities.length : 0;
   const userPersonalities = listPersonalitiesForUser(message.author.id).length;
 
-  const embed = embedHelpers.createStatusEmbed(client, totalPersonalities, userPersonalities);
+  // Add verification status to the embed data
+  let verificationStatus = "Unknown";
+  try {
+    const auth = require('./auth');
+    if (auth.isNsfwVerified(message.author.id)) {
+      verificationStatus = "Verified ✓";
+    } else {
+      verificationStatus = "Not Verified ✗";
+    }
+  } catch (error) {
+    logger.error(`[Commands] Error checking verification status:`, error);
+    verificationStatus = "Error checking status";
+  }
+
+  const embed = embedHelpers.createStatusEmbed(client, totalPersonalities, userPersonalities, verificationStatus);
 
   return message.reply({ embeds: [embed] });
 }
@@ -2280,6 +2425,7 @@ module.exports = {
   handleDeactivateCommand,
   handleListCommand,
   handleAuthCommand,
+  handleVerifyCommand,
   directSend: content => {
     try {
       if (typeof content === 'string') {

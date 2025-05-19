@@ -716,6 +716,31 @@ async function initBot() {
       } else {
         // Not a command, continue with personality response
         
+        // SAFETY CHECK: Only allow activated personalities in DMs or NSFW channels
+        const isDM = message.channel.isDMBased();
+        const isNSFW = message.channel.nsfw;
+        
+        if (!isDM && !isNSFW) {
+          // Not a DM and not marked as NSFW - inform the user but only if they haven't been notified recently
+          const restrictionKey = `nsfw-restriction-${message.channel.id}`;
+          const lastNotificationTime = activeRequests.get(restrictionKey) || 0;
+          const currentTime = Date.now();
+          
+          // Only show the message once every hour to avoid spam
+          if (currentTime - lastNotificationTime > 3600000) { // 1 hour in milliseconds
+            await message.channel.send("⚠️ For safety and compliance reasons, personalities can only be used in Direct Messages or channels marked as NSFW. This channel needs to be marked as NSFW in the channel settings to use activated personalities.")
+              .catch(error => {
+                logger.error(`[Bot] Failed to send NSFW restriction notice: ${error.message}`);
+              });
+            
+            // Update the last notification time
+            activeRequests.set(restrictionKey, currentTime);
+          }
+          
+          // Skip processing with activated personality
+          return;
+        }
+        
         // First try to get personality directly by full name
         let personality = getPersonality(activatedPersonalityName);
 
@@ -735,6 +760,27 @@ async function initBot() {
     }
     // Handle DM-specific behavior for "sticky" conversations
     else if (message.channel.isDMBased() && !message.author.bot) {
+      // For all personality interactions, first check if the user is age-verified
+      const auth = require('./auth');
+      const isVerified = auth.isNsfwVerified(message.author.id);
+      
+      if (!isVerified) {
+        // User is not verified, prompt them to verify first
+        logger.info(`[Bot] User ${message.author.id} attempted to use personalities without verification in DM`);
+        try {
+          await message.reply(
+            "⚠️ **Age Verification Required**\n\n" +
+            "To use AI personalities, you need to verify your age first.\n\n" +
+            "Please run `!tz verify` in a channel marked as NSFW. " +
+            "This will verify that you meet Discord's age requirements for accessing NSFW content."
+          );
+        } catch (error) {
+          logger.error(`[Bot] Error sending verification prompt: ${error.message}`);
+        }
+        return; // Stop processing this message
+      }
+      
+      // User is verified, continue with normal DM functionality
       // For DM channels, check for active conversations without requiring explicit mentions
       const activePersonalityName = getActivePersonality(message.author.id, message.channel.id, true);
       
@@ -840,6 +886,39 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
   let typingInterval;
 
   try {
+    // SAFETY CHECK: Only allow personalities to operate in DMs or NSFW channels
+    const isDM = message.channel.isDMBased();
+    const isNSFW = message.channel.nsfw;
+    
+    if (!isDM && !isNSFW) {
+      // Not a DM and not marked as NSFW - inform the user and exit
+      await message.reply({
+        content: "⚠️ For safety and compliance reasons, personalities can only be used in Direct Messages or channels marked as NSFW. Please either chat with me in DMs or ask a server admin to mark this channel as NSFW in the channel settings.",
+        ephemeral: true // Make the message only visible to the user when possible
+      }).catch(error => {
+        logger.error(`[Bot] Failed to send NSFW restriction notice: ${error.message}`);
+      });
+      return; // Exit without processing the personality interaction
+    }
+    
+    // Check if the user is age-verified for ALL personality interactions (both DM and server channels)
+    const auth = require('./auth');
+    const isVerified = auth.isNsfwVerified(message.author.id);
+    
+    if (!isVerified) {
+      // User is not verified, prompt them to verify first
+      logger.info(`[Bot] User ${message.author.id} attempted to use personalities without verification in ${isDM ? 'DM' : 'server channel'}`);
+      await message.reply(
+        "⚠️ **Age Verification Required**\n\n" +
+        "To use AI personalities, you need to verify your age first.\n\n" +
+        "Please run `!tz verify` in a channel marked as NSFW. " +
+        "This will verify that you meet Discord's age requirements for accessing NSFW content."
+      ).catch(error => {
+        logger.error(`[Bot] Failed to send verification notice: ${error.message}`);
+      });
+      return; // Exit without processing the personality interaction
+    }
+    
     // Track the request to prevent duplicates
     const requestKey = trackRequest(message.author.id, message.channel.id, personality.fullName);
     if (!requestKey) {

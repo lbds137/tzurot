@@ -25,9 +25,13 @@ const AUTH_API_ENDPOINT = `${process.env.SERVICE_API_BASE_URL}/auth`;
 // Storage configuration
 const DATA_DIR = path.join(process.cwd(), 'data');
 const AUTH_TOKENS_FILE = path.join(DATA_DIR, 'auth_tokens.json');
+const NSFW_VERIFIED_FILE = path.join(DATA_DIR, 'nsfw_verified.json');
 
-// In-memory cache of user tokens
+// In-memory cache of user tokens and verification status
 let userTokens = {};
+
+// In-memory cache of NSFW verification status
+let nsfwVerified = {};
 
 /**
  * Generate the authorization URL for a user
@@ -180,6 +184,78 @@ async function deleteUserToken(userId) {
 }
 
 /**
+ * Store NSFW verification status for a user
+ * 
+ * @param {string} userId - The Discord user ID
+ * @param {boolean} isVerified - Whether the user is verified for NSFW content
+ * @returns {Promise<boolean>} Whether the status was stored successfully
+ */
+async function storeNsfwVerification(userId, isVerified) {
+  try {
+    // Ensure the data directory exists
+    await fs.mkdir(DATA_DIR, { recursive: true });
+
+    // Load existing verification data
+    await loadNsfwVerifications();
+
+    // Add the new verification status
+    nsfwVerified[userId] = {
+      verified: isVerified,
+      timestamp: Date.now(),
+      verifiedAt: isVerified ? Date.now() : null
+    };
+
+    // Save all verification data
+    await fs.writeFile(NSFW_VERIFIED_FILE, JSON.stringify(nsfwVerified, null, 2));
+    logger.info(`[Auth] Stored NSFW verification status for user ${userId}: ${isVerified}`);
+    return true;
+  } catch (error) {
+    logger.error(`[Auth] Error storing NSFW verification for user ${userId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Load all NSFW verification data from storage
+ * 
+ * @returns {Promise<void>}
+ */
+async function loadNsfwVerifications() {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    
+    try {
+      const data = await fs.readFile(NSFW_VERIFIED_FILE, 'utf8');
+      nsfwVerified = JSON.parse(data);
+      logger.info(`[Auth] Loaded ${Object.keys(nsfwVerified).length} NSFW verification records`);
+    } catch (readError) {
+      if (readError.code === 'ENOENT') {
+        // File doesn't exist yet, start with empty object
+        nsfwVerified = {};
+        logger.info(`[Auth] No NSFW verification file found, starting with empty store`);
+      } else {
+        // Some other error occurred
+        logger.error(`[Auth] Error reading NSFW verification file:`, readError);
+        throw readError;
+      }
+    }
+  } catch (error) {
+    logger.error(`[Auth] Error loading NSFW verifications:`, error);
+    nsfwVerified = {};
+  }
+}
+
+/**
+ * Check if a user is verified for NSFW content
+ * 
+ * @param {string} userId - The Discord user ID
+ * @returns {boolean} Whether the user is verified for NSFW content
+ */
+function isNsfwVerified(userId) {
+  return nsfwVerified[userId]?.verified === true;
+}
+
+/**
  * Initialize the auth system
  * 
  * @returns {Promise<void>}
@@ -187,6 +263,7 @@ async function deleteUserToken(userId) {
 async function initAuth() {
   logger.info(`[Auth] Initializing auth system with app ID: ${APP_ID}`);
   await loadUserTokens();
+  await loadNsfwVerifications();
 }
 
 module.exports = {
@@ -197,6 +274,8 @@ module.exports = {
   getUserToken,
   hasValidToken,
   deleteUserToken,
+  storeNsfwVerification,
+  isNsfwVerified,
   APP_ID,
   API_KEY
 };

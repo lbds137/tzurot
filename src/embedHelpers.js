@@ -265,9 +265,10 @@ function createPersonalityInfoEmbed(personality, aliases) {
  * @param {Object} client - Discord client instance
  * @param {number} totalPersonalities - Total number of personalities
  * @param {number} userPersonalities - Number of personalities for the user
+ * @param {string} [verificationStatus="Unknown"] - User's age verification status
  * @returns {EmbedBuilder} Discord embed
  */
-function createStatusEmbed(client, totalPersonalities, userPersonalities) {
+function createStatusEmbed(client, totalPersonalities, userPersonalities, verificationStatus = "Unknown") {
   const embed = new EmbedBuilder()
     .setTitle('Tzurot Status')
     .setDescription('Current bot status and statistics')
@@ -277,6 +278,7 @@ function createStatusEmbed(client, totalPersonalities, userPersonalities) {
       { name: 'Total Personalities', value: totalPersonalities.toString() },
       { name: 'Your Personalities', value: userPersonalities.toString() },
       { name: 'Connected Servers', value: client.guilds.cache.size.toString() },
+      { name: 'Age Verification', value: verificationStatus },
       {
         name: 'Memory Usage',
         value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`,
@@ -355,7 +357,11 @@ function createHelpEmbed(isAdmin) {
         name: `${prefix} autorespond <on|off|status>`,
         value: 'Toggle whether personalities continue responding to your messages automatically',
       },
-      { name: `${prefix} reset`, value: 'Clear your active conversation' }
+      { name: `${prefix} reset`, value: 'Clear your active conversation' },
+      {
+        name: `${prefix} verify`,
+        value: 'Verify your age to use AI personalities in Direct Messages (must be run in NSFW channel)',
+      }
     )
     .setFooter({
       text: 'To interact with a personality, mention them with @alias or reply to their messages',
