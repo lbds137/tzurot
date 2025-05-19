@@ -775,41 +775,9 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       let hasFoundImage = false;
       let hasFoundAudio = false;
 
-      // Remove only the specific @mention that triggered the bot if at beginning or end
-      if (message.content && triggeringMention) {
-        // Escape special regex characters in the triggering mention
-        const escapedMention = triggeringMention.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // Create regex patterns to match the mention at the beginning or end of the message
-        // These patterns also handle punctuation and spacing
-        const mentionAtStartRegex = new RegExp(`^\\s*@${escapedMention}\\b\\s*[,;:.!?]?\\s*`, 'i');
-        const mentionAtEndRegex = new RegExp(`\\s*@${escapedMention}\\b\\s*$`, 'i');
-        
-        // Store original content for comparison
-        const originalContent = message.content;
-        let withMentionRemoved = originalContent;
-        
-        // Only remove if at beginning or end
-        if (mentionAtStartRegex.test(originalContent)) {
-          logger.debug(`[Bot] Removing @mention "${triggeringMention}" from beginning of message`);
-          withMentionRemoved = withMentionRemoved.replace(mentionAtStartRegex, '');
-        }
-        
-        if (mentionAtEndRegex.test(withMentionRemoved)) { // Use withMentionRemoved to handle case where mention might be at both start and end
-          logger.debug(`[Bot] Removing @mention "${triggeringMention}" from end of message`);
-          withMentionRemoved = withMentionRemoved.replace(mentionAtEndRegex, '');
-        }
-        
-        // Fix spacing issues
-        messageContent = withMentionRemoved
-          .replace(/\s{2,}/g, ' ') // Replace multiple spaces with a single space
-          .replace(/\s,/g, ',') // Fix spacing before commas
-          .trim();
-
-        if (messageContent !== message.content) {
-          logger.info(`[Bot] Removed triggering @mention "${triggeringMention}" from message content`);
-          logger.debug(`[Bot] Original: "${message.content}" -> Cleaned: "${messageContent}"`);
-        }
+      // Don't remove @mentions from the message
+      if (message.content) {
+        messageContent = message.content;
 
         // Regular expressions to match common image URLs
         const imageUrlRegex = /https?:\/\/\S+\.(jpg|jpeg|png|gif|webp)(\?\S*)?/i;
