@@ -1040,8 +1040,17 @@ function formatApiMessages(content) {
           
           // Format the reference prefix based on who sent it
           if (content.referencedMessage.isFromBot) {
-            // If it's from the bot/assistant, use a special format
-            referencePrefix = `[Referring to my previous message: "${cleanContent}"] `;
+            // If it's from a bot/webhook, check if we know which personality
+            if (content.referencedMessage.personalityName) {
+              // If we have the personality name, use it directly
+              referencePrefix = `[Referring to message from ${content.referencedMessage.personalityDisplayName || content.referencedMessage.personalityName}: "${cleanContent}"] `;
+            } else if (content.referencedMessage.webhookName) {
+              // If we have a webhook name but no personality
+              referencePrefix = `[Referring to message from ${content.referencedMessage.webhookName}: "${cleanContent}"] `;
+            } else {
+              // Fallback for unknown bot messages
+              referencePrefix = `[Referring to previous message: "${cleanContent}"] `;
+            }
           } else {
             // If it's from another user
             referencePrefix = `[Referring to message from ${content.referencedMessage.author || 'another user'}: "${cleanContent}"] `;
