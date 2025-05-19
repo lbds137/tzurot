@@ -95,6 +95,13 @@ async function init() {
 async function cleanup() {
   logger.info('Shutting down Tzurot...');
   
+  // Send deactivation messages to all channels with activated personalities
+  try {
+    await sendDeactivationMessages();
+  } catch (error) {
+    logger.error('Error sending deactivation messages:', error);
+  }
+  
   // Save all conversation data
   try {
     logger.info('Saving conversation data...');
@@ -132,6 +139,73 @@ async function cleanup() {
   
   logger.info('Shutdown complete.');
   process.exit(0);
+}
+
+/**
+ * Send deactivation messages to all channels with activated personalities
+ * before the bot shuts down
+ */
+async function sendDeactivationMessages() {
+  // Import required modules
+  const { getAllActivatedChannels, deactivatePersonality } = require('./src/conversationManager');
+  
+  // Get all channels with activated personalities
+  const activatedChannels = getAllActivatedChannels();
+  
+  if (!activatedChannels || Object.keys(activatedChannels).length === 0) {
+    logger.info('No activated channels to deactivate during shutdown');
+    return;
+  }
+  
+  logger.info(`Deactivating personalities in ${Object.keys(activatedChannels).length} channels`);
+  
+  // Only proceed if client is available
+  if (!client || !client.channels) {
+    logger.warn('Discord client not available, skipping deactivation messages');
+    return;
+  }
+  
+  // Message to send when deactivating
+  const shutdownMessage = `**Channel-wide activation disabled due to bot shutdown.** The bot is shutting down. Personalities will no longer be active in this channel until the bot returns and is reactivated.`;
+  
+  // Process each activated channel
+  const promises = [];
+  
+  for (const [channelId, personalityName] of Object.entries(activatedChannels)) {
+    try {
+      // Try to get the channel
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      
+      if (channel && channel.isTextBased()) {
+        // Send deactivation message
+        logger.info(`Sending shutdown deactivation message to channel ${channelId} for personality ${personalityName}`);
+        promises.push(
+          channel.send(shutdownMessage)
+            .catch(err => logger.error(`Failed to send deactivation message to channel ${channelId}:`, err))
+        );
+        
+        // Deactivate the personality in this channel
+        deactivatePersonality(channelId);
+      }
+    } catch (error) {
+      logger.error(`Error processing deactivation for channel ${channelId}:`, error);
+    }
+  }
+  
+  // Wait for all messages to be sent (with a timeout)
+  if (promises.length > 0) {
+    try {
+      // Use Promise.allSettled with timeout to avoid hanging if a promise never resolves
+      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 5000));
+      await Promise.race([
+        Promise.allSettled(promises),
+        timeoutPromise
+      ]);
+      logger.info('Deactivation messages sent (or timeout reached)');
+    } catch (error) {
+      logger.error('Error waiting for deactivation messages:', error);
+    }
+  }
 }
 
 // Start the application

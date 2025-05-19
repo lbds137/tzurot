@@ -483,8 +483,20 @@ function getActivatedPersonality(channelId) {
   if (!activated) {
     return null;
   }
-
   return activated.personalityName;
+}
+
+/**
+ * Get all channels with activated personalities
+ * @returns {Object} Map of channel IDs to personality names
+ */
+function getAllActivatedChannels() {
+  // Convert Map to a plain object for easier handling
+  const result = {};
+  for (const [channelId, activated] of activatedChannels.entries()) {
+    result[channelId] = activated.personalityName;
+  }
+  return result;
 }
 
 // Periodically clean up stale conversations
@@ -563,6 +575,7 @@ module.exports = {
   activatePersonality,
   deactivatePersonality,
   getActivatedPersonality,
+  getAllActivatedChannels,
   enableAutoResponse,
   disableAutoResponse,
   isAutoResponseEnabled,
