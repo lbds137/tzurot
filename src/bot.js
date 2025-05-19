@@ -1375,36 +1375,142 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       // Prepare options with thread information if needed
       const isThread = message.channel.isThread();
       
+      // CRITICAL: Add detailed logging about channel properties to diagnose thread issues
+      logger.info(`[Bot] Channel type: ${message.channel.type}, ID: ${message.channel.id}`);
+      logger.info(`[Bot] isThread check returns: ${isThread}`);
+      logger.info(`[Bot] Channel properties: ${JSON.stringify({
+        isThread: isThread,
+        type: message.channel.type,
+        name: message.channel.name,
+        parentId: message.channel.parentId,
+        hasParent: !!message.channel.parent,
+        isTextBased: message.channel.isTextBased(),
+        isVoiceBased: message.channel.isVoiceBased?.(),
+        isDMBased: message.channel.isDMBased?.()
+      })}`);
+      
       // Log detailed thread information for debugging
       if (isThread) {
         logger.info(`[Bot] @Mention in Thread detected! Thread ID: ${message.channel.id}`);
         if (message.channel.parent) {
           logger.info(`[Bot] Parent channel ID: ${message.channel.parent.id}, Name: ${message.channel.parent.name}`);
+          logger.info(`[Bot] Parent channel type: ${message.channel.parent.type}`);
+        } else {
+          logger.warn(`[Bot] Thread parent unavailable - this might cause issues!`);
         }
       }
+      
+      // Force thread detection for certain channel types
+      let forcedThread = false;
+      if (message.channel.type === 'GUILD_PUBLIC_THREAD' || 
+          message.channel.type === 'GUILD_PRIVATE_THREAD' || 
+          message.channel.type === 'PUBLIC_THREAD' || 
+          message.channel.type === 'PRIVATE_THREAD' ||
+          message.channel.type === 'FORUM') {
+        logger.info(`[Bot] Forcing thread mode for channel type: ${message.channel.type}`);
+        forcedThread = true;
+      }
+      
+      // Combine native thread detection with forced detection
+      const finalIsThread = isThread || forcedThread;
       
       const webhookOptions = {
         // Include user ID in options for enhanced tracking
         userId: message.author?.id,
         // If the message is in a thread, explicitly pass the threadId to ensure
         // webhooks respond in the correct thread context
-        threadId: isThread ? message.channel.id : undefined
+        threadId: finalIsThread ? message.channel.id : undefined,
+        // Add channel type information for better handling
+        channelType: message.channel.type,
+        // Add special forum flag 
+        isForum: message.channel.type === 'FORUM' || 
+                (message.channel.parent && message.channel.parent.type === 'FORUM')
       };
       
       // Extra validation for thread handling
-      if (isThread && !webhookOptions.threadId) {
+      if (finalIsThread && !webhookOptions.threadId) {
         logger.error(`[Bot] CRITICAL ERROR: Thread detected but threadId is not set in webhookOptions!`);
         // Force set the threadId from the channel
         webhookOptions.threadId = message.channel.id;
       }
       
-      const result = await webhookManager.sendWebhookMessage(
-        message.channel,
-        aiResponse,
-        personality,
-        webhookOptions,
-        message // Pass the original message for user authentication
-      );
+      // Log if the thread detection was forced
+      if (forcedThread && !isThread) {
+        logger.info(`[Bot] Thread detection was forced based on channel type, native isThread() returned false`);
+      }
+      
+      // Extra logging to ensure webhook options are correct
+      logger.info(`[Bot] Final webhook options: ${JSON.stringify(webhookOptions)}`);
+      
+      // For forum channel threads, add special handling
+      if (webhookOptions.isForum) {
+        logger.info(`[Bot] Forum channel detected - adding special forum handling`);
+        webhookOptions.forum = true;
+        webhookOptions.forumThreadId = message.channel.id;
+      }
+      
+      let result;
+
+      // CRITICAL: For threads, try our direct thread implementation first - this is the most reliable approach
+      if (finalIsThread) {
+        logger.info(`[Bot] Thread message detected - using priority sendDirectThreadMessage implementation`);
+        
+        try {
+          // First, try our specialized direct thread message function
+          result = await webhookManager.sendDirectThreadMessage(
+            message.channel,
+            aiResponse,
+            personality,
+            webhookOptions
+          );
+          
+          logger.info(`[Bot] Direct thread message sent successfully with ID: ${result.messageIds?.[0] || 'unknown'}`);
+        } catch (threadError) {
+          logger.error(`[Bot] Direct thread message approach failed: ${threadError.message}`);
+          logger.info(`[Bot] Falling back to standard webhook approach for thread`);
+          
+          // Fallback to regular webhook approach
+          try {
+            result = await webhookManager.sendWebhookMessage(
+              message.channel,
+              aiResponse,
+              personality,
+              webhookOptions,
+              message // Pass the original message for user authentication
+            );
+          } catch (webhookError) {
+            logger.error(`[Bot] Both thread delivery approaches failed! Error: ${webhookError.message}`);
+            
+            // Final fallback - use the channel's send method directly
+            try {
+              logger.info(`[Bot] Attempting last resort direct channel.send`);
+              const formattedContent = `**${personality.displayName || personality.fullName}:** ${aiResponse}`;
+              const directMessage = await message.channel.send(formattedContent);
+              
+              // Create a result object mimicking webhook result
+              result = {
+                message: directMessage,
+                messageIds: [directMessage.id],
+                isEmergencyFallback: true
+              };
+              
+              logger.info(`[Bot] Emergency direct send succeeded: ${directMessage.id}`);
+            } catch (finalError) {
+              logger.error(`[Bot] ALL message delivery methods failed: ${finalError.message}`);
+              throw finalError; // Re-throw the error if all approaches fail
+            }
+          }
+        }
+      } else {
+        // For non-thread channels, use the standard webhook approach
+        result = await webhookManager.sendWebhookMessage(
+          message.channel,
+          aiResponse,
+          personality,
+          webhookOptions,
+          message // Pass the original message for user authentication
+        );
+      }
 
       // Clean up active request tracking
       activeRequests.delete(requestKey);

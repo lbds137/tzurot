@@ -898,75 +898,124 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     // Handle message sending with improved thread support
     let sentMessage;
     
-    // Check if this is a thread message
-    if (messageData.threadId) {
-      logger.info(`[WebhookManager] Sending to thread ${messageData.threadId} - using thread-specific webhook`);
+    // Check if this is a forum thread (special handling)
+    const isForum = messageData.forum || 
+                    messageData.isForum || 
+                    (messageData._originalChannel && 
+                    (messageData._originalChannel.type === 'FORUM' ||
+                    (messageData._originalChannel.parent && 
+                     messageData._originalChannel.parent.type === 'FORUM')));
+    
+    if (isForum && messageData.threadId) {
+      logger.info(`[WebhookManager] FORUM THREAD DETECTED - using special forum handling for ID: ${messageData.threadId}`);
       
-      // Check webhook metadata to see if this is already a thread-specific webhook
-      const isThreadWebhook = webhook._tzurotMeta?.isThread === true && 
-                             webhook._tzurotMeta?.threadId === messageData.threadId;
-                             
-      if (isThreadWebhook) {
-        // This is already a thread-specific webhook, so we don't need the threadId in the options
-        logger.info(`[WebhookManager] Using pre-configured thread-specific webhook`);
+      // For forum threads, we need to use thread_id parameter - forum posts are special
+      try {
+        // Create clean options without metadata
+        const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } = messageData;
         
-        // Create a clean version of messageData without threadId
-        const { threadId: _unused, ...cleanOptions } = messageData;
+        // Send with explicit thread_id
+        sentMessage = await webhook.send({
+          ...cleanOptions,
+          thread_id: threadId // Use Discord.js required format
+        });
+        logger.info(`[WebhookManager] Successfully sent to forum thread with thread_id`);
+        return sentMessage;
+      } catch (forumError) {
+        logger.error(`[WebhookManager] Error sending to forum thread: ${forumError.message}`);
         
-        // Send with clean options
-        try {
-          sentMessage = await webhook.send(cleanOptions);
-          logger.info(`[WebhookManager] Successfully sent message using pre-configured thread webhook`);
-        } catch (error) {
-          logger.error(`[WebhookManager] Error sending with pre-configured thread webhook: ${error.message}`);
-          throw error; // Re-throw to be handled by outer error handler
-        }
-      } else {
-        // Need to explicitly create a thread-specific webhook
-        logger.info(`[WebhookManager] Creating thread-specific webhook instance for sending`);
-        
-        try {
-          // Create thread-specific webhook
-          const threadWebhook = webhook.thread(messageData.threadId);
-          
-          // Create clean options without threadId
-          const { threadId: _unused, ...cleanOptions } = messageData;
-          
-          // Send using thread-specific webhook
-          sentMessage = await threadWebhook.send(cleanOptions);
-          logger.info(`[WebhookManager] Successfully sent with on-demand thread webhook`);
-        } catch (threadError) {
-          logger.error(`[WebhookManager] Error with thread webhook: ${threadError.message}`);
-          logger.info(`[WebhookManager] Trying alternative thread_id parameter approach`);
-          
+        // Critical: for forum posts, we might need to try with a thread_name if thread_id fails
+        if (forumError.message.includes('thread_name')) {
           try {
-            // Last resort - use the raw thread_id parameter
-            const { threadId: _unused, ...cleanOptions } = messageData;
+            const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } = messageData;
             
             sentMessage = await webhook.send({
               ...cleanOptions,
-              thread_id: messageData.threadId  // Discord.js v14 format
+              thread_id: threadId,
+              thread_name: "Thread" // Try with a default thread name
             });
-            logger.info(`[WebhookManager] Success with thread_id parameter approach`);
+            logger.info(`[WebhookManager] Successfully sent to forum with thread_name fallback`);
+            return sentMessage;
           } catch (finalError) {
-            logger.error(`[WebhookManager] All thread approaches failed: ${finalError.message}`);
+            logger.error(`[WebhookManager] Forum thread fallback failed: ${finalError.message}`);
+            throw finalError;
+          }
+        } else {
+          throw forumError;
+        }
+      }
+    }
+    // Regular thread handling
+    else if (messageData.threadId) {
+      logger.info(`[WebhookManager] Sending to thread ${messageData.threadId} - using thread-specific webhook`);
+      
+      // For normal threads, use the most reliable approach first - thread_id parameter
+      logger.info(`[WebhookManager] Using direct thread_id parameter approach for thread ${messageData.threadId}`);
+      
+      try {
+        // Simplest approach - direct thread_id parameter (works in most Discord.js versions)
+        const { threadId, _isThread, _originalChannel, ...cleanOptions } = messageData;
+        
+        sentMessage = await webhook.send({
+          ...cleanOptions,
+          thread_id: threadId  // Discord.js format
+        });
+        logger.info(`[WebhookManager] Successfully sent message using thread_id parameter`);
+      } catch (directError) {
+        logger.error(`[WebhookManager] Direct thread_id approach failed: ${directError.message}`);
+        logger.info(`[WebhookManager] Attempting fallback methods...`);
+        
+        // Try alternative approaches
+        try {
+          // Check if webhook has thread() method
+          if (typeof webhook.thread === 'function') {
+            logger.info(`[WebhookManager] Trying webhook.thread() method`);
             
-            // One last desperate attempt: reset the webhook and try again
-            logger.info(`[WebhookManager] Attempting last resort: parent channel webhook with thread ID`);
-            try {
-              // Get the thread channel's parent
-              const threadChannel = messageData._originalChannel; // Added in patched version
+            // Create thread-specific webhook
+            const threadWebhook = webhook.thread(messageData.threadId);
+            
+            // Create clean options without threadId
+            const { threadId: _unused, ...threadCleanOptions } = messageData;
+            
+            // Send using thread-specific webhook
+            sentMessage = await threadWebhook.send(threadCleanOptions);
+            logger.info(`[WebhookManager] Successfully sent with webhook.thread() method`);
+          } else {
+            // If thread() method doesn't exist, try other approaches
+            logger.warn(`[WebhookManager] webhook.thread method not available, trying another approach`);
+            
+            // Try sending directly to parent channel with thread_id
+            const { threadId: _threadId2, ...cleanOptions2 } = messageData;
+            
+            // Send with direct thread_id
+            sentMessage = await webhook.send({
+              ...cleanOptions2,
+              thread_id: messageData.threadId
+            });
+            logger.info(`[WebhookManager] Successfully sent with direct thread_id parameter (secondary approach)`);
+          }
+        } catch (finalError) {
+          logger.error(`[WebhookManager] All thread approaches failed: ${finalError.message}`);
+          
+          // One last desperate attempt: try multiple fallback approaches
+          logger.info(`[WebhookManager] Attempting fallback approaches for thread message delivery`);
+          
+          try {
+            // APPROACH 1: Try fresh webhook from parent
+            // Get the thread channel's parent
+            const threadChannel = messageData._originalChannel; // Added in patched version
+            
+            if (threadChannel && threadChannel.parent) {
+              // Get a webhook for the parent
+              logger.info(`[WebhookManager] FALLBACK 1: Getting fresh webhook for parent channel ${threadChannel.parent.id}`);
+              const parentWebhooks = await threadChannel.parent.fetchWebhooks();
+              const parentWebhook = parentWebhooks.find(wh => wh.name === 'Tzurot');
               
-              if (threadChannel && threadChannel.parent) {
-                // Get a webhook for the parent
-                logger.info(`[WebhookManager] Getting fresh webhook for parent channel ${threadChannel.parent.id}`);
-                const parentWebhooks = await threadChannel.parent.fetchWebhooks();
-                const parentWebhook = parentWebhooks.find(wh => wh.name === 'Tzurot');
+              if (parentWebhook) {
+                // Create a new client
+                const freshClient = new WebhookClient({ url: parentWebhook.url });
                 
-                if (parentWebhook) {
-                  // Create a new client
-                  const freshClient = new WebhookClient({ url: parentWebhook.url });
-                  
+                try {
                   // Try the thread method
                   const freshThreadClient = freshClient.thread(messageData.threadId);
                   
@@ -975,13 +1024,52 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
                   
                   // Try to send
                   sentMessage = await freshThreadClient.send(finalCleanOptions);
-                  logger.info(`[WebhookManager] Last resort worked! Message sent to thread.`);
+                  logger.info(`[WebhookManager] FALLBACK 1 worked! Message sent to thread via fresh webhook.`);
+                  return sentMessage;
+                } catch (freshWebhookError) {
+                  logger.error(`[WebhookManager] FALLBACK 1 failed: ${freshWebhookError.message}`);
                 }
               }
-            } catch (lastError) {
-              logger.error(`[WebhookManager] Last resort failed: ${lastError.message}`);
-              throw finalError; // Re-throw the original error
             }
+            
+            // APPROACH 2: Direct channel.send as last resort
+            // This completely bypasses the webhook system for this message
+            if (threadChannel && typeof threadChannel.send === 'function') {
+              logger.info(`[WebhookManager] FALLBACK 2: Attempting direct channel.send to thread ${messageData.threadId}`);
+              
+              try {
+                // Format the message for direct sending
+                const formattedContent = `**${messageData.username}:** ${messageData.content}`;
+                
+                // Send using the direct Discord.js channel API
+                const directSentMessage = await threadChannel.send({
+                  content: formattedContent,
+                  files: messageData.files || [],
+                  embeds: messageData.embeds || []
+                });
+                
+                logger.info(`[WebhookManager] FALLBACK 2 worked! Message sent via direct channel.send, ID: ${directSentMessage.id}`);
+                
+                // Return a webhook-like response
+                sentMessage = {
+                  id: directSentMessage.id,
+                  content: directSentMessage.content,
+                  embeds: directSentMessage.embeds,
+                  _directSend: true
+                };
+                
+                return sentMessage;
+              } catch (directSendError) {
+                logger.error(`[WebhookManager] FALLBACK 2 failed: ${directSendError.message}`);
+              }
+            }
+            
+            // If both approaches fail, throw the original error
+            logger.error(`[WebhookManager] All thread fallback approaches failed`);
+            throw finalError;
+          } catch (lastError) {
+            logger.error(`[WebhookManager] Last resort failed: ${lastError.message}`);
+            throw finalError; // Re-throw the original error
           }
         }
       }
@@ -1284,9 +1372,11 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
   if (channel.isThread()) {
     logger.info(`[WebhookManager] SENDING TO THREAD: ${channel.id}`);
     logger.info(`[WebhookManager] Thread name: ${channel.name || 'unknown'}`);
+    logger.info(`[WebhookManager] Thread type: ${channel.type}`);
     
     if (channel.parent) {
       logger.info(`[WebhookManager] Thread parent channel: ${channel.parent.name || 'unknown'} (ID: ${channel.parent.id})`); 
+      logger.info(`[WebhookManager] Parent channel type: ${channel.parent.type}`);
     } else {
       logger.warn(`[WebhookManager] Thread parent channel not available! This may cause issues.`);
     }
@@ -1295,13 +1385,29 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
     logger.info(`[WebhookManager] Thread options: ${JSON.stringify({
       hasThreadId: !!options.threadId,
       threadId: options.threadId,
-      isChannelThread: channel.isThread()
+      isChannelThread: channel.isThread(),
+      channelType: channel.type,
+      isForum: options.isForum || false,
+      isForumChannel: channel.type === 'FORUM' || (channel.parent && channel.parent.type === 'FORUM'),
+      customThreadType: options.channelType
     })}`);
     
     // Explicitly set the threadId in options if not already set
     if (!options.threadId) {
       logger.warn(`[WebhookManager] Thread ID not set in options, setting it to ${channel.id}`);
       options.threadId = channel.id;
+    }
+    
+    // Handle forum channels specially due to Discord API requirements
+    const isForum = channel.type === 'FORUM' || 
+                    (channel.parent && channel.parent.type === 'FORUM') || 
+                    options.isForum || 
+                    options.channelType === 'FORUM';
+                    
+    if (isForum) {
+      logger.info(`[WebhookManager] FORUM CHANNEL DETECTED - using special forum handling for ID: ${channel.id}`);
+      options.forum = true;
+      options.thread_id = channel.id; // Discord.js required format
     }
   }
 
@@ -2108,6 +2214,132 @@ function isDuplicateMessage(content, username, channelId) {
   return false;
 }
 
+/**
+ * Send a message directly to a thread, bypassing the webhook system entirely
+ * This is a specialized function for when webhook-based approaches fail
+ * 
+ * @param {Object} channel - The thread channel to send to
+ * @param {string} content - Message content
+ * @param {Object} personality - Personality data (name, avatar)
+ * @param {Object} options - Additional options
+ * @returns {Promise<Object>} The sent message info
+ */
+async function sendDirectThreadMessage(channel, content, personality, options = {}) {
+  if (!channel || !channel.isThread()) {
+    logger.error(`[WebhookManager] Called sendDirectThreadMessage on non-thread channel: ${channel?.id}`);
+    throw new Error('Cannot send direct thread message to non-thread channel');
+  }
+  
+  logger.info(`[WebhookManager] DIRECT THREAD MESSAGE: Sending to thread ${channel.id} as ${personality.displayName || personality.fullName}`);
+  
+  try {
+    // Get standardized display name
+    const standardName = getStandardizedUsername(personality);
+    logger.info(`[WebhookManager] Using standardized name: ${standardName}`);
+    
+    // Process any media in the content
+    let processedContent = content;
+    let mediaAttachments = [];
+    
+    try {
+      if (typeof content === 'string') {
+        const mediaResult = await mediaHandler.processMediaUrls(content);
+        processedContent = mediaResult.content;
+        mediaAttachments = mediaResult.attachments;
+        
+        if (mediaAttachments.length > 0) {
+          logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media attachments for direct thread message`);
+        }
+      }
+    } catch (mediaError) {
+      logger.error(`[WebhookManager] Error processing media for direct thread message: ${mediaError.message}`);
+      // Continue with original content
+      processedContent = content;
+      mediaAttachments = [];
+    }
+    
+    // Format the message content with personality name
+    const formattedContent = `**${standardName}:** ${processedContent}`;
+    
+    // Split message if needed
+    const contentChunks = splitMessage(formattedContent);
+    logger.info(`[WebhookManager] Split direct thread message into ${contentChunks.length} chunks`);
+    
+    // Track sent messages
+    const sentMessageIds = [];
+    let firstSentMessage = null;
+    
+    // Send each chunk
+    for (let i = 0; i < contentChunks.length; i++) {
+      const isFirstChunk = i === 0;
+      const isLastChunk = i === contentChunks.length - 1;
+      const chunkContent = contentChunks[i];
+      
+      // Skip duplicate messages
+      if (isDuplicateMessage(chunkContent, standardName, channel.id)) {
+        logger.info(`[WebhookManager] Skipping direct thread chunk ${i + 1} due to duplicate detection`);
+        continue;
+      }
+      
+      // Only include attachments and embeds in last chunk
+      const sendOptions = {};
+      
+      if (isLastChunk) {
+        // Add mediaAttachments if they exist
+        if (mediaAttachments.length > 0) {
+          sendOptions.files = mediaAttachments;
+        }
+        
+        // Add embeds if provided in options
+        if (options.embeds && options.embeds.length > 0) {
+          sendOptions.embeds = options.embeds;
+        }
+      }
+      
+      // Send message to thread
+      try {
+        const sentMessage = await channel.send({
+          content: chunkContent,
+          ...sendOptions
+        });
+        
+        // Track message
+        sentMessageIds.push(sentMessage.id);
+        
+        if (isFirstChunk) {
+          firstSentMessage = sentMessage;
+        }
+        
+        logger.info(`[WebhookManager] Successfully sent direct thread message chunk ${i + 1}/${contentChunks.length}`);
+      } catch (sendError) {
+        logger.error(`[WebhookManager] Error sending direct thread message chunk ${i + 1}: ${sendError.message}`);
+        
+        if (isFirstChunk) {
+          // If first chunk fails, propagate the error
+          throw sendError;
+        }
+        // Otherwise continue with remaining chunks
+      }
+    }
+    
+    // Return result
+    if (sentMessageIds.length > 0) {
+      return {
+        message: firstSentMessage,
+        messageIds: sentMessageIds,
+        isDirectThread: true,
+        personalityName: personality.fullName
+      };
+    } else {
+      // If no messages were sent (all were duplicates), create a virtual result
+      return createVirtualResult(personality, channel.id);
+    }
+  } catch (error) {
+    logger.error(`[WebhookManager] Failed to send direct thread message: ${error.message}`);
+    throw error;
+  }
+}
+
 module.exports = {
   // Main webhook API functions
   getOrCreateWebhook,
@@ -2117,6 +2349,7 @@ module.exports = {
   registerEventListeners,
   preloadPersonalityAvatar,
   sendFormattedMessageInDM,
+  sendDirectThreadMessage, // Add the new function
 
   // Helper functions for usernames and messages
   getStandardizedUsername,
