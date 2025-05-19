@@ -198,6 +198,9 @@ async function processCommand(message, command, args) {
 
       case 'deactivate':
         return await handleDeactivateCommand(message, args);
+        
+      case 'clearerrors':
+        return await handleClearErrorsCommand(message, args);
 
       case 'autorespond':
       case 'auto':
@@ -383,6 +386,16 @@ async function handleHelpCommand(message, args) {
               `- Checks if you have access to NSFW content on Discord\n` +
               `- Required for using personalities in DMs\n\n` +
               `Example: \`${prefix} verify\``
+          );
+          
+        case 'clearerrors':
+          return await directSend(
+            `**${prefix} clearerrors**\n` +
+              `Clears any error state for personalities that might be preventing them from responding.\n` +
+              `- Use this if a personality is repeatedly failing to respond\n` +
+              `- Clears both problematic personality registrations and blackout periods\n` +
+              `- Requires admin permission\n\n` +
+              `Example: \`${prefix} clearerrors\``
           );
 
         case 'autorespond':
@@ -1912,6 +1925,50 @@ async function handleDeactivateCommand(message) {
 }
 
 /**
+ * Handle the clearerrors command
+ * Clears all error states from personalities and blackout periods
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleClearErrorsCommand(message) {
+  // Check if user has Administrator permission for this command
+  const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
+  const isDM = message.channel.isDMBased();
+  
+  // For safety, require Admin permissions in servers
+  if (!isDM && !isAdmin) {
+    return message.reply('You need Administrator permission to use this command.');
+  }
+
+  try {
+    // Import the AIService
+    const {
+      runtimeProblematicPersonalities,
+      errorBlackoutPeriods
+    } = require('./aiService');
+    
+    // Clear all runtime problematic personalities
+    const problemPersonalityCount = runtimeProblematicPersonalities.size;
+    runtimeProblematicPersonalities.clear();
+    
+    // Clear all error blackout periods
+    const blackoutCount = errorBlackoutPeriods.size;
+    errorBlackoutPeriods.clear();
+    
+    // Log the action
+    logger.info(`[Commands] User ${message.author.tag} cleared ${problemPersonalityCount} problematic personalities and ${blackoutCount} blackout periods`);
+    
+    // Return success message
+    return message.reply(
+      `✅ Successfully cleared ${problemPersonalityCount} problematic personalities and ${blackoutCount} blackout periods. Personalities should now respond normally.`
+    );
+  } catch (error) {
+    logger.error(`[Commands] Error in clearerrors command:`, error);
+    return message.reply('An error occurred while clearing errors. Please check the logs.');
+  }
+}
+
+/**
  * Handle the autorespond command (user-specific toggle)
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
@@ -2423,6 +2480,7 @@ module.exports = {
   handleInfoCommand,
   handleActivateCommand,
   handleDeactivateCommand,
+  handleClearErrorsCommand,
   handleListCommand,
   handleAuthCommand,
   handleVerifyCommand,

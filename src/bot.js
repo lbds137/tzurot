@@ -964,7 +964,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     
     // Flag to indicate if this message is a reply to a DM message with a personality prefix
     // This will help prevent duplicate personality prefixes in responses
-    const isReplyToDMFormattedMessage = isDM && message.reference && triggeringMention === null;
+    const isReplyToDMFormattedMessage = isDM && message.reference && triggeringMention === null ? true : false;
     
     // Check if the user is age-verified for ALL personality interactions (both DM and server channels)
     const auth = require('./auth');

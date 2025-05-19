@@ -1448,16 +1448,26 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       errorDetails = `Content type: ${typeof content}`;
     }
     
-    // Register this personality as problematic with enhanced error information
-    registerProblematicPersonality(personalityName, {
-      error: errorType,
-      details: errorDetails,
-      content: content,
-    });
-
-    // Add this personality+user combo to blackout list, but with a shorter duration
-    // for transient errors (5 minutes instead of the default 30)
-    addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
+    // Check if this is the generic 'error_in_content' or a more specific error
+    const isGenericError = errorType === 'error_in_content';
+    
+    // Register this personality as problematic only for non-generic errors
+    // This makes the system more forgiving for transient issues
+    if (!isGenericError) {
+      // Register this personality as problematic with enhanced error information
+      registerProblematicPersonality(personalityName, {
+        error: errorType,
+        details: errorDetails,
+        content: content,
+      });
+      
+      // Add this personality+user combo to blackout list, but with a shorter duration
+      // for transient errors (5 minutes instead of the default 30)
+      addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
+    } else {
+      // Just log that we're skipping problematic registration for generic errors
+      logger.info(`[AIService] Skipping problematic registration for generic error: ${errorType}`);
+    }
 
     // Return a more informative error message with an error ID
     const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
