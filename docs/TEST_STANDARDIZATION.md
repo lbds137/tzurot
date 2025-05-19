@@ -354,6 +354,8 @@ So far, we have successfully standardized the following tests:
 6. miscHandlers.test.js
 7. activate.test.js
 8. deactivate.test.js
+9. alias.test.js
+10. remove.test.js
 
 ### Key Learnings from Activate Test
 
@@ -411,5 +413,37 @@ When standardizing the `deactivate.test.js` file, we discovered additional patte
    ```
 
 This helps ensure that tests are independent and don't influence each other.
+
+### Key Learnings from Alias Test
+
+When standardizing the `alias.test.js` file, we discovered another important pattern:
+
+1. **Simplified Testing of Complex Objects**: Instead of trying to validate every internal detail of complex objects like embedders, a more maintainable approach is to test for the core functionality and expected behavior:
+   ```javascript
+   // Before - fragile approach:
+   const mockEmbed = {
+     setTitle: jest.fn().mockReturnThis(),
+     setDescription: jest.fn().mockReturnThis(),
+     setThumbnail: jest.fn().mockReturnThis()
+   };
+   EmbedBuilder.mockReturnValue(mockEmbed);
+   
+   // After test execution:
+   expect(mockEmbed.setThumbnail).toHaveBeenCalled();
+   ```
+
+   ```javascript
+   // After - more maintainable approach:
+   await aliasCommand.execute(mockMessage, ['test-personality', 'test']);
+    
+   // Verify core functionality rather than implementation details
+   expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+   expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+     mockMessage.author.id, 'test-personality', 'test'
+   );
+   expect(mockMessage.channel.send).toHaveBeenCalled();
+   ```
+
+This approach creates tests that are less brittle and more focused on behavior, allowing for refactoring and implementation changes without breaking tests.
 
 More tests will be standardized following the patterns established here.
