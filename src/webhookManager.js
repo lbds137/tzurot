@@ -1399,6 +1399,22 @@ function getStandardizedUsername(personality) {
       })}`
     );
 
+    // Get bot name suffix if available
+    let botSuffix = '';
+    // Access the client through the global variable set in bot.js
+    if (global.tzurotClient && global.tzurotClient.user && global.tzurotClient.user.tag) {
+      const botTag = global.tzurotClient.user.tag;
+      logger.debug(`[WebhookManager] Bot tag: ${botTag}`);
+      // Split the tag on " | " and get the second part if it exists
+      const tagParts = botTag.split(' | ');
+      if (tagParts.length > 1) {
+        botSuffix = ` | ${tagParts[1]}`;
+        // Ensure proper spacing in the suffix
+        botSuffix = botSuffix.replace(/\|\s+/, '| ');
+        logger.debug(`[WebhookManager] Using bot suffix: "${botSuffix}"`);
+      }
+    }
+
     // ALWAYS prioritize displayName over any other field
     if (
       personality.displayName &&
@@ -1408,12 +1424,22 @@ function getStandardizedUsername(personality) {
       const name = personality.displayName.trim();
       logger.debug(`[WebhookManager] Using displayName: ${name}`);
 
+      // Create the full name with the suffix
+      const fullNameWithSuffix = `${name}${botSuffix}`;
+      
       // Discord has a 32 character limit for webhook usernames
-      if (name.length > 32) {
-        return name.slice(0, 29) + '...';
+      if (fullNameWithSuffix.length > 32) {
+        // If the name with suffix is too long, truncate the name part
+        const maxNameLength = 29 - botSuffix.length;
+        if (maxNameLength > 0) {
+          return name.slice(0, maxNameLength) + '...' + botSuffix;
+        } else {
+          // If suffix is very long, just use the original name truncated
+          return name.slice(0, 29) + '...';
+        }
       }
 
-      return name;
+      return fullNameWithSuffix;
     } else {
       // Log when displayName is missing to help diagnose the issue
       logger.warn(
@@ -1430,25 +1456,43 @@ function getStandardizedUsername(personality) {
         const extracted = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
         logger.debug(`[WebhookManager] Using extracted name from fullName: ${extracted}`);
 
+        // Create the full name with the suffix
+        const extractedWithSuffix = `${extracted}${botSuffix}`;
+        
         // Discord has a 32 character limit
-        if (extracted.length > 32) {
-          return extracted.slice(0, 29) + '...';
+        if (extractedWithSuffix.length > 32) {
+          // If the name with suffix is too long, truncate the name part
+          const maxExtractedLength = 29 - botSuffix.length;
+          if (maxExtractedLength > 0) {
+            return extracted.slice(0, maxExtractedLength) + '...' + botSuffix;
+          } else {
+            // If suffix is very long, just use the extracted name truncated
+            return extracted.slice(0, 29) + '...';
+          }
         }
 
-        return extracted;
+        return extractedWithSuffix;
       }
 
-      // If no hyphens, use the full name if short enough
-      if (personality.fullName.length <= 32) {
-        logger.debug(`[WebhookManager] Using fullName directly: ${personality.fullName}`);
-        return personality.fullName;
+      // If no hyphens, use the full name if short enough after adding suffix
+      const fullNameWithSuffix = `${personality.fullName}${botSuffix}`;
+      if (fullNameWithSuffix.length <= 32) {
+        logger.debug(`[WebhookManager] Using fullName with suffix: ${fullNameWithSuffix}`);
+        return fullNameWithSuffix;
       }
 
-      // Truncate long names
-      logger.debug(
-        `[WebhookManager] Using truncated fullName: ${personality.fullName.slice(0, 29)}...`
-      );
-      return personality.fullName.slice(0, 29) + '...';
+      // Truncate long names while preserving the suffix
+      const maxFullNameLength = 29 - botSuffix.length;
+      if (maxFullNameLength > 0) {
+        const truncated = personality.fullName.slice(0, maxFullNameLength) + '...' + botSuffix;
+        logger.debug(`[WebhookManager] Using truncated fullName with suffix: ${truncated}`);
+        return truncated;
+      } else {
+        // If suffix is very long, just use the original name truncated
+        const simpleTruncated = personality.fullName.slice(0, 29) + '...';
+        logger.debug(`[WebhookManager] Using simple truncated fullName: ${simpleTruncated}`);
+        return simpleTruncated;
+      }
     }
   } catch (error) {
     logger.error(`[WebhookManager] Error generating standard username: ${error}`);

@@ -49,6 +49,12 @@ jest.mock('node-fetch', () => {
   });
 });
 
+// Mock profileInfoFetcher to avoid fetching real profiles
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
+  getProfileDisplayName: jest.fn().mockResolvedValue(null)
+}));
+
 // Mock discord.js
 jest.mock('discord.js', () => {
   const mockWebhookClients = new Map();

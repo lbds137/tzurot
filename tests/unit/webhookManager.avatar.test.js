@@ -16,6 +16,12 @@ jest.mock('../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
+// Mock profileInfoFetcher to avoid fetching real profiles
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
+  getProfileDisplayName: jest.fn().mockResolvedValue(null)
+}));
+
 // Constants
 const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
 
