@@ -3,6 +3,7 @@ const { getApiEndpoint, getModelPath } = require('../config');
 const logger = require('./logger');
 const { TIME, ERROR_PATTERNS, MARKERS, DEFAULTS, USER_CONFIG } = require('./constants');
 const auth = require('./auth');
+const webhookUserTracker = require('./utils/webhookUserTracker');
 
 // Initialize the default AI client with API key (used when user doesn't have a token)
 // We need to defer creation until after auth module is loaded
@@ -67,7 +68,25 @@ function initKnownProblematicPersonalities() {
  * @param {string} userId - The Discord user ID
  * @returns {OpenAI|null} - An OpenAI client instance with appropriate auth, or null if no auth available
  */
-function getAiClientForUser(userId) {
+function getAiClientForUser(userId, context = {}) {
+  // Check if this is a webhook message that should bypass authentication
+  let shouldBypassAuth = false;
+  if (context.message && context.message.webhookId) {
+    shouldBypassAuth = webhookUserTracker.shouldBypassNsfwVerification(context.message);
+    if (shouldBypassAuth) {
+      logger.info(`[AIService] Bypassing authentication for webhook message in AI client creation`);
+      
+      // For webhook users that bypass auth, use the default client with no user-specific token
+      return new OpenAI({
+        apiKey: auth.API_KEY,
+        baseURL: getApiEndpoint(),
+        defaultHeaders: {
+          "X-App-ID": auth.APP_ID,
+        },
+      });
+    }
+  }
+  
   // If user has a valid token, create a client with their token
   if (userId && auth.hasValidToken(userId)) {
     const userToken = auth.getUserToken(userId);
@@ -742,7 +761,7 @@ async function handleProblematicPersonality(
     
     // Get the appropriate AI client for this user
     const userId = context.userId || null;
-    const aiClient = getAiClientForUser(userId);
+    const aiClient = getAiClientForUser(userId, context);
     
     // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
     if (!aiClient) {
@@ -961,7 +980,20 @@ async function getAiResponse(personalityName, message, context = {}) {
 
       // SECURITY UPDATE: Check if the user is authenticated
       const userId = context.userId || null;
-      if (!userId || !auth.hasValidToken(userId)) {
+      
+      // Check if this is from a webhook that should bypass authentication
+      const isWebhookMessage = !!(context.message && context.message.webhookId);
+      let shouldBypassAuth = false;
+      
+      if (isWebhookMessage) {
+        shouldBypassAuth = webhookUserTracker.shouldBypassNsfwVerification(context.message);
+        if (shouldBypassAuth) {
+          logger.info(`[AIService] Bypassing authentication for webhook user: ${context.message.author?.username || 'unknown webhook user'}`);
+        }
+      }
+      
+      // If this is NOT a proxy system webhook that should bypass auth, check auth
+      if (!shouldBypassAuth && (!userId || !auth.hasValidToken(userId))) {
         logger.warn(`[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`);
         // Return special marker for bot-level error message, not from the personality
         return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
@@ -1367,7 +1399,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   
   // Get the appropriate AI client for this user
   const userId = context.userId || null;
-  const aiClient = getAiClientForUser(userId);
+  const aiClient = getAiClientForUser(userId, context);
   
   // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
   if (!aiClient) {
@@ -1465,8 +1497,10 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       // for transient errors (5 minutes instead of the default 30)
       addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
     } else {
-      // Just log that we're skipping problematic registration for generic errors
+      // For generic errors, add a much shorter blackout period (30 seconds) 
+      // This prevents rapid duplicate messages but allows quick recovery
       logger.info(`[AIService] Skipping problematic registration for generic error: ${errorType}`);
+      addToBlackoutList(personalityName, context, 30 * 1000); // 30 seconds
     }
 
     // Return a more informative error message with an error ID

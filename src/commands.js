@@ -16,12 +16,13 @@ const {
   activatePersonality,
   deactivatePersonality,
 } = require('./conversationManager');
-const { knownProblematicPersonalities, runtimeProblematicPersonalities } = require('./aiService');
+const { knownProblematicPersonalities, runtimeProblematicPersonalities, errorBlackoutPeriods } = require('./aiService');
 const { preloadPersonalityAvatar } = require('./webhookManager');
 const { botPrefix } = require('../config');
 const logger = require('./logger');
 const utils = require('./utils');
 const embedHelpers = require('./embedHelpers');
+const channelUtils = require('./utils/channelUtils');
 // Registry is imported for documentation but not currently used
 // eslint-disable-next-line no-unused-vars
 const { Registry } = require('./requestRegistry');
@@ -44,12 +45,53 @@ async function processCommand(message, command, args) {
     `Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
   );
 
-  // Import auth module to check if user is authenticated
+  // Import auth module and webhookUserTracker to check if user is authenticated
   const auth = require('./auth');
+  const webhookUserTracker = require('./utils/webhookUserTracker');
 
   // CRITICAL: Check if user is authenticated, and if not, restrict to auth commands only
-  const isAuthenticated = auth.hasValidToken(message.author.id);
+  // Special handling for webhook users to get their real user ID when possible
+  let userId = message.author.id;
+  
+  // Create variable to track if we should bypass auth for webhooks
+  let webhookAuthBypass = false;
+  
+  // For webhook messages, try to get the real user ID
+  if (message.webhookId) {
+    // Log that we're processing a command from a webhook user
+    logger.info(`[Commands] Processing command from webhook user: ${message.author.username || 'unknown'} with webhook ID: ${message.webhookId}`);
+    
+    // If this is a proxy system webhook, check if auth commands are restricted
+    if (command === 'auth' && !webhookUserTracker.isAuthenticationAllowed(message)) {
+      // Auth commands are not allowed from proxy systems - special handling
+      logger.warn(`[Commands] Auth command from proxy webhook denied: ${message.author.username || 'unknown'}`);
+      await directSend(
+        `**Authentication with Proxy Systems**\n\n` +
+        `For security reasons, authentication commands can't be used through webhook systems like PluralKit.\n\n` +
+        `Please use your regular Discord account (without the proxy) to run authentication commands.`
+      );
+      return true; // Return success to prevent further handling
+    }
+    
+    // For non-auth commands from webhooks, bypass verification if appropriate
+    if (webhookUserTracker.shouldBypassNsfwVerification(message)) {
+      logger.info(`[Commands] Bypassing authentication check for webhook command: ${command}`);
+      // Set the bypass flag to true for non-auth commands
+      const isAuthCommand = (command === 'auth');
+      if (!isAuthCommand) {
+        webhookAuthBypass = true;
+        logger.info(`[Commands] Authentication bypass enabled for webhook command: ${command}`);
+      }
+    }
+  }
+  
+  // Check authentication using the user ID (may be the real user behind a webhook)
+  // If webhookAuthBypass is true, override the authentication check
+  const isAuthenticated = webhookAuthBypass ? true : auth.hasValidToken(userId);
   const isAuthCommand = (command === 'auth' || command === 'help');
+  
+  // Special bypass for help command for webhook users - moved this inside the isAuthenticated check
+  // The logic is already handled by webhookAuthBypass above
   
   if (!isAuthenticated && !isAuthCommand) {
     // User is trying to use a non-auth command without authentication
@@ -220,7 +262,7 @@ async function processCommand(message, command, args) {
         // Only server admins should have access to debug commands
         // Check if this is a DM channel (no member object)
         const isDMDebug = message.channel.isDMBased();
-        if (!isDMDebug && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        if (!isDMDebug && message.member && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return await handleDebugCommand(message, args);
         } else {
           return await directSend(`You need Administrator permission to use this command.`);
@@ -309,7 +351,7 @@ async function handleHelpCommand(message, args) {
           // Only show this for users with Administrator permission
           // Check if this is a DM channel (no member object)
           const isDMDebugHelp = message.channel.isDMBased();
-          if (!isDMDebugHelp && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          if (!isDMDebugHelp && message.member && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await directSend(
               `**${prefix} debug <subcommand>**\n` +
                 `Advanced debugging tools (Requires Administrator permission).\n` +
@@ -421,7 +463,8 @@ async function handleHelpCommand(message, args) {
     // Check if this is a DM channel (no member object)
     const isDM = message.channel.isDMBased();
     // In DMs, treat as non-admin; in servers, check permissions
-    const isAdmin = isDM ? false : message.member.permissions.has(PermissionFlagsBits.Administrator);
+    // Fix: Handle webhook users without member object
+    const isAdmin = isDM ? false : (message.member ? message.member.permissions.has(PermissionFlagsBits.Administrator) : false);
     const embed = embedHelpers.createHelpEmbed(isAdmin);
 
     return await directSend({ embeds: [embed] });
@@ -499,1088 +542,211 @@ setInterval(
       );
       hasGeneratedFirstEmbed.clear();
     }
-
-    // Also clean up lastEmbedSendTimes
-    if (lastEmbedSendTimes.size > 0) {
-      logger.debug(
-        `[Commands] Cleaning up lastEmbedSendTimes map (size: ${lastEmbedSendTimes.size})`
-      );
-      lastEmbedSendTimes.clear();
-    }
   },
   60 * 60 * 1000
-).unref(); // unref() allows the process to exit even if timer is active
+).unref();
 
-// FINAL SOLUTION: Global registry of active add requests to prevent duplicates
-// This will be used and shared across all components
-global.addRequestRegistry = global.addRequestRegistry || new Map();
+// Tracking if add command was already processed
+const addCommandMessageIds = new Set();
 
-// CRITICAL: Additional global flag to prevent duplicate embeds at the source level
-global.lastEmbedTime = global.lastEmbedTime || 0;
-global.embedDeduplicationWindow = 5000; // 5 seconds deduplication window
-
-// Set a 10 minute timer to clean up old registry entries (prevent memory leaks)
-if (!global.addRegistryCleanupInitialized) {
-  global.addRegistryCleanupInitialized = true;
-  setInterval(
-    () => {
-      if (global.addRequestRegistry.size > 0) {
-        logger.debug(
-          `[Global] Periodic cleanup of addRequestRegistry (size: ${global.addRequestRegistry.size})`
-        );
-        const now = Date.now();
-        for (const [key, data] of global.addRequestRegistry.entries()) {
-          if (now - data.timestamp > 10 * 60 * 1000) {
-            // 10 minutes
-            global.addRequestRegistry.delete(key);
-          }
-        }
-      }
-    },
-    10 * 60 * 1000
-  ).unref();
-}
-
-// An array of embeds to always and completely block from appearing
-const EMBEDS_TO_BLOCK = [
-  'Successfully added personality: add-',
-  'Successfully added personality: aria-ha-olam',
-  'Successfully added personality: bartzabel-harsani',
-  'Successfully added personality: bambi-prime-yakhas-isha',
-  'Successfully added personality: lucifuge-rofocale-or-emet',
-  'Successfully added personality: eris-at-heres',
-  'Successfully added personality: uriel-rakhem',
-];
-
-/**
- * Checks if a rate limit is in effect for sending embed messages
- *
- * @returns {Object|null} Rate limit result object or null if no rate limit
- */
-function checkRateLimit() {
-  const now = Date.now();
-  if (global.lastEmbedTime && now - global.lastEmbedTime < global.embedDeduplicationWindow) {
-    logger.warn(
-      `[Commands] GLOBAL RATE LIMIT: An embed was just sent ${now - global.lastEmbedTime}ms ago - blocking this request entirely`
-    );
-    return { id: `global-rate-limited-${now}`, isRateLimited: true };
-  }
-  return null;
-}
-
-/**
- * Checks if a request has already been processed
- *
- * @param {string} messageKey - Unique key for the message request
- * @returns {Object|null} Request status or null if not processed
- */
-function checkDuplicateRequest(messageKey) {
-  if (global.addRequestRegistry.has(messageKey)) {
-    // We've already processed this message, check how it was handled
-    const existingRequest = global.addRequestRegistry.get(messageKey);
-
-    logger.info(
-      `[Commands] DUPLICATE REQUEST: This message has already been processed: ${messageKey}`
-    );
-    logger.debug(`[Commands] Previous request: ${JSON.stringify(existingRequest)}`);
-
-    // If the previous request was completed with an embed, block this one
-    if (existingRequest.embedSent) {
-      logger.warn(
-        `[Commands] BLOCKING: Previous request already sent an embed - blocking this duplicate`
+// Periodically clean up old sets (every 10 minutes) to prevent memory leaks
+setInterval(
+  () => {
+    if (addCommandMessageIds.size > 0) {
+      logger.debug(
+        `[Commands] Cleaning up addCommandMessageIds set (size: ${addCommandMessageIds.size})`
       );
-      return { id: `blocked-duplicate-${Date.now()}`, isDuplicate: true };
+      addCommandMessageIds.clear();
     }
-
-    // If the previous request is still in progress, wait for it to complete
-    if (!existingRequest.completed) {
-      logger.info(`[Commands] WAITING: Previous request is still in progress - returning early`);
-      return { id: `waiting-for-completion-${Date.now()}`, isWaiting: true };
-    }
-  }
-  return null;
-}
+  },
+  10 * 60 * 1000
+).unref();
 
 /**
- * Registers a new add request to prevent duplicates
- *
- * @param {string} messageKey - Unique key for the message request
- * @param {string} addRequestId - Unique ID for this request
- * @param {Array<string>} args - Command arguments
- */
-function registerNewRequest(messageKey, addRequestId, args) {
-  global.addRequestRegistry.set(messageKey, {
-    requestId: addRequestId,
-    timestamp: Date.now(),
-    profileName: args[0] || 'unknown',
-    completed: false,
-    embedSent: false,
-  });
-
-  logger.info(
-    `[Commands] NEW REQUEST: Registered new add request: ${addRequestId} for message: ${messageKey}`
-  );
-}
-
-/**
- * Checks if a command has already been completed
- *
- * @param {string} addCommandKey - Unique key for the command
- * @returns {Object|null} Command status or null if not completed
- */
-function checkCompletedCommand(addCommandKey) {
-  if (completedAddCommands.has(addCommandKey)) {
-    logger.warn(
-      `[Commands] CRITICAL: Add command ${addCommandKey} has already been processed to completion - completely ignoring repeat call`
-    );
-    return { id: 'repeat-prevented', isDuplicate: true };
-  }
-  return null;
-}
-
-/**
- * Marks a command as completed and sets up cleanup
- *
- * @param {string} addCommandKey - Unique key for the command
- */
-function markCommandAsCompleted(addCommandKey) {
-  // IMMEDIATELY add to completed commands set
-  // We do this at the start to prevent ANY possibility of race conditions
-  completedAddCommands.add(addCommandKey);
-  logger.info(
-    `[Commands] Added ${addCommandKey} to completedAddCommands set (size: ${completedAddCommands.size})`
-  );
-
-  // Set a timeout to clean up this entry after 10 minutes
-  setTimeout(
-    () => {
-      if (completedAddCommands.has(addCommandKey)) {
-        completedAddCommands.delete(addCommandKey);
-        logger.info(
-          `[Commands] Cleaned up ${addCommandKey} from completedAddCommands set after timeout`
-        );
-      }
-    },
-    10 * 60 * 1000
-  ); // 10 minutes
-}
-
-/**
- * Helper function to safely get lowercase version of a string
- *
- * @param {string} str - String to convert
- * @returns {string} Lowercase string or empty string if input is falsy
- */
-function safeToLowerCase(str) {
-  if (!str) return '';
-  return String(str).toLowerCase();
-}
-
-/**
- * Validates and parses arguments for the add command
- *
+ * Handle the add command implementation
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
- * @returns {Object} Parsed arguments object
  */
-function validateAndParseArgs(message, args) {
+async function handleAddCommand(message, args) {
+  const directSend = utils.createDirectSend(message);
+
+  // Check if this message was already processed
+  if (addCommandMessageIds.has(message.id)) {
+    logger.warn(`[PROTECTION] This message (${message.id}) has already been processed by handleAddCommand`);
+    return null;
+  }
+
+  // Mark the message as processed
+  addCommandMessageIds.add(message.id);
+
+  // Later cleanup
+  setTimeout(() => {
+    addCommandMessageIds.delete(message.id);
+  }, 60 * 1000); // 1 minute
+
+  // Check if the user provided the correct arguments
   if (args.length < 1) {
-    return { profileName: null };
-  }
-
-  const profileName = args[0];
-  const alias = args[1] || null; // Optional alias
-
-  // Create a unique key for this request - normalize to lowercase for case insensitive matching
-  const requestKey = `${message.author.id}-${profileName.toLowerCase()}`;
-
-  return { profileName, alias, requestKey };
-}
-
-/**
- * Handles pending requests to prevent duplicates
- *
- * @param {Object} message - Discord message object
- * @param {string} profileName - Name of the personality
- * @param {string} requestKey - Unique key for the request
- * @returns {Object|null} Response message or null if not a duplicate
- */
-function handlePendingRequests(message, profileName, requestKey) {
-  logger.info(`[Commands] Processing request key ${requestKey}`);
-
-  // Check if this exact request is already being processed
-  if (pendingAdditions.has(requestKey)) {
-    const pendingData = pendingAdditions.get(requestKey);
-    // Only block for 3 seconds to allow retries
-    if (Date.now() - pendingData.timestamp < 3000) {
-      logger.warn(
-        `[Commands] Very recent duplicate request detected for ${profileName} by ${message.author.tag}, ignoring`
-      );
-      return message.reply(
-        `You just tried to add this personality. Please wait a moment before trying again.`
-      );
-    } else {
-      logger.info(
-        `[Commands] Previous request found but enough time has passed, allowing new request`
-      );
-    }
-  }
-
-  // Clear any existing pending requests for this user-personality combo
-  pendingAdditions.delete(requestKey);
-
-  // Mark this request as being processed with more metadata (still useful for cleanup)
-  pendingAdditions.set(requestKey, {
-    timestamp: Date.now(),
-    profileName: profileName,
-    userId: message.author.id,
-    channelId: message.channel.id,
-    messageId: message.id,
-  });
-
-  return null;
-}
-
-/**
- * Checks if a personality already exists for the user
- *
- * @param {Object} message - Discord message object
- * @param {string} profileName - Name of the personality to check
- * @param {string} requestKey - Request key for cleanup
- * @returns {Object|null} Reply message if exists, null otherwise
- */
-async function checkExistingPersonality(message, profileName, requestKey) {
-  // Check if the personality already exists for this user
-  const existingPersonalities = listPersonalitiesForUser(message.author.id);
-  logger.info(
-    `[Commands] Checking if ${profileName} already exists among ${existingPersonalities.length} personalities`
-  );
-
-  // Safely check for existing personality
-  const normalizedProfileName = safeToLowerCase(profileName);
-  const alreadyExists = existingPersonalities.some(p => {
-    if (!p || !p.fullName) return false;
-    return safeToLowerCase(p.fullName) === normalizedProfileName;
-  });
-
-  if (alreadyExists) {
-    pendingAdditions.delete(requestKey); // Remove from pending
-    return message.reply(`You already have a personality with the name \`${profileName}\`.`);
-  }
-
-  return null;
-}
-
-/**
- * Handles the initial personality registration step
- *
- * @param {Object} message - Discord message object
- * @param {string} profileName - Name of the personality to register
- * @returns {Promise<Object>} The registered personality object
- * @throws {Error} If registration fails
- */
-async function registerInitialPersonality(message, profileName) {
-  logger.info(`[Commands] Step 1: Initial personality registration for ${profileName}`);
-
-  // Register the personality first - this doesn't fetch profile info
-  logger.info(
-    `[Commands] Calling registerPersonality with userId=${message.author.id}, profileName=${profileName}`
-  );
-  let initialPersonality; // Declare variable outside try block so it's accessible later
-
-  try {
-    initialPersonality = await registerPersonality(
-      message.author.id,
-      profileName,
-      {
-        description: `Added by ${message.author.tag}`,
-      },
-      false
-    ); // false = don't fetch profile info in the same call
-
-    if (!initialPersonality) {
-      logger.error(`[Commands] registerPersonality returned null or undefined!`);
-      throw new Error('Personality registration failed - returned null');
-    }
-
-    logger.info(
-      `[Commands] Initial registration completed successfully:`,
-      JSON.stringify({
-        fullName: initialPersonality.fullName,
-        displayName: initialPersonality.displayName,
-        hasAvatar: !!initialPersonality.avatarUrl,
-      })
+    return await directSend(
+      `You need to provide a personality name. Usage: \`${botPrefix} add <personality-name> [alias]\``
     );
-
-    return initialPersonality;
-  } catch (regError) {
-    logger.error(`[Commands] Error during personality registration:`, regError);
-    // Include a descriptive message for the user
-    throw new Error(`Failed to register personality: ${regError.message}`);
   }
-}
 
-/**
- * Fetches profile information for a personality
- *
- * @param {string} profileName - Name of the personality
- * @param {Object} initialPersonality - The initial personality object to update
- * @returns {Promise<Object>} Display name and avatar URL
- */
-async function fetchProfileInfo(profileName, initialPersonality) {
-  logger.info(`[Commands] Step 2: Fetching profile info explicitly...`);
-  const profileInfoFetcher = require('./profileInfoFetcher');
-
-  let displayName = null;
-  let avatarUrl = null;
-
-  // Fetch basic profile data
-  logger.info(`[Commands] Making direct calls to profile info fetcher for ${profileName}`);
+  // Extract the personality name and alias if provided
+  const personalityName = args[0].toLowerCase();
+  const alias = args[1] ? args[1].toLowerCase() : null;
 
   try {
-    const profileData = await profileInfoFetcher.fetchProfileInfo(profileName);
-    if (profileData) {
-      logger.debug(`[Commands] RAW profile data: ${JSON.stringify(profileData).substring(0, 200)}`);
-    } else {
-      logger.warn(`[Commands] Profile data fetch returned null or undefined`);
-    }
-  } catch (infoError) {
-    logger.error(`[Commands] Error fetching profile data:`, infoError);
-    // Continue despite this error
-  }
+    // Check if we've already got a pending or recently completed addition for this user
+    const userKey = `${message.author.id}-${personalityName}`;
+    const pendingState = pendingAdditions.get(userKey);
 
-  // Get display name with fallback to profile name
-  try {
-    displayName = await profileInfoFetcher.getProfileDisplayName(profileName);
-    logger.info(`[Commands] Got display name: ${displayName}`);
-  } catch (nameError) {
-    logger.error(`[Commands] Error fetching display name:`, nameError);
-    // If we can't get the display name, use the profile name
-    displayName = profileName;
-    logger.info(`[Commands] Using profileName as fallback: ${displayName}`);
-  }
-
-  // Get avatar URL
-  try {
-    avatarUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
-    logger.info(`[Commands] Got avatar URL: ${avatarUrl}`);
-  } catch (avatarError) {
-    logger.error(`[Commands] Error fetching avatar URL:`, avatarError);
-  }
-
-  logger.info(
-    `[Commands] Fetched profile info: displayName=${displayName}, hasAvatar=${!!avatarUrl}, avatarUrl=${avatarUrl}`
-  );
-
-  // Update the initial personality with fetched data
-  if (displayName) {
-    logger.info(`[Commands] Setting display name: ${displayName}`);
-    initialPersonality.displayName = displayName;
-  } else {
-    // Ensure we always have a display name
-    logger.info(`[Commands] No display name found, using profile name`);
-    initialPersonality.displayName = profileName;
-  }
-
-  if (avatarUrl) {
-    logger.info(`[Commands] Setting avatar URL: ${avatarUrl}`);
-    initialPersonality.avatarUrl = avatarUrl;
-  }
-
-  return { displayName, avatarUrl };
-}
-
-/**
- * Updates and saves the personality with fetched profile information
- *
- * @param {string} profileName - Name of the personality
- * @param {string} displayName - Display name to update
- * @param {string} avatarUrl - Avatar URL to update
- * @returns {Promise<void>}
- */
-async function updateAndSavePersonality(profileName, displayName, avatarUrl) {
-  // Get the saved personality from store
-  logger.info(`[Commands] Getting personality from store to ensure latest version`);
-  const savedPersonality = getPersonality(profileName);
-
-  if (!savedPersonality) {
-    logger.error(`[Commands] Failed to retrieve personality from store after registration!`);
-    // Don't throw, just log the error and continue
-    logger.error(`[Commands] Will attempt to continue with initialPersonality object`);
-  } else {
-    // Update the saved personality with our fetched info
-    logger.info(`[Commands] Updating saved personality with display name and avatar`);
-    if (displayName) {
-      savedPersonality.displayName = displayName;
-    }
-    if (avatarUrl) {
-      savedPersonality.avatarUrl = avatarUrl;
+    // If the request was completed within the last 5 seconds, block it as a duplicate
+    if (pendingState && pendingState.status === 'completed' && Date.now() - pendingState.timestamp < 5000) {
+      logger.warn(`[PROTECTION] Blocking duplicate add command from ${message.author.id} for ${personalityName}`);
+      return null;
     }
 
-    // Explicitly save all personality data to ensure it's persisted
-    logger.info(`[Commands] Saving all personality data`);
-    const personalityManager = require('./personalityManager');
-    await personalityManager.saveAllPersonalities();
-    logger.info(`[Commands] Updated and saved personality with display name and avatar`);
-  }
-}
-
-/**
- * Sets up all aliases for a personality
- *
- * @param {string} profileName - Name of the personality
- * @param {string} alias - User-provided alias (if any)
- * @param {Object} initialPersonality - The initial personality object
- * @returns {Promise<void>}
- */
-async function setupPersonalityAliases(profileName, alias, initialPersonality) {
-  logger.info(`[Commands] Step 3: Setting up aliases - THIS IS THE CRITICAL SECTION`);
-
-  // CRITICAL FIX: This is where we're setting aliases multiple times which is causing multiple embed responses
-  // We need to modify our approach to prevent multiple alias settings
-
-  // Get all current aliases for this personality to avoid duplicate settings
-  const existingAliases = [];
-  const personalityManager = require('./personalityManager');
-  const allAliases = personalityManager.personalityAliases;
-
-  // Check which aliases already exist for this profile
-  for (const [aliasKey, targetProfile] of Object.entries(allAliases)) {
-    if (targetProfile === profileName) {
-      existingAliases.push(aliasKey.toLowerCase());
-      logger.debug(`[Commands] Found existing alias: ${aliasKey} -> ${profileName}`);
-    }
-  }
-
-  // Collect all aliases to set, then set them all at once with a single save
-  const aliasesToSet = [];
-
-  // IMPROVEMENT: Skip self-referential aliases entirely since they're redundant
-  // @mentions directly work with the personality's full name without needing an alias
-  const selfReferentialAlias = profileName.toLowerCase();
-  logger.info(
-    `[Commands] Skipping self-referential alias creation for ${selfReferentialAlias} - no longer needed with improved @mention support`
-  );
-
-  // Add to existingAliases to ensure we don't try to add it elsewhere
-  if (!existingAliases.includes(selfReferentialAlias)) {
-    existingAliases.push(selfReferentialAlias);
-  }
-
-  // Now handle the manual alias if provided - but check if it already exists first
-  if (alias) {
-    const normalizedAlias = alias.toLowerCase();
+    // If it's already in-progress and hasn't timed out, prevent duplicate
     if (
-      !existingAliases.includes(normalizedAlias) &&
-      normalizedAlias !== profileName.toLowerCase()
+      pendingState &&
+      pendingState.status === 'in-progress' &&
+      Date.now() - pendingState.timestamp < 10000 // 10-second timeout
     ) {
-      aliasesToSet.push(normalizedAlias);
-      logger.info(`[Commands] Will set NEW manual alias: ${normalizedAlias} -> ${profileName}`);
-      existingAliases.push(normalizedAlias);
-    } else {
-      logger.info(
-        `[Commands] Manual alias ${normalizedAlias} already exists or matches profile name - skipping`
-      );
-    }
-  }
-
-  // Handle the display name alias - but check if it already exists first
-  if (initialPersonality.displayName) {
-    const displayNameAlias = initialPersonality.displayName.toLowerCase();
-    if (
-      !existingAliases.includes(displayNameAlias) &&
-      displayNameAlias !== profileName.toLowerCase()
-    ) {
-      aliasesToSet.push(displayNameAlias);
-      logger.info(
-        `[Commands] Will set NEW display name alias: ${displayNameAlias} -> ${profileName}`
-      );
-    } else {
-      logger.info(
-        `[Commands] Display name alias ${displayNameAlias} already exists or matches profile name - skipping`
-      );
-    }
-  }
-
-  // Collect all aliases to set, then set them all without saving - we'll do ONE save at the end
-  logger.info(
-    `[Commands] Setting ${aliasesToSet.length} aliases with deferred save (no saves until end of process)`
-  );
-
-  // Sort the aliases so that display name aliases come last (they're more likely to have conflicts)
-  const sortedAliases = aliasesToSet.slice().sort((a, b) => {
-    const aIsDisplayName = a.toLowerCase() === initialPersonality.displayName?.toLowerCase();
-    const bIsDisplayName = b.toLowerCase() === initialPersonality.displayName?.toLowerCase();
-    return aIsDisplayName === bIsDisplayName ? 0 : aIsDisplayName ? 1 : -1;
-  });
-
-  // Create a collection for all alternate aliases that might be created for display name collisions
-  const alternateAliases = [];
-
-  // Set all aliases without any saves
-  for (let i = 0; i < sortedAliases.length; i++) {
-    const currentAlias = sortedAliases[i];
-    const isDisplayName =
-      currentAlias.toLowerCase() === initialPersonality.displayName?.toLowerCase();
-
-    // IMPORTANT: Never save from setPersonalityAlias - all saves will happen once at the end
-    logger.info(
-      `[Commands] Setting alias ${i + 1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (isDisplayName: ${isDisplayName})`
-    );
-    const result = await setPersonalityAlias(currentAlias, profileName, true, isDisplayName);
-
-    // Collect any alternate aliases that were created for display name collisions
-    if (result.alternateAliases && result.alternateAliases.length > 0) {
-      alternateAliases.push(...result.alternateAliases);
-      logger.info(
-        `[Commands] Collected alternate aliases for collision: ${result.alternateAliases.join(', ')}`
-      );
+      logger.warn(`[PROTECTION] Addition already in progress for ${personalityName} by ${message.author.id}`);
+      return null;
     }
 
-    logger.info(
-      `[Commands] Completed setting alias ${i + 1}/${sortedAliases.length}: ${currentAlias} -> ${profileName} (skipSave: true)`
-    );
-  }
-
-  // Log the alternate aliases if any were created
-  if (alternateAliases.length > 0) {
-    logger.info(
-      `[Commands] Created ${alternateAliases.length} alternate aliases for display name collisions: ${alternateAliases.join(', ')}`
-    );
-  }
-
-  // CRITICAL FIX: Perform a single save for all alias operations
-  logger.info(`[Commands] 💾 SINGLE SAVE OPERATION: Saving all personalities and aliases at once`);
-  await personalityManagerFunctions.saveAllPersonalities();
-  logger.info(`[Commands] ✅ Completed single save operation for all aliases`);
-}
-
-/**
- * Finalizes personality data and preloads avatar
- *
- * @param {string} profileName - Name of the personality
- * @param {string} displayName - Display name to use if not set
- * @param {string} avatarUrl - Avatar URL to use if not set
- * @returns {Promise<Object>} The finalized personality object
- */
-async function finalizePersonalityData(profileName, displayName, avatarUrl) {
-  logger.info(`[Commands] Step 4: Saving profile data and pre-loading avatar`);
-
-  // Get the personality with all updates - without an explicit save
-  // We'll perform a single save at the end
-  logger.info(`[Commands] Getting personality from store (without explicit save)`);
-  const finalPersonality = getPersonality(profileName);
-
-  if (!finalPersonality) {
-    logger.error(`[Commands] Error: Personality registration returned no data for ${profileName}`);
-    throw new Error('Failed to register personality');
-  }
-
-  logger.debug(`[Commands] Final personality after all updates:`, {
-    fullName: finalPersonality.fullName,
-    displayName: finalPersonality.displayName,
-    hasAvatar: !!finalPersonality.avatarUrl,
-  });
-
-  // Add extra safety checks for display name and avatar
-  let needsSave = false;
-
-  if (!finalPersonality.displayName && displayName) {
-    logger.info(`[Commands] Setting display name again: ${displayName}`);
-    finalPersonality.displayName = displayName;
-    needsSave = true;
-  } else if (!finalPersonality.displayName) {
-    logger.info(`[Commands] No display name found, using profile name: ${profileName}`);
-    finalPersonality.displayName = profileName;
-    needsSave = true;
-  }
-
-  if (!finalPersonality.avatarUrl && avatarUrl) {
-    logger.info(`[Commands] Setting avatar URL again: ${avatarUrl}`);
-    finalPersonality.avatarUrl = avatarUrl;
-    needsSave = true;
-  } else if (!finalPersonality.avatarUrl) {
-    logger.info(`[Commands] No avatar URL found in final personality object`);
-    // Try one more explicit fetch from the API
-    try {
-      logger.info(`[Commands] Making one final attempt to fetch avatar URL...`);
-      const profileInfoFetcher = require('./profileInfoFetcher');
-      const finalAttemptUrl = await profileInfoFetcher.getProfileAvatarUrl(profileName);
-      if (finalAttemptUrl) {
-        logger.info(
-          `[Commands] Successfully fetched avatar URL in final attempt: ${finalAttemptUrl}`
-        );
-        finalPersonality.avatarUrl = finalAttemptUrl;
-        needsSave = true;
-      }
-    } catch (err) {
-      logger.error(`[Commands] Final avatar URL fetch attempt failed:`, err);
-    }
-  }
-
-  // Perform a single save if needed
-  if (needsSave) {
-    logger.info(`[Commands] 💾 SECOND SAVE OPERATION: Saving personality data with any updates`);
-    await personalityManagerFunctions.saveAllPersonalities();
-    logger.info(`[Commands] ✅ Completed second save operation for personality updates`);
-  }
-
-  // Pre-load avatar if available - this ensures it shows up correctly on first use
-  if (finalPersonality.avatarUrl) {
-    logger.info(`[Commands] Pre-loading avatar for new personality: ${finalPersonality.avatarUrl}`);
-    try {
-      // Use fetch to warm up the avatar URL first with proper error handling and timeout
-      const fetch = require('node-fetch');
-      const response = await fetch(finalPersonality.avatarUrl, {
-        method: 'GET',
-        timeout: 5000, // 5 second timeout to prevent hanging
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        },
-      });
-
-      if (!response.ok) {
-        logger.error(`[Commands] Avatar image fetch failed with status: ${response.status}`);
-      } else {
-        // Read the response body to fully load it into Discord's cache
-        const buffer = await response.buffer();
-        logger.debug(`[Commands] Explicitly pre-fetched avatar URL (${buffer.length} bytes)`);
-      }
-
-      // Then use the webhook manager's preload function with our own direct URL
-      await preloadPersonalityAvatar({
-        ...finalPersonality,
-        avatarUrl: finalPersonality.avatarUrl, // Ensure it's using the correct URL
-      });
-      logger.info(`[Commands] Avatar pre-loaded successfully for ${finalPersonality.displayName}`);
-
-      // No save needed here - we'll do a final save before sending the embed
-    } catch (avatarError) {
-      logger.error(`[Commands] Avatar pre-loading failed, but continuing:`, avatarError);
-      // Continue despite error - not critical
-    }
-  }
-
-  return finalPersonality;
-}
-
-/**
- * Creates and sends the final embed response
- *
- * @param {Object} message - Discord message object
- * @param {string} profileName - Name of the personality
- * @param {string} messageKey - Registry key for deduplication
- * @param {Object} finalPersonality - Final personality object
- * @param {string} alias - User-provided alias
- * @param {string} displayName - Display name for the personality
- * @param {string} avatarUrl - Avatar URL for the personality
- * @param {string} requestKey - Request key for cleanup
- * @returns {Promise<Object>} Response message or status object
- */
-async function createAndSendEmbed(
-  message,
-  profileName,
-  messageKey,
-  finalPersonality,
-  alias,
-  displayName,
-  avatarUrl,
-  requestKey
-) {
-  logger.info(`[Commands] Step 5: Sending final response with complete info`);
-
-  // Update our registry entry to mark this as completed
-  if (global.addRequestRegistry.has(messageKey)) {
-    const registryEntry = global.addRequestRegistry.get(messageKey);
-    registryEntry.completed = true;
-    global.addRequestRegistry.set(messageKey, registryEntry);
-    logger.debug(`[Commands] ✅ Updated registry: marked ${messageKey} as completed`);
-  }
-
-  // CRITICAL FIX: Final save operation before creating embed
-  logger.info(
-    `[Commands] 💾 FINAL SAVE OPERATION: Ensuring all data is persisted before creating embed`
-  );
-  await personalityManagerFunctions.saveAllPersonalities();
-  logger.info(`[Commands] ✅ Completed final save operation`);
-
-  // Get the very latest data after final save
-  const veryFinalPersonality = getPersonality(profileName);
-
-  // Use this with our forced loaded data
-  const displayNameToUse = veryFinalPersonality.displayName || displayName || profileName;
-  const avatarUrlToUse = veryFinalPersonality.avatarUrl || avatarUrl;
-
-  logger.debug(
-    `[Commands] FINAL DATA FOR EMBED: displayName=${displayNameToUse}, hasAvatar=${!!avatarUrlToUse}, avatarUrl=${avatarUrlToUse}`
-  );
-
-  // =========================================================================
-  // CRITICAL: Check if this embed should be blocked based on content
-  // =========================================================================
-  const embedDescription = `Successfully added personality: ${displayNameToUse}`;
-
-  // ULTRA-EXTREME: Block embeds for specific personalities by name
-  // This is a last resort to prevent duplicates
-  for (const blockPattern of EMBEDS_TO_BLOCK) {
-    if (embedDescription.includes(blockPattern)) {
-      logger.warn(
-        `[Commands] 🛑 EMERGENCY BLOCK: Found blocked embed pattern "${blockPattern}" in "${embedDescription}"`
-      );
-      logger.warn(`[Commands] Blocking this embed for a known problematic personality`);
-
-      // Still mark as completed for cleanup purposes
-      pendingAdditions.delete(requestKey);
-
-      // Return a fake response to indicate we handled the command
-      return { id: `emergency-blocked-${Date.now()}`, isEmergencyBlocked: true };
-    }
-  }
-
-  // Create an embed with the finalized personality info
-  const embed = new EmbedBuilder()
-    .setTitle('Personality Added')
-    .setDescription(embedDescription)
-    .setColor('#00FF00')
-    .addFields(
-      { name: 'Full Name', value: profileName },
-      { name: 'Display Name', value: displayNameToUse || 'Not set' },
-      {
-        name: 'Alias',
-        value:
-          alias ||
-          (displayNameToUse && displayNameToUse.toLowerCase() !== profileName.toLowerCase()
-            ? displayNameToUse.toLowerCase()
-            : 'None set'),
-      }
-    );
-
-  // Add the avatar to the embed if available
-  if (avatarUrlToUse) {
-    // Validate the URL format first
-    const isValidUrl = urlString => {
-      try {
-        return Boolean(new URL(urlString));
-      } catch {
-        return false;
-      }
-    };
-
-    if (isValidUrl(avatarUrlToUse)) {
-      logger.debug(`[Commands] Adding avatar URL to embed: ${avatarUrlToUse}`);
-      embed.setThumbnail(avatarUrlToUse);
-    } else {
-      logger.error(`[Commands] Invalid avatar URL format: ${avatarUrlToUse}`);
-    }
-  } else {
-    logger.debug(`[Commands] No avatar URL available for embed`);
-  }
-
-  // Update registry to note we're sending an embed
-  if (global.addRequestRegistry.has(messageKey)) {
-    const registryEntry = global.addRequestRegistry.get(messageKey);
-    registryEntry.embedPrepared = true;
-    global.addRequestRegistry.set(messageKey, registryEntry);
-    logger.debug(`[Commands] ✅ Updated registry: marked ${messageKey} as embedPrepared`);
-  }
-
-  // FINAL APPROACH: Use a globally tracked direct API call
-  // This completely bypasses all Discord.js race conditions and duplicate logic
-
-  logger.info(`[Commands] 📤 SENDING: Using direct REST API call to send embed`);
-  let responseMsg;
-
-  try {
-    // CRITICAL UPDATE: We've stopped using time-based deduplication for personality embeds
-    // Instead, we're specifically detecting and deleting incomplete embeds in bot.js
-
-    // We're keeping this message for debugging purposes
-    const now = Date.now();
-    if (global.lastEmbedTime && now - global.lastEmbedTime < global.embedDeduplicationWindow) {
-      logger.info(
-        `[Commands] ⚠️ NOTE: Another embed was sent ${now - global.lastEmbedTime}ms ago, but we will NOT block this complete embed`
-      );
-      logger.info(
-        `[Commands] ✅ SENDING ANYWAY: This is the high-quality embed with complete info`
-      );
-    }
-
-    // Final check - has another process already sent an embed for this message?
-    if (global.addRequestRegistry.has(messageKey)) {
-      const registryEntry = global.addRequestRegistry.get(messageKey);
-      if (registryEntry.embedSent) {
-        logger.warn(
-          `[Commands] ⚠️ LAST-MINUTE BLOCK: Embed already sent for ${messageKey} - preventing duplicate`
-        );
-        return { id: `last-minute-blocked-${Date.now()}`, isLastMinuteBlocked: true };
-      }
-    }
-
-    // Update global time tracker immediately to prevent race conditions
-    global.lastEmbedTime = now;
-    logger.debug(`[Commands] ⏱️ Setting global lastEmbedTime to ${now}`);
-
-    // Get the Discord.js REST instance
-    const { REST } = require('discord.js');
-    const restInstance = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-
-    // Prepare the API payload
-    const payload = {
-      content: '', // No text content, just the embed
-      embeds: [embed.toJSON()], // Convert the embed to JSON
-      message_reference: {
-        // Set up the reply reference
-        message_id: message.id,
-        channel_id: message.channel.id,
-        guild_id: message.guild?.id,
-      },
-      allowed_mentions: {
-        parse: ['users', 'roles'],
-      },
-    };
-
-    // Log that we're making a direct API call for better debugging
-    logger.info(`[Commands] 📝 NOTE: Making direct API call to send embed with all complete data`);
-
-    // Call the Discord API directly
-    logger.info(
-      `[Commands] 📞 API CALL: Sending direct API call to create message - WILL OVERRIDE time check`
-    );
-
-    // CRITICAL UPDATE: Force the API call even if we've sent an embed recently
-    // The earlier embed has incomplete data, and this one has the full name, display name, and avatar
-    logger.info(
-      `[Commands] 🔥 FORCING SEND: This is the high-quality embed with complete data - ignoring time check`
-    );
-
-    // Reset the global time tracker to avoid blocking this embed
-    global.lastEmbedTime = 0;
-
-    const result = await restInstance.post(`/channels/${message.channel.id}/messages`, {
-      body: payload,
+    // Mark this request as in-progress
+    pendingAdditions.set(userKey, {
+      status: 'in-progress',
+      timestamp: Date.now(),
     });
 
-    // Create a fake Message object to maintain API compatibility
-    responseMsg = {
-      id: result.id,
-      channel: message.channel,
-      author: { id: 'direct-api-call' },
-      content: '',
-      embeds: [embed],
-    };
+    // Generate a unique command ID for tracking
+    const commandId = `add-${message.author.id}-${personalityName}-${Date.now()}`;
+    logger.debug(`[AddCommand] Generated command ID: ${commandId}`);
 
-    logger.info(
-      `[Commands] ✅ SUCCESS: Sent personality embed with direct API call, ID: ${responseMsg.id}`
-    );
-
-    // Mark in global registry that we've sent an embed for this message
-    if (global.addRequestRegistry.has(messageKey)) {
-      const registryEntry = global.addRequestRegistry.get(messageKey);
-      registryEntry.embedSent = true;
-      registryEntry.embedId = responseMsg.id;
-      global.addRequestRegistry.set(messageKey, registryEntry);
-      logger.debug(
-        `[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`
-      );
-    }
-  } catch (apiError) {
-    logger.error(`[Commands] ❌ ERROR: Direct API call failed:`, apiError);
-
-    // Fall back to normal message.reply only if we haven't sent an embed yet
-    logger.info(`[Commands] 🔄 FALLBACK: Trying normal message.reply`);
-
-    let embedAlreadySentByOtherProcess = false;
-
-    // Final check - did another process already send an embed for this message while we were working?
-    if (global.addRequestRegistry.has(messageKey)) {
-      const registryEntry = global.addRequestRegistry.get(messageKey);
-      if (registryEntry.embedSent) {
-        logger.warn(
-          `[Commands] ⚠️ FALLBACK BLOCKED: Embed already sent for ${messageKey} by another process`
-        );
-        embedAlreadySentByOtherProcess = true;
-      }
+    // Check if we've already processed this exact command
+    const commandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
+    if (completedAddCommands.has(commandKey)) {
+      logger.warn(`[PROTECTION] Command has already been processed: ${commandKey}`);
+      return null;
     }
 
-    if (!embedAlreadySentByOtherProcess) {
-      responseMsg = await message.reply({ embeds: [embed] });
-      logger.info(`[Commands] ✅ SUCCESS: Sent embed with fallback method, ID: ${responseMsg.id}`);
-
-      // Mark in global registry that we've sent an embed for this message
-      if (global.addRequestRegistry.has(messageKey)) {
-        const registryEntry = global.addRequestRegistry.get(messageKey);
-        registryEntry.embedSent = true;
-        registryEntry.embedId = responseMsg.id;
-        global.addRequestRegistry.set(messageKey, registryEntry);
-        logger.debug(
-          `[Commands] ✅ Updated registry: marked ${messageKey} as embedSent with ID ${responseMsg.id}`
-        );
-      }
-    } else {
-      // Create a dummy response object to maintain API compatibility
-      responseMsg = { id: `blocked-fallback-${Date.now()}`, isDuplicateBlocked: true };
+    // Create unique operation key for this add command
+    const messageKey = `add-${message.id}-${personalityName}`;
+    if (hasGeneratedFirstEmbed.has(messageKey)) {
+      logger.warn(`[PROTECTION] Already generated first embed for: ${messageKey}`);
+      // Update the status in our tracking
+      pendingAdditions.set(userKey, {
+        status: 'completed',
+        timestamp: Date.now(),
+      });
+      completedAddCommands.add(commandKey);
+      return null;
     }
-  }
 
-  // Add a small delay before sending the embed to ensure everything is complete
-  logger.debug(`[Commands] ⏱️ DELAY: Adding 1-second delay before sending final embed`);
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Return the response
-  return responseMsg;
-}
-
-// Completely reimplemented add command with global deduplication
-async function handleAddCommand(message, args) {
-  // Check for rate limiting
-  const rateLimitResult = checkRateLimit();
-  if (rateLimitResult) return rateLimitResult;
-
-  // Create a truly unique ID for this specific add request
-  const addRequestId = `add-req-${message.id}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-
-  // Create a key specifically for this message+args combination
-  const messageKey = `add-msg-${message.id}-${args.join('-')}`;
-
-  // Check for duplicate requests
-  const duplicateResult = checkDuplicateRequest(messageKey);
-  if (duplicateResult) return duplicateResult;
-
-  // Register this request immediately to prevent double processing
-  registerNewRequest(messageKey, addRequestId, args);
-
-  // Check if we've already processed this exact command fully
-  const addCommandKey = `${message.id}-${message.channel.id}-${args.join('-')}`;
-
-  // Check if the command has already been completed
-  const completedResult = checkCompletedCommand(addCommandKey);
-  if (completedResult) return completedResult;
-
-  // Message ID deduplication is now handled centrally in processCommand
-  logger.info(`[Commands] Processing add command with message ${message.id}`);
-
-  // Mark as completed and set up cleanup
-  markCommandAsCompleted(addCommandKey);
-
-  // Validate arguments and parse profile information
-  const validationResult = validateAndParseArgs(message, args);
-  if (!validationResult.profileName) {
-    return message.reply(
-      `Please provide a profile name. Usage: \`${botPrefix} add <profile_name> [alias]\``
-    );
-  }
-
-  const { profileName, alias, requestKey } = validationResult;
-
-  // Check if this is a duplicate request and handle pending requests
-  const pendingRequestResult = handlePendingRequests(message, profileName, requestKey);
-  if (pendingRequestResult) return pendingRequestResult;
-
-  try {
-    // Check if the personality already exists for this user
-    const existingCheckResult = await checkExistingPersonality(message, profileName, requestKey);
-    if (existingCheckResult) return existingCheckResult;
-
-    // No loading message - we'll do all the work first and only send one message at the end
-    logger.info(
-      `[Commands] Starting personality registration process for ${profileName} (no loading message)`
-    );
-
+    // Send typing indicator while we process
     try {
-      // STEP 1: Register the base personality
-      const initialPersonality = await registerInitialPersonality(message, profileName);
-
-      // STEP 2: Fetch profile info separately
-      const { displayName, avatarUrl } = await fetchProfileInfo(profileName, initialPersonality);
-
-      // STEP 3: Update and save the personality
-      await updateAndSavePersonality(profileName, displayName, avatarUrl);
-
-      // STEP 4: Set up aliases
-      await setupPersonalityAliases(profileName, alias, initialPersonality);
-
-      // STEP 5: Save final profile data and pre-load avatar
-      const finalPersonality = await finalizePersonalityData(profileName, displayName, avatarUrl);
-
-      // STEP 6: Send final response
-      return await createAndSendEmbed(
-        message,
-        profileName,
-        messageKey,
-        finalPersonality,
-        alias,
-        displayName,
-        avatarUrl,
-        requestKey
-      );
-    } catch (innerError) {
-      logger.error(`[Commands] Inner error during personality registration:`, innerError);
-
-      // Send error message - no loading message to update
-      try {
-        const errorResponse = await message.reply(
-          `Failed to complete the personality registration: ${innerError.message}`
-        );
-        logger.info(`[Commands] Sent error response with ID: ${errorResponse.id}`);
-
-        // Clear pending even on error
-        pendingAdditions.delete(requestKey);
-
-        // Return the error response to indicate we've handled this command
-        return errorResponse;
-      } catch (err) {
-        logger.error(`[Commands] Error sending error message:`, err);
-        // Clear pending even on error
-        pendingAdditions.delete(requestKey);
-        // Return something to indicate we've handled this command
-        return null;
-      }
+      await message.channel.sendTyping();
+    } catch (typingError) {
+      logger.debug(`Error sending typing indicator: ${typingError.message}`);
+      // Non-critical, continue processing
     }
+
+    // Register the personality
+    logger.info(`[AddCommand ${commandId}] Registering personality: ${personalityName}`);
+    const registrationResult = await registerPersonality(message.author.id, personalityName, alias);
+
+    if (registrationResult.error) {
+      logger.warn(`[AddCommand ${commandId}] Registration error: ${registrationResult.error}`);
+      
+      // Mark as completed even in error case
+      pendingAdditions.set(userKey, {
+        status: 'completed',
+        timestamp: Date.now(),
+      });
+      completedAddCommands.add(commandKey);
+      
+      return await directSend(registrationResult.error);
+    }
+
+    const personality = registrationResult.personality;
+    logger.info(`[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`);
+
+    // Preload the avatar in the background
+    // This is intentionally not awaited because we want it to happen in the background
+    preloadPersonalityAvatar(personality)
+      .catch(err => {
+        logger.error(`[AddCommand ${commandId}] Error preloading avatar: ${err.message}`);
+      });
+
+    // First embed for immediate feedback - mark this specific message as having generated the first embed
+    hasGeneratedFirstEmbed.add(messageKey);
+    logger.info(`[AddCommand ${commandId}] Marked as having generated first embed: ${messageKey}`);
+
+    // Prepare the basic embed fields with info we know will be available
+    const basicEmbed = new EmbedBuilder()
+      .setTitle('Personality Added')
+      .setDescription(`**${personalityName}** has been added to your collection.`)
+      .setColor(0x4caf50)
+      .addFields(
+        { name: 'Full Name', value: personality.fullName || 'Not available', inline: true },
+        { name: 'Alias', value: alias || 'None set', inline: true }
+      );
+
+    // Add placeholder fields for display name and avatar
+    if (!personality.displayName) {
+      basicEmbed.addFields({ name: 'Display Name', value: 'Not set (loading...)', inline: true });
+    } else {
+      basicEmbed.addFields({ name: 'Display Name', value: personality.displayName, inline: true });
+    }
+
+    // Add avatar if available, otherwise note it's loading
+    if (personality.avatarUrl) {
+      basicEmbed.setThumbnail(personality.avatarUrl);
+    }
+
+    // Add DM channel-specific note
+    if (message.channel.isDMBased()) {
+      basicEmbed.setFooter({
+        text: 'This personality is now available in your DMs and all servers with the bot.',
+      });
+    } else {
+      basicEmbed.setFooter({
+        text: `Use @${personalityName} or ${alias ? `@${alias}` : 'its full name'} to talk to this personality.`,
+      });
+    }
+
+    logger.debug(`[AddCommand ${commandId}] Sending basic embed response`);
+
+    // CRITICAL: Block other handlers from processing while we're sending the embed
+    sendingEmbedResponses.add(messageKey);
+    const initialResponse = await message.channel.send({ embeds: [basicEmbed] });
+    logger.info(`[AddCommand ${commandId}] Initial embed sent with ID: ${initialResponse.id}`);
+    sendingEmbedResponses.delete(messageKey);
+
+    // Mark this request as completed
+    pendingAdditions.set(userKey, {
+      status: 'completed',
+      timestamp: Date.now(),
+    });
+
+    // Add to completed commands set
+    completedAddCommands.add(commandKey);
+
+    logger.info(`[AddCommand ${commandId}] Command completed successfully`);
+    return initialResponse;
   } catch (error) {
-    logger.error(`Error adding personality ${profileName}:`, error);
+    logger.error(`Error in handleAddCommand for ${personalityName}:`, error);
 
-    // Clear pending on error
-    pendingAdditions.delete(requestKey);
+    // Mark as completed even in case of error
+    pendingAdditions.set(`${message.author.id}-${personalityName}`, {
+      status: 'completed',
+      timestamp: Date.now(),
+    });
 
-    // Return a proper response to the user
-    const errorResponse = await message.reply(
-      `Failed to add personality \`${profileName}\`. Error: ${error.message}`
-    );
-    logger.info(`[Commands] Sent error response with ID: ${errorResponse.id}`);
-
-    // Return the error response to indicate we've handled this command
-    return errorResponse;
-  } finally {
-    // Ensure we always clean up, even if an unexpected error occurs
-
-    setTimeout(() => {
-      if (pendingAdditions.has(requestKey)) {
-        const pendingData = pendingAdditions.get(requestKey);
-        const elapsedTime = Date.now() - pendingData.timestamp;
-
-        if (elapsedTime > 30000) {
-          logger.debug(
-            `[Commands] Cleaning up stale pending addition request for ${requestKey} after ${elapsedTime}ms`
-          );
-          pendingAdditions.delete(requestKey);
-        }
-      }
-    }, 30000); // Clean up after 30 seconds no matter what
-
-    // Add a periodic cleaner for all pending additions - runs every 2 minutes
-    setInterval(() => {
-      const now = Date.now();
-      for (const [key, data] of pendingAdditions.entries()) {
-        if (now - data.timestamp > 120000) {
-          // Clean entries older than 2 minutes
-          logger.debug(
-            `[Commands] Automatic cleanup of stale pending addition: ${data.profileName}`
-          );
-          pendingAdditions.delete(key);
-        }
-      }
-    }, 120000).unref(); // unref() allows the process to exit even if timer is active
+    return await directSend(`An error occurred while adding the personality: ${error.message}`);
   }
 }
 
@@ -1590,103 +756,43 @@ async function handleAddCommand(message, args) {
  * @param {Array<string>} args - Command arguments
  */
 async function handleListCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
   try {
-    // Debug logging
-    logger.info(`[Commands] List command called by user: ${message.author.id}`);
-
-    // Get all personalities for the user
+    // Get the user's personalities
     const personalities = listPersonalitiesForUser(message.author.id);
-    logger.info(`[Commands] Found ${personalities?.length || 0} personalities for user`);
 
-    // Check if personalities is undefined or not an array
-    if (!Array.isArray(personalities)) {
-      logger.error(
-        `[Commands] Error in list command: personalities is not an array: ${typeof personalities}`
-      );
-      return message.reply(
-        'An error occurred while retrieving your personalities. Please try again later.'
+    if (!personalities || personalities.length === 0) {
+      return await directSend(
+        `You haven't added any personalities yet. Use \`${botPrefix} add <personality-name>\` to add one.`
       );
     }
 
-    if (personalities.length === 0) {
-      logger.info(`[Commands] User has no personalities, sending empty message`);
-      return message.reply(
-        `You haven't added any personalities yet. Use \`${botPrefix} add <profile_name>\` to add one.`
+    // Get the page number from args, default to 1
+    const page = args.length > 0 && !isNaN(args[0]) ? parseInt(args[0], 10) : 1;
+    const pageSize = 10; // Number of personalities per page
+    const totalPages = Math.ceil(personalities.length / pageSize);
+
+    // Validate page number
+    if (page < 1 || page > totalPages) {
+      return await directSend(
+        `Invalid page number. Please specify a page between 1 and ${totalPages}.`
       );
     }
 
-    // Parse page number from args if provided
-    let page = 1;
-    if (args.length > 0) {
-      const parsedPage = parseInt(args[0], 10);
-      if (!isNaN(parsedPage) && parsedPage > 0) {
-        page = parsedPage;
-        logger.info(`[Commands] Requested page ${page}`);
-      } else {
-        logger.info(`[Commands] Invalid page number provided: ${args[0]}, using default page 1`);
-      }
-    }
+    // Calculate slice indices
+    const startIdx = (page - 1) * pageSize;
+    const endIdx = Math.min(startIdx + pageSize, personalities.length);
+    const pagePersonalities = personalities.slice(startIdx, endIdx);
 
-    // Debug logging of personality data to diagnose issues (but limit to avoid excessive logs)
-    if (personalities.length <= 10) {
-      logger.info(
-        `[Commands] Personalities data: ${JSON.stringify(
-          personalities.map(p => ({
-            fullName: p.fullName,
-            displayName: p.displayName,
-          }))
-        )}`
-      );
-    } else {
-      logger.info(
-        `[Commands] Personalities data: [too many personalities to log (${personalities.length})]`
-      );
-    }
-
-    // Create an embed with the list using the helper function
-    logger.info(
-      `[Commands] Creating personality list embed for user: ${message.author.id}, page ${page}`
-    );
-
-    try {
-      // Add special error handling for the list command
-      const result = embedHelpers.createPersonalityListEmbed(message.author.id, page);
-
-      // Verify that the result was created successfully
-      if (!result || typeof result !== 'object' || !result.embed) {
-        logger.error(`[Commands] Invalid result object created: ${JSON.stringify(result)}`);
-        return message.reply(
-          'An error occurred while generating the personality list. Please try again later.'
-        );
-      }
-
-      const { embed, totalPages, currentPage } = result;
-
-      // Log pagination info
-      logger.info(`[Commands] Successfully created embed for page ${currentPage}/${totalPages}`);
-
-      // Only try to send the embed if it was successfully created
-      if (embed && embed.data) {
-        return message.reply({ embeds: [embed] });
-      } else {
-        // Fallback if something went wrong but we didn't catch it above
-        logger.error(`[Commands] Generated embed is invalid: ${JSON.stringify(embed)}`);
-        return message.reply(
-          'An error occurred while generating the personality list. Please try again later.'
-        );
-      }
-    } catch (embedError) {
-      logger.error(
-        `[Commands] Error creating embed for list command: ${embedError.message}`,
-        embedError
-      );
-      return message.reply(
-        'An error occurred while generating the personality list. Please try again later.'
-      );
-    }
+    // Build the embed
+    const embed = embedHelpers.createListEmbed(pagePersonalities, page, totalPages, message.author);
+    
+    return await directSend({ embeds: [embed] });
   } catch (error) {
-    logger.error(`[Commands] Error processing list command: ${error.message}`, error);
-    return message.reply(`An error occurred while processing the command: ${error.message}`);
+    logger.error('Error in handleListCommand:', error);
+    return await directSend(`An error occurred while listing personalities: ${error.message}`);
   }
 }
 
@@ -1696,44 +802,57 @@ async function handleListCommand(message, args) {
  * @param {Array<string>} args - Command arguments
  */
 async function handleAliasCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Check if the user provided the correct arguments
   if (args.length < 2) {
-    return message.reply(
-      `Please provide a profile name and an alias. Usage: \`${botPrefix} alias <profile_name> <alias>\``
+    return await directSend(
+      `You need to provide a personality name and an alias. Usage: \`${botPrefix} alias <personality-name> <alias>\``
     );
   }
 
-  const profileName = args[0];
-  const newAlias = args[1];
+  // Extract the personality name and alias
+  const personalityName = args[0].toLowerCase();
+  const alias = args[1].toLowerCase();
 
-  // Check if the personality exists
-  const personality = getPersonality(profileName);
+  try {
+    // Find the personality first
+    const personality = getPersonality(personalityName);
 
-  if (!personality) {
-    return message.reply(
-      `Personality \`${profileName}\` not found. Use \`${botPrefix} list\` to see your personalities.`
-    );
+    if (!personality) {
+      return await directSend(
+        `Personality "${personalityName}" not found. Please check the name and try again.`
+      );
+    }
+
+    // Set the alias
+    const result = await setPersonalityAlias(message.author.id, personalityName, alias);
+
+    if (result.error) {
+      return await directSend(result.error);
+    }
+
+    // Create the success embed
+    const embed = new EmbedBuilder()
+      .setTitle('Alias Added')
+      .setDescription(`An alias has been set for **${personalityName}**.`)
+      .setColor(0x4caf50)
+      .addFields(
+        { name: 'Full Name', value: personalityName, inline: true },
+        { name: 'Alias', value: alias, inline: true }
+      );
+
+    // Add avatar if available
+    if (personality.avatarUrl) {
+      embed.setThumbnail(personality.avatarUrl);
+    }
+
+    return await directSend({ embeds: [embed] });
+  } catch (error) {
+    logger.error('Error in handleAliasCommand:', error);
+    return await directSend(`An error occurred while setting the alias: ${error.message}`);
   }
-
-  // Check if the personality belongs to the user
-  if (personality.createdBy !== message.author.id) {
-    return message.reply(`Personality \`${profileName}\` doesn't belong to you.`);
-  }
-
-  // Check if the alias is already in use
-  const existingPersonality = getPersonalityByAlias(newAlias);
-
-  if (existingPersonality && existingPersonality.fullName !== profileName) {
-    return message.reply(
-      `Alias \`${newAlias}\` is already in use for personality \`${existingPersonality.fullName}\`.`
-    );
-  }
-
-  // Set the alias
-  setPersonalityAlias(newAlias, profileName);
-
-  return message.reply(
-    `Alias \`${newAlias}\` set for personality \`${personality.displayName || profileName}\`.`
-  );
 }
 
 /**
@@ -1742,42 +861,54 @@ async function handleAliasCommand(message, args) {
  * @param {Array<string>} args - Command arguments
  */
 async function handleRemoveCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Check if the user provided the correct arguments
   if (args.length < 1) {
-    return message.reply(
-      `Please provide a profile name. Usage: \`${botPrefix} remove <profile_name>\``
+    return await directSend(
+      `You need to provide a personality name. Usage: \`${botPrefix} remove <personality-name>\``
     );
   }
 
-  const profileName = args[0];
+  // Extract the personality name
+  const personalityName = args[0].toLowerCase();
 
-  // Try with alias first
-  let personality = getPersonalityByAlias(profileName);
+  try {
+    // Try to find the personality first to get a displayName for the confirmation message
+    let personality = null;
+    
+    // First check if this is an alias
+    personality = getPersonalityByAlias(message.author.id, personalityName);
+    
+    // If not found by alias, try the direct name
+    if (!personality) {
+      personality = getPersonality(personalityName);
+    }
+    
+    if (!personality) {
+      return await directSend(
+        `Personality "${personalityName}" not found. Please check the name or alias and try again.`
+      );
+    }
 
-  // If not found by alias, try with full name
-  if (!personality) {
-    personality = getPersonality(profileName);
-  }
+    // Remove the personality
+    const result = await removePersonality(message.author.id, personality.fullName);
 
-  if (!personality) {
-    return message.reply(
-      `Personality \`${profileName}\` not found. Use \`${botPrefix} list\` to see your personalities.`
-    );
-  }
+    if (result.error) {
+      return await directSend(result.error);
+    }
 
-  // Check if the personality belongs to the user
-  if (personality.createdBy !== message.author.id) {
-    return message.reply(`Personality \`${personality.fullName}\` doesn't belong to you.`);
-  }
+    // Create the success embed
+    const embed = new EmbedBuilder()
+      .setTitle('Personality Removed')
+      .setDescription(`**${personality.displayName || personality.fullName}** has been removed from your collection.`)
+      .setColor(0xf44336);
 
-  // Remove the personality
-  const success = removePersonality(personality.fullName);
-
-  if (success) {
-    return message.reply(
-      `Personality \`${personality.displayName || personality.fullName}\` removed.`
-    );
-  } else {
-    return message.reply(`Failed to remove personality \`${personality.fullName}\`.`);
+    return await directSend({ embeds: [embed] });
+  } catch (error) {
+    logger.error('Error in handleRemoveCommand:', error);
+    return await directSend(`An error occurred while removing the personality: ${error.message}`);
   }
 }
 
@@ -1787,215 +918,412 @@ async function handleRemoveCommand(message, args) {
  * @param {Array<string>} args - Command arguments
  */
 async function handleInfoCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Check if the user provided the correct arguments
   if (args.length < 1) {
-    return message.reply(
-      `Please provide a profile name or alias. Usage: \`${botPrefix} info <profile_name>\``
+    return await directSend(
+      `You need to provide a personality name or alias. Usage: \`${botPrefix} info <personality-name-or-alias>\``
     );
   }
 
-  const profileQuery = args[0];
+  // Extract the personality name or alias
+  const personalityInput = args[0].toLowerCase();
 
-  // Try with alias first
-  let personality = getPersonalityByAlias(profileQuery);
+  try {
+    // Try to find the personality (first by alias, then by name)
+    let personality = getPersonalityByAlias(message.author.id, personalityInput);
+    
+    if (!personality) {
+      personality = getPersonality(personalityInput);
+    }
 
-  // If not found by alias, try with full name
-  if (!personality) {
-    personality = getPersonality(profileQuery);
+    if (!personality) {
+      return await directSend(
+        `Personality "${personalityInput}" not found. Please check the name or alias and try again.`
+      );
+    }
+
+    // Create the info embed
+    const embed = new EmbedBuilder()
+      .setTitle('Personality Info')
+      .setDescription(`Information for **${personality.displayName || personality.fullName}**`)
+      .setColor(0x2196f3)
+      .addFields(
+        { name: 'Full Name', value: personality.fullName, inline: true },
+        { name: 'Display Name', value: personality.displayName || 'Not set', inline: true }
+      );
+
+    // Add the alias if exists
+    const userAliases = personality.aliases?.[message.author.id];
+    if (userAliases && userAliases.length > 0) {
+      embed.addFields({ name: 'Your Aliases', value: userAliases.join(', '), inline: true });
+    } else {
+      embed.addFields({ name: 'Your Aliases', value: 'None set', inline: true });
+    }
+
+    // Add health status check
+    const isKnownProblematic = knownProblematicPersonalities.includes(personality.fullName);
+    const isRuntimeProblematic = runtimeProblematicPersonalities.has(personality.fullName);
+    
+    if (isKnownProblematic || isRuntimeProblematic) {
+      embed.addFields({ 
+        name: 'Status', 
+        value: '⚠️ This personality has experienced issues. It may not work correctly.', 
+        inline: false 
+      });
+    } else {
+      embed.addFields({ 
+        name: 'Status', 
+        value: '✅ This personality is working normally.', 
+        inline: false 
+      });
+    }
+
+    // Add avatar if available
+    if (personality.avatarUrl) {
+      embed.setThumbnail(personality.avatarUrl);
+    }
+
+    return await directSend({ embeds: [embed] });
+  } catch (error) {
+    logger.error('Error in handleInfoCommand:', error);
+    return await directSend(`An error occurred while getting personality info: ${error.message}`);
   }
-
-  if (!personality) {
-    return message.reply(
-      `Personality \`${profileQuery}\` not found. Use \`${botPrefix} list\` to see your personalities.`
-    );
-  }
-
-  // Find all aliases for this personality
-  const aliases = utils.getAllAliasesForPersonality(
-    personality.fullName,
-    personalityManagerFunctions.personalityAliases
-  );
-
-  // Create an embed with the personality info
-  const embed = embedHelpers.createPersonalityInfoEmbed(personality, aliases);
-
-  return message.reply({ embeds: [embed] });
 }
 
 /**
- * Handle the reset command (clears conversation)
+ * Handle the reset command
  * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
  */
-async function handleResetCommand(message) {
-  const cleared = clearConversation(message.author.id, message.channel.id);
+async function handleResetCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
 
-  if (cleared) {
-    return message.reply(
-      'Conversation history cleared. The next message will start a new conversation.'
+  // Check if the user provided a personality name
+  if (args.length < 1) {
+    return await directSend(
+      `You need to provide a personality name or alias. Usage: \`${botPrefix} reset <personality-name-or-alias>\``
     );
-  } else {
-    return message.reply('No active conversation to clear.');
+  }
+
+  // Extract the personality name or alias
+  const personalityInput = args[0].toLowerCase();
+
+  try {
+    // Try to find the personality (first by alias, then by name)
+    let personality = getPersonalityByAlias(message.author.id, personalityInput);
+    
+    if (!personality) {
+      personality = getPersonality(personalityInput);
+    }
+
+    if (!personality) {
+      return await directSend(
+        `Personality "${personalityInput}" not found. Please check the name or alias and try again.`
+      );
+    }
+
+    // Clear the conversation for this personality in this channel
+    clearConversation(message.author.id, message.channel.id, personality.fullName);
+
+    return await directSend(
+      `Conversation with **${personality.displayName || personality.fullName}** has been reset in this channel.`
+    );
+  } catch (error) {
+    logger.error('Error in handleResetCommand:', error);
+    return await directSend(`An error occurred while resetting the conversation: ${error.message}`);
   }
 }
 
 /**
- * Handle the activate command (channel-wide activation)
+ * Handle the activate command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
 async function handleActivateCommand(message, args) {
-  // Check if user has Manage Messages permission
-  // In DMs, activation is always allowed
-  const isDMActivate = message.channel.isDMBased();
-  if (!isDMActivate && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-    return message.reply('You need the "Manage Messages" permission to use this command.');
-  }
-  
-  // SAFETY CHECK: Only allow personality activation in DMs or NSFW channels
-  const isNSFW = message.channel.nsfw;
-  if (!isDMActivate && !isNSFW) {
-    return message.reply("⚠️ For safety and compliance reasons, personalities can only be activated in Direct Messages or channels marked as NSFW. Please ask a server admin to mark this channel as NSFW in the channel settings before activating personalities.");
-  }
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
 
-  if (args.length < 1) {
-    return message.reply(
-      `Please provide a personality name or alias. Usage: \`${botPrefix} activate <personality>\``
+  // Check if this is a DM channel (we don't allow activate in DMs)
+  if (message.channel.isDMBased()) {
+    return await directSend(
+      `Channel activation is not needed in DMs. Simply send a message to interact with personalities.`
     );
   }
 
-  // Join all arguments to support multi-word personality names
-  const personalityQuery = args.join('-');
-  logger.info(`[Commands] Attempting to activate personality with query: ${personalityQuery}`);
-
-  // Try with alias first
-  let personality = getPersonalityByAlias(personalityQuery);
-  
-  // If not found by alias, try with full name
-  if (!personality) {
-    logger.info(`[Commands] Personality not found by alias, trying with full name: ${personalityQuery}`);
-    personality = getPersonality(personalityQuery);
+  // Check if the user has permission to manage messages
+  // Ensure member exists (could be missing for webhook users like Pluralkit)
+  if (!message.member || !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    return await directSend(
+      `You need the "Manage Messages" permission to activate a personality in this channel.`
+    );
   }
 
-  // If still not found, try with just the first argument as a fallback for backwards compatibility
-  if (!personality && args.length > 1) {
-    logger.info(`[Commands] Personality not found, trying with just the first argument: ${args[0]}`);
-    personality = getPersonalityByAlias(args[0]);
+  // Check if the channel is NSFW (including parent for threads)
+  if (!channelUtils.isChannelNSFW(message.channel)) {
+    return await directSend(
+      `⚠️ For safety and compliance reasons, personalities can only be activated in channels marked as NSFW. Please mark this channel as NSFW in the channel settings first.`
+    );
+  }
+
+  // Check if the user provided a personality name
+  if (args.length < 1) {
+    return await directSend(
+      `You need to provide a personality name or alias. Usage: \`${botPrefix} activate <personality-name-or-alias>\``
+    );
+  }
+
+  // Join the args to support multi-word personality names/aliases (e.g., "bambi prime")
+  const personalityInput = args.join(' ').toLowerCase();
+
+  try {
+    // Try to find the personality (first by alias, then by name)
+    let personality = getPersonalityByAlias(message.author.id, personalityInput);
     
     if (!personality) {
-      personality = getPersonality(args[0]);
+      personality = getPersonality(personalityInput);
     }
-  }
 
-  if (!personality) {
-    return message.reply(
-      `Personality \`${personalityQuery}\` not found. Use \`${botPrefix} list\` to see your personalities.`
-    );
-  }
+    if (!personality) {
+      return await directSend(
+        `Personality "${personalityInput}" not found. Please check the name or alias and try again.`
+      );
+    }
 
-  logger.info(`[Commands] Found personality: ${personality.fullName}, activating in channel: ${message.channel.id}`);
-  
-  // Activate the personality in this channel
-  activatePersonality(message.channel.id, personality.fullName, message.author.id);
+    // Activate the personality for this channel
+    const result = activatePersonality(message.channel.id, personality.fullName);
 
-  return message.reply(
-    `**Channel-wide activation:** ${personality.displayName || personality.fullName} will now respond to all messages in this channel from any user. Use \`${botPrefix} deactivate\` to turn this off.`
-  );
-}
+    if (result.error) {
+      return await directSend(result.error);
+    }
 
-/**
- * Handle the deactivate command (channel-wide deactivation)
- * @param {Object} message - Discord message object
- */
-async function handleDeactivateCommand(message) {
-  // Check if user has Manage Messages permission
-  // In DMs, deactivation is always allowed
-  const isDMDeactivate = message.channel.isDMBased();
-  if (!isDMDeactivate && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-    return message.reply('You need the "Manage Messages" permission to use this command.');
-  }
+    // Create the success embed
+    const embed = new EmbedBuilder()
+      .setTitle('Personality Activated')
+      .setDescription(
+        `**${personality.displayName || personality.fullName}** is now active in this channel and will respond to all messages.`
+      )
+      .setColor(0x4caf50)
+      .setFooter({
+        text: `Use "${botPrefix} deactivate" to turn off automatic responses.`,
+      });
 
-  const deactivated = deactivatePersonality(message.channel.id);
+    // Add avatar if available
+    if (personality.avatarUrl) {
+      embed.setThumbnail(personality.avatarUrl);
+    }
 
-  if (deactivated) {
-    return message.reply(
-      `**Channel-wide activation disabled.** Personalities will now only respond to direct mentions, replies, or users with auto-response enabled.`
-    );
-  } else {
-    return message.reply(`No personality was activated in this channel.`);
+    return await directSend({ embeds: [embed] });
+  } catch (error) {
+    logger.error('Error in handleActivateCommand:', error);
+    return await directSend(`An error occurred while activating the personality: ${error.message}`);
   }
 }
 
 /**
- * Handle the clearerrors command
- * Clears all error states from personalities and blackout periods
+ * Handle the deactivate command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
-async function handleClearErrorsCommand(message) {
-  // Check if user has Administrator permission for this command
-  const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
-  const isDM = message.channel.isDMBased();
-  
-  // For safety, require Admin permissions in servers
-  if (!isDM && !isAdmin) {
-    return message.reply('You need Administrator permission to use this command.');
+async function handleDeactivateCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Check if this is a DM channel (we don't allow deactivate in DMs as it's not needed)
+  if (message.channel.isDMBased()) {
+    return await directSend(
+      `Channel activation is not used in DMs. You can simply stop messaging to end the conversation.`
+    );
+  }
+
+  // Check if the user has permission to manage messages
+  // Ensure member exists (could be missing for webhook users like Pluralkit)
+  if (!message.member || !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    return await directSend(
+      `You need the "Manage Messages" permission to deactivate a personality in this channel.`
+    );
   }
 
   try {
-    // Import the AIService
-    const {
-      runtimeProblematicPersonalities,
-      errorBlackoutPeriods
-    } = require('./aiService');
-    
-    // Clear all runtime problematic personalities
-    const problemPersonalityCount = runtimeProblematicPersonalities.size;
-    runtimeProblematicPersonalities.clear();
-    
-    // Clear all error blackout periods
-    const blackoutCount = errorBlackoutPeriods.size;
-    errorBlackoutPeriods.clear();
-    
-    // Log the action
-    logger.info(`[Commands] User ${message.author.tag} cleared ${problemPersonalityCount} problematic personalities and ${blackoutCount} blackout periods`);
-    
-    // Return success message
-    return message.reply(
-      `✅ Successfully cleared ${problemPersonalityCount} problematic personalities and ${blackoutCount} blackout periods. Personalities should now respond normally.`
-    );
+    // Deactivate personality for this channel
+    const result = deactivatePersonality(message.channel.id);
+
+    if (result.error) {
+      return await directSend(result.error);
+    }
+
+    // Create the success embed
+    const embed = new EmbedBuilder()
+      .setTitle('Channel Deactivated')
+      .setDescription(
+        `The active personality has been deactivated in this channel. It will no longer respond to all messages.`
+      )
+      .setColor(0xf44336);
+
+    return await directSend({ embeds: [embed] });
   } catch (error) {
-    logger.error(`[Commands] Error in clearerrors command:`, error);
-    return message.reply('An error occurred while clearing errors. Please check the logs.');
+    logger.error('Error in handleDeactivateCommand:', error);
+    return await directSend(`An error occurred while deactivating the personality: ${error.message}`);
   }
 }
 
 /**
- * Handle the autorespond command (user-specific toggle)
+ * Handle the clearerrors command - Clears any runtime error state for personalities
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
-async function handleAutoRespondCommand(message, args) {
-  // Import the functions we need from conversationManager
+async function handleClearErrorsCommand(message, args) {
+  // Check if user has Administrator permission for this command
+  const isDM = message.channel.isDMBased();
+  const isAdmin = isDM ? false : (message.member ? message.member.permissions.has(PermissionFlagsBits.Administrator) : false);
+  
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+  
+  // For safety, require Admin permissions in servers
+  if (!isDM && !isAdmin) {
+    return directSend('You need Administrator permission to use this command.');
+  }
+
+  // Import the AIService
   const {
-    enableAutoResponse,
-    disableAutoResponse,
-    isAutoResponseEnabled,
-  } = require('./conversationManager');
+    runtimeProblematicPersonalities,
+    errorBlackoutPeriods
+  } = require('./aiService');
+  
+  // Clear all runtime problematic personalities
+  const problemPersonalityCount = runtimeProblematicPersonalities.size;
+  runtimeProblematicPersonalities.clear();
+  
+  // Clear all error blackout periods
+  const blackoutCount = errorBlackoutPeriods.size;
+  errorBlackoutPeriods.clear();
+  
+  // Return success message with counts
+  return directSend(`✅ Error state has been cleared:
+- Cleared ${problemPersonalityCount} problematic personality registrations
+- Cleared ${blackoutCount} error blackout periods
 
-  // Parse the on/off argument
-  const subCommand = args[0]?.toLowerCase();
+Personalities should now respond normally if they were previously failing.`);
+}
 
-  if (!subCommand || !['on', 'off', 'status'].includes(subCommand)) {
-    return message.reply(
-      `Please specify 'on', 'off', or 'status'. Usage: \`${botPrefix} autorespond <on|off|status>\``
+/**
+ * Handle the debug command
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+async function handleDebugCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Check if the user provided a subcommand
+  if (args.length < 1) {
+    return await directSend(
+      `You need to provide a subcommand. Usage: \`${botPrefix} debug <subcommand>\`\n\n` +
+      `Available subcommands:\n` +
+      `- \`problems\` - Display information about problematic personalities`
     );
   }
 
+  const subCommand = args[0].toLowerCase();
+
+  switch (subCommand) {
+    case 'problems':
+      // Show information about problematic personalities
+      const knownProblems = knownProblematicPersonalities.length;
+      const runtimeProblems = runtimeProblematicPersonalities.size;
+      
+      // Prepare lists for the embed
+      const knownList = knownProblematicPersonalities.length > 0 
+        ? knownProblematicPersonalities.join('\n') 
+        : 'None';
+        
+      const runtimeList = runtimeProblematicPersonalities.size > 0
+        ? Array.from(runtimeProblematicPersonalities.entries())
+          .map(([name, timestamp]) => {
+            const time = new Date(timestamp).toLocaleString();
+            return `${name} (since ${time})`;
+          })
+          .join('\n')
+        : 'None';
+      
+      // Create the embed
+      const embed = new EmbedBuilder()
+        .setTitle('Problematic Personalities Report')
+        .setDescription(`Information about personalities that have experienced issues.`)
+        .setColor(0xff9800)
+        .addFields(
+          { 
+            name: `Known Problematic (${knownProblems})`, 
+            value: knownList.length > 1024 ? `${knownList.substring(0, 1021)}...` : knownList, 
+            inline: false 
+          },
+          { 
+            name: `Runtime Problematic (${runtimeProblems})`, 
+            value: runtimeList.length > 1024 ? `${runtimeList.substring(0, 1021)}...` : runtimeList, 
+            inline: false 
+          }
+        )
+        .setFooter({
+          text: `Use "${botPrefix} clearerrors" to reset runtime problematic personalities.`,
+        });
+      
+      return await directSend({ embeds: [embed] });
+
+    default:
+      return await directSend(
+        `Unknown debug subcommand: \`${subCommand}\`. Use \`${botPrefix} debug\` to see available subcommands.`
+      );
+  }
+}
+
+/**
+ * Handle the autorespond command
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ */
+// Store user auto-response preferences 
+// Map of userId -> boolean (true = enabled, false = disabled)
+const autoResponseEnabled = new Map();
+
+// Helper functions for auto-response
+function isAutoResponseEnabled(userId) {
+  return autoResponseEnabled.get(userId) === true;
+}
+
+function enableAutoResponse(userId) {
+  autoResponseEnabled.set(userId, true);
+}
+
+function disableAutoResponse(userId) {
+  autoResponseEnabled.set(userId, false);
+}
+
+async function handleAutoRespondCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+
+  // Get the user ID
   const userId = message.author.id;
 
+  // Check if the user provided a subcommand
+  if (args.length < 1) {
+    const currentSetting = isAutoResponseEnabled(userId);
+    return await directSend(
+      `Your auto-response setting is currently **${currentSetting ? 'ON' : 'OFF'}**.\n\n` +
+      `Use \`${botPrefix} autorespond on\` to enable or \`${botPrefix} autorespond off\` to disable.`
+    );
+  }
+
+  const subCommand = args[0].toLowerCase();
+
   if (subCommand === 'status') {
-    const status = isAutoResponseEnabled(userId) ? 'enabled' : 'disabled';
-    return message.reply(
-      `Your auto-response is currently **${status}**. When enabled, a personality will continue responding to your messages after you mention or reply to it.`
+    const currentSetting = isAutoResponseEnabled(userId);
+    return await directSend(
+      `Your auto-response setting is currently **${currentSetting ? 'ON' : 'OFF'}**.`
     );
   }
 
@@ -2046,8 +1374,8 @@ async function handleVerifyCommand(message, args) {
     );
   }
   
-  // Check if the current channel is NSFW
-  const isCurrentChannelNSFW = message.channel.nsfw === true;
+  // Check if the current channel is NSFW (including parent for threads)
+  const isCurrentChannelNSFW = channelUtils.isChannelNSFW(message.channel);
   
   if (isAlreadyVerified) {
     return await directSend(
@@ -2090,7 +1418,7 @@ async function handleVerifyCommand(message, args) {
     const nsfwChannels = guild.channels.cache.filter(
       channel => 
         channel.isTextBased() && 
-        channel.nsfw === true && 
+        channelUtils.isChannelNSFW(channel) && 
         channel.permissionsFor(message.author).has('ViewChannel')
     );
     
@@ -2100,10 +1428,14 @@ async function handleVerifyCommand(message, args) {
       const success = await auth.storeNsfwVerification(message.author.id, true);
       
       if (success) {
+        // Suggest the available NSFW channels to the user
+        const channelList = nsfwChannels.map(c => `<#${c.id}>`).join(', ');
+        
         return await directSend(
           "✅ **Verification Successful**\n\n" +
           "You have been successfully verified to use AI personalities in Direct Messages.\n\n" +
-          "This verification confirms you meet Discord's age requirements for accessing NSFW content."
+          "This verification confirms you meet Discord's age requirements for accessing NSFW content.\n\n" +
+          `**Available NSFW channels**: ${channelList}\nRun the command in one of these channels next time.`
         );
       } else {
         return await directSend(
@@ -2112,198 +1444,151 @@ async function handleVerifyCommand(message, args) {
         );
       }
     } else {
-      // User doesn't have access to any NSFW channels
+      // The user doesn't have access to any NSFW channels
       return await directSend(
-        "❌ **Verification Failed**\n\n" +
-        "You don't have access to any NSFW channels in this server, which means you may not meet Discord's age requirements.\n\n" +
-        "Please try again in a server where you have access to NSFW-marked channels, or ask a server admin to mark a channel as NSFW for verification purposes."
+        "⚠️ **Unable to Verify**\n\n" +
+        "You need to run this command in a channel marked as NSFW. This channel is not marked as NSFW, and you don't have access to any NSFW channels in this server.\n\n" +
+        "Please try again in a different server with NSFW channels that you can access."
       );
     }
   } catch (error) {
-    logger.error(`[Commands] Error during verification:`, error);
+    logger.error('Error in handleVerifyCommand:', error);
     return await directSend(
       "❌ **Verification Error**\n\n" +
-      "There was an error during the verification process. Please try again later."
+      `An error occurred during verification: ${error.message}`
     );
   }
 }
 
-async function handleStatusCommand(message) {
-  // Get Discord client from global scope rather than importing from bot.js to avoid circular dependency
-  const client = global.tzurotClient;
-
-  if (!client) {
-    return message.reply('Bot client not properly initialized. Please try again later.');
-  }
-
-  // Count total personalities - use the personalityManager's listPersonalitiesForUser with no filter
-  const allPersonalities = listPersonalitiesForUser();
-  const totalPersonalities = allPersonalities ? allPersonalities.length : 0;
-  const userPersonalities = listPersonalitiesForUser(message.author.id).length;
-
-  // Add verification status to the embed data
-  let verificationStatus = "Unknown";
+/**
+ * Handle the status command - provides bot status info
+ * @param {Object} message - Discord message object
+ */
+async function handleStatusCommand(message, args) {
+  // Create direct send function
+  const directSend = utils.createDirectSend(message);
+  
   try {
+    // Get uptime info
+    const uptime = process.uptime();
+    const formattedUptime = formatUptime(uptime);
+    
+    // Import client from global
+    const client = global.tzurotClient;
+    
+    // Check if user is authenticated
     const auth = require('./auth');
-    if (auth.isNsfwVerified(message.author.id)) {
-      verificationStatus = "Verified ✓";
-    } else {
-      verificationStatus = "Not Verified ✗";
-    }
-  } catch (error) {
-    logger.error(`[Commands] Error checking verification status:`, error);
-    verificationStatus = "Error checking status";
-  }
-
-  const embed = embedHelpers.createStatusEmbed(client, totalPersonalities, userPersonalities, verificationStatus);
-
-  return message.reply({ embeds: [embed] });
-}
-
-// formatUptime has been moved to embedHelpers.js
-
-/**
- * Handle the debug command - only available to administrators
- * @param {Object} message - Discord message object
- * @param {Array<string>} args - Command arguments
- */
-async function handleDebugCommand(message, args) {
-  if (args.length < 1) {
-    return message.reply(
-      `Please specify a debug subcommand. Available subcommands: \`problems\`, \`seedpersonalities\``
-    );
-  }
-
-  const subCommand = args[0].toLowerCase();
-
-  switch (subCommand) {
-    case 'problems':
-    case 'problematic':
-      return await handleDebugProblematicCommand(message, args.slice(1));
-
-    case 'seedpersonalities':
-    case 'seed':
-      return await handleDebugSeedPersonalitiesCommand(message);
-
-    default:
-      return message.reply(
-        `Unknown debug subcommand: \`${subCommand}\`. Available subcommands: \`problems\`, \`seedpersonalities\``
+    const isAuthenticated = auth.hasValidToken(message.author.id);
+    const isNsfwVerified = auth.isNsfwVerified(message.author.id);
+    
+    // Create the status embed
+    const embed = new EmbedBuilder()
+      .setTitle('Bot Status')
+      .setDescription(`Current status and information for ${client.user.username}.`)
+      .setColor(0x2196f3)
+      .addFields(
+        { name: 'Uptime', value: formattedUptime, inline: true },
+        { name: 'Ping', value: `${Math.round(client.ws.ping)}ms`, inline: true },
+        { name: 'Authenticated', value: isAuthenticated ? '✅ Yes' : '❌ No', inline: true },
+        { name: 'Age Verified', value: isNsfwVerified ? '✅ Yes' : '❌ No', inline: true },
+        { name: 'Guild Count', value: `${client.guilds.cache.size} servers`, inline: true }
       );
-  }
-}
-
-/**
- * Handle the debug seed personalities command to manually trigger owner personality seeding
- * @param {Object} message - Discord message object
- */
-async function handleDebugSeedPersonalitiesCommand(message) {
-  // Import needed functions
-  const { USER_CONFIG } = require('./constants');
-  const { seedOwnerPersonalities } = require('./personalityManager');
-
-  // Check if the user is the owner
-  if (message.author.id !== USER_CONFIG.OWNER_ID) {
-    return message.reply('This command can only be used by the bot owner.');
-  }
-
-  try {
-    // Show initiating message
-    await message.reply('Seeding personalities from constants.js... This may take a moment.');
-
-    // Run the seeding operation
-    await seedOwnerPersonalities();
-
-    // Return success
-    return message.reply('✅ Personalities successfully seeded from constants.js configuration.');
+    
+    // Get user's personalities count if authenticated
+    if (isAuthenticated) {
+      const personalities = listPersonalitiesForUser(message.author.id);
+      embed.addFields({ 
+        name: 'Your Personalities', 
+        value: personalities && personalities.length > 0 
+          ? `${personalities.length} personalities` 
+          : 'None added yet', 
+        inline: true 
+      });
+    }
+    
+    // Add auto-response status
+    const autoResponseStatus = isAutoResponseEnabled(message.author.id);
+    embed.addFields({ 
+      name: 'Auto-Response', 
+      value: autoResponseStatus ? '✅ Enabled' : '❌ Disabled', 
+      inline: true 
+    });
+    
+    // Add bot avatar if available
+    if (client.user.avatarURL()) {
+      embed.setThumbnail(client.user.avatarURL());
+    }
+    
+    // Set footer with version
+    embed.setFooter({
+      text: `Use "${botPrefix} help" for available commands.`,
+    });
+    
+    return await directSend({ embeds: [embed] });
   } catch (error) {
-    logger.error(`[Commands] Error seeding personalities: ${error.message}`);
-    return message.reply(`❌ Error seeding personalities: ${error.message}`);
+    logger.error('Error in handleStatusCommand:', error);
+    return await directSend(`An error occurred while getting bot status: ${error.message}`);
   }
 }
 
 /**
- * Handle the debug problematic command to show problematic personalities
- * @param {Object} message - Discord message object
+ * Format uptime into a human-readable string
+ * @param {number} uptime - Uptime in seconds
+ * @returns {string} Formatted uptime string
  */
-async function handleDebugProblematicCommand(message) {
-  // Gather information about known and runtime problematic personalities
-  const knownCount = Object.keys(knownProblematicPersonalities).length;
-  const runtimeCount = runtimeProblematicPersonalities.size;
-
-  // Create the embed
-  const embed = new EmbedBuilder()
-    .setTitle('Problematic Personalities Debug')
-    .setDescription('These personalities have been detected as having issues with the API')
-    .setColor('#FF5555')
-    .addFields(
-      {
-        name: 'Known Problematic Personalities',
-        value: knownCount > 0 ? `${knownCount} personalities` : 'None',
-      },
-      {
-        name: 'Runtime Detected Problematic Personalities',
-        value: runtimeCount > 0 ? `${runtimeCount} personalities` : 'None',
-      }
-    );
-
-  // Add known problematic personalities
-  if (knownCount > 0) {
-    for (const [name, info] of Object.entries(knownProblematicPersonalities)) {
-      embed.addFields({
-        name: `Known: ${name}`,
-        value: `Error Patterns: ${info.errorPatterns ? info.errorPatterns.join(', ') : 'Not specified'}\nCustom Responses: ${info.responses ? 'Yes' : 'No'}`,
-      });
-    }
-  }
-
-  // Add runtime detected problematic personalities
-  if (runtimeCount > 0) {
-    for (const [name, info] of runtimeProblematicPersonalities.entries()) {
-      const detectedAt = new Date(info.firstDetectedAt).toLocaleString();
-      embed.addFields({
-        name: `Runtime: ${name}`,
-        value: `Detected: ${detectedAt}\nError Count: ${info.errorCount}\nLast Error: ${info.lastErrorContent?.substring(0, 100) || 'Unknown'}${info.lastErrorContent?.length > 100 ? '...' : ''}`,
-      });
-    }
-  }
-
-  // Add tips for handling problematic personalities
-  embed.addFields({
-    name: 'Tips for Handling',
-    value: [
-      '1. Consider adding recurring problematic personalities to the knownProblematicPersonalities in aiService.js',
-      '2. Create custom themed responses for known problematic personalities',
-      '3. Runtime-detected problematic personalities are reset when the bot restarts',
-    ].join('\n'),
-  });
-
-  return message.reply({ embeds: [embed] });
+function formatUptime(uptime) {
+  const days = Math.floor(uptime / 86400);
+  const hours = Math.floor((uptime % 86400) / 3600);
+  const minutes = Math.floor(((uptime % 86400) % 3600) / 60);
+  const seconds = Math.floor(((uptime % 86400) % 3600) % 60);
+  
+  const parts = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  if (seconds > 0) parts.push(`${seconds} second${seconds !== 1 ? 's' : ''}`);
+  
+  return parts.join(', ');
 }
 
 /**
- * Handle the auth command for Claude.ai authorization
+ * Handle the auth command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
  */
 async function handleAuthCommand(message, args) {
-  // Import auth module
+  // Import auth module and webhookUserTracker
   const auth = require('./auth');
+  const webhookUserTracker = require('./utils/webhookUserTracker');
   
-  // Create direct send function with proper error handling
+  // Create direct send function
   const directSend = utils.createDirectSend(message);
   
-  // Security check: Is this a DM channel?
-  const isDM = message.channel.isDMBased && message.channel.isDMBased();
+  // If this is a webhook message, check if it's from a proxy system
+  let userId = message.author.id;
+  if (message.webhookId) {
+    // Check if this is a known proxy system like PluralKit
+    if (webhookUserTracker.isProxySystemWebhook(message)) {
+      // Handle proxy system webhooks specially for auth
+      logger.info(`[Auth] Detected proxy system webhook for auth command: ${message.author.username}`);
+      // Return a more informative message for proxy systems
+      return await directSend(
+        `**Authentication with Proxy Systems**\n\n` +
+        `For security reasons, authentication commands can't be used through webhook systems like PluralKit.\n\n` +
+        `Please use your regular Discord account (without the proxy) to run authentication commands.`
+      );
+    }
+  }
   
-  if (!args.length) {
-    // No arguments, provide help
+  // Check if the user provided a subcommand
+  if (args.length < 1) {
     return await directSend(
-      `**Authorization Commands**\n` +
-      `\n` +
-      `- \`${botPrefix} auth start\` - Get a link to start the authorization process\n` +
-      `- \`${botPrefix} auth code <your-code>\` - Submit the authorization code you received\n` +
-      `- \`${botPrefix} auth status\` - Check your current authorization status\n` +
-      `- \`${botPrefix} auth revoke\` - Revoke your authorization`
+      `**Authentication Commands**\n\n` +
+      `- \`${botPrefix} auth start\` - Begin the authentication process\n` +
+      `- \`${botPrefix} auth code <code>\` - Submit your authorization code (DM only)\n` +
+      `- \`${botPrefix} auth status\` - Check your authentication status\n` +
+      `- \`${botPrefix} auth revoke\` - Revoke your authorization\n\n` +
+      `For security, authorization codes should only be submitted via DM.`
     );
   }
   
@@ -2311,92 +1596,76 @@ async function handleAuthCommand(message, args) {
   
   switch (subCommand) {
     case 'start':
-      // Generate the authorization URL
-      const authUrl = auth.getAuthorizationUrl();
-      
-      // Send a DM to the user with the URL if possible
+      // Start the authentication process
       try {
-        await message.author.send(
-          `**AI Service Authorization**\n\n` +
-          `1. Click this link to authorize the bot: ${authUrl}\n\n` +
-          `2. Log in with your account (if not already logged in)\n\n` +
-          `3. Approve the authorization request\n\n` +
-          `4. After authorizing, you'll receive a one-time code. Copy it.\n\n` +
-          `5. Reply to this DM with your code: \`${botPrefix} auth code YOUR_CODE_HERE\`\n\n` +
-          `**IMPORTANT**: For security, if you must use a public channel, please put your code in Discord spoiler tags like this: \`${botPrefix} auth code ||YOUR_CODE_HERE||\`\n\n` +
-          `This will allow the bot to use your account for conversation history, personalized responses, and individual rate limits.`
-        );
+        const authUrl = await auth.getAuthorizationUrl();
         
-        // Send a confirmation in the channel
-        return await directSend('I\'ve sent you a DM with authorization instructions!');
-      } catch (dmError) {
-        // If we can't DM, send the info in the channel
-        logger.warn(`Unable to DM user ${message.author.id} for auth: ${dmError.message}`);
-        return await directSend(
-          `**AI Service Authorization**\n\n` +
-          `1. Click this link to authorize the bot: ${authUrl}\n\n` +
-          `2. Log in with your account (if not already logged in)\n\n` +
-          `3. Approve the authorization request\n\n` +
-          `4. After authorizing, you'll receive a one-time code. Copy it.\n\n` +
-          `5. For security, please put your code in Discord spoiler tags: \`${botPrefix} auth code ||YOUR_CODE_HERE||\`\n\n` +
-          `Your message with the code will be deleted immediately after processing.\n\n` +
-          `This will allow the bot to use your account for conversation history, personalized responses, and individual rate limits.`
-        );
+        if (!authUrl) {
+          return await directSend('❌ Failed to generate authentication URL. Please try again later.');
+        }
+        
+        // Check if this is a DM or a public channel
+        const isDM = message.channel.isDMBased();
+        
+        if (isDM) {
+          // In DMs, we can safely send the auth URL directly
+          return await directSend(
+            `**Authentication Required**\n\n` +
+            `Please click the link below to authenticate with the service:\n\n` +
+            `${authUrl}\n\n` +
+            `After authorizing, you'll receive a code. Use \`${botPrefix} auth code YOUR_CODE\` to complete the process.`
+          );
+        } else {
+          // In public channels, send a DM with the auth URL
+          try {
+            await message.author.send(
+              `**Authentication Required**\n\n` +
+              `Please click the link below to authenticate with the service:\n\n` +
+              `${authUrl}\n\n` +
+              `After authorizing, you'll receive a code. Use \`${botPrefix} auth code YOUR_CODE\` here in DM to complete the process.`
+            );
+            
+            // Let them know in the channel that we've sent a DM
+            return await directSend(
+              `I've sent you a DM with authentication instructions. Please check your DMs.`
+            );
+          } catch (dmError) {
+            // If DM fails, let them know but with less specific info
+            return await directSend(
+              `❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.`
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(`[Auth] Error starting auth process: ${error.message}`);
+        return await directSend(`❌ An error occurred: ${error.message}`);
       }
       
     case 'code':
+      // Check if a code was provided
       if (args.length < 2) {
-        return await directSend(`Please provide the authorization code. Usage: \`${botPrefix} auth code ||YOUR_CODE||\``);  
+        return await directSend(`Please provide your authorization code. Usage: \`${botPrefix} auth code YOUR_CODE\``);
       }
       
-      // Enforce DM-only for auth code submission for enhanced security
+      // Get the code from the args
+      const code = args[1];
+      
+      // Check if this is a DM channel
+      const isDM = message.channel.isDMBased();
+      
+      // For security, only accept auth codes in DMs
       if (!isDM) {
-        // Attempt to delete the message immediately for security
+        // Try to delete the message to protect the code
         try {
           await message.delete();
-          logger.info(`[Auth] Deleted message with authorization code from public channel`);
         } catch (deleteError) {
-          logger.warn(`[Auth] Unable to delete message with auth code from public channel: ${deleteError.message}`);
+          logger.warn(`[Auth] Failed to delete auth code message: ${deleteError.message}`);
         }
         
-        // Try to send a DM to the user with instructions
-        try {
-          await message.author.send(
-            `**⚠️ Security Alert**\n\n` +
-            `For security reasons, please submit your authorization code via DM only.\n\n` +
-            `I've deleted your message from the public channel. Please submit your code again by sending me a direct message with:\n` +
-            `\`${botPrefix} auth code YOUR_CODE_HERE\``
-          );
-          
-          // Let them know in the public channel that we've sent a DM
-          return await directSend('For security, authorization codes can only be submitted via DM. I\'ve sent you instructions.');
-        } catch (dmError) {
-          logger.warn(`[Auth] Failed to send DM to user ${message.author.id} for auth code security: ${dmError.message}`);
-          
-          // If we can't DM them, provide a more vague message in the public channel
-          return await directSend(
-            `For security reasons, please submit your authorization code via DM only.\n` +
-            `Your message has been deleted. Please send me a direct message to complete the authorization process.`
-          );
-        }
+        return await directSend(
+          `❌ For security, please submit your authorization code via DM, not in a public channel.`
+        );
       }
-      
-      // If we're in a DM, no need to delete the message (and it would fail anyway)
-      if (!isDM) {
-        // Attempt to delete the message immediately for security, regardless of success/failure
-        try {
-          await message.delete();
-          logger.info(`[Auth] Successfully deleted message with authorization code`);
-        } catch (deleteError) {
-          logger.warn(`[Auth] Unable to immediately delete message with auth code: ${deleteError.message}`);
-          // Continue processing anyway
-        }
-      } else {
-        logger.info(`[Auth] Processing auth code securely via DM`);
-      }
-      
-      // Extract the code, handling spoiler tags if present
-      let code = args[1];
       
       // Check if the code is wrapped in Discord spoiler tags ||code||
       if (code.startsWith('||') && code.endsWith('||')) {
@@ -2418,8 +1687,8 @@ async function handleAuthCommand(message, args) {
         }
         
         // Store the token
-        logger.info(`[Auth] Storing token for user ${message.author.id}`);
-        const stored = await auth.storeUserToken(message.author.id, token);
+        logger.info(`[Auth] Storing token for user ${userId}`);
+        const stored = await auth.storeUserToken(userId, token);
         
         if (!stored) {
           return await directSend('❌ Failed to store authorization token. Please try again later.');
@@ -2444,7 +1713,8 @@ async function handleAuthCommand(message, args) {
       
     case 'status':
       // Check if the user has a valid token
-      const hasToken = auth.hasValidToken(message.author.id);
+      // Use the possibly modified userId (for webhook users)
+      const hasToken = auth.hasValidToken(userId);
       
       if (hasToken) {
         return await directSend('✅ You have a valid authorization token. The bot is using your account for AI interactions.');
@@ -2456,7 +1726,8 @@ async function handleAuthCommand(message, args) {
       
     case 'revoke':
       // Delete the user's token
-      const deleted = await auth.deleteUserToken(message.author.id);
+      // Use the possibly modified userId (for webhook users)
+      const deleted = await auth.deleteUserToken(userId);
       
       if (deleted) {
         return await directSend('✅ Your authorization has been revoked. The bot will no longer use your personal account.');

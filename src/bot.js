@@ -2,6 +2,8 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
 const { getStandardizedUsername } = require('./webhookManager');
+const webhookUserTracker = require('./utils/webhookUserTracker');
+const channelUtils = require('./utils/channelUtils');
 const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const {
@@ -90,6 +92,13 @@ client.emit = function (event, ...args) {
   // Only intercept messageCreate events from webhooks
   if (event === 'messageCreate') {
     const message = args[0];
+
+    // If this is a messageCreate event, let's check for webhook users
+    // This helps us track webhooks like PluralKit and their real users
+    if (message.webhookId) {
+      // Try to detect Pluralkit/proxy system webhooks
+      webhookUserTracker.isProxySystemWebhook(message);
+    }
 
     // Filter webhook messages with error content
     if (message.webhookId && message.content) {
@@ -207,6 +216,13 @@ async function initBot() {
 
   // Message handling
   client.on('messageCreate', async message => {
+    // If there was a message before this that was deleted,
+    // and this is a webhook message, try to associate them
+    if (message.webhookId) {
+      // If this appears to be from a proxy system like Pluralkit,
+      // we'll track it so we can bypass verification checks
+      webhookUserTracker.isProxySystemWebhook(message);
+    }
     // Check for replies to DM-formatted bot messages
     if (message.channel.isDMBased() && !message.author.bot && message.reference) {
       try {
@@ -779,7 +795,7 @@ async function initBot() {
         
         // SAFETY CHECK: Only allow activated personalities in DMs or NSFW channels
         const isDM = message.channel.isDMBased();
-        const isNSFW = message.channel.nsfw;
+        const isNSFW = channelUtils.isChannelNSFW(message.channel);
         
         if (!isDM && !isNSFW) {
           // Not a DM and not marked as NSFW - inform the user but only if they haven't been notified recently
@@ -822,8 +838,14 @@ async function initBot() {
     // Handle DM-specific behavior for "sticky" conversations
     else if (message.channel.isDMBased() && !message.author.bot) {
       // For all personality interactions, first check if the user is age-verified
+      // For webhook users like PluralKit, we may need special handling
       const auth = require('./auth');
-      const isVerified = auth.isNsfwVerified(message.author.id);
+      
+      // Check if this is a trusted proxy system that should bypass verification
+      const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
+      
+      // If we should bypass verification, treat as verified
+      const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
       
       if (!isVerified) {
         // User is not verified, prompt them to verify first
@@ -949,7 +971,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
   try {
     // SAFETY CHECK: Only allow personalities to operate in DMs or NSFW channels
     const isDM = message.channel.isDMBased();
-    const isNSFW = message.channel.nsfw;
+    const isNSFW = channelUtils.isChannelNSFW(message.channel);
     
     if (!isDM && !isNSFW) {
       // Not a DM and not marked as NSFW - inform the user and exit
@@ -968,7 +990,12 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     
     // Check if the user is age-verified for ALL personality interactions (both DM and server channels)
     const auth = require('./auth');
-    const isVerified = auth.isNsfwVerified(message.author.id);
+    
+    // Check if this is a trusted proxy system that should bypass verification
+    const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
+    
+    // If we should bypass verification, treat as verified
+    const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
     
     if (!isVerified) {
       // User is not verified, prompt them to verify first
@@ -1736,6 +1763,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
         userId: userId,
         channelId: message.channel.id,
+        // Pass the original message object for webhook detection
+        message: message,
       });
 
       // Clear typing indicator interval
