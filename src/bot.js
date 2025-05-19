@@ -733,6 +733,34 @@ async function initBot() {
         }
       }
     }
+    // Handle DM-specific behavior for "sticky" conversations
+    else if (message.channel.isDMBased() && !message.author.bot) {
+      // For DM channels, check for active conversations without requiring explicit mentions
+      const activePersonalityName = getActivePersonality(message.author.id, message.channel.id, true);
+      
+      if (activePersonalityName) {
+        logger.info(`[Bot] Using sticky personality in DM: ${activePersonalityName}`);
+        
+        // Get the personality data
+        let personality = getPersonality(activePersonalityName);
+        if (!personality) {
+          personality = getPersonalityByAlias(activePersonalityName);
+        }
+        
+        if (personality) {
+          // Continue conversation with the active personality
+          await handlePersonalityInteraction(message, personality, null);
+        }
+      } else {
+        // No active conversation in DM, prompt the user to summon a personality
+        logger.info(`[Bot] No active conversation in DM, prompting user to summon a personality`);
+        try {
+          await message.reply("To chat with a personality, please tag them with `@name` or reply to one of their messages.");
+        } catch (error) {
+          logger.error(`[Bot] Error sending DM prompt: ${error.message}`);
+        }
+      }
+    }
   });
 
   // Log in to Discord
@@ -784,20 +812,21 @@ function startTypingIndicator(channel) {
  * @param {string} channelId - Channel ID
  * @param {Object} result - Response result from webhook
  * @param {string} personalityName - Personality name
+ * @param {boolean} [isDM=false] - Whether this is a DM channel
  */
-function recordConversationData(userId, channelId, result, personalityName) {
+function recordConversationData(userId, channelId, result, personalityName, isDM = false) {
   if (!result) return;
 
   // Check if it's the new format with messageIds array or old format
   if (result.messageIds && result.messageIds.length > 0) {
     // New format - array of message IDs
-    recordConversation(userId, channelId, result.messageIds, personalityName);
+    recordConversation(userId, channelId, result.messageIds, personalityName, isDM);
   } else if (result.message && result.message.id) {
     // New format - single message
-    recordConversation(userId, channelId, result.message.id, personalityName);
+    recordConversation(userId, channelId, result.message.id, personalityName, isDM);
   } else if (result.id) {
     // Old format - direct message object
-    recordConversation(userId, channelId, result.id, personalityName);
+    recordConversation(userId, channelId, result.id, personalityName, isDM);
   }
 }
 
@@ -1688,7 +1717,7 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       activeRequests.delete(requestKey);
 
       // Record this conversation with all message IDs
-      recordConversationData(message.author.id, message.channel.id, result, personality.fullName);
+      recordConversationData(message.author.id, message.channel.id, result, personality.fullName, message.channel.isDMBased());
   } catch (error) {
     // Enhanced error logging with full error details
     logger.error(`Error in personality interaction: ${error.message || 'No message'}`);

@@ -141,8 +141,14 @@ async function loadAllData() {
  * @param {string} channelId - Discord channel ID
  * @param {string|string[]} messageIds - ID or array of IDs of messages sent by the webhook
  * @param {string} personalityName - Full name of the personality
+ * @param {boolean} [isDM=false] - Whether this is a DM channel (for special handling)
  */
-function recordConversation(userId, channelId, messageIds, personalityName) {
+function recordConversation(userId, channelId, messageIds, personalityName, isDM = false) {
+  // For DM channels, automatically enable auto-response
+  if (isDM) {
+    enableAutoResponse(userId);
+    logger.info(`[ConversationManager] Auto-enabled auto-response for user ${userId} in DM channel`);
+  }
   // Minimize logging during conversation recording
   // No need to disable logging with structured logger
 
@@ -157,6 +163,7 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
     personalityName,
     messageIds: messageIdArray,
     timestamp: timestamp,
+    isDM: isDM, // Store whether this is a DM conversation
   });
 
   // Map each message ID to this conversation for quick lookup
@@ -166,6 +173,7 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
       channelId,
       personalityName,
       timestamp,
+      isDM: isDM, // Store whether this is a DM conversation
     });
   });
 
@@ -183,11 +191,13 @@ function recordConversation(userId, channelId, messageIds, personalityName) {
  * Get the active personality for a user in a channel
  * @param {string} userId - Discord user ID
  * @param {string} channelId - Discord channel ID
+ * @param {boolean} [isDM=false] - Whether this is a DM channel
  * @returns {string|null} The personality name or null if no active conversation
  */
-function getActivePersonality(userId, channelId) {
-  // Only check for active conversation if auto-response is enabled for this user
-  if (!isAutoResponseEnabled(userId)) {
+function getActivePersonality(userId, channelId, isDM = false) {
+  // For DM channels, we don't require auto-response to be enabled
+  // For guild channels, only check for active conversation if auto-response is enabled
+  if (!isDM && !isAutoResponseEnabled(userId)) {
     return null;
   }
 
@@ -198,8 +208,11 @@ function getActivePersonality(userId, channelId) {
     return null;
   }
 
-  // Check if the conversation is still "fresh" (within the last 30 minutes)
-  const isStale = Date.now() - conversation.timestamp > 30 * 60 * 1000;
+  // Check if the conversation is still "fresh"
+  // For DM channels, extend the timeout to 2 hours (120 minutes) for better user experience
+  // For guild channels, keep the 30 minute timeout
+  const timeoutMs = isDM ? 120 * 60 * 1000 : 30 * 60 * 1000;
+  const isStale = Date.now() - conversation.timestamp > timeoutMs;
   if (isStale) {
     activeConversations.delete(key);
     return null;
