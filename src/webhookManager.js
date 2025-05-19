@@ -801,15 +801,37 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     
     if (messageData.threadId) {
       // For thread messages, we need to use the specific discord.js v14 format
-      // Create a copy of messageData without threadId for the main options
-      const { threadId, ...mainOptions } = messageData;
+      // The recommended format is to use the webhook.threadId() method
       
-      // Send with thread_id in the options format (discord.js v14 format)
-      logger.info(`[WebhookManager] Using specific thread format to send to thread ID: ${threadId}`);
-      sentMessage = await webhook.send({
-        ...mainOptions,
-        thread_id: threadId // Use thread_id here which is what discord.js v14 expects
-      });
+      try {
+        // First try the direct Discord.js recommended approach - getting a thread-specific webhook instance
+        // Log everything in detail for debugging
+        logger.info(`[WebhookManager] Using Discord.js thread-specific approach for thread ID: ${messageData.threadId}`);
+        
+        // Get a thread-specific webhook instance
+        const threadWebhook = webhook.thread(messageData.threadId);
+        logger.info(`[WebhookManager] Created thread-specific webhook for thread ID: ${messageData.threadId}`);
+        
+        // Remove threadId from messageData as it's already in the webhook
+        // Create a rename mapping to avoid the unused variable warning
+        const { threadId: _threadId, ...mainOptions } = messageData;
+        
+        // Send using the thread-specific webhook
+        sentMessage = await threadWebhook.send(mainOptions);
+        logger.info(`[WebhookManager] Successfully sent message using thread-specific webhook`);
+      } catch (threadError) {
+        logger.error(`[WebhookManager] Error using thread-specific webhook: ${threadError.message}`);
+        logger.info(`[WebhookManager] Falling back to alternative thread_id approach`);
+        
+        // Fallback to the thread_id approach
+        const { threadId: _threadIdFallback, ...mainOptions } = messageData;
+        
+        // Try the alternate format with thread_id parameter
+        sentMessage = await webhook.send({
+          ...mainOptions,
+          thread_id: messageData.threadId // Use thread_id here which is what some discord.js versions expect
+        });
+      }
     } else {
       // Regular channel, use normal send
       sentMessage = await webhook.send(messageData);
@@ -1102,6 +1124,31 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
   if (channel.isDMBased()) {
     logger.info(`[WebhookManager] Channel ${channel.id} is a DM channel. Using formatted message instead of webhook.`);
     return await sendFormattedMessageInDM(channel, content, personality, options);
+  }
+  
+  // Log detailed thread information for debugging
+  if (channel.isThread()) {
+    logger.info(`[WebhookManager] SENDING TO THREAD: ${channel.id}`);
+    logger.info(`[WebhookManager] Thread name: ${channel.name || 'unknown'}`);
+    
+    if (channel.parent) {
+      logger.info(`[WebhookManager] Thread parent channel: ${channel.parent.name || 'unknown'} (ID: ${channel.parent.id})`); 
+    } else {
+      logger.warn(`[WebhookManager] Thread parent channel not available! This may cause issues.`);
+    }
+    
+    // Log options to see if threadId is properly set
+    logger.info(`[WebhookManager] Thread options: ${JSON.stringify({
+      hasThreadId: !!options.threadId,
+      threadId: options.threadId,
+      isChannelThread: channel.isThread()
+    })}`);
+    
+    // Explicitly set the threadId in options if not already set
+    if (!options.threadId) {
+      logger.warn(`[WebhookManager] Thread ID not set in options, setting it to ${channel.id}`);
+      options.threadId = channel.id;
+    }
   }
 
   try {

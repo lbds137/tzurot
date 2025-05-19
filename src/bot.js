@@ -1373,13 +1373,30 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       // This ensures user authentication is preserved when replying to webhook messages
       
       // Prepare options with thread information if needed
+      const isThread = message.channel.isThread();
+      
+      // Log detailed thread information for debugging
+      if (isThread) {
+        logger.info(`[Bot] @Mention in Thread detected! Thread ID: ${message.channel.id}`);
+        if (message.channel.parent) {
+          logger.info(`[Bot] Parent channel ID: ${message.channel.parent.id}, Name: ${message.channel.parent.name}`);
+        }
+      }
+      
       const webhookOptions = {
         // Include user ID in options for enhanced tracking
         userId: message.author?.id,
         // If the message is in a thread, explicitly pass the threadId to ensure
         // webhooks respond in the correct thread context
-        threadId: message.channel.isThread() ? message.channel.id : undefined
+        threadId: isThread ? message.channel.id : undefined
       };
+      
+      // Extra validation for thread handling
+      if (isThread && !webhookOptions.threadId) {
+        logger.error(`[Bot] CRITICAL ERROR: Thread detected but threadId is not set in webhookOptions!`);
+        // Force set the threadId from the channel
+        webhookOptions.threadId = message.channel.id;
+      }
       
       const result = await webhookManager.sendWebhookMessage(
         message.channel,
