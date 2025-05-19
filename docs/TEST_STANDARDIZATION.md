@@ -352,5 +352,64 @@ So far, we have successfully standardized the following tests:
 4. help.test.js
 5. auth.test.js
 6. miscHandlers.test.js
+7. activate.test.js
+8. deactivate.test.js
+
+### Key Learnings from Activate Test
+
+When working with the `activate.test.js` standardization, we discovered some important patterns:
+
+1. **EmbedBuilder Mocking**: The EmbedBuilder needs to be mocked per test for complex tests that create embeds, rather than using a global mock for the entire file:
+   ```javascript
+   // Within each test that uses an embed
+   const mockEmbed = {
+     setTitle: jest.fn().mockReturnThis(),
+     setDescription: jest.fn().mockReturnThis(),
+     setColor: jest.fn().mockReturnThis(),
+     setFooter: jest.fn().mockReturnThis(),
+     setThumbnail: jest.fn().mockReturnThis()
+   };
+   EmbedBuilder.mockReturnValue(mockEmbed);
+   ```
+
+2. **Simplified Assertions**: For tests that use embeds, it's more reliable to just verify that channel.send was called rather than checking the exact embed structure:
+   ```javascript
+   // Verify that channel.send was called (but not checking the exact content)
+   expect(mockMessage.channel.send).toHaveBeenCalled();
+   ```
+
+3. **Channel.isDMBased Testing**: For tests that check whether a channel is a DM, use the helper's built-in isDM option:
+   ```javascript
+   const dmMockMessage = helpers.createMockMessage({isDM: true});
+   ```
+
+This approach helps ensure tests are more resilient to implementation details while still verifying the core functionality.
+
+### Key Learnings from Deactivate Test
+
+When standardizing the `deactivate.test.js` file, we discovered additional patterns:
+
+1. **Logger Mocking**: When checking for error logging, ensure the logger is properly mocked at the top level:
+   ```javascript
+   // Mock logger functions
+   logger.info = jest.fn();
+   logger.debug = jest.fn();
+   logger.error = jest.fn();
+   ```
+
+2. **Avoiding Over-Mocking**: Simplified the tests by removing unnecessary mocks of EmbedBuilder for tests where we don't need to validate the exact structure of the embed.
+
+3. **Mock Clearing**: For tests that force specific errors, ensure all mocks are cleared before setting up specific behavior:
+   ```javascript
+   // Reset mocks to ensure clean state
+   jest.clearAllMocks();
+    
+   // Force an error
+   conversationManager.deactivatePersonality.mockImplementationOnce(() => {
+     throw new Error('Test error');
+   });
+   ```
+
+This helps ensure that tests are independent and don't influence each other.
 
 More tests will be standardized following the patterns established here.
