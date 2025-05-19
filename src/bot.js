@@ -4,6 +4,7 @@ const webhookManager = require('./webhookManager');
 const { getStandardizedUsername } = require('./webhookManager');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const channelUtils = require('./utils/channelUtils');
+const contentSimilarity = require('./utils/contentSimilarity');
 const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const {
@@ -221,7 +222,16 @@ async function initBot() {
     if (message.webhookId) {
       // If this appears to be from a proxy system like Pluralkit,
       // we'll track it so we can bypass verification checks
-      webhookUserTracker.isProxySystemWebhook(message);
+      const isProxySystem = webhookUserTracker.isProxySystemWebhook(message);
+      
+      // Track this message in the channel's recent messages list
+      trackMessageInChannel(message);
+      
+      // Mark webhook messages as already handled to prevent duplicate processing
+      // when the original message is processed after delay
+      if (isProxySystem) {
+        markMessageAsHandled(message);
+      }
     }
     // Check for replies to DM-formatted bot messages
     if (message.channel.isDMBased() && !message.author.bot && message.reference) {
@@ -747,8 +757,53 @@ async function initBot() {
             });
           }
 
-          // Handle the interaction with the best matching personality
-          await handlePersonalityInteraction(message, bestMatch.personality, bestMatch.mentionText);
+          // Skip delay for DMs (PluralKit doesn't work in DMs)
+          if (message.channel.isDMBased()) {
+            // Process DM messages immediately
+            await handlePersonalityInteraction(message, bestMatch.personality, bestMatch.mentionText);
+            return;
+          }
+          
+          // For server channels, implement the delay for PluralKit proxy handling
+          // Track this message in the channel's recent messages
+          trackMessageInChannel(message);
+          
+          // Check if this message is similar to a recently processed message 
+          // (could be a duplicate from a proxy system like PluralKit)
+          if (hasSimilarRecentMessage(message)) {
+            logger.info(`[Bot] Skipping processing for likely duplicate message: ${message.id}`);
+            return;
+          }
+
+          // Add a short delay to allow proxy systems to process the message
+          // This helps avoid duplicate responses when both original and proxied messages are processed
+          logger.info(`[Bot] Adding short delay before processing message ${message.id} to avoid proxy duplicates`);
+          
+          // Set a timeout to process after a short delay
+          setTimeout(async () => {
+            try {
+              // Re-fetch the message to make sure it still exists (hasn't been deleted by PluralKit)
+              let messageToProcess = null;
+              try {
+                messageToProcess = await message.channel.messages.fetch(message.id);
+              } catch (fetchErr) {
+                logger.info(`[Bot] Message ${message.id} no longer exists, likely deleted by proxy system`);
+                return; // Message was deleted, don't process
+              }
+              
+              // If we reach here, the message still exists and should be processed
+              logger.info(`[Bot] Processing message ${message.id} after delay`);
+              
+              // Mark the message as handled
+              markMessageAsHandled(messageToProcess);
+              
+              // Handle the interaction with the best matching personality
+              await handlePersonalityInteraction(messageToProcess, bestMatch.personality, bestMatch.mentionText);
+            } catch (err) {
+              logger.error(`[Bot] Error in delayed processing: ${err.message}`);
+            }
+          }, contentSimilarity.getProxyDelayTime());
+          
           return;
         }
       }
@@ -772,9 +827,47 @@ async function initBot() {
       logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
       if (personality) {
-        // Process the message with this personality
-        // Since this is not a direct @mention, pass null for triggeringMention
-        await handlePersonalityInteraction(message, personality, null);
+        // Skip delay for DMs (PluralKit doesn't work in DMs)
+        if (message.channel.isDMBased()) {
+          // Process DM messages immediately
+          await handlePersonalityInteraction(message, personality, null);
+          return;
+        }
+        
+        // For server channels, implement the delay for PluralKit proxy handling
+        // Track this message in the channel's recent messages
+        trackMessageInChannel(message);
+        
+        // Check if this message is similar to a recently processed message
+        if (hasSimilarRecentMessage(message)) {
+          logger.info(`[Bot] Skipping active conversation message - likely duplicate: ${message.id}`);
+          return;
+        }
+        
+        // Add a short delay to allow proxy systems to process the message
+        logger.info(`[Bot] Adding delay for active conversation message ${message.id}`);
+        
+        setTimeout(async () => {
+          try {
+            // Re-fetch the message to ensure it still exists
+            let messageToProcess = null;
+            try {
+              messageToProcess = await message.channel.messages.fetch(message.id);
+            } catch (fetchErr) {
+              logger.info(`[Bot] Active conversation message ${message.id} no longer exists, likely deleted by proxy system`);
+              return; // Message was deleted, don't process
+            }
+            
+            // Mark the message as handled
+            markMessageAsHandled(messageToProcess);
+            
+            // Process the message with this personality
+            // Since this is not a direct @mention, pass null for triggeringMention
+            await handlePersonalityInteraction(messageToProcess, personality, null);
+          } catch (err) {
+            logger.error(`[Bot] Error in delayed active conversation processing: ${err.message}`);
+          }
+        }, contentSimilarity.getProxyDelayTime());
         return;
       }
     }
@@ -829,9 +922,39 @@ async function initBot() {
         logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
         if (personality) {
-          // Process the message with this personality
-          // Since this is not a direct @mention, pass null for triggeringMention
-          await handlePersonalityInteraction(message, personality, null);
+          // Track this message in the channel's recent messages
+          trackMessageInChannel(message);
+          
+          // Check if this message is similar to a recently processed message
+          if (hasSimilarRecentMessage(message)) {
+            logger.info(`[Bot] Skipping activated channel message - likely duplicate: ${message.id}`);
+            return;
+          }
+          
+          // Add a short delay to allow proxy systems to process the message
+          logger.info(`[Bot] Adding delay for activated channel message ${message.id}`);
+          
+          setTimeout(async () => {
+            try {
+              // Re-fetch the message to ensure it still exists
+              let messageToProcess = null;
+              try {
+                messageToProcess = await message.channel.messages.fetch(message.id);
+              } catch (fetchErr) {
+                logger.info(`[Bot] Activated channel message ${message.id} no longer exists, likely deleted by proxy system`);
+                return; // Message was deleted, don't process
+              }
+              
+              // Mark the message as handled
+              markMessageAsHandled(messageToProcess);
+              
+              // Process the message with this personality
+              // Since this is not a direct @mention, pass null for triggeringMention
+              await handlePersonalityInteraction(messageToProcess, personality, null);
+            } catch (err) {
+              logger.error(`[Bot] Error in delayed activated channel processing: ${err.message}`);
+            }
+          }, contentSimilarity.getProxyDelayTime());
         }
       }
     }
@@ -877,7 +1000,8 @@ async function initBot() {
         }
         
         if (personality) {
-          // Continue conversation with the active personality
+          // No need for proxy handling in DMs (PluralKit doesn't work in DMs)
+          // Just continue with the active personality
           await handlePersonalityInteraction(message, personality, null);
         }
       } else {
@@ -899,6 +1023,130 @@ async function initBot() {
 
 // Simple map to track active requests and prevent duplicates
 const activeRequests = new Map();
+
+// Map to track recent messages by content to detect proxy duplicates
+// Format: Map<channelId, Array<{content: string, timestamp: number, handled: boolean, messageId: string}>>
+const recentMessagesByChannel = new Map();
+
+// Cleanup function for recent messages map
+function cleanupRecentMessages() {
+  const now = Date.now();
+  const channelsToDelete = [];
+  
+  for (const [channelId, messages] of recentMessagesByChannel.entries()) {
+    // Remove messages older than the proxy delay time + buffer
+    const newMessages = messages.filter(msg => {
+      return now - msg.timestamp < contentSimilarity.getProxyDelayTime() + 5000; // 5 second buffer
+    });
+    
+    if (newMessages.length === 0) {
+      channelsToDelete.push(channelId);
+    } else {
+      recentMessagesByChannel.set(channelId, newMessages);
+    }
+  }
+  
+  // Delete empty channel entries
+  for (const channelId of channelsToDelete) {
+    recentMessagesByChannel.delete(channelId);
+  }
+}
+
+// Run cleanup every 30 seconds
+setInterval(cleanupRecentMessages, 30000);
+
+/**
+ * Track a new message in the channel's recent messages list
+ * @param {Object} message - Discord message object
+ * @returns {void}
+ */
+function trackMessageInChannel(message) {
+  if (!message || !message.content) return;
+  
+  const channelId = message.channel.id;
+  const content = message.content;
+  const messageId = message.id;
+  
+  // Initialize array for this channel if it doesn't exist
+  if (!recentMessagesByChannel.has(channelId)) {
+    recentMessagesByChannel.set(channelId, []);
+  }
+  
+  // Add this message to the channel's recent messages
+  const messages = recentMessagesByChannel.get(channelId);
+  messages.push({
+    content,
+    timestamp: Date.now(),
+    handled: false,
+    messageId
+  });
+  
+  // Keep array from growing too large
+  if (messages.length > 50) {
+    messages.shift(); // Remove oldest message
+  }
+  
+  recentMessagesByChannel.set(channelId, messages);
+}
+
+/**
+ * Check if a message has similar content to recent messages in the channel
+ * @param {Object} message - Discord message object
+ * @returns {boolean} - true if a similar message was recently seen
+ */
+function hasSimilarRecentMessage(message) {
+  if (!message || !message.content) return false;
+  
+  const channelId = message.channel.id;
+  const content = message.content;
+  
+  // If no recent messages for this channel, return false
+  if (!recentMessagesByChannel.has(channelId)) return false;
+  
+  const messages = recentMessagesByChannel.get(channelId);
+  const now = Date.now();
+  
+  // Only check messages that are recent enough to be from a proxy service
+  const recentEnoughMessages = messages.filter(msg => {
+    // Only consider messages from the last few seconds
+    return now - msg.timestamp < contentSimilarity.getProxyDelayTime();
+  });
+  
+  // Check if any recent messages have similar content
+  for (const msg of recentEnoughMessages) {
+    // Skip comparing with the exact same message ID
+    if (msg.messageId === message.id) continue;
+    
+    // If we find a similar message that has already been handled, this is likely a duplicate
+    if (contentSimilarity.areContentsSimilar(content, msg.content) && msg.handled) {
+      logger.info(`[Bot] Found similar recent message (${msg.messageId}) to current message (${message.id}) - similarity detected`);
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Mark a message as handled to prevent duplicates
+ * @param {Object} message - Discord message object
+ */
+function markMessageAsHandled(message) {
+  if (!message) return;
+  
+  const channelId = message.channel.id;
+  if (!recentMessagesByChannel.has(channelId)) return;
+  
+  const messages = recentMessagesByChannel.get(channelId);
+  for (const msg of messages) {
+    if (msg.messageId === message.id) {
+      msg.handled = true;
+      break;
+    }
+  }
+  
+  recentMessagesByChannel.set(channelId, messages);
+}
 
 /**
  * Tracks requests to prevent duplicates
