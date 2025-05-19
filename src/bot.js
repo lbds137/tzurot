@@ -969,6 +969,10 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       let referencedImageUrl = null;
       let referencedAudioUrl = null;
       
+      // Initialize reference personality variables at a higher scope so they're accessible later
+      let referencedPersonalityInfo = null;
+      let referencedWebhookName = null;
+      
       // First, handle direct replies
       if (message.reference && message.reference.messageId) {
         try {
@@ -981,8 +985,64 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
             referencedMessageAuthor = repliedToMessage.author?.username || 'another user';
             isReferencedMessageFromBot = repliedToMessage.author?.bot || false;
             
-            // Check for media attachments in the referenced message
-            if (repliedToMessage.attachments && repliedToMessage.attachments.size > 0) {
+            // If it's a webhook, try to get personality name
+            if (repliedToMessage.webhookId) {
+              referencedWebhookName = repliedToMessage.author?.username || null;
+              
+              // Try to get the personality from webhook username or from our message map
+              try {
+                const { getPersonalityFromMessage } = require('./conversationManager');
+                const personalityManager = require('./personalityManager');
+                
+                // Try to look up by message ID first
+                const personalityName = getPersonalityFromMessage(
+                  repliedToMessage.id, 
+                  { webhookUsername: referencedWebhookName }
+                );
+                
+                if (personalityName) {
+                  // Get display name for the personality if available
+                  try {
+                    // Use the listPersonalitiesForUser function which returns all personalities
+                    const allPersonalities = personalityManager.listPersonalitiesForUser();
+                    
+                    // Find the matching personality by name
+                    const personalityData = allPersonalities.find(p => p.fullName === personalityName);
+                    
+                    if (personalityData) {
+                      referencedPersonalityInfo = {
+                        name: personalityName,
+                        displayName: personalityData.displayName
+                      };
+                      
+                      logger.info(`[Bot] Identified referenced message as from personality: ${personalityName}`);
+                    } else {
+                      // If we can't find the personality data, just use the name
+                      referencedPersonalityInfo = { 
+                        name: personalityName,
+                        displayName: personalityName.split('-')[0] // Simple extraction of first part of name
+                      };
+                      logger.info(`[Bot] Using simple name extraction for personality: ${personalityName}`);
+                    }
+                  } catch (personalityLookupError) {
+                    logger.error(`[Bot] Error looking up personality data: ${personalityLookupError.message}`);
+                    // Still set the name even if we couldn't get full data
+                    referencedPersonalityInfo = { 
+                      name: personalityName,
+                      displayName: personalityName.split('-')[0] // Simple extraction of first part of name
+                    };
+                  }
+                }
+              } catch (personalityLookupError) {
+                logger.error(`[Bot] Error looking up message personality: ${personalityLookupError.message}`);
+              }
+            }
+            
+            // Skip media attachments for personalities since they're redundant with text content
+            const isFromPersonality = repliedToMessage.webhookId && referencedPersonalityInfo?.name;
+            
+            // Check for media attachments in the referenced message, but only for non-personality messages
+            if (!isFromPersonality && repliedToMessage.attachments && repliedToMessage.attachments.size > 0) {
               const attachments = Array.from(repliedToMessage.attachments.values());
               
               // Check for audio attachments first (priority over images)
@@ -1011,6 +1071,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                   logger.info(`[Bot] Referenced message contains an image: ${imageAttachment.url}`);
                 }
               }
+            } else if (isFromPersonality) {
+              logger.info(`[Bot] Skipping media attachments for personality message from: ${referencedPersonalityInfo.name}`);
             }
             
             // Process embeds in the referenced message
@@ -1018,8 +1080,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
               // Use the helper function to parse embeds
               referencedMessageContent += parseEmbedsToText(repliedToMessage.embeds, "referenced message");
               
-              // If we haven't found media yet, check for audio/image in embeds
-              if (!referencedImageUrl && !referencedAudioUrl) {
+              // If we haven't found media yet and this isn't a personality message, check for audio/image in embeds
+              if (!isFromPersonality && !referencedImageUrl && !referencedAudioUrl) {
                 // Go through embeds looking for audio first, then images or thumbnails
                 for (const embed of repliedToMessage.embeds) {
                   // First check for audio URLs in description or fields - audio has priority
@@ -1118,6 +1180,63 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                   referencedMessageContent = linkedMessage.content || '';
                   referencedMessageAuthor = linkedMessage.author?.username || 'another user';
                   isReferencedMessageFromBot = linkedMessage.author?.bot || false;
+                  
+                  // Initialize personality info variables for linked messages too
+                  referencedPersonalityInfo = null;
+                  referencedWebhookName = null;
+                  
+                  // If it's a webhook, try to get personality name
+                  if (linkedMessage.webhookId) {
+                    referencedWebhookName = linkedMessage.author?.username || null;
+                    
+                    // Try to get the personality from webhook username or from our message map
+                    try {
+                      const { getPersonalityFromMessage } = require('./conversationManager');
+                      const personalityManager = require('./personalityManager');
+                      
+                      // Try to look up by message ID first
+                      const personalityName = getPersonalityFromMessage(
+                        linkedMessage.id, 
+                        { webhookUsername: referencedWebhookName }
+                      );
+                      
+                      if (personalityName) {
+                        // Get display name for the personality if available
+                        try {
+                          // Use the listPersonalitiesForUser function which returns all personalities
+                          const allPersonalities = personalityManager.listPersonalitiesForUser();
+                          
+                          // Find the matching personality by name
+                          const personalityData = allPersonalities.find(p => p.fullName === personalityName);
+                          
+                          if (personalityData) {
+                            referencedPersonalityInfo = {
+                              name: personalityName,
+                              displayName: personalityData.displayName
+                            };
+                            
+                            logger.info(`[Bot] Identified linked message as from personality: ${personalityName}`);
+                          } else {
+                            // If we can't find the personality data, just use the name
+                            referencedPersonalityInfo = { 
+                              name: personalityName,
+                              displayName: personalityName.split('-')[0] // Simple extraction of first part of name
+                            };
+                            logger.info(`[Bot] Using simple name extraction for linked message personality: ${personalityName}`);
+                          }
+                        } catch (personalityLookupError) {
+                          logger.error(`[Bot] Error looking up personality data for linked message: ${personalityLookupError.message}`);
+                          // Still set the name even if we couldn't get full data
+                          referencedPersonalityInfo = { 
+                            name: personalityName,
+                            displayName: personalityName.split('-')[0] // Simple extraction of first part of name
+                          };
+                        }
+                      }
+                    } catch (personalityLookupError) {
+                      logger.error(`[Bot] Error looking up linked message personality: ${personalityLookupError.message}`);
+                    }
+                  }
                   
                   // Check for media attachments in the linked message
                   if (linkedMessage.attachments && linkedMessage.attachments.size > 0) {
@@ -1319,15 +1438,55 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       // If we found referenced content, modify how we send to the AI service
       let finalMessageContent;
       if (referencedMessageContent) {
-        // Format as a complex object with the reference information
-        finalMessageContent = {
-          messageContent: messageContent, // Original message content (text or multimodal array)
-          referencedMessage: {
-            content: referencedMessageContent,
-            author: referencedMessageAuthor,
-            isFromBot: isReferencedMessageFromBot
-          }
-        };
+        // Already initialized with default values above, just add a debug log if they're null
+        if (referencedPersonalityInfo === null && referencedWebhookName === null) {
+          logger.debug(`[Bot] No personality info found for referenced message`);
+        }
+        
+        // Check if the referenced message is from the same personality we're replying as
+        // AND it's in the same thread/channel and recent enough (within the past hour)
+        // Get a reference timestamp if available, sometimes through message.reference
+        const referenceTimestamp = message.reference?.createdTimestamp || 
+                                   message.reference?.createdAt?.getTime() || 
+                                   Date.now(); // Fallback to now if no timestamp
+        
+        // Add guards against any potential undefined/null values
+        const samePersonality = referencedPersonalityInfo?.name && 
+                                personality?.fullName && 
+                                referencedPersonalityInfo.name === personality.fullName;
+                                
+        const sameChannel = message?.channel?.id && 
+                           message?.reference?.channelId && 
+                           message.channel.id === message.reference.channelId;
+                           
+        const isRecent = referenceTimestamp && 
+                        (Date.now() - referenceTimestamp < 60 * 60 * 1000);
+        
+        // Expanded logging to diagnose issues
+        logger.debug(`[Bot] Reference personality check: ${samePersonality ? 'SAME' : 'DIFFERENT'} (${referencedPersonalityInfo?.name} vs ${personality?.fullName})`);
+        logger.debug(`[Bot] Reference channel check: ${sameChannel ? 'SAME' : 'DIFFERENT'}`);
+        logger.debug(`[Bot] Reference recency check: ${isRecent ? 'RECENT' : 'OLD'} (${referenceTimestamp ? Math.round((Date.now() - referenceTimestamp) / 1000 / 60) + ' mins ago' : 'unknown'})`);
+        
+        // Re-enable the same-personality optimization now that we've fixed the variable scope issues
+        const isReferencingSamePersonality = samePersonality && sameChannel && isRecent;
+        
+        if (isReferencingSamePersonality) {
+          logger.info(`[Bot] Detected same-personality recent message in same channel - skipping reference context for ${personality.fullName}`);
+          finalMessageContent = messageContent; // Just use the original content without the reference
+        } else {
+          // Format as a complex object with the reference information
+          finalMessageContent = {
+            messageContent: messageContent, // Original message content (text or multimodal array)
+            referencedMessage: {
+              content: referencedMessageContent,
+              author: referencedMessageAuthor,
+              isFromBot: isReferencedMessageFromBot,
+              personalityName: referencedPersonalityInfo?.name,
+              personalityDisplayName: referencedPersonalityInfo?.displayName,
+              webhookName: referencedWebhookName
+            }
+          };
+        }
       } else {
         // No reference, use the original content
         finalMessageContent = messageContent;
