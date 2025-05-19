@@ -1408,7 +1408,11 @@ function getStandardizedUsername(personality) {
       // Split the tag on " | " and get the second part if it exists
       const tagParts = botTag.split(' | ');
       if (tagParts.length > 1) {
-        botSuffix = ` | ${tagParts[1]}`;
+        // Remove Discord discriminator (e.g. "#9971") if present
+        // Discriminators are exactly 4 digits and are primarily used by bots
+        // Handle cases with or without a space before the discriminator
+        let suffix = tagParts[1].replace(/\s*#\d{4}$/, '').trim();
+        botSuffix = ` | ${suffix}`;
         // Ensure proper spacing in the suffix
         botSuffix = botSuffix.replace(/\|\s+/, '| ');
         logger.debug(`[WebhookManager] Using bot suffix: "${botSuffix}"`);

@@ -87,6 +87,31 @@ describe('Webhook Username Suffix', () => {
     global.tzurotClient.user.tag = originalTag;
   });
   
+  it('should remove Discord discriminator from suffix', () => {
+    // Temporarily modify the global
+    const originalTag = global.tzurotClient.user.tag;
+    global.tzurotClient.user.tag = 'Tzurot | Test Server#1234';
+    
+    const personality = {
+      fullName: 'carl-jung',
+      displayName: 'Carl Jung',
+      avatarUrl: 'https://example.com/avatar.png',
+    };
+    
+    const username = getStandardizedUsername(personality);
+    expect(username).toBe('Carl Jung | Test Server');
+    expect(username.includes('#1234')).toBe(false);
+    
+    // Test with a space before the discriminator
+    global.tzurotClient.user.tag = 'Tzurot | Test Server #9999';
+    const username2 = getStandardizedUsername(personality);
+    expect(username2).toBe('Carl Jung | Test Server');
+    expect(username2.includes('#9999')).toBe(false);
+    
+    // Restore the global
+    global.tzurotClient.user.tag = originalTag;
+  });
+  
   it('should work when global.tzurotClient is undefined', () => {
     // Temporarily remove the global
     const originalClient = global.tzurotClient;
