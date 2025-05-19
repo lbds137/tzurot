@@ -1135,14 +1135,21 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       // Send response and record conversation
       // CRITICAL: We must pass the original message to ensure we use the correct user's auth token
       // This ensures user authentication is preserved when replying to webhook messages
+      
+      // Prepare options with thread information if needed
+      const webhookOptions = {
+        // Include user ID in options for enhanced tracking
+        userId: message.author?.id,
+        // If the message is in a thread, explicitly pass the threadId to ensure
+        // webhooks respond in the correct thread context
+        threadId: message.channel.isThread() ? message.channel.id : undefined
+      };
+      
       const result = await webhookManager.sendWebhookMessage(
         message.channel,
         aiResponse,
         personality,
-        {
-          // Include user ID in options for enhanced tracking
-          userId: message.author?.id
-        },
+        webhookOptions,
         message // Pass the original message for user authentication
       );
 
