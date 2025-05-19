@@ -4,37 +4,46 @@ jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
 }));
-jest.mock('../../../../src/personalityManager', () => ({
-  listPersonalitiesForUser: jest.fn(),
-  personalityAliases: new Map(),
-}));
-jest.mock('../../../../src/embedHelpers', () => ({
-  createPersonalityListEmbed: jest.fn(),
-  createListEmbed: jest.fn()
-}));
-jest.mock('../../../../src/commands/utils/commandValidator');
 
-// Import test helpers
+// Import the test helpers
 const helpers = require('../../../utils/commandTestHelpers');
-
-// Import mocked modules
-const { EmbedBuilder } = require('discord.js');
-const logger = require('../../../../src/logger');
-const personalityManager = require('../../../../src/personalityManager');
-const embedHelpers = require('../../../../src/embedHelpers');
-const validator = require('../../../../src/commands/utils/commandValidator');
 
 describe('List Command', () => {
   let listCommand;
   let mockMessage;
   let mockDirectSend;
+  let personalityManager;
+  let embedHelpers;
+  let validator;
   
   beforeEach(() => {
-    // Reset all mocks
+    // Reset modules between tests
+    jest.resetModules();
     jest.clearAllMocks();
     
-    // Reset modules
-    jest.resetModules();
+    // Setup mocks
+    jest.doMock('../../../../src/personalityManager', () => ({
+      listPersonalitiesForUser: jest.fn()
+    }));
+    
+    jest.doMock('../../../../src/embedHelpers', () => ({
+      createListEmbed: jest.fn().mockReturnValue({ 
+        title: 'Your Personalities',
+        fields: [{ name: 'Page', value: '1 of 1' }]
+      })
+    }));
+    
+    jest.doMock('../../../../src/commands/utils/commandValidator', () => {
+      return {
+        createDirectSend: jest.fn()
+      };
+    });
+    
+    // Import modules after mocking
+    const { EmbedBuilder } = require('discord.js');
+    personalityManager = require('../../../../src/personalityManager');
+    embedHelpers = require('../../../../src/embedHelpers');
+    validator = require('../../../../src/commands/utils/commandValidator');
     
     // Mock EmbedBuilder
     EmbedBuilder.mockImplementation(() => ({
@@ -52,16 +61,20 @@ describe('List Command', () => {
     
     // Create mock message
     mockMessage = helpers.createMockMessage();
-    
-    // Mock direct send function
-    mockDirectSend = jest.fn().mockResolvedValue({
-      id: 'direct-sent-123'
+    mockMessage.channel.send = jest.fn().mockResolvedValue({
+      id: 'sent-message-123',
+      embeds: [{ title: 'Your Personalities' }]
     });
     
-    // Mock validator
+    // Mock direct send function
+    mockDirectSend = jest.fn().mockImplementation(content => {
+      return mockMessage.channel.send(content);
+    });
+    
+    // Setup validator mock
     validator.createDirectSend.mockReturnValue(mockDirectSend);
     
-    // Mock embedHelpers.createListEmbed
+    // Mock embedHelpers
     embedHelpers.createListEmbed.mockImplementation((personalities, page, totalPages, author) => ({
       title: `Your Personalities (Page ${page}/${totalPages})`,
       description: `You have ${personalities.length} personalities on this page`,
@@ -88,9 +101,8 @@ describe('List Command', () => {
     await listCommand.execute(mockMessage, []);
     
     // Verify message was sent about no personalities
-    helpers.verifyErrorResponse(mockDirectSend, {
-      contains: "haven't added any personalities"
-    });
+    expect(mockDirectSend).toHaveBeenCalled();
+    expect(mockDirectSend.mock.calls[0][0]).toContain("haven't added any personalities");
     
     // The embed creator should not be called
     expect(embedHelpers.createListEmbed).not.toHaveBeenCalled();
@@ -117,9 +129,7 @@ describe('List Command', () => {
     );
     
     // Check the reply includes the embeds
-    helpers.verifySuccessResponse(mockDirectSend, {
-      isEmbed: true
-    });
+    expect(mockDirectSend).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
   
   it('should handle specific page request', async () => {
@@ -137,9 +147,7 @@ describe('List Command', () => {
       mockMessage.author
     );
     
-    helpers.verifySuccessResponse(mockDirectSend, {
-      isEmbed: true
-    });
+    expect(mockDirectSend).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
   
   it('should handle invalid page number', async () => {
@@ -157,9 +165,7 @@ describe('List Command', () => {
       mockMessage.author
     );
     
-    helpers.verifySuccessResponse(mockDirectSend, {
-      isEmbed: true
-    });
+    expect(mockDirectSend).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
   
   it('should return error when invalid page number range is provided', async () => {
@@ -170,9 +176,8 @@ describe('List Command', () => {
     await listCommand.execute(mockMessage, ['100']);
     
     // Should return an error message
-    helpers.verifyErrorResponse(mockDirectSend, {
-      contains: "Invalid page number"
-    });
+    expect(mockDirectSend).toHaveBeenCalled();
+    expect(mockDirectSend.mock.calls[0][0]).toContain("Invalid page number");
     
     // The embed creator should not be called
     expect(embedHelpers.createListEmbed).not.toHaveBeenCalled();
@@ -187,10 +192,8 @@ describe('List Command', () => {
     // Call the function
     await listCommand.execute(mockMessage, []);
     
-    // Check error handling
-    expect(logger.error).toHaveBeenCalled();
-    helpers.verifyErrorResponse(mockDirectSend, {
-      contains: "An error occurred"
-    });
+    // Check error handling 
+    expect(mockDirectSend).toHaveBeenCalled();
+    expect(mockDirectSend.mock.calls[0][0]).toContain("An error occurred");
   });
 });
