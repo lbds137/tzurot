@@ -537,63 +537,154 @@ function splitMessage(content) {
  */
 async function getOrCreateWebhook(channel) {
   // Check if we already have a cached webhook for this channel
-  if (webhookCache.has(channel.id)) {
-    return webhookCache.get(channel.id);
+  const isThread = channel.isThread();
+  const channelId = channel.id;
+  
+  // If this is a thread, we need special handling
+  if (isThread) {
+    logger.info(`[WebhookManager] Getting webhook for thread ${channelId}`);
+    
+    // For threads, we need to:
+    // 1. Get a webhook for the parent channel
+    // 2. Then create a thread-specific instance of that webhook
+    
+    // First, check if we already have a thread-specific webhook cached
+    const threadSpecificCacheKey = `thread-${channelId}`;
+    if (webhookCache.has(threadSpecificCacheKey)) {
+      logger.info(`[WebhookManager] Using cached thread-specific webhook for thread ${channelId}`);
+      return webhookCache.get(threadSpecificCacheKey);
+    }
+    
+    // Get the parent channel
+    const parentChannel = channel.parent;
+    
+    if (!parentChannel) {
+      throw new Error(`Cannot find parent channel for thread ${channelId}`);
+    }
+    
+    logger.info(`[WebhookManager] Thread ${channelId} has parent channel ${parentChannel.id} (${parentChannel.name || 'unnamed'})`);
+    
+    // Get or create a webhook for the parent channel
+    // First check if we have already cached the parent channel's webhook
+    let parentWebhookClient;
+    if (webhookCache.has(parentChannel.id)) {
+      logger.info(`[WebhookManager] Using cached webhook for parent channel ${parentChannel.id}`);
+      parentWebhookClient = webhookCache.get(parentChannel.id);
+    } else {
+      // Need to create or find a webhook for the parent channel
+      logger.info(`[WebhookManager] Getting webhooks for parent channel ${parentChannel.id}`);
+      const webhooks = await parentChannel.fetchWebhooks();
+      
+      logger.info(`[WebhookManager] Found ${webhooks.size} webhooks in parent channel ${parentChannel.id}`);
+      
+      // Look for our bot's webhook
+      let webhook = webhooks.find(wh => wh.name === 'Tzurot');
+      
+      // If no webhook found, create a new one
+      if (!webhook) {
+        logger.info(`[WebhookManager] Creating new webhook in parent channel ${parentChannel.id}`);
+        webhook = await parentChannel.createWebhook({
+          name: 'Tzurot',
+          reason: 'Needed for personality proxying',
+        });
+      } else {
+        logger.info(`[WebhookManager] Found existing Tzurot webhook in parent channel ${parentChannel.id}`);
+      }
+      
+      // Create a webhook client for the parent channel
+      parentWebhookClient = new WebhookClient({ url: webhook.url });
+      
+      // Cache the parent channel webhook
+      webhookCache.set(parentChannel.id, parentWebhookClient);
+    }
+    
+    // IMPORTANT: Now create a THREAD-SPECIFIC webhook client
+    // This is the key to making thread posting work correctly
+    logger.info(`[WebhookManager] Creating thread-specific webhook client for thread ${channelId}`);
+    
+    // Create a thread-specific instance with explicit thread ID
+    try {
+      // Use webhook.thread() method to get a thread-specific webhook client
+      const threadWebhookClient = parentWebhookClient.thread(channelId);
+      
+      // Store metadata
+      threadWebhookClient._tzurotMeta = {
+        isThread: true,
+        threadId: channelId,
+        parentChannelId: parentChannel.id,
+        createdAt: Date.now()
+      };
+      
+      // Cache the thread-specific webhook client using a special key
+      webhookCache.set(threadSpecificCacheKey, threadWebhookClient);
+      
+      // Also cache it under the regular channel ID for backward compatibility
+      webhookCache.set(channelId, threadWebhookClient);
+      
+      logger.info(`[WebhookManager] Successfully created thread-specific webhook client for thread ${channelId}`);
+      
+      return threadWebhookClient;
+    } catch (threadError) {
+      logger.error(`[WebhookManager] Error creating thread-specific webhook: ${threadError.message}`);
+      logger.info(`[WebhookManager] Falling back to parent webhook with thread_id parameter`);
+      
+      // If thread() method fails, return the parent webhook client
+      // with metadata for thread handling
+      parentWebhookClient._tzurotMeta = {
+        isThread: true,
+        threadId: channelId,
+        parentChannelId: parentChannel.id,
+        createdAt: Date.now(),
+        threadMethodFailed: true
+      };
+      
+      // Cache using the thread's channel ID
+      webhookCache.set(channelId, parentWebhookClient);
+      
+      return parentWebhookClient;
+    }
+  }
+  
+  // Regular (non-thread) channel handling follows the original logic
+  if (webhookCache.has(channelId)) {
+    return webhookCache.get(channelId);
   }
 
   try {
-    // Handle the case where channel is a thread
-    const targetChannel = channel.isThread() ? channel.parent : channel;
-
-    if (!targetChannel) {
-      throw new Error(`Cannot find parent channel for thread ${channel.id}`);
-    }
-
-    logger.info(
-      `Working with ${channel.isThread() ? 'thread in parent' : 'regular'} channel ${targetChannel.name || targetChannel.id}`
-    );
-
     // Try to find existing webhooks in the channel
-    const webhooks = await targetChannel.fetchWebhooks();
+    const webhooks = await channel.fetchWebhooks();
 
-    logger.info(
-      `Found ${webhooks.size} webhooks in channel ${targetChannel.name || targetChannel.id}`
-    );
+    logger.info(`Found ${webhooks.size} webhooks in channel ${channel.name || channel.id}`);
 
     // Look for our bot's webhook - use simpler criteria
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
 
     // If no webhook found, create a new one
     if (!webhook) {
-      logger.info(
-        `Creating new webhook in channel ${targetChannel.name || ''} (${targetChannel.id})`
-      );
-      webhook = await targetChannel.createWebhook({
+      logger.info(`Creating new webhook in channel ${channel.name || ''} (${channel.id})`);
+      webhook = await channel.createWebhook({
         name: 'Tzurot',
         reason: 'Needed for personality proxying',
       });
     } else {
-      logger.info(`Found existing Tzurot webhook in channel ${targetChannel.id}`);
+      logger.info(`Found existing Tzurot webhook in channel ${channel.id}`);
     }
 
     // Create a webhook client for this webhook
     const webhookClient = new WebhookClient({ url: webhook.url });
     
-    // Store additional metadata about the channel/thread
+    // Store additional metadata about the channel
     webhookClient._tzurotMeta = {
-      isThread: channel.isThread(),
-      threadId: channel.isThread() ? channel.id : undefined,
-      parentChannelId: channel.isThread() ? channel.parentId : channel.id,
+      isThread: false,
+      threadId: undefined,
+      channelId: channel.id,
       createdAt: Date.now()
     };
     
     // Log detailed information about the webhook
-    logger.info(`[WebhookManager] Created webhook client for ${channel.isThread() ? 'thread' : 'channel'} ${channel.id}`);
-    if (channel.isThread()) {
-      logger.info(`[WebhookManager] Thread parent channel ID: ${channel.parentId}`);
-    }
+    logger.info(`[WebhookManager] Created webhook client for channel ${channel.id}`);
 
-    // Cache the webhook client - use original channel ID for thread support
+    // Cache the webhook client
     webhookCache.set(channel.id, webhookClient);
 
     return webhookClient;
@@ -705,12 +796,20 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
     }
   }
 
+  // Thread-specific handling
+  const threadData = isThread ? {
+    threadId,
+    // Store information about the original channel for recovery attempts
+    _isThread: true,
+    _originalChannel: options._originalChannel // Will be set by calling functions
+  } : {};
+
   const messageData = {
     content: content,
     username: username,
     avatarURL: avatarUrl || null,
     allowedMentions: { parse: ['users', 'roles'] },
-    threadId: isThread ? threadId : undefined,
+    ...threadData
   };
   
   // Double-check threadId was properly set if isThread is true
@@ -796,44 +895,99 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       })}`);
     }
     
-    // Handle thread messages with special handling using Discord.js 14 format
+    // Handle message sending with improved thread support
     let sentMessage;
     
+    // Check if this is a thread message
     if (messageData.threadId) {
-      // For thread messages, we need to use the specific discord.js v14 format
-      // The recommended format is to use the webhook.threadId() method
+      logger.info(`[WebhookManager] Sending to thread ${messageData.threadId} - using thread-specific webhook`);
       
-      try {
-        // First try the direct Discord.js recommended approach - getting a thread-specific webhook instance
-        // Log everything in detail for debugging
-        logger.info(`[WebhookManager] Using Discord.js thread-specific approach for thread ID: ${messageData.threadId}`);
+      // Check webhook metadata to see if this is already a thread-specific webhook
+      const isThreadWebhook = webhook._tzurotMeta?.isThread === true && 
+                             webhook._tzurotMeta?.threadId === messageData.threadId;
+                             
+      if (isThreadWebhook) {
+        // This is already a thread-specific webhook, so we don't need the threadId in the options
+        logger.info(`[WebhookManager] Using pre-configured thread-specific webhook`);
         
-        // Get a thread-specific webhook instance
-        const threadWebhook = webhook.thread(messageData.threadId);
-        logger.info(`[WebhookManager] Created thread-specific webhook for thread ID: ${messageData.threadId}`);
+        // Create a clean version of messageData without threadId
+        const { threadId: _unused, ...cleanOptions } = messageData;
         
-        // Remove threadId from messageData as it's already in the webhook
-        // Create a rename mapping to avoid the unused variable warning
-        const { threadId: _threadId, ...mainOptions } = messageData;
+        // Send with clean options
+        try {
+          sentMessage = await webhook.send(cleanOptions);
+          logger.info(`[WebhookManager] Successfully sent message using pre-configured thread webhook`);
+        } catch (error) {
+          logger.error(`[WebhookManager] Error sending with pre-configured thread webhook: ${error.message}`);
+          throw error; // Re-throw to be handled by outer error handler
+        }
+      } else {
+        // Need to explicitly create a thread-specific webhook
+        logger.info(`[WebhookManager] Creating thread-specific webhook instance for sending`);
         
-        // Send using the thread-specific webhook
-        sentMessage = await threadWebhook.send(mainOptions);
-        logger.info(`[WebhookManager] Successfully sent message using thread-specific webhook`);
-      } catch (threadError) {
-        logger.error(`[WebhookManager] Error using thread-specific webhook: ${threadError.message}`);
-        logger.info(`[WebhookManager] Falling back to alternative thread_id approach`);
-        
-        // Fallback to the thread_id approach
-        const { threadId: _threadIdFallback, ...mainOptions } = messageData;
-        
-        // Try the alternate format with thread_id parameter
-        sentMessage = await webhook.send({
-          ...mainOptions,
-          thread_id: messageData.threadId // Use thread_id here which is what some discord.js versions expect
-        });
+        try {
+          // Create thread-specific webhook
+          const threadWebhook = webhook.thread(messageData.threadId);
+          
+          // Create clean options without threadId
+          const { threadId: _unused, ...cleanOptions } = messageData;
+          
+          // Send using thread-specific webhook
+          sentMessage = await threadWebhook.send(cleanOptions);
+          logger.info(`[WebhookManager] Successfully sent with on-demand thread webhook`);
+        } catch (threadError) {
+          logger.error(`[WebhookManager] Error with thread webhook: ${threadError.message}`);
+          logger.info(`[WebhookManager] Trying alternative thread_id parameter approach`);
+          
+          try {
+            // Last resort - use the raw thread_id parameter
+            const { threadId: _unused, ...cleanOptions } = messageData;
+            
+            sentMessage = await webhook.send({
+              ...cleanOptions,
+              thread_id: messageData.threadId  // Discord.js v14 format
+            });
+            logger.info(`[WebhookManager] Success with thread_id parameter approach`);
+          } catch (finalError) {
+            logger.error(`[WebhookManager] All thread approaches failed: ${finalError.message}`);
+            
+            // One last desperate attempt: reset the webhook and try again
+            logger.info(`[WebhookManager] Attempting last resort: parent channel webhook with thread ID`);
+            try {
+              // Get the thread channel's parent
+              const threadChannel = messageData._originalChannel; // Added in patched version
+              
+              if (threadChannel && threadChannel.parent) {
+                // Get a webhook for the parent
+                logger.info(`[WebhookManager] Getting fresh webhook for parent channel ${threadChannel.parent.id}`);
+                const parentWebhooks = await threadChannel.parent.fetchWebhooks();
+                const parentWebhook = parentWebhooks.find(wh => wh.name === 'Tzurot');
+                
+                if (parentWebhook) {
+                  // Create a new client
+                  const freshClient = new WebhookClient({ url: parentWebhook.url });
+                  
+                  // Try the thread method
+                  const freshThreadClient = freshClient.thread(messageData.threadId);
+                  
+                  // Create clean options without threadId
+                  const { threadId: _unusedFinal, ...finalCleanOptions } = messageData;
+                  
+                  // Try to send
+                  sentMessage = await freshThreadClient.send(finalCleanOptions);
+                  logger.info(`[WebhookManager] Last resort worked! Message sent to thread.`);
+                }
+              }
+            } catch (lastError) {
+              logger.error(`[WebhookManager] Last resort failed: ${lastError.message}`);
+              throw finalError; // Re-throw the original error
+            }
+          }
+        }
       }
     } else {
       // Regular channel, use normal send
+      logger.info(`[WebhookManager] Sending to regular channel`);
       sentMessage = await webhook.send(messageData);
     }
     
@@ -1366,13 +1520,21 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         const isLastChunk = i === contentChunks.length - 1;
         const chunkOptions = isLastChunk ? { ...options, attachments: attachments } : {};
 
+        // Prepare options with channel reference for thread recovery
+        const sendOptions = {
+          ...isLastChunk ? chunkOptions : {},
+          // Store the original channel for recovery attempts
+          _originalChannel: channel
+        };
+        
+        // Prepare the message data with enhanced thread support
         const messageData = prepareMessageData(
           finalContent,
           standardizedName,
           personality.avatarUrl,
           channel.isThread(),
           channel.id,
-          isLastChunk ? chunkOptions : {}
+          sendOptions
         );
 
         try {
@@ -1387,6 +1549,25 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             firstSentMessage = sentMessage;
           }
         } catch (error) {
+          // Handle thread-specific errors with special recovery
+          if (channel.isThread() && error.message.includes('thread')) {
+            logger.error(`[Webhook] Thread-specific error detected: ${error.message}`);
+            
+            // Clear all webhook cache entries related to this thread
+            logger.info(`[Webhook] Clearing thread webhook cache for thread ${channel.id}`);
+            clearWebhookCache(channel.id);
+            webhookCache.delete(`thread-${channel.id}`);
+            
+            // Try to recreate the webhook immediately for the next chunk
+            try {
+              logger.info(`[Webhook] Attempting immediate webhook recreation for thread`);
+              await getOrCreateWebhook(channel);
+              logger.info(`[Webhook] Successfully recreated webhook for thread`);
+            } catch (recreateError) {
+              logger.error(`[Webhook] Failed to recreate webhook: ${recreateError.message}`);
+            }
+          }
+          
           // If this is the first chunk and it failed, propagate the error
           if (isFirstChunk) {
             throw error;
