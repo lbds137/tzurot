@@ -907,9 +907,44 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       if (!hasFoundImage && !hasFoundAudio && message.embeds && message.embeds.length > 0) {
         logger.info(`[Bot] Message has ${message.embeds.length} embeds, checking for media`);
         
-        // Go through embeds looking for images or thumbnails
+        // Go through embeds looking for audio first, then images or thumbnails
         for (const embed of message.embeds) {
-          // Check for image first (typically larger/more prominent than thumbnail)
+          // First check for audio URLs in description or fields - audio has priority
+          const checkForAudioUrl = (text) => {
+            if (!text) return null;
+            const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg|m4a)(\?\S*)?/i;
+            const match = text.match(audioUrlRegex);
+            return match ? match[0] : null;
+          };
+          
+          // Check description for audio URL
+          if (embed.description) {
+            const foundAudioUrl = checkForAudioUrl(embed.description);
+            if (foundAudioUrl) {
+              audioUrl = foundAudioUrl;
+              hasFoundAudio = true;
+              logger.info(`[Bot] Found audio URL in message embed description: ${audioUrl}`);
+              break;
+            }
+          }
+          
+          // Check fields for audio URL
+          if (embed.fields && embed.fields.length > 0) {
+            let foundAudio = false;
+            for (const field of embed.fields) {
+              const foundAudioUrl = checkForAudioUrl(field.value);
+              if (foundAudioUrl) {
+                audioUrl = foundAudioUrl;
+                hasFoundAudio = true;
+                logger.info(`[Bot] Found audio URL in message embed field '${field.name}': ${audioUrl}`);
+                foundAudio = true;
+                break;
+              }
+            }
+            if (foundAudio) break;
+          }
+          
+          // Next, check for image if no audio was found
           if (embed.image && embed.image.url) {
             imageUrl = embed.image.url;
             hasFoundImage = true;
@@ -983,11 +1018,44 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
               // Use the helper function to parse embeds
               referencedMessageContent += parseEmbedsToText(repliedToMessage.embeds, "referenced message");
               
-              // If we haven't found media yet, check for embed images or thumbnails
+              // If we haven't found media yet, check for audio/image in embeds
               if (!referencedImageUrl && !referencedAudioUrl) {
-                // Go through embeds looking for images or thumbnails
+                // Go through embeds looking for audio first, then images or thumbnails
                 for (const embed of repliedToMessage.embeds) {
-                  // Check for image first (typically larger/more prominent than thumbnail)
+                  // First check for audio URLs in description or fields - audio has priority
+                  const checkForAudioUrl = (text) => {
+                    if (!text) return null;
+                    const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg|m4a)(\?\S*)?/i;
+                    const match = text.match(audioUrlRegex);
+                    return match ? match[0] : null;
+                  };
+                  
+                  // Check description for audio URL
+                  if (embed.description) {
+                    const audioUrl = checkForAudioUrl(embed.description);
+                    if (audioUrl) {
+                      referencedAudioUrl = audioUrl;
+                      logger.info(`[Bot] Found audio URL in referenced message embed description: ${referencedAudioUrl}`);
+                      break;
+                    }
+                  }
+                  
+                  // Check fields for audio URL
+                  if (embed.fields && embed.fields.length > 0) {
+                    let foundAudio = false;
+                    for (const field of embed.fields) {
+                      const audioUrl = checkForAudioUrl(field.value);
+                      if (audioUrl) {
+                        referencedAudioUrl = audioUrl;
+                        logger.info(`[Bot] Found audio URL in referenced message embed field '${field.name}': ${referencedAudioUrl}`);
+                        foundAudio = true;
+                        break;
+                      }
+                    }
+                    if (foundAudio) break;
+                  }
+                  
+                  // Next, check for image if no audio was found
                   if (embed.image && embed.image.url) {
                     referencedImageUrl = embed.image.url;
                     logger.info(`[Bot] Found image in referenced message embed: ${referencedImageUrl}`);
@@ -1088,11 +1156,44 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                     // Use the helper function to parse embeds
                     referencedMessageContent += parseEmbedsToText(linkedMessage.embeds, "linked message");
                     
-                    // If we haven't found media yet, check for embed images or thumbnails
+                    // If we haven't found media yet, check for audio/image in embeds
                     if (!referencedImageUrl && !referencedAudioUrl) {
-                      // Go through embeds looking for images or thumbnails
+                      // Go through embeds looking for audio first, then images or thumbnails
                       for (const embed of linkedMessage.embeds) {
-                        // Check for image first (typically larger/more prominent than thumbnail)
+                        // First check for audio URLs in description or fields - audio has priority
+                        const checkForAudioUrl = (text) => {
+                          if (!text) return null;
+                          const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg|m4a)(\?\S*)?/i;
+                          const match = text.match(audioUrlRegex);
+                          return match ? match[0] : null;
+                        };
+                        
+                        // Check description for audio URL
+                        if (embed.description) {
+                          const audioUrl = checkForAudioUrl(embed.description);
+                          if (audioUrl) {
+                            referencedAudioUrl = audioUrl;
+                            logger.info(`[Bot] Found audio URL in linked message embed description: ${referencedAudioUrl}`);
+                            break;
+                          }
+                        }
+                        
+                        // Check fields for audio URL
+                        if (embed.fields && embed.fields.length > 0) {
+                          let foundAudio = false;
+                          for (const field of embed.fields) {
+                            const audioUrl = checkForAudioUrl(field.value);
+                            if (audioUrl) {
+                              referencedAudioUrl = audioUrl;
+                              logger.info(`[Bot] Found audio URL in linked message embed field '${field.name}': ${referencedAudioUrl}`);
+                              foundAudio = true;
+                              break;
+                            }
+                          }
+                          if (foundAudio) break;
+                        }
+                        
+                        // Next, check for image if no audio was found
                         if (embed.image && embed.image.url) {
                           referencedImageUrl = embed.image.url;
                           logger.info(`[Bot] Found image in linked message embed: ${referencedImageUrl}`);
