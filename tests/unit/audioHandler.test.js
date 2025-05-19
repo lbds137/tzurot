@@ -73,12 +73,12 @@ describe('audioHandler', () => {
       expect(audioHandler.hasAudioExtension(null)).toBe(false);
       expect(audioHandler.hasAudioExtension(undefined)).toBe(false);
     });
-    
+
     it('should handle the specific problematic case from logs', () => {
       // This test verifies the fix for the specific issue in the logs
-      const urlFromLogs = 'https://files.shapes.inc/bambi-moakh-qfd-2025-05-18-18-17-22.mp3';
-      const filenameFromLogs = 'bambi-moakh-qfd-2025-05-18-18-17-22.mp3';
-      
+      const urlFromLogs = 'https://example.com/audio.mp3';
+      const filenameFromLogs = 'audio.mp3';
+
       // Both the full URL and just the filename should return true
       expect(audioHandler.hasAudioExtension(urlFromLogs)).toBe(true);
       expect(audioHandler.hasAudioExtension(filenameFromLogs)).toBe(true);

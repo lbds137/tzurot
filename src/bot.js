@@ -930,13 +930,164 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
         logger.info(`[Bot] Created multimodal content with ${multimodalContent.length} items`);
       }
 
+      // Check if this message is a reply to another message or contains a message link
+      let referencedMessageContent = null;
+      let referencedMessageAuthor = null;
+      let isReferencedMessageFromBot = false;
+      
+      // First, handle direct replies
+      if (message.reference && message.reference.messageId) {
+        try {
+          // Fetch the message being replied to
+          const repliedToMessage = await message.channel.messages.fetch(message.reference.messageId);
+          
+          // Extract the content and author information
+          if (repliedToMessage) {
+            referencedMessageContent = repliedToMessage.content || '';
+            referencedMessageAuthor = repliedToMessage.author?.username || 'another user';
+            isReferencedMessageFromBot = repliedToMessage.author?.bot || false;
+            
+            // Check for media attachments in the referenced message
+            if (repliedToMessage.attachments && repliedToMessage.attachments.size > 0) {
+              const attachments = Array.from(repliedToMessage.attachments.values());
+              
+              // Check for image attachments
+              const imageAttachment = attachments.find(
+                attachment => attachment.contentType && attachment.contentType.startsWith('image/')
+              );
+              
+              if (imageAttachment) {
+                // Add image URL to the content 
+                referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
+                logger.info(`[Bot] Referenced message contains an image: ${imageAttachment.url}`);
+              }
+              
+              // Check for audio attachments
+              const audioAttachment = attachments.find(
+                attachment => (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
+                attachment.url?.endsWith('.mp3') || 
+                attachment.url?.endsWith('.wav') || 
+                attachment.url?.endsWith('.ogg')
+              );
+              
+              if (audioAttachment) {
+                // Add audio URL to the content
+                referencedMessageContent += `\n[Audio: ${audioAttachment.url}]`;
+                logger.info(`[Bot] Referenced message contains audio: ${audioAttachment.url}`);
+              }
+            }
+            
+            logger.info(`[Bot] Found referenced message (reply) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
+          }
+        } catch (error) {
+          logger.error(`[Bot] Error fetching referenced message: ${error.message}`);
+          // Continue without the referenced message if there's an error
+        }
+      } 
+      // Next, check for message links in the content
+      else if (typeof messageContent === 'string') {
+        // Look for Discord message links in the format https://discord.com/channels/server_id/channel_id/message_id
+        const messageLinkRegex = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+        const messageLinkMatch = messageContent.match(messageLinkRegex);
+        
+        // If we have multiple links, only process the first one
+        if (messageLinkMatch) {
+          logger.info(`[Bot] Found message link in content: ${messageLinkMatch[0]}`);
+          
+          // Check if there are multiple links (log for info purposes)
+          const allLinks = [...messageContent.matchAll(new RegExp(messageLinkRegex, 'g'))];
+          if (allLinks.length > 1) {
+            logger.info(`[Bot] Multiple message links found (${allLinks.length}), processing only the first one`);
+          }
+          
+          try {
+            // Extract channel and message IDs from the first link
+            const linkedGuildId = messageLinkMatch[1];
+            const linkedChannelId = messageLinkMatch[2];
+            const linkedMessageId = messageLinkMatch[3];
+            
+            // Remove the message link from the content
+            messageContent = messageContent.replace(messageLinkMatch[0], '').trim();
+            
+            // Try to get the channel
+            const guild = client.guilds.cache.get(linkedGuildId);
+            if (guild) {
+              const linkedChannel = guild.channels.cache.get(linkedChannelId);
+              if (linkedChannel && linkedChannel.isTextBased()) {
+                // Fetch the message from the channel
+                const linkedMessage = await linkedChannel.messages.fetch(linkedMessageId);
+                
+                if (linkedMessage) {
+                  // Extract content and author information
+                  referencedMessageContent = linkedMessage.content || '';
+                  referencedMessageAuthor = linkedMessage.author?.username || 'another user';
+                  isReferencedMessageFromBot = linkedMessage.author?.bot || false;
+                  
+                  // Check for media attachments in the linked message
+                  if (linkedMessage.attachments && linkedMessage.attachments.size > 0) {
+                    const attachments = Array.from(linkedMessage.attachments.values());
+                    
+                    // Check for image attachments
+                    const imageAttachment = attachments.find(
+                      attachment => attachment.contentType && attachment.contentType.startsWith('image/')
+                    );
+                    
+                    if (imageAttachment) {
+                      // Add image URL to the content
+                      referencedMessageContent += `\n[Image: ${imageAttachment.url}]`;
+                      logger.info(`[Bot] Linked message contains an image: ${imageAttachment.url}`);
+                    }
+                    
+                    // Check for audio attachments
+                    const audioAttachment = attachments.find(
+                      attachment => (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
+                      attachment.url?.endsWith('.mp3') || 
+                      attachment.url?.endsWith('.wav') || 
+                      attachment.url?.endsWith('.ogg')
+                    );
+                    
+                    if (audioAttachment) {
+                      // Add audio URL to the content
+                      referencedMessageContent += `\n[Audio: ${audioAttachment.url}]`;
+                      logger.info(`[Bot] Linked message contains audio: ${audioAttachment.url}`);
+                    }
+                  }
+                  
+                  logger.info(`[Bot] Found referenced message (link) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
+                }
+              }
+            }
+          } catch (error) {
+            logger.error(`[Bot] Error fetching linked message: ${error.message}`);
+            // Continue without the referenced message if there's an error
+          }
+        }
+      }
+      
+      // If we found referenced content, modify how we send to the AI service
+      let finalMessageContent;
+      if (referencedMessageContent) {
+        // Format as a complex object with the reference information
+        finalMessageContent = {
+          messageContent: messageContent, // Original message content (text or multimodal array)
+          referencedMessage: {
+            content: referencedMessageContent,
+            author: referencedMessageAuthor,
+            isFromBot: isReferencedMessageFromBot
+          }
+        };
+      } else {
+        // No reference, use the original content
+        finalMessageContent = messageContent;
+      }
+      
       // Get the AI response from the service
       // Always use the message author's user ID for proper authentication
       // This ensures that when replying to a webhook, we use the replying user's auth token
       const userId = message.author?.id;
       logger.debug(`[Bot] Using user ID for authentication: ${userId || 'none'}`);
       
-      const aiResponse = await getAiResponse(personality.fullName, messageContent, {
+      const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
         userId: userId,
         channelId: message.channel.id,
       });
@@ -998,10 +1149,31 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       throw error;
     }
   } catch (error) {
-    logger.error('Error in personality interaction:', error.message);
+    // Enhanced error logging with full error details
+    logger.error(`Error in personality interaction: ${error.message || 'No message'}`);
+    logger.error(`Error type: ${error.name || 'Unknown'}`);
+    logger.error(`Error stack: ${error.stack || 'No stack trace'}`);
+    
+    if (error.response) {
+      logger.error(`API Response error: ${JSON.stringify(error.response.data || {})}`);
+    }
+    
+    if (error.request) {
+      logger.error(`Request that caused error: ${JSON.stringify(error.request || {})}`);
+    }
+    
+    // Log the personality data that was being used
+    try {
+      logger.error(`Personality being used: ${personality ? personality.fullName : 'Unknown'}`);
+      logger.error(`Message content: ${typeof messageContent === 'string' ? 
+        messageContent.substring(0, 100) + '...' : 
+        'Non-string content type: ' + typeof messageContent}`);
+    } catch (logError) {
+      logger.error(`Error logging details: ${logError.message}`);
+    }
 
     // Send error message to user
-    message.reply('Sorry, I encountered an error while processing your message.').catch(() => {});
+    message.reply('Sorry, I encountered an error while processing your message. Check logs for details.').catch(() => {});
   } finally {
     // Clear typing indicator if it's still active
     if (typingInterval) {
