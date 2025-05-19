@@ -955,6 +955,54 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
               }
             }
             
+            // Process embeds in the referenced message
+            if (repliedToMessage.embeds && repliedToMessage.embeds.length > 0) {
+              logger.info(`[Bot] Referenced message contains ${repliedToMessage.embeds.length} embeds`);
+              
+              repliedToMessage.embeds.forEach(embed => {
+                // Create a formatted representation of the embed
+                let embedContent = '';
+                
+                // Add title if available
+                if (embed.title) {
+                  embedContent += `\n[Embed Title: ${embed.title}]`;
+                }
+                
+                // Add description if available
+                if (embed.description) {
+                  embedContent += `\n[Embed Description: ${embed.description}]`;
+                }
+                
+                // Add fields if available
+                if (embed.fields && embed.fields.length > 0) {
+                  embed.fields.forEach(field => {
+                    embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
+                  });
+                }
+                
+                // Add image if available
+                if (embed.image && embed.image.url) {
+                  embedContent += `\n[Embed Image: ${embed.image.url}]`;
+                }
+                
+                // Add thumbnail if available
+                if (embed.thumbnail && embed.thumbnail.url) {
+                  embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
+                }
+                
+                // Add footer if available
+                if (embed.footer && embed.footer.text) {
+                  embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
+                }
+                
+                // Append the embed content to the referenced message content
+                if (embedContent) {
+                  referencedMessageContent += embedContent;
+                  logger.debug(`[Bot] Added embed content from referenced message: ${embedContent.substring(0, 100)}...`);
+                }
+              });
+            }
+            
             logger.info(`[Bot] Found referenced message (reply) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
           }
         } catch (error) {
@@ -1030,6 +1078,54 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                       referencedMessageContent += `\n[Audio: ${audioAttachment.url}]`;
                       logger.info(`[Bot] Linked message contains audio: ${audioAttachment.url}`);
                     }
+                  }
+                  
+                  // Process embeds in the linked message
+                  if (linkedMessage.embeds && linkedMessage.embeds.length > 0) {
+                    logger.info(`[Bot] Linked message contains ${linkedMessage.embeds.length} embeds`);
+                    
+                    linkedMessage.embeds.forEach(embed => {
+                      // Create a formatted representation of the embed
+                      let embedContent = '';
+                      
+                      // Add title if available
+                      if (embed.title) {
+                        embedContent += `\n[Embed Title: ${embed.title}]`;
+                      }
+                      
+                      // Add description if available
+                      if (embed.description) {
+                        embedContent += `\n[Embed Description: ${embed.description}]`;
+                      }
+                      
+                      // Add fields if available
+                      if (embed.fields && embed.fields.length > 0) {
+                        embed.fields.forEach(field => {
+                          embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
+                        });
+                      }
+                      
+                      // Add image if available
+                      if (embed.image && embed.image.url) {
+                        embedContent += `\n[Embed Image: ${embed.image.url}]`;
+                      }
+                      
+                      // Add thumbnail if available
+                      if (embed.thumbnail && embed.thumbnail.url) {
+                        embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
+                      }
+                      
+                      // Add footer if available
+                      if (embed.footer && embed.footer.text) {
+                        embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
+                      }
+                      
+                      // Append the embed content to the referenced message content
+                      if (embedContent) {
+                        referencedMessageContent += embedContent;
+                        logger.debug(`[Bot] Added embed content from linked message: ${embedContent.substring(0, 100)}...`);
+                      }
+                    });
                   }
                   
                   logger.info(`[Bot] Found referenced message (link) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`);
