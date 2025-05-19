@@ -169,6 +169,70 @@ The main challenge with the test refactoring has been properly mocking the direc
 
 This approach solves the "directSend is not a function" error that was breaking tests.
 
+## Advanced Mocking with doMock
+
+When dealing with more complex test cases, use jest.doMock for better control over mocking:
+
+```javascript
+describe('Command Test', () => {
+  // Setup module mocks before requiring the module
+  let mockMessage;
+  let personalityManager;
+  let validator;
+  let commandModule;
+  
+  beforeEach(() => {
+    // Reset modules between tests
+    jest.resetModules();
+    jest.clearAllMocks();
+    
+    // Setup mocks
+    jest.doMock('../../../../src/personalityManager', () => ({
+      someFunction: jest.fn()
+    }));
+    
+    jest.doMock('../../../../src/commands/utils/commandValidator', () => {
+      return {
+        createDirectSend: jest.fn()
+      };
+    });
+    
+    // Import modules after mocking
+    personalityManager = require('../../../../src/personalityManager');
+    validator = require('../../../../src/commands/utils/commandValidator');
+    
+    // Create mock message with standard channel.send mock
+    mockMessage = helpers.createMockMessage();
+    mockMessage.channel.send = jest.fn().mockResolvedValue({
+      id: 'sent-message-123',
+      embeds: [{title: 'Command Response'}]
+    });
+    
+    // Setup directSend mock to use channel.send
+    const mockDirectSend = jest.fn().mockImplementation(content => {
+      return mockMessage.channel.send(content);
+    });
+    validator.createDirectSend.mockReturnValue(mockDirectSend);
+    
+    // Import the command after all mocks are setup
+    commandModule = require('../../../../src/commands/handlers/commandName');
+  });
+  
+  afterEach(() => {
+    jest.resetModules();
+  });
+  
+  // Tests go here
+});
+```
+
+This pattern is especially useful for complex tests where you need more control over the mock implementations. It allows you to:
+
+1. Reset modules completely between tests
+2. Set up specific mock implementations per test
+3. Control the import order to ensure mocks are properly set up
+4. Override mock behaviors for specific test cases
+
 ## Working Example: ping.test.js
 
 We've created a minimal working example for the ping command test that demonstrates the correct approach:
@@ -245,3 +309,48 @@ describe('Ping Command', () => {
 ```
 
 This test passes successfully and demonstrates the recommended pattern for testing command handlers with directSend.
+
+## Handling DM Channels
+
+When testing commands that need to handle direct message (DM) channels, you need to properly mock the channel behavior:
+
+```javascript
+// Create a DM channel mock message
+const dmMockMessage = {
+  ...helpers.createMockMessage(),
+  channel: {
+    send: jest.fn().mockResolvedValue({
+      id: 'sent-message-123',
+      embeds: [{title: 'Command Response'}]
+    }),
+    sendTyping: jest.fn().mockResolvedValue(true),
+    isDMBased: jest.fn().mockReturnValue(true)  // This is the critical part
+  }
+};
+
+// Ensure the mock directSend function is properly set up for the DM channel
+const dmDirectSend = jest.fn().mockImplementation(content => {
+  return dmMockMessage.channel.send(content);
+});
+
+validator.createDirectSend.mockImplementation((message) => {
+  if (message === dmMockMessage) {
+    return dmDirectSend;
+  }
+  return mockDirectSend;  // Use the regular mockDirectSend for non-DM messages
+});
+```
+
+This allows you to test DM-specific behavior in your commands.
+
+## Progress
+
+So far, we have successfully standardized the following tests:
+1. add.test.js
+2. list.test.js 
+3. ping.test.js
+4. help.test.js
+5. auth.test.js
+6. miscHandlers.test.js
+
+More tests will be standardized following the patterns established here.
