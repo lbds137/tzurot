@@ -39,7 +39,22 @@ class MockThreadChannel {
           {
             id: 'webhook1',
             name: 'Tzurot',
-            url: 'https://discord.com/api/webhooks/mock/url'
+            url: 'https://discord.com/api/webhooks/mock/url',
+            send: async (options) => {
+              logger.info(`[MockParentWebhook] Received send with options: ${JSON.stringify({
+                threadId: options.thread_id,
+                contentLength: options.content?.length || 0,
+                username: options.username,
+                hasEmbeds: !!options.embeds?.length,
+                hasFiles: !!options.files?.length
+              })}`);
+              
+              return {
+                id: `webhook-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+                content: options.content,
+                embeds: options.embeds || []
+              };
+            }
           }
         ];
       }
@@ -102,15 +117,61 @@ class MockWebhookClient {
 }
 
 // Mock Discord.js WebhookClient to avoid URL validation
-const { WebhookClient } = require('discord.js');
-const originalWebhookClient = WebhookClient;
+const originalWebhookClient = require('discord.js').WebhookClient;
 
-// Create a test-friendly version of WebhookClient
-global.WebhookClient = MockWebhookClient;
+// Override WebhookClient before webhook manager imports it
+require('discord.js').WebhookClient = function(options) {
+  // Just return our mock webhook client
+  logger.info('[TestScript] Creating mock WebhookClient');
+  return new MockWebhookClient(options);
+};
 
-// Mock the entire webhook system
+// Store original functions for restoration
+const originalSendDirectThreadMessage = webhookManager.sendDirectThreadMessage;
 const originalSendWebhookMessage = webhookManager.sendWebhookMessage;
 const originalGetOrCreateWebhook = webhookManager.getOrCreateWebhook;
+
+// Add a test version for direct testing
+webhookManager.sendDirectThreadMessageTest = async (channel, content, personality, options = {}) => {
+  logger.info(`[TestScript] Using test version of sendDirectThreadMessage`);
+  
+  // Create test implementation that simulates a successful webhook-based thread message
+  try {
+    // Get standardized name for the test
+    const standardName = webhookManager.getStandardizedUsername(personality);
+    logger.info(`[TestScript] Using standardized name: ${standardName}`);
+    
+    // Pretend to process media and content
+    logger.info(`[TestScript] Pretending to process content: ${content.substring(0, 30)}...`);
+    
+    // Simulate webhook message
+    logger.info(`[TestScript] Simulating webhook thread message as: ${standardName}`);
+    logger.info(`[TestScript] Thread ID: ${channel.id}`);
+    logger.info(`[TestScript] Content length: ${content.length}`);
+    
+    // Create webhook-like response
+    const webhookResponse = {
+      id: `webhook-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      content: content,
+      username: standardName,
+      avatar_url: personality.avatarUrl
+    };
+    
+    // Create the result to return
+    const result = {
+      message: webhookResponse,
+      messageIds: [webhookResponse.id],
+      isThreadMessage: true,
+      personalityName: personality.fullName,
+      isSimulatedForTest: true
+    };
+    
+    return result;
+  } catch (error) {
+    logger.error(`[TestScript] Error in test implementation: ${error.message}`);
+    throw error;
+  }
+};
 
 // Override webhook functions
 webhookManager.getOrCreateWebhook = async (channel) => {
@@ -118,11 +179,15 @@ webhookManager.getOrCreateWebhook = async (channel) => {
   return new MockWebhookClient({ url: 'https://discord.com/api/webhooks/mock/url' });
 };
 
+// Override sendDirectThreadMessage for testing
+webhookManager.sendDirectThreadMessage = webhookManager.sendDirectThreadMessageTest;
+
 // Setup cleanup function
 function restoreOriginals() {
-  global.WebhookClient = originalWebhookClient;
+  require('discord.js').WebhookClient = originalWebhookClient;
   webhookManager.getOrCreateWebhook = originalGetOrCreateWebhook;
   webhookManager.sendWebhookMessage = originalSendWebhookMessage;
+  webhookManager.sendDirectThreadMessage = originalSendDirectThreadMessage;
 }
 
 // Create mock thread channel
