@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const { getAiResponse } = require('./aiService');
 const webhookManager = require('./webhookManager');
+const { getStandardizedUsername } = require('./webhookManager');
 const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
 const { PermissionFlagsBits } = require('discord.js');
 const {
@@ -153,6 +154,133 @@ async function initBot() {
 
   // Message handling
   client.on('messageCreate', async message => {
+    // Check for replies to DM-formatted bot messages
+    if (message.channel.isDMBased() && !message.author.bot && message.reference) {
+      try {
+        // Attempt to fetch the message being replied to
+        const repliedToMessage = await message.channel.messages.fetch(message.reference.messageId);
+        
+        // Check if it's our bot's message
+        if (repliedToMessage.author.id === client.user.id) {
+          const content = repliedToMessage.content;
+          // Pattern to match "**PersonalityName:** message content" 
+          // or "**PersonalityName | Suffix:** message content"
+          // This works for both the first chunk and subsequent chunks
+          const dmFormatMatch = content.match(/^\*\*([^:]+):\*\* /);
+          
+          // Even if we don't find a direct match, we should check if this is part of a multi-chunk message
+          // where the user replied to a non-first chunk
+          let isMultiChunkReply = false;
+          let displayName = null;
+          
+          if (dmFormatMatch) {
+            // Direct match - this is likely the first chunk or a single-chunk message
+            displayName = dmFormatMatch[1];
+            if (displayName && displayName.includes(' | ')) {
+              // Extract just the personality name from "Name | Suffix" format
+              displayName = displayName.split(' | ')[0];
+              logger.info(`[Bot] Extracted base name from formatted DM message: ${displayName}`);
+            }
+            logger.info(`[Bot] Detected reply to formatted DM message for personality: ${displayName}`);
+          } else {
+            // No direct match - could be a continuation chunk that doesn't have the prefix
+            // Look for the personality name in previous messages
+            logger.info(`[Bot] Checking if this is a reply to a multi-chunk message without personality prefix`);
+            
+            try {
+              // Get recent messages in this channel to find the personality name
+              const recentMessages = await message.channel.messages.fetch({ limit: 10 });
+              
+              // Filter for bot messages that came before the replied-to message
+              const earlierBotMessages = recentMessages.filter(msg => 
+                msg.author.id === client.user.id && 
+                new Date(msg.createdTimestamp) <= new Date(repliedToMessage.createdTimestamp) &&
+                msg.id !== repliedToMessage.id
+              ).sort((a, b) => b.createdTimestamp - a.createdTimestamp); // Sort by newest first
+              
+              // Look for a message with a personality prefix among these
+              for (const earlierMsg of earlierBotMessages.values()) {
+                const prefixMatch = earlierMsg.content.match(/^\*\*([^:]+):\*\* /);
+                if (prefixMatch) {
+                  const potentialName = prefixMatch[1];
+                  logger.info(`[Bot] Found potential personality name in earlier message: ${potentialName}`);
+                  
+                  // Check if the replied-to message was sent within a reasonable time
+                  // (typically within a minute or two for multi-chunk messages)
+                  const timeDiff = repliedToMessage.createdTimestamp - earlierMsg.createdTimestamp;
+                  if (timeDiff <= 120000) { // Within 2 minutes
+                    displayName = potentialName;
+                    if (displayName.includes(' | ')) {
+                      displayName = displayName.split(' | ')[0];
+                    }
+                    isMultiChunkReply = true;
+                    logger.info(`[Bot] Identified as a reply to chunk of multi-part message from: ${displayName}`);
+                    break;
+                  }
+                }
+              }
+            } catch (lookupError) {
+              logger.error(`[Bot] Error looking up previous messages: ${lookupError.message}`);
+            }
+          }
+          
+          // If we found a display name (either directly or from an earlier message)
+          if (displayName) {
+            // Attempt to find the personality by display name
+            const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
+            let personality = getPersonalityByAlias(message.author.id, displayName);
+            
+            // If not found by alias, try by the display name directly
+            if (!personality) {
+              // Get all personalities for this user
+              const { listPersonalitiesForUser } = require('./personalityManager');
+              // listPersonalitiesForUser only takes userId parameter
+              const personalities = listPersonalitiesForUser(message.author.id);
+              logger.info(`[Bot] Found ${personalities?.length || 0} personalities for user ${message.author.id}`);
+              if (personalities?.length > 0) {
+                logger.debug(`[Bot] First personality: ${JSON.stringify({
+                  fullName: personalities[0].fullName,
+                  displayName: personalities[0].displayName
+                })}`);
+              }
+              
+              // Find by display name match (in DMs we use plain display name without suffix)
+              // listPersonalitiesForUser returns an array directly, not an object with a 'personalities' property
+              // Use case-insensitive comparison for better matching
+              const displayNameLower = displayName.toLowerCase();
+              personality = personalities.find(p => 
+                p.displayName?.toLowerCase() === displayNameLower || 
+                p.displayName?.toLowerCase().startsWith(displayNameLower) || // Check if display name starts with the extracted name
+                getStandardizedUsername(p).toLowerCase() === displayNameLower || 
+                p.fullName?.split('-')[0] === displayNameLower // Check first part of full name
+              );
+              
+              // Debug log the match result
+              if (personality) {
+                logger.info(`[Bot] Found matching personality: ${personality.fullName} (${personality.displayName})`);
+                if (isMultiChunkReply) {
+                  logger.info(`[Bot] This is a reply to a non-first chunk of a multi-part message`);
+                }
+              } else {
+                logger.warn(`[Bot] No matching personality found for: ${displayName}`);
+              }
+            }
+            
+            if (personality) {
+              // Handle this as a personality interaction
+              await handlePersonalityInteraction(message, personality);
+              return; // Skip further processing
+            }
+          } else {
+            logger.debug(`[Bot] No personality name found in replied message: ${content.substring(0, 50)}`);
+          }
+        }
+      } catch (error) {
+        logger.error(`[Bot] Error handling DM reply: ${error.message}`);
+        // Continue with normal message processing if there's an error
+      }
+    }
+    
     // Only ignore messages from bots that aren't our webhooks
     if (message.author.bot) {
       // CRITICAL: More aggressive handling of our own bot's messages

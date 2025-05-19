@@ -29,6 +29,7 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
    - Implements error filtering to prevent error messages from being displayed
    - Manages message deduplication to prevent multiple responses
    - Routes messages to appropriate handlers
+   - Supports both guild channels and direct messages (DMs)
 
 2. **Personality Manager (`personalityManager.js`)**: Manages AI personalities.
    - Registers new personalities
@@ -39,6 +40,9 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
    - Creates and caches webhooks for each channel
    - Manages message splitting for content exceeding Discord limits
    - Handles error cases and deduplication of messages
+   - Provides fallback for DM channels using formatted text (where webhooks aren't available)
+   - Uses clean personality names in DMs without server-specific suffixes
+   - Processes media attachments (audio and images) in both webhooks and DMs
 
 4. **AI Service (`aiService.js`)**: Interface with the AI API.
    - Sends requests to the AI service
@@ -86,6 +90,10 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `src/profileInfoFetcher.js` - Fetches profile info (avatars, display names)
 - `src/dataStorage.js` - Data persistence utilities
 - `src/logger.js` - Logging utilities
+- `src/utils/mediaHandler.js` - Centralized media processing for messages
+- `src/utils/audioHandler.js` - Audio file processing
+- `src/utils/imageHandler.js` - Image file processing
+- `src/utils/urlValidator.js` - URL validation utilities
 
 ## Tests
 

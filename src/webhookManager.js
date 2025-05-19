@@ -20,8 +20,7 @@ const fetch = require('node-fetch');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
-const audioHandler = require('./utils/audioHandler');
-const imageHandler = require('./utils/imageHandler');
+const mediaHandler = require('./utils/mediaHandler');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -841,6 +840,117 @@ function findChannelIdForWebhook(webhook) {
 }
 
 /**
+ * Send a formatted message in a DM channel as a fallback for webhooks
+ * @param {Object} channel - Discord.js DM channel object
+ * @param {string} content - Message content to send
+ * @param {Object} personality - Personality data (name, avatar, etc.)
+ * @param {Object} options - Additional options like embeds
+ * @returns {Promise<Object>} The sent message info
+ */
+async function sendFormattedMessageInDM(channel, content, personality, options = {}) {
+  try {
+    // For DMs, use just the personality name without the suffix
+    // This creates a cleaner experience in DMs
+    let displayName;
+    if (personality.displayName) {
+      displayName = personality.displayName;
+    } else if (personality.fullName) {
+      // Extract name from fullName if needed
+      const parts = personality.fullName.split('-');
+      if (parts.length > 0 && parts[0].length > 0) {
+        // Capitalize first letter for nicer display
+        displayName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      } else {
+        displayName = personality.fullName;
+      }
+    } else {
+      displayName = 'Bot';
+    }
+    
+    // Process any media URLs in the content using the shared mediaHandler
+    let processedContent = content;
+    let mediaAttachments = [];
+    
+    try {
+      // Process media URLs (images, audio, etc.)
+      if (typeof content === 'string') {
+        logger.debug(`[WebhookManager] Processing media in DM message content`);
+        const mediaResult = await mediaHandler.processMediaUrls(content);
+        processedContent = mediaResult.content;
+        mediaAttachments = mediaResult.attachments;
+        
+        if (mediaAttachments.length > 0) {
+          logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media URLs for DM message`);
+        }
+      }
+    } catch (error) {
+      logger.error(`[WebhookManager] Error processing media in DM message: ${error.message}`);
+      // Continue with original content if media processing fails
+      processedContent = content;
+      mediaAttachments = [];
+    }
+    
+    // Prepare the formatted content with name prefix
+    const formattedContent = `**${displayName}:** ${processedContent}`;
+    
+    // Split message if needed (Discord's character limit)
+    const contentChunks = splitMessage(formattedContent);
+    logger.info(`[WebhookManager] Split DM message into ${contentChunks.length} chunks`);
+    
+    const sentMessageIds = [];
+    let firstSentMessage = null;
+    
+    // Send each chunk as a separate message
+    for (let i = 0; i < contentChunks.length; i++) {
+      const isFirstChunk = i === 0;
+      const isLastChunk = i === contentChunks.length - 1;
+      const chunkContent = contentChunks[i];
+      
+      // Prepare options for the message
+      const sendOptions = {};
+      
+      // Only include embeds and attachments in the last chunk
+      if (isLastChunk) {
+        if (options.embeds) {
+          sendOptions.embeds = options.embeds;
+        }
+        
+        // Add media attachments to the last chunk
+        if (mediaAttachments.length > 0) {
+          const attachmentOptions = mediaHandler.prepareAttachmentOptions(mediaAttachments);
+          Object.assign(sendOptions, attachmentOptions);
+        }
+      }
+      
+      // Send the message to the DM channel
+      const sentMessage = await channel.send({
+        content: chunkContent,
+        ...sendOptions
+      });
+      
+      // Track sent messages
+      sentMessageIds.push(sentMessage.id);
+      
+      // Keep first message for return value
+      if (isFirstChunk) {
+        firstSentMessage = sentMessage;
+      }
+    }
+    
+    // Return structured response similar to webhook responses
+    return {
+      message: firstSentMessage,
+      messageIds: sentMessageIds,
+      isDM: true,
+      personalityName: personality.fullName
+    };
+  } catch (error) {
+    logger.error(`[WebhookManager] Error sending formatted DM message: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
  * Create a virtual result for when all messages were duplicates
  * @param {Object} personality - Personality data
  * @param {string} channelId - Channel ID
@@ -889,6 +999,7 @@ function createVirtualResult(personality, channelId) {
  * - Avatar URL validation and pre-loading
  * - Message deduplication to prevent double-sends
  * - Proper formatting of personality names and avatars
+ * - Fallback for DM channels where webhooks aren't available (using formatted text)
  *
  * All messages from AI personalities should be sent through this function
  * to ensure consistent formatting and reliability.
@@ -903,6 +1014,11 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
   const userId = message?.author?.id;
   logger.debug(`[WebhookManager] Using user ID for authentication: ${userId || 'none'} from ${message?.author?.tag || 'unknown user'}`);
   
+  // Check if this is a DM channel (webhooks aren't available)
+  if (channel.isDMBased()) {
+    logger.info(`[WebhookManager] Channel ${channel.id} is a DM channel. Using formatted message instead of webhook.`);
+    return await sendFormattedMessageInDM(channel, content, personality, options);
+  }
 
   try {
     // Ensure personality is an object with at least fullName
@@ -1029,34 +1145,22 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         `[Webhook] Using standardized username: ${standardizedName} for personality ${personality.fullName}`
       );
 
-      // Process any audio or image URLs in the content
+      // Process any media URLs in the content using the shared media handler
       let processedContent = content;
       let attachments = [];
 
       try {
         // Only process if content is a string
         if (typeof content === 'string') {
-          // First check for audio URLs (audio takes priority over images)
-          logger.debug(`[Webhook] Checking for audio URLs in message content`);
-          const { content: audioProcessedContent, attachments: audioAttachments } =
-            await audioHandler.processAudioUrls(content);
+          // Use the centralized media handler to process all types of media
+          logger.debug(`[Webhook] Processing media in message content`);
+          const { content: mediaProcessedContent, attachments: mediaAttachments } =
+            await mediaHandler.processMediaUrls(content);
           
-          if (audioAttachments.length > 0) {
-            // If we found audio, use that
-            processedContent = audioProcessedContent;
-            attachments = audioAttachments;
-            logger.info(`[Webhook] Processed ${attachments.length} audio URLs into attachments`);
-          } else {
-            // If no audio found, check for image URLs
-            logger.debug(`[Webhook] Checking for image URLs in message content`);
-            const { content: imageProcessedContent, attachments: imageAttachments } =
-              await imageHandler.processImageUrls(content);
-            
-            if (imageAttachments.length > 0) {
-              processedContent = imageProcessedContent;
-              attachments = imageAttachments;
-              logger.info(`[Webhook] Processed ${attachments.length} image URLs into attachments`);
-            }
+          if (mediaAttachments.length > 0) {
+            processedContent = mediaProcessedContent;
+            attachments = mediaAttachments;
+            logger.info(`[Webhook] Processed ${attachments.length} media URLs into attachments`);
           }
         }
       } catch (error) {
@@ -1108,8 +1212,9 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         }
 
         // Prepare message data for this chunk
-        // Only include attachments in the first chunk
-        const chunkOptions = isFirstChunk ? { ...options, attachments: attachments } : {};
+        // Only include attachments in the last chunk
+        const isLastChunk = i === contentChunks.length - 1;
+        const chunkOptions = isLastChunk ? { ...options, attachments: attachments } : {};
 
         const messageData = prepareMessageData(
           finalContent,
@@ -1117,7 +1222,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           personality.avatarUrl,
           channel.isThread(),
           channel.id,
-          isFirstChunk ? chunkOptions : {}
+          isLastChunk ? chunkOptions : {}
         );
 
         try {
@@ -1663,6 +1768,7 @@ module.exports = {
   clearAllWebhookCaches,
   registerEventListeners,
   preloadPersonalityAvatar,
+  sendFormattedMessageInDM,
 
   // Helper functions for usernames and messages
   getStandardizedUsername,

@@ -211,7 +211,9 @@ async function processCommand(message, command, args) {
 
       case 'debug':
         // Only server admins should have access to debug commands
-        if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        // Check if this is a DM channel (no member object)
+        const isDMDebug = message.channel.isDMBased();
+        if (!isDMDebug && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
           return await handleDebugCommand(message, args);
         } else {
           return await directSend(`You need Administrator permission to use this command.`);
@@ -298,7 +300,9 @@ async function handleHelpCommand(message, args) {
 
         case 'debug':
           // Only show this for users with Administrator permission
-          if (message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+          // Check if this is a DM channel (no member object)
+          const isDMDebugHelp = message.channel.isDMBased();
+          if (!isDMDebugHelp && message.member.permissions.has(PermissionFlagsBits.Administrator)) {
             return await directSend(
               `**${prefix} debug <subcommand>**\n` +
                 `Advanced debugging tools (Requires Administrator permission).\n` +
@@ -386,7 +390,10 @@ async function handleHelpCommand(message, args) {
     
 
     // General help
-    const isAdmin = message.member.permissions.has(PermissionFlagsBits.Administrator);
+    // Check if this is a DM channel (no member object)
+    const isDM = message.channel.isDMBased();
+    // In DMs, treat as non-admin; in servers, check permissions
+    const isAdmin = isDM ? false : message.member.permissions.has(PermissionFlagsBits.Administrator);
     const embed = embedHelpers.createHelpEmbed(isAdmin);
 
     return await directSend({ embeds: [embed] });
@@ -1809,7 +1816,9 @@ async function handleResetCommand(message) {
  */
 async function handleActivateCommand(message, args) {
   // Check if user has Manage Messages permission
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+  // In DMs, activation is always allowed
+  const isDMActivate = message.channel.isDMBased();
+  if (!isDMActivate && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
     return message.reply('You need the "Manage Messages" permission to use this command.');
   }
 
@@ -1864,7 +1873,9 @@ async function handleActivateCommand(message, args) {
  */
 async function handleDeactivateCommand(message) {
   // Check if user has Manage Messages permission
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+  // In DMs, deactivation is always allowed
+  const isDMDeactivate = message.channel.isDMBased();
+  if (!isDMDeactivate && !message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
     return message.reply('You need the "Manage Messages" permission to use this command.');
   }
 

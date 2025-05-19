@@ -1,5 +1,12 @@
 /**
  * Tests for webhookManager.js focusing on message sending functionality
+ * 
+ * These tests verify:
+ * - Single messages vs. multi-chunk messages
+ * - Error message handling
+ * - Duplicate message detection
+ * - Attachments and embeds on last chunk (NOT first chunk)
+ * - Error handling for webhook operations
  */
 
 jest.mock('discord.js');
@@ -59,13 +66,15 @@ describe('WebhookManager - Message Sending Tests', () => {
             continue;
           }
           
+          // Use options only for the last chunk
+          const isLastChunk = i === contentChunks.length - 1;
           const messageData = webhookManager.prepareMessageData(
             markedContent,
             standardizedName,
             personality?.avatarUrl,
             channel.isThread(),
             channel.id,
-            isFirstChunk ? options : {}
+            isLastChunk ? options : {}
           );
           
           const sentMessage = await webhookManager.sendMessageChunk(webhook, messageData, i, contentChunks.length);
@@ -283,7 +292,7 @@ describe('WebhookManager - Message Sending Tests', () => {
     expect(webhookManager.sendMessageChunk).not.toHaveBeenCalled();
   });
   
-  it('should add embeds to the first chunk only', async () => {
+  it('should add embeds and attachments to the last chunk only', async () => {
     // Mock splitMessage to return multiple chunks
     const mockChunks = ['Chunk 1', 'Chunk 2', 'Chunk 3'];
     webhookManager.splitMessage.mockReturnValueOnce(mockChunks);
@@ -303,13 +312,18 @@ describe('WebhookManager - Message Sending Tests', () => {
     // Check prepareMessageData calls
     const allCalls = webhookManager.prepareMessageData.mock.calls;
     
-    // First call should include embed
-    expect(allCalls[0][5]).toHaveProperty('embed');
+    // Verify each call correctly includes or excludes embeds
+    // First chunk (index 0) should not have embed
+    expect(allCalls[0][5]).not.toHaveProperty('embed');
     
-    // Subsequent calls should not include embed
-    if (allCalls.length > 1) {
-      expect(allCalls[1][5]).toEqual({});
+    // Middle chunk (if any) should not have embed
+    if (allCalls.length > 2) {
+      expect(allCalls[1][5]).not.toHaveProperty('embed');
     }
+    
+    // Last chunk should have embed
+    const lastCallIndex = mockChunks.length - 1;
+    expect(allCalls[lastCallIndex][5]).toHaveProperty('embed');
   });
   
   it('should handle missing personality data', async () => {
