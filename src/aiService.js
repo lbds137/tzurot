@@ -1,7 +1,7 @@
 const { OpenAI } = require('openai');
 const { getApiEndpoint, getModelPath } = require('../config');
 const logger = require('./logger');
-const { TIME, ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
+const { TIME, ERROR_PATTERNS, MARKERS, DEFAULTS, USER_CONFIG } = require('./constants');
 const auth = require('./auth');
 
 // Initialize the default AI client with API key (used when user doesn't have a token)
@@ -20,6 +20,46 @@ function initAiClient() {
     },
   });
   logger.info('[AIService] Default AI client initialized');
+  
+  // Initialize known problematic personalities after AI client is set up
+  initKnownProblematicPersonalities();
+}
+
+/**
+ * Initialize the known problematic personalities from environment variable
+ * 
+ * @returns {void}
+ * @description
+ * Loads the list of known problematic personalities from the environment variable
+ * KNOWN_PROBLEMATIC_PERSONALITIES and configures them with generic
+ * fallback responses for error handling.
+ */
+function initKnownProblematicPersonalities() {
+  // Get the list of problematic personalities from environment
+  const problematicList = USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST || '';
+  
+  // If the list is empty, nothing to do
+  if (!problematicList.trim()) {
+    return;
+  }
+  
+  // Split the comma-separated list and initialize each personality
+  const personalityNames = problematicList.split(',').map(name => name.trim());
+  
+  logger.info(`[AIService] Initializing ${personalityNames.length} known problematic personalities from environment`);
+  
+  personalityNames.forEach(name => {
+    if (!name) return; // Skip empty names
+    
+    // Register the problematic personality with generic fallback responses
+    knownProblematicPersonalities[name] = {
+      isProblematic: true,
+      errorPatterns: ['NoneType', 'AttributeError', 'lower', 'TypeError'],
+      responses: fallbackResponses,
+    };
+    
+    logger.info(`[AIService] Registered known problematic personality: ${name}`);
+  });
 }
 
 /**
@@ -60,20 +100,20 @@ const errorBlackoutPeriods = new Map();
 // Use the centralized constants for error blackout duration instead of defining here
 
 // There's a known issue with certain personalities returning errors as content
-// Let's handle this gracefully for any personality that might be affected
-const knownProblematicPersonalities = {
-  'lucifer-kochav-shenafal': {
-    isProblematic: true,
-    errorPatterns: ['NoneType', 'AttributeError', 'lower'],
-    responses: [
-      'I sense a disturbance in the cosmic forces that connect us. My essence cannot fully materialize at this moment.',
-      'The ethereal pathways that channel my thoughts seem to be temporarily obscured. This topic eludes me for now.',
-      'Even fallen angels encounter mysteries. This particular query creates a singularity in my understanding.',
-      'How curious. The infernal archives appear to be in disarray on this specific matter.',
-      'The boundaries between realms are particularly thin today, causing interference with my celestial perception.',
-    ],
-  },
-};
+// We load these from the environment variable KNOWN_PROBLEMATIC_PERSONALITIES
+// and handle them gracefully with generic fallback responses
+
+// Create generic fallback responses that work for any personality
+const fallbackResponses = [
+  'I seem to be experiencing a momentary lapse in my connection. Let me gather my thoughts.',
+  'How curious. I am unable to formulate a proper response at this moment.',
+  'The connection between us seems unstable right now. Perhaps we could try a different approach.',
+  'I find myself at a loss for words on this particular matter. Let us explore something else.',
+  'There appears to be a disturbance in my thinking process. Give me a moment to recalibrate.',
+];
+
+// Initialize with an empty object, will be populated in initKnownProblematicPersonalities()
+const knownProblematicPersonalities = {};
 
 // Track dynamically identified problematic personalities during runtime
 const runtimeProblematicPersonalities = new Map();
@@ -104,12 +144,42 @@ function isErrorResponse(content) {
 
   // Use the centralized error patterns from constants
 
-  // Check if content matches any error pattern
-  return ERROR_PATTERNS.some(
-    pattern =>
-      content.includes(pattern) ||
-      (typeof content === 'string' && content.match(new RegExp(`\\b${pattern}\\b`, 'i')))
-  );
+  // A more careful approach to error detection:
+  // 1. For likely direct error outputs (like NoneType, AttributeError), check for inclusion
+  // 2. For more common terms that might be part of normal responses (like Error), 
+  //    require more context to reduce false positives
+  
+  // These patterns are more definitively errors and less likely to be in normal content
+  const highConfidencePatterns = ['NoneType', 'AttributeError', 'TypeError', 'ValueError', 
+                               'KeyError', 'IndexError', 'ModuleNotFoundError', 'ImportError'];
+                               
+  // Check for high confidence error patterns first
+  const hasHighConfidencePattern = highConfidencePatterns.some(pattern => content.includes(pattern));
+  if (hasHighConfidencePattern) {
+    return true;
+  }
+  
+  // For more common terms that might appear in valid content, require more specific context
+  // For example, only flag "Error:" if it's at the beginning of a line or standalone
+  if (content.match(/^Error:/m) || content.match(/\nError:/m)) {
+    return true;
+  }
+  
+  // Only flag Traceback when it's likely part of an actual traceback message
+  if (content.includes('Traceback') && 
+      (content.includes('line') || content.includes('File') || content.includes('stack'))) {
+    return true;
+  }
+  
+  // For "Exception", also require more specific context
+  if (content.includes('Exception') && 
+      (content.includes('raised') || content.includes('caught') || 
+       content.includes('thrown') || content.includes('threw'))) {
+    return true;
+  }
+  
+  // If we get here, the content doesn't match any error patterns with sufficient confidence
+  return false;
 }
 
 /**
@@ -153,12 +223,46 @@ function isErrorResponse(content) {
  * without requiring manual configuration updates.
  */
 function registerProblematicPersonality(personalityName, errorData) {
-  // Don't register if already in the known list
+  // Don't register if already in the known list - these are hardcoded and permanent
   if (knownProblematicPersonalities[personalityName]) {
     return;
   }
 
-  logger.info(`[AIService] Registering runtime problematic personality: ${personalityName}`);
+  // Capture current time for tracking
+  const currentTime = Date.now();
+  const errorDetails = errorData.details || 'No additional details';
+  const errorType = errorData.error || 'unknown_error';
+  
+  // Improve error logging with more detailed information
+  logger.error(`[AIService] Registering runtime problematic personality: ${personalityName}`);
+  logger.error(`[AIService] Error type: ${errorType}`);
+  logger.error(`[AIService] Error details: ${errorDetails}`);
+  
+  // Check if this personality is already in the runtime problematic list
+  if (runtimeProblematicPersonalities.has(personalityName)) {
+    // Update the existing entry instead of creating a new one
+    const existingInfo = runtimeProblematicPersonalities.get(personalityName);
+    
+    // Increment error count
+    existingInfo.errorCount++;
+    
+    // Update last error time and content
+    existingInfo.lastErrorAt = currentTime;
+    existingInfo.lastErrorContent = errorData.content || 'Empty response';
+    existingInfo.lastErrorDetails = errorDetails;
+    
+    // If we've had too many errors in a short time, extend the recovery period
+    // This prevents constant toggling between "problematic" and "recovered" states
+    if (existingInfo.errorCount > 3) {
+      // Set a 10-minute recovery period after multiple errors
+      existingInfo.recoveryTime = currentTime + (10 * 60 * 1000); // 10 minutes
+      logger.warn(`[AIService] Extended recovery period for ${personalityName} due to multiple errors (${existingInfo.errorCount})`);
+    }
+    
+    // Update the entry in the map
+    runtimeProblematicPersonalities.set(personalityName, existingInfo);
+    return;
+  }
 
   // Create themed fallback responses based on the personality name
   // This creates generic responses that can work for any personality
@@ -170,12 +274,17 @@ function registerProblematicPersonality(personalityName, errorData) {
     'There appears to be a disturbance in my thinking process. Give me a moment to recalibrate.',
   ];
 
-  // Store the problematic personality info
+  // Store the problematic personality info with automatic recovery after 2 minutes
+  // This means transient errors will automatically clear after a short period
   runtimeProblematicPersonalities.set(personalityName, {
     isProblematic: true,
-    firstDetectedAt: Date.now(),
+    firstDetectedAt: currentTime,
+    lastErrorAt: currentTime,
     errorCount: 1,
+    recoveryTime: currentTime + (2 * 60 * 1000), // 2-minute recovery period by default
     lastErrorContent: errorData.content || 'Unknown error',
+    lastErrorDetails: errorDetails,
+    errorType: errorType,
     responses: genericResponses,
   });
 }
@@ -299,6 +408,19 @@ function getProblematicPersonalityInfo(personalityName) {
   // If not in the predefined list, check the runtime-detected list
   if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
     personalityInfo = runtimeProblematicPersonalities.get(personalityName);
+    
+    // Check if the recovery period has elapsed
+    const currentTime = Date.now();
+    if (personalityInfo.recoveryTime && currentTime > personalityInfo.recoveryTime) {
+      // Recovery time has passed, so this personality is no longer problematic
+      logger.info(`[AIService] Personality ${personalityName} has recovered from error state (recovery period elapsed)`);
+      
+      // Remove from the problematic list
+      runtimeProblematicPersonalities.delete(personalityName);
+      
+      // Return null to indicate it's no longer problematic
+      return null;
+    }
   }
 
   return personalityInfo;
@@ -365,19 +487,23 @@ function isInBlackoutPeriod(personalityName, context) {
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
+ * @param {number} [duration] - Custom blackout duration in milliseconds. If not provided, defaults to TIME.ERROR_BLACKOUT_DURATION
  * @returns {void}
  *
  * @example
- * // Add a specific personality-user-channel combination to blackout list
+ * // Add a specific personality-user-channel combination to blackout list with default duration
  * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" });
+ * 
+ * // Add with a custom duration of 5 minutes
+ * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" }, 5 * 60 * 1000);
  *
- * // The combination will be blocked for TIME.ERROR_BLACKOUT_DURATION (30 seconds)
+ * // The combination will be blocked for the specified duration
  * // Any requests for this combination during the blackout period will be blocked
  * isInBlackoutPeriod("albert-einstein", { userId: "123456", channelId: "789012" }); // Returns true
  *
  * @description
  * Adds a personality-user-channel combination to the blackout list after an error occurs.
- * During the blackout period (defined by TIME.ERROR_BLACKOUT_DURATION, currently 30 seconds),
+ * During the blackout period (defined by duration parameter or TIME.ERROR_BLACKOUT_DURATION),
  * all requests for this combination will be blocked to prevent duplicate error messages.
  *
  * This is a critical function for error prevention that helps ensure users don't see
@@ -387,9 +513,10 @@ function isInBlackoutPeriod(personalityName, context) {
  * 2. Calculates an expiration time based on current time plus blackout duration
  * 3. Stores the expiration time in the errorBlackoutPeriods Map
  */
-function addToBlackoutList(personalityName, context) {
+function addToBlackoutList(personalityName, context, duration) {
   const key = createBlackoutKey(personalityName, context);
-  const expirationTime = Date.now() + TIME.ERROR_BLACKOUT_DURATION;
+  const blackoutDuration = duration || TIME.ERROR_BLACKOUT_DURATION;
+  const expirationTime = Date.now() + blackoutDuration;
   errorBlackoutPeriods.set(key, expirationTime);
 }
 
@@ -1019,10 +1146,6 @@ function formatApiMessages(content) {
       // This is our special format that includes a referenced message
       const messages = [];
       
-      // Prepare to add reference information to the user's message instead of as a separate message
-      let referencePrefix = "";
-      let mediaForMultimodal = null;
-      
       // If we have a referenced message
       if (content.referencedMessage) {
         // Get the name of the Discord user who is making the reference
@@ -1064,26 +1187,37 @@ function formatApiMessages(content) {
             .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
             .trim();
           
-          // Format the reference prefix based on who sent it
-          // Make this clearer to avoid AI hallucinations about the referenced content
-          const userName = content.userName || 'The user';
-          
+          // Create appropriate message for the reference based on who sent it
           if (content.referencedMessage.isFromBot) {
-            // If it's from a bot/webhook, check if we know which personality
-            if (content.referencedMessage.personalityName) {
-              // If we have the personality name, use it directly with more explicit formatting
-              // Use a clearer format to prevent the AI from hallucinating the content
-              referencePrefix = `[${userName} is referencing a Discord message from the AI personality ${content.referencedMessage.personalityDisplayName || content.referencedMessage.personalityName}. That message said: "${cleanContent}"] `;
-            } else if (content.referencedMessage.webhookName) {
-              // If we have a webhook name but no personality
-              referencePrefix = `[${userName} is referencing a Discord message from bot ${content.referencedMessage.webhookName}. That message said: "${cleanContent}"] `;
-            } else {
-              // Fallback for unknown bot messages
-              referencePrefix = `[${userName} is referencing a previous Discord bot message that said: "${cleanContent}"] `;
-            }
+            // If it's from a bot/webhook, add as assistant message
+            messages.push({
+              role: 'assistant',
+              content: cleanContent
+            });
+            
+            logger.debug(`[AIService] Added bot referenced message as 'assistant' role`);
           } else {
-            // If it's from another user
-            referencePrefix = `[${userName} is referencing a Discord message from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"] `;
+            // If it's from another user, add as user message with clear natural language prefix
+            let prefixedMessage = '';
+            
+            // Check if the message has media
+            if (mediaUrl) {
+              if (mediaType === 'image') {
+                prefixedMessage = `${userName} is referencing a message with an image from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
+              } else if (mediaType === 'audio') {
+                prefixedMessage = `${userName} is referencing a message with audio from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
+              }
+            } else {
+              prefixedMessage = `${userName} is referencing a message from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
+            }
+            
+            // Use the user role instead of system role
+            messages.push({
+              role: 'user',
+              content: prefixedMessage
+            });
+            
+            logger.debug(`[AIService] Added user referenced message as 'user' role with prefix`);
           }
           
           // Only handle media if present AND this is NOT a personality message
@@ -1092,19 +1226,29 @@ function formatApiMessages(content) {
           
           if (!isFromPersonality && mediaUrl) {
             if (mediaType === 'image') {
-              // Store the image URL for potential multimodal message
-              mediaForMultimodal = {
-                type: 'image',
-                url: mediaUrl
-              };
-              logger.debug(`[AIService] Saving image URL from a referenced non-personality message: ${mediaUrl}`);
+              // Add image as a separate message with multimodal content
+              messages.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'image_url',
+                    image_url: { url: mediaUrl }
+                  }
+                ]
+              });
+              logger.debug(`[AIService] Added image from referenced message as separate user message`);
             } else if (mediaType === 'audio') {
-              // Store the audio URL for potential multimodal message, but only if not from a personality
-              mediaForMultimodal = {
-                type: 'audio',
-                url: mediaUrl
-              };
-              logger.debug(`[AIService] Saving audio URL from a referenced non-personality message: ${mediaUrl}`);
+              // Add audio as a separate message with multimodal content
+              messages.push({
+                role: 'user',
+                content: [
+                  {
+                    type: 'audio_url',
+                    audio_url: { url: mediaUrl }
+                  }
+                ]
+              });
+              logger.debug(`[AIService] Added audio from referenced message as separate user message`);
             }
           } else if (isFromPersonality && mediaUrl) {
             logger.debug(`[AIService] Skipping media from personality message (${content.referencedMessage.personalityName}): ${mediaType}`);
@@ -1113,111 +1257,36 @@ function formatApiMessages(content) {
           // If there's an error processing the reference, log it but continue
           logger.error(`[AIService] Error processing referenced message: ${refError.message}`);
           logger.error(`[AIService] Reference processing error stack: ${refError.stack}`);
-          // Set a simple reference prefix to avoid undefined values
-          referencePrefix = `[Referring to previous message] `;
+          
+          // Add a minimal system message to indicate there was a reference
+          messages.push({
+            role: 'system',
+            content: 'The user is referencing another message that could not be properly processed.'
+          });
         }
       }
       
-      // Now add the user's actual message with the reference prefix
+      // Now add the user's actual message
       try {
         if (Array.isArray(content.messageContent)) {
           // Handle multimodal content array
-          logger.debug(`[AIService] Processing multimodal message content with ${content.messageContent.length} elements`);
+          logger.debug(`[AIService] Processing multimodal user message content with ${content.messageContent.length} elements`);
           
-          // If it's a multimodal array, find the text element to prepend our reference
-          const contentWithReference = [...content.messageContent]; // Clone the array
-          
-          // Find the text element in the array (if any)
-          const textItemIndex = contentWithReference.findIndex(item => item.type === 'text');
-          
-          if (textItemIndex >= 0) {
-            // Prepend our reference to the existing text
-            contentWithReference[textItemIndex] = {
-              ...contentWithReference[textItemIndex],
-              text: referencePrefix + contentWithReference[textItemIndex].text
-            };
-            logger.debug(`[AIService] Added reference prefix to existing text element`);
-          } else {
-            // No text element found, add a new one at the beginning
-            contentWithReference.unshift({
-              type: 'text',
-              text: referencePrefix
-            });
-            logger.debug(`[AIService] Added new text element with reference prefix`);
-          }
-          
-          // If we need to include referenced media
-          if (mediaForMultimodal) {
-            logger.debug(`[AIService] Adding ${mediaForMultimodal.type} to multimodal content`);
-            
-            try {
-              if (mediaForMultimodal.type === 'image') {
-                // Add the image from the referenced message
-                contentWithReference.push({
-                  type: 'image_url',
-                  image_url: { url: mediaForMultimodal.url }
-                });
-              } else if (mediaForMultimodal.type === 'audio') {
-                // Add the audio from the referenced message as proper multimodal content
-                logger.debug(`[AIService] Adding audio as multimodal content: ${mediaForMultimodal.url}`);
-                
-                // Add audio URL as a proper multimodal element
-                contentWithReference.push({
-                  type: 'audio_url',
-                  audio_url: { url: mediaForMultimodal.url }
-                });
-              }
-            } catch (mediaError) {
-              logger.error(`[AIService] Error adding media to content: ${mediaError.message}`);
-              // Continue without adding the media
-            }
-          }
-          
-          messages.push({ role: 'user', content: contentWithReference });
+          messages.push({
+            role: 'user',
+            content: content.messageContent
+          });
         } else {
-          // Handle text-only content - simply prepend the reference
-          logger.debug(`[AIService] Processing text-only content`);
+          // Handle text-only content
+          logger.debug(`[AIService] Processing text-only user message content`);
           
           messages.push({ 
             role: 'user', 
-            content: referencePrefix + content.messageContent 
+            content: content.messageContent 
           });
-          
-          // If there's any media reference but the current message is text-only,
-          // convert to a multimodal message
-          if (mediaForMultimodal) {
-            logger.debug(`[AIService] Converting text-only message to multimodal for media reference`);
-            
-            // Remove the text-only message we just added
-            messages.pop();
-            
-            // Create a multimodal content array
-            const multimodalContent = [
-              { type: 'text', text: referencePrefix + content.messageContent }
-            ];
-            
-            // Add the appropriate media element 
-            if (mediaForMultimodal.type === 'image') {
-              multimodalContent.push({
-                type: 'image_url',
-                image_url: { url: mediaForMultimodal.url }
-              });
-            } else if (mediaForMultimodal.type === 'audio') {
-              multimodalContent.push({
-                type: 'audio_url',
-                audio_url: { url: mediaForMultimodal.url }
-              });
-            }
-            
-            // Add the multimodal message
-            messages.push({
-              role: 'user',
-              content: multimodalContent
-            });
-          }
         }
       } catch (contentError) {
-        logger.error(`[AIService] Error processing message content: ${contentError.message}`);
+        logger.error(`[AIService] Error processing user message content: ${contentError.message}`);
         logger.error(`[AIService] Content processing error stack: ${contentError.stack}`);
         
         // Fall back to a simple text message
@@ -1225,7 +1294,7 @@ function formatApiMessages(content) {
           role: 'user',
           content: typeof content.messageContent === 'string' 
             ? content.messageContent 
-            : "I was referring to another message but encountered an error formatting it."
+            : "I was trying to ask about a previous message but encountered an error."
         });
       }
       
@@ -1276,7 +1345,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   
   // Debug log the exact messages being sent to detect issues
   if (typeof message === 'object' && message.referencedMessage) {
-    logger.info(`[AIService] Sending message with reference to ${message.referencedMessage.personalityName || 'unknown'}`);
+    // Use webhook name as fallback if personalityName is not available
+    const referenceSource = message.referencedMessage.personalityName || 
+                           (message.referencedMessage.webhookName ? `webhook:${message.referencedMessage.webhookName}` : 
+                           (message.referencedMessage.author ? `user:${message.referencedMessage.author}` : 'unknown-source'));
+    
+    logger.info(`[AIService] Sending message with reference to ${referenceSource}`);
     
     // Additional logging to help diagnose message content issues
     try {
@@ -1335,19 +1409,59 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Check if the content appears to be an error before sanitization
   if (isErrorResponse(content)) {
-    // Register this personality as problematic
-    logger.error(`[AIService] Error in content from ${personalityName}`);
+    // Analyze error content to provide more detailed information
+    let errorType = 'error_in_content';
+    let errorDetails = 'Unknown error format';
+    
+    // Try to extract more specific error information by analyzing the content
+    if (typeof content === 'string') {
+      // Look for specific error patterns
+      if (content.includes('NoneType') || content.includes('AttributeError')) {
+        errorType = 'attribute_error';
+        errorDetails = 'Missing attribute or null reference';
+      } else if (content.includes('TypeError')) {
+        errorType = 'type_error';
+        errorDetails = 'Type mismatch or incompatible types';
+      } else if (content.includes('ValueError')) {
+        errorType = 'value_error';
+        errorDetails = 'Invalid value or argument';
+      } else if (content.includes('KeyError')) {
+        errorType = 'key_error';
+        errorDetails = 'Missing dictionary key';
+      } else if (content.includes('IndexError')) {
+        errorType = 'index_error';
+        errorDetails = 'Index out of bounds';
+      } else if (content.includes('Traceback')) {
+        errorType = 'exception';
+        // Extract the first line of the traceback to get more details
+        const lines = content.split('\n');
+        errorDetails = lines.length > 1 ? lines[1].trim() : 'Exception with traceback';
+      }
+      
+      // Log the error with more detailed information
+      logger.error(`[AIService] Error in content from ${personalityName}: ${errorType}`);
+      logger.error(`[AIService] Error details: ${errorDetails}`);
+      logger.error(`[AIService] First 100 chars of content: ${content.substring(0, 100)}...`);
+    } else {
+      logger.error(`[AIService] Non-string error from ${personalityName}`);
+      errorType = 'non_string_response';
+      errorDetails = `Content type: ${typeof content}`;
+    }
+    
+    // Register this personality as problematic with enhanced error information
     registerProblematicPersonality(personalityName, {
-      error: 'error_in_content',
+      error: errorType,
+      details: errorDetails,
       content: content,
     });
 
-    // Add this personality+user combo to blackout list
-    addToBlackoutList(personalityName, context);
+    // Add this personality+user combo to blackout list, but with a shorter duration
+    // for transient errors (5 minutes instead of the default 30)
+    addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
 
-    // Return a generic error message with an error ID
+    // Return a more informative error message with an error ID
     const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-    return `I'm experiencing a technical issue with my response system (Error ID: ${errorId}). Please try again later.`;
+    return `I'm experiencing a temporary technical issue (${errorType}, Error ID: ${errorId}). Please try again in a few minutes.`;
   }
 
   // Apply sanitization to all personality responses to be safe
@@ -1415,6 +1529,7 @@ module.exports = {
   errorBlackoutPeriods,
   getAiClientForUser,
   initAiClient,
+  initKnownProblematicPersonalities,
 
   // Export for testing
   prepareRequestHeaders,
@@ -1424,4 +1539,5 @@ module.exports = {
   sanitizeContent,
   sanitizeApiText,
   formatApiMessages,
+  fallbackResponses
 };

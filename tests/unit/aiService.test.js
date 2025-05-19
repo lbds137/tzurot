@@ -9,8 +9,12 @@ const {
   runtimeProblematicPersonalities,
   errorBlackoutPeriods,
   pendingRequests,
-  knownProblematicPersonalities
+  knownProblematicPersonalities,
+  initKnownProblematicPersonalities,
+  fallbackResponses
 } = require('../../src/aiService');
+
+const { USER_CONFIG } = require('../../src/constants');
 
 // Mock OpenAI module
 jest.mock('openai', () => {
@@ -117,29 +121,48 @@ describe('AI Service', () => {
   
   // Unit test for isErrorResponse function
   describe('isErrorResponse', () => {
-    it('should return true for common error patterns', () => {
-      const errorMessages = [
+    it('should return true for high confidence error patterns', () => {
+      const highConfidenceErrors = [
         'NoneType object has no attribute',
-        'AttributeError occurred',
-        'Traceback (most recent call last)',
-        'TypeError: cannot access',
-        'ValueError: invalid value',
-        'KeyError: key not found',
-        'Error: something went wrong',
-        'I got an ImportError trying to respond'
+        'AttributeError occurred in processing',
+        'TypeError: cannot access property',
+        'ValueError: invalid value provided',
+        'KeyError: key not found in dictionary',
+        'IndexError: list index out of range',
+        'ModuleNotFoundError: No module named',
+        'ImportError: cannot import name'
       ];
       
-      for (const message of errorMessages) {
+      for (const message of highConfidenceErrors) {
         expect(isErrorResponse(message)).toBe(true);
       }
     });
     
-    it('should return false for normal responses', () => {
+    it('should return true for low confidence patterns with sufficient context', () => {
+      const contextualErrors = [
+        'Error: something went wrong with the connection',
+        'Traceback (most recent call last):\n  File "app.py", line 42',
+        'An Exception was raised during execution',
+        'Python Exception was caught: Invalid syntax',
+        'Exception thrown while processing request'
+      ];
+      
+      for (const message of contextualErrors) {
+        expect(isErrorResponse(message)).toBe(true);
+      }
+    });
+    
+    it('should return false for normal responses even with error-like terms', () => {
       const normalResponses = [
         'Hello, how can I help you today?',
         'That\'s an interesting question about philosophy.',
         'Let me tell you a story about a character named Error.',
-        'Have you considered trying a different approach?'
+        'The Exception proves the rule in this case.',
+        'I traced back the origins of this concept to ancient Greece.',
+        'Error detection and correction is an important topic in computer science.',
+        'Errorless learning is a training technique used in psychology.',
+        'The exceptional quality of their work stands out.',
+        'There was an error in my previous understanding, but now I see clearly.'
       ];
       
       for (const message of normalResponses) {
@@ -197,6 +220,45 @@ describe('AI Service', () => {
         knownProblematicPersonalities[key] = originalKnownProblematic[key];
       });
     });
+    
+    it('should initialize problematic personalities from environment variable', () => {
+      // Back up original process.env and USER_CONFIG
+      const originalEnv = process.env;
+      const originalUserConfig = { ...USER_CONFIG };
+      
+      // Override USER_CONFIG for testing
+      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = 'test-prob-1,test-prob-2,test-prob-3';
+      
+      // Clear any existing problematic personalities
+      Object.keys(knownProblematicPersonalities).forEach(key => {
+        delete knownProblematicPersonalities[key];
+      });
+      
+      // Run initialization
+      initKnownProblematicPersonalities();
+      
+      // Check that personalities were initialized correctly
+      expect(Object.keys(knownProblematicPersonalities).length).toBe(3);
+      expect(knownProblematicPersonalities['test-prob-1']).toBeDefined();
+      expect(knownProblematicPersonalities['test-prob-2']).toBeDefined();
+      expect(knownProblematicPersonalities['test-prob-3']).toBeDefined();
+      
+      // Check that all personalities use the generic fallback responses
+      for (const name of Object.keys(knownProblematicPersonalities)) {
+        const info = knownProblematicPersonalities[name];
+        expect(info.isProblematic).toBe(true);
+        expect(Array.isArray(info.errorPatterns)).toBe(true);
+        expect(Array.isArray(info.responses)).toBe(true);
+        expect(info.responses).toEqual(fallbackResponses);
+      }
+      
+      // Restore original env
+      process.env = originalEnv;
+      // Restore USER_CONFIG
+      Object.keys(USER_CONFIG).forEach(key => {
+        USER_CONFIG[key] = originalUserConfig[key];
+      });
+    });
   });
   
   // Unit test for createBlackoutKey and blackout period functions
@@ -236,6 +298,21 @@ describe('AI Service', () => {
       
       const expirationTime = errorBlackoutPeriods.get(key);
       expect(expirationTime).toBeGreaterThan(Date.now());
+    });
+    
+    it('should accept a custom duration when adding to blackout list', () => {
+      const personalityName = 'test-personality';
+      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const customDuration = 60000; // 1 minute
+      
+      addToBlackoutList(personalityName, context, customDuration);
+      
+      const key = createBlackoutKey(personalityName, context);
+      expect(errorBlackoutPeriods.has(key)).toBe(true);
+      
+      const expirationTime = errorBlackoutPeriods.get(key);
+      const expectedMinTime = Date.now() + customDuration - 100; // -100ms for test execution time
+      expect(expirationTime).toBeGreaterThanOrEqual(expectedMinTime);
     });
     
     it('should detect when a personality is in a blackout period', () => {

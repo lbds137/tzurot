@@ -32,8 +32,8 @@ describe('Message Reference Handling', () => {
     // Should have two message objects
     expect(formattedTextRef).toHaveLength(2);
     
-    // First message should be a system message with referenced content
-    expect(formattedTextRef[0].role).toBe('system');
+    // First message should contain the referenced content (as user role, not system)
+    expect(formattedTextRef[0].role).toBe('user');
     expect(formattedTextRef[0].content).toContain('SomeUser');
     expect(formattedTextRef[0].content).toContain('I believe AI will transform society');
     
@@ -83,10 +83,10 @@ describe('Message Reference Handling', () => {
     // Should have three message objects (system text context, user image, and user question)
     expect(formattedImageRef.length).toBeGreaterThanOrEqual(2);
     
-    // First message should be system message describing the image context
-    expect(formattedImageRef[0].role).toBe('system');
+    // First message should describe the image context (as user role, not system)
+    expect(formattedImageRef[0].role).toBe('user');
     expect(formattedImageRef[0].content).toContain('ImagePoster');
-    expect(formattedImageRef[0].content).toContain('message with an image');
+    expect(formattedImageRef[0].content).toContain('referencing a message with an image');
     
     // There should be a message containing the image URL
     const hasImageMessage = formattedImageRef.some(msg => 
@@ -125,8 +125,8 @@ describe('Message Reference Handling', () => {
     // Should have at least 3 messages (system context, image from reference, user message with new image)
     expect(formattedMultimodalRef.length).toBeGreaterThanOrEqual(3);
     
-    // First message should be system context
-    expect(formattedMultimodalRef[0].role).toBe('system');
+    // First message should contain context (as user role, not system)
+    expect(formattedMultimodalRef[0].role).toBe('user');
     
     // There should be a message containing the first image
     const hasFirstImage = formattedMultimodalRef.some(msg => 

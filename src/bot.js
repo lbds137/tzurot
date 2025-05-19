@@ -225,6 +225,7 @@ async function initBot() {
           // where the user replied to a non-first chunk
           let isMultiChunkReply = false;
           let displayName = null;
+          let personality = null;
           
           if (dmFormatMatch) {
             // Direct match - this is likely the first chunk or a single-chunk message
@@ -280,52 +281,112 @@ async function initBot() {
           // If we found a display name (either directly or from an earlier message)
           if (displayName) {
             // Attempt to find the personality by display name
-            const { getPersonalityByAlias, getPersonality } = require('./personalityManager');
-            let personality = getPersonalityByAlias(message.author.id, displayName);
+            // First try to get personality by alias for this user
+            const { getPersonalityByAlias, getPersonality, listPersonalitiesForUser } = require('./personalityManager');
             
-            // If not found by alias, try by the display name directly
-            if (!personality) {
-              // Get all personalities for this user
-              const { listPersonalitiesForUser } = require('./personalityManager');
-              // listPersonalitiesForUser only takes userId parameter
-              const personalities = listPersonalitiesForUser(message.author.id);
-              logger.info(`[Bot] Found ${personalities?.length || 0} personalities for user ${message.author.id}`);
-              if (personalities?.length > 0) {
-                logger.debug(`[Bot] First personality: ${JSON.stringify({
-                  fullName: personalities[0].fullName,
-                  displayName: personalities[0].displayName
-                })}`);
-              }
+            try {
+              // First, try to get personality by alias for this specific user
+              personality = getPersonalityByAlias(message.author.id, displayName);
               
-              // Find by display name match (in DMs we use plain display name without suffix)
-              // listPersonalitiesForUser returns an array directly, not an object with a 'personalities' property
-              // Use case-insensitive comparison for better matching
-              const displayNameLower = displayName.toLowerCase();
-              personality = personalities.find(p => 
-                p.displayName?.toLowerCase() === displayNameLower || 
-                p.displayName?.toLowerCase().startsWith(displayNameLower) || // Check if display name starts with the extracted name
-                getStandardizedUsername(p).toLowerCase() === displayNameLower || 
-                p.fullName?.split('-')[0] === displayNameLower // Check first part of full name
-              );
-              
-              // Debug log the match result
               if (personality) {
-                logger.info(`[Bot] Found matching personality: ${personality.fullName} (${personality.displayName})`);
-                if (isMultiChunkReply) {
-                  logger.info(`[Bot] This is a reply to a non-first chunk of a multi-part message`);
-                }
+                logger.info(`[Bot] Found personality by alias for user ${message.author.id}: ${personality.fullName}`);
               } else {
-                logger.warn(`[Bot] No matching personality found for: ${displayName}`);
+                // If not found by user-specific alias, try getting by global alias
+                personality = getPersonalityByAlias(null, displayName);
+                
+                if (personality) {
+                  logger.info(`[Bot] Found personality by global alias: ${personality.fullName}`);
+                }
               }
+              
+              // If still not found, try by direct personality name
+              if (!personality) {
+                personality = getPersonality(displayName);
+                
+                if (personality) {
+                  logger.info(`[Bot] Found personality directly by name: ${personality.fullName}`);
+                }
+              }
+              
+              // If still not found, try more flexible matching strategies
+              if (!personality) {
+                // Get all personalities for this user
+                const personalities = listPersonalitiesForUser(message.author.id);
+                logger.info(`[Bot] Found ${personalities?.length || 0} personalities for user ${message.author.id}`);
+                
+                if (personalities && personalities.length > 0) {
+                  // Log first personality for debugging
+                  logger.debug(`[Bot] First personality: ${JSON.stringify({
+                    fullName: personalities[0].fullName,
+                    displayName: personalities[0].displayName
+                  })}`);
+                  
+                  // Convert display name to lowercase for case-insensitive matching
+                  const displayNameLower = displayName.toLowerCase();
+                  
+                  // Try to find the personality using multiple matching approaches
+                  personality = personalities.find(p => {
+                    // Skip null or undefined display names
+                    if (!p || !p.fullName) return false;
+                    
+                    // Try direct match with display name
+                    if (p.displayName && p.displayName.toLowerCase() === displayNameLower) {
+                      logger.info(`[Bot] Found personality by exact display name match: ${p.displayName}`);
+                      return true;
+                    }
+                    
+                    // Try prefix match with display name (e.g., "Lilith" matches "Lilith Tzel Shani")
+                    if (p.displayName && p.displayName.toLowerCase().startsWith(displayNameLower)) {
+                      logger.info(`[Bot] Found personality by display name prefix match: ${p.displayName} matches prefix ${displayNameLower}`);
+                      return true;
+                    }
+                    
+                    // Try standardized username match
+                    const standardName = getStandardizedUsername(p).toLowerCase();
+                    if (standardName === displayNameLower) {
+                      logger.info(`[Bot] Found personality by standardized name match: ${standardName}`);
+                      return true;
+                    }
+                    
+                    // Try matching first part of the full name (e.g., "lilith" matches "lilith-tzel-shani")
+                    const firstPart = p.fullName.split('-')[0].toLowerCase();
+                    if (firstPart === displayNameLower) {
+                      logger.info(`[Bot] Found personality by first part of full name: ${firstPart}`);
+                      return true;
+                    }
+                    
+                    // Try by exact full name
+                    if (p.fullName.toLowerCase() === displayNameLower) {
+                      logger.info(`[Bot] Found personality by exact full name match: ${p.fullName}`);
+                      return true;
+                    }
+                    
+                    return false;
+                  });
+                }
+              }
+            } catch (lookupError) {
+              logger.error(`[Bot] Error during personality lookup: ${lookupError.message}`);
+              logger.debug(`[Bot] Lookup error stack: ${lookupError.stack}`);
             }
             
+            // Debug log the match result
             if (personality) {
-              // Handle this as a personality interaction
-              await handlePersonalityInteraction(message, personality);
-              return; // Skip further processing
+              logger.info(`[Bot] Found matching personality: ${personality.fullName} (${personality.displayName})`);
+              if (isMultiChunkReply) {
+                logger.info(`[Bot] This is a reply to a non-first chunk of a multi-part message`);
+              }
+            } else {
+              logger.warn(`[Bot] No matching personality found for: ${displayName}`);
             }
           } else {
             logger.debug(`[Bot] No personality name found in replied message: ${content.substring(0, 50)}`);
+          }
+          
+          if (personality) {
+            // Handle this as a personality interaction
+            await handlePersonalityInteraction(message, personality);
+            return; // Skip further processing
           }
         }
       } catch (error) {
@@ -901,6 +962,10 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       return; // Exit without processing the personality interaction
     }
     
+    // Flag to indicate if this message is a reply to a DM message with a personality prefix
+    // This will help prevent duplicate personality prefixes in responses
+    const isReplyToDMFormattedMessage = isDM && message.reference && triggeringMention === null;
+    
     // Check if the user is age-verified for ALL personality interactions (both DM and server channels)
     const auth = require('./auth');
     const isVerified = auth.isNsfwVerified(message.author.id);
@@ -1147,7 +1212,32 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
             }
             
             // Skip media attachments for personalities since they're redundant with text content
-            const isFromPersonality = repliedToMessage.webhookId && referencedPersonalityInfo?.name;
+            // There are two ways to identify a personality message:
+            // 1. It has a webhook ID and we found a personality name with lookups
+            // 2. For DM channels, it's a bot message with the **Name:** prefix format
+            const isPersonalityByLookup = repliedToMessage.webhookId && referencedPersonalityInfo?.name;
+            const isDMPersonalityFormat = repliedToMessage.channel.isDMBased() && 
+                                         repliedToMessage.author?.id === client.user.id && 
+                                         repliedToMessage.content?.match(/^\*\*([^:]+):\*\* /);
+            
+            const isFromPersonality = isPersonalityByLookup || isDMPersonalityFormat;
+            
+            if (isDMPersonalityFormat && !referencedPersonalityInfo?.name) {
+              // If we identified a DM personality format but didn't set referencedPersonalityInfo,
+              // extract the personality name from the prefix
+              const dmFormatMatch = repliedToMessage.content.match(/^\*\*([^:]+):\*\* /);
+              if (dmFormatMatch && dmFormatMatch[1]) {
+                const displayName = dmFormatMatch[1];
+                const baseName = displayName.includes(' | ') ? displayName.split(' | ')[0] : displayName;
+                logger.info(`[Bot] Identified DM personality format message with display name: ${baseName}`);
+                
+                // Set the referencedPersonalityInfo to use in the API request
+                referencedPersonalityInfo = {
+                  name: baseName, // Using the display name since we don't have the full name
+                  displayName: baseName
+                };
+              }
+            }
             
             // Check for media attachments in the referenced message, but only for non-personality messages
             if (!isFromPersonality && repliedToMessage.attachments && repliedToMessage.attachments.size > 0) {
@@ -1347,8 +1437,32 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                   }
                   
                   // Skip media attachments for personalities since they're redundant with text content
-                  const isFromPersonality = linkedMessage.webhookId && 
-                                          referencedPersonalityInfo?.name;
+                  // There are two ways to identify a personality message:
+                  // 1. It has a webhook ID and we found a personality name with lookups
+                  // 2. For DM channels, it's a bot message with the **Name:** prefix format
+                  const isPersonalityByLookup = linkedMessage.webhookId && referencedPersonalityInfo?.name;
+                  const isDMPersonalityFormat = linkedMessage.channel.isDMBased() && 
+                                              linkedMessage.author?.id === client.user.id && 
+                                              linkedMessage.content?.match(/^\*\*([^:]+):\*\* /);
+                  
+                  const isFromPersonality = isPersonalityByLookup || isDMPersonalityFormat;
+                  
+                  if (isDMPersonalityFormat && !referencedPersonalityInfo?.name) {
+                    // If we identified a DM personality format but didn't set referencedPersonalityInfo,
+                    // extract the personality name from the prefix
+                    const dmFormatMatch = linkedMessage.content.match(/^\*\*([^:]+):\*\* /);
+                    if (dmFormatMatch && dmFormatMatch[1]) {
+                      const displayName = dmFormatMatch[1];
+                      const baseName = displayName.includes(' | ') ? displayName.split(' | ')[0] : displayName;
+                      logger.info(`[Bot] Identified DM personality format in linked message with display name: ${baseName}`);
+                      
+                      // Set the referencedPersonalityInfo to use in the API request
+                      referencedPersonalityInfo = {
+                        name: baseName, // Using the display name since we don't have the full name
+                        displayName: baseName
+                      };
+                    }
+                  }
                   
                   // Check for media attachments in the linked message, but only for non-personality messages
                   if (!isFromPersonality && linkedMessage.attachments && linkedMessage.attachments.size > 0) {
@@ -1704,7 +1818,9 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
         channelType: message.channel.type,
         // Add special forum flag 
         isForum: message.channel.type === 'FORUM' || 
-                (message.channel.parent && message.channel.parent.type === 'FORUM')
+                (message.channel.parent && message.channel.parent.type === 'FORUM'),
+        // Flag to indicate this is a reply to a DM message with personality prefix already included
+        isReplyToDMFormattedMessage: isReplyToDMFormattedMessage
       };
       
       // Extra validation for thread handling

@@ -120,9 +120,9 @@ describe('aiService Error Handling', () => {
   });
   
   describe('Error detection', () => {
-    test('isErrorResponse should correctly identify error patterns', () => {
-      // Test various error patterns
-      const errorPatterns = [
+    test('isErrorResponse should correctly identify high confidence error patterns', () => {
+      // High confidence error patterns (direct inclusion checks)
+      const highConfidencePatterns = [
         'NoneType object has no attribute',
         'AttributeError: Something went wrong',
         'TypeError: Cannot read property',
@@ -130,30 +130,51 @@ describe('aiService Error Handling', () => {
         'KeyError: Missing key',
         'IndexError: Index out of bounds',
         'ModuleNotFoundError: No module named',
-        'ImportError: Cannot import name',
-        'Exception: Something went wrong',
-        'Error: Failed to process',
-        'Traceback (most recent call last):'
+        'ImportError: Cannot import name'
       ];
       
       // All of these should be detected as errors
-      errorPatterns.forEach(pattern => {
+      highConfidencePatterns.forEach(pattern => {
         expect(aiService.isErrorResponse(pattern)).toBe(true);
       });
+    });
+    
+    test('isErrorResponse should correctly identify low confidence patterns with context', () => {
+      // Test each pattern separately with appropriate context
       
-      // Test non-error messages
-      const nonErrorMessages = [
+      // Test Error: pattern
+      expect(aiService.isErrorResponse('Error: Failed to process request')).toBe(true);
+      
+      // Test Traceback pattern with line reference
+      expect(aiService.isErrorResponse('Traceback (most recent call last):\n  File "script.py", line 10')).toBe(true);
+      
+      // Test Exception pattern with appropriate context
+      expect(aiService.isErrorResponse('An unexpected Exception was raised during execution')).toBe(true);
+      expect(aiService.isErrorResponse('Python caught Exception: Value error')).toBe(true);
+      expect(aiService.isErrorResponse('The system threw an Exception when processing input')).toBe(true);
+    });
+    
+    test('isErrorResponse should not flag normal content with error-like terms', () => {
+      // Messages that contain error-like terms but are not actual errors
+      const normalMessages = [
         'This is a normal message',
         'Hello, how can I help you?',
         'The error was resolved successfully',
-        'Let me tell you about errors in general'
+        'Let me tell you about errors in general',
+        'I can trace back the origins of this concept',
+        'Exceptions to this rule include...',
+        'Error correction is an important concept in coding',
+        'That\'s an exceptionally good question',
+        'There was an error in my previous explanation, but I will clarify now'
       ];
       
       // None of these should be detected as errors
-      nonErrorMessages.forEach(message => {
+      normalMessages.forEach(message => {
         expect(aiService.isErrorResponse(message)).toBe(false);
       });
-      
+    });
+    
+    test('isErrorResponse should handle edge cases', () => {
       // Edge cases
       expect(aiService.isErrorResponse('')).toBe(true); // Empty string is an error
       expect(aiService.isErrorResponse(null)).toBe(true); // Null is an error
@@ -180,6 +201,42 @@ describe('aiService Error Handling', () => {
       Date.now = jest.fn().mockReturnValue(mockNow);
       
       // Check if it's in blackout period (should be false now)
+      expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(false);
+      
+      // Restore Date.now
+      Date.now = originalDateNow;
+    });
+    
+    test('addToBlackoutList should accept a custom duration parameter', () => {
+      const customDuration = 120000; // 2 minutes
+      
+      // Add to blackout list with custom duration
+      aiService.addToBlackoutList(personalityName, context, customDuration);
+      
+      // Create the key to check the blackout list
+      const key = aiService.createBlackoutKey(personalityName, context);
+      
+      // Verify it was added to the blackout list
+      expect(aiService.errorBlackoutPeriods.has(key)).toBe(true);
+      
+      // Get the expiration time
+      const expirationTime = aiService.errorBlackoutPeriods.get(key);
+      
+      // Verify the expiration time is approximately correct
+      // We allow a small margin of error for test execution time
+      const expectedMinTime = Date.now() + customDuration - 100; // -100ms for test execution time
+      expect(expirationTime).toBeGreaterThanOrEqual(expectedMinTime);
+      
+      // Verify blackout is respected for the custom duration
+      expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
+      
+      // Verify it expires correctly after the custom duration
+      const originalDateNow = Date.now;
+      // Set time to right after the custom duration
+      const mockNow = originalDateNow() + customDuration + 1000;
+      Date.now = jest.fn().mockReturnValue(mockNow);
+      
+      // Should no longer be in blackout period
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(false);
       
       // Restore Date.now
@@ -415,6 +472,34 @@ describe('aiService Error Handling', () => {
       // Now check that a non-problematic personality returns null
       const nonProblematicInfo = aiService.getProblematicPersonalityInfo('non-problematic');
       expect(nonProblematicInfo).toBeUndefined();
+    });
+    
+    test('initKnownProblematicPersonalities should handle empty environment variable', () => {
+      // Import USER_CONFIG from constants
+      const { USER_CONFIG } = require('../../src/constants');
+      
+      // Back up original value
+      const originalValue = USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST;
+      
+      // Set empty environment variable
+      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = '';
+      
+      // Clear any existing problematic personalities
+      const originalKnownProblematic = { ...aiService.knownProblematicPersonalities };
+      Object.keys(aiService.knownProblematicPersonalities).forEach(key => {
+        delete aiService.knownProblematicPersonalities[key];
+      });
+      
+      // Run initialization - should not throw error
+      expect(() => {
+        aiService.initKnownProblematicPersonalities();
+      }).not.toThrow();
+      
+      // Restore original values
+      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = originalValue;
+      Object.keys(originalKnownProblematic).forEach(key => {
+        aiService.knownProblematicPersonalities[key] = originalKnownProblematic[key];
+      });
     });
     
     test('getAiResponse should detect API errors', async () => {

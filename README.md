@@ -16,6 +16,7 @@ The bot uses the following environment variables:
 - `PREFIX` - Command prefix (default: `!tz`)
 - `BOT_OWNER_ID` - Discord user ID of the bot owner (required for owner-only commands and personality auto-seeding)
 - `OWNER_PERSONALITIES` - Comma-separated list of personalities to automatically add for the bot owner
+- `KNOWN_PROBLEMATIC_PERSONALITIES` - Comma-separated list of personalities that require special error handling (see [documentation](docs/PROBLEMATIC_PERSONALITIES.md))
 - `HEALTH_PORT` - Port for the health check endpoint (optional)
 
 ### User Personalities
