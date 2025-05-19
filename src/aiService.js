@@ -1189,9 +1189,13 @@ function formatApiMessages(content) {
       
       // If we have a referenced message
       if (content.referencedMessage) {
+        // Get the name of the Discord user who is making the reference
+        const userName = content.userName || 'The user';
+        
         logger.debug(`[AIService] Processing referenced message: ${JSON.stringify({
           authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
-          contentPreview: content.referencedMessage.content?.substring(0, 50) || 'No content'
+          contentPreview: content.referencedMessage.content?.substring(0, 50) || 'No content',
+          referencingUser: userName
         })}`);
         
         try {
@@ -1225,36 +1229,49 @@ function formatApiMessages(content) {
             .trim();
           
           // Format the reference prefix based on who sent it
+          // Make this clearer to avoid AI hallucinations about the referenced content
+          const userName = content.userName || 'The user';
+          
           if (content.referencedMessage.isFromBot) {
             // If it's from a bot/webhook, check if we know which personality
             if (content.referencedMessage.personalityName) {
-              // If we have the personality name, use it directly
-              referencePrefix = `[Referring to message from ${content.referencedMessage.personalityDisplayName || content.referencedMessage.personalityName}: "${cleanContent}"] `;
+              // If we have the personality name, use it directly with more explicit formatting
+              // Use a clearer format to prevent the AI from hallucinating the content
+              referencePrefix = `[${userName} is referencing a Discord message from the AI personality ${content.referencedMessage.personalityDisplayName || content.referencedMessage.personalityName}. That message said: "${cleanContent}"] `;
             } else if (content.referencedMessage.webhookName) {
               // If we have a webhook name but no personality
-              referencePrefix = `[Referring to message from ${content.referencedMessage.webhookName}: "${cleanContent}"] `;
+              referencePrefix = `[${userName} is referencing a Discord message from bot ${content.referencedMessage.webhookName}. That message said: "${cleanContent}"] `;
             } else {
               // Fallback for unknown bot messages
-              referencePrefix = `[Referring to previous message: "${cleanContent}"] `;
+              referencePrefix = `[${userName} is referencing a previous Discord bot message that said: "${cleanContent}"] `;
             }
           } else {
             // If it's from another user
-            referencePrefix = `[Referring to message from ${content.referencedMessage.author || 'another user'}: "${cleanContent}"] `;
+            referencePrefix = `[${userName} is referencing a Discord message from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"] `;
           }
           
-          // Handle media if present in the referenced message
-          if (mediaUrl && mediaType === 'image') {
-            // Store the image URL for potential multimodal message
-            mediaForMultimodal = {
-              type: 'image',
-              url: mediaUrl
-            };
-          } else if (mediaUrl && mediaType === 'audio') {
-            // Store the audio URL for potential multimodal message
-            mediaForMultimodal = {
-              type: 'audio',
-              url: mediaUrl
-            };
+          // Only handle media if present AND this is NOT a personality message
+          // For personality messages, the media is redundant with the text content 
+          const isFromPersonality = content.referencedMessage.isFromBot && content.referencedMessage.personalityName;
+          
+          if (!isFromPersonality && mediaUrl) {
+            if (mediaType === 'image') {
+              // Store the image URL for potential multimodal message
+              mediaForMultimodal = {
+                type: 'image',
+                url: mediaUrl
+              };
+              logger.debug(`[AIService] Saving image URL from a referenced non-personality message: ${mediaUrl}`);
+            } else if (mediaType === 'audio') {
+              // Store the audio URL for potential multimodal message, but only if not from a personality
+              mediaForMultimodal = {
+                type: 'audio',
+                url: mediaUrl
+              };
+              logger.debug(`[AIService] Saving audio URL from a referenced non-personality message: ${mediaUrl}`);
+            }
+          } else if (isFromPersonality && mediaUrl) {
+            logger.debug(`[AIService] Skipping media from personality message (${content.referencedMessage.personalityName}): ${mediaType}`);
           }
         } catch (refError) {
           // If there's an error processing the reference, log it but continue

@@ -1164,8 +1164,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
             const linkedChannelId = messageLinkMatch[3];
             const linkedMessageId = messageLinkMatch[4];
             
-            // Remove the message link from the content
-            messageContent = messageContent.replace(messageLinkMatch[0], '').trim();
+            // Replace the message link with a placeholder that clarifies what was linked
+            messageContent = messageContent.replace(messageLinkMatch[0], '[referenced Discord message link]').trim();
             
             // Try to get the channel
             const guild = client.guilds.cache.get(linkedGuildId);
@@ -1238,8 +1238,12 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                     }
                   }
                   
-                  // Check for media attachments in the linked message
-                  if (linkedMessage.attachments && linkedMessage.attachments.size > 0) {
+                  // Skip media attachments for personalities since they're redundant with text content
+                  const isFromPersonality = linkedMessage.webhookId && 
+                                          referencedPersonalityInfo?.name;
+                  
+                  // Check for media attachments in the linked message, but only for non-personality messages
+                  if (!isFromPersonality && linkedMessage.attachments && linkedMessage.attachments.size > 0) {
                     const attachments = Array.from(linkedMessage.attachments.values());
                     
                     // Check for audio attachments first (priority over images)
@@ -1268,6 +1272,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                         logger.info(`[Bot] Linked message contains an image: ${imageAttachment.url}`);
                       }
                     }
+                  } else if (isFromPersonality && linkedMessage.attachments && linkedMessage.attachments.size > 0) {
+                    logger.info(`[Bot] Skipping media attachments for personality linked message from: ${referencedPersonalityInfo.name}`);
                   }
                   
                   // Process embeds in the linked message
@@ -1275,8 +1281,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                     // Use the helper function to parse embeds
                     referencedMessageContent += parseEmbedsToText(linkedMessage.embeds, "linked message");
                     
-                    // If we haven't found media yet, check for audio/image in embeds
-                    if (!referencedImageUrl && !referencedAudioUrl) {
+                    // If we haven't found media yet and this isn't a personality message, check for audio/image in embeds
+                    if (!isFromPersonality && !referencedImageUrl && !referencedAudioUrl) {
                       // Go through embeds looking for audio first, then images or thumbnails
                       for (const embed of linkedMessage.embeds) {
                         // First check for audio URLs in description or fields - audio has priority
@@ -1326,6 +1332,9 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
                           break;
                         }
                       }
+                    } else if (isFromPersonality && (linkedMessage.embeds.some(e => e.image || e.thumbnail) || 
+                               linkedMessage.embeds.some(e => e.description?.match(/https?:\/\/\S+\.(mp3|wav|ogg|m4a)(\?\S*)?/i)))) {
+                      logger.info(`[Bot] Skipping media in embeds for personality linked message from: ${referencedPersonalityInfo.name}`);
                     }
                   }
                   
@@ -1474,9 +1483,13 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
           logger.info(`[Bot] Detected same-personality recent message in same channel - skipping reference context for ${personality.fullName}`);
           finalMessageContent = messageContent; // Just use the original content without the reference
         } else {
+          // Get the user's name from message author (could be nickname or username)
+          const userDisplayName = message.member?.displayName || message.author?.username || 'The user';
+          
           // Format as a complex object with the reference information
           finalMessageContent = {
             messageContent: messageContent, // Original message content (text or multimodal array)
+            userName: userDisplayName, // Add the user's display name or username
             referencedMessage: {
               content: referencedMessageContent,
               author: referencedMessageAuthor,
