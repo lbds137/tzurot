@@ -1,5 +1,6 @@
 /**
  * Tests for the status command handler
+ * Standardized format for command testing
  */
 
 // Mock dependencies before requiring the module
@@ -32,44 +33,13 @@ jest.mock('../../../src/commands/handlers/autorespond', () => ({
   isAutoResponseEnabled: jest.fn()
 }));
 
-// Mock utils and commandValidator
-jest.mock('../../../src/utils', () => ({
-  createDirectSend: jest.fn().mockImplementation((message) => {
-    return async (content) => {
-      return message.channel.send(content);
-    };
-  })
+// Mock command validator
+jest.mock('../../../src/commands/utils/commandValidator', () => ({
+  createDirectSend: jest.fn(),
+  isAdmin: jest.fn().mockReturnValue(false),
+  canManageMessages: jest.fn().mockReturnValue(false),
+  isNsfwChannel: jest.fn().mockReturnValue(false)
 }));
-
-jest.mock('../../../src/commands/utils/commandValidator', () => {
-  return {
-    createDirectSend: jest.fn().mockImplementation((message) => {
-      const directSend = async (content) => {
-        return message.channel.send(content);
-      };
-      return directSend;
-    }),
-    isAdmin: jest.fn().mockReturnValue(false),
-    canManageMessages: jest.fn().mockReturnValue(false),
-    isNsfwChannel: jest.fn().mockReturnValue(false)
-  };
-});
-
-// Set up global tzurotClient mock
-global.tzurotClient = {
-  user: {
-    username: 'TzurotBot',
-    avatarURL: jest.fn().mockReturnValue('https://example.com/avatar.png')
-  },
-  ws: {
-    ping: 42
-  },
-  guilds: {
-    cache: {
-      size: 10
-    }
-  }
-};
 
 // Import test helpers
 const helpers = require('../../utils/commandTestHelpers');
@@ -86,17 +56,26 @@ describe('Status Command', () => {
   let statusCommand;
   let mockMessage;
   let mockEmbed;
+  let mockDirectSend;
   
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
     
-    // Create mock message with standard channel.send mock
+    // Create mock message
     mockMessage = helpers.createMockMessage();
     mockMessage.channel.send = jest.fn().mockResolvedValue({
       id: 'sent-message-123',
       embeds: [{ title: 'Bot Status' }]
     });
+    
+    // Set up mock direct send function
+    mockDirectSend = jest.fn().mockImplementation(content => {
+      return mockMessage.channel.send(content);
+    });
+    
+    // Set up validator mock
+    validator.createDirectSend.mockReturnValue(mockDirectSend);
     
     // Mock process.uptime
     process.uptime = jest.fn().mockReturnValue(3665); // 1 hour, 1 minute, 5 seconds
@@ -122,6 +101,22 @@ describe('Status Command', () => {
     };
     EmbedBuilder.mockReturnValue(mockEmbed);
     
+    // Set up global tzurotClient mock
+    global.tzurotClient = {
+      user: {
+        username: 'TzurotBot',
+        avatarURL: jest.fn().mockReturnValue('https://example.com/avatar.png')
+      },
+      ws: {
+        ping: 42
+      },
+      guilds: {
+        cache: {
+          size: 10
+        }
+      }
+    };
+    
     // Import command module after mock setup
     statusCommand = require('../../../src/commands/handlers/status');
   });
@@ -131,8 +126,18 @@ describe('Status Command', () => {
     delete global.tzurotClient;
   });
   
+  it('should have the correct metadata', () => {
+    expect(statusCommand.meta).toEqual({
+      name: 'status',
+      description: expect.any(String),
+      usage: expect.any(String),
+      aliases: expect.any(Array),
+      permissions: expect.any(Array)
+    });
+  });
+  
   it('should display bot status for authenticated user', async () => {
-    const result = await statusCommand.execute(mockMessage, []);
+    await statusCommand.execute(mockMessage, []);
     
     // Verify that createDirectSend was called with the message
     expect(validator.createDirectSend).toHaveBeenCalledWith(mockMessage);
@@ -141,38 +146,56 @@ describe('Status Command', () => {
     expect(EmbedBuilder).toHaveBeenCalled();
     expect(mockEmbed.setTitle).toHaveBeenCalledWith('Bot Status');
     
-    // Verify embed fields were added
-    expect(mockEmbed.addFields).toHaveBeenCalledTimes(5);
+    // Verify basic fields were added
+    expect(mockEmbed.addFields).toHaveBeenCalledWith(
+      { name: 'Uptime', value: expect.stringContaining('hour'), inline: true },
+      { name: 'Ping', value: '42ms', inline: true },
+      { name: 'Authenticated', value: '✅ Yes', inline: true },
+      { name: 'Age Verified', value: '❌ No', inline: true },
+      { name: 'Guild Count', value: '10 servers', inline: true }
+    );
     
-    // Verify uptime was formatted correctly
-    expect(mockEmbed.addFields.mock.calls[0][0]).toEqual(
-      expect.objectContaining({ name: 'Uptime', value: expect.stringContaining('hour') })
+    // Verify personalities field was added (since user is authenticated)
+    expect(mockEmbed.addFields).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Your Personalities',
+        value: '2 personalities',
+        inline: true
+      })
     );
     
     // Verify bot avatar was set
     expect(mockEmbed.setThumbnail).toHaveBeenCalledWith('https://example.com/avatar.png');
     
     // Verify the message was sent with the embed
-    expect(mockMessage.channel.send).toHaveBeenCalledWith({ embeds: [mockEmbed] });
+    expect(mockDirectSend).toHaveBeenCalledWith({ embeds: [mockEmbed] });
   });
   
   it('should show different fields for non-authenticated user', async () => {
     // Mock user as not authenticated
     auth.hasValidToken.mockReturnValue(false);
     
-    const result = await statusCommand.execute(mockMessage, []);
+    await statusCommand.execute(mockMessage, []);
     
     // Verify that personalityManager.listPersonalitiesForUser was not called
     expect(personalityManager.listPersonalitiesForUser).not.toHaveBeenCalled();
     
-    // Verify embed fields were added (should be 4 instead of 5)
-    expect(mockEmbed.addFields).toHaveBeenCalledTimes(4);
+    // Verify the Authentication status field was added with value No
+    // First call to addFields includes the base fields 
+    expect(mockEmbed.addFields.mock.calls[0]).toContainEqual(
+      expect.objectContaining({
+        name: 'Authenticated',
+        value: '❌ No',
+        inline: true
+      })
+    );
     
-    // Verify authenticated status is shown as No
-    expect(mockEmbed.addFields.mock.calls[2][0]).toEqual(
-      expect.objectContaining({ 
-        name: 'Authenticated', 
-        value: expect.stringContaining('No') 
+    // Verify personalities field was NOT added
+    expect(mockEmbed.addFields).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Your Personalities',
+        value: expect.any(String),
+        inline: true
       })
     );
   });
@@ -193,14 +216,8 @@ describe('Status Command', () => {
     expect(logger.error.mock.calls[0][0]).toContain('Error in status command:');
     
     // Verify error message was sent
-    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+    expect(mockDirectSend).toHaveBeenCalledWith(
       expect.stringContaining('An error occurred while getting bot status:')
     );
-  });
-  
-  it('should expose correct metadata', () => {
-    expect(statusCommand.meta).toBeDefined();
-    expect(statusCommand.meta.name).toBe('status');
-    expect(statusCommand.meta.description).toBeTruthy();
   });
 });

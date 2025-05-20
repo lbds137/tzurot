@@ -1,17 +1,32 @@
+/**
+ * Tests for the verify command handler
+ * Standardized format for command testing
+ */
+
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../src/logger');
-jest.mock('../../../config');
-jest.mock('../../../src/auth');
-jest.mock('../../../src/utils/channelUtils');
-jest.mock('../../../src/commands/utils/commandValidator');
+jest.mock('../../../config', () => ({
+  botPrefix: '!tz',
+}));
+jest.mock('../../../src/auth', () => ({
+  isNsfwVerified: jest.fn(),
+  storeNsfwVerification: jest.fn(),
+}));
+jest.mock('../../../src/utils/channelUtils', () => ({
+  isChannelNSFW: jest.fn(),
+}));
+
+// Mock command validator
+jest.mock('../../../src/commands/utils/commandValidator', () => ({
+  createDirectSend: jest.fn(),
+}));
 
 // Import test helpers
 const helpers = require('../../utils/commandTestHelpers');
 
 // Import mocked modules
 const logger = require('../../../src/logger');
-const config = require('../../../config');
 const auth = require('../../../src/auth');
 const channelUtils = require('../../../src/utils/channelUtils');
 const validator = require('../../../src/commands/utils/commandValidator');
@@ -25,12 +40,6 @@ describe('Verify Command', () => {
     // Reset all mocks
     jest.clearAllMocks();
     
-    // Reset modules
-    jest.resetModules();
-    
-    // Mock config
-    config.botPrefix = '!tz';
-    
     // Create mock message with guild and NSFW channel
     mockMessage = helpers.createMockMessage({
       isDM: false,
@@ -42,7 +51,7 @@ describe('Verify Command', () => {
       id: 'direct-sent-123'
     });
     
-    // Mock validator
+    // Set up validator mock
     validator.createDirectSend.mockReturnValue(mockDirectSend);
     
     // Mock channel utils
