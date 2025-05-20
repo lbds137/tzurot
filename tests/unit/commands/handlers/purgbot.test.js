@@ -149,7 +149,7 @@ describe('PurgBot Command', () => {
         id: botUserId,
         username: 'Personality One' // Match mock personality in personality manager
       },
-      content: 'Person is typing...',
+      content: '**Personality One:** Hello there!', // Match the **Name:** pattern
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (10 * 60 * 1000),
@@ -160,7 +160,7 @@ describe('PurgBot Command', () => {
         id: botUserId,
         username: 'Personality Two' // Match mock personality in personality manager
       },
-      content: 'continued their message',
+      content: '**Personality Two:** I have more to say', // Match the **Name:** pattern
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (15 * 60 * 1000),
@@ -184,19 +184,19 @@ describe('PurgBot Command', () => {
       createdTimestamp: oneHourAgo - (2.5 * 60 * 60 * 1000),
     });
     
-    // Important messages (should never be deleted)
-    mockCollection.set('important-msg-1', {
-      id: 'important-msg-1',
+    // Regular messages that should be deleted
+    mockCollection.set('regular-msg-1', {
+      id: 'regular-msg-1',
       author: { id: botUserId },
-      content: 'API key has been set',
+      content: 'This is a regular bot message',
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (5 * 60 * 60 * 1000),
     });
-    mockCollection.set('important-msg-2', {
-      id: 'important-msg-2',
+    mockCollection.set('regular-msg-2', {
+      id: 'regular-msg-2',
       author: { id: botUserId },
-      content: 'Your data has been exported',
+      content: 'Another regular message',
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (3 * 60 * 60 * 1000),
@@ -341,9 +341,9 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('chat-msg-2').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-chat-msg').delete).not.toHaveBeenCalled();
     
-    // Important, very recent, and normal user messages should NOT be deleted
-    expect(mockCollection.get('important-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('important-msg-2').delete).not.toHaveBeenCalled();
+    // Important messages should be deleted in system mode (no longer preserved)
+    expect(mockCollection.get('regular-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('regular-msg-2').delete).toHaveBeenCalled();
     expect(mockCollection.get('recent-msg-1').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-normal-msg').delete).not.toHaveBeenCalled();
     
@@ -393,9 +393,9 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
     
-    // Important, very recent, and normal user messages should NOT be deleted
-    expect(mockCollection.get('important-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('important-msg-2').delete).not.toHaveBeenCalled();
+    // Important messages should be deleted in system mode (no longer preserved)
+    expect(mockCollection.get('regular-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('regular-msg-2').delete).toHaveBeenCalled();
     expect(mockCollection.get('recent-msg-1').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-normal-msg').delete).not.toHaveBeenCalled();
   });
