@@ -60,8 +60,8 @@ function isPersonalityMessage(msg) {
   // If message has a specific personality webhook username format
   if (msg.author && msg.author.username) {
     // Check if this message username matches any personality
-    const allPersonalities = personalityManager.getAllPersonalities();
-    const personalityNames = Object.values(allPersonalities).map(p => p.displayName || p.fullName);
+    const allPersonalities = personalityManager.listPersonalitiesForUser(); // Gets all personalities when no userId is provided
+    const personalityNames = allPersonalities.map(p => p.displayName || p.fullName);
     
     // Check if message author matches a personality name
     return personalityNames.some(name => 

@@ -12,10 +12,10 @@ jest.mock('../../../../config', () => ({
 
 // Mock the personality manager
 jest.mock('../../../../src/personalityManager', () => ({
-  getAllPersonalities: jest.fn().mockReturnValue({
-    'personality1': { fullName: 'personality1', displayName: 'Personality One' },
-    'personality2': { fullName: 'personality2', displayName: 'Personality Two' }
-  })
+  listPersonalitiesForUser: jest.fn().mockReturnValue([
+    { fullName: 'personality1', displayName: 'Personality One' },
+    { fullName: 'personality2', displayName: 'Personality Two' }
+  ])
 }));
 
 // Import test helpers
