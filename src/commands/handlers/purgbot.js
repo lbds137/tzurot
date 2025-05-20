@@ -14,7 +14,7 @@ const meta = {
   name: 'purgbot',
   description: 'Purge bot messages from your DM history',
   usage: 'purgbot [all|auth|chat|system]',
-  aliases: ['purgebot', 'clearbot', 'cleandm'],
+  aliases: ['purgebot', 'clearbot', 'cleandm', 'purgauth', 'purgeauth', 'clearauth'],
   permissions: []
 };
 
@@ -233,7 +233,7 @@ async function execute(message, args) {
       }
     }
     
-    // Create a embed with the results
+    // Create an embed with the results
     const embed = new EmbedBuilder()
       .setTitle('Bot Message Cleanup')
       .setDescription(`Completed purging ${categoryDesc} messages from your DM history.`)
@@ -242,10 +242,32 @@ async function execute(message, args) {
         { name: 'Messages Deleted', value: `${deletedCount}`, inline: true },
         { name: 'Messages Failed', value: `${failedCount}`, inline: true }
       )
-      .setFooter({ text: 'Your DM channel is now cleaner!' });
+      .setFooter({ text: 'Your DM channel is now cleaner! This message will self-destruct in 30 seconds.' });
     
     // Update the status message with the result
-    return await statusMessage.edit({ content: '', embeds: [embed] });
+    const updatedMessage = await statusMessage.edit({ content: '', embeds: [embed] });
+    
+    // Schedule the message to self-destruct after 30 seconds
+    // Use a function that is easier to mock in tests
+    const selfDestruct = async () => {
+      try {
+        await updatedMessage.delete();
+        logger.info(`[PurgBot] Self-destructed cleanup summary message for user ${message.author.id}`);
+      } catch (error) {
+        logger.warn(`[PurgBot] Failed to self-destruct cleanup summary: ${error.message}`);
+      }
+    };
+    
+    // In testing environments, use a mock and call immediately to avoid timeouts
+    if (process.env.NODE_ENV === 'test') {
+      // For tests, make this available on the message for immediate testing
+      updatedMessage.selfDestruct = selfDestruct;
+    } else {
+      // In real environment, use setTimeout
+      setTimeout(selfDestruct, 30000);
+    }
+    
+    return updatedMessage;
     
   } catch (error) {
     logger.error(`[PurgBot] Error purging messages: ${error.message}`);

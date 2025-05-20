@@ -14,6 +14,10 @@ jest.mock('../../../../config', () => ({
 const helpers = require('../../../utils/commandTestHelpers');
 
 describe('PurgBot Command', () => {
+  // Restore environment after all tests
+  afterAll(() => {
+    delete process.env.NODE_ENV;
+  });
   let purgbotCommand;
   let mockMessage;
   let mockDMMessage;
@@ -27,6 +31,9 @@ describe('PurgBot Command', () => {
     // Reset all mocks
     jest.clearAllMocks();
     jest.resetModules();
+    
+    // Set test environment for self-destruct handling
+    process.env.NODE_ENV = 'test';
     
     // Create mock instances with proper naming
     const factories = require('../../../utils/mockFactories');
@@ -72,7 +79,8 @@ describe('PurgBot Command', () => {
     // Create mock status message that will be returned when sending a message
     mockStatusMessage = {
       id: 'status-message-123',
-      edit: jest.fn().mockResolvedValue({ id: 'edited-status-123' }),
+      edit: jest.fn().mockReturnThis(),
+      delete: jest.fn().mockResolvedValue(undefined),
     };
     
     // Setup channel.send mock
@@ -329,6 +337,18 @@ describe('PurgBot Command', () => {
     // Verify the embed was set up correctly
     expect(mockEmbed.setTitle).toHaveBeenCalledWith('Bot Message Cleanup');
     expect(mockEmbed.setDescription).toHaveBeenCalledWith(expect.stringContaining('Completed purging bot messages'));
+    expect(mockEmbed.setFooter).toHaveBeenCalledWith({ text: expect.stringContaining('self-destruct') });
+    
+    // Test the self-destruct functionality (should be attached to the message)
+    expect(mockStatusMessage).toHaveProperty('selfDestruct');
+    
+    // Manually trigger self-destruct function for testing
+    if (mockStatusMessage.selfDestruct) {
+      await mockStatusMessage.selfDestruct();
+    }
+    
+    // Verify message was deleted
+    expect(mockStatusMessage.delete).toHaveBeenCalled();
   });
   
   it('should purge only auth messages with "auth" category', async () => {
