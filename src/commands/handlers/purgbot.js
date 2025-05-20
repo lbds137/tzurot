@@ -14,24 +14,13 @@ const personalityManager = require('../../personalityManager');
 const meta = {
   name: 'purgbot',
   description: 'Purge bot messages from your DM history',
-  usage: 'purgbot [system|chat|all]',
-  aliases: ['purgebot', 'clearbot', 'cleandm', 'purgauth', 'purgeauth', 'clearauth'],
+  usage: 'purgbot [system|all]',
+  aliases: ['purgebot', 'clearbot', 'cleandm'],
   permissions: []
 };
 
 // Message categories and their filter rules
 const messageCategories = {
-  // Conversation/chat related messages (personality messages)
-  chat: {
-    description: 'chat and personality conversation',
-    isPersonalityMessage: true,
-    userCommands: [
-      // Common commands that trigger personality conversations
-      '@', // Mentions to personalities
-      `${botPrefix} chat`
-    ]
-  },
-  
   // System messages (all non-personality bot messages)
   system: {
     description: 'system and command',
@@ -128,8 +117,7 @@ function filterMessagesByCategory(messages, message, category) {
     // Check if this is a personality message
     const fromPersonality = isPersonalityMessage(msg);
     
-    // For "chat" category, only include personality messages
-    if (category === 'chat') return fromPersonality;
+    // These lines are removed as we no longer have a chat category
     
     // For "system" category, exclude personality messages
     if (category === 'system') return !fromPersonality;
@@ -183,14 +171,13 @@ async function execute(message, args) {
   
   if (args.length > 0) {
     const requestedCategory = args[0].toLowerCase();
-    if (['system', 'chat', 'all'].includes(requestedCategory)) {
+    if (['system', 'all'].includes(requestedCategory)) {
       category = requestedCategory;
     } else {
       return await directSend(
         `❌ Invalid category: \`${requestedCategory}\`\n\n` +
         `Available categories:\n` +
         `- \`system\` - System messages and bot responses (default)\n` +
-        `- \`chat\` - Personality conversations and messages\n` +
         `- \`all\` - All bot messages including personalities`
       );
     }
