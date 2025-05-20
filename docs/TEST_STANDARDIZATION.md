@@ -390,6 +390,12 @@ Additionally, we have created standardized tests for all middleware components:
 2. deduplication.js - Tests command deduplication middleware
 3. permissions.js - Tests permission checking middleware
 
+We have also standardized tests for command utility modules:
+1. commandRegistry.js - Tests command registration and retrieval
+2. commandValidator.js - Tests permission validation and error messages
+3. commandLoader.js - Tests dynamic command loading functionality
+4. messageTracker.js - Tests message and command tracking (existing)
+
 ### Key Learnings from Activate Test
 
 When working with the `activate.test.js` standardization, we discovered some important patterns:
