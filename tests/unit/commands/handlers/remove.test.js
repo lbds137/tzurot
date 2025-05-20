@@ -26,7 +26,7 @@ describe('Remove Command', () => {
     jest.resetModules();
     
     // Create mock instances with proper naming
-    const factories = require('../../utils/mockFactories');
+    const factories = require('../../../utils/mockFactories');
     mockValidator = factories.createValidatorMock();
     mockPersonalityManager = factories.createPersonalityManagerMock();
     
