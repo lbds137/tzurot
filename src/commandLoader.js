@@ -1,12 +1,11 @@
 /**
- * Command Loader - Bridge between old command system and new modular system
- * This module is temporary and will be removed once the migration is complete
+ * Command Loader - Bridge to the new modular command system
  */
 const logger = require('./logger');
 const newCommandSystem = require('./commands/index');
 
 /**
- * Process a command using the new command system, falling back to the old one if needed
+ * Process a command using the command system
  * @param {Object} message - Discord message object
  * @param {string} command - Command name
  * @param {Array<string>} args - Command arguments
@@ -17,8 +16,7 @@ async function processCommand(message, command, args) {
   logger.info(`[CommandLoader] Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
 
   try {
-    // Process the command using the new command system
-    logger.info(`[CommandLoader] Processing command: ${command}`);
+    // Process the command using the command system
     const result = await newCommandSystem.processCommand(message, command, args);
     
     // If the command wasn't found or there was an error, log it
