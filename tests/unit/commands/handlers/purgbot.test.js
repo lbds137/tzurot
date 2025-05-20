@@ -332,9 +332,9 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('system-msg-1').delete).toHaveBeenCalled();
     expect(mockCollection.get('system-msg-2').delete).toHaveBeenCalled();
     
-    // User command messages should be deleted
-    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
-    expect(mockCollection.get('user-system-msg').delete).toHaveBeenCalled();
+    // User messages cannot be deleted in DMs by the bot due to Discord API limitations
+    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
     
     // Personality messages should NOT be deleted (default is system only)
     expect(mockCollection.get('chat-msg-1').delete).not.toHaveBeenCalled();
@@ -389,11 +389,9 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('system-msg-1').delete).toHaveBeenCalled();
     expect(mockCollection.get('system-msg-2').delete).toHaveBeenCalled();
     
-    // User command messages should be deleted
-    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
-    // Chat messages are now included in 'all' but we need to check if the user's commands are still tracked
-    // We're not checking user-chat-msg here since the chat category was removed
-    expect(mockCollection.get('user-system-msg').delete).toHaveBeenCalled();
+    // User messages cannot be deleted in DMs by the bot due to Discord API limitations
+    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
     
     // Important, very recent, and normal user messages should NOT be deleted
     expect(mockCollection.get('important-msg-1').delete).not.toHaveBeenCalled();
@@ -416,8 +414,9 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('system-msg-2').delete).toHaveBeenCalled();
     expect(mockCollection.get('auth-msg-1').delete).toHaveBeenCalled();
     expect(mockCollection.get('auth-msg-2').delete).toHaveBeenCalled();
-    expect(mockCollection.get('user-system-msg').delete).toHaveBeenCalled();
-    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
+    // User messages cannot be deleted in DMs by the bot due to Discord API limitations
+    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
     
     // Chat/personality messages should NOT be deleted
     expect(mockCollection.get('chat-msg-1').delete).not.toHaveBeenCalled();

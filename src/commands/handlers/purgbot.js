@@ -126,30 +126,9 @@ function filterMessagesByCategory(messages, message, category) {
     return false;
   });
   
-  // Filter user messages related to the category
-  const userMessages = messages.filter(msg => {
-    // Skip messages from the bot
-    if (msg.author.id !== message.author.id) return false;
-    
-    // Skip very recent messages (less than 1 minute old)
-    if (msg.createdTimestamp > now - (60 * 1000)) return false;
-    
-    // For "all" category, include all user commands to the bot
-    if (category === 'all') {
-      return msg.content?.startsWith(botPrefix);
-    }
-    
-    // Check if the message matches the category command patterns
-    const categoryCommands = messageCategories[category]?.userCommands || [];
-    if (categoryCommands.length > 0) {
-      return categoryCommands.some(command => msg.content?.includes(command));
-    }
-    
-    return false;
-  });
-  
-  // Combine the two collections
-  return new Map([...botMessages, ...userMessages]);
+  // Note: We can't delete user messages in DMs due to Discord API limitations
+  // Only return bot messages that the bot can delete
+  return botMessages;
 }
 
 /**
