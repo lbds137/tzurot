@@ -151,8 +151,9 @@ describe('Auth Middleware', () => {
     
     const result = await authMiddleware(webhookMessage, 'auth', ['start']);
     
-    // Since auth.hasValidToken is false by default, should fail
-    expect(result.authenticated).toBe(false);
+    // Auth commands don't need auth, so result will be authenticated=true
+    // but the shouldBypassNsfwVerification path should not be triggered
+    expect(result.authenticated).toBe(true);
     expect(logger.info).not.toHaveBeenCalledWith(
       expect.stringContaining('Auth bypass enabled for webhook command: auth')
     );
