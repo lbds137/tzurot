@@ -56,10 +56,10 @@ describe('Error Messages Filtering Functionality', () => {
     const mockClient = new Client();
     mockClient.emit = originalEmit;
     
-    // Test a mock message with an error pattern
+    // Test a mock message with an error pattern that matches one in the constants
     const mockErrorMessage = {
       webhookId: 'webhook-123',
-      content: 'An error occurred while processing your request',
+      content: 'I cannot access the information due to a technical issue',
       deletable: true,
       delete: jest.fn().mockResolvedValue(undefined)
     };
