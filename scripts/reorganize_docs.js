@@ -433,16 +433,25 @@ This project follows a consistent coding style. Here are the key guidelines:
 }
 
 /**
- * Copy file to new location
+ * Move file to new location
  * @param {string} sourceFile - Source file path
  * @param {string} targetFile - Target file path
  */
-async function copyDocFile(sourceFile, targetFile) {
+async function moveDocFile(sourceFile, targetFile) {
   try {
+    // First ensure the target directory exists
+    const targetDir = path.dirname(targetFile);
+    await mkdir(targetDir, { recursive: true });
+    
+    // Copy the file to its new location
     await copyFile(sourceFile, targetFile);
-    console.log(`Copied: ${sourceFile} -> ${targetFile}`);
+    
+    // Delete the original file
+    fs.unlinkSync(sourceFile);
+    
+    console.log(`Moved: ${sourceFile} -> ${targetFile}`);
   } catch (error) {
-    console.error(`Error copying ${sourceFile} to ${targetFile}:`, error.message);
+    console.error(`Error moving ${sourceFile} to ${targetFile}:`, error.message);
   }
 }
 
@@ -455,14 +464,26 @@ async function moveFiles() {
   const files = await readdir(DOCS_DIR);
   const mdFiles = files.filter(file => file.endsWith('.md'));
   
+  // Keep track of files we'll need to process specially
+  const specialFiles = [
+    'DOCUMENTATION_ORGANIZATION_PROPOSAL.md', // Organization proposal should be moved to improvements
+    'CODE_IMPROVEMENT_OPPORTUNITIES.md', // This should be moved last
+    'README.md' // We'll handle the root README.md separately
+  ];
+  
+  // Count of files moved
+  let movedCount = 0;
+  let skippedCount = 0;
+  
   // Process each file
   for (const file of mdFiles) {
-    const sourcePath = path.join(DOCS_DIR, file);
-    
-    // Skip this proposal document itself
-    if (file === 'DOCUMENTATION_ORGANIZATION_PROPOSAL.md') {
+    // Skip special files for now - we'll handle them later
+    if (specialFiles.includes(file)) {
+      console.log(`Skipping special file for now: ${file}`);
       continue;
     }
+    
+    const sourcePath = path.join(DOCS_DIR, file);
     
     // Get the category
     const content = await readFile(sourcePath, 'utf8');
@@ -470,6 +491,7 @@ async function moveFiles() {
     
     if (category === 'unsorted') {
       console.log(`Skipping unsorted file: ${file}`);
+      skippedCount++;
       continue;
     }
     
@@ -483,9 +505,66 @@ async function moveFiles() {
       targetPath = path.join(DOCS_DIR, category, file);
     }
     
-    // Copy the file to the new location
-    await copyDocFile(sourcePath, targetPath);
+    // Move the file to the new location
+    await moveDocFile(sourcePath, targetPath);
+    movedCount++;
   }
+  
+  // Handle the special files
+  console.log('\nHandling special files:');
+  
+  // Move the documentation organization proposal
+  if (files.includes('DOCUMENTATION_ORGANIZATION_PROPOSAL.md')) {
+    const sourcePath = path.join(DOCS_DIR, 'DOCUMENTATION_ORGANIZATION_PROPOSAL.md');
+    const targetPath = path.join(DOCS_DIR, 'improvements', 'DOCUMENTATION_ORGANIZATION_PROPOSAL.md');
+    await moveDocFile(sourcePath, targetPath);
+    movedCount++;
+  }
+  
+  // Move CODE_IMPROVEMENT_OPPORTUNITIES.md
+  if (files.includes('CODE_IMPROVEMENT_OPPORTUNITIES.md')) {
+    const sourcePath = path.join(DOCS_DIR, 'CODE_IMPROVEMENT_OPPORTUNITIES.md');
+    const targetPath = path.join(DOCS_DIR, 'improvements', 'CODE_IMPROVEMENT_OPPORTUNITIES.md');
+    await moveDocFile(sourcePath, targetPath);
+    movedCount++;
+  }
+  
+  // Create README.md that points to the new structure
+  const readmePath = path.join(DOCS_DIR, 'README.md');
+  const readmeContent = `# Documentation
+
+This directory contains documentation for the Tzurot project. The documentation is organized into the following categories:
+
+## Core Documentation
+- [Architecture](core/ARCHITECTURE.md) - Overall system architecture
+- [Setup](core/SETUP.md) - Development environment setup
+- [Contributing](core/CONTRIBUTING.md) - Contribution guidelines
+- [Coding Standards](core/CODING_STANDARDS.md) - Code style and patterns
+- [Security](core/SECURITY.md) - Security practices
+- [Deployment](core/DEPLOYMENT.md) - Deployment procedures
+
+## Component Documentation
+- [Component Details](components/) - Documentation for specific components
+
+## Testing Documentation
+- [Testing Information](testing/) - Testing approaches and guidelines
+
+## Historical Records
+- [Command System](history/command/) - Command system development history
+- [Webhook System](history/webhook/) - Webhook system development history
+- [Authentication](history/auth/) - Authentication-related development history
+- [Deduplication](history/deduplication/) - Message deduplication development history
+
+## Improvement Proposals
+- [Code Improvements](improvements/) - Code improvement opportunities and proposals
+
+For more information on the documentation organization, see [Documentation Organization Proposal](improvements/DOCUMENTATION_ORGANIZATION_PROPOSAL.md).
+`;
+
+  await writeFile(readmePath, readmeContent, 'utf8');
+  console.log(`Created main README.md with navigation links`);
+  
+  console.log(`\nMoved ${movedCount} files, skipped ${skippedCount} files.`);
 }
 
 /**
