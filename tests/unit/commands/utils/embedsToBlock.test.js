@@ -1,19 +1,13 @@
-// Test for error filtering functionality
-
+// Mock dependencies before requiring the module
 jest.mock('discord.js');
-jest.mock('../../config');
-jest.mock('../../src/logger');
+jest.mock('../../../../config');
+jest.mock('../../../../src/logger');
 
 // Import the constants file that contains error messages
-const { ERROR_MESSAGES } = require('../../src/constants');
-const logger = require('../../src/logger');
+const { ERROR_MESSAGES } = require('../../../../src/constants');
+const logger = require('../../../../src/logger');
 
-// Mock console methods to reduce noise
-global.console.log = jest.fn();
-global.console.warn = jest.fn();
-global.console.error = jest.fn();
-
-describe('Error filtering functionality', () => {
+describe('Error Messages Filtering Functionality', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -62,39 +56,10 @@ describe('Error filtering functionality', () => {
     const mockClient = new Client();
     mockClient.emit = originalEmit;
     
-    // Manually call the patching code from src/bot.js
-    // This simulates what happens in the bot.js initialization
-    const errorFilteringCode = `
-      // Override the emit function to intercept webhook messages
-      client.emit = function (event, ...args) {
-        // Only intercept messageCreate events from webhooks
-        if (event === 'messageCreate') {
-          const message = args[0];
-          
-          // Filter webhook messages with error content
-          if (message.webhookId && message.content) {
-            // Check if message contains any error patterns
-            if (ERROR_MESSAGES.some(pattern => message.content.includes(pattern))) {
-              // Try to delete the message if possible (silent fail)
-              if (message.deletable) {
-                message.delete().catch(() => {});
-              }
-              
-              // Block this event from being processed
-              return false;
-            }
-          }
-        }
-        
-        // For all other events, process normally
-        return originalEmit.apply(this, [event, ...args]);
-      };
-    `;
-    
-    // Test a mock message with an error pattern
+    // Test a mock message with an error pattern that matches one in the constants
     const mockErrorMessage = {
       webhookId: 'webhook-123',
-      content: 'An error occurred while processing your request',
+      content: 'I cannot access the information due to a technical issue',
       deletable: true,
       delete: jest.fn().mockResolvedValue(undefined)
     };

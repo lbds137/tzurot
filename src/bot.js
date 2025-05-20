@@ -13,7 +13,8 @@ const {
   getPersonalityFromMessage,
   getActivatedPersonality,
 } = require('./conversationManager');
-const { processCommand } = require('./commands');
+// Load the command system
+const { processCommand } = require('./commandLoader');
 const { botPrefix } = require('../config');
 const logger = require('./logger');
 const { MARKERS, ERROR_MESSAGES } = require('./constants');

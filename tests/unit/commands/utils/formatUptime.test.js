@@ -1,17 +1,15 @@
-// Test for formatUptime functionality
-
+// Mock dependencies before requiring the module
 jest.mock('discord.js');
-jest.mock('../../config');
+jest.mock('../../../../config');
 
 // Import the embedHelpers module that contains formatUptime
-const { formatUptime } = require('../../src/embedHelpers');
+const { formatUptime } = require('../../../../src/embedHelpers');
 
-// Mock console methods to reduce noise
-global.console.log = jest.fn();
-global.console.warn = jest.fn();
-global.console.error = jest.fn();
+describe('Uptime Formatting Utility', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
 
-describe('Uptime formatting functionality', () => {
   test('correctly formats 0ms uptime', () => {
     const result = formatUptime(0);
     expect(result).toBe('0d 0h 0m 0s');

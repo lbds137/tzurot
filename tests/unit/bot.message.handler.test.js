@@ -27,8 +27,8 @@ jest.mock('../../src/conversationManager', () => ({
   getActivatedPersonality: jest.fn()
 }));
 
-// Mock the commands module
-jest.mock('../../src/commands', () => ({
+// Mock the commandLoader module - this is updated from commands to commandLoader
+jest.mock('../../src/commandLoader', () => ({
   processCommand: jest.fn().mockResolvedValue({
     success: true,
     message: 'Command processed successfully'
@@ -47,6 +47,14 @@ jest.mock('../../config', () => ({
   botPrefix: '!tz'
 }));
 
+// Mock the logger module
+jest.mock('../../src/logger', () => ({
+  info: jest.fn(),
+  debug: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn()
+}));
+
 // Extract the message handling logic from bot.js
 function createMessageHandler() {
   // Create a mock for recording which functions were called
@@ -63,9 +71,10 @@ function createMessageHandler() {
     aiService: require('../../src/aiService'),
     webhookManager: require('../../src/webhookManager'),
     conversationManager: require('../../src/conversationManager'),
-    commands: require('../../src/commands'),
+    commandLoader: require('../../src/commandLoader'),
     personalityManager: require('../../src/personalityManager'),
-    config: require('../../config')
+    config: require('../../config'),
+    logger: require('../../src/logger')
   };
   
   // Simulate the message handler function
@@ -85,7 +94,17 @@ function createMessageHandler() {
     // Process commands (messages starting with the prefix)
     if (message.content.startsWith(deps.config.botPrefix)) {
       tracking.commandProcessed = true;
-      return await deps.commands.processCommand(message);
+      
+      // Parse the command and arguments
+      const content = message.content.startsWith(deps.config.botPrefix + ' ')
+        ? message.content.slice(deps.config.botPrefix.length + 1)
+        : '';
+      
+      const args = content.trim().split(/ +/);
+      const command = args.shift()?.toLowerCase() || 'help';
+      
+      // Process the command through the command loader
+      return await deps.commandLoader.processCommand(message, command, args);
     }
     
     // Get the active personality for this user and channel
@@ -196,7 +215,7 @@ describe('Bot Message Handler', () => {
     
     // Verify command processing was attempted
     expect(tracking.commandProcessed).toBe(true);
-    expect(deps.commands.processCommand).toHaveBeenCalledWith(message);
+    expect(deps.commandLoader.processCommand).toHaveBeenCalledWith(message, 'help', []);
     
     // Verify AI response was not generated
     expect(tracking.aiResponseGenerated).toBe(false);
@@ -386,5 +405,30 @@ describe('Bot Message Handler', () => {
     expect(deps.aiService.getAiResponse).not.toHaveBeenCalled();
     expect(tracking.webhookMessageSent).toBe(false);
     expect(deps.webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
+  });
+  
+  it('should parse command with prefix and space correctly', async () => {
+    const { handleMessage, tracking, deps } = createMessageHandler();
+    
+    // Create a mock message with command prefix and space
+    const message = {
+      id: 'mock-message-id',
+      author: {
+        id: 'mock-user-id',
+        username: 'MockUser',
+        bot: false
+      },
+      content: '!tz list 2',
+      channel: {
+        id: 'mock-channel-id',
+        send: jest.fn().mockResolvedValue({ id: 'response-id' })
+      }
+    };
+    
+    // Process the message
+    await handleMessage(message);
+    
+    // Verify command was parsed correctly
+    expect(deps.commandLoader.processCommand).toHaveBeenCalledWith(message, 'list', ['2']);
   });
 });

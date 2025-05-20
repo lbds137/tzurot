@@ -234,6 +234,71 @@ function createPersonalityListEmbed(userId, page = 1) {
 }
 
 /**
+ * Creates an embed listing personalities on a single page
+ * @param {Array<Object>} personalities - Array of personality objects for the current page
+ * @param {number} page - Current page number
+ * @param {number} totalPages - Total number of pages
+ * @param {Object} author - Message author object
+ * @returns {EmbedBuilder} Discord embed
+ */
+function createListEmbed(personalities, page, totalPages, author) {
+  try {
+    // Create the embed
+    const embed = new EmbedBuilder()
+      .setTitle(`Your Personalities (Page ${page}/${totalPages})`)
+      .setDescription(`You have ${personalities.length} personalities on this page`)
+      .setColor('#5865F2')
+      .setFooter({ text: `Page ${page} of ${totalPages}` });
+
+    // Add personalities to the embed
+    personalities.forEach(p => {
+      // Default fallback for fullName if missing
+      const fullName = p.fullName || 'unknown';
+      const displayName = p.displayName || fullName;
+
+      // Ensure all values are valid strings for Discord.js
+      const safeDisplayName = displayName ? String(displayName) : 'Unknown';
+      const safeFullName = fullName ? String(fullName) : 'unknown';
+
+      embed.addFields({
+        name: safeDisplayName,
+        value: `ID: \`${safeFullName}\``,
+      });
+    });
+
+    // Add navigation instructions
+    if (totalPages > 1) {
+      let navigationText = '';
+      
+      if (page < totalPages) {
+        navigationText += `Use \`!tz list ${page + 1}\` to see the next page\n`;
+      }
+      
+      if (page > 1) {
+        navigationText += `Use \`!tz list ${page - 1}\` to see the previous page`;
+      }
+      
+      if (navigationText) {
+        embed.addFields({
+          name: 'Navigation',
+          value: navigationText,
+        });
+      }
+    }
+
+    return embed;
+  } catch (error) {
+    console.error(`[EmbedHelpers] Error creating list embed: ${error.message}`, error);
+    
+    // Return a basic error embed
+    return new EmbedBuilder()
+      .setTitle('Error')
+      .setDescription('Sorry, there was a problem displaying your personalities. Please try again later.')
+      .setColor('#FF0000');
+  }
+}
+
+/**
  * Creates an embed with detailed personality information
  * @param {Object} personality - Personality object
  * @param {Array<string>} aliases - Array of aliases for the personality
@@ -401,6 +466,7 @@ function formatUptime(ms) {
 module.exports = {
   createPersonalityAddedEmbed,
   createPersonalityListEmbed,
+  createListEmbed,
   createPersonalityInfoEmbed,
   createStatusEmbed,
   createHelpEmbed,
