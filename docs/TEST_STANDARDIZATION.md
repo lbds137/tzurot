@@ -385,6 +385,11 @@ With our recent additions, we have standardized tests for all command handlers i
 15. status.js
 16. verify.js
 
+Additionally, we have created standardized tests for all middleware components:
+1. auth.js - Tests authentication middleware
+2. deduplication.js - Tests command deduplication middleware
+3. permissions.js - Tests permission checking middleware
+
 ### Key Learnings from Activate Test
 
 When working with the `activate.test.js` standardization, we discovered some important patterns:
