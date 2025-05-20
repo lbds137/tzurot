@@ -57,19 +57,36 @@ const preserveKeywords = [
  * @returns {boolean} True if the message appears to be from a personality
  */
 function isPersonalityMessage(msg) {
-  // If message has a specific personality webhook username format
-  if (msg.author && msg.author.username) {
-    // Check if this message username matches any personality
-    const allPersonalities = personalityManager.listPersonalitiesForUser(); // Gets all personalities when no userId is provided
-    const personalityNames = allPersonalities.map(p => p.displayName || p.fullName);
-    
-    // Check if message author matches a personality name
-    return personalityNames.some(name => 
-      msg.author.username.includes(name)
-    );
+  // For DM channels, personalities have message content starting with a name pattern like **Name:**
+  if (msg.content) {
+    // Look for **Name:** pattern which is the standard format for personality messages in DMs
+    if (msg.content.match(/^\*\*[^*]+:\*\*/)) {
+      return true;
+    }
   }
   
-  // Check message content for typical personality-related phrases
+  // Also check for webhooks which are used in guild channels
+  if (msg.webhookId) {
+    return true;
+  }
+  
+  // If message has personality name in username (for webhooks in guild channels)
+  if (msg.author && msg.author.username) {
+    try {
+      // Check if this message username matches any personality
+      const allPersonalities = personalityManager.listPersonalitiesForUser();
+      const personalityNames = allPersonalities.map(p => p.displayName || p.fullName);
+      
+      // Check if message author matches a personality name
+      return personalityNames.some(name => 
+        msg.author.username.includes(name)
+      );
+    } catch (error) {
+      logger.warn(`[PurgBot] Error checking personality names: ${error.message}`);
+    }
+  }
+  
+  // Check simple content patterns
   const personalityPhrases = [
     'Thinking...',
     'is typing',
