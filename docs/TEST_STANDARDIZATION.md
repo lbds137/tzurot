@@ -356,6 +356,34 @@ So far, we have successfully standardized the following tests:
 8. deactivate.test.js
 9. alias.test.js
 10. remove.test.js
+11. utils/embedsToBlock.test.js
+12. utils/formatUptime.test.js
+13. utils/messageTracker.test.js
+14. status.test.js
+15. autorespond.test.js
+16. debug.test.js
+17. verify.test.js
+18. reset.test.js
+19. info.test.js
+20. clearerrors.test.js
+
+With our recent additions, we have standardized tests for all command handlers in the `src/commands/handlers/` directory:
+1. add.js
+2. alias.js
+3. auth.js
+4. activate.js
+5. autorespond.js
+6. clearerrors.js
+7. deactivate.js
+8. debug.js
+9. help.js
+10. info.js
+11. list.js
+12. ping.js
+13. remove.js
+14. reset.js
+15. status.js
+16. verify.js
 
 ### Key Learnings from Activate Test
 
@@ -446,4 +474,95 @@ When standardizing the `alias.test.js` file, we discovered another important pat
 
 This approach creates tests that are less brittle and more focused on behavior, allowing for refactoring and implementation changes without breaking tests.
 
+### Key Learnings from MessageTracker Test
+
+When standardizing the `messageTracker.test.js` file, we discovered additional important patterns:
+
+1. **Using the Real Implementation**: Instead of creating a mock implementation of the module being tested, it's better to import the actual module and test its behavior:
+   ```javascript
+   // Don't use a mock object like this
+   const messageTracker = {
+     // Custom mock implementation
+   };
+
+   // Instead, import the actual implementation
+   const messageTracker = require('../../../../src/commands/utils/messageTracker');
+   ```
+
+2. **Testing Interface Stability**: Tests should focus on the behavior of the public interface, not implementation details:
+   ```javascript
+   // Instead of testing internal data structures:
+   expect(messageTracker.lastCommandTime['user-123-test-command']).toBe(1000);
+   
+   // Test observable behavior through the public API:
+   const firstCall = messageTracker.isRecentCommand('user-123', 'test-command', []);
+   expect(firstCall).toBe(false);
+   
+   const secondCall = messageTracker.isRecentCommand('user-123', 'test-command', []);
+   expect(secondCall).toBe(true);
+   ```
+
+These patterns make tests more resilient to implementation changes and focus on validating that the public API works as expected regardless of how it's implemented internally.
+
 More tests will be standardized following the patterns established here.
+
+## Simulated Tests
+
+In addition to standard unit tests, we've implemented simulated tests to validate specific logic without executing the actual code path. These tests are particularly useful for:
+
+1. Testing complex deduplication logic
+2. Validating rate limiting without time delays
+3. Testing registry-based tracking mechanisms
+4. Simulating race conditions and edge cases
+
+### Key Simulated Test Files
+
+- `tests/unit/commands/utils/simulated.test.js` - Tests for command deduplication and rate limiting
+- `tests/unit/commands.simulated.test.js` - Legacy simulated tests (being migrated)
+
+### Simulated Test Patterns
+
+1. **Mocking Time-Based Operations**:
+   ```javascript
+   // Set global.lastEmbedTime to a recent timestamp
+   const now = Date.now();
+   global.lastEmbedTime = now - 1000; // 1 second ago
+   
+   // Verify that we are rate limited
+   expect(isRateLimited()).toBe(true);
+   
+   // Simulate waiting 6 seconds
+   global.lastEmbedTime = now - 6000; // 6 seconds ago
+   
+   // Verify that we are no longer rate limited
+   expect(isRateLimited()).toBe(false);
+   ```
+
+2. **Testing Global State Management**:
+   ```javascript
+   // Reset global state before each test
+   beforeEach(() => {
+     global.lastEmbedTime = 0;
+     global.addRequestRegistry = new Map();
+   });
+   
+   // Test global registry operations
+   const messageKey = `add-msg-${message.id}-${args.join('-')}`;
+   global.addRequestRegistry.set(messageKey, { /* state */ });
+   expect(global.addRequestRegistry.has(messageKey)).toBe(true);
+   ```
+
+3. **Testing Callback Batching**:
+   ```javascript
+   // Use spies to verify batched operations
+   const setAliasSpy = jest.spyOn(personalityManager, 'setPersonalityAlias');
+   const saveAllSpy = jest.spyOn(personalityManager, 'saveAllPersonalities');
+   
+   await simulatedFunction();
+   
+   // Verify the batching pattern
+   expect(setAliasSpy).toHaveBeenCalledTimes(2);
+   expect(saveAllSpy).toHaveBeenCalledTimes(1);
+   ```
+
+For more details on simulated tests, refer to the [SIMULATED_TESTS_SUMMARY.md](./SIMULATED_TESTS_SUMMARY.md) document.

@@ -1,6 +1,12 @@
 # tzurot
 A Discord bot that uses webhooks to represent multiple AI personalities
 
+## Documentation
+
+- [Test Standardization](docs/TEST_STANDARDIZATION.md) - Guidelines for standardizing tests
+- [Simulated Tests](docs/SIMULATED_TESTS_SUMMARY.md) - Details on simulated test patterns
+- [Manual Testing Procedure](docs/MANUAL_TESTING_PROCEDURE.md) - Guide for manual testing
+
 ## Configuration
 
 ### Environment Variables
