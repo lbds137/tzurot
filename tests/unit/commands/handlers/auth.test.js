@@ -20,6 +20,10 @@ jest.mock('../../../../src/auth', () => ({
   isNsfwVerified: jest.fn(),
   deleteUserToken: jest.fn(),
   initAuth: jest.fn(),
+  cleanupExpiredTokens: jest.fn(),
+  getTokenAge: jest.fn(),
+  getTokenExpirationInfo: jest.fn(),
+  TOKEN_EXPIRATION_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
   APP_ID: 'mock-app-id',
   API_KEY: 'mock-api-key'
 }));
@@ -103,7 +107,7 @@ describe('Auth Command', () => {
     expect(authCommand.meta).toEqual({
       name: 'auth',
       description: expect.any(String),
-      usage: expect.any(String),
+      usage: expect.stringContaining('auth <start|code|status|revoke|cleanup>'),
       aliases: expect.any(Array),
       permissions: expect.any(Array)
     });
@@ -223,6 +227,40 @@ describe('Auth Command', () => {
       expect(mockMessage.channel.send).toHaveBeenCalled();
       expect(mockMessage.channel.send.mock.calls[0][0]).toContain('don\'t have an authorization token');
     });
+    
+    it('should show token age and expiration info when available', async () => {
+      auth.hasValidToken.mockReturnValueOnce(true);
+      auth.getTokenAge.mockReturnValueOnce(15); // 15 days old
+      auth.getTokenExpirationInfo.mockReturnValueOnce({
+        daysUntilExpiration: 15,
+        percentRemaining: 50
+      });
+      
+      await authCommand.execute(mockMessage, ['status']);
+      
+      expect(auth.getTokenAge).toHaveBeenCalledWith(mockMessage.author.id);
+      expect(auth.getTokenExpirationInfo).toHaveBeenCalledWith(mockMessage.author.id);
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Token Details');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('15 days ago');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('15 days');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('50%');
+    });
+    
+    it('should show expiration warning when token is about to expire', async () => {
+      auth.hasValidToken.mockReturnValueOnce(true);
+      auth.getTokenAge.mockReturnValueOnce(27); // 27 days old
+      auth.getTokenExpirationInfo.mockReturnValueOnce({
+        daysUntilExpiration: 3, // Only 3 days left (less than 7)
+        percentRemaining: 10
+      });
+      
+      await authCommand.execute(mockMessage, ['status']);
+      
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('will expire soon');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('re-authenticate');
+    });
   });
   
   describe('auth revoke subcommand', () => {
@@ -242,6 +280,54 @@ describe('Auth Command', () => {
       expect(auth.deleteUserToken).toHaveBeenCalledWith(mockMessage.author.id);
       expect(mockMessage.channel.send).toHaveBeenCalled();
       expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Failed to revoke authorization');
+    });
+  });
+  
+  describe('auth cleanup subcommand', () => {
+    it('should reject cleanup for non-admin users', async () => {
+      validator.isAdmin = jest.fn().mockReturnValueOnce(false);
+      
+      await authCommand.execute(mockMessage, ['cleanup']);
+      
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('can only be used by server administrators');
+      expect(auth.cleanupExpiredTokens).not.toHaveBeenCalled();
+    });
+    
+    it('should allow cleanup for admin users', async () => {
+      // Make the user an admin
+      mockMessage.member.permissions.has = jest.fn().mockReturnValueOnce(true);
+      auth.cleanupExpiredTokens.mockResolvedValueOnce(2); // 2 tokens removed
+      
+      await authCommand.execute(mockMessage, ['cleanup']);
+      
+      expect(auth.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Removed 2 expired tokens');
+    });
+    
+    it('should handle case when no expired tokens are found', async () => {
+      // Make the user an admin
+      mockMessage.member.permissions.has = jest.fn().mockReturnValueOnce(true);
+      auth.cleanupExpiredTokens.mockResolvedValueOnce(0); // No tokens removed
+      
+      await authCommand.execute(mockMessage, ['cleanup']);
+      
+      expect(auth.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('No expired tokens were found');
+    });
+    
+    it('should handle cleanup errors', async () => {
+      // Make the user an admin
+      mockMessage.member.permissions.has = jest.fn().mockReturnValueOnce(true);
+      auth.cleanupExpiredTokens.mockRejectedValueOnce(new Error('Database error'));
+      
+      await authCommand.execute(mockMessage, ['cleanup']);
+      
+      expect(auth.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('An error occurred during cleanup');
     });
   });
   

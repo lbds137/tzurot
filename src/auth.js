@@ -33,6 +33,9 @@ let userTokens = {};
 // In-memory cache of NSFW verification status
 let nsfwVerified = {};
 
+// Token expiration time in milliseconds (default: 30 days)
+const TOKEN_EXPIRATION_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Generate the authorization URL for a user
  * 
@@ -94,7 +97,8 @@ async function storeUserToken(userId, token) {
     // Add the new token
     userTokens[userId] = {
       token: token,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      expiresAt: Date.now() + TOKEN_EXPIRATION_MS
     };
 
     // Save all tokens
@@ -120,6 +124,24 @@ async function loadUserTokens() {
       const data = await fs.readFile(AUTH_TOKENS_FILE, 'utf8');
       userTokens = JSON.parse(data);
       logger.info(`[Auth] Loaded ${Object.keys(userTokens).length} user tokens`);
+      
+      // Update tokens with missing expiration dates
+      let needsUpdate = false;
+      Object.keys(userTokens).forEach(userId => {
+        const tokenData = userTokens[userId];
+        if (tokenData.createdAt && !tokenData.expiresAt) {
+          tokenData.expiresAt = tokenData.createdAt + TOKEN_EXPIRATION_MS;
+          needsUpdate = true;
+        }
+      });
+      
+      if (needsUpdate) {
+        await fs.writeFile(AUTH_TOKENS_FILE, JSON.stringify(userTokens, null, 2));
+        logger.info(`[Auth] Updated token expiration dates for existing tokens`);
+      }
+      
+      // Clean up expired tokens on load
+      await cleanupExpiredTokens();
     } catch (readError) {
       if (readError.code === 'ENOENT') {
         // File doesn't exist yet, start with empty object
@@ -158,7 +180,19 @@ function getUserToken(userId) {
  * @returns {boolean} Whether the user has a valid token
  */
 function hasValidToken(userId) {
-  return !!getUserToken(userId);
+  const tokenData = userTokens[userId];
+  
+  if (!tokenData) {
+    return false;
+  }
+  
+  // Check if token is expired
+  if (tokenData.expiresAt && Date.now() > tokenData.expiresAt) {
+    logger.info(`[Auth] Token for user ${userId} has expired`);
+    return false;
+  }
+  
+  return !!tokenData.token;
 }
 
 /**
@@ -260,10 +294,91 @@ function isNsfwVerified(userId) {
  * 
  * @returns {Promise<void>}
  */
+/**
+ * Clean up expired tokens
+ * 
+ * @returns {Promise<number>} The number of tokens removed
+ */
+async function cleanupExpiredTokens() {
+  try {
+    const now = Date.now();
+    const expiredUserIds = Object.keys(userTokens).filter(userId => {
+      const tokenData = userTokens[userId];
+      return tokenData.expiresAt && now > tokenData.expiresAt;
+    });
+    
+    if (expiredUserIds.length === 0) {
+      logger.debug(`[Auth] No expired tokens found during cleanup`);
+      return 0;
+    }
+    
+    // Remove expired tokens
+    expiredUserIds.forEach(userId => {
+      delete userTokens[userId];
+    });
+    
+    // Save the updated tokens
+    await fs.writeFile(AUTH_TOKENS_FILE, JSON.stringify(userTokens, null, 2));
+    logger.info(`[Auth] Cleaned up ${expiredUserIds.length} expired tokens`);
+    
+    return expiredUserIds.length;
+  } catch (error) {
+    logger.error(`[Auth] Error cleaning up expired tokens:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Get token age in days
+ * 
+ * @param {string} userId - The Discord user ID
+ * @returns {number|null} Token age in days or null if no token exists
+ */
+function getTokenAge(userId) {
+  const tokenData = userTokens[userId];
+  if (!tokenData || !tokenData.createdAt) {
+    return null;
+  }
+  
+  const ageMs = Date.now() - tokenData.createdAt;
+  return Math.floor(ageMs / (24 * 60 * 60 * 1000));
+}
+
+/**
+ * Get token expiration info
+ * 
+ * @param {string} userId - The Discord user ID
+ * @returns {Object|null} Object with daysUntilExpiration and percentRemaining or null if no token
+ */
+function getTokenExpirationInfo(userId) {
+  const tokenData = userTokens[userId];
+  if (!tokenData || !tokenData.expiresAt) {
+    return null;
+  }
+  
+  const timeLeftMs = tokenData.expiresAt - Date.now();
+  const daysLeft = Math.max(0, Math.floor(timeLeftMs / (24 * 60 * 60 * 1000)));
+  const totalLifespanMs = TOKEN_EXPIRATION_MS;
+  const percentRemaining = Math.max(0, Math.floor((timeLeftMs / totalLifespanMs) * 100));
+  
+  return {
+    daysUntilExpiration: daysLeft,
+    percentRemaining: percentRemaining
+  };
+}
+
 async function initAuth() {
   logger.info(`[Auth] Initializing auth system with app ID: ${APP_ID}`);
   await loadUserTokens();
   await loadNsfwVerifications();
+  
+  // Schedule periodic cleanup of expired tokens (every 24 hours)
+  setInterval(async () => {
+    const removedCount = await cleanupExpiredTokens();
+    if (removedCount > 0) {
+      logger.info(`[Auth] Scheduled cleanup removed ${removedCount} expired tokens`);
+    }
+  }, 24 * 60 * 60 * 1000);
 }
 
 module.exports = {
@@ -276,6 +391,10 @@ module.exports = {
   deleteUserToken,
   storeNsfwVerification,
   isNsfwVerified,
+  cleanupExpiredTokens,
+  getTokenAge,
+  getTokenExpirationInfo,
+  TOKEN_EXPIRATION_MS,
   APP_ID,
   API_KEY
 };

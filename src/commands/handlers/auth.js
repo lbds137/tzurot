@@ -14,7 +14,7 @@ const { botPrefix } = require('../../../config');
 const meta = {
   name: 'auth',
   description: 'Authenticate with the AI service',
-  usage: 'auth <start|code|status|revoke>',
+  usage: 'auth <start|code|status|revoke|cleanup>',
   aliases: [],
   permissions: []
 };
@@ -152,7 +152,26 @@ async function handleStatus(message) {
   const hasToken = auth.hasValidToken(message.author.id);
   
   if (hasToken) {
-    return await directSend('✅ You have a valid authorization token. The bot is using your account for AI interactions.');
+    // Get token age and expiration info
+    const tokenAge = auth.getTokenAge(message.author.id);
+    const expirationInfo = auth.getTokenExpirationInfo(message.author.id);
+    
+    let statusMessage = '✅ You have a valid authorization token. The bot is using your account for AI interactions.';
+    
+    // Add token age and expiration info if available
+    if (tokenAge !== null && expirationInfo) {
+      statusMessage += `\n\n**Token Details:**\n`;
+      statusMessage += `- Created: ${tokenAge} day${tokenAge !== 1 ? 's' : ''} ago\n`;
+      statusMessage += `- Expires in: ${expirationInfo.daysUntilExpiration} day${expirationInfo.daysUntilExpiration !== 1 ? 's' : ''}\n`;
+      statusMessage += `- Time remaining: ${expirationInfo.percentRemaining}%`;
+      
+      // Add warning if token is expiring soon (less than 7 days)
+      if (expirationInfo.daysUntilExpiration < 7) {
+        statusMessage += `\n\n⚠️ **Your token will expire soon.** When it expires, you'll need to re-authenticate. Use \`${botPrefix} auth revoke\` and then \`${botPrefix} auth start\` to renew your token.`;
+      }
+    }
+    
+    return await directSend(statusMessage);
   } else {
     return await directSend(
       `❌ You don't have an authorization token. Use \`${botPrefix} auth start\` to begin the authorization process.`
@@ -175,6 +194,37 @@ async function handleRevoke(message) {
     return await directSend('✅ Your authorization has been revoked. The bot will no longer use your personal account.');
   } else {
     return await directSend('❌ Failed to revoke authorization. Please try again later.');
+  }
+}
+
+/**
+ * Handle auth cleanup subcommand (admin only)
+ * @param {Object} message - Discord message
+ * @returns {Promise<Object>} Command result
+ */
+async function handleCleanup(message) {
+  const directSend = validator.createDirectSend(message);
+  
+  // Check if the user is an admin or bot owner
+  const isAdmin = message.member && message.member.permissions.has('ADMINISTRATOR');
+  const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
+  
+  if (!isAdmin && !isBotOwner) {
+    return await directSend('❌ This command can only be used by server administrators or the bot owner.');
+  }
+  
+  try {
+    // Run the cleanup
+    const removedCount = await auth.cleanupExpiredTokens();
+    
+    if (removedCount > 0) {
+      return await directSend(`✅ Cleanup complete. Removed ${removedCount} expired token${removedCount === 1 ? '' : 's'}.`);
+    } else {
+      return await directSend('✅ Cleanup complete. No expired tokens were found.');
+    }
+  } catch (error) {
+    logger.error(`[Auth] Error during manual cleanup: ${error.message}`);
+    return await directSend(`❌ An error occurred during cleanup: ${error.message}`);
   }
 }
 
@@ -204,14 +254,24 @@ async function execute(message, args) {
   
   // Check if the user provided a subcommand
   if (args.length < 1) {
-    return await directSend(
-      `**Authentication Commands**\n\n` +
+    // Create standard help text for all users
+    let helpText = `**Authentication Commands**\n\n` +
       `- \`${botPrefix} auth start\` - Begin the authentication process\n` +
       `- \`${botPrefix} auth code <code>\` - Submit your authorization code (DM only)\n` +
       `- \`${botPrefix} auth status\` - Check your authentication status\n` +
       `- \`${botPrefix} auth revoke\` - Revoke your authorization\n\n` +
-      `For security, authorization codes should only be submitted via DM.`
-    );
+      `For security, authorization codes should only be submitted via DM.`;
+    
+    // Check if user is admin or bot owner for additional commands
+    const isAdmin = message.member && message.member.permissions.has('ADMINISTRATOR');
+    const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
+    
+    if (isAdmin || isBotOwner) {
+      helpText += `\n\n**Admin Commands:**\n` +
+        `- \`${botPrefix} auth cleanup\` - Clean up expired tokens`;
+    }
+    
+    return await directSend(helpText);
   }
   
   const subCommand = args[0].toLowerCase();
@@ -229,6 +289,9 @@ async function execute(message, args) {
       
     case 'revoke':
       return await handleRevoke(message);
+      
+    case 'cleanup':
+      return await handleCleanup(message);
       
     default:
       return await directSend(
