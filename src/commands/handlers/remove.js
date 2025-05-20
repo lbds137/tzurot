@@ -5,6 +5,7 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
+const messageTracker = require('../utils/messageTracker');
 const {
   getPersonality,
   getPersonalityByAlias,
@@ -48,7 +49,7 @@ async function execute(message, args) {
     let personality = null;
     
     // First check if this is an alias
-    personality = getPersonalityByAlias(message.author.id, personalityName);
+    personality = getPersonalityByAlias(personalityName);
     
     // If not found by alias, try the direct name
     if (!personality) {
@@ -61,11 +62,28 @@ async function execute(message, args) {
       );
     }
 
-    // Remove the personality
-    const result = await removePersonality(message.author.id, personality.fullName);
+    // Check if this personality belongs to the user
+    if (personality.createdBy && personality.createdBy !== message.author.id) {
+      return await directSend(
+        `You cannot remove a personality that you didn't create.`
+      );
+    }
 
-    if (result.error) {
-      return await directSend(result.error);
+    // Remove the personality
+    const result = await removePersonality(personality.fullName);
+
+    // If we get an error, return it
+    if (result === false) {
+      return await directSend(`Failed to remove the personality. It may not exist or you may not have permission.`);
+    }
+
+    // Clear the completed add command tracking to allow immediate re-adding
+    messageTracker.removeCompletedAddCommand(message.author.id, personalityName);
+    logger.info(`[RemoveCommand] Cleared add command tracking for ${message.author.id}-${personalityName}`);
+    
+    // Also try clearing with the full name in case that was used instead
+    if (personality.fullName !== personalityName) {
+      messageTracker.removeCompletedAddCommand(message.author.id, personality.fullName);
     }
 
     // Create the success embed

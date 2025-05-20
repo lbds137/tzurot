@@ -190,6 +190,13 @@ class MessageTracker {
    */
   markAddCommandCompleted(commandKey) {
     this.completedAddCommands.add(commandKey);
+    
+    // Auto-remove after a reasonable timeout (30 minutes)
+    // This allows re-adding personalities that were removed
+    setTimeout(() => {
+      this.completedAddCommands.delete(commandKey);
+      logger.debug(`[MessageTracker] Removed ${commandKey} from completedAddCommands after timeout`);
+    }, 30 * 60 * 1000); // 30 minutes
   }
 
   /**
@@ -199,6 +206,25 @@ class MessageTracker {
    */
   isAddCommandCompleted(commandKey) {
     return this.completedAddCommands.has(commandKey);
+  }
+  
+  /**
+   * Manually remove a completed add command key
+   * This is useful when a personality is removed to immediately allow re-adding
+   * @param {string} userId - User ID
+   * @param {string} personalityName - Personality name
+   */
+  removeCompletedAddCommand(userId, personalityName) {
+    // Generate a key pattern that matches how keys are created in the add command
+    const keyPattern = `${userId}-${personalityName}-`;
+    
+    // Find and remove any keys that match this pattern
+    for (const key of this.completedAddCommands) {
+      if (key.startsWith(keyPattern)) {
+        this.completedAddCommands.delete(key);
+        logger.info(`[MessageTracker] Manually removed ${key} from completedAddCommands to allow re-adding`);
+      }
+    }
   }
 }
 
