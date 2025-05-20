@@ -46,8 +46,8 @@ function deduplicationMiddleware(message, command, args) {
       };
     }
     
-    // Mark add command as processed
-    messageTracker.markAddCommandAsProcessed(message.id);
+    // IMPORTANT: We do NOT mark the command as processed here
+    // This is done in the handler to avoid double-marking issues
   }
   
   // Command should be processed

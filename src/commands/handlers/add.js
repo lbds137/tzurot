@@ -6,7 +6,7 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const messageTracker = require('../utils/messageTracker');
-const { registerPersonality } = require('../../personalityManager');
+const { registerPersonality, setPersonalityAlias } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix } = require('../../../config');
 
@@ -33,14 +33,8 @@ const pendingAdditions = new Map();
 async function execute(message, args) {
   const directSend = validator.createDirectSend(message);
 
-  // Check if this message was already processed by the add command handler
-  // This is handled at the middleware level, but we add an extra check here
-  if (messageTracker.isAddCommandProcessed(message.id)) {
-    logger.warn(`[AddCommand] This message (${message.id}) has already been processed by add command handler`);
-    return null;
-  }
-
-  // Mark the message as processed
+  // Mark the message as processed - this should happen here and NOT in the middleware
+  // to prevent double-marking
   messageTracker.markAddCommandAsProcessed(message.id);
 
   // Check if the user provided the correct arguments
@@ -115,23 +109,16 @@ async function execute(message, args) {
 
     // Register the personality
     logger.info(`[AddCommand ${commandId}] Registering personality: ${personalityName}`);
-    const registrationResult = await registerPersonality(message.author.id, personalityName, alias);
-
-    if (registrationResult.error) {
-      logger.warn(`[AddCommand ${commandId}] Registration error: ${registrationResult.error}`);
-      
-      // Mark as completed even in error case
-      pendingAdditions.set(userKey, {
-        status: 'completed',
-        timestamp: Date.now(),
-      });
-      messageTracker.markAddCommandCompleted(commandKey);
-      
-      return await directSend(registrationResult.error);
-    }
-
-    const personality = registrationResult.personality;
+    
+    // Register personality with proper data structure
+    const personality = await registerPersonality(message.author.id, personalityName, { displayName: personalityName });
     logger.info(`[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`);
+    
+    // If an alias was provided, set it up separately
+    if (alias) {
+      logger.info(`[AddCommand ${commandId}] Setting up alias: ${alias} for ${personalityName}`);
+      await setPersonalityAlias(alias, personalityName, false);
+    }
 
     // Preload the avatar in the background (not awaited)
     preloadPersonalityAvatar(personality)
@@ -199,10 +186,16 @@ async function execute(message, args) {
     logger.error(`Error in handleAddCommand for ${personalityName}:`, error);
 
     // Mark as completed even in case of error
-    pendingAdditions.set(`${message.author.id}-${personalityName}`, {
+    const userKey = `${message.author.id}-${personalityName}`;
+    pendingAdditions.set(userKey, {
       status: 'completed',
       timestamp: Date.now(),
     });
+    
+    // Mark the command as completed if commandKey exists
+    if (typeof commandKey !== 'undefined') {
+      messageTracker.markAddCommandCompleted(commandKey);
+    }
 
     return await directSend(`An error occurred while adding the personality: ${error.message}`);
   }
