@@ -2,6 +2,37 @@
 
 This document provides an overview of the current status of command tests in the Tzurot project.
 
+## Latest Updates (May 20, 2025)
+
+The command system refactoring is progressing well, with core functionality working properly. The main `commandSystem.test.js` tests now pass (with one test skipped), showing that the command registry and basic command processing are working correctly.
+
+### Status of Recent Tests
+- **Command Registry**: Working correctly
+- **Command Processing**: Successfully routes commands to handlers
+- **Command Aliases**: Working correctly
+- **Permission Checks**: The admin permission check test is currently skipped and needs more work to properly mock the validator
+
+### Failing Tests
+1. `commands.embedsToBlock.test.js`
+   - Issue: Error filtering functionality test failing because of changes to error handling
+
+2. `commands/handlers/debug.test.js`
+   - Issue: Test for handling large lists of problematic personalities is failing
+
+3. `commands/handlers/clearerrors.test.js`
+   - Issue: Multiple failures due to `directSend` not being a function
+
+### Next Steps for Test Fixes
+1. Fix the `clearerrors.js` command handler issues:
+   - The `directSend` function needs to be properly implemented or injected
+   - This is likely due to changes in how validator.createDirectSend works
+
+2. Fix the debug command handler to properly format large lists of problematic personalities
+
+3. Update the embedsToBlock test to align with the new error filtering implementation
+
+4. Re-implement the admin permission check test once the above issues are resolved
+
 ## Fixed Tests
 
 The following tests have been fixed and are now passing:

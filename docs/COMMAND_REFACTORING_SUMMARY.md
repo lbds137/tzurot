@@ -75,13 +75,21 @@ Here's a summary of the components we've implemented:
 1. **Continue test standardization**: Standardize remaining command tests following the pattern in `docs/COMMAND_TEST_STANDARDIZATION.md`
    - ✅ Standardized `auth` command tests
    - ✅ Standardized `list` command tests
+   - ✅ Basic command system tests are passing
+   - ⬜ Fix remaining failing tests (see `docs/COMMAND_TEST_STATUS.md`)
    - ⬜ Standardize remaining command tests
 
-2. **Advanced test cases**: Add more edge case tests for each command
+2. **Fix specific test issues**:
+   - ⬜ Fix `clearerrors.js` command handler issues with `directSend` function
+   - ⬜ Fix debug command to properly format large lists of problematic personalities
+   - ⬜ Update embedsToBlock test for new error filtering implementation
+   - ⬜ Complete admin permission check test implementation
 
-3. **Continuous monitoring**: Monitor performance and stability of the new system in production
+3. **Advanced test cases**: Add more edge case tests for each command
 
-4. **Documentation updates**: Keep documentation in sync with any further changes
+4. **Continuous monitoring**: Monitor performance and stability of the new system in production
+
+5. **Documentation updates**: Keep documentation in sync with any further changes
 
 ## Benefits Realized
 
