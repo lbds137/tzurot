@@ -52,12 +52,6 @@ function isPersonalityMessage(msg) {
     return true;
   }
   
-  // For test compatibility with already-created mockCollection objects
-  if (msg.id === 'chat-msg-1' || msg.id === 'chat-msg-2') {
-    logger.info(`[PurgBot] Message ${msg.id} is a personality message - test compatibility`);
-    return true;
-  }
-  
   // Message is not from a personality
   logger.info(`[PurgBot] Message ${msg.id} from ${msg.author?.username || 'unknown'} is NOT a personality message`);
   return false;
