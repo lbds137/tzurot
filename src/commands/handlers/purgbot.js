@@ -6,6 +6,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { EmbedBuilder } = require('discord.js');
 const { botPrefix } = require('../../../config');
+const personalityManager = require('../../personalityManager');
 
 /**
  * Command metadata
@@ -13,72 +14,38 @@ const { botPrefix } = require('../../../config');
 const meta = {
   name: 'purgbot',
   description: 'Purge bot messages from your DM history',
-  usage: 'purgbot [all|auth|chat|system]',
+  usage: 'purgbot [system|chat|all]',
   aliases: ['purgebot', 'clearbot', 'cleandm', 'purgauth', 'purgeauth', 'clearauth'],
   permissions: []
 };
 
 // Message categories and their filter rules
 const messageCategories = {
-  // Authentication related messages
-  auth: {
-    keywords: [
-      'Authentication Required',
-      'Please click the link below to authenticate',
-      'Authorization successful',
-      'authorization code',
-      'auth start',
-      'auth code',
-      'auth status',
-      'auth revoke',
-      'You have a valid authorization token',
-      'token will expire soon'
-    ],
-    userCommands: [
-      `${botPrefix} auth`,
-      'auth code'
-    ],
-    description: 'authentication'
-  },
-  
-  // Conversation/chat related messages
+  // Conversation/chat related messages (personality messages)
   chat: {
-    keywords: [
-      // Chat indicators
-      'Thinking...',
-      'is typing...',
-      'continued their message',
-      'is now talking'
-    ],
+    description: 'chat and personality conversation',
+    isPersonalityMessage: true,
     userCommands: [
-      // Commands that trigger conversations
-      `${botPrefix} chat`,
-      `${botPrefix} ask`,
-      `${botPrefix} talk`
-    ],
-    description: 'chat and conversation'
+      // Common commands that trigger personality conversations
+      '@', // Mentions to personalities
+      `${botPrefix} chat`
+    ]
   },
   
-  // System messages (status updates, errors, etc.)
+  // System messages (all non-personality bot messages)
   system: {
-    keywords: [
-      'An error occurred',
-      'Status:',
-      'Bot is',
-      'Command not found',
-      'Usage:',
-      'is now available',
-      'has been added',
-      'has been removed',
-      'Bot restarted'
-    ],
+    description: 'system and command',
+    isPersonalityMessage: false,
     userCommands: [
-      `${botPrefix} status`,
-      `${botPrefix} info`,
-      `${botPrefix} help`,
-      `${botPrefix} list`
-    ],
-    description: 'system and status'
+      // Commands to the bot (not personalities)
+      `${botPrefix} `
+    ]
+  },
+  
+  // All messages (both personality and system)
+  all: {
+    description: 'all bot',
+    isAllMessages: true
   }
 };
 
@@ -96,10 +63,40 @@ const preserveKeywords = [
 ];
 
 /**
+ * Check if a message is from a personality
+ * @param {Object} msg - Discord message object
+ * @returns {boolean} True if the message appears to be from a personality
+ */
+function isPersonalityMessage(msg) {
+  // If message has a specific personality webhook username format
+  if (msg.author && msg.author.username) {
+    // Check if this message username matches any personality
+    const allPersonalities = personalityManager.getAllPersonalities();
+    const personalityNames = Object.values(allPersonalities).map(p => p.displayName || p.fullName);
+    
+    // Check if message author matches a personality name
+    return personalityNames.some(name => 
+      msg.author.username.includes(name)
+    );
+  }
+  
+  // Check message content for typical personality-related phrases
+  const personalityPhrases = [
+    'Thinking...',
+    'is typing',
+    'continued their message',
+    'said:',
+    'responds:'
+  ];
+  
+  return personalityPhrases.some(phrase => msg.content?.includes(phrase));
+}
+
+/**
  * Filter messages based on category
  * @param {Collection} messages - Collection of Discord messages
  * @param {Object} message - Originating message
- * @param {string} category - Category to filter by (or 'all')
+ * @param {string} category - Category to filter by 
  * @returns {Map} Collection of messages to delete
  */
 function filterMessagesByCategory(messages, message, category) {
@@ -108,7 +105,6 @@ function filterMessagesByCategory(messages, message, category) {
   
   // Get current timestamp for age checks
   const now = Date.now();
-  const oneHourAgo = now - (60 * 60 * 1000);
   
   // Filter bot messages by the specified category
   const botMessages = messages.filter(msg => {
@@ -120,7 +116,7 @@ function filterMessagesByCategory(messages, message, category) {
     
     // Always skip messages with preserve keywords
     if (preserveKeywords.some(keyword => 
-      msg.content.includes(keyword) || 
+      msg.content?.includes(keyword) || 
       (msg.embeds[0]?.description && msg.embeds[0]?.description.includes(keyword))
     )) {
       return false;
@@ -129,12 +125,17 @@ function filterMessagesByCategory(messages, message, category) {
     // For "all" category, include all messages except those with preserve keywords
     if (category === 'all') return true;
     
-    // Check if the message matches the category keywords
-    const categoryKeywords = messageCategories[category]?.keywords || [];
-    return categoryKeywords.some(keyword => 
-      msg.content.includes(keyword) || 
-      (msg.embeds[0]?.description && msg.embeds[0]?.description.includes(keyword))
-    );
+    // Check if this is a personality message
+    const fromPersonality = isPersonalityMessage(msg);
+    
+    // For "chat" category, only include personality messages
+    if (category === 'chat') return fromPersonality;
+    
+    // For "system" category, exclude personality messages
+    if (category === 'system') return !fromPersonality;
+    
+    // Default to false for unknown categories
+    return false;
   });
   
   // Filter user messages related to the category
@@ -145,14 +146,18 @@ function filterMessagesByCategory(messages, message, category) {
     // Skip very recent messages (less than 1 minute old)
     if (msg.createdTimestamp > now - (60 * 1000)) return false;
     
-    // For "all" category, include user commands to the bot
+    // For "all" category, include all user commands to the bot
     if (category === 'all') {
-      return msg.content.startsWith(botPrefix);
+      return msg.content?.startsWith(botPrefix);
     }
     
     // Check if the message matches the category command patterns
     const categoryCommands = messageCategories[category]?.userCommands || [];
-    return categoryCommands.some(command => msg.content.includes(command));
+    if (categoryCommands.length > 0) {
+      return categoryCommands.some(command => msg.content?.includes(command));
+    }
+    
+    return false;
   });
   
   // Combine the two collections
@@ -174,20 +179,19 @@ async function execute(message, args) {
   }
   
   // Determine which category to purge
-  let category = 'all'; // Default to all messages
+  let category = 'system'; // Default to system messages (non-personality)
   
   if (args.length > 0) {
     const requestedCategory = args[0].toLowerCase();
-    if (['all', 'auth', 'chat', 'system'].includes(requestedCategory)) {
+    if (['system', 'chat', 'all'].includes(requestedCategory)) {
       category = requestedCategory;
     } else {
       return await directSend(
         `❌ Invalid category: \`${requestedCategory}\`\n\n` +
         `Available categories:\n` +
-        `- \`all\` - All bot messages and your commands\n` +
-        `- \`auth\` - Authentication related messages\n` +
-        `- \`chat\` - Conversation related messages\n` +
-        `- \`system\` - System status and info messages`
+        `- \`system\` - System messages and bot responses (default)\n` +
+        `- \`chat\` - Personality conversations and messages\n` +
+        `- \`all\` - All bot messages including personalities`
       );
     }
   }
@@ -210,7 +214,7 @@ async function execute(message, args) {
     }
     
     // Create a status message with the category being purged
-    const categoryDesc = category === 'all' ? 'bot' : messageCategories[category]?.description;
+    const categoryDesc = messageCategories[category]?.description || 'bot';
     const statusMessage = await directSend(`🧹 Purging ${categoryDesc} messages...`);
     
     // Delete each message

@@ -10,6 +10,14 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
 }));
 
+// Mock the personality manager
+jest.mock('../../../../src/personalityManager', () => ({
+  getAllPersonalities: jest.fn().mockReturnValue({
+    'personality1': { fullName: 'personality1', displayName: 'Personality One' },
+    'personality2': { fullName: 'personality2', displayName: 'Personality Two' }
+  })
+}));
+
 // Import test helpers
 const helpers = require('../../../utils/commandTestHelpers');
 
@@ -81,6 +89,7 @@ describe('PurgBot Command', () => {
       id: 'status-message-123',
       edit: jest.fn().mockReturnThis(),
       delete: jest.fn().mockResolvedValue(undefined),
+      selfDestruct: jest.fn(),
     };
     
     // Setup channel.send mock
@@ -133,10 +142,13 @@ describe('PurgBot Command', () => {
       createdTimestamp: oneHourAgo - (40 * 60 * 1000),
     });
     
-    // Chat messages
+    // Chat messages from personalities
     mockCollection.set('chat-msg-1', {
       id: 'chat-msg-1',
-      author: { id: botUserId },
+      author: { 
+        id: botUserId,
+        username: 'Personality One' // Match mock personality in personality manager
+      },
       content: 'Person is typing...',
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
@@ -144,8 +156,11 @@ describe('PurgBot Command', () => {
     });
     mockCollection.set('chat-msg-2', {
       id: 'chat-msg-2',
-      author: { id: botUserId },
-      content: 'PersonName continued their message',
+      author: { 
+        id: botUserId,
+        username: 'Personality Two' // Match mock personality in personality manager
+      },
+      content: 'continued their message',
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (15 * 60 * 1000),
@@ -209,7 +224,7 @@ describe('PurgBot Command', () => {
     mockCollection.set('user-chat-msg', {
       id: 'user-chat-msg',
       author: { id: mockDMMessage.author.id },
-      content: '!tz chat with me',
+      content: '@Personality One hello there',  // Should be detected as personality chat via the @mention
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (20 * 60 * 1000),
@@ -268,7 +283,7 @@ describe('PurgBot Command', () => {
     expect(purgbotCommand.meta).toEqual({
       name: 'purgbot',
       description: expect.any(String),
-      usage: expect.stringContaining('purgbot [all|auth|chat|system]'),
+      usage: expect.stringContaining('purgbot [system|chat|all]'),
       aliases: expect.arrayContaining(['purgebot', 'clearbot', 'cleandm']),
       permissions: expect.any(Array)
     });
@@ -294,22 +309,100 @@ describe('PurgBot Command', () => {
     // Verify error message was sent
     expect(mockDirectSendFunction).toHaveBeenCalled();
     expect(mockDirectSendFunction.mock.calls[0][0]).toContain('Invalid category');
-    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('Available categories');
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('system');
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('chat');
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('all');
     
     // Verify no messages were fetched or deleted
     expect(mockDMMessage.channel.messages.fetch).not.toHaveBeenCalled();
   });
   
-  it('should purge all bot messages with "all" category (default)', async () => {
+  it('should purge system messages by default', async () => {
     await purgbotCommand.execute(mockDMMessage, []);
     
     // Verify messages were fetched
     expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
     
     // Verify initial status message was sent
-    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging bot messages...');
+    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging system and command messages...');
     
-    // Normal bot messages should be deleted, but not important or very recent messages
+    // System messages should be deleted
+    expect(mockCollection.get('auth-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('auth-msg-2').delete).toHaveBeenCalled();
+    expect(mockCollection.get('system-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('system-msg-2').delete).toHaveBeenCalled();
+    
+    // User command messages should be deleted
+    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
+    expect(mockCollection.get('user-system-msg').delete).toHaveBeenCalled();
+    
+    // Personality messages should NOT be deleted (default is system only)
+    expect(mockCollection.get('chat-msg-1').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('chat-msg-2').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-chat-msg').delete).not.toHaveBeenCalled();
+    
+    // Important, very recent, and normal user messages should NOT be deleted
+    expect(mockCollection.get('important-msg-1').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('important-msg-2').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('recent-msg-1').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-normal-msg').delete).not.toHaveBeenCalled();
+    
+    // Verify the status message was updated
+    expect(mockStatusMessage.edit).toHaveBeenCalledWith({
+      content: '',
+      embeds: [mockEmbed]
+    });
+    
+    // Verify the embed was set up correctly
+    expect(mockEmbed.setTitle).toHaveBeenCalledWith('Bot Message Cleanup');
+    expect(mockEmbed.setDescription).toHaveBeenCalledWith(expect.stringContaining('Completed purging system and command messages'));
+    expect(mockEmbed.setFooter).toHaveBeenCalledWith({ text: expect.stringContaining('self-destruct') });
+    
+    // Test the self-destruct functionality (should be attached to the message)
+    expect(mockStatusMessage).toHaveProperty('selfDestruct');
+    
+    // Manually trigger self-destruct function for testing
+    if (mockStatusMessage.selfDestruct) {
+      await mockStatusMessage.selfDestruct();
+    }
+    
+    // Verify message was deleted
+    expect(mockStatusMessage.delete).toHaveBeenCalled();
+  });
+  
+  it('should purge only chat messages with "chat" category', async () => {
+    await purgbotCommand.execute(mockDMMessage, ['chat']);
+    
+    // Verify messages were fetched
+    expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
+    
+    // Verify initial status message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging chat and personality conversation messages...');
+    
+    // Chat/Personality messages should be deleted
+    expect(mockCollection.get('chat-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('chat-msg-2').delete).toHaveBeenCalled();
+    expect(mockCollection.get('user-chat-msg').delete).toHaveBeenCalled();
+    
+    // System messages should NOT be deleted
+    expect(mockCollection.get('auth-msg-1').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('auth-msg-2').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('system-msg-1').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('system-msg-2').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
+    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
+  });
+  
+  it('should purge all bot messages with "all" category', async () => {
+    await purgbotCommand.execute(mockDMMessage, ['all']);
+    
+    // Verify messages were fetched
+    expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
+    
+    // Verify initial status message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging all bot messages...');
+    
+    // All bot messages should be deleted except important and recent ones
     expect(mockCollection.get('auth-msg-1').delete).toHaveBeenCalled();
     expect(mockCollection.get('auth-msg-2').delete).toHaveBeenCalled();
     expect(mockCollection.get('chat-msg-1').delete).toHaveBeenCalled();
@@ -327,96 +420,28 @@ describe('PurgBot Command', () => {
     expect(mockCollection.get('important-msg-2').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('recent-msg-1').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-normal-msg').delete).not.toHaveBeenCalled();
-    
-    // Verify the status message was updated
-    expect(mockStatusMessage.edit).toHaveBeenCalledWith({
-      content: '',
-      embeds: [mockEmbed]
-    });
-    
-    // Verify the embed was set up correctly
-    expect(mockEmbed.setTitle).toHaveBeenCalledWith('Bot Message Cleanup');
-    expect(mockEmbed.setDescription).toHaveBeenCalledWith(expect.stringContaining('Completed purging bot messages'));
-    expect(mockEmbed.setFooter).toHaveBeenCalledWith({ text: expect.stringContaining('self-destruct') });
-    
-    // Test the self-destruct functionality (should be attached to the message)
-    expect(mockStatusMessage).toHaveProperty('selfDestruct');
-    
-    // Manually trigger self-destruct function for testing
-    if (mockStatusMessage.selfDestruct) {
-      await mockStatusMessage.selfDestruct();
-    }
-    
-    // Verify message was deleted
-    expect(mockStatusMessage.delete).toHaveBeenCalled();
   });
   
-  it('should purge only auth messages with "auth" category', async () => {
-    await purgbotCommand.execute(mockDMMessage, ['auth']);
-    
-    // Verify messages were fetched
-    expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
-    
-    // Verify initial status message was sent
-    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging authentication messages...');
-    
-    // Auth messages should be deleted
-    expect(mockCollection.get('auth-msg-1').delete).toHaveBeenCalled();
-    expect(mockCollection.get('auth-msg-2').delete).toHaveBeenCalled();
-    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
-    
-    // Other messages should NOT be deleted
-    expect(mockCollection.get('chat-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('chat-msg-2').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('system-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('system-msg-2').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('user-chat-msg').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
-  });
-  
-  it('should purge only chat messages with "chat" category', async () => {
-    await purgbotCommand.execute(mockDMMessage, ['chat']);
-    
-    // Verify messages were fetched
-    expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
-    
-    // Verify initial status message was sent
-    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging chat and conversation messages...');
-    
-    // Chat messages should be deleted
-    expect(mockCollection.get('chat-msg-1').delete).toHaveBeenCalled();
-    expect(mockCollection.get('chat-msg-2').delete).toHaveBeenCalled();
-    expect(mockCollection.get('user-chat-msg').delete).toHaveBeenCalled();
-    
-    // Other messages should NOT be deleted
-    expect(mockCollection.get('auth-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('auth-msg-2').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('system-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('system-msg-2').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('user-system-msg').delete).not.toHaveBeenCalled();
-  });
-  
-  it('should purge only system messages with "system" category', async () => {
+  it('should explicitly purge system messages with "system" category', async () => {
     await purgbotCommand.execute(mockDMMessage, ['system']);
     
     // Verify messages were fetched
     expect(mockChannelMessages.fetch).toHaveBeenCalledWith({ limit: 100 });
     
     // Verify initial status message was sent
-    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging system and status messages...');
+    expect(mockDirectSendFunction).toHaveBeenCalledWith('🧹 Purging system and command messages...');
     
-    // System messages should be deleted
+    // System messages should be deleted (including auth messages, which are now part of system)
     expect(mockCollection.get('system-msg-1').delete).toHaveBeenCalled();
     expect(mockCollection.get('system-msg-2').delete).toHaveBeenCalled();
+    expect(mockCollection.get('auth-msg-1').delete).toHaveBeenCalled();
+    expect(mockCollection.get('auth-msg-2').delete).toHaveBeenCalled();
     expect(mockCollection.get('user-system-msg').delete).toHaveBeenCalled();
+    expect(mockCollection.get('user-auth-msg').delete).toHaveBeenCalled();
     
-    // Other messages should NOT be deleted
-    expect(mockCollection.get('auth-msg-1').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('auth-msg-2').delete).not.toHaveBeenCalled();
+    // Chat/personality messages should NOT be deleted
     expect(mockCollection.get('chat-msg-1').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('chat-msg-2').delete).not.toHaveBeenCalled();
-    expect(mockCollection.get('user-auth-msg').delete).not.toHaveBeenCalled();
     expect(mockCollection.get('user-chat-msg').delete).not.toHaveBeenCalled();
   });
   
