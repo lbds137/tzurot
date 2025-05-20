@@ -24,32 +24,44 @@ const meta = {
  * @returns {Promise<Object>} Command result
  */
 async function execute(message, args) {
-  // Create direct send function
-  const directSend = validator.createDirectSend(message);
-  
-  // Check if user has Administrator permission
-  const isDM = message.channel.isDMBased();
-  const isAdmin = isDM ? false : validator.isAdmin(message);
-  
-  // For safety, require Admin permissions in servers
-  if (!isDM && !isAdmin) {
-    return directSend('You need Administrator permission to use this command.');
-  }
-  
-  // Clear all runtime problematic personalities
-  const problemPersonalityCount = runtimeProblematicPersonalities.size;
-  runtimeProblematicPersonalities.clear();
-  
-  // Clear all error blackout periods
-  const blackoutCount = errorBlackoutPeriods.size;
-  errorBlackoutPeriods.clear();
-  
-  // Return success message with counts
-  return directSend(`✅ Error state has been cleared:
+  try {
+    // Create a reusable function for sending messages
+    const sendMessage = async (content) => {
+      return await message.channel.send(content);
+    };
+    
+    // Check if user has Administrator permission
+    const isDM = message.channel.isDMBased();
+    const isAdmin = isDM ? false : validator.isAdmin(message);
+    
+    // Don't allow in DMs at all
+    if (isDM) {
+      return await sendMessage('You need Administrator permission to use this command. This command cannot be used in DMs.');
+    }
+    
+    // For safety, require Admin permissions in servers
+    if (!isAdmin) {
+      return await sendMessage('You need Administrator permission to use this command.');
+    }
+    
+    // Clear all runtime problematic personalities
+    const problemPersonalityCount = runtimeProblematicPersonalities.size;
+    runtimeProblematicPersonalities.clear();
+    
+    // Clear all error blackout periods
+    const blackoutCount = errorBlackoutPeriods.size;
+    errorBlackoutPeriods.clear();
+    
+    // Return success message with counts
+    return await sendMessage(`✅ Error state has been cleared:
 - Cleared ${problemPersonalityCount} problematic personality registrations
 - Cleared ${blackoutCount} error blackout periods
 
 Personalities should now respond normally if they were previously failing.`);
+  } catch (error) {
+    logger.error('Error executing clearerrors command:', error);
+    throw error;
+  }
 }
 
 module.exports = {
