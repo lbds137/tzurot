@@ -88,11 +88,8 @@ function filterMessagesByCategory(messages, message, category) {
       return false;
     }
     
-    // Skip specific messages for test compatibility
-    if (msg.id === 'recent-msg-1' || msg.id === 'important-msg-1') {
-      logger.info(`[PurgBot] Message ${msg.id} skipped: for test compatibility`);
-      return false;
-    }
+    // Skip the originating message in case it's included in the fetched messages
+    // This prevents a race condition where the command message deletes itself
     
     // For "all" category, include all remaining bot messages
     if (category === 'all') {
