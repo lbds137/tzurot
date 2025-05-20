@@ -1,27 +1,51 @@
+/**
+ * Tests for the auth command handler
+ * Consolidates tests from multiple files into standardized format
+ */
+
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../../src/logger');
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz'
+}));
+
+// Create the auth mock
 jest.mock('../../../../src/auth', () => ({
-  getAuthorizationUrl: jest.fn().mockReturnValue('https://example.com/authorize'),
-  exchangeCodeForToken: jest.fn().mockResolvedValue('mock-token'),
-  storeUserToken: jest.fn().mockResolvedValue(true),
-  getUserToken: jest.fn().mockReturnValue('mock-token'),
-  hasValidToken: jest.fn().mockReturnValue(true),
-  deleteUserToken: jest.fn().mockResolvedValue(true),
-  initAuth: jest.fn().mockResolvedValue(),
+  getAuthorizationUrl: jest.fn(),
+  exchangeCodeForToken: jest.fn(),
+  storeUserToken: jest.fn(),
+  getUserToken: jest.fn(),
+  hasValidToken: jest.fn(),
+  isNsfwVerified: jest.fn(),
+  deleteUserToken: jest.fn(),
+  initAuth: jest.fn(),
   APP_ID: 'mock-app-id',
   API_KEY: 'mock-api-key'
 }));
-jest.mock('../../../../src/utils/webhookUserTracker', () => ({
-  isProxySystemWebhook: jest.fn().mockReturnValue(false)
-}));
-jest.mock('../../../../src/commands/utils/commandValidator');
 
-// Import test helpers
+jest.mock('../../../../src/utils/webhookUserTracker', () => ({
+  isProxySystemWebhook: jest.fn()
+}));
+
+// Mock command validator
+jest.mock('../../../../src/commands/utils/commandValidator', () => ({
+  createDirectSend: jest.fn().mockImplementation((message) => {
+    return async (content) => {
+      return message.channel.send(content);
+    };
+  }),
+  isAdmin: jest.fn().mockReturnValue(false),
+  canManageMessages: jest.fn().mockReturnValue(false),
+  isNsfwChannel: jest.fn().mockReturnValue(false)
+}));
+
+// Import the test helpers
 const helpers = require('../../../utils/commandTestHelpers');
 
-// Import mocked modules
+// Import mock dependencies
 const auth = require('../../../../src/auth');
+const logger = require('../../../../src/logger');
 const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
 const validator = require('../../../../src/commands/utils/commandValidator');
 
@@ -30,14 +54,15 @@ describe('Auth Command', () => {
   let mockMessage;
   let mockDMMessage;
   let mockWebhookMessage;
-  let mockDirectSend;
   
   beforeEach(() => {
-    // Reset all mocks
+    // Reset modules between tests
     jest.clearAllMocks();
     
-    // Reset modules
-    jest.resetModules();
+    // Mock logger methods
+    logger.error = jest.fn();
+    logger.info = jest.fn();
+    logger.debug = jest.fn();
     
     // Create mock messages
     mockMessage = helpers.createMockMessage(); // Regular channel message
@@ -45,18 +70,30 @@ describe('Auth Command', () => {
     mockWebhookMessage = helpers.createMockMessage(); // Message with webhook
     mockWebhookMessage.webhookId = 'mock-webhook-id';
     
-    // Mock user send
+    // Setup author.send mock
     mockMessage.author.send = jest.fn().mockResolvedValue({ id: 'dm-message-123' });
     mockDMMessage.author.send = jest.fn().mockResolvedValue({ id: 'dm-message-123' });
     mockWebhookMessage.author.send = jest.fn().mockResolvedValue({ id: 'dm-message-123' });
     
-    // Mock direct send function
-    mockDirectSend = jest.fn().mockResolvedValue({
-      id: 'direct-sent-123'
-    });
+    // Setup channel.send mock
+    mockMessage.channel.send = jest.fn().mockResolvedValue({ id: 'sent-message-123' });
+    mockDMMessage.channel.send = jest.fn().mockResolvedValue({ id: 'sent-message-123' });
+    mockWebhookMessage.channel.send = jest.fn().mockResolvedValue({ id: 'sent-message-123' });
     
-    // Mock validator
-    validator.createDirectSend.mockReturnValue(mockDirectSend);
+    // Setup channel.sendTyping mock
+    mockMessage.channel.sendTyping = jest.fn().mockResolvedValue(undefined);
+    mockDMMessage.channel.sendTyping = jest.fn().mockResolvedValue(undefined);
+    mockWebhookMessage.channel.sendTyping = jest.fn().mockResolvedValue(undefined);
+    
+    // Set up auth mocks with default values
+    auth.getAuthorizationUrl.mockResolvedValue('https://example.com/authorize');
+    auth.exchangeCodeForToken.mockResolvedValue('mock-token');
+    auth.storeUserToken.mockResolvedValue(true);
+    auth.hasValidToken.mockReturnValue(false);
+    auth.deleteUserToken.mockResolvedValue(true);
+    
+    // Set up proxy webhook detection
+    webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
     
     // Import the command after setting up mocks
     authCommand = require('../../../../src/commands/handlers/auth');
@@ -78,9 +115,16 @@ describe('Auth Command', () => {
       
       expect(auth.getAuthorizationUrl).toHaveBeenCalled();
       expect(mockMessage.author.send).toHaveBeenCalled();
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'I\'ve sent you a DM with authentication instructions'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('I\'ve sent you a DM');
+    });
+    
+    it('should send auth URL directly in DM channels', async () => {
+      await authCommand.execute(mockDMMessage, ['start']);
+      
+      expect(auth.getAuthorizationUrl).toHaveBeenCalled();
+      expect(mockDMMessage.channel.send).toHaveBeenCalled();
+      expect(mockDMMessage.channel.send.mock.calls[0][0]).toContain('https://example.com/authorize');
     });
     
     it('should fall back to channel message if DM fails', async () => {
@@ -90,20 +134,34 @@ describe('Auth Command', () => {
       
       expect(auth.getAuthorizationUrl).toHaveBeenCalled();
       expect(mockMessage.author.send).toHaveBeenCalled();
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'Unable to send you a DM'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Unable to send you a DM');
+    });
+    
+    it('should handle auth URL generation errors', async () => {
+      auth.getAuthorizationUrl.mockResolvedValueOnce(null);
+      
+      await authCommand.execute(mockMessage, ['start']);
+      
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Failed to generate authentication URL');
     });
   });
   
   describe('auth code subcommand', () => {
+    it('should show usage if no code is provided', async () => {
+      await authCommand.execute(mockMessage, ['code']);
+      
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Please provide your authorization code');
+    });
+    
     it('should reject auth code submission in public channels', async () => {
       await authCommand.execute(mockMessage, ['code', 'mock-code']);
       
       expect(mockMessage.delete).toHaveBeenCalled();
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'For security, please submit your authorization code via DM'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('For security');
       expect(auth.exchangeCodeForToken).not.toHaveBeenCalled();
     });
     
@@ -113,9 +171,8 @@ describe('Auth Command', () => {
       expect(mockDMMessage.delete).not.toHaveBeenCalled(); // Should not try to delete DM
       expect(auth.exchangeCodeForToken).toHaveBeenCalledWith('mock-code');
       expect(auth.storeUserToken).toHaveBeenCalledWith(mockDMMessage.author.id, 'mock-token');
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Authorization successful!'
-      });
+      expect(mockDMMessage.channel.send).toHaveBeenCalled();
+      expect(mockDMMessage.channel.send.mock.calls[0][0]).toContain('Authorization successful');
     });
     
     it('should handle spoiler-tagged codes properly', async () => {
@@ -132,9 +189,17 @@ describe('Auth Command', () => {
       
       expect(auth.exchangeCodeForToken).toHaveBeenCalledWith('invalid-code');
       expect(auth.storeUserToken).not.toHaveBeenCalled();
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'Authorization failed'
-      });
+      expect(mockDMMessage.channel.send).toHaveBeenCalled();
+      expect(mockDMMessage.channel.send.mock.calls[0][0]).toContain('Authorization failed');
+    });
+    
+    it('should handle token storage errors', async () => {
+      auth.storeUserToken.mockResolvedValueOnce(false);
+      
+      await authCommand.execute(mockDMMessage, ['code', 'mock-code']);
+      
+      expect(mockDMMessage.channel.send).toHaveBeenCalled();
+      expect(mockDMMessage.channel.send.mock.calls[0][0]).toContain('Failed to store authorization token');
     });
   });
   
@@ -145,9 +210,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockMessage, ['status']);
       
       expect(auth.hasValidToken).toHaveBeenCalledWith(mockMessage.author.id);
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'You have a valid authorization token'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('have a valid authorization token');
     });
     
     it('should show unauthorized status for users without token', async () => {
@@ -156,9 +220,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockMessage, ['status']);
       
       expect(auth.hasValidToken).toHaveBeenCalledWith(mockMessage.author.id);
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'You don\'t have an authorization token'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('don\'t have an authorization token');
     });
   });
   
@@ -167,9 +230,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockMessage, ['revoke']);
       
       expect(auth.deleteUserToken).toHaveBeenCalledWith(mockMessage.author.id);
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Your authorization has been revoked'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Your authorization has been revoked');
     });
     
     it('should handle failed revocation', async () => {
@@ -178,9 +240,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockMessage, ['revoke']);
       
       expect(auth.deleteUserToken).toHaveBeenCalledWith(mockMessage.author.id);
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'Failed to revoke authorization'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Failed to revoke authorization');
     });
   });
   
@@ -188,17 +249,15 @@ describe('Auth Command', () => {
     it('should show help when no subcommand is provided', async () => {
       await authCommand.execute(mockMessage, []);
       
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Authentication Commands'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Authentication Commands');
     });
     
     it('should handle unknown subcommands', async () => {
       await authCommand.execute(mockMessage, ['invalid']);
       
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'Unknown auth subcommand'
-      });
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Unknown auth subcommand');
     });
 
     it('should handle webhook proxy systems', async () => {
@@ -207,9 +266,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockWebhookMessage, ['start']);
       
       expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(mockWebhookMessage);
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Authentication with Proxy Systems'
-      });
+      expect(mockWebhookMessage.channel.send).toHaveBeenCalled();
+      expect(mockWebhookMessage.channel.send.mock.calls[0][0]).toContain('Authentication with Proxy Systems');
     });
   });
 });

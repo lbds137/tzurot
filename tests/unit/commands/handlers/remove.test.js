@@ -1,206 +1,223 @@
-// Mock dependencies
+/**
+ * Tests for the remove command handler
+ * Standardized format using mock factories
+ */
+
+// Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
-  botPrefix: '!tz'
+  botPrefix: '!tz',
 }));
 
-// Import the test helpers
+// Import test helpers
 const helpers = require('../../../utils/commandTestHelpers');
 
-// Import and mock command dependencies
-const { EmbedBuilder } = require('discord.js');
-const logger = require('../../../../src/logger');
-
-// Mock logger functions
-logger.info = jest.fn();
-logger.debug = jest.fn();
-logger.error = jest.fn();
-
-describe('Remove Command Handler', () => {
-  // Setup module mocks before requiring the module
-  let mockMessage;
-  let mockDirectSend;
-  let personalityManager;
-  let validator;
+describe('Remove Command', () => {
   let removeCommand;
+  let mockMessage;
+  let mockEmbed;
+  let mockValidator;
+  let mockPersonalityManager;
   
   beforeEach(() => {
-    // Reset modules between tests
-    jest.resetModules();
+    // Reset all mocks
     jest.clearAllMocks();
+    jest.resetModules();
     
-    // Setup mocks
-    jest.doMock('../../../../src/personalityManager', () => ({
-      getPersonality: jest.fn().mockReturnValue({
-        fullName: 'test-personality',
-        displayName: 'Test Personality',
-        avatarUrl: 'https://example.com/avatar.png',
-        createdBy: 'user-123'
-      }),
-      getPersonalityByAlias: jest.fn().mockReturnValue(null),
-      removePersonality: jest.fn().mockResolvedValue({ success: true })
-    }));
+    // Create mock instances with proper naming
+    const factories = require('../../utils/mockFactories');
+    mockValidator = factories.createValidatorMock();
+    mockPersonalityManager = factories.createPersonalityManagerMock();
     
-    jest.doMock('../../../../src/commands/utils/commandValidator', () => {
-      return {
-        createDirectSend: jest.fn()
-      };
-    });
-
-    jest.doMock('../../../../src/utils', () => ({
-      createDirectSend: jest.fn().mockImplementation((message) => {
-        return async (content) => {
-          return message.channel.send(content);
-        };
-      })
-    }));
+    // Mock specific dependencies that the command uses directly
+    jest.mock('../../../../src/commands/utils/commandValidator', () => mockValidator);
+    jest.mock('../../../../src/personalityManager', () => mockPersonalityManager);
+    
+    // Import mocked dependencies now that they're set up
+    const logger = require('../../../../src/logger');
+    const { EmbedBuilder } = require('discord.js');
+    
+    // Set up logger mock
+    logger.error = jest.fn();
+    logger.info = jest.fn();
+    
+    // Set up EmbedBuilder mock
+    mockEmbed = {
+      setTitle: jest.fn().mockReturnThis(),
+      setDescription: jest.fn().mockReturnThis(),
+      setColor: jest.fn().mockReturnThis(),
+      toJSON: jest.fn().mockReturnValue({ title: 'Personality Removed' }),
+    };
+    EmbedBuilder.mockImplementation(() => mockEmbed);
     
     // Create mock message
     mockMessage = helpers.createMockMessage();
-    mockMessage.channel.send = jest.fn().mockResolvedValue({
-      id: 'sent-message-123',
-      embeds: [{title: 'Personality Removed'}]
+    
+    // Create our spy for directSend to see if it's called
+    mockDirectSendFunction = jest.fn().mockImplementation(content => {
+      return Promise.resolve({
+        id: 'direct-sent-123',
+        content: typeof content === 'string' ? content : 'embed message' 
+      });
     });
     
-    // Setup validator mock
-    mockDirectSend = jest.fn().mockImplementation(content => {
-      return mockMessage.channel.send(content);
-    });
+    mockValidator.createDirectSend.mockReturnValue(mockDirectSendFunction);
     
-    // Mock EmbedBuilder
-    EmbedBuilder.mockImplementation(() => ({
-      setTitle: jest.fn().mockReturnThis(),
-      setDescription: jest.fn().mockReturnThis(),
-      setColor: jest.fn().mockReturnThis()
-    }));
-    
-    // Import modules after mocking
-    personalityManager = require('../../../../src/personalityManager');
-    validator = require('../../../../src/commands/utils/commandValidator');
-    
-    // Setup validator's createDirectSend mock
-    validator.createDirectSend.mockReturnValue(mockDirectSend);
-    
-    // Import the command module after mocks are set up
+    // Import the command module after setting up all mocks
     removeCommand = require('../../../../src/commands/handlers/remove');
   });
   
-  afterEach(() => {
-    jest.resetModules();
-  });
-  
-  test('should have the correct metadata', () => {
+  it('should have the correct metadata', () => {
     expect(removeCommand.meta).toEqual({
       name: 'remove',
       description: expect.any(String),
       usage: expect.any(String),
-      aliases: expect.any(Array),
+      aliases: expect.arrayContaining(['delete']),
       permissions: expect.any(Array)
     });
   });
   
-  test('should show the correct usage when no personality name is provided', async () => {
+  it('should require a personality name', async () => {
     await removeCommand.execute(mockMessage, []);
     
-    // Check that no personality removal was attempted
-    expect(personalityManager.removePersonality).not.toHaveBeenCalled();
+    // Verify the direct send function was created
+    expect(mockValidator.createDirectSend).toHaveBeenCalledWith(mockMessage);
     
-    // Check that usage message was sent
-    expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      expect.stringContaining('You need to provide a personality name')
-    );
+    // Verify error message was sent about missing personality name
+    expect(mockDirectSendFunction).toHaveBeenCalled();
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('need to provide a personality name');
   });
   
-  test('should remove a personality by name', async () => {
+  it('should handle non-existent personality', async () => {
+    // Mock personality not found
+    mockPersonalityManager.getPersonality.mockReturnValueOnce(null);
+    mockPersonalityManager.getPersonalityByAlias.mockReturnValueOnce(null);
+    
+    await removeCommand.execute(mockMessage, ['nonexistent-personality']);
+    
+    // Verify personality lookup attempts
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'nonexistent-personality'
+    );
+    expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('nonexistent-personality');
+    
+    // Verify remove was NOT called
+    expect(mockPersonalityManager.removePersonality).not.toHaveBeenCalled();
+    
+    // Verify error message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalled();
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('not found');
+  });
+  
+  it('should remove a personality by name', async () => {
     await removeCommand.execute(mockMessage, ['test-personality']);
     
-    // Check that we tried to look up the personality
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(mockMessage.author.id, 'test-personality');
-    expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
-    
-    // Check that removal was attempted
-    expect(personalityManager.removePersonality).toHaveBeenCalledWith(mockMessage.author.id, 'test-personality');
-    
-    // Verify that channel.send was called
-    expect(mockMessage.channel.send).toHaveBeenCalled();
-  });
-  
-  test('should remove a personality by alias', async () => {
-    // Mock finding personality by alias
-    personalityManager.getPersonalityByAlias.mockReturnValueOnce({
-      fullName: 'test-personality',
-      displayName: 'Test Personality',
-      avatarUrl: 'https://example.com/avatar.png',
-      createdBy: 'user-123'
-    });
-    
-    await removeCommand.execute(mockMessage, ['test']);
-    
-    // Check that we tried to look up the personality by alias
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(mockMessage.author.id, 'test');
-    
-    // Direct name lookup should not have been called
-    expect(personalityManager.getPersonality).not.toHaveBeenCalled();
-    
-    // Check that removal was attempted with the full name
-    expect(personalityManager.removePersonality).toHaveBeenCalledWith(mockMessage.author.id, 'test-personality');
-    
-    // Verify that channel.send was called
-    expect(mockMessage.channel.send).toHaveBeenCalled();
-  });
-  
-  test('should show error when personality is not found', async () => {
-    // Mock personality not found by either alias or name
-    personalityManager.getPersonalityByAlias.mockReturnValueOnce(null);
-    personalityManager.getPersonality.mockReturnValueOnce(null);
-    
-    await removeCommand.execute(mockMessage, ['nonexistent']);
-    
-    // Check that we tried both lookups
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(mockMessage.author.id, 'nonexistent');
-    expect(personalityManager.getPersonality).toHaveBeenCalledWith('nonexistent');
-    
-    // Check that no removal was attempted
-    expect(personalityManager.removePersonality).not.toHaveBeenCalled();
-    
-    // Check that error message was sent
-    expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      expect.stringContaining('not found')
+    // Verify personality lookups
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'test-personality'
     );
-  });
-  
-  test('should handle errors from the removePersonality function', async () => {
-    // Mock an error from removePersonality
-    personalityManager.removePersonality.mockResolvedValueOnce({
-      error: 'You cannot remove this personality'
-    });
+    expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     
-    await removeCommand.execute(mockMessage, ['test-personality']);
-    
-    // Check that removal was attempted
-    expect(personalityManager.removePersonality).toHaveBeenCalled();
-    
-    // Check that error message was sent
-    expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      'You cannot remove this personality'
+    // Verify remove was called with correct parameters
+    expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'test-personality'
     );
+    
+    // Verify embed was created correctly
+    expect(mockEmbed.setTitle).toHaveBeenCalledWith('Personality Removed');
+    expect(mockEmbed.setDescription).toHaveBeenCalledWith(
+      expect.stringContaining('Test Personality')
+    );
+    expect(mockEmbed.setColor).toHaveBeenCalledWith(0xf44336);
+    
+    // Verify success message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalledWith({ embeds: [mockEmbed] });
   });
   
-  test('should handle unexpected errors', async () => {
-    // Reset mocks to ensure clean state
-    jest.clearAllMocks();
+  it('should remove a personality by alias', async () => {
+    // Set up mock for alias lookup
+    const mockPersonality = {
+      fullName: 'full-personality-name',
+      displayName: 'Display Name',
+      avatarUrl: 'https://example.com/alias.png'
+    };
+    mockPersonalityManager.getPersonalityByAlias.mockReturnValueOnce(mockPersonality);
     
-    // Force an error
-    personalityManager.removePersonality.mockImplementationOnce(() => {
-      throw new Error('Test error');
+    await removeCommand.execute(mockMessage, ['test-alias']);
+    
+    // Verify alias lookup
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'test-alias'
+    );
+    
+    // Direct name lookup should not happen since alias lookup succeeded
+    expect(mockPersonalityManager.getPersonality).not.toHaveBeenCalled();
+    
+    // Verify remove was called with correct parameters
+    expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'full-personality-name'
+    );
+    
+    // Verify embed was created correctly
+    expect(mockEmbed.setTitle).toHaveBeenCalledWith('Personality Removed');
+    expect(mockEmbed.setDescription).toHaveBeenCalledWith(
+      expect.stringContaining('Display Name')
+    );
+    
+    // Verify success message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalledWith({ embeds: [mockEmbed] });
+  });
+  
+  it('should handle errors from removePersonality', async () => {
+    // Mock error from removePersonality
+    mockPersonalityManager.removePersonality.mockResolvedValueOnce({
+      error: 'Failed to remove personality'
     });
     
     await removeCommand.execute(mockMessage, ['test-personality']);
     
-    // Check that error message was sent
-    expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      expect.stringContaining('An error occurred while removing the personality')
+    // Verify personality lookups
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'test-personality'
     );
+    expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+    
+    // Verify remove was called
+    expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
+      mockMessage.author.id,
+      'test-personality'
+    );
+    
+    // Verify error message was sent
+    expect(mockDirectSendFunction).toHaveBeenCalledWith('Failed to remove personality');
+  });
+  
+  it('should handle unexpected errors gracefully', async () => {
+    // Mock unexpected error
+    const testError = new Error('Unexpected error');
+    mockPersonalityManager.getPersonalityByAlias.mockImplementationOnce(() => {
+      throw testError;
+    });
+    
+    await removeCommand.execute(mockMessage, ['test-personality']);
+    
+    // Verify error was logged
+    const logger = require('../../../../src/logger');
+    expect(logger.error).toHaveBeenCalledWith(
+      'Error in remove command:',
+      testError
+    );
+    
+    // Verify error message was sent to user
+    expect(mockDirectSendFunction).toHaveBeenCalled();
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('error occurred');
+    expect(mockDirectSendFunction.mock.calls[0][0]).toContain('Unexpected error');
   });
 });
