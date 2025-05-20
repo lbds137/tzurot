@@ -4,7 +4,12 @@
 
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
-jest.mock('../../../src/logger');
+jest.mock('../../../src/logger', () => ({
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn()
+}));
 jest.mock('../../../config', () => ({
   botPrefix: '!tz'
 }));
@@ -18,14 +23,15 @@ jest.mock('../../../src/utils', () => ({
   })
 }));
 
+const mockCreateDirectSend = jest.fn().mockImplementation((message) => {
+  return async (content) => {
+    return message.channel.send(content);
+  };
+});
+
 jest.mock('../../../src/commands/utils/commandValidator', () => {
   return {
-    createDirectSend: jest.fn().mockImplementation((message) => {
-      const directSend = async (content) => {
-        return message.channel.send(content);
-      };
-      return directSend;
-    }),
+    createDirectSend: mockCreateDirectSend,
     isAdmin: jest.fn().mockReturnValue(false),
     canManageMessages: jest.fn().mockReturnValue(false),
     isNsfwChannel: jest.fn().mockReturnValue(false)
@@ -68,10 +74,13 @@ describe('Autorespond Command', () => {
   });
   
   it('should show current status when no subcommand is provided', async () => {
+    // Make sure mockCreateDirectSend is properly set up before the test
+    expect(mockCreateDirectSend).toBeDefined();
+    
     const result = await autorespondCommand.execute(mockMessage, []);
     
     // Verify that createDirectSend was called with the message
-    expect(validator.createDirectSend).toHaveBeenCalledWith(mockMessage);
+    expect(mockCreateDirectSend).toHaveBeenCalledWith(mockMessage);
     
     // Verify response contains status information
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
