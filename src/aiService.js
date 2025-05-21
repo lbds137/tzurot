@@ -1306,10 +1306,10 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
               }
             }
             
-            // Prepare the messages array
-            const messages = [referenceDescriptor];
+            // Prepare the messages array - put user message first, then reference, and media last
+            const messages = [{ role: 'user', content: userMessageContent }];
+            messages.push(referenceDescriptor);
             if (mediaMessage) messages.push(mediaMessage);
-            messages.push({ role: 'user', content: userMessageContent });
             
             return messages;
           }
@@ -1347,10 +1347,10 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             }
           }
           
-          // Prepare the messages array
-          const messages = [referenceDescriptor];
+          // Prepare the messages array - put user message first, then reference, and media last
+          const messages = [{ role: 'user', content: sanitizedUserContent }];
+          messages.push(referenceDescriptor);
           if (mediaMessage) messages.push(mediaMessage);
-          messages.push({ role: 'user', content: sanitizedUserContent });
           
           return messages;
         } catch (refError) {

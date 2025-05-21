@@ -32,14 +32,14 @@ describe('Message Reference Handling', () => {
     // Should have two message objects
     expect(formattedTextRef).toHaveLength(2);
     
-    // First message should contain the referenced content (as user role, not system)
+    // First message should be user message with the actual question
     expect(formattedTextRef[0].role).toBe('user');
-    expect(formattedTextRef[0].content).toContain('SomeUser');
-    expect(formattedTextRef[0].content).toContain('I believe AI will transform society');
+    expect(formattedTextRef[0].content).toBe("What do you think about this?");
     
-    // Second message should be user message with the actual question
+    // Second message should contain the referenced content (as user role, not system)
     expect(formattedTextRef[1].role).toBe('user');
-    expect(formattedTextRef[1].content).toBe("What do you think about this?");
+    expect(formattedTextRef[1].content).toContain('SomeUser');
+    expect(formattedTextRef[1].content).toContain('I believe AI will transform society');
   });
   
   it('should correctly format referenced messages from bot/assistant', () => {
@@ -58,13 +58,13 @@ describe('Message Reference Handling', () => {
     // Should have two message objects
     expect(formattedBotRef).toHaveLength(2);
     
-    // First message should be an assistant message with the bot's prior response
-    expect(formattedBotRef[0].role).toBe('assistant');
-    expect(formattedBotRef[0].content).toBe("The concept of emergence is fascinating in complex systems.");
+    // First message should be user message with the follow-up question
+    expect(formattedBotRef[0].role).toBe('user');
+    expect(formattedBotRef[0].content).toBe("Can you elaborate on that?");
     
-    // Second message should be user message with the follow-up question
-    expect(formattedBotRef[1].role).toBe('user');
-    expect(formattedBotRef[1].content).toBe("Can you elaborate on that?");
+    // Second message should be an assistant message with the bot's prior response
+    expect(formattedBotRef[1].role).toBe('assistant');
+    expect(formattedBotRef[1].content).toContain("The concept of emergence is fascinating in complex systems.");
   });
   
   it('should correctly handle referenced messages with image content', () => {
@@ -80,13 +80,17 @@ describe('Message Reference Handling', () => {
     
     const formattedImageRef = formatApiMessages(imageRefMsg);
     
-    // Should have three message objects (system text context, user image, and user question)
-    expect(formattedImageRef.length).toBeGreaterThanOrEqual(2);
+    // Should have three message objects (user question, reference text, and image)
+    expect(formattedImageRef.length).toBeGreaterThanOrEqual(3);
     
-    // First message should describe the image context (as user role, not system)
+    // First message should be the user's question
     expect(formattedImageRef[0].role).toBe('user');
-    expect(formattedImageRef[0].content).toContain('ImagePoster');
-    expect(formattedImageRef[0].content).toContain('referencing a message with an image');
+    expect(formattedImageRef[0].content).toBe("What can you tell me about this image?");
+
+    // Second message should describe the image context (as user role, not system)
+    expect(formattedImageRef[1].role).toBe('user');
+    expect(formattedImageRef[1].content).toContain('ImagePoster');
+    expect(formattedImageRef[1].content).toContain('referencing a message with an image');
     
     // There should be a message containing the image URL
     const hasImageMessage = formattedImageRef.some(msg => 
@@ -139,8 +143,20 @@ describe('Message Reference Handling', () => {
     // Should have at least 3 messages (system context, image from reference, user message with new image)
     expect(formattedMultimodalRef.length).toBeGreaterThanOrEqual(3);
     
-    // First message should contain context (as user role, not system)
-    expect(formattedMultimodalRef[0].role).toBe('user');
+    // First message should be the user's multimodal content with new image
+    const firstMessage = formattedMultimodalRef[0];
+    expect(firstMessage.role).toBe('user');
+    
+    // The multimodal content should be preserved
+    expect(Array.isArray(firstMessage.content)).toBe(true);
+    expect(firstMessage.content.some(item => item.type === 'text')).toBe(true);
+    expect(firstMessage.content.some(item => 
+      item.type === 'image_url' && 
+      item.image_url.url === 'https://example.com/new-image.jpg'
+    )).toBe(true);
+    
+    // Second message should contain context (as user role, not system)
+    expect(formattedMultimodalRef[1].role).toBe('user');
     
     // There should be a message containing the first image
     const hasFirstImage = formattedMultimodalRef.some(msg => 
@@ -153,17 +169,7 @@ describe('Message Reference Handling', () => {
     
     expect(hasFirstImage).toBe(true);
     
-    // Last message should be user's multimodal content with new image
-    const lastMessage = formattedMultimodalRef[formattedMultimodalRef.length - 1];
-    expect(lastMessage.role).toBe('user');
-    
-    // The multimodal content should be preserved
-    expect(Array.isArray(lastMessage.content)).toBe(true);
-    expect(lastMessage.content.some(item => item.type === 'text')).toBe(true);
-    expect(lastMessage.content.some(item => 
-      item.type === 'image_url' && 
-      item.image_url.url === 'https://example.com/new-image.jpg'
-    )).toBe(true);
+    // We've already checked the first message above (user's multimodal content)
   });
   
   it('should handle regular user messages without references', () => {
