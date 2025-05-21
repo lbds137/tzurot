@@ -16,7 +16,7 @@ const { botPrefix } = require('../../../config');
  * @returns {Object} Authentication result with status and error
  */
 async function authMiddleware(message, command, args) {
-  let userId = message.author.id;
+  const userId = message.author.id;
   let webhookAuthBypass = false;
   
   // For webhook messages, check if it's a proxy system

@@ -810,7 +810,7 @@ async function handleProblematicPersonality(
     // If we get here, we got a valid response despite the known issues!
     if (typeof content === 'string' && content.length > 0) {
       // Apply content sanitization
-      let sanitizedContent = sanitizeContent(content);
+      const sanitizedContent = sanitizeContent(content);
       
       return sanitizedContent;
     }
@@ -1194,7 +1194,7 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
           }
           
           // Get user's message content (text or multimodal)
-          let userMessageContent = content.messageContent;
+          const userMessageContent = content.messageContent;
           
           // Create special text for tests to identify the reference type
           let referenceText = '';
@@ -1573,7 +1573,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       logger.debug(`[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`);
       
       // Apply content sanitization
-      let sanitizedContent = sanitizeContent(content);
+      const sanitizedContent = sanitizeContent(content);
       logger.debug(`[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`);
 
       if (sanitizedContent.length === 0) {

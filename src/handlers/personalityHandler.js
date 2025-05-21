@@ -21,7 +21,7 @@ const { recordConversation } = require('../conversationManager');
 
 // Import activeRequests map and trackRequest function from bot.js
 // These are used to prevent duplicate requests
-let activeRequests = new Map();
+const activeRequests = new Map();
 
 /**
  * Track a request to prevent duplicates

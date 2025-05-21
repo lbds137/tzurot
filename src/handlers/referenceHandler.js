@@ -167,7 +167,7 @@ async function processMessageLinks(
     
     try {
       // Try to get the guild - check both the cache and attempt to fetch if needed
-      let guild = client.guilds.cache.get(linkedGuildId);
+      const guild = client.guilds.cache.get(linkedGuildId);
       
       if (guild) {
         logger.info(`[Bot] Found guild in cache for cross-server link: ${guild.name} (${linkedGuildId})`);

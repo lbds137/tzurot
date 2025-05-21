@@ -2229,7 +2229,7 @@ function getStandardizedUsername(personality) {
         // Remove Discord discriminator (e.g. "#9971") if present
         // Discriminators are exactly 4 digits and are primarily used by bots
         // Handle cases with or without a space before the discriminator
-        let suffix = tagParts[1].replace(/\s*#\d{4}$/, '').trim();
+        const suffix = tagParts[1].replace(/\s*#\d{4}$/, '').trim();
         botSuffix = ` | ${suffix}`;
         // Ensure proper spacing in the suffix
         botSuffix = botSuffix.replace(/\|\s+/, '| ');
