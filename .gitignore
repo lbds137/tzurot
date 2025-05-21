@@ -140,3 +140,4 @@ dist
 
 # ephemeral app data
 data/
+/test-results.json
