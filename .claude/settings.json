@@ -1,0 +1,32 @@
+{
+  "allowedTools": {
+    "Bash": {
+      "commands": [
+        "npm run lint",
+        "npm run lint:fix",
+        "npm run format",
+        "npm test",
+        "npm run test:watch",
+        "npm run dev",
+        "npm list",
+        "npm audit",
+        "npx jest*",
+        "ls",
+        "mkdir",
+        "rm",
+        "find",
+        "grep",
+        "cp",
+        "mv",
+        "cat",
+        "git status",
+        "git diff",
+        "git add",
+        "git commit",
+        "git branch",
+        "git checkout",
+        "git log"
+      ]
+    }
+  }
+}
