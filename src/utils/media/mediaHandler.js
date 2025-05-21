@@ -28,6 +28,7 @@ const urlValidator = require('../urlValidator');
  * @param {boolean} options.referencedAudioUrl - URL of audio in referenced message
  * @param {boolean} options.referencedImageUrl - URL of image in referenced message
  * @param {string} options.personalityName - Name of the personality handling the message
+ * @param {string} options.userName - User's display name and username e.g. "Display Name (username)"
  * @returns {Promise<Object>} - Object with processed content and media info
  */
 async function detectMedia(message, messageContent, options = {}) {
@@ -186,11 +187,12 @@ async function detectMedia(message, messageContent, options = {}) {
       // Default prompt based on media type
       if (hasFoundAudio) {
         const personalityName = options.personalityName || 'Unknown';
+        const userName = options.userName || 'a user';
         multimodalContent.push({
           type: 'text',
           text: useReferencedMedia 
-            ? `The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:` 
-            : `The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`,
+            ? `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:` 
+            : `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`,
         });
       } else if (hasFoundImage) {
         multimodalContent.push({

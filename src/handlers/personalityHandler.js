@@ -346,11 +346,17 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       referencedWebhookName = linkResult.referencedWebhookName;
     }
     
+    // Get the user's display name and username
+    const userDisplayName = message.member?.displayName || message.author?.username || 'User';
+    const userUsername = message.author?.username || 'user';
+    const formattedUserName = `${userDisplayName} (${userUsername})`;
+    
     // Process media in the message and referenced media using the media handler
     const mediaOptions = {
       referencedAudioUrl: referencedAudioUrl,
       referencedImageUrl: referencedImageUrl,
-      personalityName: personality.displayName || personality.fullName
+      personalityName: personality.displayName || personality.fullName,
+      userName: formattedUserName
     };
     
     // The media handler will detect and process all media (message content, attachments, embeds)
@@ -432,6 +438,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
       channelId: message.channel.id,
       // Pass the original message object for webhook detection
       message: message,
+      // Pass the user's formatted name for audio transcript prompts
+      userName: formattedUserName
     });
 
     // Clear typing indicator interval
