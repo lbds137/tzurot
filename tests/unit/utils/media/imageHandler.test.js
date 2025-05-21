@@ -1,19 +1,19 @@
 /**
  * Tests for imageHandler utility
  */
-const imageHandler = require('../../src/utils/media/imageHandler');
+const imageHandler = require('../../../../src/utils/media/imageHandler');
 
 // Mock the node-fetch module
 jest.mock('node-fetch');
 const nodeFetch = require('node-fetch');
 
 // Mock the logger
-jest.mock('../../src/logger');
-const logger = require('../../src/logger');
+jest.mock('../../../../src/logger');
+const logger = require('../../../../src/logger');
 
 // Mock the urlValidator (dependency of imageHandler)
-jest.mock('../../src/utils/urlValidator');
-const urlValidator = require('../../src/utils/urlValidator');
+jest.mock('../../../../src/utils/urlValidator');
+const urlValidator = require('../../../../src/utils/urlValidator');
 
 describe('imageHandler', () => {
   beforeEach(() => {
@@ -26,6 +26,7 @@ describe('imageHandler', () => {
     
     // Mock fetch response
     const mockBuffer = Buffer.from('fake image data');
+    const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
     const mockResponse = {
       ok: true,
       status: 200,
@@ -37,7 +38,7 @@ describe('imageHandler', () => {
         })
       },
       buffer: jest.fn().mockResolvedValue(mockBuffer),
-      arrayBuffer: jest.fn().mockResolvedValue(mockBuffer)
+      arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
     };
     nodeFetch.mockResolvedValue(mockResponse);
     

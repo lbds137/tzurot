@@ -344,7 +344,7 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
       
       // Should return an error message
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      expect(response).toBe('I received an incomplete response. Please try again.');
       
       // Should register as problematic
       expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
@@ -366,7 +366,7 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
       
       // Should return an error message
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      expect(response).toBe('I received an unusual response format. Please try again.');
       
       // Should register as problematic
       expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);

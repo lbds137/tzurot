@@ -2,14 +2,14 @@
  * Tests for the audioHandler module
  */
 
-const audioHandler = require('../../src/utils/media/audioHandler');
+const audioHandler = require('../../../../src/utils/media/audioHandler');
 const nodeFetch = require('node-fetch');
 const { Readable } = require('stream');
-const logger = require('../../src/logger');
+const logger = require('../../../../src/logger');
 
 // Mock the dependencies
 jest.mock('node-fetch');
-jest.mock('../../src/logger', () => ({
+jest.mock('../../../../src/logger', () => ({
   debug: jest.fn(),
   info: jest.fn(),
   warn: jest.fn(),
