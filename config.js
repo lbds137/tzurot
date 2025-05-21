@@ -24,15 +24,11 @@ function getProfileInfoEndpoint(personalityName) {
   return `${process.env.PROFILE_INFO_ENDPOINT}/${personalityName}`;
 }
 
-// Function to get the avatar URL format
-function getAvatarUrlFormat() {
-  return `${process.env.AVATAR_URL_BASE}{id}.png`;
-}
+// This function has been removed as we now use avatar URLs directly from the API
 
 module.exports = {
   getApiEndpoint,
   getModelPath,
   getProfileInfoEndpoint,
-  getAvatarUrlFormat,
   botPrefix
 };

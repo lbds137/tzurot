@@ -141,20 +141,21 @@ describe('profileInfoFetcher', () => {
       }
       
       try {
-        // Check if avatar_url is directly available in the response
+        // Check if avatar is directly available in the response (new API format)
+        if (profileInfo.avatar) {
+          console.log(`Using avatar directly from API response: ${profileInfo.avatar}`);
+          return profileInfo.avatar;
+        }
+        
+        // Check if avatar_url is available in the response (old API format)
         if (profileInfo.avatar_url) {
           console.log(`Using avatar_url directly from API response: ${profileInfo.avatar_url}`);
           return profileInfo.avatar_url;
         }
-        
-        // Fallback to using ID-based URL format
-        if (!profileInfo.id) {
-          console.warn(`No profile ID found for avatar: ${profileName}`);
-          return null;
-        }
-        
-        const avatarUrl = mockAvatarUrlFormat.replace('{id}', profileInfo.id);
-        return avatarUrl;
+
+        // No avatar URL found
+        console.warn(`No avatar or avatar_url found for profile: ${profileName}`);
+        return null;
       } catch (error) {
         console.error(`Error generating avatar URL: ${error.message}`);
         return null;
@@ -448,15 +449,15 @@ describe('profileInfoFetcher', () => {
     profileInfoFetcher.fetchProfileInfo = originalFetchProfileInfo;
   });
   
-  test('getProfileAvatarUrl should return avatar URL using profile ID', async () => {
-    // Spy on fetchProfileInfo to return mock data
+  test('getProfileAvatarUrl should return null when avatar is not found', async () => {
+    // Spy on fetchProfileInfo to return mock data without avatar or avatar_url
     profileInfoFetcher.fetchProfileInfo.mockResolvedValueOnce(mockProfileData);
     
     // Call the function
     const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
     
-    // Verify URL is correctly generated
-    expect(result).toBe(mockAvatarUrl);
+    // Verify null is returned
+    expect(result).toBeNull();
   });
   
   test('getProfileAvatarUrl should directly use avatar_url when available', async () => {
@@ -473,14 +474,33 @@ describe('profileInfoFetcher', () => {
     // Call the function
     const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
     
-    // Verify direct avatar_url is used instead of generating one from ID
+    // Verify direct avatar_url is used
     expect(result).toBe(profileDataWithAvatarUrl.avatar_url);
-    expect(result).not.toBe(mockAvatarUrl);
   });
   
   test('getProfileAvatarUrl should validate avatar_url before using it', async () => {
     // Skip this test in current implementation
     expect(true).toBe(true);
+  });
+
+  test('getProfileAvatarUrl should prioritize avatar over avatar_url when both are available', async () => {
+    // Create mock profile data with both avatar and avatar_url
+    const profileDataWithBothAvatars = {
+      id: mockProfileData.id,
+      name: mockProfileData.name,
+      avatar: 'https://new-api-format.example.com/avatar.png',
+      avatar_url: 'https://old-api-format.example.com/avatar.png'
+    };
+    
+    // Spy on fetchProfileInfo to return mock data with both avatar properties
+    profileInfoFetcher.fetchProfileInfo.mockResolvedValueOnce(profileDataWithBothAvatars);
+    
+    // Call the function
+    const result = await profileInfoFetcher.getProfileAvatarUrl(mockProfileName);
+    
+    // Verify avatar is prioritized over avatar_url
+    expect(result).toBe(profileDataWithBothAvatars.avatar);
+    expect(result).not.toBe(profileDataWithBothAvatars.avatar_url);
   });
   
   test('getProfileAvatarUrl should return null when profile info fetch fails', async () => {

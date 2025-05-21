@@ -14,7 +14,7 @@
 
 // Import dependencies
 const nodeFetch = require('node-fetch');
-const { getProfileInfoEndpoint, getAvatarUrlFormat } = require('../config');
+const { getProfileInfoEndpoint } = require('../config');
 const logger = require('./logger');
 const RateLimiter = require('./utils/rateLimiter');
 const auth = require('./auth'); // Import auth module for user tokens
@@ -274,7 +274,23 @@ async function getProfileAvatarUrl(profileName, userId = null) {
   }
 
   try {
-    // Check if avatar_url is directly available in the response
+    // Check if avatar is directly available in the response (new API format)
+    if (profileInfo.avatar) {
+      logger.debug(
+        `[ProfileInfoFetcher] Using avatar directly from API response: ${profileInfo.avatar}`
+      );
+
+      // Validate the URL format
+      if (!urlValidator.isValidUrlFormat(profileInfo.avatar)) {
+        logger.warn(
+          `[ProfileInfoFetcher] Received invalid avatar from API: ${profileInfo.avatar}`
+        );
+      } else {
+        return profileInfo.avatar;
+      }
+    }
+    
+    // Check if avatar_url is available in the response (old API format)
     if (profileInfo.avatar_url) {
       logger.debug(
         `[ProfileInfoFetcher] Using avatar_url directly from API response: ${profileInfo.avatar_url}`
@@ -286,56 +302,13 @@ async function getProfileAvatarUrl(profileName, userId = null) {
           `[ProfileInfoFetcher] Received invalid avatar_url from API: ${profileInfo.avatar_url}`
         );
       } else {
-        // Special handling for test environment with test values
-        if (process.env.NODE_ENV === 'test' && profileInfo.avatar_url === 'not-a-valid-url') {
-          logger.warn(
-            `[ProfileInfoFetcher] Test environment detected with invalid URL - falling back to ID-based URL`
-          );
-          // Continue to fallback by not returning here
-        } else {
-          return profileInfo.avatar_url;
-        }
+        return profileInfo.avatar_url;
       }
     }
 
-    // Fallback to using ID-based URL format
-    if (!profileInfo.id) {
-      logger.warn(`[ProfileInfoFetcher] No profile ID found for avatar: ${profileName}`);
-      return null;
-    }
-
-    // Get the avatar URL format from config
-    const avatarUrlFormat = getAvatarUrlFormat();
-
-    // Validate the avatar URL format from config
-    if (!avatarUrlFormat || !avatarUrlFormat.includes('{id}')) {
-      logger.error(
-        `[ProfileInfoFetcher] Invalid avatarUrlFormat: "${avatarUrlFormat}". Check AVATAR_URL_BASE env variable.`
-      );
-
-      // Special handling for tests
-      if (
-        process.env.NODE_ENV === 'test' ||
-        avatarUrlFormat === 'invalid-url-without-id-placeholder'
-      ) {
-        return null;
-      }
-
-      // In production, try to continue anyway
-      return null;
-    }
-
-    // Replace the placeholder with the actual profile ID
-    const avatarUrl = avatarUrlFormat.replace('{id}', profileInfo.id);
-    logger.debug(`[ProfileInfoFetcher] Generated avatar URL for ${profileName}: ${avatarUrl}`);
-
-    // Validate the generated URL
-    if (!urlValidator.isValidUrlFormat(avatarUrl)) {
-      logger.error(`[ProfileInfoFetcher] Generated invalid avatar URL: ${avatarUrl}`);
-      return null;
-    }
-
-    return avatarUrl;
+    // No avatar URL found in profile info
+    logger.warn(`[ProfileInfoFetcher] No avatar or avatar_url found for profile: ${profileName}`);
+    return null;
   } catch (error) {
     logger.error(`[ProfileInfoFetcher] Error generating avatar URL: ${error.message}`);
     return null;
