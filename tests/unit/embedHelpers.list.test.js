@@ -1,5 +1,5 @@
-// Test suite for the embedHelpers.js createPersonalityListEmbed function
-const embedHelpers = require('../../src/embedHelpers');
+// Test suite for the embedBuilders.js createPersonalityListEmbed function
+const embedBuilders = require('../../src/utils/embedBuilders');
 const personalityManager = require('../../src/personalityManager');
 
 // Mock logger to avoid console spam during tests
@@ -13,7 +13,7 @@ jest.mock('../../src/personalityManager', () => ({
   personalityAliases: new Map(), // This should be a Map, not an object!
 }));
 
-describe('embedHelpers.createPersonalityListEmbed', () => {
+describe('embedBuilders.createPersonalityListEmbed', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     personalityManager.personalityAliases.clear();
@@ -46,7 +46,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing
-    const result = embedHelpers.createPersonalityListEmbed(userId);
+    const result = embedBuilders.createPersonalityListEmbed(userId);
     
     // Verify listPersonalitiesForUser was called with the right args
     expect(personalityManager.listPersonalitiesForUser).toHaveBeenCalledWith(userId);
@@ -95,7 +95,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing
-    const result = embedHelpers.createPersonalityListEmbed(userId);
+    const result = embedBuilders.createPersonalityListEmbed(userId);
     const embed = result.embed;
     
     // Check the field for this personality
@@ -113,7 +113,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     personalityManager.listPersonalitiesForUser.mockReturnValue([]);
     
     // Execute the function we're testing
-    const result = embedHelpers.createPersonalityListEmbed(userId);
+    const result = embedBuilders.createPersonalityListEmbed(userId);
     const embed = result.embed;
     
     // Check that embed has the correct title and description
@@ -148,7 +148,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing - it should handle the object instead of Map
-    const result = embedHelpers.createPersonalityListEmbed(userId);
+    const result = embedBuilders.createPersonalityListEmbed(userId);
     const embed = result.embed;
     
     // Check that the embed was created successfully despite the wrong type
@@ -180,7 +180,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     personalityManager.listPersonalitiesForUser.mockReturnValue(manyPersonalities);
     
     // Get page 1 (default)
-    const resultPage1 = embedHelpers.createPersonalityListEmbed(userId);
+    const resultPage1 = embedBuilders.createPersonalityListEmbed(userId);
     
     // Check pagination info
     expect(resultPage1.totalPages).toBe(2); // 30 personalities / 20 per page = 2 pages
@@ -191,7 +191,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     expect(resultPage1.embed.data.fields[resultPage1.embed.data.fields.length - 1].name).toBe('Navigation');
     
     // Get page 2
-    const resultPage2 = embedHelpers.createPersonalityListEmbed(userId, 2);
+    const resultPage2 = embedBuilders.createPersonalityListEmbed(userId, 2);
     
     // Check pagination info
     expect(resultPage2.totalPages).toBe(2);
@@ -201,7 +201,7 @@ describe('embedHelpers.createPersonalityListEmbed', () => {
     expect(resultPage2.embed.data.fields.length).toBe(11); // 10 personalities + 1 navigation field for previous page
     
     // Try an invalid page (too high)
-    const resultPageTooHigh = embedHelpers.createPersonalityListEmbed(userId, 999);
+    const resultPageTooHigh = embedBuilders.createPersonalityListEmbed(userId, 999);
     
     // Should default to last page
     expect(resultPageTooHigh.currentPage).toBe(2);

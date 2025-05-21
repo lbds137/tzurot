@@ -1,6 +1,16 @@
+/**
+ * Utilities for building Discord embeds for UI display
+ * 
+ * This module contains functions for creating formatted Discord embeds:
+ * - Personality list embeds
+ * - Status embeds
+ * - Help embeds
+ * - Information embeds
+ */
+
 const { EmbedBuilder } = require('discord.js');
-const { botPrefix } = require('../config');
-const { listPersonalitiesForUser, personalityAliases } = require('./personalityManager');
+const { botPrefix } = require('../../config');
+const { listPersonalitiesForUser, personalityAliases } = require('../personalityManager');
 
 /**
  * Creates an embed announcing a personality has been added
@@ -58,7 +68,7 @@ function createPersonalityListEmbed(userId, page = 1) {
   try {
     // Check if userId is valid
     if (!userId) {
-      console.error('[EmbedHelpers] Invalid user ID provided to createPersonalityListEmbed');
+      console.error('[EmbedBuilders] Invalid user ID provided to createPersonalityListEmbed');
       // Return a basic error embed rather than throwing
       return {
         embed: new EmbedBuilder()
@@ -76,7 +86,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     // Handle non-array return values
     if (!Array.isArray(personalities)) {
       console.error(
-        `[EmbedHelpers] listPersonalitiesForUser returned a non-array: ${typeof personalities}`
+        `[EmbedBuilders] listPersonalitiesForUser returned a non-array: ${typeof personalities}`
       );
       // Return a basic error embed
       return {
@@ -105,7 +115,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     const paginatedPersonalities = personalities.slice(startIdx, endIdx);
 
     console.log(
-      `[EmbedHelpers] Creating page ${page}/${totalPages} with personalities ${startIdx}-${endIdx - 1} of ${personalityCount}`
+      `[EmbedBuilders] Creating page ${page}/${totalPages} with personalities ${startIdx}-${endIdx - 1} of ${personalityCount}`
     );
 
     // Create the embed with explicit checks for number safety
@@ -118,7 +128,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     // Check if personalityAliases is a Map
     let aliasesMap;
     if (!(personalityAliases instanceof Map)) {
-      console.error(`[EmbedHelpers] personalityAliases is not a Map: ${typeof personalityAliases}`);
+      console.error(`[EmbedBuilders] personalityAliases is not a Map: ${typeof personalityAliases}`);
       // If it's not a Map, we can try to convert it
       aliasesMap = new Map();
       if (typeof personalityAliases === 'object' && personalityAliases !== null) {
@@ -134,7 +144,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     paginatedPersonalities.forEach(p => {
       // Safety check for personality structure
       if (!p || typeof p !== 'object') {
-        console.error(`[EmbedHelpers] Invalid personality object: ${typeof p}`);
+        console.error(`[EmbedBuilders] Invalid personality object: ${typeof p}`);
         return; // Skip this personality
       }
 
@@ -153,7 +163,7 @@ function createPersonalityListEmbed(userId, page = 1) {
             }
           }
         } else {
-          console.error(`[EmbedHelpers] aliasesMap is not a valid Map:`, aliasesMap);
+          console.error(`[EmbedBuilders] aliasesMap is not a valid Map:`, aliasesMap);
           // If aliasesMap is an object, try to iterate through it as a fallback
           if (aliasesMap && typeof aliasesMap === 'object') {
             for (const [alias, name] of Object.entries(aliasesMap)) {
@@ -164,7 +174,7 @@ function createPersonalityListEmbed(userId, page = 1) {
           }
         }
       } catch (error) {
-        console.error(`[EmbedHelpers] Error iterating aliasesMap: ${error.message}`);
+        console.error(`[EmbedBuilders] Error iterating aliasesMap: ${error.message}`);
         // Continue with empty aliases
       }
 
@@ -203,7 +213,7 @@ function createPersonalityListEmbed(userId, page = 1) {
       currentPage: page,
     };
   } catch (error) {
-    console.error(`[EmbedHelpers] Error creating personality list embed: ${error.message}`, error);
+    console.error(`[EmbedBuilders] Error creating personality list embed: ${error.message}`, error);
 
     // Create a dump of the problematic data for debugging
     // Note: personalities might not be defined in the catch block scope
@@ -217,7 +227,7 @@ function createPersonalityListEmbed(userId, page = 1) {
         typeof personalityAliases !== 'undefined' ? personalityAliases instanceof Map : 'undefined',
     };
 
-    console.error(`[EmbedHelpers] Debug data: ${JSON.stringify(debugInfo)}`);
+    console.error(`[EmbedBuilders] Debug data: ${JSON.stringify(debugInfo)}`);
 
     // Return a basic error embed
     return {
@@ -288,7 +298,7 @@ function createListEmbed(personalities, page, totalPages, author) {
 
     return embed;
   } catch (error) {
-    console.error(`[EmbedHelpers] Error creating list embed: ${error.message}`, error);
+    console.error(`[EmbedBuilders] Error creating list embed: ${error.message}`, error);
     
     // Return a basic error embed
     return new EmbedBuilder()
