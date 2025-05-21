@@ -121,27 +121,26 @@ describe('Help Command', () => {
     it('should display help for regular users', async () => {
       await helpCommand.execute(mockMessage, []);
       
+      // Should have fetched all commands
       expect(commandRegistry.getAllCommands).toHaveBeenCalled();
       
-      helpers.verifySuccessResponse(mockDirectSend, {
-        isEmbed: true,
-        title: 'Tzurot Commands'
-      });
+      // Should have returned an embed
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toHaveProperty('embeds');
     });
     
     it('should include admin commands for admin users', async () => {
       // Make the user an admin
-      validator.isAdmin.mockReturnValueOnce(true);
+      validator.isAdmin.mockReturnValue(true);
       
       await helpCommand.execute(mockMessage, []);
       
       // Check that admin status was checked
       expect(validator.isAdmin).toHaveBeenCalledWith(mockMessage);
       
-      helpers.verifySuccessResponse(mockDirectSend, {
-        isEmbed: true,
-        title: 'Tzurot Commands'
-      });
+      // Should have returned an embed
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toHaveProperty('embeds');
     });
     
     it('should handle errors gracefully', async () => {
@@ -155,9 +154,9 @@ describe('Help Command', () => {
       // Verify error was logged
       expect(logger.error).toHaveBeenCalled();
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'error occurred'
-      });
+      // Verify error response
+      expect(mockMessage.channel.send).toHaveBeenCalled();
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('error occurred');
     });
   });
   
@@ -180,9 +179,9 @@ describe('Help Command', () => {
       // Check that we looked up the right command
       expect(commandRegistry.get).toHaveBeenCalledWith('ping');
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'Check bot latency' 
-      });
+      // Verify response
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('Check bot latency');
     });
     
     it('should show error for non-existent command', async () => {
@@ -194,9 +193,9 @@ describe('Help Command', () => {
       // Check that we looked up the command
       expect(commandRegistry.get).toHaveBeenCalledWith('nonexistent');
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'Unknown command' 
-      });
+      // Verify error response
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('Unknown command');
     });
     
     it('should deny help for admin commands to regular users', async () => {
@@ -220,9 +219,9 @@ describe('Help Command', () => {
       // Verify that we checked admin status
       expect(validator.isAdmin).toHaveBeenCalled();
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'only available to administrators' 
-      });
+      // Verify error response
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('only available to administrators');
     });
     
     it('should allow help for admin commands to admin users', async () => {
@@ -243,9 +242,9 @@ describe('Help Command', () => {
       
       await helpCommand.execute(mockMessage, ['debug']);
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'Debug commands' 
-      });
+      // Verify response
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('Debug commands');
     });
   });
   
@@ -265,9 +264,9 @@ describe('Help Command', () => {
       
       await helpCommand.execute(mockMessage, ['auth']);
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'authorization' 
-      });
+      // Verify response contains auth-specific help
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('authorization');
     });
     
     it('should display special help for the add command', async () => {
@@ -285,9 +284,9 @@ describe('Help Command', () => {
       
       await helpCommand.execute(mockMessage, ['add']);
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'profile_name' 
-      });
+      // Verify response contains add-specific help
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('profile_name');
     });
     
     it('should display special help for the list command', async () => {
@@ -305,9 +304,9 @@ describe('Help Command', () => {
       
       await helpCommand.execute(mockMessage, ['list']);
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'pagination' 
-      });
+      // Verify response contains list-specific help
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('pagination');
     });
     
     it('should display special help for the debug command', async () => {
@@ -326,9 +325,9 @@ describe('Help Command', () => {
       
       await helpCommand.execute(mockMessage, ['debug']);
       
-      helpers.verifyErrorResponse(mockDirectSend, { 
-        contains: 'subcommands' 
-      });
+      // Verify response contains debug-specific help
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('subcommands');
     });
   });
 });

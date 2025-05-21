@@ -16,6 +16,20 @@ const {
 
 const { USER_CONFIG } = require('../../src/constants');
 
+// Mock auth module to bypass authentication
+jest.mock('../../src/auth', () => ({
+  hasValidToken: jest.fn().mockReturnValue(true),
+  getUserToken: jest.fn().mockReturnValue('mock-token'),
+  APP_ID: 'mock-app-id',
+  API_KEY: 'mock-api-key',
+  isNsfwVerified: jest.fn().mockReturnValue(true)
+}));
+
+// Mock webhookUserTracker to bypass authentication
+jest.mock('../../src/utils/webhookUserTracker', () => ({
+  shouldBypassNsfwVerification: jest.fn().mockReturnValue(false)
+}));
+
 // Mock OpenAI module
 jest.mock('openai', () => {
   // Create a mock AI client
@@ -552,7 +566,11 @@ describe('AI Service', () => {
     it('should return a response from the AI service', async () => {
       const personalityName = 'test-personality';
       const message = 'Hello, how are you?';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       const response = await getAiResponse(personalityName, message, context);
       
@@ -564,7 +582,11 @@ describe('AI Service', () => {
     
     it('should handle empty or missing messages', async () => {
       const personalityName = 'test-personality';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Mock logger.warn
       const logger = require('../../src/logger');
@@ -590,7 +612,11 @@ describe('AI Service', () => {
     
     it('should handle missing personality name', async () => {
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Mock logger.error
       const logger = require('../../src/logger');
@@ -611,7 +637,11 @@ describe('AI Service', () => {
     it('should check for blackout periods before making API calls', async () => {
       const personalityName = 'test-personality';
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Add to blackout list
       addToBlackoutList(personalityName, context);
@@ -630,7 +660,11 @@ describe('AI Service', () => {
       
       const personalityName = 'test-personality';
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Manually add a pending request to the map to simulate a request in progress
       const requestId = createRequestId(personalityName, message, context);
@@ -656,7 +690,11 @@ describe('AI Service', () => {
     it('should handle API errors gracefully', async () => {
       const personalityName = 'error-personality';
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Get the mock AI client
       const openaiModule = require('openai');
@@ -682,7 +720,11 @@ describe('AI Service', () => {
     it('should register problematic personalities when they return errors', async () => {
       const personalityName = 'new-problematic-personality';
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
       
       // Get the mock AI client
       const openaiModule = require('openai');
@@ -725,9 +767,20 @@ describe('AI Service', () => {
     });
     
     it('should handle known problematic personalities with custom responses', async () => {
-      const personalityName = 'lucifer-kochav-shenafal'; // Using real known problematic personality name
+      const personalityName = 'test-known-problematic';
       const message = 'Test message';
-      const context = { userId: 'user-123', channelId: 'channel-456' };
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456',
+        userName: 'Test User (testuser)'
+      };
+      
+      // Create a known problematic personality for testing
+      knownProblematicPersonalities[personalityName] = {
+        isProblematic: true,
+        errorPatterns: ['NoneType', 'AttributeError', 'TypeError'],
+        responses: fallbackResponses,
+      };
       
       // Get the mock AI client
       const openaiModule = require('openai');
@@ -755,7 +808,7 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
       
       // Verify the response is one of the predefined fallback responses
-      expect(knownProblematicPersonalities[personalityName].responses).toContain(response);
+      expect(fallbackResponses).toContain(response);
       
       // Verify it was added to the blackout list
       const key = createBlackoutKey(personalityName, context);
@@ -763,6 +816,7 @@ describe('AI Service', () => {
       
       // Clean up spy
       createChatCompletionSpy.mockRestore();
+      delete knownProblematicPersonalities[personalityName];
     });
   });
 });

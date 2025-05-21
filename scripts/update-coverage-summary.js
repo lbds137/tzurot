@@ -7,7 +7,7 @@ const path = require('path');
 // Path to the coverage report
 const coverageSummaryPath = path.join(__dirname, '..', 'coverage', 'coverage-summary.json');
 // Path to the markdown file
-const markdownPath = path.join(__dirname, '..', 'TEST_COVERAGE_SUMMARY.md');
+const markdownPath = path.join(__dirname, '..', 'docs', 'testing', 'TEST_COVERAGE_SUMMARY.md');
 
 // Helper function to read the previous coverage file
 function readPreviousCoverage() {
