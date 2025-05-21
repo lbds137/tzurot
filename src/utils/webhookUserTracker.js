@@ -144,8 +144,8 @@ function isProxySystemWebhook(message) {
     // we can check if it matches a personality we have registered
     if (message.webhookId && message.author && message.author.username) {
       // Get all personalities
-      const { listPersonalities } = require('../personalityManager');
-      const allPersonalities = listPersonalities();
+      const { listPersonalitiesForUser } = require('../personalityManager');
+      const allPersonalities = listPersonalitiesForUser(); // This returns all personalities when no userId is provided
       
       // Check if the webhook username matches any registered personality
       const matchingPersonality = allPersonalities.find(p => {
