@@ -1,7 +1,7 @@
 /**
  * Tests for imageHandler utility
  */
-const imageHandler = require('../../src/utils/imageHandler');
+const imageHandler = require('../../src/utils/media/imageHandler');
 
 // Mock the node-fetch module
 jest.mock('node-fetch');

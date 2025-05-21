@@ -2,8 +2,8 @@
 jest.mock('discord.js');
 jest.mock('../../../../config');
 
-// Import the embedHelpers module that contains formatUptime
-const { formatUptime } = require('../../../../src/embedHelpers');
+// Import the embedBuilders module that contains formatUptime
+const { formatUptime } = require('../../../../src/utils/embedBuilders');
 
 describe('Uptime Formatting Utility', () => {
   beforeEach(() => {

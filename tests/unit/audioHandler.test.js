@@ -2,7 +2,7 @@
  * Tests for the audioHandler module
  */
 
-const audioHandler = require('../../src/utils/audioHandler');
+const audioHandler = require('../../src/utils/media/audioHandler');
 const nodeFetch = require('node-fetch');
 const { Readable } = require('stream');
 const logger = require('../../src/logger');

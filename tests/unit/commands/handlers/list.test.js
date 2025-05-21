@@ -15,8 +15,8 @@ jest.mock('../../../../src/personalityManager', () => ({
   listPersonalitiesForUser: jest.fn()
 }));
 
-// Mock embed helpers
-jest.mock('../../../../src/embedHelpers', () => ({
+// Mock embed builders
+jest.mock('../../../../src/utils/embedBuilders', () => ({
   createListEmbed: jest.fn()
 }));
 
@@ -31,7 +31,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 // Import mock dependencies
 const logger = require('../../../../src/logger');
 const personalityManager = require('../../../../src/personalityManager');
-const embedHelpers = require('../../../../src/embedHelpers');
+const embedHelpers = require('../../../../src/utils/embedBuilders');
 const validator = require('../../../../src/commands/utils/commandValidator');
 
 describe('List Command', () => {

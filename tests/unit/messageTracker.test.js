@@ -10,17 +10,14 @@ jest.mock('../../src/logger', () => ({
   error: jest.fn()
 }));
 
-// We'll use a completely mocked messageTracker for testing
-const messageTracker = {
-  track: jest.fn(),
-  trackOperation: jest.fn(),
-  size: 0,
-  clear: jest.fn()
-};
-
 // Mock the messageTracker module
 jest.mock('../../src/messageTracker', () => ({
-  messageTracker,
+  messageTracker: {
+    track: jest.fn(),
+    trackOperation: jest.fn(),
+    size: 0,
+    clear: jest.fn()
+  },
   MessageTracker: jest.fn().mockImplementation(() => ({
     track: jest.fn(),
     trackOperation: jest.fn(),
@@ -30,6 +27,9 @@ jest.mock('../../src/messageTracker', () => ({
     clear: jest.fn()
   }))
 }));
+
+// Import the mocked module
+const { messageTracker } = require('../../src/messageTracker');
 
 describe('MessageTracker', () => {
   beforeEach(() => {

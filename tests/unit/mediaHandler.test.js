@@ -2,14 +2,14 @@
  * Tests for the media handler utility
  */
 
-const mediaHandler = require('../../src/utils/mediaHandler');
-const audioHandler = require('../../src/utils/audioHandler');
-const imageHandler = require('../../src/utils/imageHandler');
+const mediaHandler = require('../../src/utils/media/mediaHandler');
+const audioHandler = require('../../src/utils/media/audioHandler');
+const imageHandler = require('../../src/utils/media/imageHandler');
 
 // Mock dependencies
 jest.mock('../../src/logger');
-jest.mock('../../src/utils/audioHandler');
-jest.mock('../../src/utils/imageHandler');
+jest.mock('../../src/utils/media/audioHandler');
+jest.mock('../../src/utils/media/imageHandler');
 
 describe('Media Handler', () => {
   beforeEach(() => {

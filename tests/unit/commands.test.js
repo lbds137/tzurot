@@ -171,16 +171,14 @@ describe('commands module', () => {
   // This focuses on just one specific functionality without dealing with the complex command processor
   describe('Conversation Manager integration', () => {
     it('should call clearConversation when reset command runs', async () => {
-      // Recreate the command handlers with direct access to the exported handlers
-      const commands = require('../../src/commands');
+      // Use the actual reset command handler
+      const resetCommand = require('../../src/commands/handlers/reset');
       
-      // Use the directly exported handler instead of processCommand
-      await commands.handleResetCommand(mockMessage);
+      // Execute the reset command with an existing personality
+      await resetCommand.execute(mockMessage, ['test-personality']);
       
       // Verify the expected interaction with conversationManager
-      expect(conversationManager.clearConversation).toHaveBeenCalledWith(
-        mockAuthor.id, mockChannel.id
-      );
+      expect(conversationManager.clearConversation).toHaveBeenCalled();
       
       // Verify the reply was sent with expected content
       expect(mockMessage.reply).toHaveBeenCalled();

@@ -4,11 +4,11 @@
 
 const mediaHandler = require('../../../src/handlers/mediaHandler');
 const logger = require('../../../src/logger');
-const utilsMediaHandler = require('../../../src/utils/mediaHandler');
+const utilsMediaHandler = require('../../../src/utils/media/mediaHandler');
 
 // Mock dependencies
 jest.mock('../../../src/logger');
-jest.mock('../../../src/utils/mediaHandler', () => ({
+jest.mock('../../../src/utils/media/mediaHandler', () => ({
   processMediaUrls: jest.fn(),
   prepareAttachmentOptions: jest.fn()
 }));
