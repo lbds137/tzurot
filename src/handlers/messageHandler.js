@@ -100,25 +100,15 @@ async function handleMessage(message, client) {
           return; // Message was filtered
         }
 
-        // Check if the webhook ID is one created by us
-        const isOwnWebhook =
-          message.author &&
-          message.author.username &&
-          typeof message.author.username === 'string' &&
-          message.content;
+        // Use our improved webhook identification logic to determine if this is our webhook
+        const isOwnWebhook = webhookUserTracker.isProxySystemWebhook(message);
 
         if (isOwnWebhook) {
-          // Check if there's an activated personality in this channel
-          const activatedPersonality = getActivatedPersonality(message.channel.id);
-          
-          if (activatedPersonality) {
-            // This is a webhook from one of our activated personalities - ignore it to prevent infinite loops
-            logger.debug(`Ignoring own webhook message from activated personality: ${message.author.username} in channel ${message.channel.id}`);
-            return;
-          }
-          
-          // For non-activated channels, process webhook messages normally
-          logger.debug(`Processing own webhook message from: ${message.author.username}`);
+          // This is one of our own webhooks, which means it's a personality webhook we created
+          // We should NEVER process these messages, as that would create an echo effect
+          // where the bot responds to its own webhook messages
+          logger.info(`[MessageHandler] Ignoring message from our own webhook (${message.webhookId}): ${message.author.username}`);
+          return;
         } else {
           // This is not our webhook, ignore it
           logger.debug(`Ignoring webhook message - not from our system: ${message.webhookId}`);
