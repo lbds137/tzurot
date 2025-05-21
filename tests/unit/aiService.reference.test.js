@@ -46,14 +46,17 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have one message combining the reference and user content
-      expect(result.length).toBe(1);
+      // Should have two messages: one for reference and one for user content
+      expect(result.length).toBe(2);
       
-      // Message should be user role with both the reference and the question
+      // First message should be user role with the reference
       expect(result[0].role).toBe('user');
-      expect(result[0].content).toContain('Referring to message from SomeUser');
+      expect(result[0].content).toContain('SomeUser said');
       expect(result[0].content).toContain('I believe AI has both benefits and risks');
-      expect(result[0].content).toContain('What do you think about this?');
+      
+      // Second message should be user role with the question
+      expect(result[1].role).toBe('user');
+      expect(result[1].content).toContain('What do you think about this?');
     });
     
     it('should properly format text-only referenced messages from the bot', () => {
@@ -68,14 +71,18 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have one message combining the reference and user content
-      expect(result.length).toBe(1);
+      // Should have two messages: one for reference and one for user content
+      expect(result.length).toBe(2);
       
-      // Message should be user role with both the reference and the question
-      expect(result[0].role).toBe('user');
-      expect(result[0].content).toContain('Referring to my previous message');
+      // First message will have the role based on personality match
+      // With our changes, the behavior is that referenced messages from AI have the assistante role
+      expect(result[0].role).toBe('assistant');
+      expect(result[0].content).toContain('the bot');
       expect(result[0].content).toContain('The concept of artificial intelligence raises profound philosophical questions');
-      expect(result[0].content).toContain('Please elaborate on that');
+      
+      // Second message should be user role with the question
+      expect(result[1].role).toBe('user');
+      expect(result[1].content).toContain('Please elaborate on that');
     });
     
     it('should handle problematic content in referenced messages', () => {
@@ -90,25 +97,30 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have one message that combines the reference and question
-      expect(result.length).toBe(1);
-      expect(result[0].role).toBe('user');
-      const content = result[0].content;
+      // Should have two messages: one for reference and one for user content
+      expect(result.length).toBe(2);
       
-      // Should include both the reference and the question
-      expect(content).toContain("Referring to message from SomeUser");
-      expect(content).toContain("What's wrong with this message?");
+      // First message should be user role with the reference
+      expect(result[0].role).toBe('user');
+      const referenceContent = result[0].content;
+      
+      // Should include the reference
+      expect(referenceContent).toContain("SomeUser said");
       
       // With minimal sanitization, newlines are preserved but control chars are removed
-      expect(content.includes('\n')).toBe(true); // newlines preserved
-      expect(content.includes('\u0000')).toBe(false); // control chars still removed
-      expect(content.includes('\u0001')).toBe(false); // control chars still removed
+      expect(referenceContent.includes('\n')).toBe(true); // newlines preserved
+      expect(referenceContent.includes('\u0000')).toBe(false); // control chars still removed
+      expect(referenceContent.includes('\u0001')).toBe(false); // control chars still removed
       
       // The message should contain the word quotes (escaping syntax depends on implementation)
-      expect(content.includes('quotes')).toBe(true);
+      expect(referenceContent.includes('quotes')).toBe(true);
       
       // The message should contain the word backslashes (escaping syntax depends on implementation)
-      expect(content.includes('backslashes')).toBe(true);
+      expect(referenceContent.includes('backslashes')).toBe(true);
+      
+      // Second message should be user role with the question
+      expect(result[1].role).toBe('user');
+      expect(result[1].content).toContain("What's wrong with this message?");
     });
     
     it('should handle image references', () => {
@@ -123,24 +135,30 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have two messages: one for text and one for media
-      expect(result.length).toBe(2);
-      expect(result[0].role).toBe('user');
-      expect(result[1].role).toBe('user');
+      // Should have three messages: reference, user content, and media
+      expect(result.length).toBe(3);
       
-      // First message should have text content with reference and user message
+      // First message should have the reference
+      expect(result[0].role).toBe('user');
       expect(typeof result[0].content).toBe('string');
-      expect(result[0].content).toContain('Referring to message from ImagePoster');
-      expect(result[0].content).toContain('Check out this picture');
-      expect(result[0].content).toContain('Tell me about this image');
+      expect(result[0].content).toContain('ImagePoster said');
+      
+      // For image messages, the middle message is the media content
+      expect(result[1].role).toBe('user');
+      // The media message has array content with image type
+      expect(Array.isArray(result[1].content)).toBe(true);
+      
+      // The third message is the user question
+      expect(result[2].role).toBe('user');
+      expect(result[2].content).toBe('Tell me about this image');
       
       // Second message should be a multimodal content array
-      expect(Array.isArray(result[1].content)).toBe(true);
+      // It contains the media reference
       
       // Should have text prompt asking about the image
       const textItem = result[1].content.find(item => item.type === 'text');
       expect(textItem).toBeDefined();
-      expect(textItem.text).toContain('Please examine and describe this image');
+      expect(textItem.text).toContain('Please examine this image');
       
       // Should have image part with the URL from the reference
       const imageItem = result[1].content.find(item => item.type === 'image_url');
@@ -160,29 +178,91 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have two messages: one for text and one for media
-      expect(result.length).toBe(2);
-      expect(result[0].role).toBe('user');
-      expect(result[1].role).toBe('user');
+      // Should have three messages: reference, user content, and media
+      expect(result.length).toBe(3);
       
-      // First message should have text content with reference and user message
+      // First message should have the reference
+      expect(result[0].role).toBe('user');
       expect(typeof result[0].content).toBe('string');
-      expect(result[0].content).toContain('Referring to message from AudioPoster');
-      expect(result[0].content).toContain('Listen to this');
-      expect(result[0].content).toContain("What's in this recording?");
+      expect(result[0].content).toContain('AudioPoster said');
+      
+      // For audio messages, the middle message is the media content
+      expect(result[1].role).toBe('user');
+      // The media message has array content with audio type
+      expect(Array.isArray(result[1].content)).toBe(true);
+      
+      // The third message is the user question
+      expect(result[2].role).toBe('user');
+      expect(result[2].content).toBe("What's in this recording?");
       
       // Second message should be a multimodal content array
-      expect(Array.isArray(result[1].content)).toBe(true);
+      // It contains the media reference
       
       // Should have text prompt for audio transcript
       const textItem = result[1].content.find(item => item.type === 'text');
       expect(textItem).toBeDefined();
-      expect(textItem.text).toContain("following is a transcript of a voice message");
+      expect(textItem.text).toContain("Please listen to this audio");
       
       // Should have audio part with the URL from the reference
       const audioItem = result[1].content.find(item => item.type === 'audio_url');
       expect(audioItem).toBeDefined();
       expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
+    });
+    
+    it('should handle references to the same personality', () => {
+      const input = {
+        messageContent: "Tell me more about that",
+        referencedMessage: {
+          content: "I am an AI assistant with many capabilities.",
+          author: "Albert Einstein",
+          isFromBot: true,
+          personalityName: "albert-einstein",
+          displayName: "Albert Einstein"
+        }
+      };
+      
+      // Use the same personality name in the formatApiMessages call
+      const result = formatApiMessages(input, "albert-einstein");
+      
+      // Should have two messages
+      expect(result.length).toBe(2);
+      
+      // First message should be assistant role when it's the same personality
+      expect(result[0].role).toBe('assistant');
+      expect(result[0].content).toContain("I said earlier");
+      expect(result[0].content).toContain("I am an AI assistant with many capabilities");
+      
+      // Second message is the user's follow-up
+      expect(result[1].role).toBe('user');
+      expect(result[1].content).toContain("Tell me more about that");
+    });
+    
+    it('should handle references to different personalities', () => {
+      const input = {
+        messageContent: "What do you think about that?",
+        referencedMessage: {
+          content: "Time is relative to the observer.",
+          author: "Albert Einstein",
+          isFromBot: true,
+          personalityName: "albert-einstein",
+          displayName: "Albert Einstein"
+        }
+      };
+      
+      // Use a different personality name in the formatApiMessages call
+      const result = formatApiMessages(input, "sigmund-freud");
+      
+      // Should have two messages
+      expect(result.length).toBe(2);
+      
+      // First message should be user role when it's a different personality
+      expect(result[0].role).toBe('user');
+      expect(result[0].content).toContain("Albert Einstein");
+      expect(result[0].content).toContain("Time is relative to the observer");
+      
+      // Second message is the user's question
+      expect(result[1].role).toBe('user');
+      expect(result[1].content).toContain("What do you think about that?");
     });
   });
 });
