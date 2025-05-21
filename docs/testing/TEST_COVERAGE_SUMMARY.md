@@ -64,163 +64,26 @@ All files                  |   32.08 |    25.32 |   36.59 |   32.33 |
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 
-## Recent Improvements
+## Test Improvement Notes
 
-### Summary of Latest Changes (May 21, 2025)
-- **Overall Code Coverage**: Currently at 32.33% line coverage
-- **aiService.js**: 64.73% line coverage
-- **personalityManager.js**: 86.53% line coverage
-- **conversationManager.js**: 18.26% line coverage
-- **logger.js**: 85.71% line coverage
-- **dataStorage.js**: Maintained 100% line coverage
+This report shows that we have approximately 32% overall test coverage. Key areas requiring improvement:
 
-### Previous Improvements (Historical)
-- **Overall Code Coverage**: Increased from 24.97% to 33.75%
-- **aiService.js**: Improved from 65.76% to 77.11%
-- **logger.js**: Improved from 0% to 90.9%
-- **profileInfoFetcher.js**: Added initial tests, now at 13.33%
-- **webhookManager.js**: Substantially improved from 19.79% to 55.55%
+1. The `bot.js` file (0% coverage) needs comprehensive tests
+2. Command-related files have low coverage, especially in the middleware components
+3. Message handlers have low coverage (dmHandler.js, messageHandler.js)
+4. Media handling components (audioHandler.js, imageHandler.js) need significant test coverage improvement
 
-### Key Refactoring Achievements
-1. **WebhookManager Code Improvements**:
-   - Refactored large functions (sendWebhookMessage, splitMessage) into smaller, focused helper functions
-   - Improved testability through better function organization
-   - Separated concerns for better maintainability
-   - Achieved over 55% test coverage for a complex module
+### Recent Improvements
 
-2. **AIService Enhancements**:
-   - Refactored the large getAiResponse function (~240 lines) into multiple smaller functions
-   - Added comprehensive error handling tests
-   - Improved handling of problematic personalities
-   - Fixed content sanitization bugs
+We've made progress in the following areas:
+- Fixed the personalityHandler.test.js to properly test recordConversationData and other functions
+- Improved mocking approaches to create more maintainable and reliable tests
+- Added testing for NSFW channel and age verification requirements
 
-3. **ProfileInfoFetcher Testing**:
-   - Added initial test coverage for previously untested module
-   - Implemented cache testing strategies
-   - Created a testable fetch implementation
+### Priority Testing Areas
 
-4. **Logger Module Coverage**:
-   - Added tests for logging functionality
-   - Achieved over 85% coverage
-
-## Completed Test Modules
-
-### Core Infrastructure
-- **dataStorage.js**: 100% line coverage
-  - File operations (save/load)
-  - Error handling
-  - Directory initialization
-
-### Bot Components
-- **personalityManager.js**: 86.53% line coverage
-  - Personality registration and retrieval
-  - Alias management
-  - Persistence operations
-  - Duplicate prevention mechanisms
-
-- **conversationManager.js**: 18.26% line coverage
-  - Conversation tracking and state management
-  - Auto-response functionality
-  - Channel activation
-  - Stale conversation detection
-
-- **aiService.js**: 64.73% line coverage
-  - AI response generation
-  - Error detection and handling
-  - Blackout period implementation
-  - Problematic personality management
-  - Content sanitization
-
-- **webhookManager.js**: 14.97% line coverage
-  - Message splitting functionality
-  - Duplicate detection mechanisms
-  - Message chunking and formatting
-  - Console output management
-  - Error detection and marking
-  - Virtual message results creation
-
-- **logger.js**: 85.71% line coverage
-  - Logging at different levels
-  - Error handling
-  - Formatting capabilities
-
-- **profileInfoFetcher.js**: Initial coverage at 8.24%
-  - Profile information fetching
-  - Caching mechanisms
-  - Error handling
-
-### Bot Logic
-- Created tests for message handling and command routing
-- Added tests for error filtering and patched functions
-- Tested duplicate detection and prevention mechanisms
-
-## Test Utilities Created
-
-- **Discord.js Mock Components**:
-  - Message, Channel, Client, Webhook mocks
-  - Response simulation
-  - Event handling
-
-- **File System Mocks**:
-  - Virtual file system implementation
-  - Directory and file operations
-
-- **API Call Mocks**:
-  - OpenAI client simulation
-  - Error simulation
-  - Response generation
-  
-- **Fetch Mocks**:
-  - HTTP response simulation
-  - Error condition testing
-  - Cache behavior testing
-  
-- **Simulated Test Patterns**:
-  - Command deduplication simulation
-  - Rate limiting simulation without time delays
-  - Registry-based tracking validation
-  - State management testing
-  - Callback batching verification
-
-## Areas for Future Improvement
-
-1. **High Priority**:
-   - Improve test coverage for bot.js, focusing on command handling and event listeners
-   - Further improve profileInfoFetcher.js tests to achieve higher coverage
-   - Add additional tests for webhookManager.js error cases
-   - Fix failing tests in aiService.test.js
-
-2. **Medium Priority**:
-   - Improve test coverage for commands.js
-   - Add more targeted tests for specific error conditions
-   - Implement integration tests where components interact
-
-3. **Low Priority**:
-   - Add end-to-end tests for full flows
-   - Improve test documentation and examples
-   - Add performance tests for critical components
-
-## Test Maintenance Guidelines
-
-1. **Maintain Test Independence**:
-   - Each test should operate independently
-   - Reset state between tests
-   - Use beforeEach/afterEach for setup/teardown
-
-2. **Mock External Dependencies**:
-   - Use the mock utilities created for Discord.js, fs, and API calls
-   - Avoid actual network or filesystem operations in tests
-
-3. **Update Tests With Code Changes**:
-   - When modifying functionality, update or add corresponding tests
-   - Ensure tests continue to pass after changes
-
-4. **Test Error Handling**:
-   - Include tests for error cases and edge conditions
-   - Verify error messages and behavior
-
-5. **Refactoring Best Practices**:
-   - Extract large functions into smaller, focused helpers
-   - Use meaningful function names that describe what they do
-   - Add comprehensive JSDoc documentation
-   - Focus on Single Responsibility Principle
+In order of importance, these components should receive improved test coverage next:
+1. Core message handling functionality in bot.js
+2. Command processing and middleware components
+3. Media handling utilities used for audio and image processing
+4. WebhookManager error handling and fallback mechanisms

@@ -40,7 +40,7 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - Always run `npm run lint` to check code quality
 - Always run `npm test` to verify that your changes don't break existing functionality
 - For test-driven development, use `npm run test:watch`
-- When running the full test suite with `npm test`, update the TEST_COVERAGE_SUMMARY.md file with the latest coverage information
+- When running the full test suite with `npm test`, update the `docs/testing/TEST_COVERAGE_SUMMARY.md` file with the latest coverage information
 
 ## Architecture
 
@@ -131,7 +131,12 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
   - This defeats the purpose of testing since you're not testing what runs in production
   - Use proper mocking and dependency injection instead
   - If tests are hard to write, it's often a sign the code needs refactoring
-- If you run the full test suite (`npm test`), update TEST_COVERAGE_SUMMARY.md
+- NEVER skip tests as a solution to fixing failures
+  - Tests exist to validate functionality, skipping them bypasses this validation
+  - Always fix the underlying issue causing the test to fail
+  - If a test case is no longer valid, update it to match current expected behavior
+  - Maintain the same level of test coverage when updating tests
+- If you run the full test suite (`npm test`), update `/home/deck/WebstormProjects/tzurot/docs/testing/TEST_COVERAGE_SUMMARY.md`
   - Do not update the summary when running partial tests
   - The summary should always reflect the result of a complete test run
 
@@ -222,3 +227,28 @@ The following operations should be discussed before executing:
 7. Never abandon challenging tasks or take shortcuts to avoid difficult work
 8. If you need more time or context to properly complete a task, communicate this honestly
 9. Take pride in your work and maintain high standards even when faced with obstacles
+
+### Task Management and To-Do Lists
+1. **Maintain Comprehensive To-Do Lists**: Use the TodoWrite and TodoRead tools extensively to create and manage detailed task lists.
+   - Create a to-do list at the start of any non-trivial task or multi-step process
+   - Be thorough and specific in task descriptions, including file paths and implementation details when relevant
+   - Break down complex tasks into smaller, clearly defined subtasks
+   - Include success criteria for each task when possible
+
+2. **Prioritize and Track Progress Meticulously**:
+   - Mark tasks as `in_progress` when starting work on them
+   - Update task status to `completed` immediately after completing each task
+   - Add new tasks that emerge during the work process
+   - Provide detailed context for each task to ensure work can be resumed if the conversation is interrupted or context is reset
+
+3. **Context Resilience Strategy**:
+   - Write to-do lists with the assumption that context might be lost or compacted
+   - Include sufficient detail in task descriptions to enable work continuation even with minimal context
+   - When implementing complex solutions, document the approach and rationale in the to-do list
+   - Regularly update the to-do list with your current progress and next steps
+
+4. **Organize To-Do Lists by Component or Feature**:
+   - Group related tasks together
+   - Maintain a hierarchical structure where appropriate
+   - Include dependencies between tasks when they exist
+   - For test-related tasks, include specifics about test expectations and mocking requirements
