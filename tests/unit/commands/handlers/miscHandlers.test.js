@@ -1,12 +1,46 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../../src/personalityManager');
-jest.mock('../../../../src/conversationManager');
+jest.mock('../../../../src/conversationManager', () => ({
+  clearConversation: jest.fn().mockReturnValue(true),
+  recordConversation: jest.fn().mockReturnValue(true),
+  activatePersonality: jest.fn().mockReturnValue({ success: true }),
+  deactivatePersonality: jest.fn().mockReturnValue(true),
+  enableAutoResponse: jest.fn(),
+  disableAutoResponse: jest.fn(),
+  isAutoResponseEnabled: jest.fn().mockReturnValue(false)
+}));
 jest.mock('../../../../src/aiService');
 jest.mock('../../../../src/webhookManager');
 jest.mock('../../../../config');
-jest.mock('../../../../src/commands/utils/commandValidator');
 jest.mock('../../../../src/logger');
+
+// Mock utils and commandValidator - crucial for proper test functionality
+jest.mock('../../../../src/utils', () => ({
+  createDirectSend: jest.fn().mockImplementation((message) => {
+    return async (content) => {
+      return message.channel.send(content);
+    };
+  }),
+  validateAlias: jest.fn().mockReturnValue(true),
+  cleanupTimeout: jest.fn(),
+  safeToLowerCase: jest.fn(str => str ? String(str).toLowerCase() : ''),
+  getAllAliasesForPersonality: jest.fn().mockReturnValue([])
+}));
+
+jest.mock('../../../../src/commands/utils/commandValidator', () => {
+  return {
+    createDirectSend: jest.fn().mockImplementation((message) => {
+      return async (content) => {
+        return message.channel.send(content);
+      };
+    }),
+    isAdmin: jest.fn().mockReturnValue(true),
+    canManageMessages: jest.fn().mockReturnValue(true),
+    isNsfwChannel: jest.fn().mockReturnValue(false),
+    getPermissionErrorMessage: jest.fn().mockReturnValue('Permission error message')
+  };
+});
 
 // Import test helpers
 const helpers = require('../../../utils/commandTestHelpers');
@@ -42,14 +76,16 @@ describe('Miscellaneous Command Handlers', () => {
     // Create mock message
     mockMessage = helpers.createMockMessage();
     
-    // Mock direct send function
-    mockDirectSend = jest.fn().mockResolvedValue({
-      id: 'direct-sent-123'
+    // Set up the channel.send mock to track what's sent
+    mockMessage.channel.send = jest.fn().mockImplementation(content => {
+      return Promise.resolve({
+        id: 'sent-message-123',
+        content: typeof content === 'string' ? content : JSON.stringify(content)
+      });
     });
     
-    // Mock validator
-    validator.createDirectSend.mockReturnValue(mockDirectSend);
-    validator.isAdmin.mockReturnValue(true);
+    // Define mockDirectSend as a reference to the channel.send function for verification
+    mockDirectSend = mockMessage.channel.send;
     
     // Mock EmbedBuilder
     EmbedBuilder.mockImplementation(() => ({
@@ -142,29 +178,37 @@ describe('Miscellaneous Command Handlers', () => {
     });
     
     it('should call clearConversation when reset command runs', async () => {
-      await resetCommand.execute(mockMessage, []);
+      // Mock personalityManager to return a test personality
+      personalityManager.getPersonalityByAlias.mockReturnValueOnce({
+        fullName: 'test-personality',
+        displayName: 'Test Personality'
+      });
+
+      await resetCommand.execute(mockMessage, ['test-personality']);
       
       // Verify the expected interaction with conversationManager
       expect(conversationManager.clearConversation).toHaveBeenCalledWith(
-        mockMessage.author.id, mockMessage.channel.id
+        mockMessage.author.id, mockMessage.channel.id, 'test-personality'
       );
       
       // Verify success response
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Conversation history cleared'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('has been reset');
     });
     
-    it('should report when no conversation to clear', async () => {
-      // Mock clearConversation to return false (no conversation to clear)
-      conversationManager.clearConversation.mockReturnValueOnce(false);
+    it('should report when no personality is found', async () => {
+      // Mock both personality lookups to return null (not found)
+      personalityManager.getPersonalityByAlias.mockReturnValueOnce(null);
+      personalityManager.getPersonality.mockReturnValueOnce(null);
       
-      await resetCommand.execute(mockMessage, []);
+      await resetCommand.execute(mockMessage, ['unknown-personality']);
       
-      // Verify the response contains the expected content
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'No active conversation'
-      });
+      // Verify the command returns an error message
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('not found');
+      
+      // Verify clearConversation was NOT called
+      expect(conversationManager.clearConversation).not.toHaveBeenCalled();
     });
   });
   
@@ -186,10 +230,9 @@ describe('Miscellaneous Command Handlers', () => {
       // Check that the right function was called
       expect(conversationManager.enableAutoResponse).toHaveBeenCalledWith(mockMessage.author.id);
       
-      // Check the response
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Auto-response enabled'
-      });
+      // Check the response - use mockMessage.reply which is used in the code
+      expect(mockMessage.reply).toHaveBeenCalled();
+      expect(mockMessage.reply.mock.calls[0][0]).toContain('Auto-response enabled');
     });
     
     it('should disable auto-response with "off" parameter', async () => {
@@ -198,10 +241,9 @@ describe('Miscellaneous Command Handlers', () => {
       // Check that the right function was called
       expect(conversationManager.disableAutoResponse).toHaveBeenCalledWith(mockMessage.author.id);
       
-      // Check the response
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Auto-response disabled'
-      });
+      // Check the response - use mockMessage.reply which is used in the code
+      expect(mockMessage.reply).toHaveBeenCalled();
+      expect(mockMessage.reply.mock.calls[0][0]).toContain('Auto-response disabled');
     });
     
     it('should check auto-response status with "status" parameter', async () => {
@@ -214,18 +256,16 @@ describe('Miscellaneous Command Handlers', () => {
       expect(conversationManager.isAutoResponseEnabled).toHaveBeenCalledWith(mockMessage.author.id);
       
       // Check the response
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'enabled'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('enabled');
     });
     
     it('should show help with no parameters', async () => {
       await autoRespondCommand.execute(mockMessage, []);
       
       // Check the response shows the help message
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: 'Usage:'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('Usage:');
     });
   });
   
@@ -248,9 +288,9 @@ describe('Miscellaneous Command Handlers', () => {
       expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(mockMessage.author.id, 'test-alias');
       
       // Check the response format (should be an embed)
-      helpers.verifySuccessResponse(mockDirectSend, {
-        isEmbed: true
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      // The response should contain an embeds property
+      expect(mockDirectSend.mock.calls[0][0]).toHaveProperty('embeds');
     });
     
     it('should fall back to looking up by name if not found by alias', async () => {
@@ -274,18 +314,16 @@ describe('Miscellaneous Command Handlers', () => {
       await infoCommand.execute(mockMessage, ['unknown-personality']);
       
       // Check error message
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'not found'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('not found');
     });
     
     it('should show error with no parameters', async () => {
       await infoCommand.execute(mockMessage, []);
       
       // Check error message
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'Please provide a personality name'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('Please provide a personality name');
     });
   });
   
@@ -305,9 +343,8 @@ describe('Miscellaneous Command Handlers', () => {
       await statusCommand.execute(mockMessage, []);
       
       // Check the response format (should be an embed)
-      helpers.verifySuccessResponse(mockDirectSend, {
-        isEmbed: true
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toHaveProperty('embeds');
       
       // Verify that we checked the user's personalities
       expect(personalityManager.listPersonalitiesForUser).toHaveBeenCalledWith(mockMessage.author.id);
@@ -330,9 +367,8 @@ describe('Miscellaneous Command Handlers', () => {
       await pingCommand.execute(mockMessage, []);
       
       // Check the response
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: /Pong|pong/i
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toMatch(/Pong|pong/i);
     });
   });
   
@@ -352,9 +388,8 @@ describe('Miscellaneous Command Handlers', () => {
       await debugCommand.execute(mockMessage, []);
       
       // Check the response format
-      helpers.verifySuccessResponse(mockDirectSend, {
-        contains: /debug|Debug/
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toMatch(/debug|Debug/i);
     });
     
     it('should reject non-admins', async () => {
@@ -364,9 +399,8 @@ describe('Miscellaneous Command Handlers', () => {
       await debugCommand.execute(mockMessage, []);
       
       // Check the error response
-      helpers.verifyErrorResponse(mockDirectSend, {
-        contains: 'administrator'
-      });
+      expect(mockDirectSend).toHaveBeenCalled();
+      expect(mockDirectSend.mock.calls[0][0]).toContain('administrator');
     });
   });
 });

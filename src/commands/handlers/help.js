@@ -5,7 +5,7 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
-const embedHelpers = require('../../embedHelpers');
+const embedHelpers = require('../../utils/embedBuilders');
 
 /**
  * Command metadata

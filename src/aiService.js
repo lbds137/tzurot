@@ -1175,37 +1175,41 @@ function formatApiMessages(content) {
       // Log for debugging
       logger.debug(`[AIService] Formatting special reference message format`);
       
-      // This is our special format that includes a referenced message
-      const messages = [];
-      
       // If we have a referenced message
       if (content.referencedMessage) {
+        // Always use a consistent implementation without test-specific branches
+        logger.debug(`[AIService] Processing referenced message`);
+        
         // Get the name of the Discord user who is making the reference
         const userName = content.userName || 'The user';
         
+        // Sanitize the content of the referenced message (remove control characters)
+        const sanitizedReferenceContent = content.referencedMessage.content ? 
+          sanitizeApiText(content.referencedMessage.content) : '';
+        
         logger.debug(`[AIService] Processing referenced message: ${JSON.stringify({
           authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
-          contentPreview: content.referencedMessage.content?.substring(0, 50) || 'No content',
+          contentPreview: sanitizedReferenceContent.substring(0, 50) || 'No content',
           referencingUser: userName
         })}`);
         
         try {
           // First, extract any media URLs from the referenced message
-          const hasImage = content.referencedMessage.content.includes('[Image:');
-          const hasAudio = content.referencedMessage.content.includes('[Audio:');
+          const hasImage = sanitizedReferenceContent.includes('[Image:');
+          const hasAudio = sanitizedReferenceContent.includes('[Audio:');
           let mediaUrl = null;
           let mediaType = null;
           
           if (hasAudio) {
             // Audio has priority over images
-            const audioMatch = content.referencedMessage.content.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
+            const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
             if (audioMatch && audioMatch[1]) {
               mediaUrl = audioMatch[1];
               mediaType = 'audio';
               logger.debug(`[AIService] Found audio URL in reference: ${mediaUrl}`);
             }
           } else if (hasImage) {
-            const imageMatch = content.referencedMessage.content.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
+            const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
             if (imageMatch && imageMatch[1]) {
               mediaUrl = imageMatch[1];
               mediaType = 'image';
@@ -1214,123 +1218,127 @@ function formatApiMessages(content) {
           }
           
           // Clean the referenced message content (remove media URLs)
-          const cleanContent = content.referencedMessage.content
+          const cleanContent = sanitizedReferenceContent
             .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
             .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
             .trim();
           
-          // Create appropriate message for the reference based on who sent it
+          // Get user's message content (text or multimodal)
+          let userMessageContent = content.messageContent;
+          
+          // Use a single consistent approach: SIMPLIFIED FORMAT with a single message
+          
+          // Create the reference prefix text based on who sent it
+          let referencePrefix = '';
           if (content.referencedMessage.isFromBot) {
-            // If it's from a bot/webhook, add as assistant message
-            messages.push({
-              role: 'assistant',
-              content: cleanContent
-            });
-            
-            logger.debug(`[AIService] Added bot referenced message as 'assistant' role`);
+            // If it's from a bot/webhook, format as "my previous message"
+            referencePrefix = `Referring to my previous message: "${cleanContent}". `;
+            logger.debug(`[AIService] Created bot reference prefix`);
           } else {
-            // If it's from another user, add as user message with clear natural language prefix
-            let prefixedMessage = '';
-            
-            // Check if the message has media
-            if (mediaUrl) {
-              if (mediaType === 'image') {
-                prefixedMessage = `${userName} is referencing a message with an image from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
-              } else if (mediaType === 'audio') {
-                prefixedMessage = `${userName} is referencing a message with audio from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
-              }
-            } else {
-              prefixedMessage = `${userName} is referencing a message from ${content.referencedMessage.author || 'another user'} that said: "${cleanContent}"`;
-            }
-            
-            // Use the user role instead of system role
-            messages.push({
-              role: 'user',
-              content: prefixedMessage
-            });
-            
-            logger.debug(`[AIService] Added user referenced message as 'user' role with prefix`);
+            // If it's from another user, format as "message from [author]"
+            referencePrefix = `Referring to message from ${content.referencedMessage.author || 'another user'}: "${cleanContent}". `;
+            logger.debug(`[AIService] Created user reference prefix`);
           }
           
-          // Only handle media if present AND this is NOT a personality message
-          // For personality messages, the media is redundant with the text content 
-          const isFromPersonality = content.referencedMessage.isFromBot && content.referencedMessage.personalityName;
-          
-          if (!isFromPersonality && mediaUrl) {
-            if (mediaType === 'image') {
-              // Add image as a separate message with multimodal content
-              messages.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'image_url',
-                    image_url: { url: mediaUrl }
-                  }
-                ]
+          // Handle different types of user content (string or multimodal array)
+          if (Array.isArray(userMessageContent)) {
+            // Handle multimodal content array - modify the first text item
+            logger.debug(`[AIService] Processing multimodal user message with reference`);
+            
+            // Find and modify the text content if it exists
+            const textIndex = userMessageContent.findIndex(item => item.type === 'text');
+            if (textIndex >= 0) {
+              userMessageContent[textIndex].text = referencePrefix + userMessageContent[textIndex].text;
+            } else {
+              // If no text item, add one with the reference
+              userMessageContent.unshift({
+                type: 'text',
+                text: referencePrefix
               });
-              logger.debug(`[AIService] Added image from referenced message as separate user message`);
-            } else if (mediaType === 'audio') {
-              // Add audio as a separate message with multimodal content
-              messages.push({
-                role: 'user',
-                content: [
-                  {
-                    type: 'audio_url',
-                    audio_url: { url: mediaUrl }
-                  }
-                ]
-              });
-              logger.debug(`[AIService] Added audio from referenced message as separate user message`);
             }
-          } else if (isFromPersonality && mediaUrl) {
-            logger.debug(`[AIService] Skipping media from personality message (${content.referencedMessage.personalityName}): ${mediaType}`);
+            
+            // Add reference image/audio to multimodal content if needed
+            if (mediaUrl && !userMessageContent.some(item => 
+                (item.type === 'image_url' && item.image_url?.url === mediaUrl) ||
+                (item.type === 'audio_url' && item.audio_url?.url === mediaUrl))) {
+              
+              if (mediaType === 'image') {
+                userMessageContent.push({
+                  type: 'image_url',
+                  image_url: { url: mediaUrl }
+                });
+              } else if (mediaType === 'audio') {
+                userMessageContent.push({
+                  type: 'audio_url',
+                  audio_url: { url: mediaUrl }
+                });
+              }
+            }
+            
+            return [{ role: 'user', content: userMessageContent }];
+          } else {
+            // Text-only content - simple concatenation
+            const sanitizedUserContent = typeof userMessageContent === 'string' ? 
+              sanitizeApiText(userMessageContent) : 
+              "Message content missing";
+            
+            // Handle media if present for text messages
+            if (mediaUrl) {
+              // For media references, return multimodal content array
+              const multimodalContent = [
+                {
+                  type: 'text',
+                  text: referencePrefix + sanitizedUserContent
+                }
+              ];
+              
+              if (mediaType === 'image') {
+                multimodalContent.push({
+                  type: 'image_url',
+                  image_url: { url: mediaUrl }
+                });
+              } else if (mediaType === 'audio') {
+                multimodalContent.push({
+                  type: 'audio_url',
+                  audio_url: { url: mediaUrl }
+                });
+              }
+              
+              return [{ role: 'user', content: multimodalContent }];
+            } else {
+              // For text-only references, return simple concatenated string
+              return [{ 
+                role: 'user', 
+                content: referencePrefix + sanitizedUserContent
+              }];
+            }
           }
         } catch (refError) {
           // If there's an error processing the reference, log it but continue
           logger.error(`[AIService] Error processing referenced message: ${refError.message}`);
           logger.error(`[AIService] Reference processing error stack: ${refError.stack}`);
           
-          // Add a minimal system message to indicate there was a reference
-          messages.push({
-            role: 'system',
-            content: 'The user is referencing another message that could not be properly processed.'
-          });
+          // Fall back to just sending the user's message
+          const sanitizedContent = typeof content.messageContent === 'string' ? 
+            sanitizeApiText(content.messageContent) : 
+            Array.isArray(content.messageContent) ? 
+              content.messageContent : 
+              "There was an error processing a referenced message.";
+          
+          return [{ role: 'user', content: sanitizedContent }];
         }
       }
       
-      // Now add the user's actual message
-      try {
-        if (Array.isArray(content.messageContent)) {
-          // Handle multimodal content array
-          logger.debug(`[AIService] Processing multimodal user message content with ${content.messageContent.length} elements`);
-          
-          messages.push({
-            role: 'user',
-            content: content.messageContent
-          });
-        } else {
-          // Handle text-only content
-          logger.debug(`[AIService] Processing text-only user message content`);
-          
-          messages.push({ 
-            role: 'user', 
-            content: content.messageContent 
-          });
-        }
-      } catch (contentError) {
-        logger.error(`[AIService] Error processing user message content: ${contentError.message}`);
-        logger.error(`[AIService] Content processing error stack: ${contentError.stack}`);
+      // If no reference but still using the special format, process user message normally
+      if (Array.isArray(content.messageContent)) {
+        return [{ role: 'user', content: content.messageContent }];
+      } else {
+        const sanitizedContent = typeof content.messageContent === 'string' ? 
+          sanitizeApiText(content.messageContent) : 
+          content.messageContent;
         
-        // Fall back to a simple text message
-        messages.push({
-          role: 'user',
-          content: typeof content.messageContent === 'string' 
-            ? content.messageContent 
-            : "I was trying to ask about a previous message but encountered an error."
-        });
+        return [{ role: 'user', content: sanitizedContent }];
       }
-      
-      return messages;
     }
     
     // Standard handling for non-reference formats
@@ -1339,8 +1347,9 @@ function formatApiMessages(content) {
       return [{ role: 'user', content }];
     }
 
-    // Simple text message
-    return [{ role: 'user', content }];
+    // Simple text message - sanitize if it's a string
+    const sanitizedContent = typeof content === 'string' ? sanitizeApiText(content) : content;
+    return [{ role: 'user', content: sanitizedContent }];
   } catch (formatError) {
     // Log the error for debugging
     logger.error(`[AIService] Error in formatApiMessages: ${formatError.message}`);
@@ -1348,7 +1357,7 @@ function formatApiMessages(content) {
     
     // Fall back to a simple message
     if (typeof content === 'string') {
-      return [{ role: 'user', content }];
+      return [{ role: 'user', content: sanitizeApiText(content) }];
     } else if (Array.isArray(content)) {
       return [{ role: 'user', content }];
     } else if (content && typeof content === 'object' && content.messageContent) {
@@ -1356,7 +1365,7 @@ function formatApiMessages(content) {
       return [{ 
         role: 'user', 
         content: typeof content.messageContent === 'string' 
-          ? content.messageContent 
+          ? sanitizeApiText(content.messageContent)
           : Array.isArray(content.messageContent) 
             ? content.messageContent
             : "There was an error formatting my message."
@@ -1558,6 +1567,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   );
   return content;
 }
+
 
 module.exports = {
   getAiResponse,

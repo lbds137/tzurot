@@ -18,7 +18,7 @@ jest.mock('../../../config', () => ({
 //   someFunction: jest.fn()
 // }));
 //
-// jest.mock('../../../src/embedHelpers', () => ({
+// jest.mock('../../../src/utils/embedBuilders', () => ({
 //   // Mock specific functions used by the command
 //   createSomeEmbed: jest.fn()
 // }));
@@ -37,7 +37,7 @@ const logger = require('../../../src/logger');
 const validator = require('../../../src/commands/utils/commandValidator');
 // Import other mocked modules as needed
 // const personalityManager = require('../../../src/personalityManager');
-// const embedHelpers = require('../../../src/embedHelpers');
+// const embedHelpers = require('../../../src/utils/embedBuilders');
 
 describe('Command Name', () => {
   let command; // Will hold the command module

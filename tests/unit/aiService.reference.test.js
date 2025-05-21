@@ -46,17 +46,14 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have two messages - the reference and the user message
-      expect(result.length).toBe(2);
+      // Should have one message combining the reference and user content
+      expect(result.length).toBe(1);
       
-      // First message should be user role with the referenced content
+      // Message should be user role with both the reference and the question
       expect(result[0].role).toBe('user');
-      expect(result[0].content).toContain('SomeUser');
+      expect(result[0].content).toContain('Referring to message from SomeUser');
       expect(result[0].content).toContain('I believe AI has both benefits and risks');
-      
-      // Second message should be the user's question
-      expect(result[1].role).toBe('user');
-      expect(result[1].content).toBe("What do you think about this?");
+      expect(result[0].content).toContain('What do you think about this?');
     });
     
     it('should properly format text-only referenced messages from the bot', () => {
@@ -71,16 +68,14 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have two messages - the reference and the user message
-      expect(result.length).toBe(2);
+      // Should have one message combining the reference and user content
+      expect(result.length).toBe(1);
       
-      // First message should be assistant role with the referenced content
-      expect(result[0].role).toBe('assistant');
-      expect(result[0].content).toBe('The concept of artificial intelligence raises profound philosophical questions.');
-      
-      // Second message should be the user's question
-      expect(result[1].role).toBe('user');
-      expect(result[1].content).toBe("Please elaborate on that.");
+      // Message should be user role with both the reference and the question
+      expect(result[0].role).toBe('user');
+      expect(result[0].content).toContain('Referring to my previous message');
+      expect(result[0].content).toContain('The concept of artificial intelligence raises profound philosophical questions');
+      expect(result[0].content).toContain('Please elaborate on that');
     });
     
     it('should handle problematic content in referenced messages', () => {
@@ -95,9 +90,14 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // First message should be sanitized
+      // Should have one message that combines the reference and question
+      expect(result.length).toBe(1);
       expect(result[0].role).toBe('user');
       const content = result[0].content;
+      
+      // Should include both the reference and the question
+      expect(content).toContain("Referring to message from SomeUser");
+      expect(content).toContain("What's wrong with this message?");
       
       // With minimal sanitization, newlines are preserved but control chars are removed
       expect(content.includes('\n')).toBe(true); // newlines preserved
@@ -123,18 +123,24 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should detect the image and format appropriately
-      expect(result.length).toBeGreaterThan(1);
-      expect(result[0].content).toContain('previous message with an image');
+      // Should have one message with multimodal content
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
       
-      // Should include the original message content somewhere
-      const hasOriginalMessage = result.some(msg => 
-        msg.role === 'user' && 
-        typeof msg.content === 'string' && 
-        (msg.content.includes("Tell me about this image") || 
-         msg.content.includes("I'm referring to this"))
-      );
-      expect(hasOriginalMessage).toBe(true);
+      // Result should be a multimodal content array
+      expect(Array.isArray(result[0].content)).toBe(true);
+      
+      // Should have text part with reference and user message
+      const textItem = result[0].content.find(item => item.type === 'text');
+      expect(textItem).toBeDefined();
+      expect(textItem.text).toContain('Referring to message from ImagePoster');
+      expect(textItem.text).toContain('Check out this picture');
+      expect(textItem.text).toContain('Tell me about this image');
+      
+      // Should have image part with the URL from the reference
+      const imageItem = result[0].content.find(item => item.type === 'image_url');
+      expect(imageItem).toBeDefined();
+      expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
     });
     
     it('should handle audio references', () => {
@@ -149,11 +155,24 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should detect the audio and include it in the user message
-      expect(result.length).toBeGreaterThan(0);
-      const userReferenceMessage = result.find(msg => msg.role === 'user' && msg.content.includes('audio file'));
-      expect(userReferenceMessage.content).toContain('audio file');
-      expect(userReferenceMessage.content).toContain('Listen to this');
+      // Should have one message with multimodal content
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
+      
+      // Result should be a multimodal content array
+      expect(Array.isArray(result[0].content)).toBe(true);
+      
+      // Should have text part with reference and user message
+      const textItem = result[0].content.find(item => item.type === 'text');
+      expect(textItem).toBeDefined();
+      expect(textItem.text).toContain('Referring to message from AudioPoster');
+      expect(textItem.text).toContain('Listen to this');
+      expect(textItem.text).toContain("What's in this recording?");
+      
+      // Should have audio part with the URL from the reference
+      const audioItem = result[0].content.find(item => item.type === 'audio_url');
+      expect(audioItem).toBeDefined();
+      expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
     });
   });
 });
