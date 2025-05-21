@@ -1,0 +1,722 @@
+/**
+ * Tests for the reference handler module
+ */
+
+const referenceHandler = require('../../../src/handlers/referenceHandler');
+const logger = require('../../../src/logger');
+const { getPersonalityFromMessage } = require('../../../src/conversationManager');
+const { getPersonality, getPersonalityByAlias } = require('../../../src/personalityManager');
+
+// Mock dependencies
+jest.mock('../../../src/logger');
+jest.mock('../../../src/conversationManager');
+jest.mock('../../../src/personalityManager');
+
+describe('Reference Handler Module', () => {
+  // Mock Discord client and objects
+  const mockClient = {
+    guilds: {
+      cache: {
+        get: jest.fn()
+      }
+    },
+    user: {
+      id: 'bot-user-id'
+    }
+  };
+
+  // Mock personality
+  const mockPersonality = {
+    fullName: 'test-personality',
+    displayName: 'Test Personality'
+  };
+  
+  // Mock message handler
+  const mockHandlePersonalityInteraction = jest.fn();
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Default mocks for the personality manager
+    getPersonality.mockImplementation((name) => {
+      if (name === 'test-personality') {
+        return mockPersonality;
+      }
+      return null;
+    });
+    
+    getPersonalityByAlias.mockImplementation((alias) => {
+      if (alias === 'test') {
+        return mockPersonality;
+      }
+      return null;
+    });
+    
+    // Default mock for conversationManager
+    getPersonalityFromMessage.mockImplementation((messageId, options) => {
+      if (messageId === 'webhook-msg-id' && options?.webhookUsername === 'Test Webhook') {
+        return 'test-personality';
+      }
+      return null;
+    });
+  });
+
+  describe('handleMessageReference', () => {
+    it('should return false if message has no reference', async () => {
+      const mockMessage = {
+        // No reference property
+        author: { tag: 'User#1234' }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      
+      expect(result).toBe(false);
+      expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
+    });
+    
+    it('should fetch and process a referenced webhook message with personality', async () => {
+      const mockReferencedMessage = {
+        id: 'webhook-msg-id',
+        webhookId: 'webhook-id',
+        author: {
+          username: 'Test Webhook',
+          id: 'webhook-user-id',
+          bot: true
+        }
+      };
+      
+      const mockMessage = {
+        reference: { messageId: 'webhook-msg-id' },
+        author: { 
+          tag: 'User#1234',
+          id: 'user-id'
+        },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
+          }
+        }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      
+      expect(result).toBe(true);
+      expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('webhook-msg-id');
+      expect(getPersonalityFromMessage).toHaveBeenCalledWith('webhook-msg-id', { webhookUsername: 'Test Webhook' });
+      expect(getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, mockPersonality, null);
+    });
+    
+    it('should handle referenced messages with no personality', async () => {
+      const mockReferencedMessage = {
+        id: 'non-webhook-msg-id',
+        // No webhookId
+        author: {
+          tag: 'Regular User#1234'
+        }
+      };
+      
+      const mockMessage = {
+        reference: { messageId: 'non-webhook-msg-id' },
+        author: { tag: 'User#1234' },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
+          }
+        }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      
+      expect(result).toBe(false);
+      expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('non-webhook-msg-id');
+      expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
+    });
+    
+    it('should handle errors when fetching referenced messages', async () => {
+      const mockMessage = {
+        reference: { messageId: 'error-msg-id' },
+        author: { tag: 'User#1234' },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockRejectedValue(new Error('Failed to fetch message'))
+          }
+        }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      
+      expect(result).toBe(false);
+      expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('error-msg-id');
+      expect(logger.error).toHaveBeenCalledWith('Error handling message reference:', expect.any(Error));
+      expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
+    });
+  });
+  
+  describe('processMessageLinks', () => {
+    it('should return unmodified content if messageContent is not a string', async () => {
+      const mockMessage = { content: 'Hello' };
+      const messageContent = ['Not a string'];
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        null, 
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe(messageContent);
+      expect(result.hasProcessedLink).toBe(false);
+    });
+    
+    it('should return unmodified content if no message link is present', async () => {
+      const mockMessage = { content: 'Hello without link' };
+      const messageContent = 'Hello without link';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        null, 
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe(messageContent);
+      expect(result.hasProcessedLink).toBe(false);
+    });
+    
+    it('should return unmodified content if link is present but not replying to personality or mentioning', async () => {
+      const mockMessage = { 
+        content: 'Hello with link https://discord.com/channels/123/456/789',
+        // No reference property
+      };
+      const messageContent = 'Hello with link https://discord.com/channels/123/456/789';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        null, // No triggering mention
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe(messageContent);
+      expect(result.hasProcessedLink).toBe(false);
+    });
+    
+    it('should process a message link when replying to a personality webhook', async () => {
+      // Mock guild, channel, and linked message
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'Linked message content',
+                  author: {
+                    username: 'Linked User',
+                    bot: false
+                  },
+                  webhookId: null, // Not a webhook message
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: 'Look at this message https://discord.com/channels/123/456/789',
+        reference: { messageId: 'webhook-msg-id' },
+      };
+      
+      const messageContent = 'Look at this message https://discord.com/channels/123/456/789';
+      const referencedPersonalityInfo = { name: 'test-personality', displayName: 'Test Personality' };
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        referencedPersonalityInfo, 
+        false, 
+        null, 
+        null, // No triggering mention
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('Look at this message [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toBe('Linked message content');
+      expect(result.referencedMessageAuthor).toBe('Linked User');
+      expect(result.isReferencedMessageFromBot).toBe(false);
+      
+      // Verify the guild and channel were accessed properly
+      expect(mockClient.guilds.cache.get).toHaveBeenCalledWith('123');
+      expect(mockGuild.channels.cache.get).toHaveBeenCalledWith('456');
+    });
+    
+    it('should process a message link when triggered by a mention', async () => {
+      // Mock guild, channel, and linked message
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'Linked message content',
+                  author: {
+                    username: 'Linked User',
+                    bot: false
+                  },
+                  webhookId: null, // Not a webhook message
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: '@TestPersonality Look at this message https://discord.com/channels/123/456/789',
+        // No reference
+      };
+      
+      const messageContent = '@TestPersonality Look at this message https://discord.com/channels/123/456/789';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        'TestPersonality', // Triggering mention
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('@TestPersonality Look at this message [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toBe('Linked message content');
+      expect(result.referencedMessageAuthor).toBe('Linked User');
+      expect(result.isReferencedMessageFromBot).toBe(false);
+    });
+    
+    it('should process a linked webhook message and extract personality information', async () => {
+      // Mock the personality lookup functions
+      const mockPersonalityFromMessage = jest.fn().mockReturnValue('linked-personality');
+      const mockPersonalityManager = {
+        listPersonalitiesForUser: jest.fn().mockReturnValue([
+          {
+            fullName: 'linked-personality',
+            displayName: 'Linked Personality'
+          }
+        ])
+      };
+      
+      // Create a proxy to temporarily override the require statement
+      jest.doMock('../../../src/conversationManager', () => ({
+        getPersonalityFromMessage: mockPersonalityFromMessage
+      }));
+      
+      jest.doMock('../../../src/personalityManager', () => mockPersonalityManager);
+      
+      // Mock guild, channel, and linked message
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-webhook-msg-id',
+                  content: 'Linked webhook message content',
+                  author: {
+                    username: 'Linked Webhook',
+                    bot: true
+                  },
+                  webhookId: 'linked-webhook-id', // A webhook message
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: '@TestPersonality Look at this webhook message https://discord.com/channels/123/456/789',
+        // No reference
+      };
+      
+      const messageContent = '@TestPersonality Look at this webhook message https://discord.com/channels/123/456/789';
+      
+      // Need to re-require the module to get the mocked versions
+      const referenceHandlerMocked = require('../../../src/handlers/referenceHandler');
+      
+      const result = await referenceHandlerMocked.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        'TestPersonality', // Triggering mention
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('@TestPersonality Look at this webhook message [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toBe('Linked webhook message content');
+      expect(result.referencedMessageAuthor).toBe('Linked Webhook');
+      expect(result.isReferencedMessageFromBot).toBe(true);
+      
+      // Reset the mocks to avoid affecting other tests
+      jest.dontMock('../../../src/conversationManager');
+      jest.dontMock('../../../src/personalityManager');
+    });
+    
+    it('should handle linked messages with embeds', async () => {
+      // Mock guild, channel, and linked message with embeds
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'Linked message with embeds',
+                  author: {
+                    username: 'Linked User',
+                    bot: false
+                  },
+                  webhookId: null,
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [
+                    {
+                      title: 'Embed Title',
+                      description: 'Embed Description',
+                      fields: [
+                        { name: 'Field Name', value: 'Field Value' }
+                      ],
+                      image: { url: 'https://example.com/embed-image.jpg' }
+                    }
+                  ],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      // Mock the embedUtils function that's imported
+      const mockEmbedUtils = {
+        parseEmbedsToText: jest.fn().mockReturnValue('\n[Embed Title: Embed Title]\n[Embed Description: Embed Description]\n[Embed Field - Field Name: Field Value]\n[Embed Image: https://example.com/embed-image.jpg]')
+      };
+      
+      jest.doMock('../../../src/utils/embedUtils', () => mockEmbedUtils);
+      
+      const mockMessage = {
+        content: '@TestPersonality Look at this message with embeds https://discord.com/channels/123/456/789',
+        // No reference
+      };
+      
+      const messageContent = '@TestPersonality Look at this message with embeds https://discord.com/channels/123/456/789';
+      
+      // Re-require to get mocked version
+      const referenceHandlerMocked = require('../../../src/handlers/referenceHandler');
+      
+      const result = await referenceHandlerMocked.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        'TestPersonality',
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('@TestPersonality Look at this message with embeds [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toContain('Linked message with embeds');
+      expect(result.referencedMessageContent).toContain('[Embed Title: Embed Title]');
+      
+      // Reset mock
+      jest.dontMock('../../../src/utils/embedUtils');
+    });
+    
+    it('should handle linked messages with attachments', async () => {
+      // Create a mock Map for attachments
+      const mockAttachments = new Map();
+      mockAttachments.set('image-attachment', {
+        contentType: 'image/jpeg',
+        url: 'https://example.com/attachment-image.jpg'
+      });
+      mockAttachments.set('audio-attachment', {
+        contentType: 'audio/mp3',
+        url: 'https://example.com/attachment-audio.mp3'
+      });
+      
+      // Mock guild, channel, and linked message with attachments
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'Linked message with attachments',
+                  author: {
+                    username: 'Linked User',
+                    bot: false
+                  },
+                  webhookId: null,
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: mockAttachments
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: '@TestPersonality Look at this message with attachments https://discord.com/channels/123/456/789',
+        // No reference
+      };
+      
+      const messageContent = '@TestPersonality Look at this message with attachments https://discord.com/channels/123/456/789';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        'TestPersonality',
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('@TestPersonality Look at this message with attachments [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toContain('Linked message with attachments');
+      expect(result.referencedMessageContent).toContain('[Image: https://example.com/attachment-image.jpg]');
+      expect(result.referencedMessageContent).toContain('[Audio: https://example.com/attachment-audio.mp3]');
+    });
+    
+    it('should handle errors when processing linked messages', async () => {
+      // Mock client to throw error
+      mockClient.guilds.cache.get.mockImplementation(() => {
+        throw new Error('Failed to access guild');
+      });
+      
+      const mockMessage = {
+        content: 'Look at this message https://discord.com/channels/123/456/789',
+        reference: { messageId: 'webhook-msg-id' },
+      };
+      
+      const messageContent = 'Look at this message https://discord.com/channels/123/456/789';
+      const referencedPersonalityInfo = { name: 'test-personality', displayName: 'Test Personality' };
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        referencedPersonalityInfo, 
+        false, 
+        null, 
+        null,
+        mockClient
+      );
+      
+      expect(result.messageContent).toBe('Look at this message [referenced Discord message link]');
+      expect(result.hasProcessedLink).toBe(false);
+      expect(logger.error).toHaveBeenCalledWith(`[Bot] Error accessing guild for linked message: Failed to access guild`);
+    });
+  });
+  
+  describe('parseEmbedsToText', () => {
+    it('should return empty string for null or empty embeds array', () => {
+      expect(referenceHandler.parseEmbedsToText(null, 'test')).toBe('');
+      expect(referenceHandler.parseEmbedsToText([], 'test')).toBe('');
+    });
+    
+    it('should correctly parse embed with title and description', () => {
+      const embeds = [
+        {
+          title: 'Test Embed',
+          description: 'This is a test embed'
+        }
+      ];
+      
+      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      
+      expect(result).toContain('[Embed Title: Test Embed]');
+      expect(result).toContain('[Embed Description: This is a test embed]');
+    });
+    
+    it('should correctly parse embed with fields', () => {
+      const embeds = [
+        {
+          fields: [
+            { name: 'Field 1', value: 'Value 1' },
+            { name: 'Field 2', value: 'Value 2' }
+          ]
+        }
+      ];
+      
+      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      
+      expect(result).toContain('[Embed Field - Field 1: Value 1]');
+      expect(result).toContain('[Embed Field - Field 2: Value 2]');
+    });
+    
+    it('should correctly parse embed with image and thumbnail', () => {
+      const embeds = [
+        {
+          image: { url: 'https://example.com/image.jpg' },
+          thumbnail: { url: 'https://example.com/thumbnail.jpg' }
+        }
+      ];
+      
+      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      
+      expect(result).toContain('[Embed Image: https://example.com/image.jpg]');
+      expect(result).toContain('[Embed Thumbnail: https://example.com/thumbnail.jpg]');
+    });
+    
+    it('should correctly parse embed with footer', () => {
+      const embeds = [
+        {
+          footer: { text: 'Footer text' }
+        }
+      ];
+      
+      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      
+      expect(result).toContain('[Embed Footer: Footer text]');
+    });
+    
+    it('should correctly parse multiple embeds', () => {
+      const embeds = [
+        {
+          title: 'First Embed',
+          description: 'First description'
+        },
+        {
+          title: 'Second Embed',
+          description: 'Second description'
+        }
+      ];
+      
+      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      
+      expect(result).toContain('[Embed Title: First Embed]');
+      expect(result).toContain('[Embed Description: First description]');
+      expect(result).toContain('[Embed Title: Second Embed]');
+      expect(result).toContain('[Embed Description: Second description]');
+    });
+  });
+  
+  describe('MESSAGE_LINK_REGEX', () => {
+    it('should match standard discord.com link format', () => {
+      const link = 'https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890';
+      const match = link.match(referenceHandler.MESSAGE_LINK_REGEX);
+      
+      expect(match).not.toBeNull();
+      expect(match[2]).toBe('123456789012345678'); // guild id
+      expect(match[3]).toBe('234567890123456789'); // channel id
+      expect(match[4]).toBe('345678901234567890'); // message id
+    });
+    
+    it('should match ptb.discord.com link format', () => {
+      const link = 'https://ptb.discord.com/channels/123456789012345678/234567890123456789/345678901234567890';
+      const match = link.match(referenceHandler.MESSAGE_LINK_REGEX);
+      
+      expect(match).not.toBeNull();
+      expect(match[1]).toBe('ptb.'); // subdomain
+      expect(match[2]).toBe('123456789012345678'); // guild id
+      expect(match[3]).toBe('234567890123456789'); // channel id
+      expect(match[4]).toBe('345678901234567890'); // message id
+    });
+    
+    it('should match canary.discord.com link format', () => {
+      const link = 'https://canary.discord.com/channels/123456789012345678/234567890123456789/345678901234567890';
+      const match = link.match(referenceHandler.MESSAGE_LINK_REGEX);
+      
+      expect(match).not.toBeNull();
+      expect(match[1]).toBe('canary.'); // subdomain
+      expect(match[2]).toBe('123456789012345678'); // guild id
+      expect(match[3]).toBe('234567890123456789'); // channel id
+      expect(match[4]).toBe('345678901234567890'); // message id
+    });
+    
+    it('should match discordapp.com link format', () => {
+      const link = 'https://discordapp.com/channels/123456789012345678/234567890123456789/345678901234567890';
+      const match = link.match(referenceHandler.MESSAGE_LINK_REGEX);
+      
+      expect(match).not.toBeNull();
+      expect(match[2]).toBe('123456789012345678'); // guild id
+      expect(match[3]).toBe('234567890123456789'); // channel id
+      expect(match[4]).toBe('345678901234567890'); // message id
+    });
+    
+    it('should not match invalid link formats', () => {
+      const invalidLinks = [
+        'https://discord.com/channel/123/456/789', // wrong path
+        'http://discord.com/channels/123/456/789', // http instead of https
+        'https://discordapp.org/channels/123/456/789', // wrong TLD
+        'https://discord.com/channels/abc/456/789', // non-numeric IDs
+        'discord.com/channels/123/456/789' // missing protocol
+      ];
+      
+      invalidLinks.forEach(link => {
+        const match = link.match(referenceHandler.MESSAGE_LINK_REGEX);
+        expect(match).toBeNull();
+      });
+    });
+  });
+});
