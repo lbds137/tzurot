@@ -24,23 +24,28 @@ describe('imageHandler', () => {
     urlValidator.isValidUrlFormat.mockReturnValue(true);
     urlValidator.isTrustedDomain.mockReturnValue(false);
     
-    // Mock fetch response
-    const mockBuffer = Buffer.from('fake image data');
-    const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
-    const mockResponse = {
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: {
-        get: jest.fn(header => {
-          if (header === 'content-type') return 'image/jpeg';
-          return '';
-        })
-      },
-      buffer: jest.fn().mockResolvedValue(mockBuffer),
-      arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
+    // Create a proper ArrayBuffer from Buffer for testing
+    const createMockResponse = (options = {}) => {
+      const mockBuffer = Buffer.from('fake image data');
+      const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
+      
+      return {
+        ok: options.ok !== undefined ? options.ok : true,
+        status: options.status || 200,
+        statusText: options.statusText || 'OK',
+        headers: {
+          get: jest.fn(header => {
+            if (header === 'content-type') return options.contentType || 'image/jpeg';
+            return '';
+          })
+        },
+        buffer: jest.fn().mockResolvedValue(mockBuffer),
+        arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
+      };
     };
-    nodeFetch.mockResolvedValue(mockResponse);
+    
+    // Set default successful response
+    nodeFetch.mockResolvedValue(createMockResponse());
     
     // Mock URL constructor
     global.URL = jest.fn().mockImplementation((url) => {
@@ -169,6 +174,7 @@ describe('imageHandler', () => {
     it('should download and process an image file', async () => {
       // Create a mock response with buffer and arrayBuffer methods
       const mockBuffer = Buffer.from('fake image data');
+      const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
       const mockResponse = {
         ok: true,
         status: 200,
@@ -179,7 +185,7 @@ describe('imageHandler', () => {
             return null;
           })
         },
-        arrayBuffer: jest.fn().mockResolvedValue(mockBuffer)
+        arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
       };
       nodeFetch.mockResolvedValueOnce(mockResponse);
       
@@ -222,6 +228,7 @@ describe('imageHandler', () => {
     it('should generate a filename if none can be extracted from URL', async () => {
       // Mock a response with a content type but no clear filename in the URL
       const mockBuffer = Buffer.from('fake image data');
+      const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
       const mockResponse = {
         ok: true,
         status: 200,
@@ -232,7 +239,7 @@ describe('imageHandler', () => {
             return null;
           })
         },
-        arrayBuffer: jest.fn().mockResolvedValue(mockBuffer)
+        arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
       };
       nodeFetch.mockResolvedValueOnce(mockResponse);
       
