@@ -1,6 +1,6 @@
 /**
  * Utilities for building Discord embeds for UI display
- * 
+ *
  * This module contains functions for creating formatted Discord embeds:
  * - Personality list embeds
  * - Status embeds
@@ -128,7 +128,9 @@ function createPersonalityListEmbed(userId, page = 1) {
     // Check if personalityAliases is a Map
     let aliasesMap;
     if (!(personalityAliases instanceof Map)) {
-      console.error(`[EmbedBuilders] personalityAliases is not a Map: ${typeof personalityAliases}`);
+      console.error(
+        `[EmbedBuilders] personalityAliases is not a Map: ${typeof personalityAliases}`
+      );
       // If it's not a Map, we can try to convert it
       aliasesMap = new Map();
       if (typeof personalityAliases === 'object' && personalityAliases !== null) {
@@ -279,15 +281,15 @@ function createListEmbed(personalities, page, totalPages, author) {
     // Add navigation instructions
     if (totalPages > 1) {
       let navigationText = '';
-      
+
       if (page < totalPages) {
         navigationText += `Use \`!tz list ${page + 1}\` to see the next page\n`;
       }
-      
+
       if (page > 1) {
         navigationText += `Use \`!tz list ${page - 1}\` to see the previous page`;
       }
-      
+
       if (navigationText) {
         embed.addFields({
           name: 'Navigation',
@@ -299,11 +301,13 @@ function createListEmbed(personalities, page, totalPages, author) {
     return embed;
   } catch (error) {
     console.error(`[EmbedBuilders] Error creating list embed: ${error.message}`, error);
-    
+
     // Return a basic error embed
     return new EmbedBuilder()
       .setTitle('Error')
-      .setDescription('Sorry, there was a problem displaying your personalities. Please try again later.')
+      .setDescription(
+        'Sorry, there was a problem displaying your personalities. Please try again later.'
+      )
       .setColor('#FF0000');
   }
 }
@@ -343,7 +347,12 @@ function createPersonalityInfoEmbed(personality, aliases) {
  * @param {string} [verificationStatus="Unknown"] - User's age verification status
  * @returns {EmbedBuilder} Discord embed
  */
-function createStatusEmbed(client, totalPersonalities, userPersonalities, verificationStatus = "Unknown") {
+function createStatusEmbed(
+  client,
+  totalPersonalities,
+  userPersonalities,
+  verificationStatus = 'Unknown'
+) {
   const embed = new EmbedBuilder()
     .setTitle('Tzurot Status')
     .setDescription('Current bot status and statistics')
@@ -435,7 +444,8 @@ function createHelpEmbed(isAdmin) {
       { name: `${prefix} reset`, value: 'Clear your active conversation' },
       {
         name: `${prefix} verify`,
-        value: 'Verify your age to use AI personalities in Direct Messages (must be run in NSFW channel)',
+        value:
+          'Verify your age to use AI personalities in Direct Messages (must be run in NSFW channel)',
       }
     )
     .setFooter({

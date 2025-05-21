@@ -64,7 +64,9 @@ function filterWebhookMessage(message) {
   // Check for error patterns
   if (message.content && ERROR_MESSAGES.some(pattern => message.content.includes(pattern))) {
     logger.warn(`[ErrorHandler] Blocking error message: ${message.webhookId}`);
-    logger.warn(`[ErrorHandler] Message content matches error pattern: ${message.content.substring(0, 50)}...`);
+    logger.warn(
+      `[ErrorHandler] Message content matches error pattern: ${message.content.substring(0, 50)}...`
+    );
 
     // Try to delete the message if possible
     if (message.deletable) {
@@ -80,7 +82,7 @@ function filterWebhookMessage(message) {
 }
 
 /**
- * Checks if an embed is incomplete 
+ * Checks if an embed is incomplete
  * @param {Object} message - Discord message object
  * @returns {Promise<boolean>} - True if an incomplete embed was detected and deleted
  */
@@ -110,7 +112,9 @@ async function detectAndDeleteIncompleteEmbed(message) {
       // Try to delete this embed to prevent confusion
       try {
         await message.delete();
-        logger.info(`✅ [ErrorHandler] Successfully deleted incomplete embed message ID ${message.id}`);
+        logger.info(
+          `✅ [ErrorHandler] Successfully deleted incomplete embed message ID ${message.id}`
+        );
         return true; // Embed was detected and deleted
       } catch (deleteError) {
         logger.error(`❌ [ErrorHandler] Error deleting incomplete embed:`, deleteError);
@@ -278,5 +282,5 @@ module.exports = {
   hasErrorPatterns,
   filterWebhookMessage,
   detectAndDeleteIncompleteEmbed,
-  startQueueCleaner
+  startQueueCleaner,
 };

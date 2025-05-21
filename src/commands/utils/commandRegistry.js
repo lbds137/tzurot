@@ -19,7 +19,7 @@ class CommandRegistry {
     }
 
     const { meta } = commandModule;
-    
+
     // Validate required meta properties
     if (!meta.name) {
       throw new Error('Command must have a name');
@@ -82,8 +82,7 @@ class CommandRegistry {
    * @returns {Array} Array of command modules
    */
   getFilteredCommands(filterFn) {
-    return Array.from(this.commands.values())
-      .filter(command => filterFn(command.meta));
+    return Array.from(this.commands.values()).filter(command => filterFn(command.meta));
   }
 }
 

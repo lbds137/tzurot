@@ -147,7 +147,9 @@ function recordConversation(userId, channelId, messageIds, personalityName, isDM
   // For DM channels, automatically enable auto-response
   if (isDM) {
     enableAutoResponse(userId);
-    logger.info(`[ConversationManager] Auto-enabled auto-response for user ${userId} in DM channel`);
+    logger.info(
+      `[ConversationManager] Auto-enabled auto-response for user ${userId} in DM channel`
+    );
   }
   // Minimize logging during conversation recording
   // No need to disable logging with structured logger

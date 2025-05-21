@@ -15,20 +15,20 @@ const recentMessagesByChannel = new Map();
 function cleanupRecentMessages() {
   const now = Date.now();
   const channelsToDelete = [];
-  
+
   for (const [channelId, messages] of recentMessagesByChannel.entries()) {
     // Remove messages older than the proxy delay time + buffer
     const newMessages = messages.filter(msg => {
       return now - msg.timestamp < contentSimilarity.getProxyDelayTime() + 5000; // 5 second buffer
     });
-    
+
     if (newMessages.length === 0) {
       channelsToDelete.push(channelId);
     } else {
       recentMessagesByChannel.set(channelId, newMessages);
     }
   }
-  
+
   // Delete empty channel entries
   for (const channelId of channelsToDelete) {
     recentMessagesByChannel.delete(channelId);
@@ -48,7 +48,7 @@ function startCleanupInterval(interval = 30000) {
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
   }
-  
+
   // Start a new interval
   cleanupInterval = setInterval(cleanupRecentMessages, interval);
   return cleanupInterval;
@@ -71,30 +71,30 @@ function stopCleanupInterval() {
  */
 function trackMessageInChannel(message) {
   if (!message || !message.content) return;
-  
+
   const channelId = message.channel.id;
   const content = message.content;
   const messageId = message.id;
-  
+
   // Initialize array for this channel if it doesn't exist
   if (!recentMessagesByChannel.has(channelId)) {
     recentMessagesByChannel.set(channelId, []);
   }
-  
+
   // Add this message to the channel's recent messages
   const messages = recentMessagesByChannel.get(channelId);
   messages.push({
     content,
     timestamp: Date.now(),
     handled: false,
-    messageId
+    messageId,
   });
-  
+
   // Keep array from growing too large
   if (messages.length > 50) {
     messages.shift(); // Remove oldest message
   }
-  
+
   recentMessagesByChannel.set(channelId, messages);
 }
 
@@ -106,37 +106,39 @@ function trackMessageInChannel(message) {
  */
 function hasSimilarRecentMessage(message) {
   if (!message || !message.content) return false;
-  
+
   const channelId = message.channel.id;
   const content = message.content;
-  
+
   // If no recent messages for this channel, return false
   if (!recentMessagesByChannel.has(channelId)) return false;
-  
+
   const messages = recentMessagesByChannel.get(channelId);
   const now = Date.now();
-  
+
   // Only check messages that are recent enough to be from a proxy service
   const recentEnoughMessages = messages.filter(msg => {
     // Only consider messages from the last few seconds
     return now - msg.timestamp < contentSimilarity.getProxyDelayTime();
   });
-  
+
   // Check if any recent messages have similar content AND have been handled
   for (const msg of recentEnoughMessages) {
     // Skip comparing with the exact same message ID
     if (msg.messageId === message.id) continue;
-    
+
     // Only consider similar messages that have been handled
     if (contentSimilarity.areContentsSimilar(content, msg.content)) {
       // Return true ONLY if the message has been handled
       if (msg.handled) {
-        logger.info(`[MessageTracker] Found similar recent message (${msg.messageId}) to current message (${message.id}) - similarity detected and message was handled`);
+        logger.info(
+          `[MessageTracker] Found similar recent message (${msg.messageId}) to current message (${message.id}) - similarity detected and message was handled`
+        );
         return true;
       }
     }
   }
-  
+
   return false;
 }
 
@@ -146,10 +148,10 @@ function hasSimilarRecentMessage(message) {
  */
 function markMessageAsHandled(message) {
   if (!message) return;
-  
+
   const channelId = message.channel.id;
   if (!recentMessagesByChannel.has(channelId)) return;
-  
+
   const messages = recentMessagesByChannel.get(channelId);
   for (const msg of messages) {
     if (msg.messageId === message.id) {
@@ -157,7 +159,7 @@ function markMessageAsHandled(message) {
       break;
     }
   }
-  
+
   recentMessagesByChannel.set(channelId, messages);
 }
 
@@ -173,17 +175,17 @@ function markMessageAsHandled(message) {
 async function delayedProcessing(message, personality, triggeringMention, client, handlerFunction) {
   // Track this message in the channel's recent messages
   trackMessageInChannel(message);
-  
+
   // Check if this message is similar to a recently processed message
   if (hasSimilarRecentMessage(message)) {
     logger.info(`[MessageTracker] Skipping message processing - likely duplicate: ${message.id}`);
     return;
   }
-  
+
   // Add a short delay to allow proxy systems to process the message
   logger.info(`[MessageTracker] Adding delay for message ${message.id}`);
-  
-  return new Promise((resolve) => {
+
+  return new Promise(resolve => {
     setTimeout(async () => {
       try {
         // Re-fetch the message to ensure it still exists
@@ -191,14 +193,16 @@ async function delayedProcessing(message, personality, triggeringMention, client
         try {
           messageToProcess = await message.channel.messages.fetch(message.id);
         } catch (fetchErr) {
-          logger.info(`[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system`);
+          logger.info(
+            `[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system`
+          );
           resolve(); // Message was deleted, don't process
           return;
         }
-        
+
         // Mark the message as handled
         markMessageAsHandled(messageToProcess);
-        
+
         // Process the message with the provided handler function
         await handlerFunction(messageToProcess, personality, triggeringMention, client);
         resolve();
@@ -219,5 +223,5 @@ module.exports = {
   markMessageAsHandled,
   delayedProcessing,
   startCleanupInterval,
-  stopCleanupInterval
+  stopCleanupInterval,
 };

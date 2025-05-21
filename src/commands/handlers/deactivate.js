@@ -16,7 +16,7 @@ const meta = {
   description: 'Deactivate the currently active personality in this channel',
   usage: 'deactivate',
   aliases: [],
-  permissions: ['MANAGE_MESSAGES']
+  permissions: ['MANAGE_MESSAGES'],
 };
 
 /**
@@ -25,7 +25,7 @@ const meta = {
  * @param {Array<string>} args - Command arguments
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, _args) {
   // Create direct send function
   const directSend = validator.createDirectSend(message);
 
@@ -62,11 +62,13 @@ async function execute(message, args) {
     return await directSend({ embeds: [embed] });
   } catch (error) {
     logger.error('Error in deactivate command:', error);
-    return await directSend(`An error occurred while deactivating the personality: ${error.message}`);
+    return await directSend(
+      `An error occurred while deactivating the personality: ${error.message}`
+    );
   }
 }
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

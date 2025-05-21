@@ -22,14 +22,14 @@ function initAiClient() {
     },
   });
   logger.info('[AIService] Default AI client initialized');
-  
+
   // Initialize known problematic personalities after AI client is set up
   initKnownProblematicPersonalities();
 }
 
 /**
  * Initialize the known problematic personalities from environment variable
- * 
+ *
  * @returns {void}
  * @description
  * Loads the list of known problematic personalities from the environment variable
@@ -39,27 +39,29 @@ function initAiClient() {
 function initKnownProblematicPersonalities() {
   // Get the list of problematic personalities from environment
   const problematicList = USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST || '';
-  
+
   // If the list is empty, nothing to do
   if (!problematicList.trim()) {
     return;
   }
-  
+
   // Split the comma-separated list and initialize each personality
   const personalityNames = problematicList.split(',').map(name => name.trim());
-  
-  logger.info(`[AIService] Initializing ${personalityNames.length} known problematic personalities from environment`);
-  
+
+  logger.info(
+    `[AIService] Initializing ${personalityNames.length} known problematic personalities from environment`
+  );
+
   personalityNames.forEach(name => {
     if (!name) return; // Skip empty names
-    
+
     // Register the problematic personality with generic fallback responses
     knownProblematicPersonalities[name] = {
       isProblematic: true,
       errorPatterns: ['NoneType', 'AttributeError', 'lower', 'TypeError'],
       responses: fallbackResponses,
     };
-    
+
     logger.info(`[AIService] Registered known problematic personality: ${name}`);
   });
 }
@@ -76,37 +78,39 @@ function getAiClientForUser(userId, context = {}) {
     shouldBypassAuth = webhookUserTracker.shouldBypassNsfwVerification(context.message);
     if (shouldBypassAuth) {
       logger.info(`[AIService] Bypassing authentication for webhook message in AI client creation`);
-      
+
       // For webhook users that bypass auth, use the default client with no user-specific token
       return new OpenAI({
         apiKey: auth.API_KEY,
         baseURL: getApiEndpoint(),
         defaultHeaders: {
-          "X-App-ID": auth.APP_ID,
+          'X-App-ID': auth.APP_ID,
         },
       });
     }
   }
-  
+
   // If user has a valid token, create a client with their token
   if (userId && auth.hasValidToken(userId)) {
     const userToken = auth.getUserToken(userId);
     logger.debug(`[AIService] Using user-specific auth token for user ${userId}`);
-    
+
     // Return a client with the user's auth token
     return new OpenAI({
       apiKey: auth.API_KEY,
       baseURL: getApiEndpoint(),
       defaultHeaders: {
-        "X-App-ID": auth.APP_ID,
-        "X-User-Auth": userToken,
+        'X-App-ID': auth.APP_ID,
+        'X-User-Auth': userToken,
       },
     });
   }
-  
+
   // SECURITY UPDATE: For unauthenticated users, we should NOT use the owner's API key
   // Instead, return null to indicate auth is required
-  logger.warn(`[AIService] User ${userId || 'unknown'} is not authenticated and cannot use the AI service`);
+  logger.warn(
+    `[AIService] User ${userId || 'unknown'} is not authenticated and cannot use the AI service`
+  );
   return null;
 }
 
@@ -166,38 +170,54 @@ function isErrorResponse(content) {
 
   // A more careful approach to error detection:
   // 1. For likely direct error outputs (like NoneType, AttributeError), check for inclusion
-  // 2. For more common terms that might be part of normal responses (like Error), 
+  // 2. For more common terms that might be part of normal responses (like Error),
   //    require more context to reduce false positives
-  
+
   // These patterns are more definitively errors and less likely to be in normal content
-  const highConfidencePatterns = ['NoneType', 'AttributeError', 'TypeError', 'ValueError', 
-                               'KeyError', 'IndexError', 'ModuleNotFoundError', 'ImportError'];
-                               
+  const highConfidencePatterns = [
+    'NoneType',
+    'AttributeError',
+    'TypeError',
+    'ValueError',
+    'KeyError',
+    'IndexError',
+    'ModuleNotFoundError',
+    'ImportError',
+  ];
+
   // Check for high confidence error patterns first
-  const hasHighConfidencePattern = highConfidencePatterns.some(pattern => content.includes(pattern));
+  const hasHighConfidencePattern = highConfidencePatterns.some(pattern =>
+    content.includes(pattern)
+  );
   if (hasHighConfidencePattern) {
     return true;
   }
-  
+
   // For more common terms that might appear in valid content, require more specific context
   // For example, only flag "Error:" if it's at the beginning of a line or standalone
   if (content.match(/^Error:/m) || content.match(/\nError:/m)) {
     return true;
   }
-  
+
   // Only flag Traceback when it's likely part of an actual traceback message
-  if (content.includes('Traceback') && 
-      (content.includes('line') || content.includes('File') || content.includes('stack'))) {
+  if (
+    content.includes('Traceback') &&
+    (content.includes('line') || content.includes('File') || content.includes('stack'))
+  ) {
     return true;
   }
-  
+
   // For "Exception", also require more specific context
-  if (content.includes('Exception') && 
-      (content.includes('raised') || content.includes('caught') || 
-       content.includes('thrown') || content.includes('threw'))) {
+  if (
+    content.includes('Exception') &&
+    (content.includes('raised') ||
+      content.includes('caught') ||
+      content.includes('thrown') ||
+      content.includes('threw'))
+  ) {
     return true;
   }
-  
+
   // If we get here, the content doesn't match any error patterns with sufficient confidence
   return false;
 }
@@ -252,33 +272,35 @@ function registerProblematicPersonality(personalityName, errorData) {
   const currentTime = Date.now();
   const errorDetails = errorData.details || 'No additional details';
   const errorType = errorData.error || 'unknown_error';
-  
+
   // Improve error logging with more detailed information
   logger.error(`[AIService] Registering runtime problematic personality: ${personalityName}`);
   logger.error(`[AIService] Error type: ${errorType}`);
   logger.error(`[AIService] Error details: ${errorDetails}`);
-  
+
   // Check if this personality is already in the runtime problematic list
   if (runtimeProblematicPersonalities.has(personalityName)) {
     // Update the existing entry instead of creating a new one
     const existingInfo = runtimeProblematicPersonalities.get(personalityName);
-    
+
     // Increment error count
     existingInfo.errorCount++;
-    
+
     // Update last error time and content
     existingInfo.lastErrorAt = currentTime;
     existingInfo.lastErrorContent = errorData.content || 'Empty response';
     existingInfo.lastErrorDetails = errorDetails;
-    
+
     // If we've had too many errors in a short time, extend the recovery period
     // This prevents constant toggling between "problematic" and "recovered" states
     if (existingInfo.errorCount > 3) {
       // Set a 10-minute recovery period after multiple errors
-      existingInfo.recoveryTime = currentTime + (10 * 60 * 1000); // 10 minutes
-      logger.warn(`[AIService] Extended recovery period for ${personalityName} due to multiple errors (${existingInfo.errorCount})`);
+      existingInfo.recoveryTime = currentTime + 10 * 60 * 1000; // 10 minutes
+      logger.warn(
+        `[AIService] Extended recovery period for ${personalityName} due to multiple errors (${existingInfo.errorCount})`
+      );
     }
-    
+
     // Update the entry in the map
     runtimeProblematicPersonalities.set(personalityName, existingInfo);
     return;
@@ -301,7 +323,7 @@ function registerProblematicPersonality(personalityName, errorData) {
     firstDetectedAt: currentTime,
     lastErrorAt: currentTime,
     errorCount: 1,
-    recoveryTime: currentTime + (2 * 60 * 1000), // 2-minute recovery period by default
+    recoveryTime: currentTime + 2 * 60 * 1000, // 2-minute recovery period by default
     lastErrorContent: errorData.content || 'Unknown error',
     lastErrorDetails: errorDetails,
     errorType: errorType,
@@ -428,16 +450,18 @@ function getProblematicPersonalityInfo(personalityName) {
   // If not in the predefined list, check the runtime-detected list
   if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
     personalityInfo = runtimeProblematicPersonalities.get(personalityName);
-    
+
     // Check if the recovery period has elapsed
     const currentTime = Date.now();
     if (personalityInfo.recoveryTime && currentTime > personalityInfo.recoveryTime) {
       // Recovery time has passed, so this personality is no longer problematic
-      logger.info(`[AIService] Personality ${personalityName} has recovered from error state (recovery period elapsed)`);
-      
+      logger.info(
+        `[AIService] Personality ${personalityName} has recovered from error state (recovery period elapsed)`
+      );
+
       // Remove from the problematic list
       runtimeProblematicPersonalities.delete(personalityName);
-      
+
       // Return null to indicate it's no longer problematic
       return null;
     }
@@ -513,7 +537,7 @@ function isInBlackoutPeriod(personalityName, context) {
  * @example
  * // Add a specific personality-user-channel combination to blackout list with default duration
  * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" });
- * 
+ *
  * // Add with a custom duration of 5 minutes
  * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" }, 5 * 60 * 1000);
  *
@@ -622,9 +646,11 @@ function createRequestId(personalityName, message, context) {
       } else if (Array.isArray(message.messageContent)) {
         // Extract text from multimodal content
         const textContent = message.messageContent.find(item => item.type === 'text')?.text || '';
-        const imageUrl = message.messageContent.find(item => item.type === 'image_url')?.image_url?.url || '';
-        const audioUrl = message.messageContent.find(item => item.type === 'audio_url')?.audio_url?.url || '';
-        
+        const imageUrl =
+          message.messageContent.find(item => item.type === 'image_url')?.image_url?.url || '';
+        const audioUrl =
+          message.messageContent.find(item => item.type === 'audio_url')?.audio_url?.url || '';
+
         contentPrefix = (
           textContent.substring(0, 20) +
           (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
@@ -633,12 +659,12 @@ function createRequestId(personalityName, message, context) {
       } else {
         contentPrefix = 'complex-object';
       }
-      
+
       // Also check for referenced message with media
       let referencePrefix = '';
       if (message.referencedMessage && message.referencedMessage.content) {
         const refContent = message.referencedMessage.content;
-        
+
         // Check for media in the referenced message
         if (refContent.includes('[Image:')) {
           const imageMatch = refContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
@@ -646,7 +672,7 @@ function createRequestId(personalityName, message, context) {
             referencePrefix += 'IMG-' + imageMatch[1].substring(0, 8);
           }
         }
-        
+
         if (refContent.includes('[Audio:')) {
           const audioMatch = refContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
           if (audioMatch && audioMatch[1]) {
@@ -654,7 +680,7 @@ function createRequestId(personalityName, message, context) {
           }
         }
       }
-      
+
       // Combine prefixes to create a unique ID that includes both content and reference info
       messagePrefix = contentPrefix + referencePrefix;
     } else {
@@ -668,7 +694,7 @@ function createRequestId(personalityName, message, context) {
     if (message) {
       logger.error(`[AIService] Message sample: ${JSON.stringify(message).substring(0, 100)}`);
     }
-    
+
     // Use a safe fallback
     messagePrefix = `fallback-${Date.now()}`;
   }
@@ -742,34 +768,44 @@ async function handleProblematicPersonality(
   try {
     // Extract user name from context if available
     const userName = context.userName || 'a user';
-    
+
     // Format the message content properly for the API
     const messages = formatApiMessages(message, personalityName, userName);
-    
+
     // Debug log the exact messages being sent to detect issues
     if (typeof message === 'object' && message.referencedMessage) {
-      logger.info(`[AIService] Sending message with reference to ${message.referencedMessage.personalityName || 'unknown'}`);
-      
+      logger.info(
+        `[AIService] Sending message with reference to ${message.referencedMessage.personalityName || 'unknown'}`
+      );
+
       // Additional logging to help diagnose message content issues
       try {
         if (typeof message.messageContent === 'string') {
-          logger.debug(`[AIService] User message (text): "${message.messageContent.substring(0, 100)}..."`);
+          logger.debug(
+            `[AIService] User message (text): "${message.messageContent.substring(0, 100)}..."`
+          );
         } else {
-          logger.debug(`[AIService] User message (complex): ${JSON.stringify(message.messageContent).substring(0, 100)}...`);
+          logger.debug(
+            `[AIService] User message (complex): ${JSON.stringify(message.messageContent).substring(0, 100)}...`
+          );
         }
-        logger.debug(`[AIService] Referenced message: "${message.referencedMessage.content.substring(0, 100)}..."`);
+        logger.debug(
+          `[AIService] Referenced message: "${message.referencedMessage.content.substring(0, 100)}..."`
+        );
       } catch (logError) {
         logger.warn(`[AIService] Error logging message details: ${logError.message}`);
       }
     }
-    
+
     // Get the appropriate AI client for this user
     const userId = context.userId || null;
     const aiClient = getAiClientForUser(userId, context);
-    
+
     // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
     if (!aiClient) {
-      logger.error(`[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`);
+      logger.error(
+        `[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`
+      );
       return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
     }
 
@@ -811,7 +847,7 @@ async function handleProblematicPersonality(
     if (typeof content === 'string' && content.length > 0) {
       // Apply content sanitization
       const sanitizedContent = sanitizeContent(content);
-      
+
       return sanitizedContent;
     }
 
@@ -984,21 +1020,25 @@ async function getAiResponse(personalityName, message, context = {}) {
 
       // SECURITY UPDATE: Check if the user is authenticated
       const userId = context.userId || null;
-      
+
       // Check if this is from a webhook that should bypass authentication
       const isWebhookMessage = !!(context.message && context.message.webhookId);
       let shouldBypassAuth = false;
-      
+
       if (isWebhookMessage) {
         shouldBypassAuth = webhookUserTracker.shouldBypassNsfwVerification(context.message);
         if (shouldBypassAuth) {
-          logger.info(`[AIService] Bypassing authentication for webhook user: ${context.message.author?.username || 'unknown webhook user'}`);
+          logger.info(
+            `[AIService] Bypassing authentication for webhook user: ${context.message.author?.username || 'unknown webhook user'}`
+          );
         }
       }
-      
+
       // If this is NOT a proxy system webhook that should bypass auth, check auth
       if (!shouldBypassAuth && (!userId || !auth.hasValidToken(userId))) {
-        logger.warn(`[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`);
+        logger.warn(
+          `[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`
+        );
         // Return special marker for bot-level error message, not from the personality
         return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
       }
@@ -1029,7 +1069,7 @@ async function getAiResponse(personalityName, message, context = {}) {
         if (apiError.message && apiError.message.includes('Authentication required')) {
           return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
         }
-        
+
         // Add this personality+user combo to blackout list
         logger.error(
           `[AIService] API error with normal personality ${personalityName}: ${apiError.message}`
@@ -1049,16 +1089,20 @@ async function getAiResponse(personalityName, message, context = {}) {
       );
       logger.error(`[AIService] Error type: ${error.name || 'Unknown'}`);
       logger.error(`[AIService] Error stack: ${error.stack || 'No stack trace'}`);
-      
+
       // Log the message content for debugging
       try {
-        logger.error(`[AIService] Message content: ${typeof message === 'string' ? 
-          message.substring(0, 100) + '...' : 
-          'Complex message type: ' + JSON.stringify(message).substring(0, 200)}`);
+        logger.error(
+          `[AIService] Message content: ${
+            typeof message === 'string'
+              ? message.substring(0, 100) + '...'
+              : 'Complex message type: ' + JSON.stringify(message).substring(0, 200)
+          }`
+        );
       } catch (logError) {
         logger.error(`[AIService] Error logging message details: ${logError.message}`);
       }
-      
+
       addToBlackoutList(personalityName, context);
 
       // Register this personality as potentially problematic
@@ -1116,13 +1160,12 @@ async function getAiResponse(personalityName, message, context = {}) {
 function sanitizeApiText(text) {
   // Handle empty or null text
   if (!text) return '';
-  
+
   // Just return the text with minimal sanitization
   // Only removing control characters that might actually break things
   // eslint-disable-next-line no-control-regex
   return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 }
-
 
 /**
  * Format messages for API request, handling text, images, and referenced messages
@@ -1134,36 +1177,44 @@ function sanitizeApiText(text) {
 function formatApiMessages(content, personalityName, userName = 'a user') {
   try {
     // Check if the content is an object with a special reference format
-    if (content && typeof content === 'object' && !Array.isArray(content) && content.messageContent) {
+    if (
+      content &&
+      typeof content === 'object' &&
+      !Array.isArray(content) &&
+      content.messageContent
+    ) {
       // Log for debugging with user info
       logger.debug(`[AIService] Formatting message from ${userName}`);
       logger.debug(`[AIService] Formatting special reference message format`);
-      
+
       // If we have a referenced message
       if (content.referencedMessage) {
         // Always use a consistent implementation without test-specific branches
         logger.debug(`[AIService] Processing referenced message`);
-        
+
         // Get the name of the Discord user who is making the reference
         const userName = content.userName || 'The user';
-        
+
         // Sanitize the content of the referenced message (remove control characters)
-        const sanitizedReferenceContent = content.referencedMessage.content ? 
-          sanitizeApiText(content.referencedMessage.content) : '';
-        
-        logger.debug(`[AIService] Processing referenced message: ${JSON.stringify({
-          authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
-          contentPreview: sanitizedReferenceContent.substring(0, 50) || 'No content',
-          referencingUser: userName
-        })}`);
-        
+        const sanitizedReferenceContent = content.referencedMessage.content
+          ? sanitizeApiText(content.referencedMessage.content)
+          : '';
+
+        logger.debug(
+          `[AIService] Processing referenced message: ${JSON.stringify({
+            authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
+            contentPreview: sanitizedReferenceContent.substring(0, 50) || 'No content',
+            referencingUser: userName,
+          })}`
+        );
+
         try {
           // First, extract any media URLs from the referenced message
           const hasImage = sanitizedReferenceContent.includes('[Image:');
           const hasAudio = sanitizedReferenceContent.includes('[Audio:');
           let mediaUrl = null;
           let mediaType = null;
-          
+
           if (hasAudio) {
             // Audio has priority over images
             const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
@@ -1180,22 +1231,22 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
               logger.debug(`[AIService] Found image URL in reference: ${mediaUrl}`);
             }
           }
-          
+
           // Clean the referenced message content (remove media URLs)
           let cleanContent = sanitizedReferenceContent
             .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
             .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
             .trim();
-            
+
           // If the content is empty after removing media URLs, add a placeholder
           if (!cleanContent && mediaUrl) {
             cleanContent = mediaType === 'image' ? '[Image]' : '[Audio Message]';
             logger.info(`[AIService] Adding media placeholder to empty reference: ${cleanContent}`);
           }
-          
+
           // Get user's message content (text or multimodal)
           const userMessageContent = content.messageContent;
-          
+
           // Create special text for tests to identify the reference type
           let referenceText = '';
           if (mediaType === 'image') {
@@ -1205,20 +1256,20 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             referenceText = `This is a message referencing a message with audio from ${content.referencedMessage.author || 'another user'}`;
             logger.debug(`[AIService] Created audio reference text for matching in tests`);
           }
-          
+
           // Add the actual message content
-          const fullReferenceContent = referenceText ? 
-            `${referenceText}. ${content.referencedMessage.author} said: "${sanitizedReferenceContent}"` :
-            `${content.referencedMessage.author} said: "${sanitizedReferenceContent}"`;
-          
+          const fullReferenceContent = referenceText
+            ? `${referenceText}. ${content.referencedMessage.author} said: "${sanitizedReferenceContent}"`
+            : `${content.referencedMessage.author} said: "${sanitizedReferenceContent}"`;
+
           // For bot messages, try to get the proper display name
           let assistantReferenceContent = '';
-          
+
           if (content.referencedMessage.isFromBot) {
             // Try to get proper display name from the personality manager
             const fullName = content.referencedMessage.personalityName;
             let displayName;
-            
+
             // Try to get the personality from the personality manager
             const personalityObject = fullName ? getPersonality(fullName) : null;
             if (personalityObject && personalityObject.displayName) {
@@ -1228,15 +1279,16 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
               // Fall back to provided display name or the personality name
               displayName = content.referencedMessage.displayName || fullName;
             }
-            
+
             // Format name with display name and full name in parentheses, unless they're the same
-            const formattedName = (displayName && fullName && displayName !== fullName) ? 
-              `${displayName} (${fullName})` : 
-              (displayName || fullName || 'the bot');
-            
+            const formattedName =
+              displayName && fullName && displayName !== fullName
+                ? `${displayName} (${fullName})`
+                : displayName || fullName || 'the bot';
+
             // Check if the referenced personality is the same as the current personality
             const isSamePersonality = content.referencedMessage.personalityName === personalityName;
-            
+
             if (isSamePersonality) {
               // First-person reference if it's the same personality
               assistantReferenceContent = `As ${formattedName}, I said earlier: "${content.referencedMessage.content}"`;
@@ -1245,84 +1297,93 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
               assistantReferenceContent = `${formattedName} said: "${content.referencedMessage.content}"`;
             }
           }
-          
+
           // When the reference is to a bot message (personality), format it as appropriate
           // For bot messages we want to use assistant role ONLY for the current personality
           // For other personalities and users, we use user role to ensure the AI can see them consistently
           let referenceDescriptor;
-          
+
           if (content.referencedMessage.isFromBot) {
             // Check if it's the same personality as the one we're using now
             const isSamePersonality = content.referencedMessage.personalityName === personalityName;
-            
+
             if (isSamePersonality) {
               // Use assistant role for the personality's own messages to avoid echo
-              referenceDescriptor = { 
-                role: 'assistant', 
-                content: assistantReferenceContent || content.referencedMessage.content 
+              referenceDescriptor = {
+                role: 'assistant',
+                content: assistantReferenceContent || content.referencedMessage.content,
               };
-              logger.debug(`[AIService] Using assistant role for reference to same personality: ${personalityName}`);
+              logger.debug(
+                `[AIService] Using assistant role for reference to same personality: ${personalityName}`
+              );
             } else {
               // Use user role for references to other personalities
-              referenceDescriptor = { 
-                role: 'user', 
-                content: assistantReferenceContent || content.referencedMessage.content 
+              referenceDescriptor = {
+                role: 'user',
+                content: assistantReferenceContent || content.referencedMessage.content,
               };
-              logger.debug(`[AIService] Using user role for reference to different personality: ${content.referencedMessage.personalityName}`);
+              logger.debug(
+                `[AIService] Using user role for reference to different personality: ${content.referencedMessage.personalityName}`
+              );
             }
           } else {
             // Use user role for user messages
             referenceDescriptor = { role: 'user', content: fullReferenceContent };
             logger.debug(`[AIService] Using user role for reference to user message`);
           }
-            
+
           // Handle different types of user content (string or multimodal array)
           if (Array.isArray(userMessageContent)) {
             // Handle multimodal content array
-            
+
             // Extract media URLs from the referenced message if present
             let mediaMessage = null;
             if (content.referencedMessage.content.includes('[Image:')) {
-              const imageMatch = content.referencedMessage.content.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
+              const imageMatch = content.referencedMessage.content.match(
+                /\[Image: (https?:\/\/[^\s\]]+)\]/
+              );
               if (imageMatch && imageMatch[1]) {
                 mediaMessage = {
                   role: 'user',
                   content: [
                     { type: 'text', text: 'Please examine this image:' },
-                    { type: 'image_url', image_url: { url: imageMatch[1] } }
-                  ]
+                    { type: 'image_url', image_url: { url: imageMatch[1] } },
+                  ],
                 };
               }
             } else if (content.referencedMessage.content.includes('[Audio:')) {
-              const audioMatch = content.referencedMessage.content.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
+              const audioMatch = content.referencedMessage.content.match(
+                /\[Audio: (https?:\/\/[^\s\]]+)\]/
+              );
               if (audioMatch && audioMatch[1]) {
                 mediaMessage = {
                   role: 'user',
                   content: [
                     { type: 'text', text: 'Please listen to this audio:' },
-                    { type: 'audio_url', audio_url: { url: audioMatch[1] } }
-                  ]
+                    { type: 'audio_url', audio_url: { url: audioMatch[1] } },
+                  ],
                 };
               }
             }
-            
+
             // Prepare the messages array - put user message first, then reference, and media last
             const messages = [{ role: 'user', content: userMessageContent }];
             messages.push(referenceDescriptor);
             if (mediaMessage) messages.push(mediaMessage);
-            
+
             return messages;
           }
-          
+
           // Handle text-only content
-          const sanitizedUserContent = typeof userMessageContent === 'string' ? 
-            sanitizeApiText(userMessageContent) : 
-            "Message content missing";
-          
+          const sanitizedUserContent =
+            typeof userMessageContent === 'string'
+              ? sanitizeApiText(userMessageContent)
+              : 'Message content missing';
+
           // Extract media URLs from the referenced message if present
           let mediaMessage = null;
           const refContent = content.referencedMessage.content;
-          
+
           if (refContent.includes('[Image:')) {
             const imageMatch = refContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
             if (imageMatch && imageMatch[1]) {
@@ -1330,8 +1391,8 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
                 role: 'user',
                 content: [
                   { type: 'text', text: 'Please examine this image:' },
-                  { type: 'image_url', image_url: { url: imageMatch[1] } }
-                ]
+                  { type: 'image_url', image_url: { url: imageMatch[1] } },
+                ],
               };
             }
           } else if (refContent.includes('[Audio:')) {
@@ -1341,46 +1402,48 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
                 role: 'user',
                 content: [
                   { type: 'text', text: 'Please listen to this audio:' },
-                  { type: 'audio_url', audio_url: { url: audioMatch[1] } }
-                ]
+                  { type: 'audio_url', audio_url: { url: audioMatch[1] } },
+                ],
               };
             }
           }
-          
+
           // Prepare the messages array - put user message first, then reference, and media last
           const messages = [{ role: 'user', content: sanitizedUserContent }];
           messages.push(referenceDescriptor);
           if (mediaMessage) messages.push(mediaMessage);
-          
+
           return messages;
         } catch (refError) {
           // If there's an error processing the reference, log it but continue
           logger.error(`[AIService] Error processing referenced message: ${refError.message}`);
           logger.error(`[AIService] Reference processing error stack: ${refError.stack}`);
-          
+
           // Fall back to just sending the user's message
-          const sanitizedContent = typeof content.messageContent === 'string' ? 
-            sanitizeApiText(content.messageContent) : 
-            Array.isArray(content.messageContent) ? 
-              content.messageContent : 
-              "There was an error processing a referenced message.";
-          
+          const sanitizedContent =
+            typeof content.messageContent === 'string'
+              ? sanitizeApiText(content.messageContent)
+              : Array.isArray(content.messageContent)
+                ? content.messageContent
+                : 'There was an error processing a referenced message.';
+
           return [{ role: 'user', content: sanitizedContent }];
         }
       }
-      
+
       // If no reference but still using the special format, process user message normally
       if (Array.isArray(content.messageContent)) {
         return [{ role: 'user', content: content.messageContent }];
       } else {
-        const sanitizedContent = typeof content.messageContent === 'string' ? 
-          sanitizeApiText(content.messageContent) : 
-          content.messageContent;
-        
+        const sanitizedContent =
+          typeof content.messageContent === 'string'
+            ? sanitizeApiText(content.messageContent)
+            : content.messageContent;
+
         return [{ role: 'user', content: sanitizedContent }];
       }
     }
-    
+
     // Standard handling for non-reference formats
     if (Array.isArray(content)) {
       // Handle standard multimodal content array
@@ -1394,27 +1457,31 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
     // Log the error for debugging
     logger.error(`[AIService] Error in formatApiMessages: ${formatError.message}`);
     logger.error(`[AIService] Format error stack: ${formatError.stack}`);
-    
+
     // Fall back to a simple message
     if (typeof content === 'string') {
       return [{ role: 'user', content: sanitizeApiText(content) }];
     } else if (Array.isArray(content)) {
       return [{ role: 'user', content }];
     } else if (content && typeof content === 'object' && content.messageContent) {
-      
       // Try to extract just the message content without references
-      return [{ 
-        role: 'user', 
-        content: typeof content.messageContent === 'string' 
-          ? sanitizeApiText(content.messageContent)
-          : Array.isArray(content.messageContent) 
-            ? content.messageContent
-            : "There was an error formatting my message."
-      }];
+      return [
+        {
+          role: 'user',
+          content:
+            typeof content.messageContent === 'string'
+              ? sanitizeApiText(content.messageContent)
+              : Array.isArray(content.messageContent)
+                ? content.messageContent
+                : 'There was an error formatting my message.',
+        },
+      ];
     }
-    
+
     // Ultimate fallback for completely broken content
-    return [{ role: 'user', content: "I wanted to reference another message but there was an error." }];
+    return [
+      { role: 'user', content: 'I wanted to reference another message but there was an error.' },
+    ];
   }
 }
 
@@ -1424,42 +1491,54 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Extract user name from context if available
   const userName = context.userName || 'a user';
-  
+
   // Format the message content properly for the API
   const messages = formatApiMessages(message, personalityName, userName);
-  
+
   // Debug log the exact messages being sent to detect issues
   if (typeof message === 'object' && message.referencedMessage) {
     // Use webhook name as fallback if personalityName is not available
-    const referenceSource = message.referencedMessage.personalityName || 
-                           (message.referencedMessage.webhookName ? `webhook:${message.referencedMessage.webhookName}` : 
-                           (message.referencedMessage.author ? `user:${message.referencedMessage.author}` : 'unknown-source'));
-    
+    const referenceSource =
+      message.referencedMessage.personalityName ||
+      (message.referencedMessage.webhookName
+        ? `webhook:${message.referencedMessage.webhookName}`
+        : message.referencedMessage.author
+          ? `user:${message.referencedMessage.author}`
+          : 'unknown-source');
+
     logger.info(`[AIService] Sending message with reference to ${referenceSource}`);
-    
+
     // Additional logging to help diagnose message content issues
     try {
       if (typeof message.messageContent === 'string') {
-        logger.debug(`[AIService] User message (text): "${message.messageContent.substring(0, 100)}..."`);
+        logger.debug(
+          `[AIService] User message (text): "${message.messageContent.substring(0, 100)}..."`
+        );
       } else {
-        logger.debug(`[AIService] User message (complex): ${JSON.stringify(message.messageContent).substring(0, 100)}...`);
+        logger.debug(
+          `[AIService] User message (complex): ${JSON.stringify(message.messageContent).substring(0, 100)}...`
+        );
       }
-      logger.debug(`[AIService] Referenced message: "${message.referencedMessage.content.substring(0, 100)}..."`);
+      logger.debug(
+        `[AIService] Referenced message: "${message.referencedMessage.content.substring(0, 100)}..."`
+      );
     } catch (logError) {
       logger.warn(`[AIService] Error logging message details: ${logError.message}`);
     }
   }
-  
+
   // Get the appropriate AI client for this user
   const userId = context.userId || null;
   const aiClient = getAiClientForUser(userId, context);
-  
+
   // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
   if (!aiClient) {
-    logger.error(`[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`);
+    logger.error(
+      `[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`
+    );
     throw new Error('Authentication required to use this service');
   }
-  
+
   const response = await aiClient.chat.completions.create({
     model: modelPath,
     messages: messages,
@@ -1497,7 +1576,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     // Analyze error content to provide more detailed information
     let errorType = 'error_in_content';
     let errorDetails = 'Unknown error format';
-    
+
     // Try to extract more specific error information by analyzing the content
     if (typeof content === 'string') {
       // Look for specific error patterns
@@ -1522,7 +1601,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
         const lines = content.split('\n');
         errorDetails = lines.length > 1 ? lines[1].trim() : 'Exception with traceback';
       }
-      
+
       // Log the error with more detailed information
       logger.error(`[AIService] Error in content from ${personalityName}: ${errorType}`);
       logger.error(`[AIService] Error details: ${errorDetails}`);
@@ -1532,10 +1611,10 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       errorType = 'non_string_response';
       errorDetails = `Content type: ${typeof content}`;
     }
-    
+
     // Check if this is the generic 'error_in_content' or a more specific error
     const isGenericError = errorType === 'error_in_content';
-    
+
     // Register this personality as problematic only for non-generic errors
     // This makes the system more forgiving for transient issues
     if (!isGenericError) {
@@ -1545,12 +1624,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
         details: errorDetails,
         content: content,
       });
-      
+
       // Add this personality+user combo to blackout list, but with a shorter duration
       // for transient errors (5 minutes instead of the default 30)
       addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
     } else {
-      // For generic errors, add a much shorter blackout period (30 seconds) 
+      // For generic errors, add a much shorter blackout period (30 seconds)
       // This prevents rapid duplicate messages but allows quick recovery
       logger.info(`[AIService] Skipping problematic registration for generic error: ${errorType}`);
       addToBlackoutList(personalityName, context, 30 * 1000); // 30 seconds
@@ -1570,11 +1649,15 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
     // Only perform sanitization in non-test mode or when not a mock response
     if (!isMockRequest) {
-      logger.debug(`[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`);
-      
+      logger.debug(
+        `[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`
+      );
+
       // Apply content sanitization
       const sanitizedContent = sanitizeContent(content);
-      logger.debug(`[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`);
+      logger.debug(
+        `[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`
+      );
 
       if (sanitizedContent.length === 0) {
         // Register this personality as problematic
@@ -1586,7 +1669,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
         return 'I received an empty response. Please try again.';
       }
-      
+
       // Replace the original content with the sanitized version
       content = sanitizedContent;
     }
@@ -1612,7 +1695,6 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   return content;
 }
 
-
 module.exports = {
   getAiResponse,
   isErrorResponse,
@@ -1637,5 +1719,5 @@ module.exports = {
   sanitizeContent,
   sanitizeApiText,
   formatApiMessages,
-  fallbackResponses
+  fallbackResponses,
 };

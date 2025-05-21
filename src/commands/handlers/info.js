@@ -6,9 +6,9 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { getPersonality, getPersonalityByAlias } = require('../../personalityManager');
-const { 
-  knownProblematicPersonalities, 
-  runtimeProblematicPersonalities 
+const {
+  knownProblematicPersonalities,
+  runtimeProblematicPersonalities,
 } = require('../../aiService');
 const { botPrefix } = require('../../../config');
 
@@ -20,7 +20,7 @@ const meta = {
   description: 'Display detailed information about a personality',
   usage: 'info <personality-name-or-alias>',
   aliases: [],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -46,7 +46,7 @@ async function execute(message, args) {
   try {
     // Try to find the personality (first by alias, then by name)
     let personality = getPersonalityByAlias(message.author.id, personalityInput);
-    
+
     if (!personality) {
       personality = getPersonality(personalityInput);
     }
@@ -78,18 +78,18 @@ async function execute(message, args) {
     // Add health status check
     const isKnownProblematic = knownProblematicPersonalities.includes(personality.fullName);
     const isRuntimeProblematic = runtimeProblematicPersonalities.has(personality.fullName);
-    
+
     if (isKnownProblematic || isRuntimeProblematic) {
-      embed.addFields({ 
-        name: 'Status', 
-        value: '⚠️ This personality has experienced issues. It may not work correctly.', 
-        inline: false 
+      embed.addFields({
+        name: 'Status',
+        value: '⚠️ This personality has experienced issues. It may not work correctly.',
+        inline: false,
       });
     } else {
-      embed.addFields({ 
-        name: 'Status', 
-        value: '✅ This personality is working normally.', 
-        inline: false 
+      embed.addFields({
+        name: 'Status',
+        value: '✅ This personality is working normally.',
+        inline: false,
       });
     }
 
@@ -107,5 +107,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

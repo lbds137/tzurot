@@ -468,7 +468,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
  * @example
  * // Users can type "albert" instead of "dr-albert-hoffman"
  * const personality = getPersonalityByAlias("user123", "albert");
- * 
+ *
  * // Or can be used with global aliases
  * const personality = getPersonalityByAlias(null, "albert");
  */
@@ -478,7 +478,7 @@ function getPersonalityByAlias(userId, alias) {
     alias = userId;
     userId = null;
   }
-  
+
   if (!alias) {
     logger.warn(`[PersonalityManager] Attempted to get personality with empty alias`);
     return null;

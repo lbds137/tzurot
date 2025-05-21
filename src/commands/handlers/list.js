@@ -13,10 +13,10 @@ const { botPrefix } = require('../../../config');
  */
 const meta = {
   name: 'list',
-  description: 'List all AI personalities you\'ve added',
+  description: "List all AI personalities you've added",
   usage: 'list [page]',
   aliases: [],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -58,7 +58,7 @@ async function execute(message, args) {
 
     // Build the embed
     const embed = embedHelpers.createListEmbed(pagePersonalities, page, totalPages, message.author);
-    
+
     return await directSend({ embeds: [embed] });
   } catch (error) {
     logger.error('Error in list command:', error);
@@ -68,5 +68,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

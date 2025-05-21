@@ -13,17 +13,19 @@ const newCommandSystem = require('./commands/index');
  */
 async function processCommand(message, command, args) {
   // Log the command being processed
-  logger.info(`[CommandLoader] Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
+  logger.info(
+    `[CommandLoader] Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
+  );
 
   try {
     // Process the command using the command system
     const result = await newCommandSystem.processCommand(message, command, args);
-    
+
     // If the command wasn't found or there was an error, log it
     if (!result) {
       logger.info(`[CommandLoader] Command not found or failed to execute: ${command}`);
     }
-    
+
     return result;
   } catch (error) {
     logger.error(`[CommandLoader] Error processing command ${command}:`, error);
@@ -34,5 +36,5 @@ async function processCommand(message, command, args) {
 }
 
 module.exports = {
-  processCommand
+  processCommand,
 };

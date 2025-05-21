@@ -18,7 +18,7 @@ const meta = {
   description: 'Add a new AI personality to your collection',
   usage: 'add <personality-name> [alias]',
   aliases: ['create'],
-  permissions: []
+  permissions: [],
 };
 
 // Track pending personality additions to prevent duplicate processing
@@ -53,8 +53,14 @@ async function execute(message, args) {
     const pendingState = pendingAdditions.get(userKey);
 
     // If the request was completed within the last 5 seconds, block it as a duplicate
-    if (pendingState && pendingState.status === 'completed' && Date.now() - pendingState.timestamp < 5000) {
-      logger.warn(`[PROTECTION] Blocking duplicate add command from ${message.author.id} for ${personalityName}`);
+    if (
+      pendingState &&
+      pendingState.status === 'completed' &&
+      Date.now() - pendingState.timestamp < 5000
+    ) {
+      logger.warn(
+        `[PROTECTION] Blocking duplicate add command from ${message.author.id} for ${personalityName}`
+      );
       return null;
     }
 
@@ -64,7 +70,9 @@ async function execute(message, args) {
       pendingState.status === 'in-progress' &&
       Date.now() - pendingState.timestamp < 10000 // 10-second timeout
     ) {
-      logger.warn(`[PROTECTION] Addition already in progress for ${personalityName} by ${message.author.id}`);
+      logger.warn(
+        `[PROTECTION] Addition already in progress for ${personalityName} by ${message.author.id}`
+      );
       return null;
     }
 
@@ -80,7 +88,10 @@ async function execute(message, args) {
 
     // Check if we've already processed this exact command
     const commandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
-    if (messageTracker.isAddCommandProcessed(message.id) || messageTracker.isAddCommandCompleted(commandKey)) {
+    if (
+      messageTracker.isAddCommandProcessed(message.id) ||
+      messageTracker.isAddCommandCompleted(commandKey)
+    ) {
       logger.warn(`[PROTECTION] Command has already been processed: ${commandKey}`);
       return null;
     }
@@ -108,10 +119,10 @@ async function execute(message, args) {
 
     // Register the personality
     logger.info(`[AddCommand ${commandId}] Registering personality: ${personalityName}`);
-    
+
     // Register personality with proper data structure
     const result = await registerPersonality(message.author.id, personalityName, alias);
-    
+
     // Check if there was an error during registration
     if (result.error) {
       logger.error(`[AddCommand ${commandId}] Error registering personality: ${result.error}`);
@@ -119,24 +130,25 @@ async function execute(message, args) {
         status: 'completed',
         timestamp: Date.now(),
       });
-      
+
       if (typeof commandKey !== 'undefined') {
         messageTracker.markAddCommandCompleted(commandKey);
       }
-      
+
       return await directSend(result.error);
     }
-    
+
     const personality = result.personality;
-    logger.info(`[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`);
-    
+    logger.info(
+      `[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`
+    );
+
     // No need to set alias separately as it's now passed directly to registerPersonality
 
     // Preload the avatar in the background (not awaited)
-    preloadPersonalityAvatar(personality)
-      .catch(err => {
-        logger.error(`[AddCommand ${commandId}] Error preloading avatar: ${err.message}`);
-      });
+    preloadPersonalityAvatar(personality).catch(err => {
+      logger.error(`[AddCommand ${commandId}] Error preloading avatar: ${err.message}`);
+    });
 
     // First embed for immediate feedback - mark this specific message as having generated the first embed
     messageTracker.markGeneratedFirstEmbed(messageKey);
@@ -203,7 +215,7 @@ async function execute(message, args) {
       status: 'completed',
       timestamp: Date.now(),
     });
-    
+
     // Mark the command as completed with a fresh command key
     const errorCommandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
     messageTracker.markAddCommandCompleted(errorCommandKey);
@@ -214,5 +226,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

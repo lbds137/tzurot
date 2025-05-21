@@ -1,12 +1,12 @@
 /**
  * Media Handling System
- * 
+ *
  * This module provides a unified approach to media handling in the application:
  * - Detects media in user messages (images, audio)
  * - Processes media for AI requests (multimodal content)
  * - Processes media for webhook messages (attachments)
  * - Handles media in referenced messages
- * 
+ *
  * The system maintains a clear separation between:
  * 1. Media detection (finding media in messages)
  * 2. Media processing (preparing media for different contexts)
@@ -21,7 +21,7 @@ const urlValidator = require('../urlValidator');
 /**
  * Detect and process media in a Discord message
  * This function centralizes all the media detection logic
- * 
+ *
  * @param {Object} message - Discord.js message object
  * @param {string|Array} messageContent - Message content (string or multimodal array)
  * @param {Object} options - Additional options
@@ -38,7 +38,7 @@ async function detectMedia(message, messageContent, options = {}) {
   let audioUrl = null;
   let imageUrl = null;
   let updatedMessageContent = messageContent;
-  
+
   // Check if we have content with [Audio: url] pattern first
   if (typeof updatedMessageContent === 'string' && updatedMessageContent.includes('[Audio:')) {
     const audioMatch = updatedMessageContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
@@ -46,37 +46,42 @@ async function detectMedia(message, messageContent, options = {}) {
       audioUrl = audioMatch[1];
       hasFoundAudio = true;
       logger.info(`[MediaHandler] Found audio URL in message content: ${audioUrl}`);
-      
+
       // Remove the audio URL from the message content
       updatedMessageContent = updatedMessageContent.replace(audioMatch[0], '').trim();
     }
   }
-  
+
   // Then check for [Image: url] pattern if no audio found
-  if (!hasFoundAudio && typeof updatedMessageContent === 'string' && updatedMessageContent.includes('[Image:')) {
+  if (
+    !hasFoundAudio &&
+    typeof updatedMessageContent === 'string' &&
+    updatedMessageContent.includes('[Image:')
+  ) {
     const imageMatch = updatedMessageContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
     if (imageMatch && imageMatch[1]) {
       imageUrl = imageMatch[1];
       hasFoundImage = true;
       logger.info(`[MediaHandler] Found image URL in message content: ${imageUrl}`);
-      
+
       // Remove the image URL from the message content
       updatedMessageContent = updatedMessageContent.replace(imageMatch[0], '').trim();
     }
   }
-  
+
   // Check message attachments if no media found yet
   if (!hasFoundImage && !hasFoundAudio && message.attachments && message.attachments.size > 0) {
     const attachments = Array.from(message.attachments.values());
-    
+
     // Check for audio attachments first (priority over images)
     const audioAttachment = attachments.find(
-      attachment => (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
-      attachment.url?.endsWith('.mp3') || 
-      attachment.url?.endsWith('.wav') || 
-      attachment.url?.endsWith('.ogg')
+      attachment =>
+        (attachment.contentType && attachment.contentType.startsWith('audio/')) ||
+        attachment.url?.endsWith('.mp3') ||
+        attachment.url?.endsWith('.wav') ||
+        attachment.url?.endsWith('.ogg')
     );
-    
+
     if (audioAttachment) {
       audioUrl = audioAttachment.url;
       hasFoundAudio = true;
@@ -86,7 +91,7 @@ async function detectMedia(message, messageContent, options = {}) {
       const imageAttachment = attachments.find(
         attachment => attachment.contentType && attachment.contentType.startsWith('image/')
       );
-      
+
       if (imageAttachment) {
         imageUrl = imageAttachment.url;
         hasFoundImage = true;
@@ -94,18 +99,18 @@ async function detectMedia(message, messageContent, options = {}) {
       }
     }
   }
-  
+
   // Check message embeds if no media found yet
   if (!hasFoundImage && !hasFoundAudio && message.embeds && message.embeds.length > 0) {
     for (const embed of message.embeds) {
       // Check for audio URLs in description or fields - audio has priority
-      const checkForAudioUrl = (text) => {
+      const checkForAudioUrl = text => {
         if (!text) return null;
         const audioUrlRegex = /https?:\/\/\S+\.(mp3|wav|ogg|m4a)(\?\S*)?/i;
         const match = text.match(audioUrlRegex);
         return match ? match[0] : null;
       };
-      
+
       // Check description for audio URL
       if (embed.description) {
         const foundAudioUrl = checkForAudioUrl(embed.description);
@@ -116,7 +121,7 @@ async function detectMedia(message, messageContent, options = {}) {
           break;
         }
       }
-      
+
       // Check fields for audio URL
       if (embed.fields && embed.fields.length > 0) {
         let foundAudio = false;
@@ -125,14 +130,16 @@ async function detectMedia(message, messageContent, options = {}) {
           if (foundAudioUrl) {
             audioUrl = foundAudioUrl;
             hasFoundAudio = true;
-            logger.info(`[MediaHandler] Found audio URL in embed field '${field.name}': ${audioUrl}`);
+            logger.info(
+              `[MediaHandler] Found audio URL in embed field '${field.name}': ${audioUrl}`
+            );
             foundAudio = true;
             break;
           }
         }
         if (foundAudio) break;
       }
-      
+
       // Next, check for image if no audio was found
       if (embed.image && embed.image.url) {
         imageUrl = embed.image.url;
@@ -140,7 +147,7 @@ async function detectMedia(message, messageContent, options = {}) {
         logger.info(`[MediaHandler] Found image in embed: ${imageUrl}`);
         break;
       }
-      
+
       // If no image, check for thumbnail
       if (embed.thumbnail && embed.thumbnail.url) {
         imageUrl = embed.thumbnail.url;
@@ -150,12 +157,12 @@ async function detectMedia(message, messageContent, options = {}) {
       }
     }
   }
-  
+
   // After processing message media, check if we should use referenced media when no media is found
   let useReferencedMedia = false;
   const referencedAudioUrl = options.referencedAudioUrl;
   const referencedImageUrl = options.referencedImageUrl;
-  
+
   if (!hasFoundImage && !hasFoundAudio) {
     if (referencedAudioUrl) {
       audioUrl = referencedAudioUrl;
@@ -169,36 +176,39 @@ async function detectMedia(message, messageContent, options = {}) {
       logger.info(`[MediaHandler] Using image from referenced message: ${imageUrl}`);
     }
   }
-  
+
   // Create final multimodal content if we found media
   let finalContent = updatedMessageContent;
-  
+
   if (hasFoundImage || hasFoundAudio) {
     // Create a multimodal content array
     const multimodalContent = [];
-    
+
     // Add the text content if it exists
     if (typeof updatedMessageContent === 'string' && updatedMessageContent) {
       multimodalContent.push({
         type: 'text',
         text: updatedMessageContent,
       });
-    } else if (!updatedMessageContent || (Array.isArray(updatedMessageContent) && updatedMessageContent.length === 0)) {
+    } else if (
+      !updatedMessageContent ||
+      (Array.isArray(updatedMessageContent) && updatedMessageContent.length === 0)
+    ) {
       // Default prompt based on media type
       if (hasFoundAudio) {
         const personalityName = options.personalityName || 'Unknown';
         const userName = options.userName || 'a user';
         multimodalContent.push({
           type: 'text',
-          text: useReferencedMedia 
-            ? `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:` 
+          text: useReferencedMedia
+            ? `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`
             : `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`,
         });
       } else if (hasFoundImage) {
         multimodalContent.push({
           type: 'text',
-          text: useReferencedMedia 
-            ? "What's in this image from the referenced message?" 
+          text: useReferencedMedia
+            ? "What's in this image from the referenced message?"
             : "What's in this image?",
         });
       }
@@ -209,18 +219,18 @@ async function detectMedia(message, messageContent, options = {}) {
           multimodalContent.push(item);
         }
       });
-      
+
       // If we didn't find any text elements, add default prompt
       if (!multimodalContent.some(item => item.type === 'text')) {
         multimodalContent.push({
           type: 'text',
-          text: useReferencedMedia 
-            ? 'Please analyze this media from the referenced message' 
+          text: useReferencedMedia
+            ? 'Please analyze this media from the referenced message'
             : 'Please analyze this media',
         });
       }
     }
-    
+
     // Add the media content - prioritize audio over image if both are present
     // (per API limitation: only one media type is processed, with audio taking precedence)
     if (hasFoundAudio) {
@@ -232,10 +242,12 @@ async function detectMedia(message, messageContent, options = {}) {
         },
       });
       logger.debug(`[MediaHandler] Added audio to multimodal content: ${audioUrl}`);
-      
+
       // If we also found an image, log that we're ignoring it due to API limitation
       if (hasFoundImage) {
-        logger.warn(`[MediaHandler] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`);
+        logger.warn(
+          `[MediaHandler] Ignoring image (${imageUrl}) - API only processes one media type per request, and audio takes precedence`
+        );
       }
     } else if (hasFoundImage) {
       logger.info(`[MediaHandler] Processing image with URL: ${imageUrl}`);
@@ -247,19 +259,19 @@ async function detectMedia(message, messageContent, options = {}) {
       });
       logger.debug(`[MediaHandler] Added image to multimodal content: ${imageUrl}`);
     }
-    
+
     // Replace the message content with the multimodal array
     finalContent = multimodalContent;
     logger.info(`[MediaHandler] Created multimodal content with ${multimodalContent.length} items`);
   }
-  
+
   return {
     messageContent: finalContent,
     hasFoundAudio,
     hasFoundImage,
     audioUrl,
     imageUrl,
-    useReferencedMedia
+    useReferencedMedia,
   };
 }
 
@@ -278,23 +290,27 @@ async function processMediaUrls(content) {
     logger.debug(`[MediaHandler] Checking for audio URLs in message content`);
     const { content: audioProcessedContent, attachments: audioAttachments } =
       await audioHandler.processAudioUrls(content);
-    
+
     if (audioAttachments.length > 0) {
       // If we found audio, use that
-      logger.info(`[MediaHandler] Processed ${audioAttachments.length} audio URLs into attachments`);
+      logger.info(
+        `[MediaHandler] Processed ${audioAttachments.length} audio URLs into attachments`
+      );
       return {
         content: audioProcessedContent,
         attachments: audioAttachments,
       };
     }
-    
+
     // If no audio found, check for image URLs
     logger.debug(`[MediaHandler] Checking for image URLs in message content`);
     const { content: imageProcessedContent, attachments: imageAttachments } =
       await imageHandler.processImageUrls(content);
-    
+
     if (imageAttachments.length > 0) {
-      logger.info(`[MediaHandler] Processed ${imageAttachments.length} image URLs into attachments`);
+      logger.info(
+        `[MediaHandler] Processed ${imageAttachments.length} image URLs into attachments`
+      );
       return {
         content: imageProcessedContent,
         attachments: imageAttachments,
@@ -313,7 +329,7 @@ async function processMediaUrls(content) {
 /**
  * Process media URLs in message content for webhook sending
  * This leverages the existing processMediaUrls function which is optimized for webhook processing
- * 
+ *
  * @param {string} content - Message content to process
  * @returns {Promise<Object>} - Object with processed content and attachments
  */
@@ -335,8 +351,8 @@ function prepareAttachmentOptions(attachments) {
     files: attachments.map(attachment => ({
       attachment: attachment.attachment,
       name: attachment.name,
-      contentType: attachment.contentType
-    }))
+      contentType: attachment.contentType,
+    })),
   };
 }
 
@@ -344,5 +360,5 @@ module.exports = {
   detectMedia,
   processMediaUrls,
   processMediaForWebhook,
-  prepareAttachmentOptions
+  prepareAttachmentOptions,
 };

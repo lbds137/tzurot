@@ -6,7 +6,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
 
-// Store user auto-response preferences 
+// Store user auto-response preferences
 // Map of userId -> boolean (true = enabled, false = disabled)
 const autoResponseEnabled = new Map();
 
@@ -18,7 +18,7 @@ const meta = {
   description: 'Toggle whether personalities continue responding to your messages automatically',
   usage: 'autorespond <on|off|status>',
   aliases: ['auto'],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -54,7 +54,7 @@ async function execute(message, args) {
     const currentSetting = isAutoResponseEnabled(userId);
     return await directSend(
       `Your auto-response setting is currently **${currentSetting ? 'ON' : 'OFF'}**.\n\n` +
-      `Use \`${botPrefix} autorespond on\` to enable or \`${botPrefix} autorespond off\` to disable.`
+        `Use \`${botPrefix} autorespond on\` to enable or \`${botPrefix} autorespond off\` to disable.`
     );
   }
 
@@ -93,5 +93,5 @@ module.exports = {
   // Export helper functions for use by other modules
   isAutoResponseEnabled,
   enableAutoResponse,
-  disableAutoResponse
+  disableAutoResponse,
 };

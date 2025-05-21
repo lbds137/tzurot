@@ -3,7 +3,7 @@ const logger = require('./logger');
 const webhookManager = require('./webhookManager');
 const { messageTracker } = require('./messageTracker');
 const errorHandler = require('./handlers/errorHandler');
-const personalityHandler = require('./handlers/personalityHandler');
+const _personalityHandler = require('./handlers/personalityHandler');
 const messageHandler = require('./handlers/messageHandler');
 
 // Initialize the bot with necessary intents and partials
@@ -33,14 +33,15 @@ async function initBot() {
   // Replace the original reply method with our patched version
   Message.prototype.reply = async function patchedReply(options) {
     // Create a unique signature for this reply
-    const optionsSignature = typeof options === 'string'
-      ? options.substring(0, 20)
-      : options.content
-        ? options.content.substring(0, 20)
-        : options.embeds && options.embeds.length > 0
-          ? options.embeds[0].title || 'embed'
-          : 'unknown';
-          
+    const optionsSignature =
+      typeof options === 'string'
+        ? options.substring(0, 20)
+        : options.content
+          ? options.content.substring(0, 20)
+          : options.embeds && options.embeds.length > 0
+            ? options.embeds[0].title || 'embed'
+            : 'unknown';
+
     // Check if this operation is a duplicate
     if (!messageTracker.trackOperation(this.channel.id, 'reply', optionsSignature)) {
       // Return a dummy response to maintain API compatibility
@@ -50,7 +51,7 @@ async function initBot() {
         isDuplicate: true,
       };
     }
-    
+
     // Call the original reply method
     return originalReply.apply(this, arguments);
   };
@@ -76,14 +77,15 @@ async function initBot() {
     );
 
     // Create a unique signature for this send operation
-    const optionsSignature = typeof options === 'string'
-      ? options.substring(0, 20)
-      : options.content
-        ? options.content.substring(0, 20)
-        : options.embeds && options.embeds.length > 0
-          ? options.embeds[0].title || 'embed'
-          : 'unknown';
-          
+    const optionsSignature =
+      typeof options === 'string'
+        ? options.substring(0, 20)
+        : options.content
+          ? options.content.substring(0, 20)
+          : options.embeds && options.embeds.length > 0
+            ? options.embeds[0].title || 'embed'
+            : 'unknown';
+
     // Check if this operation is a duplicate
     if (!messageTracker.trackOperation(this.id, 'send', optionsSignature)) {
       // Return a dummy response to maintain API compatibility
@@ -126,7 +128,7 @@ async function initBot() {
   return client;
 }
 
-module.exports = { 
-  initBot, 
-  client
+module.exports = {
+  initBot,
+  client,
 };

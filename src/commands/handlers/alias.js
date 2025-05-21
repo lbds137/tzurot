@@ -16,7 +16,7 @@ const meta = {
   description: 'Add an alias/nickname for an existing personality',
   usage: 'alias <personality-name> <new-alias>',
   aliases: [],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -81,5 +81,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

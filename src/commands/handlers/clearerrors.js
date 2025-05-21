@@ -14,7 +14,7 @@ const meta = {
   description: 'Clear error states for personalities',
   usage: 'clearerrors',
   aliases: [],
-  permissions: ['ADMINISTRATOR']
+  permissions: ['ADMINISTRATOR'],
 };
 
 /**
@@ -23,35 +23,37 @@ const meta = {
  * @param {Array<string>} args - Command arguments
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, _args) {
   try {
     // Create a reusable function for sending messages
-    const sendMessage = async (content) => {
+    const sendMessage = async content => {
       return await message.channel.send(content);
     };
-    
+
     // Check if user has Administrator permission
     const isDM = message.channel.isDMBased();
     const isAdmin = isDM ? false : validator.isAdmin(message);
-    
+
     // Don't allow in DMs at all
     if (isDM) {
-      return await sendMessage('You need Administrator permission to use this command. This command cannot be used in DMs.');
+      return await sendMessage(
+        'You need Administrator permission to use this command. This command cannot be used in DMs.'
+      );
     }
-    
+
     // For safety, require Admin permissions in servers
     if (!isAdmin) {
       return await sendMessage('You need Administrator permission to use this command.');
     }
-    
+
     // Clear all runtime problematic personalities
     const problemPersonalityCount = runtimeProblematicPersonalities.size;
     runtimeProblematicPersonalities.clear();
-    
+
     // Clear all error blackout periods
     const blackoutCount = errorBlackoutPeriods.size;
     errorBlackoutPeriods.clear();
-    
+
     // Return success message with counts
     return await sendMessage(`✅ Error state has been cleared:
 - Cleared ${problemPersonalityCount} problematic personality registrations
@@ -66,5 +68,5 @@ Personalities should now respond normally if they were previously failing.`);
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

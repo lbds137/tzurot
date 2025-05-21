@@ -18,7 +18,9 @@ const { botPrefix } = require('../../config');
 async function processCommand(message, command, args) {
   try {
     // Log the command being processed
-    logger.info(`Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`);
+    logger.info(
+      `Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
+    );
 
     // Apply deduplication middleware
     const deduplicationResult = deduplicationMiddleware(message, command, args);
@@ -37,7 +39,7 @@ async function processCommand(message, command, args) {
         }
         return true;
       }
-      
+
       // Regular authentication failure
       if (authResult.error) {
         return await message.reply(authResult.error);
@@ -48,7 +50,9 @@ async function processCommand(message, command, args) {
     // Find the command handler
     const commandModule = commandRegistry.get(command);
     if (!commandModule) {
-      return await message.reply(`Unknown command: \`${command}\`. Use \`${botPrefix} help\` to see available commands.`);
+      return await message.reply(
+        `Unknown command: \`${command}\`. Use \`${botPrefix} help\` to see available commands.`
+      );
     }
 
     // Apply permissions middleware
@@ -78,18 +82,18 @@ function loadCommands() {
   // Use the dynamic command loader
   const commandLoader = require('./utils/commandLoader');
   const results = commandLoader.loadCommands();
-  
+
   // Log a summary of loaded commands
   if (results.count > 0) {
     logger.info(`[Commands] Successfully loaded ${results.count} command handlers`);
-    
+
     // Log the names of loaded commands at debug level
     if (results.loaded.length > 0) {
       const commandNames = results.loaded.map(cmd => cmd.name).join(', ');
       logger.debug(`[Commands] Loaded commands: ${commandNames}`);
     }
   }
-  
+
   // Log failed commands as warnings
   if (results.failed.length > 0) {
     logger.warn(`[Commands] Failed to load ${results.failed.length} command handlers`);
@@ -97,7 +101,7 @@ function loadCommands() {
       logger.warn(`[Commands] Failed to load ${failure.file}: ${failure.reason}`);
     });
   }
-  
+
   return results;
 }
 
@@ -109,5 +113,5 @@ module.exports = {
   processCommand,
   registry: commandRegistry,
   // Re-export message tracker for testing
-  messageTracker: require('./utils/messageTracker')
+  messageTracker: require('./utils/messageTracker'),
 };

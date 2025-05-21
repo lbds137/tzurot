@@ -18,7 +18,7 @@ const meta = {
   description: 'Activate a personality to respond to all messages in the channel',
   usage: 'activate <personality-name-or-alias>',
   aliases: [],
-  permissions: ['MANAGE_MESSAGES', 'NSFW_CHANNEL']
+  permissions: ['MANAGE_MESSAGES', 'NSFW_CHANNEL'],
 };
 
 /**
@@ -65,7 +65,7 @@ async function execute(message, args) {
   try {
     // Try to find the personality (first by alias, then by name)
     let personality = getPersonalityByAlias(message.author.id, personalityInput);
-    
+
     if (!personality) {
       personality = getPersonality(personalityInput);
     }
@@ -108,5 +108,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

@@ -16,7 +16,7 @@ function isAdmin(message) {
   if (message.channel.isDMBased()) {
     return false;
   }
-  
+
   // Check if the member exists and has admin permissions
   return message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
 }
@@ -31,7 +31,7 @@ function canManageMessages(message) {
   if (message.channel.isDMBased()) {
     return false;
   }
-  
+
   // Check if the member exists and has manage messages permission
   return message.member && message.member.permissions.has(PermissionFlagsBits.ManageMessages);
 }
@@ -56,7 +56,7 @@ function createDirectSend(message) {
 
 /**
  * Get a rich error response for failed permission check
- * @param {string} permission - Permission name 
+ * @param {string} permission - Permission name
  * @param {string} command - Command name
  * @returns {string} Error message
  */
@@ -78,5 +78,5 @@ module.exports = {
   canManageMessages,
   isNsfwChannel,
   createDirectSend,
-  getPermissionErrorMessage
+  getPermissionErrorMessage,
 };

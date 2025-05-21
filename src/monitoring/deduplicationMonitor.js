@@ -1,14 +1,14 @@
 /**
  * Deduplication Monitoring Module
- * 
+ *
  * This module provides monitoring capabilities for message deduplication.
  * It tracks and logs statistics about message deduplication events to
  * help detect any issues with the refactored system.
- * 
+ *
  * Usage:
  * ```
  * const { trackDedupe, getDedupStats, startMonitoring } = require('./monitoring/deduplicationMonitor');
- * 
+ *
  * // In MessageTracker class
  * if (this.processedMessages.has(trackingId)) {
  *   trackDedupe('message', trackingId);
@@ -23,13 +23,13 @@ const path = require('path');
 
 // Statistics tracking
 const stats = {
-  messageDedupes: 0,      // Total deduplicated messages
-  operationDedupes: 0,    // Total deduplicated operations
-  messageTypes: {},       // Counts by message type
-  operationTypes: {},     // Counts by operation type
-  channelStats: {},       // Counts by channel ID
-  hourlyStats: {},        // Counts by hour
-  startTime: Date.now(),  // When monitoring started
+  messageDedupes: 0, // Total deduplicated messages
+  operationDedupes: 0, // Total deduplicated operations
+  messageTypes: {}, // Counts by message type
+  operationTypes: {}, // Counts by operation type
+  channelStats: {}, // Counts by channel ID
+  hourlyStats: {}, // Counts by hour
+  startTime: Date.now(), // When monitoring started
   isProduction: process.env.NODE_ENV === 'production',
 };
 
@@ -47,34 +47,31 @@ function trackDedupe(category, id, details = {}) {
   // Increment total counts
   if (category === 'message') {
     stats.messageDedupes++;
-    
+
     // Track by message type
     const type = details.type || 'unknown';
     stats.messageTypes[type] = (stats.messageTypes[type] || 0) + 1;
   } else if (category === 'operation') {
     stats.operationDedupes++;
-    
+
     // Track by operation type
     const type = details.type || 'unknown';
     stats.operationTypes[type] = (stats.operationTypes[type] || 0) + 1;
   }
-  
+
   // Track by channel
   if (details.channelId) {
     stats.channelStats[details.channelId] = (stats.channelStats[details.channelId] || 0) + 1;
   }
-  
+
   // Track by hour
   const hour = new Date().getHours();
   stats.hourlyStats[hour] = (stats.hourlyStats[hour] || 0) + 1;
-  
+
   // Log deduplication event
   if (stats.isProduction) {
     // In production, only log periodically
-    if (
-      (stats.messageDedupes + stats.operationDedupes) % 100 === 0 || 
-      details.forceLog
-    ) {
+    if ((stats.messageDedupes + stats.operationDedupes) % 100 === 0 || details.forceLog) {
       logStats();
     }
   } else {
@@ -90,11 +87,11 @@ function trackDedupe(category, id, details = {}) {
 function getDedupStats() {
   // Calculate runtime
   const runtime = Math.floor((Date.now() - stats.startTime) / (60 * 1000)); // minutes
-  
+
   // Calculate rates
   const totalDedupes = stats.messageDedupes + stats.operationDedupes;
   const dedupePerMinute = runtime > 0 ? totalDedupes / runtime : 0;
-  
+
   return {
     ...stats,
     runtime,
@@ -108,8 +105,10 @@ function getDedupStats() {
  */
 function logStats() {
   const currentStats = getDedupStats();
-  logger.info(`[DedupeMonitor] Stats: ${currentStats.totalDedupes} dedupes (${currentStats.dedupePerMinute.toFixed(2)}/min)`);
-  
+  logger.info(
+    `[DedupeMonitor] Stats: ${currentStats.totalDedupes} dedupes (${currentStats.dedupePerMinute.toFixed(2)}/min)`
+  );
+
   // In production, also log top channels
   if (stats.isProduction) {
     // Get top 3 channels by dedupe count
@@ -118,7 +117,7 @@ function logStats() {
       .slice(0, 3)
       .map(([channelId, count]) => `${channelId}: ${count}`)
       .join(', ');
-      
+
     if (topChannels) {
       logger.info(`[DedupeMonitor] Top channels: ${topChannels}`);
     }
@@ -132,11 +131,7 @@ function logStats() {
 async function saveStats() {
   try {
     const currentStats = getDedupStats();
-    await fs.writeFile(
-      STATS_FILE,
-      JSON.stringify(currentStats, null, 2),
-      'utf8'
-    );
+    await fs.writeFile(STATS_FILE, JSON.stringify(currentStats, null, 2), 'utf8');
     logger.info(`[DedupeMonitor] Statistics saved to ${STATS_FILE}`);
   } catch (error) {
     logger.error(`[DedupeMonitor] Error saving statistics: ${error.message}`);
@@ -148,17 +143,17 @@ async function saveStats() {
  */
 function startMonitoring() {
   logger.info('[DedupeMonitor] Deduplication monitoring started');
-  
+
   // Periodically log statistics
   setInterval(() => {
     logStats();
-    
+
     // In production, also save to file
     if (stats.isProduction) {
       saveStats().catch(() => {});
     }
   }, LOG_INTERVAL);
-  
+
   // Save stats on exit
   process.on('SIGINT', async () => {
     logger.info('[DedupeMonitor] Saving final statistics before exit');
@@ -186,5 +181,5 @@ module.exports = {
   getDedupStats,
   startMonitoring,
   resetStats,
-  logStats
+  logStats,
 };

@@ -15,7 +15,7 @@ const meta = {
   description: 'Reset your conversation with a personality',
   usage: 'reset <personality-name-or-alias>',
   aliases: [],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -41,7 +41,7 @@ async function execute(message, args) {
   try {
     // Try to find the personality (first by alias, then by name)
     let personality = personalityManager.getPersonalityByAlias(message.author.id, personalityInput);
-    
+
     if (!personality) {
       personality = personalityManager.getPersonality(personalityInput);
     }
@@ -66,5 +66,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

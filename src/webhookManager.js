@@ -539,31 +539,33 @@ async function getOrCreateWebhook(channel) {
   // Check if we already have a cached webhook for this channel
   const isThread = channel.isThread();
   const channelId = channel.id;
-  
+
   // If this is a thread, we need special handling
   if (isThread) {
     logger.info(`[WebhookManager] Getting webhook for thread ${channelId}`);
-    
+
     // For threads, we need to:
     // 1. Get a webhook for the parent channel
     // 2. Then create a thread-specific instance of that webhook
-    
+
     // First, check if we already have a thread-specific webhook cached
     const threadSpecificCacheKey = `thread-${channelId}`;
     if (webhookCache.has(threadSpecificCacheKey)) {
       logger.info(`[WebhookManager] Using cached thread-specific webhook for thread ${channelId}`);
       return webhookCache.get(threadSpecificCacheKey);
     }
-    
+
     // Get the parent channel
     const parentChannel = channel.parent;
-    
+
     if (!parentChannel) {
       throw new Error(`Cannot find parent channel for thread ${channelId}`);
     }
-    
-    logger.info(`[WebhookManager] Thread ${channelId} has parent channel ${parentChannel.id} (${parentChannel.name || 'unnamed'})`);
-    
+
+    logger.info(
+      `[WebhookManager] Thread ${channelId} has parent channel ${parentChannel.id} (${parentChannel.name || 'unnamed'})`
+    );
+
     // Get or create a webhook for the parent channel
     // First check if we have already cached the parent channel's webhook
     let parentWebhookClient;
@@ -574,12 +576,14 @@ async function getOrCreateWebhook(channel) {
       // Need to create or find a webhook for the parent channel
       logger.info(`[WebhookManager] Getting webhooks for parent channel ${parentChannel.id}`);
       const webhooks = await parentChannel.fetchWebhooks();
-      
-      logger.info(`[WebhookManager] Found ${webhooks.size} webhooks in parent channel ${parentChannel.id}`);
-      
+
+      logger.info(
+        `[WebhookManager] Found ${webhooks.size} webhooks in parent channel ${parentChannel.id}`
+      );
+
       // Look for our bot's webhook
       let webhook = webhooks.find(wh => wh.name === 'Tzurot');
-      
+
       // If no webhook found, create a new one
       if (!webhook) {
         logger.info(`[WebhookManager] Creating new webhook in parent channel ${parentChannel.id}`);
@@ -588,46 +592,52 @@ async function getOrCreateWebhook(channel) {
           reason: 'Needed for personality proxying',
         });
       } else {
-        logger.info(`[WebhookManager] Found existing Tzurot webhook in parent channel ${parentChannel.id}`);
+        logger.info(
+          `[WebhookManager] Found existing Tzurot webhook in parent channel ${parentChannel.id}`
+        );
       }
-      
+
       // Create a webhook client for the parent channel
       parentWebhookClient = new WebhookClient({ url: webhook.url });
-      
+
       // Cache the parent channel webhook
       webhookCache.set(parentChannel.id, parentWebhookClient);
     }
-    
+
     // IMPORTANT: Now create a THREAD-SPECIFIC webhook client
     // This is the key to making thread posting work correctly
     logger.info(`[WebhookManager] Creating thread-specific webhook client for thread ${channelId}`);
-    
+
     // Create a thread-specific instance with explicit thread ID
     try {
       // Use webhook.thread() method to get a thread-specific webhook client
       const threadWebhookClient = parentWebhookClient.thread(channelId);
-      
+
       // Store metadata
       threadWebhookClient._tzurotMeta = {
         isThread: true,
         threadId: channelId,
         parentChannelId: parentChannel.id,
-        createdAt: Date.now()
+        createdAt: Date.now(),
       };
-      
+
       // Cache the thread-specific webhook client using a special key
       webhookCache.set(threadSpecificCacheKey, threadWebhookClient);
-      
+
       // Also cache it under the regular channel ID for backward compatibility
       webhookCache.set(channelId, threadWebhookClient);
-      
-      logger.info(`[WebhookManager] Successfully created thread-specific webhook client for thread ${channelId}`);
-      
+
+      logger.info(
+        `[WebhookManager] Successfully created thread-specific webhook client for thread ${channelId}`
+      );
+
       return threadWebhookClient;
     } catch (threadError) {
-      logger.error(`[WebhookManager] Error creating thread-specific webhook: ${threadError.message}`);
+      logger.error(
+        `[WebhookManager] Error creating thread-specific webhook: ${threadError.message}`
+      );
       logger.info(`[WebhookManager] Falling back to parent webhook with thread_id parameter`);
-      
+
       // If thread() method fails, return the parent webhook client
       // with metadata for thread handling
       parentWebhookClient._tzurotMeta = {
@@ -635,16 +645,16 @@ async function getOrCreateWebhook(channel) {
         threadId: channelId,
         parentChannelId: parentChannel.id,
         createdAt: Date.now(),
-        threadMethodFailed: true
+        threadMethodFailed: true,
       };
-      
+
       // Cache using the thread's channel ID
       webhookCache.set(channelId, parentWebhookClient);
-      
+
       return parentWebhookClient;
     }
   }
-  
+
   // Regular (non-thread) channel handling follows the original logic
   if (webhookCache.has(channelId)) {
     return webhookCache.get(channelId);
@@ -672,15 +682,15 @@ async function getOrCreateWebhook(channel) {
 
     // Create a webhook client for this webhook
     const webhookClient = new WebhookClient({ url: webhook.url });
-    
+
     // Store additional metadata about the channel
     webhookClient._tzurotMeta = {
       isThread: false,
       threadId: undefined,
       channelId: channel.id,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
-    
+
     // Log detailed information about the webhook
     logger.info(`[WebhookManager] Created webhook client for channel ${channel.id}`);
 
@@ -797,26 +807,32 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
   }
 
   // Thread-specific handling
-  const threadData = isThread ? {
-    threadId,
-    // Store information about the original channel for recovery attempts
-    _isThread: true,
-    _originalChannel: options._originalChannel // Will be set by calling functions
-  } : {};
+  const threadData = isThread
+    ? {
+        threadId,
+        // Store information about the original channel for recovery attempts
+        _isThread: true,
+        _originalChannel: options._originalChannel, // Will be set by calling functions
+      }
+    : {};
 
   const messageData = {
     content: content,
     username: username,
     avatarURL: avatarUrl || null,
     allowedMentions: { parse: ['users', 'roles'] },
-    ...threadData
+    ...threadData,
   };
-  
+
   // Double-check threadId was properly set if isThread is true
   if (isThread && !messageData.threadId) {
-    logger.error('[WebhookManager] CRITICAL: threadId not set properly in messageData despite isThread=true');
+    logger.error(
+      '[WebhookManager] CRITICAL: threadId not set properly in messageData despite isThread=true'
+    );
   } else if (isThread) {
-    logger.info(`[WebhookManager] Successfully set threadId ${messageData.threadId} in messageData`);
+    logger.info(
+      `[WebhookManager] Successfully set threadId ${messageData.threadId} in messageData`
+    );
   }
 
   // Add optional embed if provided
@@ -869,10 +885,10 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       contentLength: messageData.content?.length,
       hasEmbeds: !!messageData.embeds?.length,
       threadId: messageData.threadId,
-      isInThread: !!messageData.threadId
+      isInThread: !!messageData.threadId,
     })}`
   );
-  
+
   // IMPORTANT: Log critical info about thread handling
   if (messageData.threadId) {
     logger.info(`[Webhook] Sending message to thread ID: ${messageData.threadId}`);
@@ -881,58 +897,67 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
   try {
     // Enhanced debugging specifically for threads
     if (messageData.threadId) {
-      logger.info(`[WebhookManager] THREAD DEBUG: About to send webhook message to thread ${messageData.threadId}`);
-      
+      logger.info(
+        `[WebhookManager] THREAD DEBUG: About to send webhook message to thread ${messageData.threadId}`
+      );
+
       // Check for Discord.js version specific handling
       const webhookSendData = { ...messageData };
-      
+
       // Explicitly log what we're sending to discord.js
-      logger.debug(`[WebhookManager] Raw webhook data with threadId: ${JSON.stringify({
-        threadId: webhookSendData.threadId,
-        hasContent: !!webhookSendData.content,
-        contentLength: webhookSendData.content?.length || 0,
-        username: webhookSendData.username,
-      })}`);
+      logger.debug(
+        `[WebhookManager] Raw webhook data with threadId: ${JSON.stringify({
+          threadId: webhookSendData.threadId,
+          hasContent: !!webhookSendData.content,
+          contentLength: webhookSendData.content?.length || 0,
+          username: webhookSendData.username,
+        })}`
+      );
     }
-    
+
     // Handle message sending with improved thread support
     let sentMessage;
-    
+
     // Check if this is a forum thread (special handling)
-    const isForum = messageData.forum || 
-                    messageData.isForum || 
-                    (messageData._originalChannel && 
-                    (messageData._originalChannel.type === 'FORUM' ||
-                    (messageData._originalChannel.parent && 
-                     messageData._originalChannel.parent.type === 'FORUM')));
-    
+    const isForum =
+      messageData.forum ||
+      messageData.isForum ||
+      (messageData._originalChannel &&
+        (messageData._originalChannel.type === 'FORUM' ||
+          (messageData._originalChannel.parent &&
+            messageData._originalChannel.parent.type === 'FORUM')));
+
     if (isForum && messageData.threadId) {
-      logger.info(`[WebhookManager] FORUM THREAD DETECTED - using special forum handling for ID: ${messageData.threadId}`);
-      
+      logger.info(
+        `[WebhookManager] FORUM THREAD DETECTED - using special forum handling for ID: ${messageData.threadId}`
+      );
+
       // For forum threads, we need to use thread_id parameter - forum posts are special
       try {
         // Create clean options without metadata
-        const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } = messageData;
-        
+        const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } =
+          messageData;
+
         // Send with explicit thread_id
         sentMessage = await webhook.send({
           ...cleanOptions,
-          thread_id: threadId // Use Discord.js required format
+          thread_id: threadId, // Use Discord.js required format
         });
         logger.info(`[WebhookManager] Successfully sent to forum thread with thread_id`);
         return sentMessage;
       } catch (forumError) {
         logger.error(`[WebhookManager] Error sending to forum thread: ${forumError.message}`);
-        
+
         // Critical: for forum posts, we might need to try with a thread_name if thread_id fails
         if (forumError.message.includes('thread_name')) {
           try {
-            const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } = messageData;
-            
+            const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } =
+              messageData;
+
             sentMessage = await webhook.send({
               ...cleanOptions,
               thread_id: threadId,
-              thread_name: "Thread" // Try with a default thread name
+              thread_name: 'Thread', // Try with a default thread name
             });
             logger.info(`[WebhookManager] Successfully sent to forum with thread_name fallback`);
             return sentMessage;
@@ -947,123 +972,141 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     }
     // Regular thread handling
     else if (messageData.threadId) {
-      logger.info(`[WebhookManager] Sending to thread ${messageData.threadId} - using thread-specific webhook`);
-      
+      logger.info(
+        `[WebhookManager] Sending to thread ${messageData.threadId} - using thread-specific webhook`
+      );
+
       // For normal threads, use the most reliable approach first - thread_id parameter
-      logger.info(`[WebhookManager] Using direct thread_id parameter approach for thread ${messageData.threadId}`);
-      
+      logger.info(
+        `[WebhookManager] Using direct thread_id parameter approach for thread ${messageData.threadId}`
+      );
+
       try {
         // Simplest approach - direct thread_id parameter (works in most Discord.js versions)
         const { threadId, _isThread, _originalChannel, ...cleanOptions } = messageData;
-        
+
         sentMessage = await webhook.send({
           ...cleanOptions,
-          thread_id: threadId  // Discord.js format
+          thread_id: threadId, // Discord.js format
         });
         logger.info(`[WebhookManager] Successfully sent message using thread_id parameter`);
       } catch (directError) {
         logger.error(`[WebhookManager] Direct thread_id approach failed: ${directError.message}`);
         logger.info(`[WebhookManager] Attempting fallback methods...`);
-        
+
         // Try alternative approaches
         try {
           // Check if webhook has thread() method
           if (typeof webhook.thread === 'function') {
             logger.info(`[WebhookManager] Trying webhook.thread() method`);
-            
+
             // Create thread-specific webhook
             const threadWebhook = webhook.thread(messageData.threadId);
-            
+
             // Create clean options without threadId
             const { threadId: _unused, ...threadCleanOptions } = messageData;
-            
+
             // Send using thread-specific webhook
             sentMessage = await threadWebhook.send(threadCleanOptions);
             logger.info(`[WebhookManager] Successfully sent with webhook.thread() method`);
           } else {
             // If thread() method doesn't exist, try other approaches
-            logger.warn(`[WebhookManager] webhook.thread method not available, trying another approach`);
-            
+            logger.warn(
+              `[WebhookManager] webhook.thread method not available, trying another approach`
+            );
+
             // Try sending directly to parent channel with thread_id
             const { threadId: _threadId2, ...cleanOptions2 } = messageData;
-            
+
             // Send with direct thread_id
             sentMessage = await webhook.send({
               ...cleanOptions2,
-              thread_id: messageData.threadId
+              thread_id: messageData.threadId,
             });
-            logger.info(`[WebhookManager] Successfully sent with direct thread_id parameter (secondary approach)`);
+            logger.info(
+              `[WebhookManager] Successfully sent with direct thread_id parameter (secondary approach)`
+            );
           }
         } catch (finalError) {
           logger.error(`[WebhookManager] All thread approaches failed: ${finalError.message}`);
-          
+
           // One last desperate attempt: try multiple fallback approaches
-          logger.info(`[WebhookManager] Attempting fallback approaches for thread message delivery`);
-          
+          logger.info(
+            `[WebhookManager] Attempting fallback approaches for thread message delivery`
+          );
+
           try {
             // APPROACH 1: Try fresh webhook from parent
             // Get the thread channel's parent
             const threadChannel = messageData._originalChannel; // Added in patched version
-            
+
             if (threadChannel && threadChannel.parent) {
               // Get a webhook for the parent
-              logger.info(`[WebhookManager] FALLBACK 1: Getting fresh webhook for parent channel ${threadChannel.parent.id}`);
+              logger.info(
+                `[WebhookManager] FALLBACK 1: Getting fresh webhook for parent channel ${threadChannel.parent.id}`
+              );
               const parentWebhooks = await threadChannel.parent.fetchWebhooks();
               const parentWebhook = parentWebhooks.find(wh => wh.name === 'Tzurot');
-              
+
               if (parentWebhook) {
                 // Create a new client
                 const freshClient = new WebhookClient({ url: parentWebhook.url });
-                
+
                 try {
                   // Try the thread method
                   const freshThreadClient = freshClient.thread(messageData.threadId);
-                  
+
                   // Create clean options without threadId
                   const { threadId: _unusedFinal, ...finalCleanOptions } = messageData;
-                  
+
                   // Try to send
                   sentMessage = await freshThreadClient.send(finalCleanOptions);
-                  logger.info(`[WebhookManager] FALLBACK 1 worked! Message sent to thread via fresh webhook.`);
+                  logger.info(
+                    `[WebhookManager] FALLBACK 1 worked! Message sent to thread via fresh webhook.`
+                  );
                   return sentMessage;
                 } catch (freshWebhookError) {
                   logger.error(`[WebhookManager] FALLBACK 1 failed: ${freshWebhookError.message}`);
                 }
               }
             }
-            
+
             // APPROACH 2: Direct channel.send as last resort
             // This completely bypasses the webhook system for this message
             if (threadChannel && typeof threadChannel.send === 'function') {
-              logger.info(`[WebhookManager] FALLBACK 2: Attempting direct channel.send to thread ${messageData.threadId}`);
-              
+              logger.info(
+                `[WebhookManager] FALLBACK 2: Attempting direct channel.send to thread ${messageData.threadId}`
+              );
+
               try {
                 // Format the message for direct sending
                 const formattedContent = `**${messageData.username}:** ${messageData.content}`;
-                
+
                 // Send using the direct Discord.js channel API
                 const directSentMessage = await threadChannel.send({
                   content: formattedContent,
                   files: messageData.files || [],
-                  embeds: messageData.embeds || []
+                  embeds: messageData.embeds || [],
                 });
-                
-                logger.info(`[WebhookManager] FALLBACK 2 worked! Message sent via direct channel.send, ID: ${directSentMessage.id}`);
-                
+
+                logger.info(
+                  `[WebhookManager] FALLBACK 2 worked! Message sent via direct channel.send, ID: ${directSentMessage.id}`
+                );
+
                 // Return a webhook-like response
                 sentMessage = {
                   id: directSentMessage.id,
                   content: directSentMessage.content,
                   embeds: directSentMessage.embeds,
-                  _directSend: true
+                  _directSend: true,
                 };
-                
+
                 return sentMessage;
               } catch (directSendError) {
                 logger.error(`[WebhookManager] FALLBACK 2 failed: ${directSendError.message}`);
               }
             }
-            
+
             // If both approaches fail, throw the original error
             logger.error(`[WebhookManager] All thread fallback approaches failed`);
             throw finalError;
@@ -1078,16 +1121,18 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       logger.info(`[WebhookManager] Sending to regular channel`);
       sentMessage = await webhook.send(messageData);
     }
-    
+
     logger.info(
       `Successfully sent webhook message chunk ${chunkIndex + 1}/${totalChunks} with ID: ${sentMessage.id}`
     );
-    
+
     // Add additional logging for thread-specific responses
     if (messageData.threadId) {
-      logger.info(`[WebhookManager] Successfully sent message to thread ${messageData.threadId}, message ID: ${sentMessage.id}`);
+      logger.info(
+        `[WebhookManager] Successfully sent message to thread ${messageData.threadId}, message ID: ${sentMessage.id}`
+      );
     }
-    
+
     return sentMessage;
   } catch (error) {
     // Track this error with our enhanced error tracking
@@ -1100,14 +1145,16 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
         errorName: error.name,
         isThread: !!messageData.threadId,
         threadId: messageData.threadId,
-        threadSpecificError: messageData.threadId ? true : false
+        threadSpecificError: messageData.threadId ? true : false,
       },
       isCritical: true,
     });
-    
+
     // Enhanced error logging specifically for thread issues
     if (messageData.threadId) {
-      logger.error(`[WebhookManager] THREAD ERROR: Failed to send message to thread ${messageData.threadId}`);
+      logger.error(
+        `[WebhookManager] THREAD ERROR: Failed to send message to thread ${messageData.threadId}`
+      );
       logger.error(`[WebhookManager] THREAD ERROR details: ${error.code} - ${error.message}`);
     }
 
@@ -1214,7 +1261,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     } else {
       displayName = 'Bot';
     }
-    
+
     // Process any media URLs in the content using the shared mediaHandler
     let processedContent = content;
     let mediaAttachments = [];
@@ -1222,13 +1269,13 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     let multimodalTextContent = '';
     let multimodalImageUrl = null;
     let multimodalAudioUrl = null;
-    
+
     // Check for referenced media markers in the text content
     // Updated to use a more robust marker extraction method
     let hasReferencedMedia = false;
     let referencedMediaType = null;
     let referencedMediaUrl = null;
-    
+
     if (typeof content === 'string' && content.includes('[REFERENCE_MEDIA:')) {
       const startMarker = content.indexOf('[REFERENCE_MEDIA:');
       if (startMarker !== -1) {
@@ -1236,20 +1283,24 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
         if (endMarker !== -1) {
           // Extract the whole marker
           const fullMarker = content.substring(startMarker, endMarker + 1);
-          
+
           // Parse the marker
           const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
           if (markerParts.length >= 2) {
             hasReferencedMedia = true;
             referencedMediaType = markerParts[0]; // 'image' or 'audio'
             referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
-            
-            logger.info(`[WebhookManager] Found referenced media marker in DM: ${referencedMediaType} at ${referencedMediaUrl}`);
-            
+
+            logger.info(
+              `[WebhookManager] Found referenced media marker in DM: ${referencedMediaType} at ${referencedMediaUrl}`
+            );
+
             // Remove the marker from the content
             processedContent = content.replace(fullMarker, '').trim();
-            logger.info(`[WebhookManager] After removing marker, DM content is now: "${processedContent.substring(0, 100)}..."`);
-            
+            logger.info(
+              `[WebhookManager] After removing marker, DM content is now: "${processedContent.substring(0, 100)}..."`
+            );
+
             // Set multimodal flags for consistent handling
             isMultimodalContent = true;
             if (referencedMediaType === 'image') {
@@ -1266,24 +1317,32 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     // Check if content is a multimodal array
     else if (Array.isArray(content) && content.length > 0) {
       isMultimodalContent = true;
-      logger.info(`[WebhookManager] Detected multimodal content array with ${content.length} items in DM`);
-      
+      logger.info(
+        `[WebhookManager] Detected multimodal content array with ${content.length} items in DM`
+      );
+
       // Extract text content and media URLs from multimodal array
       content.forEach(item => {
         if (item.type === 'text') {
           multimodalTextContent += item.text + '\n';
         } else if (item.type === 'image_url' && item.image_url?.url) {
           multimodalImageUrl = item.image_url.url;
-          logger.info(`[WebhookManager] Found image URL in multimodal DM content: ${multimodalImageUrl}`);
+          logger.info(
+            `[WebhookManager] Found image URL in multimodal DM content: ${multimodalImageUrl}`
+          );
         } else if (item.type === 'audio_url' && item.audio_url?.url) {
           multimodalAudioUrl = item.audio_url.url;
-          logger.info(`[WebhookManager] Found audio URL in multimodal DM content: ${multimodalAudioUrl}`);
+          logger.info(
+            `[WebhookManager] Found audio URL in multimodal DM content: ${multimodalAudioUrl}`
+          );
         }
       });
-      
+
       // Use the text content for the main message
-      processedContent = multimodalTextContent.trim() || 'Here\'s the media you requested:';
-      logger.info(`[WebhookManager] Extracted text content from multimodal DM array: ${processedContent.substring(0, 50)}...`);
+      processedContent = multimodalTextContent.trim() || "Here's the media you requested:";
+      logger.info(
+        `[WebhookManager] Extracted text content from multimodal DM array: ${processedContent.substring(0, 50)}...`
+      );
     } else {
       try {
         // Process media URLs (images, audio, etc.)
@@ -1292,9 +1351,11 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
           const mediaResult = await processMediaForWebhook(content);
           processedContent = mediaResult.content;
           mediaAttachments = mediaResult.attachments;
-          
+
           if (mediaAttachments.length > 0) {
-            logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media URLs for DM message`);
+            logger.info(
+              `[WebhookManager] Processed ${mediaAttachments.length} media URLs for DM message`
+            );
           }
         }
       } catch (error) {
@@ -1304,75 +1365,77 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
         mediaAttachments = [];
       }
     }
-    
+
     // Prepare the formatted content with name prefix
     const formattedContent = `**${displayName}:** ${processedContent}`;
-    
+
     // Split message if needed (Discord's character limit)
     const contentChunks = splitMessage(formattedContent);
     logger.info(`[WebhookManager] Split DM message into ${contentChunks.length} chunks`);
-    
+
     const sentMessageIds = [];
     let firstSentMessage = null;
-    
+
     // We use a time-based approach for duplicate detection now
-    
+
     // Send each chunk as a separate message
     for (let i = 0; i < contentChunks.length; i++) {
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
-      
+
       // Prepare options for the message
       const sendOptions = {};
-      
+
       // Only include embeds and attachments in the last chunk for non-multimodal content
       if (isLastChunk && !isMultimodalContent) {
         if (options.embeds) {
           sendOptions.embeds = options.embeds;
         }
-        
+
         // Add media attachments to the last chunk
         if (mediaAttachments.length > 0) {
           const attachmentOptions = prepareAttachmentOptions(mediaAttachments);
           Object.assign(sendOptions, attachmentOptions);
         }
       }
-      
+
       // Send the message to the DM channel
       const sentMessage = await channel.send({
         content: chunkContent,
-        ...sendOptions
+        ...sendOptions,
       });
-      
+
       // Track sent messages
       sentMessageIds.push(sentMessage.id);
-      
+
       // Keep first message for return value
       if (isFirstChunk) {
         firstSentMessage = sentMessage;
       }
     }
-    
+
     // For multimodal content, send media as separate messages in DMs
     if (isMultimodalContent) {
       logger.info(`[WebhookManager] Sending multimodal media as separate messages in DM`);
       const mediaDelay = 500; // Small delay between text and media messages for better UX
-      
+
       // Send audio if present (always prioritize audio over image)
       if (multimodalAudioUrl) {
         try {
           // Add a small delay
           await new Promise(resolve => setTimeout(resolve, mediaDelay));
-          
+
           // Send the audio message with the personality name prefix
           const audioContent = `**${displayName}:** [Audio: ${multimodalAudioUrl}]`;
-          logger.info(`[WebhookManager] Sending audio as separate DM message: ${multimodalAudioUrl}`);
-          
+          logger.info(
+            `[WebhookManager] Sending audio as separate DM message: ${multimodalAudioUrl}`
+          );
+
           const audioMessage = await channel.send({
-            content: audioContent
+            content: audioContent,
           });
-          
+
           sentMessageIds.push(audioMessage.id);
           logger.info(`[WebhookManager] Successfully sent audio DM with ID: ${audioMessage.id}`);
         } catch (error) {
@@ -1380,21 +1443,23 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
           // Continue even if the audio message fails
         }
       }
-      
+
       // Send image if present and no audio (to avoid overwhelming with media)
       if (multimodalImageUrl && !multimodalAudioUrl) {
         try {
           // Add a small delay
           await new Promise(resolve => setTimeout(resolve, mediaDelay));
-          
+
           // Send the image message with the personality name prefix
           const imageContent = `**${displayName}:** [Image: ${multimodalImageUrl}]`;
-          logger.info(`[WebhookManager] Sending image as separate DM message: ${multimodalImageUrl}`);
-          
+          logger.info(
+            `[WebhookManager] Sending image as separate DM message: ${multimodalImageUrl}`
+          );
+
           const imageMessage = await channel.send({
-            content: imageContent
+            content: imageContent,
           });
-          
+
           sentMessageIds.push(imageMessage.id);
           logger.info(`[WebhookManager] Successfully sent image DM with ID: ${imageMessage.id}`);
         } catch (error) {
@@ -1403,13 +1468,13 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
         }
       }
     }
-    
+
     // Return structured response similar to webhook responses
     return {
       message: firstSentMessage,
       messageIds: sentMessageIds,
       isDM: true,
-      personalityName: personality.fullName
+      personalityName: personality.fullName,
     };
   } catch (error) {
     logger.error(`[WebhookManager] Error sending formatted DM message: ${error.message}`);
@@ -1425,9 +1490,13 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
  */
 function createVirtualResult(personality, channelId) {
   // Add more detail to this log to help with debugging
-  logger.info(`[Webhook] All messages were duplicates, creating virtual result for personality: ${personality?.fullName || 'unknown'} in channel: ${channelId}`);
-  logger.info(`[Webhook] This happens when duplicate detection blocks all messages. If this is unexpected, check the duplicate detection logic.`);
-  
+  logger.info(
+    `[Webhook] All messages were duplicates, creating virtual result for personality: ${personality?.fullName || 'unknown'} in channel: ${channelId}`
+  );
+  logger.info(
+    `[Webhook] This happens when duplicate detection blocks all messages. If this is unexpected, check the duplicate detection logic.`
+  );
+
   const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
 
   // Clear pending message if we're returning a virtual result
@@ -1477,57 +1546,69 @@ function createVirtualResult(personality, channelId) {
 async function sendWebhookMessage(channel, content, personality, options = {}, message = null) {
   // Minimize console output during webhook operations
   const originalFunctions = minimizeConsoleOutput();
-  
+
   // Extract user ID from message for authentication if available
   // This is CRITICAL for ensuring we use the correct user's auth token
   // when they reply to a webhook message
   const userId = message?.author?.id;
-  logger.debug(`[WebhookManager] Using user ID for authentication: ${userId || 'none'} from ${message?.author?.tag || 'unknown user'}`);
-  
+  logger.debug(
+    `[WebhookManager] Using user ID for authentication: ${userId || 'none'} from ${message?.author?.tag || 'unknown user'}`
+  );
+
   // Check if this is a DM channel (webhooks aren't available)
   if (channel.isDMBased()) {
-    logger.info(`[WebhookManager] Channel ${channel.id} is a DM channel. Using formatted message instead of webhook.`);
+    logger.info(
+      `[WebhookManager] Channel ${channel.id} is a DM channel. Using formatted message instead of webhook.`
+    );
     return await sendFormattedMessageInDM(channel, content, personality, options);
   }
-  
+
   // Log detailed thread information for debugging
   if (channel.isThread()) {
     logger.info(`[WebhookManager] SENDING TO THREAD: ${channel.id}`);
     logger.info(`[WebhookManager] Thread name: ${channel.name || 'unknown'}`);
     logger.info(`[WebhookManager] Thread type: ${channel.type}`);
-    
+
     if (channel.parent) {
-      logger.info(`[WebhookManager] Thread parent channel: ${channel.parent.name || 'unknown'} (ID: ${channel.parent.id})`); 
+      logger.info(
+        `[WebhookManager] Thread parent channel: ${channel.parent.name || 'unknown'} (ID: ${channel.parent.id})`
+      );
       logger.info(`[WebhookManager] Parent channel type: ${channel.parent.type}`);
     } else {
       logger.warn(`[WebhookManager] Thread parent channel not available! This may cause issues.`);
     }
-    
+
     // Log options to see if threadId is properly set
-    logger.info(`[WebhookManager] Thread options: ${JSON.stringify({
-      hasThreadId: !!options.threadId,
-      threadId: options.threadId,
-      isChannelThread: channel.isThread(),
-      channelType: channel.type,
-      isForum: options.isForum || false,
-      isForumChannel: channel.type === 'FORUM' || (channel.parent && channel.parent.type === 'FORUM'),
-      customThreadType: options.channelType
-    })}`);
-    
+    logger.info(
+      `[WebhookManager] Thread options: ${JSON.stringify({
+        hasThreadId: !!options.threadId,
+        threadId: options.threadId,
+        isChannelThread: channel.isThread(),
+        channelType: channel.type,
+        isForum: options.isForum || false,
+        isForumChannel:
+          channel.type === 'FORUM' || (channel.parent && channel.parent.type === 'FORUM'),
+        customThreadType: options.channelType,
+      })}`
+    );
+
     // Explicitly set the threadId in options if not already set
     if (!options.threadId) {
       logger.warn(`[WebhookManager] Thread ID not set in options, setting it to ${channel.id}`);
       options.threadId = channel.id;
     }
-    
+
     // Handle forum channels specially due to Discord API requirements
-    const isForum = channel.type === 'FORUM' || 
-                    (channel.parent && channel.parent.type === 'FORUM') || 
-                    options.isForum || 
-                    options.channelType === 'FORUM';
-                    
+    const isForum =
+      channel.type === 'FORUM' ||
+      (channel.parent && channel.parent.type === 'FORUM') ||
+      options.isForum ||
+      options.channelType === 'FORUM';
+
     if (isForum) {
-      logger.info(`[WebhookManager] FORUM CHANNEL DETECTED - using special forum handling for ID: ${channel.id}`);
+      logger.info(
+        `[WebhookManager] FORUM CHANNEL DETECTED - using special forum handling for ID: ${channel.id}`
+      );
       options.forum = true;
       options.thread_id = channel.id; // Discord.js required format
     }
@@ -1554,7 +1635,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         try {
           // Import here to avoid circular dependencies
           const { getProfileDisplayName } = require('./profileInfoFetcher');
-          
+
           // Pass user ID to ensure authentication works
           const displayName = await getProfileDisplayName(personality.fullName, userId);
 
@@ -1601,10 +1682,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
 
     // Check if this is likely an error message
     const isErrorMessage = isErrorContent(content);
-    
+
     // Check if this is a thread
     const isThread = channel.isThread();
-    
+
     // Log thread-specific info
     if (isThread) {
       logger.info(`[Webhook] Processing potential message for thread ${channel.id}`);
@@ -1677,14 +1758,14 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       let multimodalTextContent = '';
       let multimodalImageUrl = null;
       let multimodalAudioUrl = null;
-      
+
       // Check for referenced media markers in the text content
       // Updated regex to handle URLs with special characters
       const referenceMediaRegex = /\[REFERENCE_MEDIA:(image|audio):([^\]]+)\]/;
       let hasReferencedMedia = false;
       let referencedMediaType = null;
       let referencedMediaUrl = null;
-      
+
       if (typeof content === 'string' && content.includes('[REFERENCE_MEDIA:')) {
         const startMarker = content.indexOf('[REFERENCE_MEDIA:');
         if (startMarker !== -1) {
@@ -1692,20 +1773,24 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           if (endMarker !== -1) {
             // Extract the whole marker
             const fullMarker = content.substring(startMarker, endMarker + 1);
-            
+
             // Parse the marker
             const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
             if (markerParts.length >= 2) {
               hasReferencedMedia = true;
               referencedMediaType = markerParts[0]; // 'image' or 'audio'
               referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
-              
-              logger.info(`[Webhook] Found referenced media marker: ${referencedMediaType} at ${referencedMediaUrl}`);
-              
+
+              logger.info(
+                `[Webhook] Found referenced media marker: ${referencedMediaType} at ${referencedMediaUrl}`
+              );
+
               // Remove the marker from the content
               processedContent = content.replace(fullMarker, '').trim();
-              logger.info(`[Webhook] After removing marker, content is now: "${processedContent.substring(0, 100)}..."`);
-              
+              logger.info(
+                `[Webhook] After removing marker, content is now: "${processedContent.substring(0, 100)}..."`
+              );
+
               // Set multimodal flags for consistent handling
               isMultimodalContent = true;
               if (referencedMediaType === 'image') {
@@ -1723,7 +1808,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       else if (Array.isArray(content) && content.length > 0) {
         isMultimodalContent = true;
         logger.info(`[Webhook] Detected multimodal content array with ${content.length} items`);
-        
+
         // Extract text content and media URLs from multimodal array
         content.forEach(item => {
           if (item.type === 'text') {
@@ -1738,8 +1823,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         });
 
         // Use the text content for the main message
-        processedContent = multimodalTextContent.trim() || 'Here\'s the media you requested:';
-        logger.info(`[Webhook] Extracted text content from multimodal array: ${processedContent.substring(0, 50)}...`);
+        processedContent = multimodalTextContent.trim() || "Here's the media you requested:";
+        logger.info(
+          `[Webhook] Extracted text content from multimodal array: ${processedContent.substring(0, 50)}...`
+        );
       } else {
         // Handle regular string content
         try {
@@ -1749,7 +1836,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             logger.debug(`[Webhook] Processing media in message content`);
             const { content: mediaProcessedContent, attachments: mediaAttachments } =
               await processMediaForWebhook(content);
-            
+
             if (mediaAttachments.length > 0) {
               processedContent = mediaProcessedContent;
               attachments = mediaAttachments;
@@ -1779,7 +1866,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       // Track sent messages
       let firstSentMessage = null;
       const sentMessageIds = [];
-      
+
       // Send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
@@ -1803,7 +1890,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             `[Webhook] Detected HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY marker, skipping this message entirely`
           );
           continue;
-        } else if (finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') && channel.isThread()) {
+        } else if (
+          finalContent.includes('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY') &&
+          channel.isThread()
+        ) {
           // For threads, log but don't skip
           logger.info(
             `[Webhook] Detected HARD_BLOCKED_RESPONSE in thread message but allowing it to continue`
@@ -1815,15 +1905,16 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         // For regular content (not multimodal), include attachments in the last chunk
         // For multimodal content, do not attach media to text messages (will be sent separately)
         const isLastChunk = i === contentChunks.length - 1;
-        const chunkOptions = (isLastChunk && !isMultimodalContent) ? { ...options, attachments: attachments } : {};
+        const chunkOptions =
+          isLastChunk && !isMultimodalContent ? { ...options, attachments: attachments } : {};
 
         // Prepare options with channel reference for thread recovery
         const sendOptions = {
-          ...isLastChunk && !isMultimodalContent ? chunkOptions : {},
+          ...(isLastChunk && !isMultimodalContent ? chunkOptions : {}),
           // Store the original channel for recovery attempts
-          _originalChannel: channel
+          _originalChannel: channel,
         };
-        
+
         // Prepare the message data with enhanced thread support
         const messageData = prepareMessageData(
           finalContent,
@@ -1849,12 +1940,12 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           // Handle thread-specific errors with special recovery
           if (channel.isThread() && error.message.includes('thread')) {
             logger.error(`[Webhook] Thread-specific error detected: ${error.message}`);
-            
+
             // Clear all webhook cache entries related to this thread
             logger.info(`[Webhook] Clearing thread webhook cache for thread ${channel.id}`);
             clearWebhookCache(channel.id);
             webhookCache.delete(`thread-${channel.id}`);
-            
+
             // Try to recreate the webhook immediately for the next chunk
             try {
               logger.info(`[Webhook] Attempting immediate webhook recreation for thread`);
@@ -1864,7 +1955,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
               logger.error(`[Webhook] Failed to recreate webhook: ${recreateError.message}`);
             }
           }
-          
+
           // If this is the first chunk and it failed, propagate the error
           if (isFirstChunk) {
             throw error;
@@ -1883,10 +1974,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           try {
             // Add a small delay
             await new Promise(resolve => setTimeout(resolve, mediaDelay));
-            
+
             // Use the audio URL
             const audioUrl = multimodalAudioUrl;
-            
+
             // Create message data for audio
             const audioMessageData = prepareMessageData(
               `[Audio: ${audioUrl}]`, // Use special format that our media handler detects
@@ -1896,7 +1987,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
               channel.id,
               { _originalChannel: channel }
             );
-            
+
             // Send the audio message
             logger.info(`[Webhook] Sending audio as separate message: ${audioUrl}`);
             const audioMessage = await sendMessageChunk(webhook, audioMessageData, 0, 1);
@@ -1907,26 +1998,26 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             // Continue even if audio message fails
           }
         }
-        
+
         // Send image if present and no audio (to ensure we don't overwhelm the user with media)
         if (multimodalImageUrl && !multimodalAudioUrl) {
           try {
             // Add a small delay
             await new Promise(resolve => setTimeout(resolve, mediaDelay));
-            
+
             // Use the image URL
             const imageUrl = multimodalImageUrl;
-            
+
             // Create message data for image
             const imageMessageData = prepareMessageData(
               `[Image: ${imageUrl}]`, // Use special format that our media handler detects
-              standardizedName, 
+              standardizedName,
               personality.avatarUrl,
               channel.isThread(),
               channel.id,
               { _originalChannel: channel }
             );
-            
+
             // Send the image message
             logger.info(`[Webhook] Sending image as separate message: ${imageUrl}`);
             const imageMessage = await sendMessageChunk(webhook, imageMessageData, 0, 1);
@@ -1937,7 +2028,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             // Continue even if image message fails
           }
         }
-        
+
         // No longer needed as we now handle multimedia content directly
       }
 
@@ -2023,11 +2114,13 @@ function clearAllWebhookCaches() {
 function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
-  
+
   // CRITICAL: Allow ALL thread messages to pass through, regardless of content
   // This prevents the error filter from blocking @mentions in threads
   if (options.threadId || options.thread_id) {
-    logger.info(`[Webhook] Allowing potential error message in thread ${options.threadId || options.thread_id}`);
+    logger.info(
+      `[Webhook] Allowing potential error message in thread ${options.threadId || options.thread_id}`
+    );
     return false;
   }
 
@@ -2079,7 +2172,7 @@ function registerEventListeners(discordClient) {
 
     // CRITICAL: Always allow messages to threads, even if they contain error patterns
     const isThread = !!(normalizedOptions.threadId || normalizedOptions.thread_id);
-    
+
     // Check if this is an error message (and not in a thread)
     if (!isThread && isErrorWebhookMessage(normalizedOptions)) {
       logger.info(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
@@ -2088,7 +2181,7 @@ function registerEventListeners(discordClient) {
           username: normalizedOptions.username,
           content: normalizedOptions.content?.substring(0, 50),
           isThread: isThread,
-          threadId: normalizedOptions.threadId || normalizedOptions.thread_id
+          threadId: normalizedOptions.threadId || normalizedOptions.thread_id,
         })}`
       );
 
@@ -2104,10 +2197,12 @@ function registerEventListeners(discordClient) {
         },
       };
     }
-    
+
     // Special logging for thread messages
     if (isThread) {
-      logger.info(`[Webhook] Thread message being sent normally (bypassing error filter) to thread: ${normalizedOptions.threadId || normalizedOptions.thread_id}`);
+      logger.info(
+        `[Webhook] Thread message being sent normally (bypassing error filter) to thread: ${normalizedOptions.threadId || normalizedOptions.thread_id}`
+      );
     }
 
     // If not an error message (or is a thread message), send normally
@@ -2131,16 +2226,16 @@ async function preloadPersonalityAvatar(personality, userId = null) {
     logger.warn(
       `[WebhookManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
     );
-    
+
     // Attempt to fetch avatar URL using profile info fetcher with user auth
     if (personality.fullName) {
       try {
         // Import here to avoid circular dependencies
         const { getProfileAvatarUrl } = require('./profileInfoFetcher');
-        
+
         // Pass the user ID for authentication
         const fetchedAvatarUrl = await getProfileAvatarUrl(personality.fullName, userId);
-        
+
         if (fetchedAvatarUrl) {
           logger.info(
             `[WebhookManager] Successfully fetched avatar URL with user auth (${userId ? 'user-specific' : 'default'}): ${fetchedAvatarUrl}`
@@ -2248,7 +2343,7 @@ function getStandardizedUsername(personality) {
 
       // Create the full name with the suffix
       const fullNameWithSuffix = `${name}${botSuffix}`;
-      
+
       // Discord has a 32 character limit for webhook usernames
       if (fullNameWithSuffix.length > 32) {
         // If the name with suffix is too long, truncate the name part
@@ -2280,7 +2375,7 @@ function getStandardizedUsername(personality) {
 
         // Create the full name with the suffix
         const extractedWithSuffix = `${extracted}${botSuffix}`;
-        
+
         // Discord has a 32 character limit
         if (extractedWithSuffix.length > 32) {
           // If the name with suffix is too long, truncate the name part
@@ -2445,7 +2540,7 @@ function isDuplicateMessage(content, username, channelId) {
   if (!content || content.length === 0) {
     return false;
   }
-  
+
   // No special case for media messages - we'll use a time-based approach instead
 
   // Create a hash key for this message
@@ -2458,12 +2553,16 @@ function isDuplicateMessage(content, username, channelId) {
     // This allows the same message to be sent again after a short delay
     const shortDuplicateTimeout = 5000; // 5 seconds
     const timeSinceLastMessage = Date.now() - timestamp;
-    
+
     if (timeSinceLastMessage < shortDuplicateTimeout) {
-      logger.info(`[Webhook] Detected duplicate message with hash: ${hash}, sent ${timeSinceLastMessage}ms ago`);
+      logger.info(
+        `[Webhook] Detected duplicate message with hash: ${hash}, sent ${timeSinceLastMessage}ms ago`
+      );
       return true;
     } else {
-      logger.info(`[Webhook] Message with same hash found but ${timeSinceLastMessage}ms have passed (> ${shortDuplicateTimeout}ms), allowing it`);
+      logger.info(
+        `[Webhook] Message with same hash found but ${timeSinceLastMessage}ms have passed (> ${shortDuplicateTimeout}ms), allowing it`
+      );
     }
   }
 
@@ -2486,7 +2585,7 @@ function isDuplicateMessage(content, username, channelId) {
 /**
  * Send a message to a thread, using optimized thread-specific webhook approach
  * This implements specialized thread handling that prioritizes webhook aesthetics
- * 
+ *
  * @param {Object} channel - The thread channel to send to
  * @param {string} content - Message content
  * @param {Object} personality - Personality data (name, avatar)
@@ -2495,28 +2594,34 @@ function isDuplicateMessage(content, username, channelId) {
  */
 async function sendDirectThreadMessage(channel, content, personality, options = {}) {
   if (!channel || !channel.isThread()) {
-    logger.error(`[WebhookManager] Called sendDirectThreadMessage on non-thread channel: ${channel?.id}`);
+    logger.error(
+      `[WebhookManager] Called sendDirectThreadMessage on non-thread channel: ${channel?.id}`
+    );
     throw new Error('Cannot send direct thread message to non-thread channel');
   }
-  
-  logger.info(`[WebhookManager] OPTIMIZED THREAD MESSAGE: Sending to thread ${channel.id} as ${personality.displayName || personality.fullName}`);
-  
+
+  logger.info(
+    `[WebhookManager] OPTIMIZED THREAD MESSAGE: Sending to thread ${channel.id} as ${personality.displayName || personality.fullName}`
+  );
+
   try {
-    // First try the webhook approach with optimized thread parameters 
+    // First try the webhook approach with optimized thread parameters
     // This preserves webhook aesthetics like avatar and proper username
-    
+
     // 1. Attempt to get or create a proper webhook for the thread's parent channel
-    logger.info(`[WebhookManager] Thread optimized approach - getting parent webhook for thread ${channel.id}`);
-    
+    logger.info(
+      `[WebhookManager] Thread optimized approach - getting parent webhook for thread ${channel.id}`
+    );
+
     // Get parent channel
     const parentChannel = channel.parent;
     if (!parentChannel) {
       throw new Error(`Cannot find parent channel for thread ${channel.id}`);
     }
-    
+
     // Get webhooks directly from parent channel
     const webhooks = await parentChannel.fetchWebhooks();
-    
+
     // Find or create our bot's webhook
     let webhook = webhooks.find(wh => wh.name === 'Tzurot');
     if (!webhook) {
@@ -2526,62 +2631,68 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
         reason: 'Needed for personality proxying in threads',
       });
     } else {
-      logger.info(`[WebhookManager] Found existing Tzurot webhook in parent channel ${parentChannel.id}`);
+      logger.info(
+        `[WebhookManager] Found existing Tzurot webhook in parent channel ${parentChannel.id}`
+      );
     }
-    
+
     // Create webhook client from URL
     const webhookClient = new WebhookClient({ url: webhook.url });
-    
-    // Get standardized username for consistent display 
+
+    // Get standardized username for consistent display
     const standardName = getStandardizedUsername(personality);
-    
+
     // Process any media in the content
     let processedContent = content;
     let mediaAttachments = [];
-    
+
     try {
       if (typeof content === 'string') {
         const mediaResult = await processMediaForWebhook(content);
         processedContent = mediaResult.content;
         mediaAttachments = mediaResult.attachments;
-        
+
         if (mediaAttachments.length > 0) {
-          logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media attachments for thread message`);
+          logger.info(
+            `[WebhookManager] Processed ${mediaAttachments.length} media attachments for thread message`
+          );
         }
       }
     } catch (mediaError) {
-      logger.error(`[WebhookManager] Error processing media for thread message: ${mediaError.message}`);
+      logger.error(
+        `[WebhookManager] Error processing media for thread message: ${mediaError.message}`
+      );
       // Continue with original content
       processedContent = content;
       mediaAttachments = [];
     }
-    
+
     // Split message if needed
     const contentChunks = splitMessage(processedContent);
     logger.info(`[WebhookManager] Split thread message into ${contentChunks.length} chunks`);
-    
+
     // Track sent messages
     const sentMessageIds = [];
     let firstSentMessage = null;
-    
+
     // Try multiple approaches in sequence (best webhook approach first)
     for (let i = 0; i < contentChunks.length; i++) {
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
-      
+
       // Skip duplicate messages
       if (isDuplicateMessage(chunkContent, standardName, channel.id)) {
         logger.info(`[WebhookManager] Skipping thread chunk ${i + 1} due to duplicate detection`);
         continue;
       }
-      
+
       // Only include files in last chunk
       const files = isLastChunk ? mediaAttachments : [];
-      
+
       // Only include embeds in last chunk
-      const embeds = (isLastChunk && options.embeds) ? options.embeds : [];
-      
+      const embeds = isLastChunk && options.embeds ? options.embeds : [];
+
       // Prepare base webhook options
       const baseOptions = {
         content: chunkContent,
@@ -2589,24 +2700,26 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
         avatarURL: personality.avatarUrl,
         threadId: channel.id,
         files,
-        embeds
+        embeds,
       };
-      
+
       // Send using multiple approaches in sequence until one works
       try {
         let sentMessage = null;
-        
+
         // APPROACH 1: Use webhook with thread_id parameter (most compatible)
         try {
           logger.info(`[WebhookManager] THREAD APPROACH 1: Using direct thread_id parameter`);
           sentMessage = await webhookClient.send({
             ...baseOptions,
-            thread_id: channel.id
+            thread_id: channel.id,
           });
-          logger.info(`[WebhookManager] Successfully sent thread message using thread_id parameter`);
+          logger.info(
+            `[WebhookManager] Successfully sent thread message using thread_id parameter`
+          );
         } catch (approach1Error) {
           logger.error(`[WebhookManager] Thread approach 1 failed: ${approach1Error.message}`);
-          
+
           // APPROACH 2: Use webhook.thread() method if available
           if (typeof webhookClient.thread === 'function') {
             try {
@@ -2615,7 +2728,9 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
               // Don't pass threadId in the options since we're using thread-specific client
               const { threadId, ...threadOptions } = baseOptions;
               sentMessage = await threadWebhook.send(threadOptions);
-              logger.info(`[WebhookManager] Successfully sent thread message using thread() method`);
+              logger.info(
+                `[WebhookManager] Successfully sent thread message using thread() method`
+              );
             } catch (approach2Error) {
               logger.error(`[WebhookManager] Thread approach 2 failed: ${approach2Error.message}`);
               throw approach2Error; // Let the outer catch handle the fallback
@@ -2624,49 +2739,53 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
             throw approach1Error; // Re-throw to fall through to the fallback
           }
         }
-        
+
         // If we got here, message was sent successfully
         sentMessageIds.push(sentMessage.id);
-        
+
         if (isFirstChunk) {
           firstSentMessage = sentMessage;
         }
-        
-        logger.info(`[WebhookManager] Successfully sent thread message chunk ${i + 1}/${contentChunks.length}`);
+
+        logger.info(
+          `[WebhookManager] Successfully sent thread message chunk ${i + 1}/${contentChunks.length}`
+        );
       } catch (error) {
         // All webhook approaches failed, fall back to direct channel.send()
         logger.error(`[WebhookManager] All webhook approaches failed: ${error.message}`);
         logger.info(`[WebhookManager] Falling back to direct channel.send()`);
-        
+
         try {
           // Format the content with the personality name for direct sending
           const formattedContent = `**${standardName}:** ${chunkContent}`;
-          
+
           // Create send options
           const sendOptions = {
-            content: formattedContent
+            content: formattedContent,
           };
-          
+
           // Add files/embeds if this is the last chunk
           if (isLastChunk) {
             if (files.length > 0) sendOptions.files = files;
             if (embeds.length > 0) sendOptions.embeds = embeds;
           }
-          
+
           // Send using direct approach
           const sentMessage = await channel.send(sendOptions);
-          
+
           // Track message
           sentMessageIds.push(sentMessage.id);
-          
+
           if (isFirstChunk) {
             firstSentMessage = sentMessage;
           }
-          
-          logger.info(`[WebhookManager] Successfully sent direct fallback message for chunk ${i + 1}/${contentChunks.length}`);
+
+          logger.info(
+            `[WebhookManager] Successfully sent direct fallback message for chunk ${i + 1}/${contentChunks.length}`
+          );
         } catch (fallbackError) {
           logger.error(`[WebhookManager] Even direct send failed: ${fallbackError.message}`);
-          
+
           if (isFirstChunk) {
             // If first chunk fails with all approaches, propagate the error
             throw fallbackError;
@@ -2675,14 +2794,14 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
         }
       }
     }
-    
+
     // Return result
     if (sentMessageIds.length > 0) {
       return {
         message: firstSentMessage,
         messageIds: sentMessageIds,
         isThreadMessage: true,
-        personalityName: personality.fullName
+        personalityName: personality.fullName,
       };
     } else {
       // If no messages were sent (all were duplicates), create a virtual result

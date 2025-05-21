@@ -12,7 +12,7 @@ const meta = {
   description: 'Check if the bot is online',
   usage: 'ping',
   aliases: [],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -21,7 +21,7 @@ const meta = {
  * @param {Array<string>} args - Command arguments
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, _args) {
   try {
     const directSend = validator.createDirectSend(message);
     return await directSend('Pong! Tzurot is operational.');
@@ -33,5 +33,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

@@ -9,7 +9,7 @@ const messageTracker = require('../utils/messageTracker');
 const {
   getPersonality,
   getPersonalityByAlias,
-  removePersonality
+  removePersonality,
 } = require('../../personalityManager');
 const { botPrefix } = require('../../../config');
 
@@ -21,7 +21,7 @@ const meta = {
   description: 'Remove a personality from your collection',
   usage: 'remove <personality-name>',
   aliases: ['delete'],
-  permissions: []
+  permissions: [],
 };
 
 /**
@@ -47,15 +47,15 @@ async function execute(message, args) {
   try {
     // Try to find the personality first to get a displayName for the confirmation message
     let personality = null;
-    
+
     // First check if this is an alias
     personality = getPersonalityByAlias(message.author.id, personalityName);
-    
+
     // If not found by alias, try the direct name
     if (!personality) {
       personality = getPersonality(personalityName);
     }
-    
+
     if (!personality) {
       return await directSend(
         `Personality "${personalityName}" not found. Please check the name or alias and try again.`
@@ -64,9 +64,7 @@ async function execute(message, args) {
 
     // Check if this personality belongs to the user
     if (personality.createdBy && personality.createdBy !== message.author.id) {
-      return await directSend(
-        `You cannot remove a personality that you didn't create.`
-      );
+      return await directSend(`You cannot remove a personality that you didn't create.`);
     }
 
     // Remove the personality
@@ -76,15 +74,19 @@ async function execute(message, args) {
     if (result && result.error) {
       return await directSend(result.error);
     }
-    
+
     if (result === false) {
-      return await directSend(`Failed to remove the personality. It may not exist or you may not have permission.`);
+      return await directSend(
+        `Failed to remove the personality. It may not exist or you may not have permission.`
+      );
     }
 
     // Clear the completed add command tracking to allow immediate re-adding
     messageTracker.removeCompletedAddCommand(message.author.id, personalityName);
-    logger.info(`[RemoveCommand] Cleared add command tracking for ${message.author.id}-${personalityName}`);
-    
+    logger.info(
+      `[RemoveCommand] Cleared add command tracking for ${message.author.id}-${personalityName}`
+    );
+
     // Also try clearing with the full name in case that was used instead
     if (personality.fullName !== personalityName) {
       messageTracker.removeCompletedAddCommand(message.author.id, personality.fullName);
@@ -93,7 +95,9 @@ async function execute(message, args) {
     // Create the success embed
     const embed = new EmbedBuilder()
       .setTitle('Personality Removed')
-      .setDescription(`**${personality.displayName || personality.fullName}** has been removed from your collection.`)
+      .setDescription(
+        `**${personality.displayName || personality.fullName}** has been removed from your collection.`
+      )
       .setColor(0xf44336);
 
     return await directSend({ embeds: [embed] });
@@ -105,5 +109,5 @@ async function execute(message, args) {
 
 module.exports = {
   meta,
-  execute
+  execute,
 };

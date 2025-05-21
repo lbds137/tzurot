@@ -1,6 +1,6 @@
 /**
  * Message Tracking System for Deduplication
- * 
+ *
  * @module messageTracker
  * @description
  * This module provides a centralized message tracking system to prevent
@@ -12,7 +12,7 @@ const logger = require('./logger');
 
 /**
  * Centralized message tracking system for deduplication
- * 
+ *
  * @class MessageTracker
  * @description
  * Tracks message operations to prevent duplicates. This class:
@@ -32,10 +32,10 @@ class MessageTracker {
      * @private
      */
     this.processedMessages = new Map();
-    
+
     // Set up periodic cleanup
     this.setupPeriodicCleanup();
-    
+
     logger.info('MessageTracker initialized');
   }
 
@@ -45,22 +45,25 @@ class MessageTracker {
    */
   setupPeriodicCleanup() {
     // Clean up the tracker every 10 minutes to prevent memory growth
-    setInterval(() => {
-      const now = Date.now();
-      let count = 0;
-      
-      // Remove entries older than 10 minutes
-      for (const [id, timestamp] of this.processedMessages.entries()) {
-        if (now - timestamp > 10 * 60 * 1000) {
-          this.processedMessages.delete(id);
-          count++;
+    setInterval(
+      () => {
+        const now = Date.now();
+        let count = 0;
+
+        // Remove entries older than 10 minutes
+        for (const [id, timestamp] of this.processedMessages.entries()) {
+          if (now - timestamp > 10 * 60 * 1000) {
+            this.processedMessages.delete(id);
+            count++;
+          }
         }
-      }
-      
-      if (count > 0) {
-        logger.info(`MessageTracker cleanup removed ${count} entries`);
-      }
-    }, 10 * 60 * 1000).unref(); // unref() allows the process to exit even if timer is active
+
+        if (count > 0) {
+          logger.info(`MessageTracker cleanup removed ${count} entries`);
+        }
+      },
+      10 * 60 * 1000
+    ).unref(); // unref() allows the process to exit even if timer is active
   }
 
   /**
@@ -71,14 +74,16 @@ class MessageTracker {
    */
   track(messageId, type = 'message') {
     const trackingId = `${type}-${messageId}`;
-    
+
     // If already processed, return false to indicate duplicate
     if (this.processedMessages.has(trackingId)) {
       const timeAgo = Date.now() - this.processedMessages.get(trackingId);
-      logger.warn(`DUPLICATE DETECTION: ${trackingId} (${timeAgo}ms ago) - preventing duplicate processing`);
+      logger.warn(
+        `DUPLICATE DETECTION: ${trackingId} (${timeAgo}ms ago) - preventing duplicate processing`
+      );
       return false;
     }
-    
+
     // Mark as processed with current timestamp
     this.processedMessages.set(trackingId, Date.now());
     return true;
@@ -93,24 +98,26 @@ class MessageTracker {
    */
   trackOperation(channelId, operationType, optionsSignature) {
     const operationId = `${operationType}-${channelId}-${optionsSignature}`;
-    
+
     // Check for recent identical operations (within 5 seconds)
     if (this.processedMessages.has(operationId)) {
       const timeAgo = Date.now() - this.processedMessages.get(operationId);
       if (timeAgo < 5000) {
-        logger.warn(`DUPLICATE OPERATION: ${operationId} (${timeAgo}ms ago) - preventing duplicate operation`);
+        logger.warn(
+          `DUPLICATE OPERATION: ${operationId} (${timeAgo}ms ago) - preventing duplicate operation`
+        );
         return false;
       }
     }
-    
+
     // Record this operation
     this.processedMessages.set(operationId, Date.now());
-    
+
     // Set a timeout to clean up this entry after 10 seconds
     setTimeout(() => {
       this.processedMessages.delete(operationId);
     }, 10000);
-    
+
     return true;
   }
 
@@ -135,5 +142,5 @@ class MessageTracker {
 // Export a singleton instance and the class for testing
 module.exports = {
   messageTracker: new MessageTracker(),
-  MessageTracker
+  MessageTracker,
 };

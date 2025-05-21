@@ -49,10 +49,12 @@ const fetchImplementation = (...args) => nodeFetch(...args);
 async function fetchProfileInfo(profileName, userId = null) {
   // Create a unique key that includes both profile name and userId to prevent auth leakage
   const requestKey = userId ? `${profileName}:${userId}` : profileName;
-  
+
   // If there's already an ongoing request with the same profile name and userId, return its promise
   if (ongoingRequests.has(requestKey)) {
-    logger.info(`[ProfileInfoFetcher] Reusing existing request for: ${profileName} (userId: ${userId || 'none'})`);
+    logger.info(
+      `[ProfileInfoFetcher] Reusing existing request for: ${profileName} (userId: ${userId || 'none'})`
+    );
     return ongoingRequests.get(requestKey);
   }
 
@@ -67,7 +69,7 @@ async function fetchProfileInfo(profileName, userId = null) {
 
   // Create a context object with the user ID to pass through the rate limiter
   const context = { userId };
-  
+
   // Use the rate limiter to handle this request with the user context
   rateLimiter.enqueue(async (_, enqueueContext) => {
     try {
@@ -90,7 +92,7 @@ async function fetchProfileInfo(profileName, userId = null) {
 
       // Use the userId passed to this function directly, not from rate limiter context
       // This ensures we don't have context leakage between concurrent requests
-      
+
       // Fetch the profile data with user authentication if available
       const data = await fetchWithRetry(endpoint, profileName, userId);
 
@@ -261,10 +263,10 @@ const urlValidator = require('./utils/urlValidator');
  */
 async function getProfileAvatarUrl(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
-  
+
   // Create a context object with the user ID if provided
   const context = userId ? { userId } : {};
-  
+
   // Use the rateLimiter to execute the request with context
   const profileInfo = await fetchProfileInfo(profileName, userId);
 
@@ -282,14 +284,12 @@ async function getProfileAvatarUrl(profileName, userId = null) {
 
       // Validate the URL format
       if (!urlValidator.isValidUrlFormat(profileInfo.avatar)) {
-        logger.warn(
-          `[ProfileInfoFetcher] Received invalid avatar from API: ${profileInfo.avatar}`
-        );
+        logger.warn(`[ProfileInfoFetcher] Received invalid avatar from API: ${profileInfo.avatar}`);
       } else {
         return profileInfo.avatar;
       }
     }
-    
+
     // Check if avatar_url is available in the response (old API format)
     if (profileInfo.avatar_url) {
       logger.debug(
@@ -322,10 +322,10 @@ async function getProfileAvatarUrl(profileName, userId = null) {
  */
 async function getProfileDisplayName(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting display name for: ${profileName}`);
-  
+
   // Create a context object with the user ID if provided
   const context = userId ? { userId } : {};
-  
+
   // Use the rateLimiter to execute the request with context
   const profileInfo = await fetchProfileInfo(profileName, userId);
 
