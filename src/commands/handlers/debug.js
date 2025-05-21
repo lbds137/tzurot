@@ -41,7 +41,7 @@ async function execute(message, args) {
   const subCommand = args[0].toLowerCase();
 
   switch (subCommand) {
-    case 'problems':
+    case 'problems': {
       // Show information about problematic personalities
       const knownProblems = knownProblematicPersonalities.length;
       const runtimeProblems = runtimeProblematicPersonalities.size;
@@ -82,6 +82,7 @@ async function execute(message, args) {
         });
       
       return await directSend({ embeds: [embed] });
+    }
 
     default:
       return await directSend(
