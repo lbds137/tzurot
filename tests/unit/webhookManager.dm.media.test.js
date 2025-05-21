@@ -3,11 +3,23 @@
  */
 
 const webhookManager = require('../../src/webhookManager');
-const mediaHandler = require('../../src/utils/mediaHandler');
 
 // Mock dependencies
 jest.mock('../../src/logger');
-jest.mock('../../src/utils/mediaHandler');
+jest.mock('../../src/utils/media', () => {
+  const mediaHandler = {
+    processMediaUrls: jest.fn(),
+    prepareAttachmentOptions: jest.fn()
+  };
+  return {
+    mediaHandler,
+    processMediaForWebhook: mediaHandler.processMediaUrls,
+    prepareAttachmentOptions: mediaHandler.prepareAttachmentOptions
+  };
+});
+
+// Get the mocked media module
+const { mediaHandler } = require('../../src/utils/media');
 
 describe('Webhook Manager - DM Media Handling', () => {
   let mockChannel;

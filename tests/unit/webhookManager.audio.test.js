@@ -3,7 +3,6 @@
  */
 
 const webhookManager = require('../../src/webhookManager');
-const audioHandler = require('../../src/utils/audioHandler');
 
 // Mock the dependencies without requiring actual modules
 jest.mock('discord.js', () => ({
@@ -13,7 +12,21 @@ jest.mock('discord.js', () => ({
   EmbedBuilder: jest.fn().mockImplementation((data) => data)
 }));
 
-jest.mock('../../src/utils/audioHandler');
+// Mock the media module with audioHandler functionality
+jest.mock('../../src/utils/media', () => {
+  const audioHandler = {
+    processAudioUrls: jest.fn()
+  };
+  return {
+    audioHandler,
+    processMediaForWebhook: jest.fn(),
+    prepareAttachmentOptions: jest.fn()
+  };
+});
+
+// Get the mocked audio handler from the media module
+const { audioHandler } = require('../../src/utils/media');
+
 jest.mock('../../src/logger', () => ({
   debug: jest.fn(),
   info: jest.fn(),
