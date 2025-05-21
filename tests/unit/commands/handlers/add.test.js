@@ -145,7 +145,7 @@ describe('Add Command', () => {
     expect(webhookManager.preloadPersonalityAvatar).toHaveBeenCalled();
     
     // Verify message tracking
-    expect(messageTracker.markAddCommandAsProcessed).toHaveBeenCalledWith(mockMessage.id);
+    // Note: markAddCommandAsProcessed is now called in the middleware, not in the handler
     expect(messageTracker.markGeneratedFirstEmbed).toHaveBeenCalled();
     // These message tracking functions might not be called in the mock tests
     // but are called in the real implementation
