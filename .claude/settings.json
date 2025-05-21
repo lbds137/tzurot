@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      // File operations
       "Read(*)",
       "Write(*)",
       "Edit(*)",
@@ -10,18 +9,15 @@
       "Glob(*)",
       "Grep(*)",
       
-      // Task management
       "Task(*)",
       "TodoRead",
       "TodoWrite(*)",
       
-      // Tools
       "Batch(*)",
       "Search(*)",
       "WebSearch(*)",
       "WebFetch(*)",
       
-      // NPM commands
       "Bash(npm run lint)",
       "Bash(npm run lint:fix)",
       "Bash(npm run format)",
@@ -34,7 +30,6 @@
       "Bash(npm audit)",
       "Bash(npm install:*)",
       
-      // Testing
       "Bash(npx jest:*)",
       "Bash(USE_ORIGINAL_REFERENCE_FORMAT=true npx jest tests/unit/aiService.reference.test.js)",
       "Bash(DEBUG=jest npx jest tests/unit/commandLoader.test.js --verbose)",
@@ -44,7 +39,6 @@
       "Bash(NODE_OPTIONS=--experimental-vm-modules npx jest --no-coverage)",
       "Bash(NODE_ENV=test node -e \"const commandLoader = require('./src/commands/utils/commandLoader');console.log('Command loader object:', Object.keys(commandLoader));const result = commandLoader.loadCommands();console.log('Loaded commands:', result.loaded.map(cmd => cmd.name));console.log('Failed commands:', result.failed);\")",
       
-      // Git commands
       "Bash(git status)",
       "Bash(git diff)",
       "Bash(git add:*)",
@@ -56,7 +50,6 @@
       "Bash(git rm:*)",
       "Bash(git push:*)",
       
-      // Common bash commands
       "Bash(ls:*)",
       "Bash(pwd:*)",
       "Bash(find:*)",
@@ -74,7 +67,6 @@
       "Bash(curl:*)",
       "Bash(sed:*)",
       
-      // Code tools
       "Bash(eslint:*)",
       "Bash(npx eslint:*)",
       "Bash(npx prettier:*)",
