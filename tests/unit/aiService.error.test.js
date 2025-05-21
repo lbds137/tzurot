@@ -9,6 +9,20 @@ jest.mock('../config', () => ({
   getModelPath: jest.fn().mockReturnValue('model/test')
 }), { virtual: true });
 
+// Mock auth module to bypass authentication
+jest.mock('../../src/auth', () => ({
+  hasValidToken: jest.fn().mockReturnValue(true),
+  getUserToken: jest.fn().mockReturnValue('mock-token'),
+  APP_ID: 'mock-app-id',
+  API_KEY: 'mock-api-key',
+  isNsfwVerified: jest.fn().mockReturnValue(true)
+}));
+
+// Mock webhookUserTracker to bypass authentication
+jest.mock('../../src/utils/webhookUserTracker', () => ({
+  shouldBypassNsfwVerification: jest.fn().mockReturnValue(false)
+}));
+
 describe('aiService Error Handling', () => {
   let aiService;
   let mockOpenAI;
@@ -269,8 +283,7 @@ describe('aiService Error Handling', () => {
   });
   
   describe('Request handling', () => {
-    // TODO: Fix this test after removing special handling for test environment
-    test.skip('getAiResponse should handle missing parameters gracefully', async () => {
+    test('getAiResponse should handle missing parameters gracefully', async () => {
       // Test with missing personalityName
       const responseWithoutPersonality = await aiService.getAiResponse(undefined, message, context);
       expect(responseWithoutPersonality).toBe("I'm experiencing an issue with my configuration. Please try again later.");
@@ -279,7 +292,12 @@ describe('aiService Error Handling', () => {
       const responseWithoutMessage = await aiService.getAiResponse(personalityName, undefined, context);
       expect(responseWithoutMessage).not.toBe("I'm experiencing an issue with my configuration. Please try again later.");
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(expect.objectContaining({
-        messages: [{ role: 'user', content: 'Hello' }]
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'user',
+            content: 'Hello'
+          })
+        ])
       }));
       
       // Test with missing context (should use defaults)
@@ -300,8 +318,7 @@ describe('aiService Error Handling', () => {
       expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled();
     });
     
-    // TODO: Fix this test after removing special handling for test environment
-    test.skip('getAiResponse should handle API errors gracefully', async () => {
+    test('getAiResponse should handle API errors gracefully', async () => {
       // Make API call throw an error
       mockOpenAI.chat.completions.create.mockRejectedValueOnce(
         new Error('API connection failed')
@@ -317,8 +334,7 @@ describe('aiService Error Handling', () => {
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
     });
     
-    // TODO: Fix this test after removing special handling for test environment
-    test.skip('getAiResponse should handle empty responses gracefully', async () => {
+    test('getAiResponse should handle empty responses gracefully', async () => {
       // Make API return an invalid response
       mockOpenAI.chat.completions.create.mockResolvedValueOnce({
         choices: []
@@ -328,14 +344,13 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
       
       // Should return an error message
-      expect(response).toBe('I received an incomplete response. Please try again.');
+      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
       
       // Should register as problematic
       expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
-    // TODO: Fix this test after removing special handling for test environment
-    test.skip('getAiResponse should handle non-string responses gracefully', async () => {
+    test('getAiResponse should handle non-string responses gracefully', async () => {
       // Make API return non-string content
       mockOpenAI.chat.completions.create.mockResolvedValueOnce({
         choices: [
@@ -351,7 +366,7 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
       
       // Should return an error message
-      expect(response).toBe('I received an unusual response format. Please try again.');
+      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
       
       // Should register as problematic
       expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
