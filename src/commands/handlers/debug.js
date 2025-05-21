@@ -47,8 +47,11 @@ async function execute(message, args) {
       const runtimeProblems = runtimeProblematicPersonalities.size;
       
       // Prepare lists for the embed
-      const knownList = knownProblematicPersonalities.length > 0 
-        ? knownProblematicPersonalities.join('\n') 
+      const shouldTruncate = knownProblematicPersonalities.length > 50;
+      const knownList = knownProblematicPersonalities.length > 0
+        ? (shouldTruncate 
+            ? knownProblematicPersonalities.slice(0, 50).join('\n') + '...' 
+            : knownProblematicPersonalities.join('\n'))
         : 'None';
         
       const runtimeList = runtimeProblematicPersonalities.size > 0
