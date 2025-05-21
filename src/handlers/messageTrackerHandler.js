@@ -99,9 +99,10 @@ function trackMessageInChannel(message) {
 }
 
 /**
- * Check if a message has similar content to recent messages in the channel
+ * Check if a message has similar content to recent messages in the channel that have been handled
+ * Only returns true if the similar message was also marked as handled
  * @param {Object} message - Discord message object
- * @returns {boolean} - true if a similar message was recently seen
+ * @returns {boolean} - true if a similar message was recently seen AND handled
  */
 function hasSimilarRecentMessage(message) {
   if (!message || !message.content) return false;
@@ -121,15 +122,18 @@ function hasSimilarRecentMessage(message) {
     return now - msg.timestamp < contentSimilarity.getProxyDelayTime();
   });
   
-  // Check if any recent messages have similar content
+  // Check if any recent messages have similar content AND have been handled
   for (const msg of recentEnoughMessages) {
     // Skip comparing with the exact same message ID
     if (msg.messageId === message.id) continue;
     
-    // If we find a similar message that has already been handled, this is likely a duplicate
-    if (contentSimilarity.areContentsSimilar(content, msg.content) && msg.handled) {
-      logger.info(`[MessageTracker] Found similar recent message (${msg.messageId}) to current message (${message.id}) - similarity detected`);
-      return true;
+    // Only consider similar messages that have been handled
+    if (contentSimilarity.areContentsSimilar(content, msg.content)) {
+      // Return true ONLY if the message has been handled
+      if (msg.handled) {
+        logger.info(`[MessageTracker] Found similar recent message (${msg.messageId}) to current message (${message.id}) - similarity detected and message was handled`);
+        return true;
+      }
     }
   }
   
@@ -179,26 +183,31 @@ async function delayedProcessing(message, personality, triggeringMention, client
   // Add a short delay to allow proxy systems to process the message
   logger.info(`[MessageTracker] Adding delay for message ${message.id}`);
   
-  setTimeout(async () => {
-    try {
-      // Re-fetch the message to ensure it still exists
-      let messageToProcess = null;
+  return new Promise((resolve) => {
+    setTimeout(async () => {
       try {
-        messageToProcess = await message.channel.messages.fetch(message.id);
-      } catch (fetchErr) {
-        logger.info(`[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system`);
-        return; // Message was deleted, don't process
+        // Re-fetch the message to ensure it still exists
+        let messageToProcess = null;
+        try {
+          messageToProcess = await message.channel.messages.fetch(message.id);
+        } catch (fetchErr) {
+          logger.info(`[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system`);
+          resolve(); // Message was deleted, don't process
+          return;
+        }
+        
+        // Mark the message as handled
+        markMessageAsHandled(messageToProcess);
+        
+        // Process the message with the provided handler function
+        await handlerFunction(messageToProcess, personality, triggeringMention, client);
+        resolve();
+      } catch (err) {
+        logger.error(`[MessageTracker] Error in delayed processing: ${err.message}`);
+        resolve();
       }
-      
-      // Mark the message as handled
-      markMessageAsHandled(messageToProcess);
-      
-      // Process the message with the provided handler function
-      await handlerFunction(messageToProcess, personality, triggeringMention, client);
-    } catch (err) {
-      logger.error(`[MessageTracker] Error in delayed processing: ${err.message}`);
-    }
-  }, contentSimilarity.getProxyDelayTime());
+    }, contentSimilarity.getProxyDelayTime());
+  });
 }
 
 // Start the cleanup interval when the module is loaded
