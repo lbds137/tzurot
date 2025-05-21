@@ -77,6 +77,8 @@ This report shows that we have approximately 32% overall test coverage. Key area
 
 We've made progress in the following areas:
 - Fixed the personalityHandler.test.js to properly test recordConversationData and other functions
+- Fixed the bot.referenced.media.test.js tests for properly formatting referenced messages with media
+- Fixed the add command tests to correctly handle alias parameters
 - Improved mocking approaches to create more maintainable and reliable tests
 - Added testing for NSFW channel and age verification requirements
 
