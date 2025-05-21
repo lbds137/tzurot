@@ -1,18 +1,4 @@
-const messageHandler = require('../../../src/handlers/messageHandler');
-const { messageTracker } = require('../../../src/messageTracker');
-const referenceHandler = require('../../../src/handlers/referenceHandler');
-const personalityHandler = require('../../../src/handlers/personalityHandler');
-const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
-const dmHandler = require('../../../src/handlers/dmHandler');
-const errorHandler = require('../../../src/handlers/errorHandler');
-const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
-const { processCommand } = require('../../../src/commandLoader');
-const { getActivePersonality, getActivatedPersonality } = require('../../../src/conversationManager');
-const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
-const channelUtils = require('../../../src/utils/channelUtils');
-const { botPrefix } = require('../../../config');
-
-// Mock dependencies
+// First, mock all dependencies
 jest.mock('../../../src/logger');
 jest.mock('../../../src/messageTracker');
 jest.mock('../../../src/handlers/referenceHandler');
@@ -28,6 +14,21 @@ jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../config', () => ({
   botPrefix: '!tz'
 }));
+
+// IMPORTANT: Import the messageHandler module AFTER mocking all its dependencies
+const messageHandler = require('../../../src/handlers/messageHandler');
+const { messageTracker } = require('../../../src/messageTracker');
+const referenceHandler = require('../../../src/handlers/referenceHandler');
+const personalityHandler = require('../../../src/handlers/personalityHandler');
+const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
+const dmHandler = require('../../../src/handlers/dmHandler');
+const errorHandler = require('../../../src/handlers/errorHandler');
+const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
+const { processCommand } = require('../../../src/commandLoader');
+const { getActivePersonality, getActivatedPersonality } = require('../../../src/conversationManager');
+const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
+const channelUtils = require('../../../src/utils/channelUtils');
+const { botPrefix } = require('../../../config');
 
 describe('messageHandler', () => {
   let mockClient;
@@ -222,16 +223,20 @@ describe('messageHandler', () => {
         content: `${botPrefix} command arg1 arg2`
       };
       
-      // Create a spy on handleCommand
-      jest.spyOn(messageHandler, 'handleCommand')
-        .mockImplementation(async () => true);
+      // Setup mocks
+      processCommand.mockResolvedValueOnce(true);
+      messageTracker.track.mockReturnValueOnce(true);
       
-      // Call the handler
+      // Call the handler directly
       await messageHandler.handleMessage(commandMessage, mockClient);
       
-      // We don't need to verify the internals since they may change
-      // Just check that we properly identified it as a command
-      expect(messageHandler.handleCommand).toHaveBeenCalled();
+      // Verify that processCommand was called with the expected arguments
+      // This indirectly verifies that handleCommand was called internally
+      expect(processCommand).toHaveBeenCalledWith(
+        commandMessage,
+        'command',
+        ['arg1', 'arg2']
+      );
     });
     
     it('should handle message references', async () => {
@@ -265,14 +270,28 @@ describe('messageHandler', () => {
         content: '@TestPersonality Hello there'
       };
       
-      // Mock handleMentions function
-      jest.spyOn(messageHandler, 'handleMentions').mockImplementation(async () => true);
+      // Reset and setup mocks
+      jest.clearAllMocks();
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
+      
+      // Make sure the other handlers return false to get to mentions
+      referenceHandler.handleMessageReference.mockResolvedValueOnce(false);
       
       // Call the handler
       await messageHandler.handleMessage(mentionMessage, mockClient);
       
-      // Should have called the mentions handler
-      expect(messageHandler.handleMentions).toHaveBeenCalledWith(mentionMessage, mockClient);
+      // Verify that the personality was looked up
+      expect(getPersonality).toHaveBeenCalledWith('TestPersonality');
+      
+      // Verify that delayedProcessing was called with the right arguments
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        mentionMessage,
+        mockPersonality,
+        'TestPersonality',
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should handle active conversations', async () => {
@@ -282,14 +301,36 @@ describe('messageHandler', () => {
         content: 'This is part of an active conversation'
       };
       
-      // Mock handleActiveConversation function
-      jest.spyOn(messageHandler, 'handleActiveConversation').mockImplementation(async () => true);
+      // Reset and setup mocks
+      jest.clearAllMocks();
+      getActivePersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
+      
+      // Make sure handlers before this one return false
+      referenceHandler.handleMessageReference.mockResolvedValueOnce(false);
+      
+      // Mock handleMentions internal function to return false so we get to handleActiveConversation
+      // This is done by setting up the test environment so no mentions are found
+      getPersonalityByAlias.mockReturnValue(null);
       
       // Call the handler
       await messageHandler.handleMessage(conversationMessage, mockClient);
       
-      // Should have processed the active conversation
-      expect(messageHandler.handleActiveConversation).toHaveBeenCalledWith(conversationMessage, mockClient);
+      // Verify that active personality was checked
+      expect(getActivePersonality).toHaveBeenCalledWith(
+        conversationMessage.author.id,
+        conversationMessage.channel.id
+      );
+      
+      // Verify that delayedProcessing was called with the right arguments
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        conversationMessage,
+        mockPersonality,
+        null,
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should handle activated channels', async () => {
@@ -299,14 +340,35 @@ describe('messageHandler', () => {
         content: 'This is in an activated channel'
       };
       
-      // Mock handleActivatedChannel function
-      jest.spyOn(messageHandler, 'handleActivatedChannel').mockImplementation(async () => true);
+      // Reset and setup mocks
+      jest.clearAllMocks();
+      
+      // Set up the test to get to the activated channel handler
+      // Returns for previous handlers
+      referenceHandler.handleMessageReference.mockResolvedValueOnce(false);
+      getPersonalityByAlias.mockReturnValue(null); // No mention matches
+      getActivePersonality.mockReturnValueOnce(null); // No active conversation
+      
+      // Setup for activated channel handling
+      getActivatedPersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      channelUtils.isChannelNSFW.mockReturnValueOnce(true); // NSFW channel
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Call the handler
       await messageHandler.handleMessage(activatedChannelMessage, mockClient);
       
-      // Should have processed the activated channel
-      expect(messageHandler.handleActivatedChannel).toHaveBeenCalledWith(activatedChannelMessage, mockClient);
+      // Verify that activated personality was checked
+      expect(getActivatedPersonality).toHaveBeenCalledWith(activatedChannelMessage.channel.id);
+      
+      // Verify that delayedProcessing was called with the right arguments
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        activatedChannelMessage,
+        mockPersonality,
+        null,
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should handle direct messages', async () => {
@@ -335,6 +397,9 @@ describe('messageHandler', () => {
         content: `${botPrefix} command arg1 arg2`
       };
       
+      // Make sure processCommand returns true for this test
+      processCommand.mockResolvedValueOnce(true);
+      
       // Call the handler
       const result = await messageHandler.handleCommand(commandMessage);
       
@@ -354,6 +419,9 @@ describe('messageHandler', () => {
         ...mockMessage,
         content: botPrefix
       };
+      
+      // Make sure processCommand returns true for this test
+      processCommand.mockResolvedValueOnce(true);
       
       // Call the handler
       const result = await messageHandler.handleCommand(emptyCommandMessage);
@@ -392,6 +460,9 @@ describe('messageHandler', () => {
         content: `${botPrefix} command arg1 arg2`
       };
       
+      // Make sure track returns true for this test
+      messageTracker.track.mockReturnValueOnce(true);
+      
       // Mock processCommand to throw an error
       processCommand.mockRejectedValueOnce(new Error('Command error'));
       
@@ -417,19 +488,24 @@ describe('messageHandler', () => {
         content: '@TestPersonality Hello there'
       };
       
+      // Set up mocks for this test
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
+      
       // Call the handler
       const result = await messageHandler.handleMentions(mentionMessage, mockClient);
       
       // Should return true to indicate the mention was handled
       expect(result).toBe(true);
       
-      // For DM channels, should handle immediately
-      if (mentionMessage.channel.isDMBased()) {
-        expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalled();
-      } else {
-        // For server channels, should use delayed processing
-        expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
-      }
+      // For server channels (default mock), should use delayed processing
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        mentionMessage,
+        mockPersonality,
+        'TestPersonality',
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should handle multi-word mentions', async () => {
@@ -447,6 +523,9 @@ describe('messageHandler', () => {
         return null;
       });
       
+      // Set up mocks for this test
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
+      
       // Call the handler
       const result = await messageHandler.handleMentions(multiWordMentionMessage, mockClient);
       
@@ -459,13 +538,14 @@ describe('messageHandler', () => {
         'Test Personality'
       );
       
-      // For DM channels, should handle immediately
-      if (multiWordMentionMessage.channel.isDMBased()) {
-        expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalled();
-      } else {
-        // For server channels, should use delayed processing
-        expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
-      }
+      // For server channels (default mock), should use delayed processing
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        multiWordMentionMessage,
+        mockPersonality,
+        'Test Personality',
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should prioritize longest multi-word mentions', async () => {
@@ -473,6 +553,12 @@ describe('messageHandler', () => {
       const complexMentionMessage = {
         ...mockMessage,
         content: '@Test Personality Prime Hello there'
+      };
+      
+      // Custom personality for this test
+      const testPersonalityPrime = { 
+        fullName: 'test-personality-prime', 
+        displayName: 'Test Personality Prime' 
       };
       
       // Mock getPersonalityByAlias to return for various aliases
@@ -484,10 +570,13 @@ describe('messageHandler', () => {
           return { fullName: 'test-personality', displayName: 'Test Personality' };
         }
         if (name === 'Test Personality Prime') {
-          return { fullName: 'test-personality-prime', displayName: 'Test Personality Prime' };
+          return testPersonalityPrime;
         }
         return null;
       });
+      
+      // Set up mocks for this test
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Call the handler
       const result = await messageHandler.handleMentions(complexMentionMessage, mockClient);
@@ -501,16 +590,14 @@ describe('messageHandler', () => {
         expect.stringContaining('Test')
       );
       
-      // For DM channels, the longest match ("Test Personality Prime") should be used
-      if (complexMentionMessage.channel.isDMBased()) {
-        expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalled();
-        // Should have passed the personality with the longest name
-        const personality = personalityHandler.handlePersonalityInteraction.mock.calls[0][1];
-        expect(personality.fullName).toBe('test-personality-prime');
-      } else {
-        // For server channels, should use delayed processing
-        expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
-      }
+      // For server channels, should use delayed processing with the longest match
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        complexMentionMessage,
+        testPersonalityPrime,
+        'Test Personality Prime',
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should not handle messages without mentions', async () => {
@@ -519,6 +606,9 @@ describe('messageHandler', () => {
         ...mockMessage,
         content: 'This message has no mentions'
       };
+      
+      // Reset mocks for this test to ensure clean state
+      jest.clearAllMocks();
       
       // Call the handler
       const result = await messageHandler.handleMentions(noMentionMessage, mockClient);
@@ -542,6 +632,13 @@ describe('messageHandler', () => {
         }
       };
       
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
+      // Set up mocks for this test
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
+      
       // Call the handler
       const result = await messageHandler.handleMentions(dmMentionMessage, mockClient);
       
@@ -563,8 +660,13 @@ describe('messageHandler', () => {
   
   describe('handleActiveConversation', () => {
     it('should handle active conversations', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an active conversation
       getActivePersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Call the handler
       const result = await messageHandler.handleActiveConversation(mockMessage, mockClient);
@@ -578,16 +680,20 @@ describe('messageHandler', () => {
         mockMessage.channel.id
       );
       
-      // For DM channels, should handle immediately
-      if (mockMessage.channel.isDMBased()) {
-        expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalled();
-      } else {
-        // For server channels, should use delayed processing
-        expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
-      }
+      // For server channels (default mock), should use delayed processing
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should not handle if no active conversation', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up no active conversation
       getActivePersonality.mockReturnValueOnce(null);
       
@@ -609,8 +715,13 @@ describe('messageHandler', () => {
     });
     
     it('should handle DM active conversations immediately without delay', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an active conversation in a DM
       getActivePersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
       
       // Set up a DM message
       const dmMessage = {
@@ -642,8 +753,14 @@ describe('messageHandler', () => {
   
   describe('handleActivatedChannel', () => {
     it('should handle activated channels', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
+      messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
+      channelUtils.isChannelNSFW.mockReturnValueOnce(true); // Channel is NSFW
       
       // Call the handler
       const result = await messageHandler.handleActivatedChannel(mockMessage, mockClient);
@@ -655,10 +772,19 @@ describe('messageHandler', () => {
       expect(getActivatedPersonality).toHaveBeenCalledWith(mockMessage.channel.id);
       
       // Should have used delayed processing
-      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient,
+        personalityHandler.handlePersonalityInteraction
+      );
     });
     
     it('should not handle commands in activated channels', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
       
@@ -682,8 +808,12 @@ describe('messageHandler', () => {
     });
     
     it('should enforce NSFW requirements for activated channels', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
       
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -697,6 +827,9 @@ describe('messageHandler', () => {
       
       // Set channel as not NSFW
       channelUtils.isChannelNSFW.mockReturnValueOnce(false);
+      
+      // Make sure the Map for tracking notifications is empty
+      personalityHandler.activeRequests = new Map();
       
       // Call the handler
       const result = await messageHandler.handleActivatedChannel(nonNsfwMessage, mockClient);
@@ -716,8 +849,12 @@ describe('messageHandler', () => {
     });
     
     it('should not send NSFW restriction notice too frequently', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
+      getPersonality.mockReturnValueOnce(mockPersonality);
       
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -732,31 +869,49 @@ describe('messageHandler', () => {
       // Set channel as not NSFW
       channelUtils.isChannelNSFW.mockReturnValueOnce(false);
       
-      // Set a recent notification time
-      const restrictionKey = `nsfw-restriction-${nonNsfwMessage.channel.id}`;
-      personalityHandler.activeRequests.set(restrictionKey, Date.now() - 1000000); // 16.6 minutes ago
+      // Use actual Map and mock Date.now for consistent testing
+      personalityHandler.activeRequests = new Map();
+      const mockTime = Date.now();
+      const oldDateNow = Date.now;
       
-      // Call the handler
-      const result = await messageHandler.handleActivatedChannel(nonNsfwMessage, mockClient);
-      
-      // Should return true to indicate the message was "handled" by sending a restriction notice
-      expect(result).toBe(true);
-      
-      // Should have checked if the channel is NSFW
-      expect(channelUtils.isChannelNSFW).toHaveBeenCalledWith(nonNsfwMessage.channel);
-      
-      // Should have sent a restriction notice (since it's been more than an hour)
-      expect(nonNsfwMessage.channel.send).toHaveBeenCalled();
-      
-      // Set a very recent notification time
-      personalityHandler.activeRequests.set(restrictionKey, Date.now() - 1000); // 1 second ago
-      nonNsfwMessage.channel.send.mockClear();
-      
-      // Call the handler again
-      await messageHandler.handleActivatedChannel(nonNsfwMessage, mockClient);
-      
-      // Should not have sent another restriction notice (since it's been less than an hour)
-      expect(nonNsfwMessage.channel.send).not.toHaveBeenCalled();
+      try {
+        // First test: Notice should be sent (time > 1 hour ago)
+        Date.now = jest.fn().mockReturnValue(mockTime);
+        
+        // Set a recent notification time
+        const restrictionKey = `nsfw-restriction-${nonNsfwMessage.channel.id}`;
+        personalityHandler.activeRequests.set(restrictionKey, mockTime - 3700000); // 1 hour + 100 seconds ago
+        
+        // Call the handler
+        const result = await messageHandler.handleActivatedChannel(nonNsfwMessage, mockClient);
+        
+        // Should return true to indicate the message was "handled" by sending a restriction notice
+        expect(result).toBe(true);
+        
+        // Should have checked if the channel is NSFW
+        expect(channelUtils.isChannelNSFW).toHaveBeenCalledWith(nonNsfwMessage.channel);
+        
+        // Should have sent a restriction notice (since it's been more than an hour)
+        expect(nonNsfwMessage.channel.send).toHaveBeenCalled();
+        
+        // Second test: Notice should not be sent (time < 1 hour ago)
+        // First clear the send mock to check if it's called again
+        nonNsfwMessage.channel.send.mockClear();
+        channelUtils.isChannelNSFW.mockReturnValueOnce(false);
+        getActivatedPersonality.mockReturnValueOnce('test-personality');
+        
+        // Set a very recent notification time
+        personalityHandler.activeRequests.set(restrictionKey, mockTime - 1000); // 1 second ago
+        
+        // Call the handler again
+        await messageHandler.handleActivatedChannel(nonNsfwMessage, mockClient);
+        
+        // Should not have sent another restriction notice (since it's been less than an hour)
+        expect(nonNsfwMessage.channel.send).not.toHaveBeenCalled();
+      } finally {
+        // Restore original Date.now
+        Date.now = oldDateNow;
+      }
     });
   });
 });
