@@ -1190,7 +1190,7 @@ function findChannelIdForWebhook(webhook) {
 /**
  * Send a formatted message in a DM channel as a fallback for webhooks
  * @param {Object} channel - Discord.js DM channel object
- * @param {string} content - Message content to send
+ * @param {string|Array} content - Message content to send, can be text or multimodal array
  * @param {Object} personality - Personality data (name, avatar, etc.)
  * @param {Object} options - Additional options like embeds
  * @returns {Promise<Object>} The sent message info
@@ -1218,24 +1218,91 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     // Process any media URLs in the content using the shared mediaHandler
     let processedContent = content;
     let mediaAttachments = [];
+    let isMultimodalContent = false;
+    let multimodalTextContent = '';
+    let multimodalImageUrl = null;
+    let multimodalAudioUrl = null;
     
-    try {
-      // Process media URLs (images, audio, etc.)
-      if (typeof content === 'string') {
-        logger.debug(`[WebhookManager] Processing media in DM message content`);
-        const mediaResult = await processMediaForWebhook(content);
-        processedContent = mediaResult.content;
-        mediaAttachments = mediaResult.attachments;
-        
-        if (mediaAttachments.length > 0) {
-          logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media URLs for DM message`);
+    // Check for referenced media markers in the text content
+    // Updated to use a more robust marker extraction method
+    let hasReferencedMedia = false;
+    let referencedMediaType = null;
+    let referencedMediaUrl = null;
+    
+    if (typeof content === 'string' && content.includes('[REFERENCE_MEDIA:')) {
+      const startMarker = content.indexOf('[REFERENCE_MEDIA:');
+      if (startMarker !== -1) {
+        const endMarker = content.indexOf(']', startMarker);
+        if (endMarker !== -1) {
+          // Extract the whole marker
+          const fullMarker = content.substring(startMarker, endMarker + 1);
+          
+          // Parse the marker
+          const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
+          if (markerParts.length >= 2) {
+            hasReferencedMedia = true;
+            referencedMediaType = markerParts[0]; // 'image' or 'audio'
+            referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
+            
+            logger.info(`[WebhookManager] Found referenced media marker in DM: ${referencedMediaType} at ${referencedMediaUrl}`);
+            
+            // Remove the marker from the content
+            processedContent = content.replace(fullMarker, '').trim();
+            logger.info(`[WebhookManager] After removing marker, DM content is now: "${processedContent.substring(0, 100)}..."`);
+            
+            // Set multimodal flags for consistent handling
+            isMultimodalContent = true;
+            if (referencedMediaType === 'image') {
+              multimodalImageUrl = referencedMediaUrl;
+              logger.info(`[WebhookManager] Set DM multimodalImageUrl=${referencedMediaUrl}`);
+            } else if (referencedMediaType === 'audio') {
+              multimodalAudioUrl = referencedMediaUrl;
+              logger.info(`[WebhookManager] Set DM multimodalAudioUrl=${referencedMediaUrl}`);
+            }
+          }
         }
       }
-    } catch (error) {
-      logger.error(`[WebhookManager] Error processing media in DM message: ${error.message}`);
-      // Continue with original content if media processing fails
-      processedContent = content;
-      mediaAttachments = [];
+    }
+    // Check if content is a multimodal array
+    else if (Array.isArray(content) && content.length > 0) {
+      isMultimodalContent = true;
+      logger.info(`[WebhookManager] Detected multimodal content array with ${content.length} items in DM`);
+      
+      // Extract text content and media URLs from multimodal array
+      content.forEach(item => {
+        if (item.type === 'text') {
+          multimodalTextContent += item.text + '\n';
+        } else if (item.type === 'image_url' && item.image_url?.url) {
+          multimodalImageUrl = item.image_url.url;
+          logger.info(`[WebhookManager] Found image URL in multimodal DM content: ${multimodalImageUrl}`);
+        } else if (item.type === 'audio_url' && item.audio_url?.url) {
+          multimodalAudioUrl = item.audio_url.url;
+          logger.info(`[WebhookManager] Found audio URL in multimodal DM content: ${multimodalAudioUrl}`);
+        }
+      });
+      
+      // Use the text content for the main message
+      processedContent = multimodalTextContent.trim() || 'Here\'s the media you requested:';
+      logger.info(`[WebhookManager] Extracted text content from multimodal DM array: ${processedContent.substring(0, 50)}...`);
+    } else {
+      try {
+        // Process media URLs (images, audio, etc.)
+        if (typeof content === 'string') {
+          logger.debug(`[WebhookManager] Processing media in DM message content`);
+          const mediaResult = await processMediaForWebhook(content);
+          processedContent = mediaResult.content;
+          mediaAttachments = mediaResult.attachments;
+          
+          if (mediaAttachments.length > 0) {
+            logger.info(`[WebhookManager] Processed ${mediaAttachments.length} media URLs for DM message`);
+          }
+        }
+      } catch (error) {
+        logger.error(`[WebhookManager] Error processing media in DM message: ${error.message}`);
+        // Continue with original content if media processing fails
+        processedContent = content;
+        mediaAttachments = [];
+      }
     }
     
     // Prepare the formatted content with name prefix
@@ -1248,6 +1315,8 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     const sentMessageIds = [];
     let firstSentMessage = null;
     
+    // We use a time-based approach for duplicate detection now
+    
     // Send each chunk as a separate message
     for (let i = 0; i < contentChunks.length; i++) {
       const isFirstChunk = i === 0;
@@ -1257,8 +1326,8 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       // Prepare options for the message
       const sendOptions = {};
       
-      // Only include embeds and attachments in the last chunk
-      if (isLastChunk) {
+      // Only include embeds and attachments in the last chunk for non-multimodal content
+      if (isLastChunk && !isMultimodalContent) {
         if (options.embeds) {
           sendOptions.embeds = options.embeds;
         }
@@ -1285,6 +1354,56 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       }
     }
     
+    // For multimodal content, send media as separate messages in DMs
+    if (isMultimodalContent) {
+      logger.info(`[WebhookManager] Sending multimodal media as separate messages in DM`);
+      const mediaDelay = 500; // Small delay between text and media messages for better UX
+      
+      // Send audio if present (always prioritize audio over image)
+      if (multimodalAudioUrl) {
+        try {
+          // Add a small delay
+          await new Promise(resolve => setTimeout(resolve, mediaDelay));
+          
+          // Send the audio message with the personality name prefix
+          const audioContent = `**${displayName}:** [Audio: ${multimodalAudioUrl}]`;
+          logger.info(`[WebhookManager] Sending audio as separate DM message: ${multimodalAudioUrl}`);
+          
+          const audioMessage = await channel.send({
+            content: audioContent
+          });
+          
+          sentMessageIds.push(audioMessage.id);
+          logger.info(`[WebhookManager] Successfully sent audio DM with ID: ${audioMessage.id}`);
+        } catch (error) {
+          logger.error(`[WebhookManager] Error sending audio message in DM: ${error.message}`);
+          // Continue even if the audio message fails
+        }
+      }
+      
+      // Send image if present and no audio (to avoid overwhelming with media)
+      if (multimodalImageUrl && !multimodalAudioUrl) {
+        try {
+          // Add a small delay
+          await new Promise(resolve => setTimeout(resolve, mediaDelay));
+          
+          // Send the image message with the personality name prefix
+          const imageContent = `**${displayName}:** [Image: ${multimodalImageUrl}]`;
+          logger.info(`[WebhookManager] Sending image as separate DM message: ${multimodalImageUrl}`);
+          
+          const imageMessage = await channel.send({
+            content: imageContent
+          });
+          
+          sentMessageIds.push(imageMessage.id);
+          logger.info(`[WebhookManager] Successfully sent image DM with ID: ${imageMessage.id}`);
+        } catch (error) {
+          logger.error(`[WebhookManager] Error sending image message in DM: ${error.message}`);
+          // Continue even if the image message fails
+        }
+      }
+    }
+    
     // Return structured response similar to webhook responses
     return {
       message: firstSentMessage,
@@ -1305,7 +1424,10 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
  * @returns {Object} Virtual result object
  */
 function createVirtualResult(personality, channelId) {
-  logger.info(`[Webhook] All messages were duplicates, creating virtual result`);
+  // Add more detail to this log to help with debugging
+  logger.info(`[Webhook] All messages were duplicates, creating virtual result for personality: ${personality?.fullName || 'unknown'} in channel: ${channelId}`);
+  logger.info(`[Webhook] This happens when duplicate detection blocks all messages. If this is unexpected, check the duplicate detection logic.`);
+  
   const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
 
   // Clear pending message if we're returning a virtual result
@@ -1325,7 +1447,7 @@ function createVirtualResult(personality, channelId) {
  * Sends a message via Discord webhook with proper personality formatting and error handling
  *
  * @param {Object} channel - Discord.js channel object to send the message to
- * @param {string} content - Message content to send (will be split if too long)
+ * @param {string|Array} content - Message content to send, can be text or multimodal array (will be split if too long)
  * @param {Object} personality - Personality data for webhook customization
  * @param {string} personality.displayName - The display name to show in Discord
  * @param {string} [personality.fullName] - The full name/identifier of the personality
@@ -1551,26 +1673,95 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       // Process any media URLs in the content using the shared media handler
       let processedContent = content;
       let attachments = [];
-
-      try {
-        // Only process if content is a string
-        if (typeof content === 'string') {
-          // Use the centralized media handler to process all types of media
-          logger.debug(`[Webhook] Processing media in message content`);
-          const { content: mediaProcessedContent, attachments: mediaAttachments } =
-            await processMediaForWebhook(content);
-          
-          if (mediaAttachments.length > 0) {
-            processedContent = mediaProcessedContent;
-            attachments = mediaAttachments;
-            logger.info(`[Webhook] Processed ${attachments.length} media URLs into attachments`);
+      let isMultimodalContent = false;
+      let multimodalTextContent = '';
+      let multimodalImageUrl = null;
+      let multimodalAudioUrl = null;
+      
+      // Check for referenced media markers in the text content
+      // Updated regex to handle URLs with special characters
+      const referenceMediaRegex = /\[REFERENCE_MEDIA:(image|audio):([^\]]+)\]/;
+      let hasReferencedMedia = false;
+      let referencedMediaType = null;
+      let referencedMediaUrl = null;
+      
+      if (typeof content === 'string' && content.includes('[REFERENCE_MEDIA:')) {
+        const startMarker = content.indexOf('[REFERENCE_MEDIA:');
+        if (startMarker !== -1) {
+          const endMarker = content.indexOf(']', startMarker);
+          if (endMarker !== -1) {
+            // Extract the whole marker
+            const fullMarker = content.substring(startMarker, endMarker + 1);
+            
+            // Parse the marker
+            const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
+            if (markerParts.length >= 2) {
+              hasReferencedMedia = true;
+              referencedMediaType = markerParts[0]; // 'image' or 'audio'
+              referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
+              
+              logger.info(`[Webhook] Found referenced media marker: ${referencedMediaType} at ${referencedMediaUrl}`);
+              
+              // Remove the marker from the content
+              processedContent = content.replace(fullMarker, '').trim();
+              logger.info(`[Webhook] After removing marker, content is now: "${processedContent.substring(0, 100)}..."`);
+              
+              // Set multimodal flags for consistent handling
+              isMultimodalContent = true;
+              if (referencedMediaType === 'image') {
+                multimodalImageUrl = referencedMediaUrl;
+                logger.info(`[Webhook] Set multimodalImageUrl=${referencedMediaUrl}`);
+              } else if (referencedMediaType === 'audio') {
+                multimodalAudioUrl = referencedMediaUrl;
+                logger.info(`[Webhook] Set multimodalAudioUrl=${referencedMediaUrl}`);
+              }
+            }
           }
         }
-      } catch (error) {
-        logger.error(`[Webhook] Error processing media URLs: ${error.message}`);
-        // Continue with original content if there's an error
-        processedContent = content;
-        attachments = [];
+      }
+      // Check if content is a multimodal array
+      else if (Array.isArray(content) && content.length > 0) {
+        isMultimodalContent = true;
+        logger.info(`[Webhook] Detected multimodal content array with ${content.length} items`);
+        
+        // Extract text content and media URLs from multimodal array
+        content.forEach(item => {
+          if (item.type === 'text') {
+            multimodalTextContent += item.text + '\n';
+          } else if (item.type === 'image_url' && item.image_url?.url) {
+            multimodalImageUrl = item.image_url.url;
+            logger.info(`[Webhook] Found image URL in multimodal content: ${multimodalImageUrl}`);
+          } else if (item.type === 'audio_url' && item.audio_url?.url) {
+            multimodalAudioUrl = item.audio_url.url;
+            logger.info(`[Webhook] Found audio URL in multimodal content: ${multimodalAudioUrl}`);
+          }
+        });
+
+        // Use the text content for the main message
+        processedContent = multimodalTextContent.trim() || 'Here\'s the media you requested:';
+        logger.info(`[Webhook] Extracted text content from multimodal array: ${processedContent.substring(0, 50)}...`);
+      } else {
+        // Handle regular string content
+        try {
+          // Only process if content is a string
+          if (typeof content === 'string') {
+            // Use the centralized media handler to process all types of media
+            logger.debug(`[Webhook] Processing media in message content`);
+            const { content: mediaProcessedContent, attachments: mediaAttachments } =
+              await processMediaForWebhook(content);
+            
+            if (mediaAttachments.length > 0) {
+              processedContent = mediaProcessedContent;
+              attachments = mediaAttachments;
+              logger.info(`[Webhook] Processed ${attachments.length} media URLs into attachments`);
+            }
+          }
+        } catch (error) {
+          logger.error(`[Webhook] Error processing media URLs: ${error.message}`);
+          // Continue with original content if there's an error
+          processedContent = content;
+          attachments = [];
+        }
       }
 
       // Split message into chunks if needed
@@ -1588,13 +1779,13 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       // Track sent messages
       let firstSentMessage = null;
       const sentMessageIds = [];
-
+      
       // Send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
         const chunkContent = contentChunks[i];
 
-        // Skip duplicate messages
+        // Check for duplicate messages with time-based approach
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
           logger.info(`[Webhook] Skipping message chunk ${i + 1} due to duplicate detection`);
           continue;
@@ -1621,14 +1812,14 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           finalContent = finalContent.replace('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY', '');
         }
 
-        // Prepare message data for this chunk
-        // Only include attachments in the last chunk
+        // For regular content (not multimodal), include attachments in the last chunk
+        // For multimodal content, do not attach media to text messages (will be sent separately)
         const isLastChunk = i === contentChunks.length - 1;
-        const chunkOptions = isLastChunk ? { ...options, attachments: attachments } : {};
+        const chunkOptions = (isLastChunk && !isMultimodalContent) ? { ...options, attachments: attachments } : {};
 
         // Prepare options with channel reference for thread recovery
         const sendOptions = {
-          ...isLastChunk ? chunkOptions : {},
+          ...isLastChunk && !isMultimodalContent ? chunkOptions : {},
           // Store the original channel for recovery attempts
           _originalChannel: channel
         };
@@ -1680,6 +1871,74 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           }
           // Otherwise, continue with the remaining chunks
         }
+      }
+
+      // For multimodal content, send media as separate messages
+      if (isMultimodalContent) {
+        logger.info(`[Webhook] Sending multimodal media as separate messages`);
+        const mediaDelay = 500; // Small delay between text and media messages for better UX
+
+        // Send audio if present (always send audio first due to API limitations)
+        if (multimodalAudioUrl) {
+          try {
+            // Add a small delay
+            await new Promise(resolve => setTimeout(resolve, mediaDelay));
+            
+            // Use the audio URL
+            const audioUrl = multimodalAudioUrl;
+            
+            // Create message data for audio
+            const audioMessageData = prepareMessageData(
+              `[Audio: ${audioUrl}]`, // Use special format that our media handler detects
+              standardizedName,
+              personality.avatarUrl,
+              channel.isThread(),
+              channel.id,
+              { _originalChannel: channel }
+            );
+            
+            // Send the audio message
+            logger.info(`[Webhook] Sending audio as separate message: ${audioUrl}`);
+            const audioMessage = await sendMessageChunk(webhook, audioMessageData, 0, 1);
+            sentMessageIds.push(audioMessage.id);
+            logger.info(`[Webhook] Successfully sent audio message with ID: ${audioMessage.id}`);
+          } catch (error) {
+            logger.error(`[Webhook] Error sending audio message: ${error.message}`);
+            // Continue even if audio message fails
+          }
+        }
+        
+        // Send image if present and no audio (to ensure we don't overwhelm the user with media)
+        if (multimodalImageUrl && !multimodalAudioUrl) {
+          try {
+            // Add a small delay
+            await new Promise(resolve => setTimeout(resolve, mediaDelay));
+            
+            // Use the image URL
+            const imageUrl = multimodalImageUrl;
+            
+            // Create message data for image
+            const imageMessageData = prepareMessageData(
+              `[Image: ${imageUrl}]`, // Use special format that our media handler detects
+              standardizedName, 
+              personality.avatarUrl,
+              channel.isThread(),
+              channel.id,
+              { _originalChannel: channel }
+            );
+            
+            // Send the image message
+            logger.info(`[Webhook] Sending image as separate message: ${imageUrl}`);
+            const imageMessage = await sendMessageChunk(webhook, imageMessageData, 0, 1);
+            sentMessageIds.push(imageMessage.id);
+            logger.info(`[Webhook] Successfully sent image message with ID: ${imageMessage.id}`);
+          } catch (error) {
+            logger.error(`[Webhook] Error sending image message: ${error.message}`);
+            // Continue even if image message fails
+          }
+        }
+        
+        // No longer needed as we now handle multimedia content directly
       }
 
       // Clean up tracking after a short delay
@@ -2186,6 +2445,8 @@ function isDuplicateMessage(content, username, channelId) {
   if (!content || content.length === 0) {
     return false;
   }
+  
+  // No special case for media messages - we'll use a time-based approach instead
 
   // Create a hash key for this message
   const hash = hashMessage(content, username, channelId);
@@ -2193,20 +2454,28 @@ function isDuplicateMessage(content, username, channelId) {
   // Check if the hash exists in our cache
   if (recentMessageCache.has(hash)) {
     const timestamp = recentMessageCache.get(hash);
-    // Only consider it a duplicate if it was sent within the cache timeout
-    if (Date.now() - timestamp < MESSAGE_CACHE_TIMEOUT) {
-      logger.info(`[Webhook] Detected duplicate message with hash: ${hash}`);
+    // Use a much shorter timeout (5 seconds) for duplicate detection
+    // This allows the same message to be sent again after a short delay
+    const shortDuplicateTimeout = 5000; // 5 seconds
+    const timeSinceLastMessage = Date.now() - timestamp;
+    
+    if (timeSinceLastMessage < shortDuplicateTimeout) {
+      logger.info(`[Webhook] Detected duplicate message with hash: ${hash}, sent ${timeSinceLastMessage}ms ago`);
       return true;
+    } else {
+      logger.info(`[Webhook] Message with same hash found but ${timeSinceLastMessage}ms have passed (> ${shortDuplicateTimeout}ms), allowing it`);
     }
   }
 
   // Not a duplicate, add to cache
   recentMessageCache.set(hash, Date.now());
 
-  // Cleanup old cache entries
+  // Cleanup old cache entries using the same short timeout
+  // Plus a little extra to ensure we don't remove entries prematurely
   const now = Date.now();
+  const cleanupTimeout = 10000; // 10 seconds - slightly longer than our duplicate timeout
   for (const [key, timestamp] of recentMessageCache.entries()) {
-    if (now - timestamp > MESSAGE_CACHE_TIMEOUT) {
+    if (now - timestamp > cleanupTimeout) {
       recentMessageCache.delete(key);
     }
   }

@@ -123,22 +123,27 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have one message with multimodal content
-      expect(result.length).toBe(1);
+      // Should have two messages: one for text and one for media
+      expect(result.length).toBe(2);
       expect(result[0].role).toBe('user');
+      expect(result[1].role).toBe('user');
       
-      // Result should be a multimodal content array
-      expect(Array.isArray(result[0].content)).toBe(true);
+      // First message should have text content with reference and user message
+      expect(typeof result[0].content).toBe('string');
+      expect(result[0].content).toContain('Referring to message from ImagePoster');
+      expect(result[0].content).toContain('Check out this picture');
+      expect(result[0].content).toContain('Tell me about this image');
       
-      // Should have text part with reference and user message
-      const textItem = result[0].content.find(item => item.type === 'text');
+      // Second message should be a multimodal content array
+      expect(Array.isArray(result[1].content)).toBe(true);
+      
+      // Should have text prompt asking about the image
+      const textItem = result[1].content.find(item => item.type === 'text');
       expect(textItem).toBeDefined();
-      expect(textItem.text).toContain('Referring to message from ImagePoster');
-      expect(textItem.text).toContain('Check out this picture');
-      expect(textItem.text).toContain('Tell me about this image');
+      expect(textItem.text).toContain('Please examine and describe this image');
       
       // Should have image part with the URL from the reference
-      const imageItem = result[0].content.find(item => item.type === 'image_url');
+      const imageItem = result[1].content.find(item => item.type === 'image_url');
       expect(imageItem).toBeDefined();
       expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
     });
@@ -155,22 +160,27 @@ describe('AI Service Reference Message Handling', () => {
       
       const result = formatApiMessages(input);
       
-      // Should have one message with multimodal content
-      expect(result.length).toBe(1);
+      // Should have two messages: one for text and one for media
+      expect(result.length).toBe(2);
       expect(result[0].role).toBe('user');
+      expect(result[1].role).toBe('user');
       
-      // Result should be a multimodal content array
-      expect(Array.isArray(result[0].content)).toBe(true);
+      // First message should have text content with reference and user message
+      expect(typeof result[0].content).toBe('string');
+      expect(result[0].content).toContain('Referring to message from AudioPoster');
+      expect(result[0].content).toContain('Listen to this');
+      expect(result[0].content).toContain("What's in this recording?");
       
-      // Should have text part with reference and user message
-      const textItem = result[0].content.find(item => item.type === 'text');
+      // Second message should be a multimodal content array
+      expect(Array.isArray(result[1].content)).toBe(true);
+      
+      // Should have text prompt for audio transcript
+      const textItem = result[1].content.find(item => item.type === 'text');
       expect(textItem).toBeDefined();
-      expect(textItem.text).toContain('Referring to message from AudioPoster');
-      expect(textItem.text).toContain('Listen to this');
-      expect(textItem.text).toContain("What's in this recording?");
+      expect(textItem.text).toContain("following is a transcript of a voice message");
       
       // Should have audio part with the URL from the reference
-      const audioItem = result[0].content.find(item => item.type === 'audio_url');
+      const audioItem = result[1].content.find(item => item.type === 'audio_url');
       expect(audioItem).toBeDefined();
       expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
     });
