@@ -183,8 +183,10 @@ The following tools are generally safe to use without explicit permission:
 3. **File Search and Analysis**
    - `Glob` - Find files using glob patterns (always approved)
    - `Grep` - Search file contents with regular expressions (always approved)
+   - `Search` - General purpose search tool for local filesystem (always approved)
    - `Task` - Use agent for file search and analysis (always approved)
-   - `WebSearch` and `WebFetch` for documentation lookup (always approved)
+   - `WebSearch` - Search the web for information (always approved)
+   - `WebFetch` - Fetch content from specific URLs (always approved)
 
 4. **Node Package Operations**
    - `npm list` - List installed packages

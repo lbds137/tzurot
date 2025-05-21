@@ -349,7 +349,8 @@ async function handlePersonalityInteraction(message, personality, triggeringMent
     // Process media in the message and referenced media using the media handler
     const mediaOptions = {
       referencedAudioUrl: referencedAudioUrl,
-      referencedImageUrl: referencedImageUrl
+      referencedImageUrl: referencedImageUrl,
+      personalityName: personality.displayName || personality.fullName
     };
     
     // The media handler will detect and process all media (message content, attachments, embeds)

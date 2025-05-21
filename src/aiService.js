@@ -740,7 +740,7 @@ async function handleProblematicPersonality(
   logger.info(`[AIService] Handling known problematic personality: ${personalityName}`);
   try {
     // Format the message content properly for the API
-    const messages = formatApiMessages(message);
+    const messages = formatApiMessages(message, personalityName);
     
     // Debug log the exact messages being sent to detect issues
     if (typeof message === 'object' && message.referencedMessage) {
@@ -1166,9 +1166,10 @@ function sanitizeApiText(text) {
 /**
  * Format messages for API request, handling text, images, and referenced messages
  * @param {string|Array|Object} content - Text message, array of content objects, or complex object with reference
+ * @param {string} personalityName - The name of the personality to use in media prompts
  * @returns {Array} Formatted messages array for API request
  */
-function formatApiMessages(content) {
+function formatApiMessages(content, personalityName) {
   try {
     // Check if the content is an object with a special reference format
     if (content && typeof content === 'object' && !Array.isArray(content) && content.messageContent) {
@@ -1269,8 +1270,8 @@ function formatApiMessages(content) {
             
             // Create a second message that contains just the media
             const mediaPrompt = mediaType === 'audio' ? 
-              'The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are (your name)" and do not include them in your processing of the message:' : 
-              "Please examine and describe this image";
+              `The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message: ` :
+              "Please examine and describe this image: ";
               
             const mediaMessage = {
               role: 'user',
@@ -1312,8 +1313,8 @@ function formatApiMessages(content) {
               
               // Create a second message that contains just the media
               const mediaPrompt = mediaType === 'audio' ? 
-                'The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are (your name)" and do not include them in your processing of the message:' : 
-                "Please examine and describe this image";
+                `The following is a transcript of a voice message sent by a user; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message: ` :
+                "Please examine and describe this image: ";
                 
               const mediaMessage = {
                 role: 'user',
@@ -1415,7 +1416,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   logger.debug(`[AIService] Using model path: ${modelPath}`);
 
   // Format the message content properly for the API
-  const messages = formatApiMessages(message);
+  const messages = formatApiMessages(message, personalityName);
   
   // Debug log the exact messages being sent to detect issues
   if (typeof message === 'object' && message.referencedMessage) {

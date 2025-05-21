@@ -1,5 +1,6 @@
 {
   "allowedTools": {
+    "Search": true,
     "Bash": {
       "commands": [
         "npm run lint",
