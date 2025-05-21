@@ -16,7 +16,7 @@
       "WebSearch(*)",
       "WebFetch(*)",
       "Bash(npm run lint)",
-      "Bash(npm run lint:fix)",
+      "Bash(npm run lint:*)",
       "Bash(npm run format)",
       "Bash(npm test)",
       "Bash(npm test:*)",
