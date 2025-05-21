@@ -20,7 +20,7 @@ const fetch = require('node-fetch');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
-const mediaHandler = require('./utils/mediaHandler');
+const { mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -1223,7 +1223,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       // Process media URLs (images, audio, etc.)
       if (typeof content === 'string') {
         logger.debug(`[WebhookManager] Processing media in DM message content`);
-        const mediaResult = await mediaHandler.processMediaUrls(content);
+        const mediaResult = await processMediaForWebhook(content);
         processedContent = mediaResult.content;
         mediaAttachments = mediaResult.attachments;
         
@@ -1265,7 +1265,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
         
         // Add media attachments to the last chunk
         if (mediaAttachments.length > 0) {
-          const attachmentOptions = mediaHandler.prepareAttachmentOptions(mediaAttachments);
+          const attachmentOptions = prepareAttachmentOptions(mediaAttachments);
           Object.assign(sendOptions, attachmentOptions);
         }
       }
@@ -1558,7 +1558,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
           // Use the centralized media handler to process all types of media
           logger.debug(`[Webhook] Processing media in message content`);
           const { content: mediaProcessedContent, attachments: mediaAttachments } =
-            await mediaHandler.processMediaUrls(content);
+            await processMediaForWebhook(content);
           
           if (mediaAttachments.length > 0) {
             processedContent = mediaProcessedContent;
@@ -2272,7 +2272,7 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
     
     try {
       if (typeof content === 'string') {
-        const mediaResult = await mediaHandler.processMediaUrls(content);
+        const mediaResult = await processMediaForWebhook(content);
         processedContent = mediaResult.content;
         mediaAttachments = mediaResult.attachments;
         
