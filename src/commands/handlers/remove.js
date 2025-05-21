@@ -49,7 +49,7 @@ async function execute(message, args) {
     let personality = null;
     
     // First check if this is an alias
-    personality = getPersonalityByAlias(personalityName);
+    personality = getPersonalityByAlias(message.author.id, personalityName);
     
     // If not found by alias, try the direct name
     if (!personality) {
@@ -70,9 +70,13 @@ async function execute(message, args) {
     }
 
     // Remove the personality
-    const result = await removePersonality(personality.fullName);
+    const result = await removePersonality(message.author.id, personality.fullName);
 
     // If we get an error, return it
+    if (result && result.error) {
+      return await directSend(result.error);
+    }
+    
     if (result === false) {
       return await directSend(`Failed to remove the personality. It may not exist or you may not have permission.`);
     }

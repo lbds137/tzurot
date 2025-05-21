@@ -205,10 +205,9 @@ async function execute(message, args) {
       timestamp: Date.now(),
     });
     
-    // Mark the command as completed if commandKey exists
-    if (typeof commandKey !== 'undefined') {
-      messageTracker.markAddCommandCompleted(commandKey);
-    }
+    // Mark the command as completed with a fresh command key
+    const errorCommandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
+    messageTracker.markAddCommandCompleted(errorCommandKey);
 
     return await directSend(`An error occurred while adding the personality: ${error.message}`);
   }

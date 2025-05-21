@@ -31,7 +31,7 @@ async function execute(message, args) {
     // Create direct send function
     const directSend = validator.createDirectSend(message);
 
-    // Get the command registry
+    // Directly get the command registry
     const commandRegistry = require('../utils/commandRegistry');
 
     if (args.length > 0) {
@@ -100,9 +100,12 @@ async function execute(message, args) {
 
     // General help
     const isAdmin = validator.isAdmin(message);
+    logger.debug(`[HelpCommand] User is admin: ${isAdmin}`);
     
     // Get all commands from the registry
-    const allCommands = Array.from(commandRegistry.getAllCommands().values());
+    const commands = commandRegistry.getAllCommands();
+    logger.debug(`[HelpCommand] Retrieved ${commands.size} commands from registry`);
+    const allCommands = Array.from(commands.values());
     
     // Filter commands based on user permissions
     const availableCommands = allCommands.filter(cmd => {
@@ -166,9 +169,18 @@ async function execute(message, args) {
     return await directSend({ embeds: [embed] });
   } catch (error) {
     logger.error('Error in help command:', error);
-    return message.channel.send(
-      `An error occurred while processing the help command: ${error.message}`
-    );
+    // Try to send via direct send, but fall back to channel if that fails
+    try {
+      logger.debug(`[HelpCommand] Attempting to send error message via direct send`);
+      // Get a fresh directSend function
+      const directSendFunc = validator.createDirectSend(message);
+      return await directSendFunc(`An error occurred while processing the help command: ${error.message}`);
+    } catch (directSendError) {
+      logger.error(`[HelpCommand] Failed to send via direct send, falling back to channel:`, directSendError);
+      return message.channel.send(
+        `An error occurred while processing the help command: ${error.message}`
+      );
+    }
   }
 }
 
