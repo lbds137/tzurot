@@ -81,7 +81,7 @@ async function execute(message, args) {
 
     // Check if we've already processed this exact command
     const commandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
-    if (messageTracker.isAddCommandCompleted(commandKey)) {
+    if (messageTracker.isAddCommandProcessed(message.id) || messageTracker.isAddCommandCompleted(commandKey)) {
       logger.warn(`[PROTECTION] Command has already been processed: ${commandKey}`);
       return null;
     }
@@ -111,14 +111,27 @@ async function execute(message, args) {
     logger.info(`[AddCommand ${commandId}] Registering personality: ${personalityName}`);
     
     // Register personality with proper data structure
-    const personality = await registerPersonality(message.author.id, personalityName, { displayName: personalityName });
+    const result = await registerPersonality(message.author.id, personalityName, alias);
+    
+    // Check if there was an error during registration
+    if (result.error) {
+      logger.error(`[AddCommand ${commandId}] Error registering personality: ${result.error}`);
+      pendingAdditions.set(userKey, {
+        status: 'completed',
+        timestamp: Date.now(),
+      });
+      
+      if (typeof commandKey !== 'undefined') {
+        messageTracker.markAddCommandCompleted(commandKey);
+      }
+      
+      return await directSend(result.error);
+    }
+    
+    const personality = result.personality;
     logger.info(`[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`);
     
-    // If an alias was provided, set it up separately
-    if (alias) {
-      logger.info(`[AddCommand ${commandId}] Setting up alias: ${alias} for ${personalityName}`);
-      await setPersonalityAlias(alias, personalityName, false);
-    }
+    // No need to set alias separately as it's now passed directly to registerPersonality
 
     // Preload the avatar in the background (not awaited)
     preloadPersonalityAvatar(personality)
