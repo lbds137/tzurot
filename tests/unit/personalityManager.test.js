@@ -163,9 +163,19 @@ describe('personalityManager', () => {
       await personalityManager.setPersonalityAlias('test-alias', 'test-personality');
     });
 
-    it('should return a personality when looking up by alias', () => {
-      // Call the function
+    it('should return a personality when looking up by alias with single parameter', () => {
+      // Call the function with a single parameter (backward compatibility)
       const result = personalityManager.getPersonalityByAlias('test-alias');
+      
+      // Verify the result
+      expect(result).toBeDefined();
+      expect(result.fullName).toBe('test-personality');
+      expect(result.displayName).toBe('Test Display');
+    });
+    
+    it('should return a personality when looking up by alias with two parameters', () => {
+      // Call the function with the new signature
+      const result = personalityManager.getPersonalityByAlias('test-user', 'test-alias');
       
       // Verify the result
       expect(result).toBeDefined();
@@ -188,6 +198,15 @@ describe('personalityManager', () => {
       
       // Verify the result
       expect(result).toBeNull();
+    });
+    
+    it('should handle null userId parameter correctly', () => {
+      // Call the function with null userId
+      const result = personalityManager.getPersonalityByAlias(null, 'test-alias');
+      
+      // Verify the result
+      expect(result).toBeDefined();
+      expect(result.fullName).toBe('test-personality');
     });
   });
 });

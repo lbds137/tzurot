@@ -449,6 +449,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
 /**
  * Retrieves a personality using a friendly alias or nickname
  *
+ * @param {string} userId - The Discord user ID (optional) for user-specific aliases
  * @param {string} alias - The alias or nickname to look up
  * @returns {Object|null} The complete personality object or null if not found
  *
@@ -459,15 +460,25 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
  * 2. Looks up personalities by their aliases/nicknames
  * 3. Handles display names as aliases automatically
  * 4. Includes proper error handling for null input
+ * 5. Can look up user-specific aliases when userId is provided
  *
  * This is the recommended way to look up personalities from user input,
  * as it's more forgiving and matches how users typically refer to personalities.
  *
  * @example
  * // Users can type "albert" instead of "dr-albert-hoffman"
- * const personality = getPersonalityByAlias("albert");
+ * const personality = getPersonalityByAlias("user123", "albert");
+ * 
+ * // Or can be used with global aliases
+ * const personality = getPersonalityByAlias(null, "albert");
  */
-function getPersonalityByAlias(alias) {
+function getPersonalityByAlias(userId, alias) {
+  // If only one parameter is provided, it's the alias
+  if (alias === undefined) {
+    alias = userId;
+    userId = null;
+  }
+  
   if (!alias) {
     logger.warn(`[PersonalityManager] Attempted to get personality with empty alias`);
     return null;

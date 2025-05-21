@@ -80,8 +80,9 @@ describe('personalityManager - Initialization and Persistence', () => {
       expect(personalityManager.getPersonality('test-personality-2')).toEqual(mockPersonalities['test-personality-2']);
       
       // Verify aliases were loaded
+      // Test both parameter calling styles 
       expect(personalityManager.getPersonalityByAlias('alias1')).toEqual(mockPersonalities['test-personality-1']);
-      expect(personalityManager.getPersonalityByAlias('tp2')).toEqual(mockPersonalities['test-personality-2']);
+      expect(personalityManager.getPersonalityByAlias(null, 'tp2')).toEqual(mockPersonalities['test-personality-2']);
       
       // Verify the total count of loaded items
       expect(personalityManager.listPersonalitiesForUser().length).toBe(2);
@@ -258,9 +259,9 @@ describe('personalityManager - Initialization and Persistence', () => {
       // Verify the personality is gone
       expect(personalityManager.getPersonality('test-personality')).toBeNull();
       
-      // Verify the aliases are gone
+      // Verify the aliases are gone - test both parameter styles
       expect(personalityManager.getPersonalityByAlias('alias1')).toBeNull();
-      expect(personalityManager.getPersonalityByAlias('alias2')).toBeNull();
+      expect(personalityManager.getPersonalityByAlias(null, 'alias2')).toBeNull();
       
       // Verify save was called for personalities
       expect(dataStorage.saveData).toHaveBeenCalledWith('personalities', expect.any(Object));

@@ -59,19 +59,20 @@ describe('Personality Auto-Seeding Feature', () => {
     expect(personalityManager.getPersonality('lilith-sheda-khazra-le-khof-avud')).toBeTruthy();
     
     // Check that display name aliases were created with collision handling
-    // First one should get the basic "lilith" alias
+    // First one should get the basic "lilith" alias - test the single parameter style
     const firstPersonality = personalityManager.getPersonalityByAlias('lilith');
     expect(firstPersonality).toBeTruthy();
     expect(firstPersonality.fullName).toBe('lilith-tzel-shani');
     
     // Second one should get a more meaningful alias like "lilith-sheda"
-    // using our enhanced collision handling for display names
-    const secondPersonality = personalityManager.getPersonalityByAlias('lilith-sheda');
+    // using our enhanced collision handling for display names - test the two parameter style
+    const secondPersonality = personalityManager.getPersonalityByAlias(null, 'lilith-sheda');
     expect(secondPersonality).toBeTruthy();
     expect(secondPersonality.fullName).toBe('lilith-sheda-khazra-le-khof-avud');
     
     // The alternates should work but not the basic lilith for the second one
-    const byShortAlias = personalityManager.getPersonalityByAlias('lilith');
+    // Test with the user ID parameter that's now supported
+    const byShortAlias = personalityManager.getPersonalityByAlias('test-user', 'lilith');
     expect(byShortAlias.fullName).not.toBe('lilith-sheda-khazra-le-khof-avud');
   });
 });

@@ -188,10 +188,12 @@ describe('PersonalityManager Alias Handling', () => {
       });
       
     // Verify we can retrieve both personalities with their respective aliases
+    // Test both the backwards-compatible single-parameter version
     const personality1 = await getPersonalityByAlias(displayNameAlias);
     expect(personality1.fullName).toBe(profileName1);
     
-    const personality2 = await getPersonalityByAlias(alternateAlias);
+    // Test the new two-parameter version with null userId
+    const personality2 = await getPersonalityByAlias(null, alternateAlias);
     expect(personality2.fullName).toBe(profileName2);
     
     // Restore original function
