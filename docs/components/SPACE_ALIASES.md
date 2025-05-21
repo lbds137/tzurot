@@ -30,15 +30,7 @@ The bot will recognize this as a mention for the "disposal-chute" personality.
 
 ### Message Processing
 
-For user experience improvement, the bot automatically removes the triggering @mention from the message content before sending it to the AI. This means if you type:
-
-```
-@disposal chute please tell me about recycling
-```
-
-The bot will only send "please tell me about recycling" to the AI, since the personality has already been pinged through the mention. This makes conversations more natural by avoiding redundancy in the message.
-
-Other mentions (like @user mentions) in the message will be preserved and passed to the AI as they may be relevant to the conversation.
+When you mention a personality using an alias with spaces, the bot will identify the personality and respond accordingly. All mentions in the message content, including the triggering @mention, are preserved and sent to the AI as they appear in the original message.
 
 ### Technical Details
 

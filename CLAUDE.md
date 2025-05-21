@@ -39,6 +39,7 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - Always run `npm run lint` to check code quality
 - Always run `npm test` to verify that your changes don't break existing functionality
 - For test-driven development, use `npm run test:watch`
+- When running the full test suite with `npm test`, update the TEST_COVERAGE_SUMMARY.md file with the latest coverage information
 
 ## Architecture
 
@@ -102,6 +103,11 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - Always use semicolons
 - Limit line length to 100 characters
 - IMPORTANT: Use JSDoc comments for exported functions
+- Keep file sizes manageable:
+  - Target file size should be under 1000 lines
+  - Absolutely avoid files larger than 1500 lines whenever possible
+  - Break large files into smaller, more modular components
+  - Large files make code harder to understand and also exceed token limits (25k max)
 
 ## Error Handling Guidelines
 
@@ -119,6 +125,14 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - Use `beforeEach` to reset state between tests
 - Mock console methods to keep test output clean
 - Use the existing mock implementations in `tests/mocks/`
+- NEVER alter real functionality solely to make a test pass
+  - Never create special code paths that are only used in testing
+  - This defeats the purpose of testing since you're not testing what runs in production
+  - Use proper mocking and dependency injection instead
+  - If tests are hard to write, it's often a sign the code needs refactoring
+- If you run the full test suite (`npm test`), update TEST_COVERAGE_SUMMARY.md
+  - Do not update the summary when running partial tests
+  - The summary should always reflect the result of a complete test run
 
 ## Known Issues and Patterns
 
@@ -150,15 +164,26 @@ The following tools are generally safe to use without explicit permission:
    - `npm run test:watch` - Run tests in watch mode
    - `npm run dev` - Start development server
 
-2. **File Operations**
-   - Create, read, update, and delete files (excluding configuration files)
-   - Create and delete directories
+2. **File Operations and Basic Commands**
+   - `Read` - Read file contents (always approved)
+   - `Write` - Create new files or update existing files (approved for most files except configs)
+   - `Edit` - Edit portions of files (approved for most files except configs)
+   - `MultiEdit` - Make multiple edits to a file (approved for most files except configs)
+   - `LS` - List files in a directory (always approved)
+   - `Bash` with common commands:
+     - `ls`, `pwd`, `find`, `grep` - Listing and finding files/content
+     - `cp`, `mv` - Copying and moving files
+     - `mkdir`, `rmdir`, `rm` - Creating and removing directories/files
+     - `cat`, `head`, `tail` - Viewing file contents
+     - `diff` - Comparing files
+   - Create and delete directories (excluding configuration directories)
    - Move and rename files and directories
 
 3. **File Search and Analysis**
-   - `grep` - Search file contents
-   - `find` - Locate files by name and attributes
-   - `cat` - Display file contents
+   - `Glob` - Find files using glob patterns (always approved)
+   - `Grep` - Search file contents with regular expressions (always approved)
+   - `Task` - Use agent for file search and analysis (always approved)
+   - `WebSearch` and `WebFetch` for documentation lookup (always approved)
 
 4. **Node Package Operations**
    - `npm list` - List installed packages
@@ -190,3 +215,4 @@ The following operations should be discussed before executing:
 3. Validate changes in a development environment before committing
 4. Use the Task agent when analyzing unfamiliar areas of the codebase
 5. When working with the command system, use the test scripts in `/scripts` to verify functionality
+6. Use Batch to run multiple tools in parallel when appropriate

@@ -3,9 +3,23 @@ A Discord bot that uses webhooks to represent multiple AI personalities
 
 ## Documentation
 
-- [Test Standardization](docs/TEST_STANDARDIZATION.md) - Guidelines for standardizing tests
-- [Simulated Tests](docs/SIMULATED_TESTS_SUMMARY.md) - Details on simulated test patterns
-- [Manual Testing Procedure](docs/MANUAL_TESTING_PROCEDURE.md) - Guide for manual testing
+For detailed documentation, please visit the [docs directory](docs/).
+
+### Core Documentation
+- [Architecture](docs/core/ARCHITECTURE.md) - Overall system architecture
+- [Setup](docs/core/SETUP.md) - Development environment setup
+- [Contributing](docs/core/CONTRIBUTING.md) - Contribution guidelines
+- [Coding Standards](docs/core/CODING_STANDARDS.md) - Code style and patterns
+- [Security](docs/core/SECURITY.md) - Security practices
+
+### Features
+- [Audio Attachments](docs/components/AUDIO_ATTACHMENT.md) - Audio URL to Discord attachment feature
+- [Space Aliases](docs/components/SPACE_ALIASES.md) - Using aliases with spaces in mentions
+
+### Testing
+- [Test Coverage Summary](docs/testing/TEST_COVERAGE_SUMMARY.md) - Current test coverage status
+- [Test Standardization](docs/testing/TEST_STANDARDIZATION.md) - Guidelines for standardizing tests
+- [Manual Testing Procedure](docs/testing/MANUAL_TESTING_PROCEDURE.md) - Guide for manual testing
 
 ## Configuration
 
@@ -22,7 +36,7 @@ The bot uses the following environment variables:
 - `PREFIX` - Command prefix (default: `!tz`)
 - `BOT_OWNER_ID` - Discord user ID of the bot owner (required for owner-only commands and personality auto-seeding)
 - `OWNER_PERSONALITIES` - Comma-separated list of personalities to automatically add for the bot owner
-- `KNOWN_PROBLEMATIC_PERSONALITIES` - Comma-separated list of personalities that require special error handling (see [documentation](docs/PROBLEMATIC_PERSONALITIES.md))
+- `KNOWN_PROBLEMATIC_PERSONALITIES` - Comma-separated list of personalities that require special error handling (see [documentation](docs/components/PROBLEMATIC_PERSONALITIES.md))
 - `HEALTH_PORT` - Port for the health check endpoint (optional)
 
 ### User Personalities
