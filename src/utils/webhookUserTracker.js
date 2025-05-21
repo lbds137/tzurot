@@ -122,6 +122,53 @@ function isProxySystemWebhook(message) {
     logger.debug(`[WebhookUserTracker] Using cached identification for webhook ${message.webhookId}`); 
     return true;
   }
+
+  // CRITICAL FIX: Check if this is our own bot's webhook
+  // This is vital for preventing both age verification prompts and message echo effects
+  try {
+    // Method 1: Check if the webhook owner ID matches our bot's user ID
+    if (message.webhook && message.webhook.owner && message.webhook.owner.id === global.tzurotClient?.user?.id) {
+      logger.info(`[WebhookUserTracker] Identified webhook as our own bot's webhook (by owner ID)`);
+      knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
+      return true;
+    }
+    
+    // Method 2: Check if application ID matches our bot's user ID
+    if (message.webhookId && message.applicationId === global.tzurotClient?.user?.id) {
+      logger.info(`[WebhookUserTracker] Identified webhook with our bot's application ID`);
+      knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
+      return true;
+    }
+
+    // Method 3: If we failed to identify by ID but the message author contains a personality name
+    // we can check if it matches a personality we have registered
+    if (message.webhookId && message.author && message.author.username) {
+      // Get all personalities
+      const { listPersonalities } = require('../personalityManager');
+      const allPersonalities = listPersonalities();
+      
+      // Check if the webhook username matches any registered personality
+      const matchingPersonality = allPersonalities.find(p => {
+        // Check with display name
+        if (p.displayName && message.author.username.includes(p.displayName)) {
+          return true;
+        }
+        // Check with full name
+        if (p.fullName && message.author.username.includes(p.fullName)) {
+          return true;
+        }
+        return false;
+      });
+      
+      if (matchingPersonality) {
+        logger.info(`[WebhookUserTracker] Identified webhook as our own based on personality name match: ${message.author.username}`);
+        knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
+        return true;
+      }
+    }
+  } catch (error) {
+    logger.warn(`[WebhookUserTracker] Error checking if webhook belongs to our bot: ${error.message}`);
+  }
   
   // Check if the application ID matches any known proxy systems
   // The application ID is the bot user ID that created the webhook
