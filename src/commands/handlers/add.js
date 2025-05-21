@@ -33,9 +33,8 @@ const pendingAdditions = new Map();
 async function execute(message, args) {
   const directSend = validator.createDirectSend(message);
 
-  // Mark the message as processed - this should happen here and NOT in the middleware
-  // to prevent double-marking
-  messageTracker.markAddCommandAsProcessed(message.id);
+  // Note: The message is now marked as processed in the middleware
+  // We don't need to call markAddCommandAsProcessed here anymore
 
   // Check if the user provided the correct arguments
   if (args.length < 1) {
