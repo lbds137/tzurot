@@ -396,5 +396,10 @@ module.exports = {
   getTokenExpirationInfo,
   TOKEN_EXPIRATION_MS,
   APP_ID,
-  API_KEY
+  API_KEY,
+  // Export userTokens and nsfwVerified for testing purposes
+  get userTokens() { return userTokens; },
+  set userTokens(value) { userTokens = value; },
+  get nsfwVerified() { return nsfwVerified; },
+  set nsfwVerified(value) { nsfwVerified = value; }
 };
