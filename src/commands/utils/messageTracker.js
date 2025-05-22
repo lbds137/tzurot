@@ -4,7 +4,12 @@
 const logger = require('../../logger');
 
 class MessageTracker {
-  constructor() {
+  constructor(options = {}) {
+    const {
+      enableCleanupTimers = true,
+      scheduler = setTimeout
+    } = options;
+
     // Track processed message IDs to prevent duplicates
     this.processedMessages = new Set();
 
@@ -22,6 +27,10 @@ class MessageTracker {
 
     // Specific tracking for add command message IDs
     this.addCommandMessageIds = new Set();
+
+    // Store options
+    this.enableCleanupTimers = enableCleanupTimers;
+    this.scheduler = scheduler;
 
     // Set up cleanup intervals
     this._setupCleanupIntervals();
@@ -100,13 +109,15 @@ class MessageTracker {
     this.processedMessages.add(messageId);
     logger.debug(`[MessageTracker] Message ${messageId} marked as processed`);
 
-    // Auto-remove after timeout
-    setTimeout(() => {
-      this.processedMessages.delete(messageId);
-      logger.debug(
-        `[MessageTracker] Message ${messageId} removed from processedMessages after timeout`
-      );
-    }, timeout);
+    // Auto-remove after timeout (configurable via enableCleanupTimers)
+    if (this.enableCleanupTimers) {
+      this.scheduler(() => {
+        this.processedMessages.delete(messageId);
+        logger.debug(
+          `[MessageTracker] Message ${messageId} removed from processedMessages after timeout`
+        );
+      }, timeout);
+    }
   }
 
   /**

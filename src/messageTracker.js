@@ -24,14 +24,29 @@ const logger = require('./logger');
 class MessageTracker {
   /**
    * Create a new MessageTracker instance
+   * @param {Object} [options={}] - Configuration options
+   * @param {boolean} [options.enableCleanupTimers=true] - Whether to enable cleanup timers
+   * @param {Function} [options.scheduler=setTimeout] - Timer function to use for scheduling
+   * @param {Function} [options.intervalScheduler=setInterval] - Interval function to use for periodic cleanup
    */
-  constructor() {
+  constructor(options = {}) {
+    const {
+      enableCleanupTimers = true,
+      scheduler = setTimeout,
+      intervalScheduler = setInterval
+    } = options;
+
     /**
      * Map of tracked messages and operations with timestamps
      * @type {Map<string, number>}
      * @private
      */
     this.processedMessages = new Map();
+
+    // Store options
+    this.enableCleanupTimers = enableCleanupTimers;
+    this.scheduler = scheduler;
+    this.intervalScheduler = intervalScheduler;
 
     // Set up periodic cleanup
     this.setupPeriodicCleanup();
@@ -44,8 +59,12 @@ class MessageTracker {
    * @private
    */
   setupPeriodicCleanup() {
+    if (!this.enableCleanupTimers) {
+      return;
+    }
+
     // Clean up the tracker every 10 minutes to prevent memory growth
-    setInterval(
+    const interval = this.intervalScheduler(
       () => {
         const now = Date.now();
         let count = 0;
@@ -63,7 +82,12 @@ class MessageTracker {
         }
       },
       10 * 60 * 1000
-    ).unref(); // unref() allows the process to exit even if timer is active
+    );
+    
+    // unref() allows the process to exit even if timer is active
+    if (interval && typeof interval.unref === 'function') {
+      interval.unref();
+    }
   }
 
   /**
@@ -113,10 +137,12 @@ class MessageTracker {
     // Record this operation
     this.processedMessages.set(operationId, Date.now());
 
-    // Set a timeout to clean up this entry after 10 seconds
-    setTimeout(() => {
-      this.processedMessages.delete(operationId);
-    }, 10000);
+    // Set a timeout to clean up this entry after 10 seconds (if timers are enabled)
+    if (this.enableCleanupTimers) {
+      this.scheduler(() => {
+        this.processedMessages.delete(operationId);
+      }, 10000);
+    }
 
     return true;
   }
@@ -139,8 +165,14 @@ class MessageTracker {
   }
 }
 
+// Create a factory function for testing
+function createMessageTracker(options) {
+  return new MessageTracker(options);
+}
+
 // Export a singleton instance and the class for testing
 module.exports = {
   messageTracker: new MessageTracker(),
   MessageTracker,
+  createMessageTracker,
 };
