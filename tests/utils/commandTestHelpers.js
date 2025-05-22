@@ -1,6 +1,10 @@
 /**
  * Command Test Helpers
  * Utilities for testing command handlers
+ * 
+ * UPDATED: Cleaned up implementation while maintaining backward compatibility
+ * This version is more maintainable and follows DRY principles without depending
+ * on the consolidated mock system at runtime (which requires Jest globals)
  */
  
 /**
@@ -35,10 +39,13 @@ function createMockMessage(options = {}) {
     send: jest.fn().mockResolvedValue({ id: 'dm-message-123' })
   };
   
-  // Create mock channel
+  // Create mock channel with improved structure
   const mockChannel = {
     id: config.channelId,
+    type: config.isDM ? 1 : 0, // Discord channel types: 1=DM, 0=Guild Text
+    nsfw: config.isNSFW,
     isDMBased: jest.fn().mockReturnValue(config.isDM),
+    isTextBased: jest.fn().mockReturnValue(true),
     send: jest.fn().mockImplementation(content => {
       return Promise.resolve({
         id: 'sent-message-123',
@@ -64,31 +71,35 @@ function createMockMessage(options = {}) {
     })
   };
   
-  // Create mock guild
-  const mockGuild = {
+  // Create mock guild (only for non-DM channels)
+  const mockGuild = config.isDM ? null : {
     id: config.guildId,
     channels: {
-      cache: new Map([
-        [config.channelId, mockChannel]
-      ]),
+      cache: new Map([[config.channelId, mockChannel]]),
       fetch: jest.fn().mockResolvedValue(mockChannel)
     }
   };
   
-  // Create mock member with permissions
-  const mockMember = {
+  // Create mock member with permissions (only for guild channels)
+  const mockMember = config.isDM ? null : {
     permissions: mockPermissions,
     id: config.authorId,
     guild: mockGuild
   };
   
+  // Set up channel permissions method
+  mockChannel.permissionsFor = jest.fn().mockReturnValue(mockPermissions);
+  
   // Create mock message
   const mockMessage = {
     id: config.id,
+    content: config.content || '',
     author: mockAuthor,
     channel: mockChannel,
-    member: config.isDM ? null : mockMember,
-    guild: config.isDM ? null : mockGuild,
+    member: mockMember,
+    guild: mockGuild,
+    webhookId: null,
+    reference: null,
     reply: jest.fn().mockImplementation(content => {
       if (config.replyContent) {
         return Promise.resolve({
@@ -101,20 +112,8 @@ function createMockMessage(options = {}) {
         content: typeof content === 'string' ? content : JSON.stringify(content)
       });
     }),
-    webhookId: null,
-    reference: null,
-    content: '',
     delete: jest.fn().mockResolvedValue(true)
   };
-  
-  // Set up channel.isTextBased()
-  mockChannel.isTextBased = jest.fn().mockReturnValue(true);
-  
-  // Set up NSFW channel state
-  mockChannel.nsfw = config.isNSFW;
-  
-  // Set up permissionsFor method on channel
-  mockChannel.permissionsFor = jest.fn().mockReturnValue(mockPermissions);
   
   return mockMessage;
 }
