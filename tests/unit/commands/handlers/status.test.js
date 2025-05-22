@@ -33,7 +33,6 @@ jest.mock('../../../../src/commands/handlers/autorespond', () => ({
   isAutoResponseEnabled: jest.fn()
 }));
 
-// Mock command validator
 jest.mock('../../../../src/commands/utils/commandValidator', () => ({
   createDirectSend: jest.fn(),
   isAdmin: jest.fn().mockReturnValue(false),
@@ -41,13 +40,16 @@ jest.mock('../../../../src/commands/utils/commandValidator', () => ({
   isNsfwChannel: jest.fn().mockReturnValue(false)
 }));
 
-// Import test helpers
-const helpers = require('../../../utils/commandTestHelpers');
+// Use enhanced test utilities
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
 
 // Import mocked modules
 const logger = require('../../../../src/logger');
 const validator = require('../../../../src/commands/utils/commandValidator');
 const auth = require('../../../../src/auth');
+
+// Get migration helper for enhanced patterns
+const migrationHelper = createMigrationHelper('command');
 const personalityManager = require('../../../../src/personalityManager');
 const autorespond = require('../../../../src/commands/handlers/autorespond');
 const { EmbedBuilder } = require('discord.js');
@@ -62,8 +64,13 @@ describe('Status Command', () => {
     // Reset all mocks
     jest.clearAllMocks();
     
-    // Create mock message
-    mockMessage = helpers.createMockMessage();
+    // Create enhanced mock message with less boilerplate
+    mockMessage = migrationHelper.enhanced.createMessage({
+      content: '!tz status',
+      author: { id: 'user-123', username: 'testuser' }
+    });
+    
+    // Override default response for this test
     mockMessage.channel.send = jest.fn().mockResolvedValue({
       id: 'sent-message-123',
       embeds: [{ title: 'Bot Status' }]
@@ -127,13 +134,8 @@ describe('Status Command', () => {
   });
   
   it('should have the correct metadata', () => {
-    expect(statusCommand.meta).toEqual({
-      name: 'status',
-      description: expect.any(String),
-      usage: expect.any(String),
-      aliases: expect.any(Array),
-      permissions: expect.any(Array)
-    });
+    // Use enhanced assertion helper
+    migrationHelper.enhanced.assert.assertCommandMetadata(statusCommand, 'status');
   });
   
   it('should display bot status for authenticated user', async () => {

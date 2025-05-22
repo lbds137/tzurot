@@ -5,15 +5,6 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz'
 }));
 
-// Mock utils and commandValidator
-jest.mock('../../../../src/utils', () => ({
-  createDirectSend: jest.fn().mockImplementation((message) => {
-    return async (content) => {
-      return message.channel.send(content);
-    };
-  })
-}));
-
 jest.mock('../../../../src/commands/utils/commandValidator', () => {
   return {
     createDirectSend: jest.fn().mockImplementation((message) => {
@@ -24,12 +15,15 @@ jest.mock('../../../../src/commands/utils/commandValidator', () => {
   };
 });
 
-// Import test helpers
-const helpers = require('../../../utils/commandTestHelpers');
+// Use enhanced test utilities
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
 
 // Import mocked modules
 const logger = require('../../../../src/logger');
 const validator = require('../../../../src/commands/utils/commandValidator');
+
+// Get migration helper for enhanced patterns
+const migrationHelper = createMigrationHelper('command');
 
 describe('Ping Command', () => {
   let pingCommand;
@@ -39,8 +33,13 @@ describe('Ping Command', () => {
     // Reset all mocks
     jest.clearAllMocks();
     
-    // Create mock message with standard channel.send mock
-    mockMessage = helpers.createMockMessage();
+    // Create enhanced mock message with less boilerplate
+    mockMessage = migrationHelper.enhanced.createMessage({
+      content: '!tz ping',
+      author: { id: 'user-123', username: 'testuser' }
+    });
+    
+    // Override default response for this test
     mockMessage.channel.send = jest.fn().mockResolvedValue({
       id: 'sent-message-123',
       content: 'Pong! Tzurot is operational.'
@@ -51,13 +50,8 @@ describe('Ping Command', () => {
   });
   
   it('should have the correct metadata', () => {
-    expect(pingCommand.meta).toEqual({
-      name: 'ping',
-      description: expect.any(String),
-      usage: expect.any(String),
-      aliases: expect.any(Array),
-      permissions: expect.any(Array)
-    });
+    // Use enhanced assertion helper
+    migrationHelper.enhanced.assert.assertCommandMetadata(pingCommand, 'ping');
   });
   
   it('should reply with a pong message', async () => {
@@ -66,8 +60,8 @@ describe('Ping Command', () => {
     // Verify that createDirectSend was called with the message
     expect(validator.createDirectSend).toHaveBeenCalledWith(mockMessage);
     
-    // Verify that channel.send was called with the correct message
-    expect(mockMessage.channel.send).toHaveBeenCalledWith('Pong! Tzurot is operational.');
+    // Use enhanced assertion helper
+    migrationHelper.enhanced.assert.assertMessageSent(mockMessage, 'Pong! Tzurot is operational.');
     
     // Verify the response matches our mock
     expect(result).toEqual({
