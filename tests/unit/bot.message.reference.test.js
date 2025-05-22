@@ -29,17 +29,19 @@ describe('Message Reference Handling', () => {
     
     const formattedTextRef = formatApiMessages(textRefMsg);
     
-    // Should have two message objects
-    expect(formattedTextRef).toHaveLength(2);
+    // Should have one combined message
+    expect(formattedTextRef).toHaveLength(1);
     
-    // First message should be user message with the actual question
+    // Single message should be from user role with multimodal content
     expect(formattedTextRef[0].role).toBe('user');
-    expect(formattedTextRef[0].content).toBe("What do you think about this?");
+    expect(Array.isArray(formattedTextRef[0].content)).toBe(true);
     
-    // Second message should contain the referenced content (as user role, not system)
-    expect(formattedTextRef[1].role).toBe('user');
-    expect(formattedTextRef[1].content).toContain('SomeUser');
-    expect(formattedTextRef[1].content).toContain('I believe AI will transform society');
+    // Find the text content containing both user question and reference
+    const textItem = formattedTextRef[0].content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain("What do you think about this?");
+    expect(textItem.text).toContain('SomeUser');
+    expect(textItem.text).toContain('I believe AI will transform society');
   });
   
   it('should correctly format referenced messages from bot/assistant', () => {
@@ -55,16 +57,18 @@ describe('Message Reference Handling', () => {
     
     const formattedBotRef = formatApiMessages(botRefMsg);
     
-    // Should have two message objects
-    expect(formattedBotRef).toHaveLength(2);
+    // Should have one combined message
+    expect(formattedBotRef).toHaveLength(1);
     
-    // First message should be user message with the follow-up question
+    // Single message should be from user role with multimodal content
     expect(formattedBotRef[0].role).toBe('user');
-    expect(formattedBotRef[0].content).toBe("Can you elaborate on that?");
+    expect(Array.isArray(formattedBotRef[0].content)).toBe(true);
     
-    // Second message should be an assistant message with the bot's prior response
-    expect(formattedBotRef[1].role).toBe('assistant');
-    expect(formattedBotRef[1].content).toContain("The concept of emergence is fascinating in complex systems.");
+    // Find the text content containing both user question and bot reference
+    const textItem = formattedBotRef[0].content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain("Can you elaborate on that?");
+    expect(textItem.text).toContain("The concept of emergence is fascinating in complex systems.");
   });
   
   it('should correctly handle referenced messages with image content', () => {
@@ -80,48 +84,28 @@ describe('Message Reference Handling', () => {
     
     const formattedImageRef = formatApiMessages(imageRefMsg);
     
-    // Should have three message objects (user question, reference text, and image)
-    expect(formattedImageRef.length).toBeGreaterThanOrEqual(3);
+    // Should have one combined message
+    expect(formattedImageRef).toHaveLength(1);
     
-    // First message should be the user's question
+    // Single message should be from user role with multimodal content
     expect(formattedImageRef[0].role).toBe('user');
-    expect(formattedImageRef[0].content).toBe("What can you tell me about this image?");
-
-    // Second message should describe the image context (as user role, not system)
-    expect(formattedImageRef[1].role).toBe('user');
-    expect(formattedImageRef[1].content).toContain('ImagePoster');
-    expect(formattedImageRef[1].content).toContain('referencing a message with an image');
+    expect(Array.isArray(formattedImageRef[0].content)).toBe(true);
     
-    // There should be a message containing the image URL
-    const hasImageMessage = formattedImageRef.some(msg => 
-      msg.role === 'user' && 
-      Array.isArray(msg.content) && 
-      msg.content.some(item => 
-        item.type === 'image_url' && 
-        item.image_url.url === 'https://example.com/image.jpg'
-      )
+    const singleMessage = formattedImageRef[0];
+    
+    // Find the text content containing both user question and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain("What can you tell me about this image?");
+    expect(textItem.text).toContain('ImagePoster');
+    expect(textItem.text).toContain('referencing a message with an image');
+    
+    // Find the image content from the reference
+    const imageItem = singleMessage.content.find(item => 
+      item.type === 'image_url' && 
+      item.image_url.url === 'https://example.com/image.jpg'
     );
-    
-    expect(hasImageMessage).toBe(true);
-    
-    // Last message should contain the user's question or media
-    const lastMessageIndex = formattedImageRef.length - 1;
-    expect(formattedImageRef[lastMessageIndex].role).toBe('user');
-    
-    // Allow either string content or multimodal content
-    if (typeof formattedImageRef[lastMessageIndex].content === 'string') {
-      expect(formattedImageRef[lastMessageIndex].content).toBe("What can you tell me about this image?");
-    } else {
-      // For multimodal content, expect an array with media
-      expect(Array.isArray(formattedImageRef[lastMessageIndex].content)).toBe(true);
-      
-      // Verify it has image content
-      const hasImage = formattedImageRef[lastMessageIndex].content.some(item => 
-        item.type === 'image_url' && 
-        item.image_url?.url?.includes('example.com')
-      );
-      expect(hasImage).toBe(true);
-    }
+    expect(imageItem).toBeDefined();
   });
   
   it('should handle multimodal content in the user message with references', () => {
@@ -140,36 +124,33 @@ describe('Message Reference Handling', () => {
     
     const formattedMultimodalRef = formatApiMessages(multimodalMsg);
     
-    // Should have at least 3 messages (system context, image from reference, user message with new image)
-    expect(formattedMultimodalRef.length).toBeGreaterThanOrEqual(3);
+    // Should have one combined message
+    expect(formattedMultimodalRef).toHaveLength(1);
     
-    // First message should be the user's multimodal content with new image
-    const firstMessage = formattedMultimodalRef[0];
-    expect(firstMessage.role).toBe('user');
+    // Single message should be from user role with multimodal content
+    const singleMessage = formattedMultimodalRef[0];
+    expect(singleMessage.role).toBe('user');
+    expect(Array.isArray(singleMessage.content)).toBe(true);
     
-    // The multimodal content should be preserved
-    expect(Array.isArray(firstMessage.content)).toBe(true);
-    expect(firstMessage.content.some(item => item.type === 'text')).toBe(true);
-    expect(firstMessage.content.some(item => 
+    // Find the text content containing both user text and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain('How does this compare to the earlier image?');
+    expect(textItem.text).toContain('SomeUser');
+    
+    // Find the user's new image
+    const userImageItem = singleMessage.content.find(item => 
       item.type === 'image_url' && 
       item.image_url.url === 'https://example.com/new-image.jpg'
-    )).toBe(true);
-    
-    // Second message should contain context (as user role, not system)
-    expect(formattedMultimodalRef[1].role).toBe('user');
-    
-    // There should be a message containing the first image
-    const hasFirstImage = formattedMultimodalRef.some(msg => 
-      Array.isArray(msg.content) && 
-      msg.content.some(item => 
-        item.type === 'image_url' && 
-        item.image_url.url === 'https://example.com/old-image.jpg'
-      )
     );
+    expect(userImageItem).toBeDefined();
     
-    expect(hasFirstImage).toBe(true);
-    
-    // We've already checked the first message above (user's multimodal content)
+    // Find the referenced old image
+    const refImageItem = singleMessage.content.find(item => 
+      item.type === 'image_url' && 
+      item.image_url.url === 'https://example.com/old-image.jpg'
+    );
+    expect(refImageItem).toBeDefined();
   });
   
   it('should handle regular user messages without references', () => {

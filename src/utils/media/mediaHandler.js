@@ -158,24 +158,15 @@ async function detectMedia(message, messageContent, options = {}) {
     }
   }
 
-  // After processing message media, check if we should use referenced media when no media is found
+  // Referenced media should be handled separately by aiService, not included in current message
   let useReferencedMedia = false;
   const referencedAudioUrl = options.referencedAudioUrl;
   const referencedImageUrl = options.referencedImageUrl;
 
-  if (!hasFoundImage && !hasFoundAudio) {
-    if (referencedAudioUrl) {
-      audioUrl = referencedAudioUrl;
-      hasFoundAudio = true;
-      useReferencedMedia = true;
-      logger.info(`[MediaHandler] Using audio from referenced message: ${audioUrl}`);
-    } else if (referencedImageUrl) {
-      imageUrl = referencedImageUrl;
-      hasFoundImage = true;
-      useReferencedMedia = true;
-      logger.info(`[MediaHandler] Using image from referenced message: ${imageUrl}`);
-    }
-  }
+  // Note: We no longer automatically include referenced media in the current message
+  // Referenced media is handled separately in the aiService formatApiMessages function
+  // This prevents duplication where both the current message and referenced message
+  // would include the same media content
 
   // Create final multimodal content if we found media
   let finalContent = updatedMessageContent;

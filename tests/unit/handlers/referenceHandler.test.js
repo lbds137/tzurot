@@ -260,7 +260,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('Look at this message [referenced Discord message link]');
+      expect(result.messageContent).toBe('Look at this message [Discord message link]');
       expect(result.hasProcessedLink).toBe(true);
       expect(result.referencedMessageContent).toBe('Linked message content');
       expect(result.referencedMessageAuthor).toBe('Linked User');
@@ -319,7 +319,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('@TestPersonality Look at this message [referenced Discord message link]');
+      expect(result.messageContent).toBe('@TestPersonality Look at this message [Discord message link]');
       expect(result.hasProcessedLink).toBe(true);
       expect(result.referencedMessageContent).toBe('Linked message content');
       expect(result.referencedMessageAuthor).toBe('Linked User');
@@ -395,7 +395,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('@TestPersonality Look at this webhook message [referenced Discord message link]');
+      expect(result.messageContent).toBe('@TestPersonality Look at this webhook message [Discord message link]');
       expect(result.hasProcessedLink).toBe(true);
       expect(result.referencedMessageContent).toBe('Linked webhook message content');
       expect(result.referencedMessageAuthor).toBe('Linked Webhook');
@@ -473,7 +473,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('@TestPersonality Look at this message with embeds [referenced Discord message link]');
+      expect(result.messageContent).toBe('@TestPersonality Look at this message with embeds [Discord message link]');
       expect(result.hasProcessedLink).toBe(true);
       expect(result.referencedMessageContent).toContain('Linked message with embeds');
       expect(result.referencedMessageContent).toContain('[Embed Title: Embed Title]');
@@ -541,7 +541,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('@TestPersonality Look at this message with attachments [referenced Discord message link]');
+      expect(result.messageContent).toBe('@TestPersonality Look at this message with attachments [Discord message link]');
       expect(result.hasProcessedLink).toBe(true);
       expect(result.referencedMessageContent).toContain('Linked message with attachments');
       expect(result.referencedMessageContent).toContain('[Image: https://example.com/attachment-image.jpg]');
@@ -572,7 +572,7 @@ describe('Reference Handler Module', () => {
         mockClient
       );
       
-      expect(result.messageContent).toBe('Look at this message [referenced Discord message link]');
+      expect(result.messageContent).toBe('Look at this message [Discord message link]');
       expect(result.hasProcessedLink).toBe(false);
       expect(logger.error).toHaveBeenCalledWith(`[Bot] Error accessing guild for linked message: Failed to access guild`);
     });

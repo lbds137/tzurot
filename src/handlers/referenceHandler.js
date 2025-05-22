@@ -177,7 +177,7 @@ async function processMessageLinks(
 
     // Replace the message link with a placeholder that clarifies what was linked
     result.messageContent = messageContent
-      .replace(messageLinkMatch[0], '[referenced Discord message link]')
+      .replace(messageLinkMatch[0], '[Discord message link]')
       .trim();
 
     try {

@@ -168,36 +168,23 @@ describe('Referenced Message Media Tests', () => {
     // Test the formatApiMessages function directly
     const formattedMessages = formatApiMessages(message);
     
-    // Verify the messages are correctly formatted
-    // The implementation returns multiple messages for referenced content
-    expect(formattedMessages.length).toBeGreaterThan(0);
+    // Verify we get a single combined message
+    expect(formattedMessages.length).toBe(1);
     expect(formattedMessages[0].role).toBe('user');
+    expect(Array.isArray(formattedMessages[0].content)).toBe(true);
     
-    // Find the message containing the reference text
-    const referenceMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('referencing a message with an image from TestUser'));
-    expect(referenceMessage).toBeDefined();
+    const singleMessage = formattedMessages[0];
     
-    // Find the message containing the image
-    const imageMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'image_url'));
-    expect(imageMessage).toBeDefined();
+    // Find the text content containing both user question and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain('What do you think about this image?');
+    expect(textItem.text).toContain('referencing a message with an image from TestUser');
     
-    // Find the message containing the user's question
-    const questionMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('What do you think about this image?'));
-    expect(questionMessage).toBeDefined();
-    
-    // Verify the image URL in the image message if it exists
-    if (imageMessage) {
-      const imageItem = imageMessage.content.find(item => item.type === 'image_url');
-      if (imageItem) {
-        expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
-      }
-    }
+    // Find the image content
+    const imageItem = singleMessage.content.find(item => item.type === 'image_url');
+    expect(imageItem).toBeDefined();
+    expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
     
     // Test the createRequestId function to ensure it handles reference + image
     const requestId = createRequestId("test-personality", message, context);
@@ -234,35 +221,23 @@ describe('Referenced Message Media Tests', () => {
     // Test the formatApiMessages function directly
     const formattedMessages = formatApiMessages(message);
     
-    // Verify the messages are correctly formatted
-    expect(formattedMessages.length).toBeGreaterThan(0);
+    // Verify we get a single combined message
+    expect(formattedMessages.length).toBe(1);
     expect(formattedMessages[0].role).toBe('user');
+    expect(Array.isArray(formattedMessages[0].content)).toBe(true);
     
-    // Find the message containing the reference text
-    const referenceMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('referencing a message with audio from TestUser'));
-    expect(referenceMessage).toBeDefined();
+    const singleMessage = formattedMessages[0];
     
-    // Find the message containing the audio
-    const audioMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'audio_url'));
-    expect(audioMessage).toBeDefined();
+    // Find the text content containing both user question and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain('What is being said in this audio?');
+    expect(textItem.text).toContain('referencing a message with audio from TestUser');
     
-    // Find the message containing the user's question
-    const questionMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('What is being said in this audio?'));
-    expect(questionMessage).toBeDefined();
-    
-    // Verify the audio URL in the audio message if it exists
-    if (audioMessage) {
-      const audioItem = audioMessage.content.find(item => item.type === 'audio_url');
-      if (audioItem) {
-        expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
-      }
-    }
+    // Find the audio content
+    const audioItem = singleMessage.content.find(item => item.type === 'audio_url');
+    expect(audioItem).toBeDefined();
+    expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
     
     // Test the createRequestId function to ensure it handles reference + audio
     const requestId = createRequestId("test-personality", message, context);
@@ -310,42 +285,32 @@ describe('Referenced Message Media Tests', () => {
     // Test the formatApiMessages function directly
     const formattedMessages = formatApiMessages(message);
     
-    // Verify the messages are correctly formatted
-    expect(formattedMessages.length).toBeGreaterThan(0);
+    // Verify we get a single combined message
+    expect(formattedMessages.length).toBe(1);
     expect(formattedMessages[0].role).toBe('user');
+    expect(Array.isArray(formattedMessages[0].content)).toBe(true);
     
-    // Find the message containing the reference text
-    const referenceMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('referencing a message with audio from TestUser'));
-    expect(referenceMessage).toBeDefined();
+    const singleMessage = formattedMessages[0];
     
-    // Find the message containing the user's multimodal content
-    const userContentMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'text' && 
-                            item.text.includes('This image is related to the audio')));
-    expect(userContentMessage).toBeDefined();
+    // Find the text content containing both user content and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain('This image is related to the audio');
+    expect(textItem.text).toContain('referencing a message with audio from TestUser');
     
-    // In the user content message, check for the image
-    if (userContentMessage) {
-      const imageItem = userContentMessage.content.find(item => item.type === 'image_url');
-      expect(imageItem).toBeDefined();
-      expect(imageItem.image_url.url).toBe('https://example.com/related-image.jpg');
-    }
+    // Find the user's image content
+    const userImageItem = singleMessage.content.find(item => 
+      item.type === 'image_url' && item.image_url.url === 'https://example.com/related-image.jpg');
+    expect(userImageItem).toBeDefined();
     
-    // Find the message containing the audio
-    const audioMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'audio_url'));
+    // Find the referenced audio content
+    const audioItem = singleMessage.content.find(item => 
+      item.type === 'audio_url' && item.audio_url.url === 'https://example.com/audio.mp3');
+    expect(audioItem).toBeDefined();
     
-    // Verify the audio URL if it exists
-    if (audioMessage) {
-      const audioItem = audioMessage.content.find(item => item.type === 'audio_url');
-      if (audioItem) {
-        expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
-      }
-    }
+    // Verify the URLs are correct
+    expect(userImageItem.image_url.url).toBe('https://example.com/related-image.jpg');
+    expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
     
     // Test the createRequestId function to ensure it handles multimodal + reference properly
     const requestId = createRequestId("test-personality", message, context);
@@ -394,43 +359,32 @@ describe('Referenced Message Media Tests', () => {
     // Test the formatApiMessages function directly
     const formattedMessages = formatApiMessages(message);
     
-    // Verify the messages are correctly formatted
-    expect(formattedMessages.length).toBeGreaterThan(0);
+    // Verify we get a single combined message
+    expect(formattedMessages.length).toBe(1);
     expect(formattedMessages[0].role).toBe('user');
+    expect(Array.isArray(formattedMessages[0].content)).toBe(true);
     
-    // Find the message containing the reference text
-    const referenceMessage = formattedMessages.find(msg => 
-      msg.content && typeof msg.content === 'string' && 
-      msg.content.includes('referencing a message with an image from TestUser'));
-    expect(referenceMessage).toBeDefined();
+    const singleMessage = formattedMessages[0];
     
-    // Find the message containing the user's multimodal content
-    const userContentMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'text' && 
-                            item.text.includes('This audio is my response to the image')));
-    expect(userContentMessage).toBeDefined();
+    // Find the text content containing both user content and reference
+    const textItem = singleMessage.content.find(item => item.type === 'text');
+    expect(textItem).toBeDefined();
+    expect(textItem.text).toContain('This audio is my response to the image');
+    expect(textItem.text).toContain('referencing a message with an image from TestUser');
     
-    // In the user content message, check for the audio
-    if (userContentMessage) {
-      const audioItem = userContentMessage.content.find(item => item.type === 'audio_url');
-      expect(audioItem).toBeDefined();
-      expect(audioItem.audio_url.url).toBe('https://example.com/response-audio.mp3');
-    }
+    // Find the user's audio content
+    const userAudioItem = singleMessage.content.find(item => 
+      item.type === 'audio_url' && item.audio_url.url === 'https://example.com/response-audio.mp3');
+    expect(userAudioItem).toBeDefined();
     
-    // Find the message containing the image from the reference
-    const imageMessage = formattedMessages.find(msg => 
-      msg.content && Array.isArray(msg.content) && 
-      msg.content.some(item => item.type === 'image_url' && 
-                             item.image_url.url === 'https://example.com/image.jpg'));
+    // Find the referenced image content
+    const imageItem = singleMessage.content.find(item => 
+      item.type === 'image_url' && item.image_url.url === 'https://example.com/image.jpg');
+    expect(imageItem).toBeDefined();
     
-    // Verify the image URL if it exists
-    if (imageMessage) {
-      const imageItem = imageMessage.content.find(item => item.type === 'image_url');
-      if (imageItem) {
-        expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
-      }
-    }
+    // Verify the URLs are correct
+    expect(userAudioItem.audio_url.url).toBe('https://example.com/response-audio.mp3');
+    expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
     
     // Test the createRequestId function to ensure it handles multimodal + reference properly
     const requestId = createRequestId("test-personality", message, context);
