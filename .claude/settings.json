@@ -12,6 +12,7 @@
       "TodoRead",
       "TodoWrite(*)",
       "Batch(*)",
+      "Fetch(*)",
       "Search(*)",
       "WebSearch(*)",
       "WebFetch(*)",
