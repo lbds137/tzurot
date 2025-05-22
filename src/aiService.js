@@ -1205,6 +1205,9 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
         );
 
         try {
+          // Initialize cleaned reference content early for use throughout the function
+          let cleanedRefContent = content.referencedMessage.content;
+          
           // First, extract any media URLs from the referenced message
           const hasImage = sanitizedReferenceContent.includes('[Image:');
           const hasAudio = sanitizedReferenceContent.includes('[Audio:');
@@ -1243,20 +1246,28 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
           // Get user's message content (text or multimodal)
           const userMessageContent = content.messageContent;
 
+          // Check if user is referencing their own message (need this early for media reference text)
+          const currentUserName = content.userName || 'The user';
+          const referencedAuthor = content.referencedMessage.author;
+          const isUserSelfReference = currentUserName === referencedAuthor;
+
           // Create special text for tests to identify the reference type
           let referenceText = '';
+          const mediaAuthor = isUserSelfReference ? 'me' : (content.referencedMessage.author || 'another user');
           if (mediaType === 'image') {
-            referenceText = `This is a message referencing a message with an image from ${content.referencedMessage.author || 'another user'}`;
+            referenceText = `This is a message referencing a message with an image from ${mediaAuthor}`;
             logger.debug(`[AIService] Created image reference text for matching in tests`);
           } else if (mediaType === 'audio') {
-            referenceText = `This is a message referencing a message with audio from ${content.referencedMessage.author || 'another user'}`;
+            referenceText = `This is a message referencing a message with audio from ${mediaAuthor}`;
             logger.debug(`[AIService] Created audio reference text for matching in tests`);
           }
 
-          // Add the actual message content
+          // Add the actual message content (use cleanContent to avoid duplication of media content)
+          
+          const authorText = isUserSelfReference ? 'I' : content.referencedMessage.author;
           const fullReferenceContent = referenceText
-            ? `${referenceText}. ${content.referencedMessage.author} said: "${sanitizedReferenceContent}"`
-            : `${content.referencedMessage.author} said: "${sanitizedReferenceContent}"`;
+            ? `${referenceText}. ${authorText} said:\n"${cleanContent}"`
+            : `${authorText} said:\n"${cleanContent}"`;
 
           // For bot messages, try to get the proper display name
           let assistantReferenceContent = '';
@@ -1286,8 +1297,8 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             const isSamePersonality = content.referencedMessage.personalityName === personalityName;
 
             if (isSamePersonality) {
-              // First-person reference if it's the same personality
-              assistantReferenceContent = `As ${formattedName}, I said earlier: "${content.referencedMessage.content}"`;
+              // Second-person reference when user is talking to the same personality
+              assistantReferenceContent = `You said earlier: "${content.referencedMessage.content}"`;
             } else {
               // Third-person reference if it's a different personality
               assistantReferenceContent = `${formattedName} said: "${content.referencedMessage.content}"`;
@@ -1305,18 +1316,20 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
 
             if (isSamePersonality) {
               // Use assistant role for the personality's own messages to avoid echo
+              // Use cleaned content to avoid media duplication
               referenceDescriptor = {
                 role: 'assistant',
-                content: assistantReferenceContent || content.referencedMessage.content,
+                content: assistantReferenceContent || cleanedRefContent,
               };
               logger.debug(
                 `[AIService] Using assistant role for reference to same personality: ${personalityName}`
               );
             } else {
               // Use user role for references to other personalities
+              // Use cleaned content to avoid media duplication
               referenceDescriptor = {
                 role: 'user',
-                content: assistantReferenceContent || content.referencedMessage.content,
+                content: assistantReferenceContent || cleanedRefContent,
               };
               logger.debug(
                 `[AIService] Using user role for reference to different personality: ${content.referencedMessage.personalityName}`
@@ -1324,90 +1337,152 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             }
           } else {
             // Use user role for user messages
-            referenceDescriptor = { role: 'user', content: fullReferenceContent };
+            // For user messages, create a cleaned version of the fullReferenceContent
+            const cleanedFullReferenceContent = fullReferenceContent
+              .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
+              .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
+              .trim();
+            referenceDescriptor = { role: 'user', content: cleanedFullReferenceContent };
             logger.debug(`[AIService] Using user role for reference to user message`);
           }
 
-          // Handle different types of user content (string or multimodal array)
-          if (Array.isArray(userMessageContent)) {
-            // Handle multimodal content array
-
-            // Extract media URLs from the referenced message if present
-            let mediaMessage = null;
-            if (content.referencedMessage.content.includes('[Image:')) {
-              const imageMatch = content.referencedMessage.content.match(
-                /\[Image: (https?:\/\/[^\s\]]+)\]/
-              );
-              if (imageMatch && imageMatch[1]) {
-                mediaMessage = {
-                  role: 'user',
-                  content: [
-                    { type: 'text', text: 'Please examine this image:' },
-                    { type: 'image_url', image_url: { url: imageMatch[1] } },
-                  ],
-                };
-              }
-            } else if (content.referencedMessage.content.includes('[Audio:')) {
-              const audioMatch = content.referencedMessage.content.match(
-                /\[Audio: (https?:\/\/[^\s\]]+)\]/
-              );
-              if (audioMatch && audioMatch[1]) {
-                mediaMessage = {
-                  role: 'user',
-                  content: [
-                    { type: 'text', text: 'Please listen to this audio:' },
-                    { type: 'audio_url', audio_url: { url: audioMatch[1] } },
-                  ],
-                };
-              }
-            }
-
-            // Prepare the messages array - put user message first, then reference, and media last
-            const messages = [{ role: 'user', content: userMessageContent }];
-            messages.push(referenceDescriptor);
-            if (mediaMessage) messages.push(mediaMessage);
-
-            return messages;
-          }
-
-          // Handle text-only content
-          const sanitizedUserContent =
-            typeof userMessageContent === 'string'
-              ? sanitizeApiText(userMessageContent)
-              : 'Message content missing';
-
-          // Extract media URLs from the referenced message if present
+          // Create media message ONCE for the referenced message content (avoiding duplication)
           let mediaMessage = null;
-          const refContent = content.referencedMessage.content;
 
-          if (refContent.includes('[Image:')) {
-            const imageMatch = refContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
-            if (imageMatch && imageMatch[1]) {
+          // Use the mediaUrl and mediaType that were already extracted earlier
+          if (mediaUrl && mediaType) {
+            if (mediaType === 'image') {
               mediaMessage = {
                 role: 'user',
                 content: [
                   { type: 'text', text: 'Please examine this image:' },
-                  { type: 'image_url', image_url: { url: imageMatch[1] } },
+                  { type: 'image_url', image_url: { url: mediaUrl } },
                 ],
               };
-            }
-          } else if (refContent.includes('[Audio:')) {
-            const audioMatch = refContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
-            if (audioMatch && audioMatch[1]) {
+              logger.debug(`[AIService] Created media message for image: ${mediaUrl}`);
+            } else if (mediaType === 'audio') {
               mediaMessage = {
                 role: 'user',
                 content: [
-                  { type: 'text', text: 'Please listen to this audio:' },
-                  { type: 'audio_url', audio_url: { url: audioMatch[1] } },
+                  { type: 'text', text: 'Audio content:' },
+                  { type: 'audio_url', audio_url: { url: mediaUrl } },
                 ],
               };
+              logger.debug(`[AIService] Created media message for audio: ${mediaUrl}`);
             }
           }
 
-          // Prepare the messages array - put user message first, then reference, and media last
-          const messages = [{ role: 'user', content: sanitizedUserContent }];
-          messages.push(referenceDescriptor);
-          if (mediaMessage) messages.push(mediaMessage);
+          // Hybrid approach: combine messages when replying to yourself, separate for different senders
+          const isReplyingToSelf = currentUserName.includes(referencedAuthor);
+
+          let messages;
+
+          if (isReplyingToSelf) {
+            // Same sender: combine into single message to avoid duplication
+            const combinedContent = [];
+
+            // Combine all text content into a single text element
+            let combinedText = '';
+            
+            if (Array.isArray(userMessageContent)) {
+              // Extract text from multimodal user content
+              const userTextParts = userMessageContent
+                .filter(item => item.type === 'text')
+                .map(item => item.text)
+                .join(' ');
+              combinedText += userTextParts;
+            } else {
+              const sanitizedUserContent =
+                typeof userMessageContent === 'string'
+                  ? sanitizeApiText(userMessageContent)
+                  : 'Message content missing';
+              combinedText += sanitizedUserContent;
+            }
+
+            // Add reference context (with newline formatting)
+            combinedText += '\n' + referenceDescriptor.content;
+
+            // Add the combined text as first element
+            combinedContent.push({
+              type: 'text',
+              text: combinedText
+            });
+
+            // Add user's original media content (images/audio from user's message)
+            if (Array.isArray(userMessageContent)) {
+              const userMediaElements = userMessageContent.filter(item => 
+                item.type === 'image_url' || item.type === 'audio_url');
+              combinedContent.push(...userMediaElements);
+            }
+
+            // Add referenced media content if present (just the media URL, not the prompt text)
+            if (mediaMessage && Array.isArray(mediaMessage.content)) {
+              const mediaElements = mediaMessage.content.filter(item => 
+                item.type === 'audio_url' || item.type === 'image_url');
+              combinedContent.push(...mediaElements);
+            }
+
+            // Create single combined message
+            const userMessage = { role: 'user', content: combinedContent };
+            messages = [userMessage];
+            
+            logger.debug(`[AIService] Same sender detected - combined into single message`);
+          } else {
+            // Different senders: combine everything into single message for better AI processing
+            const combinedContent = [];
+
+            // Combine all text content into a single text element
+            let combinedText = '';
+            
+            if (Array.isArray(userMessageContent)) {
+              // Extract text from multimodal user content
+              const userTextParts = userMessageContent
+                .filter(item => item.type === 'text')
+                .map(item => item.text)
+                .join(' ');
+              combinedText += userTextParts;
+            } else {
+              const sanitizedUserContent =
+                typeof userMessageContent === 'string'
+                  ? sanitizeApiText(userMessageContent)
+                  : 'Message content missing';
+              combinedText += sanitizedUserContent;
+            }
+
+            // Add reference context (with newline formatting)
+            combinedText += '\n' + referenceDescriptor.content;
+
+            // Add the combined text as first element
+            combinedContent.push({
+              type: 'text',
+              text: combinedText
+            });
+
+            // Add user's original media content (images/audio from user's message)
+            if (Array.isArray(userMessageContent)) {
+              const userMediaElements = userMessageContent.filter(item => 
+                item.type === 'image_url' || item.type === 'audio_url');
+              combinedContent.push(...userMediaElements);
+            }
+
+            // Add referenced media content if present (just the media URL, not the prompt text)
+            if (mediaMessage && Array.isArray(mediaMessage.content)) {
+              const mediaElements = mediaMessage.content.filter(item => 
+                item.type === 'audio_url' || item.type === 'image_url');
+              combinedContent.push(...mediaElements);
+            }
+
+            // Create single combined message
+            const userMessage = { role: 'user', content: combinedContent };
+            messages = [userMessage];
+            
+            logger.debug(`[AIService] Different senders detected - combined everything into single message for better AI processing`);
+          }
+
+          logger.info(`[DEBUG] Final messages being sent to AI API (count: ${messages.length}):`);
+          messages.forEach((msg, index) => {
+            logger.info(`[DEBUG] Message ${index + 1}: ${JSON.stringify(msg, null, 2)}`);
+          });
 
           return messages;
         } catch (refError) {
