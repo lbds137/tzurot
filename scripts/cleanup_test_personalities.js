@@ -43,7 +43,7 @@ async function cleanupTestPersonalities() {
 
     // Identify test personalities
     const testPersonalityNames = [];
-    const testUserIds = ['test-user-id'];
+    const testUserIds = ['test-user-id', 'user-123', 'user1', 'user2'];
     
     for (const [name, personality] of Object.entries(personalities)) {
       if (testUserIds.includes(personality.createdBy) || 

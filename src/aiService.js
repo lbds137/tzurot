@@ -1128,15 +1128,11 @@ async function getAiResponse(personalityName, message, context = {}) {
       );
       return MARKERS.HARD_BLOCKED_RESPONSE;
     } finally {
-      // Remove this request from the pending map after 60 seconds
-      setTimeout(() => {
-        if (pendingRequests.has(requestId)) {
-          logger.debug(
-            `[AIService] Cleaning up pending request for ${personalityName} (ID: ${requestId})`
-          );
-          pendingRequests.delete(requestId);
-        }
-      }, TIME.ONE_MINUTE);
+      // Clean up immediately when the request completes (success or error)
+      logger.debug(
+        `[AIService] Cleaning up pending request for ${personalityName} (ID: ${requestId})`
+      );
+      pendingRequests.delete(requestId);
     }
   })();
 

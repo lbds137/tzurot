@@ -2,13 +2,7 @@
  * Tests for personalityManager.js focusing on initialization and persistence
  */
 
-// Import the module to test
-const personalityManager = require('../../src/personalityManager');
-
-// Import dependencies we need to mock
-const dataStorage = require('../../src/dataStorage');
-
-// Mock the dependencies
+// Mock the dependencies BEFORE importing the module under test
 jest.mock('../../src/profileInfoFetcher', () => ({
   getProfileAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
   getProfileDisplayName: jest.fn().mockResolvedValue('Test Display Name')
@@ -18,6 +12,12 @@ jest.mock('../../src/dataStorage', () => ({
   saveData: jest.fn().mockResolvedValue(true),
   loadData: jest.fn()
 }));
+
+// Import the module to test AFTER mocking its dependencies
+const personalityManager = require('../../src/personalityManager');
+
+// Import dependencies we need to access in tests
+const dataStorage = require('../../src/dataStorage');
 
 describe('personalityManager - Initialization and Persistence', () => {
   // Reset mocks before each test

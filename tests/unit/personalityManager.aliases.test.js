@@ -1,7 +1,6 @@
 // Test suite for alias handling fixes in personalityManager.js
-const { registerPersonality, setPersonalityAlias, getPersonalityByAlias, saveAllPersonalities } = require('../../src/personalityManager');
 
-// Mock the dependencies
+// Mock the dependencies BEFORE importing the module under test
 jest.mock('../../src/profileInfoFetcher', () => ({
   getProfileDisplayName: jest.fn().mockResolvedValue('Test Display Name'),
   getProfileAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
@@ -23,6 +22,9 @@ jest.mock('../../src/dataStorage', () => ({
     return null;
   })
 }));
+
+// Import the module functions AFTER mocking its dependencies
+const { registerPersonality, setPersonalityAlias, getPersonalityByAlias, saveAllPersonalities } = require('../../src/personalityManager');
 
 describe('PersonalityManager Alias Handling', () => {
   // Mock console functions
