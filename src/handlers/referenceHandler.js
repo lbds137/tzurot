@@ -10,6 +10,7 @@
 const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../conversationManager');
 const { getPersonality, getPersonalityByAlias } = require('../personalityManager');
+const { parseEmbedsToText } = require('../utils/embedUtils');
 
 /**
  * The regex pattern for matching Discord message links
@@ -101,7 +102,11 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
       );
     }
   } catch (error) {
-    logger.error('Error handling message reference:', error);
+    if (error.message === 'Unknown Message') {
+      logger.warn(`Referenced message ${message.reference.messageId} no longer exists (deleted or inaccessible)`);
+    } else {
+      logger.error('Error handling message reference:', error);
+    }
   }
 
   return false;
@@ -217,14 +222,14 @@ async function processMessageLinks(
 
                   // Try to look up by message ID first
                   const personalityName = getPersonalityFromMessage(linkedMessage.id, {
-                    webhookUsername: result.referencedWebhookName,
+                    webhookUsername: result.referencedWebhookName || undefined,
                   });
 
                   if (personalityName) {
                     // Get display name for the personality if available
                     try {
-                      // Use the listPersonalitiesForUser function which returns all personalities
-                      const allPersonalities = personalityManager.listPersonalitiesForUser();
+                      // Use the listPersonalitiesForUser function with null to get all personalities
+                      const allPersonalities = personalityManager.listPersonalitiesForUser(null);
 
                       // Find the matching personality by name
                       const personalityData = allPersonalities.find(
@@ -298,20 +303,11 @@ async function processMessageLinks(
               // Handle embeds if present - adding their content to the referenced message
               if (linkedMessage.embeds && linkedMessage.embeds.length > 0) {
                 try {
-                  const parseEmbedsToText =
-                    require('../utils/embedUtils').parseEmbedsToText || null;
-
-                  if (typeof parseEmbedsToText === 'function') {
-                    const embedText = parseEmbedsToText(linkedMessage.embeds, 'linked message');
-                    if (embedText) {
-                      // Add the embed text to the referenced message content
-                      result.referencedMessageContent += embedText;
-                      logger.debug(`[Bot] Added embed content from linked message`);
-                    }
-                  } else {
-                    logger.warn(
-                      `[Bot] parseEmbedsToText function not available for linked message`
-                    );
+                  const embedText = parseEmbedsToText(linkedMessage.embeds, 'linked message');
+                  if (embedText) {
+                    // Add the embed text to the referenced message content
+                    result.referencedMessageContent += embedText;
+                    logger.debug(`[Bot] Added embed content from linked message`);
                   }
                 } catch (embedError) {
                   logger.error(
@@ -379,64 +375,8 @@ async function processMessageLinks(
   return result;
 }
 
-/**
- * Parse Discord embeds into text representation
- * @param {Array} embeds - Array of Discord embed objects
- * @param {string} source - Source description for logging (e.g., "referenced message", "linked message")
- * @returns {string} Formatted text representation of the embeds
- */
-function parseEmbedsToText(embeds, source) {
-  if (!embeds || !embeds.length) return '';
-
-  logger.info(`[ReferenceHandler] ${source} contains ${embeds.length} embeds`);
-  let embedContent = '';
-
-  embeds.forEach(embed => {
-    // Add title if available
-    if (embed.title) {
-      embedContent += `\n[Embed Title: ${embed.title}]`;
-    }
-
-    // Add description if available
-    if (embed.description) {
-      embedContent += `\n[Embed Description: ${embed.description}]`;
-    }
-
-    // Add fields if available
-    if (embed.fields && embed.fields.length > 0) {
-      embed.fields.forEach(field => {
-        embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
-      });
-    }
-
-    // Add image if available
-    if (embed.image && embed.image.url) {
-      embedContent += `\n[Embed Image: ${embed.image.url}]`;
-    }
-
-    // Add thumbnail if available
-    if (embed.thumbnail && embed.thumbnail.url) {
-      embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
-    }
-
-    // Add footer if available
-    if (embed.footer && embed.footer.text) {
-      embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
-    }
-  });
-
-  if (embedContent) {
-    logger.debug(
-      `[ReferenceHandler] Added embed content from ${source}: ${embedContent.substring(0, 100)}...`
-    );
-  }
-
-  return embedContent;
-}
-
 module.exports = {
   handleMessageReference,
   processMessageLinks,
-  parseEmbedsToText,
   MESSAGE_LINK_REGEX,
 };

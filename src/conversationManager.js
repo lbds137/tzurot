@@ -355,38 +355,34 @@ function getPersonalityFromMessage(messageId, options = {}) {
         }
       }
 
-      // No direct match, try case-insensitive
+      // No direct match, try case-insensitive and webhook naming pattern
       const webhookUsernameLower = safeToLowerCase(options.webhookUsername);
       for (const personality of allPersonalities) {
         if (!personality || !personality.displayName) continue;
 
         const displayNameLower = safeToLowerCase(personality.displayName);
+        
+        // Exact match (case-insensitive)
         if (displayNameLower === webhookUsernameLower) {
           logger.debug(
             `[ConversationManager] Found personality match by case-insensitive display name: ${personality.fullName}`
           );
           return personality.fullName;
         }
-      }
-
-      // Try partial match as last resort
-      if (webhookUsernameLower.length > 3) {
-        // Only try if username is substantial
-        for (const personality of allPersonalities) {
-          if (!personality || !personality.displayName) continue;
-
-          const displayNameLower = safeToLowerCase(personality.displayName);
-          if (
-            displayNameLower.includes(webhookUsernameLower) ||
-            webhookUsernameLower.includes(displayNameLower)
-          ) {
-            logger.debug(
-              `[ConversationManager] Found personality match by partial name: ${personality.fullName}`
-            );
-            return personality.fullName;
-          }
+        
+        // Check if it matches our webhook naming pattern: "DisplayName | suffix"
+        const webhookPattern = new RegExp(`^${personality.displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\|`, 'i');
+        if (webhookPattern.test(options.webhookUsername)) {
+          logger.debug(
+            `[ConversationManager] Found personality match by webhook naming pattern: ${personality.fullName}`
+          );
+          return personality.fullName;
         }
       }
+
+      // Removed partial match logic - it was causing false positives with PluralKit
+      // and other webhook systems that might have similar names to our personalities.
+      // We should only match exact display names or our specific webhook naming patterns.
 
       logger.debug(
         `[ConversationManager] No personality found matching webhook username: "${options.webhookUsername}"`

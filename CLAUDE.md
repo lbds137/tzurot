@@ -175,6 +175,11 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - If you run the full test suite (`npm test`), update `/home/deck/WebstormProjects/tzurot/docs/testing/TEST_COVERAGE_SUMMARY.md`
   - Do not update the summary when running partial tests
   - The summary should always reflect the result of a complete test run
+  - **IMPORTANT**: When updating TEST_COVERAGE_SUMMARY.md, you MUST update BOTH:
+    1. The detailed coverage table in the "Overall Coverage" section (the full Jest output table)
+    2. The summary statistics in the "Test Results Summary" section
+  - Both sections must match - the summary percentages should be taken from the "All files" row in the coverage table
+  - Never update just one section without updating the other
 
 ## Date Handling
 

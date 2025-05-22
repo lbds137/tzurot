@@ -141,34 +141,10 @@ function isProxySystemWebhook(message) {
       return true;
     }
 
-    // Method 3: If we failed to identify by ID but the message author contains a personality name
-    // we can check if it matches a personality we have registered
-    if (message.webhookId && message.author && message.author.username) {
-      // Get all personalities
-      const { listPersonalitiesForUser } = require('../personalityManager');
-      const allPersonalities = listPersonalitiesForUser(); // This returns all personalities when no userId is provided
-
-      // Check if the webhook username matches any registered personality
-      const matchingPersonality = allPersonalities.find(p => {
-        // Check with display name
-        if (p.displayName && message.author.username.includes(p.displayName)) {
-          return true;
-        }
-        // Check with full name
-        if (p.fullName && message.author.username.includes(p.fullName)) {
-          return true;
-        }
-        return false;
-      });
-
-      if (matchingPersonality) {
-        logger.info(
-          `[WebhookUserTracker] Identified webhook as our own based on personality name match: ${message.author.username}`
-        );
-        knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
-        return true;
-      }
-    }
+    // Method 3 removed: Personality name matching is too prone to false positives with PluralKit
+    // PluralKit and other proxy bots often have member names that partially match our personality names
+    // Since PluralKit reuses webhooks for all members in a channel, one false match would mark
+    // all PluralKit messages in that channel as "ours", which is incorrect.
   } catch (error) {
     logger.warn(
       `[WebhookUserTracker] Error checking if webhook belongs to our bot: ${error.message}`
@@ -244,7 +220,7 @@ function isProxySystemWebhook(message) {
  * Get the real user ID for a message, considering webhook proxies
  *
  * @param {Object} message - The Discord message object
- * @returns {string} The real user ID, or the original author ID if not a proxy
+ * @returns {string|null} The real user ID, or the original author ID if not a proxy
  */
 function getRealUserId(message) {
   if (!message) return null;
@@ -366,6 +342,29 @@ function isAuthenticationAllowed(message) {
   return false;
 }
 
+/**
+ * Clear a specific webhook from the known proxy webhooks cache
+ * Useful for fixing incorrectly cached webhooks
+ * 
+ * @param {string} webhookId - The webhook ID to clear
+ */
+function clearCachedWebhook(webhookId) {
+  if (knownProxyWebhooks.has(webhookId)) {
+    knownProxyWebhooks.delete(webhookId);
+    logger.info(`[WebhookUserTracker] Cleared cached webhook: ${webhookId}`);
+  }
+}
+
+/**
+ * Clear all cached webhooks
+ * Useful for resetting after fixing identification issues
+ */
+function clearAllCachedWebhooks() {
+  const count = knownProxyWebhooks.size;
+  knownProxyWebhooks.clear();
+  logger.info(`[WebhookUserTracker] Cleared all ${count} cached webhooks`);
+}
+
 module.exports = {
   associateWebhookWithUser,
   getRealUserIdFromWebhook,
@@ -373,4 +372,6 @@ module.exports = {
   getRealUserId,
   shouldBypassNsfwVerification,
   isAuthenticationAllowed,
+  clearCachedWebhook,
+  clearAllCachedWebhooks,
 };

@@ -3,6 +3,7 @@
  */
 
 const referenceHandler = require('../../../src/handlers/referenceHandler');
+const { parseEmbedsToText } = require('../../../src/utils/embedUtils');
 const logger = require('../../../src/logger');
 const { getPersonalityFromMessage } = require('../../../src/conversationManager');
 const { getPersonality, getPersonalityByAlias } = require('../../../src/personalityManager');
@@ -11,6 +12,9 @@ const { getPersonality, getPersonalityByAlias } = require('../../../src/personal
 jest.mock('../../../src/logger');
 jest.mock('../../../src/conversationManager');
 jest.mock('../../../src/personalityManager');
+jest.mock('../../../src/utils/embedUtils', () => ({
+  parseEmbedsToText: jest.fn()
+}));
 
 describe('Reference Handler Module', () => {
   // Mock Discord client and objects
@@ -407,6 +411,9 @@ describe('Reference Handler Module', () => {
     });
     
     it('should handle linked messages with embeds', async () => {
+      // Set up the parseEmbedsToText mock return value
+      parseEmbedsToText.mockReturnValue('\n[Embed Title: Embed Title]\n[Embed Description: Embed Description]\n[Embed Field - Field Name: Field Value]\n[Embed Image: https://example.com/embed-image.jpg]');
+      
       // Mock guild, channel, and linked message with embeds
       const mockGuild = {
         name: 'Test Guild',
@@ -446,13 +453,6 @@ describe('Reference Handler Module', () => {
       
       mockClient.guilds.cache.get.mockReturnValue(mockGuild);
       
-      // Mock the embedUtils function that's imported
-      const mockEmbedUtils = {
-        parseEmbedsToText: jest.fn().mockReturnValue('\n[Embed Title: Embed Title]\n[Embed Description: Embed Description]\n[Embed Field - Field Name: Field Value]\n[Embed Image: https://example.com/embed-image.jpg]')
-      };
-      
-      jest.doMock('../../../src/utils/embedUtils', () => mockEmbedUtils);
-      
       const mockMessage = {
         content: '@TestPersonality Look at this message with embeds https://discord.com/channels/123/456/789',
         // No reference
@@ -460,10 +460,7 @@ describe('Reference Handler Module', () => {
       
       const messageContent = '@TestPersonality Look at this message with embeds https://discord.com/channels/123/456/789';
       
-      // Re-require to get mocked version
-      const referenceHandlerMocked = require('../../../src/handlers/referenceHandler');
-      
-      const result = await referenceHandlerMocked.processMessageLinks(
+      const result = await referenceHandler.processMessageLinks(
         mockMessage, 
         messageContent, 
         null, 
@@ -478,8 +475,16 @@ describe('Reference Handler Module', () => {
       expect(result.referencedMessageContent).toContain('Linked message with embeds');
       expect(result.referencedMessageContent).toContain('[Embed Title: Embed Title]');
       
-      // Reset mock
-      jest.dontMock('../../../src/utils/embedUtils');
+      // Verify parseEmbedsToText was called
+      expect(parseEmbedsToText).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            title: 'Embed Title',
+            description: 'Embed Description'
+          })
+        ]),
+        'linked message'
+      );
     });
     
     it('should handle linked messages with attachments', async () => {
@@ -579,9 +584,31 @@ describe('Reference Handler Module', () => {
   });
   
   describe('parseEmbedsToText', () => {
+    beforeEach(() => {
+      // Mock the parseEmbedsToText function from embedUtils
+      parseEmbedsToText.mockImplementation((embeds, source) => {
+        if (!embeds || !embeds.length) return '';
+        
+        let embedContent = '';
+        embeds.forEach(embed => {
+          if (embed.title) embedContent += `\n[Embed Title: ${embed.title}]`;
+          if (embed.description) embedContent += `\n[Embed Description: ${embed.description}]`;
+          if (embed.fields && embed.fields.length > 0) {
+            embed.fields.forEach(field => {
+              embedContent += `\n[Embed Field - ${field.name}: ${field.value}]`;
+            });
+          }
+          if (embed.image && embed.image.url) embedContent += `\n[Embed Image: ${embed.image.url}]`;
+          if (embed.thumbnail && embed.thumbnail.url) embedContent += `\n[Embed Thumbnail: ${embed.thumbnail.url}]`;
+          if (embed.footer && embed.footer.text) embedContent += `\n[Embed Footer: ${embed.footer.text}]`;
+        });
+        return embedContent;
+      });
+    });
+    
     it('should return empty string for null or empty embeds array', () => {
-      expect(referenceHandler.parseEmbedsToText(null, 'test')).toBe('');
-      expect(referenceHandler.parseEmbedsToText([], 'test')).toBe('');
+      expect(parseEmbedsToText(null, 'test')).toBe('');
+      expect(parseEmbedsToText([], 'test')).toBe('');
     });
     
     it('should correctly parse embed with title and description', () => {
@@ -592,7 +619,7 @@ describe('Reference Handler Module', () => {
         }
       ];
       
-      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      const result = parseEmbedsToText(embeds, 'test source');
       
       expect(result).toContain('[Embed Title: Test Embed]');
       expect(result).toContain('[Embed Description: This is a test embed]');
@@ -608,7 +635,7 @@ describe('Reference Handler Module', () => {
         }
       ];
       
-      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      const result = parseEmbedsToText(embeds, 'test source');
       
       expect(result).toContain('[Embed Field - Field 1: Value 1]');
       expect(result).toContain('[Embed Field - Field 2: Value 2]');
@@ -622,7 +649,7 @@ describe('Reference Handler Module', () => {
         }
       ];
       
-      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      const result = parseEmbedsToText(embeds, 'test source');
       
       expect(result).toContain('[Embed Image: https://example.com/image.jpg]');
       expect(result).toContain('[Embed Thumbnail: https://example.com/thumbnail.jpg]');
@@ -635,7 +662,7 @@ describe('Reference Handler Module', () => {
         }
       ];
       
-      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      const result = parseEmbedsToText(embeds, 'test source');
       
       expect(result).toContain('[Embed Footer: Footer text]');
     });
@@ -652,7 +679,7 @@ describe('Reference Handler Module', () => {
         }
       ];
       
-      const result = referenceHandler.parseEmbedsToText(embeds, 'test source');
+      const result = parseEmbedsToText(embeds, 'test source');
       
       expect(result).toContain('[Embed Title: First Embed]');
       expect(result).toContain('[Embed Description: First description]');

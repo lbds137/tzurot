@@ -278,10 +278,10 @@ describe('Conversation Manager', () => {
       expect(personality).toBe('test-personality-one');
     });
     
-    it('should handle partial webhook username matching as a last resort', () => {
-      // Verify partial matching
+    it('should handle webhook naming pattern matching', () => {
+      // Verify webhook pattern matching (DisplayName | suffix)
       const personality = getPersonalityFromMessage('unknown-message-id', {
-        webhookUsername: 'Personality One' // Partial match
+        webhookUsername: 'Test Personality One | Bot' // Webhook naming pattern
       });
       
       expect(personality).toBe('test-personality-one');
