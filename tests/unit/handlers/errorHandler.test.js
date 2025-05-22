@@ -395,9 +395,16 @@ describe('errorHandler', () => {
     });
     
     it('should start the queue cleaner interval', () => {
-      // Mock setInterval to avoid timing issues
+      // Store original environment and mock functions
+      const originalEnv = process.env.NODE_ENV;
       const originalSetInterval = global.setInterval;
-      global.setInterval = jest.fn().mockReturnValue(123);
+      
+      // Temporarily set NODE_ENV to production to bypass the test environment check
+      process.env.NODE_ENV = 'production';
+      
+      // Create a Jest mock that returns a specific value
+      const mockSetInterval = jest.fn().mockReturnValue(123);
+      global.setInterval = mockSetInterval;
       
       // Start the queue cleaner
       intervalId = errorHandler.startQueueCleaner(mockClient);
@@ -406,9 +413,10 @@ describe('errorHandler', () => {
       expect(intervalId).toBe(123);
       
       // Should have called setInterval with the expected interval
-      expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 7000);
+      expect(mockSetInterval).toHaveBeenCalledWith(expect.any(Function), 7000);
       
-      // Restore original setInterval
+      // Restore original values
+      process.env.NODE_ENV = originalEnv;
       global.setInterval = originalSetInterval;
     });
   });

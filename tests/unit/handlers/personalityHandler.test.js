@@ -132,7 +132,15 @@ describe('Personality Handler Module', () => {
   
   describe('startTypingIndicator', () => {
     it('should start typing indicator and return interval ID', () => {
-      // Mock setInterval
+      // Store original environment and timer functions
+      const originalEnv = process.env.NODE_ENV;
+      const originalSetInterval = global.setInterval;
+      const originalClearInterval = global.clearInterval;
+      
+      // Temporarily set NODE_ENV to production to bypass the test environment check
+      process.env.NODE_ENV = 'production';
+      
+      // Create a proper fake timer environment for this test
       jest.useFakeTimers();
       
       const channel = {
@@ -144,7 +152,7 @@ describe('Personality Handler Module', () => {
       expect(result).toBeDefined();
       expect(channel.sendTyping).toHaveBeenCalled();
       
-      // Advance timers to trigger the interval
+      // Advance timers to trigger the interval (5 seconds + a bit more)
       jest.advanceTimersByTime(6000);
       
       expect(channel.sendTyping).toHaveBeenCalledTimes(2);
@@ -152,6 +160,11 @@ describe('Personality Handler Module', () => {
       // Clean up
       clearInterval(result);
       jest.useRealTimers();
+      
+      // Restore original values
+      process.env.NODE_ENV = originalEnv;
+      global.setInterval = originalSetInterval;
+      global.clearInterval = originalClearInterval;
     });
     
     it('should handle errors when starting typing indicator', () => {
