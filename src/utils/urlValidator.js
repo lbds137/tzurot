@@ -23,7 +23,8 @@ function isValidUrlFormat(url) {
     new URL(url); // Will throw if URL is invalid
     return true;
   } catch (_error) {
-    logger.warn(`[UrlValidator] Invalid URL format: ${url}`);
+    // Log URL validation failure for debugging - helps track URL format issues
+    logger.warn(`[UrlValidator] Invalid URL format: ${url}. Validation error: ${_error.message || 'Unknown URL error'}`);
     return false;
   }
 }

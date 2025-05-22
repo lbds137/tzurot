@@ -110,6 +110,23 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
   - Break large files into smaller, more modular components
   - Large files make code harder to understand and also exceed token limits (25k max)
 
+### ESLint Practices
+
+- Run `npm run lint` regularly to check code quality
+- Fix all ESLint errors before committing
+- For unavoidable unused variables in catch blocks, use this pattern:
+  ```javascript
+  try {
+    // some code that might throw
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    // Error variable unused but required for catch syntax
+    // Handle the error without needing the error object
+  }
+  ```
+- Prefix intentionally unused variables with underscore: `_unusedVar`
+- Use inline ESLint suppressions sparingly and always include a comment explaining why
+- Never disable ESLint rules globally without team discussion
+
 ## Error Handling Guidelines
 
 - IMPORTANT: Always wrap async operations in try/catch blocks

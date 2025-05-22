@@ -60,7 +60,9 @@ async function handleStart(message) {
           `I've sent you a DM with authentication instructions. Please check your DMs.`
         );
       } catch (_dmError) {
-        // If DM fails, let them know but with less specific info
+        // Log DM failure for debugging - helps track DM delivery issues
+        logger.warn(`[Auth] Failed to send DM to user ${message.author.id}: ${_dmError.message || 'Unknown DM error'}`);
+        // If DM fails, let them know but with less specific info - error variable unused but required for catch syntax
         return await directSend(
           `❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.`
         );

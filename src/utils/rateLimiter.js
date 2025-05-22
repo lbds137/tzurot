@@ -58,7 +58,9 @@ class RateLimiter {
           const result = await requestFn(this, context);
           resolve(result);
         } catch (_error) {
-          // Silently resolve with null in case of error
+          // Log request execution failure for debugging - helps track rate limiter issues
+          logger.warn(`${this.logPrefix} Request execution failed: ${_error.message || 'Unknown execution error'}. Context: ${JSON.stringify(context)}`);
+          // Silently resolve with null in case of error - error variable unused but required for catch syntax
           // The actual error handling should happen in the requestFn
           resolve(null);
         } finally {

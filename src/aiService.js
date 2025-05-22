@@ -920,7 +920,11 @@ function sanitizeContent(content) {
         .toString()
     );
   } catch (_error) {
-    // Silent error catch
+    // Log sanitization errors for debugging - content input was malformed
+    logger.warn(`[AIService] Text sanitization failed, returning empty string. Input type: ${typeof content}, length: ${content?.length || 'N/A'}. Error: ${_error.message || 'Unknown sanitization error'}`);
+    if (content && typeof content === 'string' && content.length > 0) {
+      logger.debug(`[AIService] Problematic content sample: ${content.substring(0, 50)}...`);
+    }
     return '';
   }
 }
