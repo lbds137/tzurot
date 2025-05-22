@@ -16,21 +16,22 @@ jest.mock('../../../../src/utils/media/imageHandler', () => ({
   hasImageExtension: jest.fn()
 }));
 
-// Import the modules after mocking
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
 const mediaHandler = require('../../../../src/utils/media/mediaHandler');
 const audioHandler = require('../../../../src/utils/media/audioHandler');
 const imageHandler = require('../../../../src/utils/media/imageHandler');
 const logger = require('../../../../src/logger');
 
 describe('Media Handler', () => {
+  let migrationHelper;
+  
   beforeEach(() => {
+    migrationHelper = createMigrationHelper('utility');
     jest.clearAllMocks();
     
-    // Set up logger mock
-    logger.info = jest.fn();
-    logger.debug = jest.fn();
-    logger.warn = jest.fn();
-    logger.error = jest.fn();
+    // Set up logger mock using enhanced utilities
+    const mockEnv = migrationHelper.enhanced.createMocks();
+    Object.assign(logger, mockEnv.logger);
     
     // Set up audio handler mock
     audioHandler.processAudioUrls.mockResolvedValue({

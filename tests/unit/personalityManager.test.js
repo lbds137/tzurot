@@ -1,10 +1,3 @@
-// Import the module to test
-const personalityManager = require('../../src/personalityManager');
-
-// Import dependencies we need to mock
-const profileInfoFetcher = require('../../src/profileInfoFetcher');
-const dataStorage = require('../../src/dataStorage');
-
 // Mock the dependencies
 jest.mock('../../src/profileInfoFetcher', () => ({
   getProfileAvatarUrl: jest.fn(),
@@ -16,9 +9,16 @@ jest.mock('../../src/dataStorage', () => ({
   loadData: jest.fn()
 }));
 
+const { createMigrationHelper } = require('../utils/testEnhancements');
+const personalityManager = require('../../src/personalityManager');
+const profileInfoFetcher = require('../../src/profileInfoFetcher');
+const dataStorage = require('../../src/dataStorage');
+
 describe('personalityManager', () => {
-  // Reset mocks before each test
+  let migrationHelper;
+  
   beforeEach(() => {
+    migrationHelper = createMigrationHelper('utility');
     jest.clearAllMocks();
     
     // Reset the personality data between tests
@@ -26,7 +26,11 @@ describe('personalityManager', () => {
       personalityManager.personalityAliases.clear();
     }
     
-    // Mock loadData to return empty objects by default
+    // Set up enhanced mocks using migration helper
+    const mockEnv = migrationHelper.enhanced.createMocks();
+    
+    // Preserve and enhance existing Jest mocks
+    dataStorage.saveData.mockResolvedValue();
     dataStorage.loadData.mockImplementation((fileName) => {
       if (fileName === 'personalities') {
         return Promise.resolve({});

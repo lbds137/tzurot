@@ -1,22 +1,30 @@
 // Test suite for the embedBuilders.js createPersonalityListEmbed function
+
+// Mock personalityManager before importing anything
+jest.mock('../../src/personalityManager', () => ({
+  listPersonalitiesForUser: jest.fn(),
+  personalityAliases: new Map()
+}));
+
+const { createMigrationHelper } = require('../utils/testEnhancements');
 const embedBuilders = require('../../src/utils/embedBuilders');
 const personalityManager = require('../../src/personalityManager');
 
-// Mock logger to avoid console spam during tests
-console.error = jest.fn();
-console.log = jest.fn();
-console.debug = jest.fn();
-
-// Mock personalityManager functions
-jest.mock('../../src/personalityManager', () => ({
-  listPersonalitiesForUser: jest.fn(),
-  personalityAliases: new Map(), // This should be a Map, not an object!
-}));
-
 describe('embedBuilders.createPersonalityListEmbed', () => {
+  let migrationHelper;
+  let consoleMock;
+
   beforeEach(() => {
+    migrationHelper = createMigrationHelper('utility');
+    consoleMock = migrationHelper.bridge.mockConsole();
+    
+    // Reset all mocks
     jest.clearAllMocks();
     personalityManager.personalityAliases.clear();
+  });
+
+  afterEach(() => {
+    consoleMock.restore();
   });
 
   test('properly handles personalityAliases as a Map', () => {

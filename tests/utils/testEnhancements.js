@@ -37,6 +37,64 @@ function setupBotTestMocks() {
 }
 
 /**
+ * Enhanced utility test helpers for utility/library tests
+ * These provide standardization for utility module tests
+ */
+function createUtilityTest() {
+  return {
+    /**
+     * Create standard utility mocks
+     */
+    createUtilityMocks: () => {
+      return {
+        logger: {
+          info: jest.fn(),
+          debug: jest.fn(),
+          warn: jest.fn(),
+          error: jest.fn()
+        },
+        personalityManager: {
+          listPersonalitiesForUser: jest.fn(),
+          personalityAliases: new Map(),
+          getPersonality: jest.fn(),
+          registerPersonality: jest.fn()
+        },
+        dataStorage: {
+          saveData: jest.fn().mockResolvedValue(),
+          loadData: jest.fn().mockResolvedValue({})
+        }
+      };
+    },
+    
+    /**
+     * Console mocking for utility tests
+     */
+    mockConsole: () => {
+      const originalConsole = {
+        error: console.error,
+        log: console.log,
+        debug: console.debug,
+        warn: console.warn
+      };
+      
+      console.error = jest.fn();
+      console.log = jest.fn();
+      console.debug = jest.fn();
+      console.warn = jest.fn();
+      
+      return {
+        restore: () => {
+          console.error = originalConsole.error;
+          console.log = originalConsole.log;
+          console.debug = originalConsole.debug;
+          console.warn = originalConsole.warn;
+        }
+      };
+    }
+  };
+}
+
+/**
  * Enhanced bot test helpers that reduce duplication
  * These provide standardization for bot integration tests
  */
@@ -306,6 +364,7 @@ function createStandardAssertions() {
 function createMigrationHelper(testType = 'command') {
   const standardTest = testType === 'command' ? createStandardCommandTest() : null;
   const botTest = testType === 'bot' ? createBotIntegrationTest() : null;
+  const utilityTest = testType === 'utility' ? createUtilityTest() : null;
   const assertions = createStandardAssertions();
   
   // Bridge utilities for connecting new and old systems
@@ -317,6 +376,11 @@ function createMigrationHelper(testType = 'command') {
           discord: {
             createMessage: botTest.createBotMessage
           }
+        };
+      } else if (testType === 'utility') {
+        return {
+          modules: utilityTest.createUtilityMocks(),
+          discord: null // Utility tests don't typically need Discord mocks
         };
       } else {
         // Command test environment
@@ -345,7 +409,15 @@ function createMigrationHelper(testType = 'command') {
     // Bot-specific utilities
     setupBotGlobals: botTest ? botTest.setupBotGlobals : undefined,
     cleanupBotGlobals: botTest ? botTest.cleanupBotGlobals : undefined,
-    mockConsole: botTest ? botTest.mockConsole : undefined
+    mockConsole: testType === 'bot' ? botTest.mockConsole : 
+                testType === 'utility' ? utilityTest.mockConsole : undefined,
+    
+    // Utility for getting modules with proper Jest mocking
+    getModule: (modulePath) => {
+      // Reset modules to ensure fresh mocks
+      jest.resetModules();
+      return require(modulePath);
+    }
   };
   
   // Enhanced assertions with additional helpful methods
@@ -371,9 +443,11 @@ function createMigrationHelper(testType = 'command') {
     
     // New enhanced methods
     enhanced: {
-      createMessage: testType === 'bot' ? botTest.createBotMessage : standardTest.createMockMessage,
-      createValidator: testType === 'bot' ? null : standardTest.createValidatorMock,
-      createMocks: testType === 'bot' ? botTest.createBotEnvironment : standardTest.createModuleMocks,
+      createMessage: testType === 'bot' ? botTest.createBotMessage : 
+                   testType === 'utility' ? null : standardTest.createMockMessage,
+      createValidator: testType === 'bot' || testType === 'utility' ? null : standardTest.createValidatorMock,
+      createMocks: testType === 'bot' ? botTest.createBotEnvironment : 
+                  testType === 'utility' ? utilityTest.createUtilityMocks : standardTest.createModuleMocks,
       assert: enhancedAssertions
     },
     
@@ -392,6 +466,7 @@ module.exports = {
   setupBotTestMocks,
   createStandardCommandTest,
   createBotIntegrationTest,
+  createUtilityTest,
   createStandardAssertions,
   createMigrationHelper
 };
