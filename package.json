@@ -9,6 +9,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:debug": "jest --detectOpenHandles --verbose",
+    "test:handles": "jest --detectOpenHandles",
     "test:commands": "./scripts/test-commands.sh",
     "coverage": "jest --coverage && node scripts/update-coverage-summary.js",
     "lint": "eslint src/ --ext .js",
