@@ -1717,13 +1717,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Apply sanitization to all personality responses to be safe
   try {
-    // Check if we're in test mode with the mock
-    const isMockRequest =
-      process.env.NODE_ENV === 'test' ||
-      (content && content.includes && content.includes('mock response'));
-
-    // Only perform sanitization in non-test mode or when not a mock response
-    if (!isMockRequest) {
+    // Always perform sanitization for consistency
       logger.debug(
         `[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`
       );
@@ -1747,19 +1741,16 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
       // Replace the original content with the sanitized version
       content = sanitizedContent;
-    }
   } catch (sanitizeError) {
-    // Skip problematic registration in test environment
-    if (process.env.NODE_ENV !== 'test') {
-      // Register this personality as problematic
-      logger.error(
-        `[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`
-      );
-      registerProblematicPersonality(personalityName, {
-        error: 'sanitization_error',
-        content: sanitizeError.message,
-      });
-    }
+    // Always register problematic personalities
+    // Register this personality as problematic
+    logger.error(
+      `[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`
+    );
+    registerProblematicPersonality(personalityName, {
+      error: 'sanitization_error',
+      content: sanitizeError.message,
+    });
 
     return 'I encountered an issue processing my response. Please try again.';
   }
