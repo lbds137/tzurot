@@ -12,10 +12,14 @@ const ALIASES_FILE = 'aliases';
 
 /**
  * Initialize the personality manager
- * @param {boolean} [deferOwnerPersonalities=false] - Whether to defer loading owner personalities
+ * @param {boolean} [deferOwnerPersonalities=true] - Whether to defer loading owner personalities
+ * @param {Object} [options={}] - Configuration options
+ * @param {boolean} [options.skipBackgroundSeeding=false] - Skip background seeding entirely
+ * @param {number} [options.seedingDelay=500] - Delay in ms before background seeding
+ * @param {Function} [options.scheduler=setTimeout] - Timer function to use for scheduling
  * @returns {Promise<void>}
  */
-async function initPersonalityManager(deferOwnerPersonalities = true) {
+async function initPersonalityManager(deferOwnerPersonalities = true, options = {}) {
   try {
     // Load personalities
     const personalities = await loadData(PERSONALITIES_FILE);
@@ -48,11 +52,18 @@ async function initPersonalityManager(deferOwnerPersonalities = true) {
       logger.info(`[PersonalityManager] Loaded ${personalityAliases.size} aliases`);
     }
 
+    // Extract options with defaults
+    const {
+      skipBackgroundSeeding = false,
+      seedingDelay = 500,
+      scheduler = setTimeout
+    } = options;
+
     // Pre-seed personalities for the bot owner if needed
-    if (deferOwnerPersonalities) {
+    if (deferOwnerPersonalities && !skipBackgroundSeeding) {
       // Schedule owner personalities loading to happen in the background
       logger.info('[PersonalityManager] Deferring owner personality seeding to run in background');
-      setTimeout(() => {
+      scheduler(() => {
         seedOwnerPersonalities()
           .then(() =>
             logger.info('[PersonalityManager] Background owner personality seeding completed')
@@ -62,11 +73,14 @@ async function initPersonalityManager(deferOwnerPersonalities = true) {
               `[PersonalityManager] Background owner personality seeding error: ${err.message}`
             )
           );
-      }, 500); // Small delay to let other initialization finish
-    } else {
+      }, seedingDelay);
+    } else if (!deferOwnerPersonalities) {
       // Directly load owner personalities (the old way)
       logger.info('[PersonalityManager] Loading owner personalities synchronously');
       await seedOwnerPersonalities();
+    } else {
+      // Skipping background seeding entirely
+      logger.info('[PersonalityManager] Skipping background owner personality seeding');
     }
   } catch (error) {
     logger.error(`[PersonalityManager] Error initializing personality manager: ${error}`);
