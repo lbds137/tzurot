@@ -34,8 +34,8 @@ jest.spyOn(global, 'setInterval').mockImplementation((callback, delay, ...args) 
 });
 
 jest.spyOn(global, 'setTimeout').mockImplementation((callback, delay, ...args) => {
-  // For long delays (> 30 seconds), mock to prevent open handles
-  if (delay > 30000) {
+  // For long delays (>= 30 seconds), mock to prevent open handles
+  if (delay >= 30000) {
     const mockTimeoutId = Math.floor(Math.random() * 1000);
     const mockTimeout = {
       valueOf: () => mockTimeoutId,
@@ -89,7 +89,7 @@ const originalMockSetTimeout = global.setTimeout.getMockImplementation();
 jest.spyOn(global, 'setTimeout').mockImplementation((callback, delay, ...args) => {
   const result = originalMockSetTimeout(callback, delay, ...args);
   // Track short-term real timeouts for cleanup
-  if (delay <= 30000 && typeof result === 'number') {
+  if (delay < 30000 && typeof result === 'number') {
     activeTimers.add({ type: 'timeout', id: result });
   }
   return result;

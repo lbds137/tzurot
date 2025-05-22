@@ -24,6 +24,9 @@ const { getPersonalityByAlias, getPersonality } = require('../personalityManager
  */
 async function handleMessage(message, client) {
   try {
+    // Ensure messageTrackerHandler is initialized (lazy initialization)
+    messageTrackerHandler.ensureInitialized();
+
     // If there was a message before this that was deleted,
     // and this is a webhook message, try to associate them
     if (message.webhookId) {
