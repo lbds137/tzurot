@@ -41,16 +41,17 @@ let cleanupInterval = null;
 /**
  * Start the periodic cleanup of recent messages
  * @param {number} interval - Cleanup interval in milliseconds (default: 30000)
+ * @param {Function} scheduler - Interval scheduler function (default: setInterval)
  * @returns {NodeJS.Timeout} - The interval ID
  */
-function startCleanupInterval(interval = 30000) {
+function startCleanupInterval(interval = 30000, scheduler = setInterval) {
   // Clear existing interval if there is one
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
   }
 
   // Start a new interval
-  cleanupInterval = setInterval(cleanupRecentMessages, interval);
+  cleanupInterval = scheduler(cleanupRecentMessages, interval);
   return cleanupInterval;
 }
 
@@ -214,8 +215,42 @@ async function delayedProcessing(message, personality, triggeringMention, client
   });
 }
 
-// Start the cleanup interval when the module is loaded
-startCleanupInterval();
+/**
+ * Initialize the message tracker handler with cleanup interval
+ * @param {Object} [options={}] - Configuration options
+ * @param {boolean} [options.enableCleanup=true] - Whether to enable cleanup interval
+ * @param {number} [options.cleanupInterval=30000] - Cleanup interval in milliseconds
+ * @param {Function} [options.scheduler=setInterval] - Interval scheduler function
+ */
+function initMessageTrackerHandler(options = {}) {
+  const {
+    enableCleanup = true,
+    cleanupInterval = 30000,
+    scheduler = setInterval
+  } = options;
+
+  if (enableCleanup) {
+    startCleanupInterval(cleanupInterval, scheduler);
+  }
+}
+
+// Create a factory function for creating instances with custom options
+function createMessageTrackerHandler(options) {
+  // Stop any existing cleanup interval
+  stopCleanupInterval();
+  
+  // Initialize with the provided options
+  return initMessageTrackerHandler(options);
+}
+
+// Auto-initialize with default settings (but make it configurable)
+let autoInitialized = false;
+function ensureInitialized(options = {}) {
+  if (!autoInitialized) {
+    initMessageTrackerHandler(options);
+    autoInitialized = true;
+  }
+}
 
 module.exports = {
   trackMessageInChannel,
@@ -224,4 +259,7 @@ module.exports = {
   delayedProcessing,
   startCleanupInterval,
   stopCleanupInterval,
+  initMessageTrackerHandler,
+  createMessageTrackerHandler,
+  ensureInitialized,
 };
