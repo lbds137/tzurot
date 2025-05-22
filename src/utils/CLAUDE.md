@@ -2,6 +2,25 @@
 
 This CLAUDE.md file provides guidance for working with utility functions in Tzurot.
 
+## Available Utilities
+
+### Core Utilities
+- **channelUtils.js** - Discord channel type detection and utilities
+- **contentSimilarity.js** - Text similarity calculation for deduplication
+- **embedBuilders.js** - Discord embed creation helpers
+- **embedUtils.js** - Embed parsing and manipulation
+- **errorTracker.js** - Error history and tracking system
+- **pluralkitPatterns.js** - PluralKit proxy pattern detection
+- **rateLimiter.js** - API rate limiting implementation
+- **urlValidator.js** - URL validation and safety checks
+- **webhookUserTracker.js** - Webhook-to-user association tracking
+
+### Media Utilities (`media/`)
+- **mediaHandler.js** - Central media processing coordinator
+- **audioHandler.js** - Audio file download and processing
+- **imageHandler.js** - Image file download and processing
+- **index.js** - Media utility exports
+
 ## Media Handling
 
 The media handling subsystem consists of:
@@ -111,6 +130,19 @@ if (detectProxyPattern(message.content)) {
 }
 ```
 
+## When to Create New Utilities
+
+Create a new utility when:
+1. **Functionality is used in 3+ places** - If code is repeated in multiple files
+2. **Logic is complex and self-contained** - If it's a non-trivial algorithm or process
+3. **It's a pure function** - Takes inputs, returns outputs, no side effects
+4. **It's testable in isolation** - Can be unit tested without mocking the entire app
+
+Don't create utilities for:
+1. **Single-use functions** - Keep them in the component that uses them
+2. **Business logic** - This belongs in handlers or managers
+3. **Stateful operations** - Utilities should be stateless
+
 ## Best Practices
 
 1. Keep utility functions focused on a single responsibility
@@ -118,3 +150,5 @@ if (detectProxyPattern(message.content)) {
 3. Add detailed JSDoc comments
 4. Write unit tests for each utility function
 5. Avoid side effects in utility functions
+6. Use descriptive names that clearly indicate the function's purpose
+7. Group related utilities in the same file (e.g., all embed utilities together)

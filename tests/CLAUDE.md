@@ -110,8 +110,94 @@ describe('Command: example', () => {
 });
 ```
 
+## Running Tests
+
+### Running All Tests
+```bash
+npm test                    # Run all tests with coverage
+npm run test:watch         # Run tests in watch mode during development
+```
+
+### Running Specific Tests
+```bash
+npx jest tests/unit/bot.test.js                    # Run a specific test file
+npx jest tests/unit/commands/                       # Run all tests in a directory
+npx jest --testNamePattern="should handle errors"   # Run tests matching a pattern
+npx jest --watch tests/unit/bot.test.js           # Watch a specific file
+```
+
+## Debugging Tests
+
+### Common Test Issues and Solutions
+
+1. **Mock Not Working**
+   ```javascript
+   // Problem: Mock not being called
+   // Solution: Ensure mock is set up before importing the module
+   jest.mock('../../src/logger');
+   const logger = require('../../src/logger');
+   const componentToTest = require('../../src/component');
+   ```
+
+2. **Async Test Timeout**
+   ```javascript
+   // Problem: Test times out
+   // Solution: Increase timeout for slow operations
+   it('should handle slow operation', async () => {
+     await someSlowOperation();
+   }, 10000); // 10 second timeout
+   ```
+
+3. **Test Interference**
+   ```javascript
+   // Problem: Tests pass individually but fail together
+   // Solution: Reset all mocks and state between tests
+   beforeEach(() => {
+     jest.clearAllMocks();
+     jest.resetModules();
+   });
+   ```
+
+4. **Debugging with console.log**
+   ```javascript
+   // Temporarily bypass console mocking for debugging
+   beforeEach(() => {
+     global.console.log = console.log; // Restore real console.log
+   });
+   ```
+
+### Using Jest Debug Mode
+```bash
+# Run Jest with Node debugger
+node --inspect-brk node_modules/.bin/jest --runInBand tests/unit/bot.test.js
+
+# Then attach your debugger (VS Code, Chrome DevTools, etc.)
+```
+
+## Test Types
+
+### Unit Tests
+- Test individual functions or components in isolation
+- Mock all external dependencies
+- Located in `tests/unit/`
+- Fast execution, focused on specific logic
+
+### Integration Tests
+- Test multiple components working together
+- May use fewer mocks
+- Test real interactions between modules
+- Slower but more comprehensive
+
+### When to Use Each Type
+- **Unit Tests**: For testing business logic, utilities, and individual functions
+- **Integration Tests**: For testing command flows, API interactions, and complex workflows
+
 ## Coverage Requirements
 
 - Maintain or improve existing test coverage
 - Focus on testing edge cases and error handling
 - Use the jest.spyOn approach for verifying function calls
+- Aim for:
+  - 80%+ coverage for new code
+  - 70%+ coverage for critical components
+  - 100% coverage for utility functions

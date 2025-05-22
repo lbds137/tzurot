@@ -2,6 +2,29 @@
 
 This CLAUDE.md file provides specific guidance for working with the command system in Tzurot.
 
+## Available Commands
+
+### User Commands
+- **activate** - Activate a personality in the current channel
+- **add** - Add a new personality to the bot
+- **alias** - Create an alias for an existing personality
+- **autorespond** - Toggle automatic responses for a personality
+- **deactivate** - Deactivate the current channel's personality
+- **help** - Display help information
+- **info** - Show information about a personality
+- **list** - List all available personalities
+- **ping** - Check bot responsiveness
+- **remove** - Remove a personality (admin only)
+- **reset** - Reset conversation history
+
+### Admin Commands
+- **auth** - Manage user authentication and API tokens
+- **clearerrors** - Clear error history
+- **debug** - Show debug information
+- **purgbot** - Remove bot messages from channel
+- **status** - Display bot status and statistics
+- **verify** - Verify user age for NSFW content
+
 ## Command Structure
 
 Commands are organized as follows:
@@ -26,6 +49,14 @@ module.exports = {
 };
 ```
 
+## Command Naming Conventions
+
+- Use lowercase letters only
+- No spaces or special characters
+- Keep names short and descriptive
+- Prefer verbs for action commands (activate, remove, reset)
+- Use nouns for information commands (info, list, status)
+
 ## Command Registration
 
 Commands are automatically registered by the commandLoader system. New command handlers should:
@@ -33,6 +64,7 @@ Commands are automatically registered by the commandLoader system. New command h
 1. Be placed in the `handlers/` directory
 2. Export the required interface (name, description, usage, permissions, execute)
 3. Handle errors properly with try/catch
+4. Follow the naming conventions above
 
 ## Error Handling
 

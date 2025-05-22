@@ -10,9 +10,28 @@ This CLAUDE.md file provides guidance for working with the core source code of T
 4. **Caching**: Use caching strategically to reduce API calls
 5. **Rate Limiting**: Respect external API limitations
 
+## Component Dependencies
+
+```
+bot.js
+├── messageHandler.js
+│   ├── personalityHandler.js
+│   ├── referenceHandler.js
+│   └── dmHandler.js
+├── commandProcessor.js
+│   └── commands/index.js
+│       ├── middleware/auth.js
+│       ├── middleware/permissions.js
+│       └── middleware/deduplication.js
+└── webhookManager.js
+    └── aiService.js
+        ├── conversationManager.js
+        └── personalityManager.js
+```
+
 ## Critical Components
 
-### AI Service (`aiService.js`)
+### AI Service (`aiService.js`) - ~1700 lines
 
 IMPORTANT: The AI service handles several critical functions:
 - Uses pendingRequests Map to prevent duplicate API calls
@@ -22,7 +41,9 @@ IMPORTANT: The AI service handles several critical functions:
 
 When modifying this component, maintain clear error handling and API request management.
 
-### Webhook Manager (`webhookManager.js`)
+### Webhook Manager (`webhookManager.js`) - ~2800 lines ⚠️
+
+**WARNING: This is the largest file in the codebase and exceeds recommended size limits.**
 
 The webhook manager has complex logic for:
 - Creating and caching webhooks
@@ -31,16 +52,16 @@ The webhook manager has complex logic for:
 - Processing media attachments
 - Managing rate limits and retries
 
-Any changes must maintain this functionality and error handling.
+Any changes must maintain this functionality and error handling. Consider refactoring into smaller modules.
 
-### Conversation Manager (`conversationManager.js`)
+### Conversation Manager (`conversationManager.js`) - ~570 lines
 
 Maintains conversation state including:
 - Active personality tracking
 - Message history mapping
 - Auto-respond functionality
 
-### Personality Manager (`personalityManager.js`)
+### Personality Manager (`personalityManager.js`) - ~690 lines
 
 Handles personality data with:
 - Registration and persistence
