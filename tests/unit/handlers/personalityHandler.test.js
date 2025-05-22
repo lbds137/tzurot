@@ -16,15 +16,27 @@ jest.mock('../../../src/aiService');
 jest.mock('../../../src/webhookManager');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/webhookUserTracker');
-jest.mock('../../../src/handlers/referenceHandler');
+jest.mock('../../../src/handlers/referenceHandler', () => ({
+  handleMessageReference: jest.fn(),
+  processMessageLinks: jest.fn().mockReturnValue({ hasLinks: false }),
+  parseEmbedsToText: jest.fn().mockReturnValue(''),
+  MESSAGE_LINK_REGEX: /discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/gi
+}));
 jest.mock('../../../src/utils/media', () => ({
-  detectMedia: jest.fn()
+  detectMedia: jest.fn().mockReturnValue({ hasMedia: false }),
+  processMediaUrls: jest.fn(),
+  processMediaForWebhook: jest.fn(),
+  prepareAttachmentOptions: jest.fn().mockReturnValue(null)
 }));
 jest.mock('../../../src/auth', () => ({
   isNsfwVerified: jest.fn()
 }));
 jest.mock('../../../src/conversationManager', () => ({
-  recordConversation: jest.fn()
+  recordConversation: jest.fn(),
+  getPersonalityFromMessage: jest.fn()
+}));
+jest.mock('../../../src/personalityManager', () => ({
+  listPersonalitiesForUser: jest.fn().mockReturnValue([])
 }));
 
 describe('Personality Handler Module', () => {
@@ -35,8 +47,13 @@ describe('Personality Handler Module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
+    // Mock global timer functions
+    global.setInterval = jest.fn().mockReturnValue(123);
+    global.clearInterval = jest.fn();
+    
     // Mock message object
     mockMessage = {
+      id: 'message-id',
       content: 'Test message',
       author: {
         id: 'user-id',
@@ -61,7 +78,10 @@ describe('Personality Handler Module', () => {
       reply: jest.fn().mockResolvedValue({}),
       reference: null,
       attachments: new Map(),
-      embeds: []
+      embeds: [],
+      member: {
+        displayName: 'TestUser'
+      }
     };
     
     // Mock personality object
@@ -270,59 +290,202 @@ describe('Personality Handler Module', () => {
     });
     
     it.skip('should start typing indicator', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. startTypingIndicator is called with the proper channel
-      // 2. The typing indicator is properly initialized
+      // Ensure activeRequests is clear
+      personalityHandler.activeRequests.clear();
+      
+      // Spy on the startTypingIndicator function
+      const startTypingIndicatorSpy = jest.spyOn(personalityHandler, 'startTypingIndicator')
+        .mockReturnValue(123); // Mock return value for interval ID
+      
+      // Also spy on trackRequest to see if it's being called
+      const trackRequestSpy = jest.spyOn(personalityHandler, 'trackRequest');
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Log what happened
+      console.log('trackRequest called:', trackRequestSpy.mock.calls.length);
+      console.log('startTypingIndicator called:', startTypingIndicatorSpy.mock.calls.length);
+      console.log('getAiResponse called:', getAiResponse.mock.calls.length);
+      console.log('mockMessage.reply called:', mockMessage.reply.mock.calls.length);
+      if (mockMessage.reply.mock.calls.length > 0) {
+        console.log('Reply message:', mockMessage.reply.mock.calls[0]);
+      }
+      console.log('logger.error called:', logger.error.mock.calls.length);
+      if (logger.error.mock.calls.length > 0) {
+        console.log('Error logs:', logger.error.mock.calls);
+      }
+      
+      // Verify typing indicator was started
+      expect(startTypingIndicatorSpy).toHaveBeenCalledWith(mockMessage.channel);
+      
+      // Clean up spies
+      startTypingIndicatorSpy.mockRestore();
+      trackRequestSpy.mockRestore();
     });
     
     it.skip('should call getAiResponse with correct parameters', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. getAiResponse is called with the correct personality, content, and options
-      // 2. The user's ID and channel ID are properly passed to the AI service
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify getAiResponse was called with correct parameters
+      expect(getAiResponse).toHaveBeenCalledWith(
+        mockPersonality.fullName, // personality name, not the object
+        mockMessage.content,
+        expect.objectContaining({
+          userId: mockMessage.author.id,
+          channelId: mockMessage.channel.id,
+          message: mockMessage
+        })
+      );
     });
     
     it.skip('should send response via webhookManager', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. webhookManager.sendWebhookMessage is called with the correct parameters
-      // 2. recordConversationData is called with the response data
+      // Spy on recordConversationData
+      const recordConversationDataSpy = jest.spyOn(personalityHandler, 'recordConversationData');
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify webhook manager was called
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        mockPersonality,
+        'Test AI response',
+        mockMessage.author.id,
+        mockMessage.id,
+        expect.any(Object) // options
+      );
+      
+      // Verify conversation data was recorded
+      expect(recordConversationDataSpy).toHaveBeenCalledWith(
+        mockMessage.author.id,
+        mockMessage.channel.id,
+        expect.objectContaining({
+          messageIds: ['webhook-message-id']
+        }),
+        mockPersonality.fullName,
+        false
+      );
+      
+      // Clean up spy
+      recordConversationDataSpy.mockRestore();
     });
     
     it.skip('should handle error response markers', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. When AI returns an error marker, it's directly sent to the user via reply
-      // 2. The webhook manager is not called for error markers
+      // Mock AI to return an error marker
+      getAiResponse.mockResolvedValueOnce(MARKERS.BOT_ERROR_MESSAGE + ' An error occurred');
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify reply was called with error message (without the marker)
+      expect(mockMessage.reply).toHaveBeenCalledWith('An error occurred');
+      
+      // Verify webhook manager was NOT called
+      expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
     it.skip('should handle hard blocked response markers', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. When AI returns a hard blocked marker, no response is sent to the user
-      // 2. Neither reply nor webhook methods are called for hard blocked markers
+      // Mock AI to return a hard blocked marker
+      getAiResponse.mockResolvedValueOnce(MARKERS.HARD_BLOCKED_RESPONSE);
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify no response was sent
+      expect(mockMessage.reply).not.toHaveBeenCalled();
+      expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
     it.skip('should use direct thread message for threads', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. For thread channels, sendDirectThreadMessage is called instead of sendWebhookMessage
-      // 2. The threadId is properly passed in the options
+      // Make the channel a thread
+      mockMessage.channel.isThread.mockReturnValue(true);
+      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
+      mockMessage.channel.parent = { id: 'parent-channel-id' };
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify sendDirectThreadMessage was called instead of sendWebhookMessage
+      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        mockPersonality,
+        'Test AI response',
+        mockMessage.author.id,
+        mockMessage.id,
+        expect.objectContaining({
+          threadId: mockMessage.channel.id
+        })
+      );
+      
+      // Verify sendWebhookMessage was NOT called
+      expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
     it.skip('should fall back to regular webhook if thread message fails', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. If sendDirectThreadMessage fails, the system falls back to regular webhook
-      // 2. Both methods are called in the right order
+      // Make the channel a thread
+      mockMessage.channel.isThread.mockReturnValue(true);
+      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
+      mockMessage.channel.parent = { id: 'parent-channel-id' };
+      
+      // Mock sendDirectThreadMessage to fail
+      webhookManager.sendDirectThreadMessage.mockRejectedValueOnce(new Error('Thread message failed'));
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify both methods were called in order
+      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalled();
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
     });
     
     it.skip('should fall back to direct channel.send if all webhook methods fail', async () => {
-      // This test is currently skipped as it requires more complex mocking
-      // The test's intent is to verify that:
-      // 1. If both webhook methods fail, the system falls back to direct channel.send
-      // 2. The fallback message is properly formatted with the personality name
+      // Mock both webhook methods to fail
+      webhookManager.sendWebhookMessage.mockRejectedValueOnce(new Error('Webhook failed'));
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Verify webhook was attempted
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
+      
+      // Verify fallback to channel.send with formatted message
+      expect(mockMessage.channel.send).toHaveBeenCalledWith(
+        expect.stringContaining(`**${mockPersonality.displayName}:** Test AI response`)
+      );
     });
     
     it('should track errors and reply to user on failure', async () => {

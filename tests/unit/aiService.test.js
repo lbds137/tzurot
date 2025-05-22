@@ -57,7 +57,7 @@ jest.mock('openai', () => {
                 index: 0,
                 message: {
                   role: 'assistant',
-                  content: `This is a mock response from the AI for personality: ${params.model}. I am responding to your message.`
+                  content: `This is a mock response from personality: ${params.model}. Hello there!`
                 },
                 finish_reason: 'stop'
               }

@@ -16,16 +16,8 @@ jest.mock('../../../../src/utils/urlValidator');
 const urlValidator = require('../../../../src/utils/urlValidator');
 
 describe('imageHandler', () => {
-  beforeEach(() => {
-    // Reset all mocks
-    jest.clearAllMocks();
-
-    // Default mock implementations
-    urlValidator.isValidUrlFormat.mockReturnValue(true);
-    urlValidator.isTrustedDomain.mockReturnValue(false);
-    
-    // Create a proper ArrayBuffer from Buffer for testing
-    const createMockResponse = (options = {}) => {
+  // Create a proper ArrayBuffer from Buffer for testing
+  const createMockResponse = (options = {}) => {
       const mockBuffer = Buffer.from('fake image data');
       const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
       
@@ -44,8 +36,17 @@ describe('imageHandler', () => {
       };
     };
     
+  beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    nodeFetch.mockReset(); // Explicitly reset nodeFetch to clear any mockResolvedValueOnce calls
+
+    // Default mock implementations
+    urlValidator.isValidUrlFormat.mockReturnValue(true);
+    urlValidator.isTrustedDomain.mockReturnValue(false);
+    
     // Set default successful response
-    nodeFetch.mockResolvedValue(createMockResponse());
+    nodeFetch.mockImplementation(() => Promise.resolve(createMockResponse()));
     
     // Mock URL constructor
     global.URL = jest.fn().mockImplementation((url) => {
@@ -106,11 +107,11 @@ describe('imageHandler', () => {
       const originalHasImageExtension = imageHandler.hasImageExtension;
       imageHandler.hasImageExtension = jest.fn().mockReturnValue(false);
       
-      nodeFetch.mockResolvedValueOnce({
+      nodeFetch.mockResolvedValueOnce(createMockResponse({
         ok: false,
         status: 404,
         statusText: 'Not Found'
-      });
+      }));
       
       const result = await imageHandler.isImageUrl('https://example.com/nonexistent.jpg', {
         trustExtensions: false // Important to prevent fallback to extension checking
@@ -123,15 +124,9 @@ describe('imageHandler', () => {
     });
 
     it('should check content-type if available', async () => {
-      nodeFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: {
-          get: jest.fn(header => {
-            if (header === 'content-type') return 'text/html';
-            return '';
-          })
-        }
-      });
+      nodeFetch.mockResolvedValueOnce(createMockResponse({
+        contentType: 'text/html'
+      }));
       const result = await imageHandler.isImageUrl('https://example.com/fake.jpg');
       expect(result).toBe(true); // Still true because we're trusting the extension
     });
@@ -171,37 +166,20 @@ describe('imageHandler', () => {
   });
 
   describe('downloadImageFile', () => {
-    it.skip('should download and process an image file', async () => {
-      // Create a mock response with buffer and arrayBuffer methods
-      const mockBuffer = Buffer.from('fake image data');
-      const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: {
-          get: jest.fn(header => {
-            if (header === 'content-type') return 'image/jpeg';
-            return null;
-          })
-        },
-        buffer: jest.fn().mockResolvedValue(mockBuffer),
-        arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
-      };
-      nodeFetch.mockResolvedValueOnce(mockResponse);
+    it('should download and process an image file', async () => {
+      // Clear any previous mock state
+      jest.clearAllMocks();
       
-      // Mock the URL pathname to have a specific filename
-      global.URL.mockImplementationOnce(() => ({
-        pathname: '/image.jpg',
-        protocol: 'https:',
-        host: 'example.com'
-      }));
+      // Set up a fresh mock for this specific test
+      const mockResponse = createMockResponse({ contentType: 'image/jpeg' });
+      nodeFetch.mockResolvedValueOnce(mockResponse);
       
       const result = await imageHandler.downloadImageFile('https://example.com/image.jpg');
       
-      expect(result).toHaveProperty('buffer');
-      expect(result).toHaveProperty('filename', 'image.jpg');
-      expect(result).toHaveProperty('contentType', 'image/jpeg');
+      // The buffer property should be an ArrayBuffer
+      expect(result.buffer).toBeInstanceOf(ArrayBuffer);
+      expect(result.filename).toBe('image.jpg');
+      expect(result.contentType).toBe('image/jpeg');
       
       expect(nodeFetch).toHaveBeenCalledWith(
         'https://example.com/image.jpg',
@@ -214,8 +192,9 @@ describe('imageHandler', () => {
       );
     });
 
-    it.skip('should handle download errors', async () => {
-      // Mock the fetch to reject with a network error
+    it('should handle download errors', async () => {
+      // Reset the default mock to reject with an error
+      nodeFetch.mockReset();
       nodeFetch.mockRejectedValueOnce(new Error('Network error'));
       
       // Expect the download to throw
@@ -226,23 +205,8 @@ describe('imageHandler', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-    it.skip('should generate a filename if none can be extracted from URL', async () => {
-      // Mock a response with a content type but no clear filename in the URL
-      const mockBuffer = Buffer.from('fake image data');
-      const mockArrayBuffer = mockBuffer.buffer.slice(mockBuffer.byteOffset, mockBuffer.byteOffset + mockBuffer.byteLength);
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: {
-          get: jest.fn(header => {
-            if (header === 'content-type') return 'image/jpeg';
-            return null;
-          })
-        },
-        arrayBuffer: jest.fn().mockResolvedValue(mockArrayBuffer)
-      };
-      nodeFetch.mockResolvedValueOnce(mockResponse);
+    it('should generate a filename if none can be extracted from URL', async () => {
+      // The default mock response is already set up, just need to change URL mock
       
       // Mock URL to point to a path without a clear image extension
       global.URL.mockImplementationOnce(() => ({
@@ -260,37 +224,19 @@ describe('imageHandler', () => {
   });
 
   describe('processImageUrls', () => {
-    it.skip('should extract and process image URLs from content', async () => {
-      // Mock the full image processing chain
-      imageHandler.extractImageUrls = jest.fn().mockReturnValue([{
-        url: 'https://example.com/image.jpg',
-        filename: 'image.jpg',
-        matchedPattern: 'generic'
-      }]);
-      
-      // Mock downloadImageFile to return a properly formatted result
-      imageHandler.downloadImageFile = jest.fn().mockResolvedValue({
-        buffer: Buffer.from('fake image data'),
-        filename: 'image.jpg',
-        contentType: 'image/jpeg'
-      });
-      
-      // Mock createDiscordAttachment to return a properly formatted attachment
-      imageHandler.createDiscordAttachment = jest.fn().mockReturnValue({
-        attachment: {},
-        name: 'image.jpg',
-        contentType: 'image/jpeg'
-      });
+    it('should extract and process image URLs from content', async () => {
+      // The default mock response is already set up correctly in beforeEach
       
       const content = 'Check out this image: https://example.com/image.jpg';
       
       const result = await imageHandler.processImageUrls(content);
       
-      // Verify the URL was replaced in the content
+      // Verify the URL was removed from the content
       expect(result.content).toBe('Check out this image: ');
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments[0]).toHaveProperty('name', 'image.jpg');
       expect(result.attachments[0]).toHaveProperty('contentType', 'image/jpeg');
+      expect(result.attachments[0]).toHaveProperty('attachment');
     });
 
     it('should return original content when no image URLs are found', async () => {
@@ -305,6 +251,8 @@ describe('imageHandler', () => {
     it('should handle download errors and return original content', async () => {
       const content = 'Check out this image: https://example.com/broken.jpg';
       
+      // Reset the default mock to reject with an error for this test
+      nodeFetch.mockReset();
       nodeFetch.mockRejectedValueOnce(new Error('Download failed'));
       
       const result = await imageHandler.processImageUrls(content);
@@ -314,48 +262,35 @@ describe('imageHandler', () => {
       expect(logger.error).toHaveBeenCalled();
     });
 
-    it.skip('should only process the first image URL if multiple are present', async () => {
-      // Mock to return multiple image URLs
-      imageHandler.extractImageUrls = jest.fn().mockReturnValue([
-        {
-          url: 'https://example.com/image1.jpg',
-          filename: 'image1.jpg',
-          matchedPattern: 'generic'
-        },
-        {
-          url: 'https://example.com/image2.png',
-          filename: 'image2.png',
-          matchedPattern: 'generic'
-        }
-      ]);
+    it('should only process the first image URL if multiple are present', async () => {
+      // The default mock response is already set up correctly in beforeEach
+      // Clear previous mock calls
+      jest.clearAllMocks();
       
-      // Mock the download and attachment creation for the first URL
-      imageHandler.downloadImageFile = jest.fn().mockResolvedValue({
-        buffer: Buffer.from('fake image data'),
-        filename: 'image1.jpg',
-        contentType: 'image/jpeg'
-      });
-      
-      imageHandler.createDiscordAttachment = jest.fn().mockReturnValue({
-        attachment: {},
-        name: 'image1.jpg',
-        contentType: 'image/jpeg'
-      });
+      // Mock URL to return the correct filename for image1.jpg
+      global.URL.mockImplementationOnce(() => ({
+        pathname: '/image1.jpg',
+        protocol: 'https:',
+        host: 'example.com'
+      }));
       
       const content = `Image 1: https://example.com/image1.jpg
                        Image 2: https://example.com/image2.png`;
       
       const result = await imageHandler.processImageUrls(content);
       
-      // Verify only the first URL was processed
+      // Verify only the first URL was removed from content
       expect(result.content).not.toContain('https://example.com/image1.jpg');
       expect(result.content).toContain('https://example.com/image2.png');
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments[0]).toHaveProperty('name', 'image1.jpg');
       
-      // Verify that only the first URL was downloaded
-      expect(imageHandler.downloadImageFile).toHaveBeenCalledTimes(1);
-      expect(imageHandler.downloadImageFile).toHaveBeenCalledWith('https://example.com/image1.jpg');
+      // Verify nodeFetch was only called once (for the first image)
+      expect(nodeFetch).toHaveBeenCalledTimes(1);
+      expect(nodeFetch).toHaveBeenCalledWith(
+        'https://example.com/image1.jpg',
+        expect.any(Object)
+      );
     });
   });
 });

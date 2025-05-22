@@ -428,7 +428,7 @@ describe('Referenced Message Media Tests', () => {
     // Verify we got a valid response
     expect(response).toBeTruthy();
     expect(typeof response).toBe('string');
-    expect(response).toContain('mock response');
+    expect(response).toContain('This is a mock response');
     
     // Verify the API was called with the correctly formatted messages
     expect(createChatCompletionSpy).toHaveBeenCalledTimes(1);
