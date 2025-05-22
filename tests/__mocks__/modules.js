@@ -64,6 +64,21 @@ function createPersonalityManagerMock(options = {}) {
       return Array.from(personalities.values());
     }),
 
+    // Register personality function (used by add command)
+    registerPersonality: jest.fn().mockImplementation(async (userId, fullName, data, fetchInfo = true) => {
+      const personality = {
+        fullName,
+        displayName: data?.displayName || fullName,
+        avatarUrl: data?.avatarUrl || 'https://example.com/avatar.png',
+        description: data?.description || '',
+        createdBy: userId,
+        createdAt: Date.now(),
+        ...data
+      };
+      personalities.set(fullName, personality);
+      return { personality };
+    }),
+
     // Alias management
     getPersonalityByAlias: jest.fn().mockImplementation((alias) => {
       return aliases.get(alias) || null;
