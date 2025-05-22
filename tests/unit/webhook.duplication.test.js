@@ -56,7 +56,8 @@ jest.mock('../../src/handlers/personalityHandler', () => ({
 jest.mock('../../src/handlers/messageTrackerHandler', () => ({
   trackMessageInChannel: jest.fn(),
   markMessageAsHandled: jest.fn(),
-  delayedProcessing: jest.fn().mockResolvedValue(true)
+  delayedProcessing: jest.fn().mockResolvedValue(true),
+  ensureInitialized: jest.fn() // Mock the ensureInitialized function
 }));
 
 // Mock other handlers
@@ -108,13 +109,15 @@ describe('Webhook Message Duplication Fix', () => {
   describe('Webhook identification and handling', () => {
     test('should correctly identify and ignore our own webhook messages', async () => {
       // Create a mock webhook message that should be identified as our own
+      // This message has webhookId and bot=true, but author.id != client.user.id
+      // so it will be processed as a webhook bot message
       const mockMessage = {
         id: '987654321',
         webhookId: '111222333444',
         author: {
           username: 'Albert Einstein',
           bot: true,
-          id: '555666777'
+          id: '555666777' // Different from client.user.id
         },
         content: 'This is a message from the Einstein personality webhook',
         channel: {
@@ -124,7 +127,7 @@ describe('Webhook Message Duplication Fix', () => {
         reference: null
       };
       
-      // Mock the isProxySystemWebhook function to return true
+      // Mock the isProxySystemWebhook function to return true (our own webhook)
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
       
       // Call the message handler
@@ -143,19 +146,20 @@ describe('Webhook Message Duplication Fix', () => {
       // Set up the personality matching behavior in our mock
       webhookUserTracker.isProxySystemWebhook.mockImplementation((message) => {
         if (message.author && message.author.username === 'Nikola Tesla') {
-          mockLogger.info('[WebhookUserTracker] Identified webhook as our own based on personality name match: Nikola Tesla');
           return true;
         }
         return false;
       });
       
       // Create a mock message with personality name that doesn't have IDs
+      // Must have webhookId and bot=true, but author.id != client.user.id
       const mockMessage = {
         id: '222333444',
         webhookId: '888999000',
         author: {
           username: 'Nikola Tesla',
-          bot: true
+          bot: true,
+          id: '999888777' // Different from client.user.id
         },
         content: 'This is a message from the Tesla personality',
         channel: {
@@ -170,9 +174,9 @@ describe('Webhook Message Duplication Fix', () => {
       // Verify the webhook was identified as our own
       expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(mockMessage);
       
-      // Verify proper logging
+      // Verify proper logging - this should be the log from messageHandler, not webhookUserTracker
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringMatching(/Identified webhook as our own based on personality name match/)
+        expect.stringMatching(/Ignoring message from our own webhook/)
       );
     });
   });
