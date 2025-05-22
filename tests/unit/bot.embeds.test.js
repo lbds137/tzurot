@@ -1,36 +1,30 @@
-// Import Discord.js mock
-const { Message } = require('discord.js');
+/**
+ * Embed detection and deletion tests
+ * Enhanced with bot integration test patterns
+ */
 
-// We need to create a way to test the internal functionality of bot.js
-// without actually running the entire bot
-
-// First we'll create some test helpers
-const createMockMessage = (id, embeds) => {
-  const mockMessage = new Message(id, '', 'mock-user-id', 'mock-channel-id');
-  mockMessage.author = { id: 'bot-id', bot: true, username: 'MockBot' };
-  mockMessage.embeds = embeds || [];
-  mockMessage.delete = jest.fn().mockResolvedValue();
-  return mockMessage;
-};
+// Import enhanced test helpers
+const { createMigrationHelper } = require('../utils/testEnhancements');
 
 describe('Embed detection and deletion', () => {
-  // Save original console functions
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
+  let migrationHelper;
+  let consoleMock;
   
-  // Mock console functions to clean up test output
   beforeEach(() => {
-    console.log = jest.fn();
-    console.error = jest.fn();
+    // Create bot integration migration helper
+    migrationHelper = createMigrationHelper('bot');
     
-    // We need to reset the global state before each test
-    global.lastEmbedTime = 0;
+    // Enhanced console mocking
+    consoleMock = migrationHelper.bridge.mockConsole();
+    
+    // Enhanced global state setup
+    migrationHelper.bridge.setupBotGlobals();
   });
   
-  // Restore console functions
   afterEach(() => {
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
+    // Enhanced cleanup
+    consoleMock.restore();
+    migrationHelper.bridge.cleanupBotGlobals();
   });
   
   // Define a function that replicates the embed detection logic from bot.js
@@ -82,7 +76,11 @@ describe('Embed detection and deletion', () => {
       // No thumbnail/avatar
     };
     
-    const message = createMockMessage('mock-message-1', [incompleteEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-1', 
+      embeds: [incompleteEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(true);
@@ -106,7 +104,11 @@ describe('Embed detection and deletion', () => {
       // No thumbnail/avatar
     };
     
-    const message = createMockMessage('mock-message-2', [incompleteEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-2', 
+      embeds: [incompleteEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(true);
@@ -125,7 +127,11 @@ describe('Embed detection and deletion', () => {
       // No thumbnail/avatar
     };
     
-    const message = createMockMessage('mock-message-3', [incompleteEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-3', 
+      embeds: [incompleteEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(true);
@@ -144,7 +150,11 @@ describe('Embed detection and deletion', () => {
       thumbnail: { url: "https://example.com/avatar.png" } // Has thumbnail/avatar
     };
     
-    const message = createMockMessage('mock-message-4', [completeEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-4', 
+      embeds: [completeEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(false);
@@ -163,7 +173,11 @@ describe('Embed detection and deletion', () => {
       fields: []
     };
     
-    const message = createMockMessage('mock-message-5', [otherEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-5', 
+      embeds: [otherEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(false);
@@ -182,7 +196,11 @@ describe('Embed detection and deletion', () => {
       // No thumbnail/avatar
     };
     
-    const message = createMockMessage('mock-message-6', [incompleteEmbed]);
+    const message = migrationHelper.bridge.createCompatibleMockMessage({ 
+      id: 'mock-message-6', 
+      embeds: [incompleteEmbed],
+      isBot: true 
+    });
     
     // Test the detection
     expect(detectIncompleteEmbed(message)).toBe(true);

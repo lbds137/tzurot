@@ -37,6 +37,154 @@ function setupBotTestMocks() {
 }
 
 /**
+ * Enhanced bot test helpers that reduce duplication
+ * These provide standardization for bot integration tests
+ */
+function createBotIntegrationTest() {
+  return {
+    /**
+     * Create comprehensive bot environment mock
+     */
+    createBotEnvironment: () => {
+      const mockAiService = {
+        getAiResponse: jest.fn().mockResolvedValue('This is a mock AI response')
+      };
+      
+      const mockWebhookManager = {
+        getOrCreateWebhook: jest.fn().mockResolvedValue({
+          send: jest.fn().mockResolvedValue({ id: 'mock-webhook-message' })
+        }),
+        sendWebhookMessage: jest.fn().mockResolvedValue({
+          message: { id: 'mock-webhook-message' },
+          messageIds: ['mock-webhook-message']
+        }),
+        registerEventListeners: jest.fn()
+      };
+      
+      const mockConversationManager = {
+        recordConversation: jest.fn(),
+        getActivePersonality: jest.fn(),
+        getPersonalityFromMessage: jest.fn(),
+        getActivatedPersonality: jest.fn()
+      };
+      
+      const mockCommandLoader = {
+        processCommand: jest.fn().mockResolvedValue({
+          success: true,
+          message: 'Command processed successfully'
+        })
+      };
+      
+      const mockPersonalityManager = {
+        getPersonalityByAlias: jest.fn(),
+        getPersonality: jest.fn(),
+        registerPersonality: jest.fn()
+      };
+      
+      const mockLogger = {
+        info: jest.fn(),
+        debug: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn()
+      };
+      
+      return {
+        aiService: mockAiService,
+        webhookManager: mockWebhookManager,
+        conversationManager: mockConversationManager,
+        commandLoader: mockCommandLoader,
+        personalityManager: mockPersonalityManager,
+        logger: mockLogger,
+        config: { botPrefix: '!tz' }
+      };
+    },
+    
+    /**
+     * Create enhanced Discord message mock for bot tests
+     */
+    createBotMessage: (options = {}) => {
+      const {
+        id = 'test-message-123',
+        content = 'Test message content',
+        authorId = 'user-123',
+        channelId = 'channel-123',
+        isBot = false,
+        embeds = [],
+        isDM = false
+      } = options;
+      
+      const mockMessage = {
+        id,
+        content,
+        author: {
+          id: authorId,
+          bot: isBot,
+          username: isBot ? 'MockBot' : 'TestUser'
+        },
+        channel: {
+          id: channelId,
+          type: isDM ? 1 : 0, // 1 = DM, 0 = Guild Text
+          send: jest.fn().mockResolvedValue({ id: 'sent-message-123' }),
+          sendTyping: jest.fn().mockResolvedValue(undefined)
+        },
+        guild: isDM ? null : { id: 'guild-123' },
+        embeds,
+        delete: jest.fn().mockResolvedValue(),
+        reply: jest.fn().mockResolvedValue({ id: 'reply-message-123' })
+      };
+      
+      return mockMessage;
+    },
+    
+    /**
+     * Setup global state for bot tests
+     */
+    setupBotGlobals: () => {
+      global.lastEmbedTime = 0;
+      global.embedDeduplicationWindow = 5000;
+      global.processedBotMessages = new Set();
+      global.seenBotMessages = new Set();
+    },
+    
+    /**
+     * Cleanup global state after bot tests
+     */
+    cleanupBotGlobals: () => {
+      delete global.lastEmbedTime;
+      delete global.embedDeduplicationWindow;
+      delete global.processedBotMessages;
+      delete global.seenBotMessages;
+    },
+    
+    /**
+     * Console mocking utilities for bot tests
+     */
+    mockConsole: () => {
+      const original = {
+        log: console.log,
+        error: console.error,
+        warn: console.warn,
+        debug: console.debug
+      };
+      
+      console.log = jest.fn();
+      console.error = jest.fn();
+      console.warn = jest.fn();
+      console.debug = jest.fn();
+      
+      return {
+        restore: () => {
+          console.log = original.log;
+          console.error = original.error;
+          console.warn = original.warn;
+          console.debug = original.debug;
+        }
+      };
+    }
+  };
+}
+
+/**
  * Enhanced command test helpers that reduce duplication
  * These work with the existing commandTestHelpers but provide more standardization
  */
@@ -156,29 +304,48 @@ function createStandardAssertions() {
  * This allows tests to be updated incrementally
  */
 function createMigrationHelper(testType = 'command') {
-  const standardTest = createStandardCommandTest();
+  const standardTest = testType === 'command' ? createStandardCommandTest() : null;
+  const botTest = testType === 'bot' ? createBotIntegrationTest() : null;
   const assertions = createStandardAssertions();
   
   // Bridge utilities for connecting new and old systems
   const bridge = {
     getMockEnvironment: (options = {}) => {
-      // Create a basic mock environment for testing
-      return {
-        modules: standardTest.createModuleMocks(),
-        discord: {
-          createMessage: standardTest.createMockMessage
-        }
-      };
+      if (testType === 'bot') {
+        return {
+          modules: botTest.createBotEnvironment(),
+          discord: {
+            createMessage: botTest.createBotMessage
+          }
+        };
+      } else {
+        // Command test environment
+        return {
+          modules: standardTest.createModuleMocks(),
+          discord: {
+            createMessage: standardTest.createMockMessage
+          }
+        };
+      }
     },
     
     createCompatibleMockMessage: (options = {}) => {
-      return standardTest.createMockMessage(options);
+      if (testType === 'bot') {
+        return botTest.createBotMessage(options);
+      } else {
+        return standardTest.createMockMessage(options);
+      }
     },
     
     setupCommonMocks: (mockEnv, customMocks = {}) => {
       // Setup common Jest mocks for migration
       return mockEnv;
-    }
+    },
+    
+    // Bot-specific utilities
+    setupBotGlobals: botTest ? botTest.setupBotGlobals : undefined,
+    cleanupBotGlobals: botTest ? botTest.cleanupBotGlobals : undefined,
+    mockConsole: botTest ? botTest.mockConsole : undefined
   };
   
   // Enhanced assertions with additional helpful methods
@@ -204,15 +371,15 @@ function createMigrationHelper(testType = 'command') {
     
     // New enhanced methods
     enhanced: {
-      createMessage: standardTest.createMockMessage,
-      createValidator: standardTest.createValidatorMock,
-      createMocks: standardTest.createModuleMocks,
+      createMessage: testType === 'bot' ? botTest.createBotMessage : standardTest.createMockMessage,
+      createValidator: testType === 'bot' ? null : standardTest.createValidatorMock,
+      createMocks: testType === 'bot' ? botTest.createBotEnvironment : standardTest.createModuleMocks,
       assert: enhancedAssertions
     },
     
     // Legacy compatibility
     legacy: {
-      createMockMessage: require('./commandTestHelpers').createMockMessage
+      createMockMessage: testType === 'bot' ? botTest.createBotMessage : require('./commandTestHelpers').createMockMessage
     },
     
     // Utilities
@@ -224,6 +391,7 @@ module.exports = {
   getCommandTestMocks,
   setupBotTestMocks,
   createStandardCommandTest,
+  createBotIntegrationTest,
   createStandardAssertions,
   createMigrationHelper
 };

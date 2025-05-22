@@ -1,30 +1,30 @@
+/**
+ * Message Deduplication Mechanisms Tests
+ * Enhanced with bot integration test patterns
+ */
+
+// Import enhanced test helpers
+const { createMigrationHelper } = require('../utils/testEnhancements');
+
 describe('Message Deduplication Mechanisms', () => {
-  // Original console functions
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
+  let migrationHelper;
+  let consoleMock;
   
-  // Setup mocks
   beforeEach(() => {
-    console.log = jest.fn();
-    console.error = jest.fn();
+    // Create bot integration migration helper
+    migrationHelper = createMigrationHelper('bot');
     
-    // Reset global state
-    global.lastEmbedTime = 0;
-    global.embedDeduplicationWindow = 5000;
-    global.processedBotMessages = new Set();
-    global.seenBotMessages = new Set();
+    // Enhanced console mocking
+    consoleMock = migrationHelper.bridge.mockConsole();
+    
+    // Enhanced global state setup
+    migrationHelper.bridge.setupBotGlobals();
   });
   
-  // Cleanup
   afterEach(() => {
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    
-    // Clean up global state
-    delete global.lastEmbedTime;
-    delete global.embedDeduplicationWindow;
-    delete global.processedBotMessages;
-    delete global.seenBotMessages;
+    // Enhanced cleanup
+    consoleMock.restore();
+    migrationHelper.bridge.cleanupBotGlobals();
   });
   
   // This test simulates the reply signature generation logic from bot.js
@@ -124,11 +124,11 @@ describe('Message Deduplication Mechanisms', () => {
   
   // Test the actual Message.prototype.reply patching from bot.js
   it('should patch Message.prototype.reply to prevent duplicates', () => {
-    // Mock objects needed for the test
-    const mockMessage = {
+    // Create enhanced mock message using bot integration patterns
+    const mockMessage = migrationHelper.bridge.createCompatibleMockMessage({
       id: 'msg1',
-      channel: { id: 'chan1' }
-    };
+      channelId: 'chan1'
+    });
     
     // Create a mock for originalReply function
     const originalReply = jest.fn().mockResolvedValue({ id: 'reply1' });
