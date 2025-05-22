@@ -62,6 +62,21 @@ function createUtilityTest() {
         dataStorage: {
           saveData: jest.fn().mockResolvedValue(),
           loadData: jest.fn().mockResolvedValue({})
+        },
+        discord: {
+          EmbedBuilder: jest.fn().mockImplementation(() => ({
+            setTitle: jest.fn().mockReturnThis(),
+            setDescription: jest.fn().mockReturnThis(),
+            setColor: jest.fn().mockReturnThis(),
+            addFields: jest.fn().mockReturnThis(),
+            setFooter: jest.fn().mockReturnThis(),
+            setThumbnail: jest.fn().mockReturnThis(),
+            data: {
+              title: '',
+              description: '',
+              fields: []
+            }
+          }))
         }
       };
     },

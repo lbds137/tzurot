@@ -1,26 +1,28 @@
 // Test suite for the embedBuilders.js createPersonalityListEmbed function
 
-// Mock personalityManager before importing anything
-jest.mock('../../src/personalityManager', () => ({
+// Mock personalityManager with proper functionality BEFORE requiring embedBuilders
+const mockPersonalityManager = {
   listPersonalitiesForUser: jest.fn(),
   personalityAliases: new Map()
-}));
+};
+
+jest.mock('../../src/personalityManager', () => mockPersonalityManager);
 
 const { createMigrationHelper } = require('../utils/testEnhancements');
+
+// Set up enhanced mocks
+const mockEnv = createMigrationHelper('utility');
 const embedBuilders = require('../../src/utils/embedBuilders');
-const personalityManager = require('../../src/personalityManager');
 
 describe('embedBuilders.createPersonalityListEmbed', () => {
-  let migrationHelper;
   let consoleMock;
 
   beforeEach(() => {
-    migrationHelper = createMigrationHelper('utility');
-    consoleMock = migrationHelper.bridge.mockConsole();
+    consoleMock = mockEnv.bridge.mockConsole();
     
     // Reset all mocks
     jest.clearAllMocks();
-    personalityManager.personalityAliases.clear();
+    mockPersonalityManager.personalityAliases.clear();
   });
 
   afterEach(() => {
@@ -46,18 +48,18 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     ];
     
     // Set up mock aliases - using Map instead of object
-    personalityManager.personalityAliases.set('test1', 'test-personality-one');
-    personalityManager.personalityAliases.set('alias1', 'test-personality-one');
-    personalityManager.personalityAliases.set('test2', 'test-personality-two');
+    mockPersonalityManager.personalityAliases.set('test1', 'test-personality-one');
+    mockPersonalityManager.personalityAliases.set('alias1', 'test-personality-one');
+    mockPersonalityManager.personalityAliases.set('test2', 'test-personality-two');
     
     // Set up return value for the mock
-    personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
+    mockPersonalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing
     const result = embedBuilders.createPersonalityListEmbed(userId);
     
     // Verify listPersonalitiesForUser was called with the right args
-    expect(personalityManager.listPersonalitiesForUser).toHaveBeenCalledWith(userId);
+    expect(mockPersonalityManager.listPersonalitiesForUser).toHaveBeenCalledWith(userId);
     
     // Check that result has the expected structure
     expect(result).toHaveProperty('embed');
@@ -100,7 +102,7 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     // No aliases for this personality
     
     // Set up return value for the mock
-    personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
+    mockPersonalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing
     const result = embedBuilders.createPersonalityListEmbed(userId);
@@ -118,7 +120,7 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     const userId = 'test-user-123';
     
     // No personalities for this user
-    personalityManager.listPersonalitiesForUser.mockReturnValue([]);
+    mockPersonalityManager.listPersonalitiesForUser.mockReturnValue([]);
     
     // Execute the function we're testing
     const result = embedBuilders.createPersonalityListEmbed(userId);
@@ -145,15 +147,15 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     ];
     
     // Replace the Map with a regular object to simulate the error condition
-    const originalAliases = personalityManager.personalityAliases;
+    const originalAliases = mockPersonalityManager.personalityAliases;
     // @ts-ignore - intentionally setting this to an object for testing
-    personalityManager.personalityAliases = {
+    mockPersonalityManager.personalityAliases = {
       'test1': 'test-personality-one',
       'alias1': 'test-personality-one'
     };
     
     // Set up return value for the mock
-    personalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
+    mockPersonalityManager.listPersonalitiesForUser.mockReturnValue(testPersonalities);
     
     // Execute the function we're testing - it should handle the object instead of Map
     const result = embedBuilders.createPersonalityListEmbed(userId);
@@ -171,7 +173,7 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     expect(embed.data.fields[0].value).toContain('ID: `test-personality-one`');
     
     // Reset the mock to avoid affecting other tests
-    personalityManager.personalityAliases = originalAliases;
+    mockPersonalityManager.personalityAliases = originalAliases;
   });
   
   test('handles pagination correctly', () => {
@@ -185,7 +187,7 @@ describe('embedBuilders.createPersonalityListEmbed', () => {
     }));
     
     // Set up return value for the mock
-    personalityManager.listPersonalitiesForUser.mockReturnValue(manyPersonalities);
+    mockPersonalityManager.listPersonalitiesForUser.mockReturnValue(manyPersonalities);
     
     // Get page 1 (default)
     const resultPage1 = embedBuilders.createPersonalityListEmbed(userId);

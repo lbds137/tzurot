@@ -1,126 +1,53 @@
 /**
- * Mock implementation for testing profileInfoFetcher.js
+ * Legacy Profile Info Fetcher Mocks - Deprecated
+ * 
+ * This file is kept for backward compatibility but should not be used in new tests.
+ * Use the new consolidated mock system at tests/__mocks__/index.js instead.
+ * 
+ * @deprecated Use require('../../__mocks__').api instead
  */
 
-// Mock profile data for tests
-const mockProfileData = {
-  id: '12345',
-  name: 'Test Display Name',
-};
+const { createApiEnvironment } = require('../__mocks__/api');
 
-// Mock API endpoint
-const mockEndpoint = 'https://api.example.com/profiles/test-profile';
+// Create default API environment for legacy compatibility
+const defaultApi = createApiEnvironment();
 
-// Mock avatar URL format
-const mockAvatarUrlFormat = 'https://cdn.example.com/avatars/{id}.png';
-
-// Create a mock Response class that matches node-fetch Response
-class MockResponse {
-  constructor(options = {}) {
-    this.ok = options.ok || true;
-    this.status = options.status || 200;
-    this.statusText = options.statusText || 'OK';
-    this._data = options.data;
-  }
-
-  json() {
-    return Promise.resolve(this._data);
+/**
+ * Legacy function to setup fetch success
+ * @deprecated Use apiEnv.fetch.setResponse() instead
+ */
+function setupFetchSuccess(mockFetch = global.fetch) {
+  console.warn('DEPRECATED: setupFetchSuccess is deprecated. Use the consolidated mock system instead.');
+  
+  if (mockFetch && typeof mockFetch.mockResolvedValue === 'function') {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        id: '12345',
+        name: 'Mock Profile'
+      })
+    });
   }
 }
 
-// Helper to create a mock fetch implementation
-function createMockFetch(response) {
-  return jest.fn().mockImplementation(() => Promise.resolve(response));
-}
-
-// Setup success mock
-function setupFetchSuccess(nodeFetchMock) {
-  const response = new MockResponse({
-    ok: true, 
-    status: 200, 
-    statusText: 'OK',
-    data: mockProfileData
-  });
+/**
+ * Legacy function to setup fetch error
+ * @deprecated Use apiEnv.fetch.setError() instead
+ */
+function setupFetchError(mockFetch = global.fetch, error = 'Network error') {
+  console.warn('DEPRECATED: setupFetchError is deprecated. Use the consolidated mock system instead.');
   
-  // Replace the mock implementation
-  nodeFetchMock.mockImplementation(() => Promise.resolve(response));
-  
-  return response;
-}
-
-// Setup error response mock
-function setupFetchError(nodeFetchMock, status = 404, statusText = 'Not Found') {
-  const response = new MockResponse({
-    ok: false,
-    status,
-    statusText,
-    data: { error: statusText }
-  });
-  
-  nodeFetchMock.mockImplementationOnce(() => Promise.resolve(response));
-  
-  return response;
-}
-
-// Setup exception mock
-function setupFetchException(nodeFetchMock, error = new Error('Network error')) {
-  nodeFetchMock.mockImplementationOnce(() => Promise.reject(error));
-  return error;
-}
-
-// Setup empty data mock
-function setupFetchEmptyData(nodeFetchMock) {
-  const response = new MockResponse({
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    data: null
-  });
-  
-  nodeFetchMock.mockImplementationOnce(() => Promise.resolve(response));
-  
-  return response;
-}
-
-// Setup missing name mock
-function setupFetchMissingName(nodeFetchMock) {
-  const data = { id: mockProfileData.id }; // Missing name
-  const response = new MockResponse({
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    data
-  });
-  
-  nodeFetchMock.mockImplementationOnce(() => Promise.resolve(response));
-  
-  return response;
-}
-
-// Setup missing id mock
-function setupFetchMissingId(nodeFetchMock) {
-  const data = { name: mockProfileData.name }; // Missing id
-  const response = new MockResponse({
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    data
-  });
-  
-  nodeFetchMock.mockImplementationOnce(() => Promise.resolve(response));
-  
-  return response;
+  if (mockFetch && typeof mockFetch.mockRejectedValue === 'function') {
+    mockFetch.mockRejectedValue(new Error(error));
+  }
 }
 
 module.exports = {
-  mockProfileData,
-  mockEndpoint,
-  mockAvatarUrlFormat,
-  createMockFetch,
   setupFetchSuccess,
   setupFetchError,
-  setupFetchException,
-  setupFetchEmptyData,
-  setupFetchMissingName,
-  setupFetchMissingId
+  
+  // Warn about deprecation
+  _deprecated: true,
+  _message: 'This mock is deprecated. Use the consolidated system at tests/__mocks__/index.js'
 };
