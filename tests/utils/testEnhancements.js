@@ -159,13 +159,55 @@ function createMigrationHelper(testType = 'command') {
   const standardTest = createStandardCommandTest();
   const assertions = createStandardAssertions();
   
+  // Bridge utilities for connecting new and old systems
+  const bridge = {
+    getMockEnvironment: (options = {}) => {
+      // Create a basic mock environment for testing
+      return {
+        modules: standardTest.createModuleMocks(),
+        discord: {
+          createMessage: standardTest.createMockMessage
+        }
+      };
+    },
+    
+    createCompatibleMockMessage: (options = {}) => {
+      return standardTest.createMockMessage(options);
+    },
+    
+    setupCommonMocks: (mockEnv, customMocks = {}) => {
+      // Setup common Jest mocks for migration
+      return mockEnv;
+    }
+  };
+  
+  // Enhanced assertions with additional helpful methods
+  const enhancedAssertions = {
+    ...assertions,
+    
+    assertFunctionCalled: (mockFn, description) => {
+      expect(mockFn).toHaveBeenCalled();
+    },
+    
+    assertFunctionCalledWith: (mockFn, expectedArgs, description) => {
+      expect(mockFn).toHaveBeenCalledWith(...expectedArgs);
+    },
+    
+    assertFunctionNotCalled: (mockFn, description) => {
+      expect(mockFn).not.toHaveBeenCalled();
+    }
+  };
+  
   return {
+    // Bridge utilities
+    bridge,
+    
     // New enhanced methods
     enhanced: {
       createMessage: standardTest.createMockMessage,
       createValidator: standardTest.createValidatorMock,
       createMocks: standardTest.createModuleMocks,
-      assert: assertions
+      assert: enhancedAssertions
     },
     
     // Legacy compatibility

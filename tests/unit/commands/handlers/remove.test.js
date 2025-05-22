@@ -1,6 +1,6 @@
 /**
  * Tests for the remove command handler
- * Standardized format using mock factories
+ * Enhanced with migration helper patterns
  */
 
 // Mock dependencies before requiring the module
@@ -10,51 +10,41 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
 }));
 
-// Import test helpers
-const helpers = require('../../../utils/commandTestHelpers');
+// Import enhanced test helpers
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
 
 describe('Remove Command', () => {
+  let migrationHelper;
   let removeCommand;
   let mockMessage;
   let mockEmbed;
   let mockValidator;
   let mockPersonalityManager;
+  let mockDirectSendFunction;
   
   beforeEach(() => {
-    // Reset all mocks
+    // Reset all mocks and modules
     jest.clearAllMocks();
     jest.resetModules();
     
-    // Create mock instances with proper naming
-    const factories = require('../../../utils/mockFactories');
-    mockValidator = factories.createValidatorMock();
-    mockPersonalityManager = factories.createPersonalityManagerMock();
+    // Create migration helper with enhanced patterns
+    migrationHelper = createMigrationHelper();
     
-    // Mock specific dependencies that the command uses directly
-    jest.mock('../../../../src/commands/utils/commandValidator', () => mockValidator);
-    jest.mock('../../../../src/personalityManager', () => mockPersonalityManager);
+    // Setup enhanced mock environment
+    const mockEnv = migrationHelper.bridge.getMockEnvironment();
+    mockMessage = migrationHelper.bridge.createCompatibleMockMessage();
     
-    // Import mocked dependencies now that they're set up
-    const logger = require('../../../../src/logger');
-    const { EmbedBuilder } = require('discord.js');
-    
-    // Set up logger mock
-    logger.error = jest.fn();
-    logger.info = jest.fn();
-    
-    // Set up EmbedBuilder mock
+    // Enhanced EmbedBuilder mock
     mockEmbed = {
       setTitle: jest.fn().mockReturnThis(),
       setDescription: jest.fn().mockReturnThis(),
       setColor: jest.fn().mockReturnThis(),
       toJSON: jest.fn().mockReturnValue({ title: 'Personality Removed' }),
     };
+    const { EmbedBuilder } = require('discord.js');
     EmbedBuilder.mockImplementation(() => mockEmbed);
     
-    // Create mock message
-    mockMessage = helpers.createMockMessage();
-    
-    // Create our spy for directSend to see if it's called
+    // Enhanced mock direct send
     mockDirectSendFunction = jest.fn().mockImplementation(content => {
       return Promise.resolve({
         id: 'direct-sent-123',
@@ -62,30 +52,57 @@ describe('Remove Command', () => {
       });
     });
     
-    mockValidator.createDirectSend.mockReturnValue(mockDirectSendFunction);
+    // Enhanced module mocks with proper Jest integration
+    jest.doMock('../../../../src/personalityManager', () => ({
+      getPersonality: jest.fn().mockReturnValue({
+        fullName: 'test-personality',  
+        displayName: 'Test Personality',
+        avatarUrl: 'https://example.com/avatar.png'
+      }),
+      getPersonalityByAlias: jest.fn().mockReturnValue(null),
+      removePersonality: jest.fn().mockResolvedValue({
+        success: true
+      })
+    }));
     
-    // Import the command module after setting up all mocks
+    jest.doMock('../../../../src/commands/utils/commandValidator', () => ({
+      createDirectSend: jest.fn().mockReturnValue(mockDirectSendFunction),
+      isAdmin: jest.fn().mockReturnValue(false),
+      canManageMessages: jest.fn().mockReturnValue(false),
+      isNsfwChannel: jest.fn().mockReturnValue(false)
+    }));
+    
+    // Setup logger mock
+    const logger = require('../../../../src/logger');
+    logger.error = jest.fn();
+    logger.info = jest.fn();
+    
+    // Import modules after mocking
+    mockPersonalityManager = require('../../../../src/personalityManager');
+    mockValidator = require('../../../../src/commands/utils/commandValidator');
     removeCommand = require('../../../../src/commands/handlers/remove');
   });
   
   it('should have the correct metadata', () => {
-    expect(removeCommand.meta).toEqual({
-      name: 'remove',
-      description: expect.any(String),
-      usage: expect.any(String),
-      aliases: expect.arrayContaining(['delete']),
-      permissions: expect.any(Array)
-    });
+    migrationHelper.enhanced.assert.assertCommandMetadata(removeCommand, 'remove');
+    expect(removeCommand.meta.aliases).toEqual(expect.arrayContaining(['delete']));
   });
   
   it('should require a personality name', async () => {
     await removeCommand.execute(mockMessage, []);
     
-    // Verify the direct send function was created
-    expect(mockValidator.createDirectSend).toHaveBeenCalledWith(mockMessage);
+    // Verify the direct send function was created using enhanced assertions
+    migrationHelper.enhanced.assert.assertFunctionCalledWith(
+      mockValidator.createDirectSend, 
+      [mockMessage], 
+      'Should create direct send function for the message'
+    );
     
     // Verify error message was sent about missing personality name
-    expect(mockDirectSendFunction).toHaveBeenCalled();
+    migrationHelper.enhanced.assert.assertFunctionCalled(
+      mockDirectSendFunction,
+      'Should send error message for missing personality name'
+    );
     expect(mockDirectSendFunction.mock.calls[0][0]).toContain('need to provide a personality name');
   });
   

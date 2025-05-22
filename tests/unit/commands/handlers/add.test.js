@@ -14,15 +14,15 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz'
 }));
 
-// Import test helpers
-const helpers = require('../../../utils/commandTestHelpers');
+// Import enhanced test helpers
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
 
 // Import mocked modules
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../../../src/logger');
 
 describe('Add Command', () => {
-  // Setup module mocks before requiring the module
+  let migrationHelper;
   let addCommand;
   let mockMessage;
   let mockDirectSend;
@@ -33,24 +33,18 @@ describe('Add Command', () => {
   let validator;
   
   beforeEach(() => {
-    // Reset modules between tests
+    // Reset modules and mocks between tests
     jest.resetModules();
     jest.clearAllMocks();
     
-    // Setup mock message
-    mockMessage = helpers.createMockMessage();
-    mockMessage.channel.send = jest.fn().mockResolvedValue({
-      id: 'sent-message-123',
-      embeds: [{title: 'Personality Added'}]
-    });
-    mockMessage.channel.sendTyping = jest.fn().mockResolvedValue(undefined);
+    // Create migration helper with enhanced patterns
+    migrationHelper = createMigrationHelper();
     
-    // Setup mock direct send function
-    mockDirectSend = jest.fn().mockImplementation(content => {
-      return mockMessage.channel.send(content);
-    });
+    // Setup enhanced mock environment
+    const mockEnv = migrationHelper.bridge.getMockEnvironment();
+    mockMessage = migrationHelper.bridge.createCompatibleMockMessage();
     
-    // Mock EmbedBuilder
+    // Enhanced EmbedBuilder mock
     mockEmbed = {
       setTitle: jest.fn().mockReturnThis(),
       setDescription: jest.fn().mockReturnThis(),
@@ -68,7 +62,12 @@ describe('Add Command', () => {
     };
     EmbedBuilder.mockImplementation(() => mockEmbed);
     
-    // Mock personalityManager
+    // Setup enhanced mock direct send
+    mockDirectSend = jest.fn().mockImplementation(content => {
+      return mockMessage.channel.send(content);
+    });
+    
+    // Enhanced module mocks with proper Jest integration
     jest.doMock('../../../../src/personalityManager', () => ({
       registerPersonality: jest.fn().mockImplementation((userId, name, alias) => {
         return {
@@ -84,12 +83,10 @@ describe('Add Command', () => {
       personalityAliases: new Map()
     }));
     
-    // Mock webhookManager
     jest.doMock('../../../../src/webhookManager', () => ({
       preloadPersonalityAvatar: jest.fn().mockResolvedValue(true)
     }));
     
-    // Mock messageTracker
     jest.doMock('../../../../src/commands/utils/messageTracker', () => ({
       isAddCommandProcessed: jest.fn().mockReturnValue(false),
       markAddCommandAsProcessed: jest.fn(),
@@ -101,7 +98,6 @@ describe('Add Command', () => {
       clearSendingEmbed: jest.fn()
     }));
     
-    // Mock validator
     jest.doMock('../../../../src/commands/utils/commandValidator', () => {
       return {
         createDirectSend: jest.fn().mockReturnValue(mockDirectSend),
@@ -119,15 +115,10 @@ describe('Add Command', () => {
     addCommand = require('../../../../src/commands/handlers/add');
   });
   
-  // Test command metadata
+  // Test command metadata using enhanced assertions
   it('should have the correct metadata', () => {
-    expect(addCommand.meta).toEqual({
-      name: 'add',
-      description: expect.any(String),
-      usage: expect.any(String),
-      aliases: expect.arrayContaining(['create']),
-      permissions: expect.any(Array)
-    });
+    migrationHelper.enhanced.assert.assertCommandMetadata(addCommand, 'add');
+    expect(addCommand.meta.aliases).toEqual(expect.arrayContaining(['create']));
   });
   
   // Test basic functionality
@@ -267,15 +258,10 @@ describe('Add Command', () => {
   
   // Test special cases
   it('should handle registration in DM channels', async () => {
-    // Arrange - create a DM-based mock message
-    const dmMockMessage = helpers.createMockMessage({ isDM: true });
-    dmMockMessage.channel.send = jest.fn().mockResolvedValue({
-      id: 'dm-message-123',
-      embeds: [{title: 'Personality Added'}]
-    });
-    dmMockMessage.channel.sendTyping = jest.fn().mockResolvedValue(undefined);
+    // Arrange - create enhanced DM mock message
+    const dmMockMessage = migrationHelper.bridge.createCompatibleMockMessage({ isDM: true });
     
-    // Custom directSend for DM channel
+    // Custom directSend for DM channel using enhanced patterns
     const dmDirectSend = jest.fn().mockImplementation(content => {
       return dmMockMessage.channel.send(content);
     });
@@ -286,15 +272,16 @@ describe('Add Command', () => {
     // Act
     await addCommand.execute(dmMockMessage, ['test-personality']);
     
-    // Assert
-    // Verify personality was registered
-    expect(personalityManager.registerPersonality).toHaveBeenCalled();
+    // Assert using enhanced assertions
+    migrationHelper.enhanced.assert.assertFunctionCalled(
+      personalityManager.registerPersonality,
+      'Personality registration should occur'
+    );
     
-    // DM-specific footer checks are implementation details
-    // We just need to verify that the execution completes successfully
-    
-    // Verify message was sent to the DM channel
-    expect(dmMockMessage.channel.send).toHaveBeenCalled();
+    migrationHelper.enhanced.assert.assertFunctionCalled(
+      dmMockMessage.channel.send,
+      'Message should be sent to DM channel'
+    );
   });
   
   it('should handle typing indicator errors gracefully', async () => {
