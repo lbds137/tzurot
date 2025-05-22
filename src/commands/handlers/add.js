@@ -6,7 +6,7 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const messageTracker = require('../utils/messageTracker');
-const { registerPersonality, setPersonalityAlias } = require('../../personalityManager');
+const { registerPersonality, _setPersonalityAlias } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix } = require('../../../config');
 

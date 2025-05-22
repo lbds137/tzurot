@@ -2,7 +2,7 @@
  * Activate Command Handler
  * Activates a personality in a channel to respond to all messages
  */
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, _PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const channelUtils = require('../../utils/channelUtils');

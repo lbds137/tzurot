@@ -2,7 +2,7 @@
  * Autorespond Command Handler
  * Manages user auto-response preferences
  */
-const logger = require('../../logger');
+const _logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
 

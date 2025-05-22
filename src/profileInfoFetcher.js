@@ -68,10 +68,10 @@ async function fetchProfileInfo(profileName, userId = null) {
   ongoingRequests.set(requestKey, requestPromise);
 
   // Create a context object with the user ID to pass through the rate limiter
-  const context = { userId };
+  const _context = { userId };
 
   // Use the rate limiter to handle this request with the user context
-  rateLimiter.enqueue(async (_, enqueueContext) => {
+  rateLimiter.enqueue(async (_, _enqueueContext) => {
     try {
       logger.info(`[ProfileInfoFetcher] Fetching profile info for: ${profileName}`);
 
@@ -265,7 +265,7 @@ async function getProfileAvatarUrl(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
 
   // Create a context object with the user ID if provided
-  const context = userId ? { userId } : {};
+  const _context = userId ? { userId } : {};
 
   // Use the rateLimiter to execute the request with context
   const profileInfo = await fetchProfileInfo(profileName, userId);
@@ -324,7 +324,7 @@ async function getProfileDisplayName(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting display name for: ${profileName}`);
 
   // Create a context object with the user ID if provided
-  const context = userId ? { userId } : {};
+  const _context = userId ? { userId } : {};
 
   // Use the rateLimiter to execute the request with context
   const profileInfo = await fetchProfileInfo(profileName, userId);

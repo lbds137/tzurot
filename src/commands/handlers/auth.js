@@ -59,7 +59,7 @@ async function handleStart(message) {
         return await directSend(
           `I've sent you a DM with authentication instructions. Please check your DMs.`
         );
-      } catch (dmError) {
+      } catch (_dmError) {
         // If DM fails, let them know but with less specific info
         return await directSend(
           `❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.`

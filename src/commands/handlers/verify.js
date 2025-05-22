@@ -6,7 +6,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const channelUtils = require('../../utils/channelUtils');
 const auth = require('../../auth');
-const { botPrefix } = require('../../../config');
+const { botPrefix: _botPrefix } = require('../../../config');
 
 /**
  * Command metadata

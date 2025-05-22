@@ -20,7 +20,7 @@ const fetch = require('node-fetch');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
-const { mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
+const { mediaHandler: _mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -46,7 +46,7 @@ const pendingPersonalityMessages = new Map();
 const channelLastMessageTime = new Map();
 
 // Set a timeout for message caching (from constants)
-const MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
+const _MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
 
 // Minimum delay between sending messages to ensure proper order (from constants)
 const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
@@ -935,7 +935,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       // For forum threads, we need to use thread_id parameter - forum posts are special
       try {
         // Create clean options without metadata
-        const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } =
+        const { threadId, _isThread, _originalChannel, forum: _forum, isForum: _isForum, ...cleanOptions } =
           messageData;
 
         // Send with explicit thread_id
@@ -951,7 +951,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
         // Critical: for forum posts, we might need to try with a thread_name if thread_id fails
         if (forumError.message.includes('thread_name')) {
           try {
-            const { threadId, _isThread, _originalChannel, forum, isForum, ...cleanOptions } =
+            const { threadId, _isThread, _originalChannel, forum: _forum, isForum: _isForum, ...cleanOptions } =
               messageData;
 
             sentMessage = await webhook.send({
@@ -1272,7 +1272,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
 
     // Check for referenced media markers in the text content
     // Updated to use a more robust marker extraction method
-    let hasReferencedMedia = false;
+    let _hasReferencedMedia = false;
     let referencedMediaType = null;
     let referencedMediaUrl = null;
 
@@ -1287,7 +1287,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
           // Parse the marker
           const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
           if (markerParts.length >= 2) {
-            hasReferencedMedia = true;
+            _hasReferencedMedia = true;
             referencedMediaType = markerParts[0]; // 'image' or 'audio'
             referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
 
@@ -1761,8 +1761,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
 
       // Check for referenced media markers in the text content
       // Updated regex to handle URLs with special characters
-      const referenceMediaRegex = /\[REFERENCE_MEDIA:(image|audio):([^\]]+)\]/;
-      let hasReferencedMedia = false;
+      const _referenceMediaRegex = /\[REFERENCE_MEDIA:(image|audio):([^\]]+)\]/;
+      let _hasReferencedMedia = false;
       let referencedMediaType = null;
       let referencedMediaUrl = null;
 
@@ -1777,7 +1777,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             // Parse the marker
             const markerParts = fullMarker.substring(17, fullMarker.length - 1).split(':');
             if (markerParts.length >= 2) {
-              hasReferencedMedia = true;
+              _hasReferencedMedia = true;
               referencedMediaType = markerParts[0]; // 'image' or 'audio'
               referencedMediaUrl = markerParts.slice(1).join(':'); // Rejoin to handle URLs with colons
 
@@ -2726,7 +2726,7 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
               logger.info(`[WebhookManager] THREAD APPROACH 2: Using webhook.thread() method`);
               const threadWebhook = webhookClient.thread(channel.id);
               // Don't pass threadId in the options since we're using thread-specific client
-              const { threadId, ...threadOptions } = baseOptions;
+              const { threadId: _threadId, ...threadOptions } = baseOptions;
               sentMessage = await threadWebhook.send(threadOptions);
               logger.info(
                 `[WebhookManager] Successfully sent thread message using thread() method`

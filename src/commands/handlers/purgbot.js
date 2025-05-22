@@ -6,7 +6,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { EmbedBuilder } = require('discord.js');
 const { botPrefix } = require('../../../config');
-const personalityManager = require('../../personalityManager');
+const _personalityManager = require('../../personalityManager');
 
 /**
  * Command metadata
@@ -20,7 +20,7 @@ const meta = {
 };
 
 // Message categories and their filter rules
-const messageCategories = {
+const _messageCategories = {
   // System messages (all non-personality bot messages)
   system: {
     description: 'system and command',
@@ -71,7 +71,7 @@ function filterMessagesByCategory(messages, message, category) {
   const botUserId = message.client.user.id;
 
   // Get current timestamp for age checks
-  const now = Date.now();
+  const _now = Date.now();
 
   // Filter bot messages by the specified category
   const botMessages = messages.filter(msg => {

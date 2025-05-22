@@ -2,7 +2,7 @@
  * Command Validator - Validates command permissions and inputs
  */
 const { PermissionFlagsBits } = require('discord.js');
-const logger = require('../../logger');
+const _logger = require('../../logger');
 const utils = require('../../utils');
 const channelUtils = require('../../utils/channelUtils');
 

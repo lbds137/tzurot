@@ -3,7 +3,7 @@
  * Advanced debugging tools for administrators
  */
 const { EmbedBuilder } = require('discord.js');
-const logger = require('../../logger');
+const _logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const {
   knownProblematicPersonalities,

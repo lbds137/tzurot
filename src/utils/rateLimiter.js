@@ -57,7 +57,7 @@ class RateLimiter {
         try {
           const result = await requestFn(this, context);
           resolve(result);
-        } catch (_) {
+        } catch (_error) {
           // Silently resolve with null in case of error
           // The actual error handling should happen in the requestFn
           resolve(null);

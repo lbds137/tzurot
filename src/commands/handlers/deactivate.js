@@ -2,11 +2,11 @@
  * Deactivate Command Handler
  * Deactivates the active personality in a channel
  */
-const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits: _PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { deactivatePersonality } = require('../../conversationManager');
-const { botPrefix } = require('../../../config');
+const { botPrefix: _botPrefix } = require('../../../config');
 
 /**
  * Command metadata

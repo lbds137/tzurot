@@ -22,7 +22,7 @@ function isValidUrlFormat(url) {
   try {
     new URL(url); // Will throw if URL is invalid
     return true;
-  } catch (_) {
+  } catch (_error) {
     logger.warn(`[UrlValidator] Invalid URL format: ${url}`);
     return false;
   }
@@ -64,7 +64,7 @@ function hasImageExtension(url) {
  * @returns {Promise<boolean>} - True if the URL points to an image
  */
 async function isImageUrl(url, options = {}) {
-  const { timeout = 5000, trustExtensions = true, trustedDomains } = options;
+  const { timeout = 5000, trustExtensions = true, trustedDomains: _trustedDomains } = options;
 
   // Check if URL is formatted correctly
   if (!isValidUrlFormat(url)) {

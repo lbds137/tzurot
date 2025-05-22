@@ -253,7 +253,7 @@ function createPersonalityListEmbed(userId, page = 1) {
  * @param {Object} author - Message author object
  * @returns {EmbedBuilder} Discord embed
  */
-function createListEmbed(personalities, page, totalPages, author) {
+function createListEmbed(personalities, page, totalPages, _author) {
   try {
     // Create the embed
     const embed = new EmbedBuilder()

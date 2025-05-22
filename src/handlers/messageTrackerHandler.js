@@ -193,7 +193,7 @@ async function delayedProcessing(message, personality, triggeringMention, client
         let messageToProcess = null;
         try {
           messageToProcess = await message.channel.messages.fetch(message.id);
-        } catch (fetchErr) {
+        } catch (_fetchErr) {
           logger.info(
             `[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system`
           );

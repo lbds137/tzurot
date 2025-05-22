@@ -1,20 +1,20 @@
 const { OpenAI } = require('openai');
 const { getApiEndpoint, getModelPath } = require('../config');
 const logger = require('./logger');
-const { TIME, ERROR_PATTERNS, MARKERS, DEFAULTS, USER_CONFIG } = require('./constants');
+const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS, USER_CONFIG } = require('./constants');
 const auth = require('./auth');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const { getPersonality } = require('./personalityManager');
 
 // Initialize the default AI client with API key (used when user doesn't have a token)
 // We need to defer creation until after auth module is loaded
-let defaultAiClient;
+let _defaultAiClient;
 
 /**
  * Initialize the AI client - must be called after auth module is initialized
  */
 function initAiClient() {
-  defaultAiClient = new OpenAI({
+  _defaultAiClient = new OpenAI({
     apiKey: auth.API_KEY,
     baseURL: getApiEndpoint(),
     defaultHeaders: {
@@ -919,7 +919,7 @@ function sanitizeContent(content) {
         // Ensure proper string encoding
         .toString()
     );
-  } catch (error) {
+  } catch (_error) {
     // Silent error catch
     return '';
   }
@@ -1206,7 +1206,7 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
 
         try {
           // Initialize cleaned reference content early for use throughout the function
-          let cleanedRefContent = content.referencedMessage.content;
+          const cleanedRefContent = content.referencedMessage.content;
           
           // First, extract any media URLs from the referenced message
           const hasImage = sanitizedReferenceContent.includes('[Image:');
