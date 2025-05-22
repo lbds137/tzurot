@@ -136,6 +136,11 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
   - Always fix the underlying issue causing the test to fail
   - If a test case is no longer valid, update it to match current expected behavior
   - Maintain the same level of test coverage when updating tests
+- **NEVER add environment checks in implementation files for testing purposes**
+  - Avoid `if (process.env.NODE_ENV !== 'test')` checks in production code
+  - These checks pollute the codebase with test-specific logic
+  - Use proper mocking in Jest setup files instead (e.g., `tests/setup.js`)
+  - Handle test environment differences through mocking, not conditional code
 - If you run the full test suite (`npm test`), update `/home/deck/WebstormProjects/tzurot/docs/testing/TEST_COVERAGE_SUMMARY.md`
   - Do not update the summary when running partial tests
   - The summary should always reflect the result of a complete test run
