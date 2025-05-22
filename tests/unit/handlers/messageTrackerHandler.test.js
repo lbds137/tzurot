@@ -18,8 +18,8 @@ describe('messageTrackerHandler', () => {
     // Enable fake timers
     jest.useFakeTimers();
     
-    // Reset the internal state
-    messageTrackerHandler.stopCleanupInterval();
+    // Reset the internal state and create a clean handler for tests
+    messageTrackerHandler.createMessageTrackerHandler({ enableCleanup: false });
     
     // Mock message
     mockMessage = {

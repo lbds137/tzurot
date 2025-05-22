@@ -38,6 +38,9 @@ describe('messageHandler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
+    // Configure messageTrackerHandler to disable cleanup for tests
+    messageTrackerHandler.createMessageTrackerHandler({ enableCleanup: false });
+    
     // Mock client
     mockClient = {
       user: {

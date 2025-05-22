@@ -69,7 +69,7 @@ describe('personalityManager - Initialization and Persistence', () => {
       });
       
       // Call the initialization function
-      await personalityManager.initPersonalityManager();
+      await personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true });
       
       // Verify loadData was called correctly
       expect(dataStorage.loadData).toHaveBeenCalledWith('personalities');
@@ -93,7 +93,7 @@ describe('personalityManager - Initialization and Persistence', () => {
       dataStorage.loadData.mockResolvedValue(null);
       
       // Call the initialization function
-      await personalityManager.initPersonalityManager();
+      await personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true });
       
       // Verify loadData was still called
       expect(dataStorage.loadData).toHaveBeenCalledWith('personalities');
@@ -127,7 +127,7 @@ describe('personalityManager - Initialization and Persistence', () => {
       });
       
       // Call the initialization function
-      await personalityManager.initPersonalityManager();
+      await personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true });
       
       // Verify only the valid personality was loaded
       expect(personalityManager.getPersonality('test-personality')).toEqual(mockPersonalities['test-personality']);
@@ -148,7 +148,7 @@ describe('personalityManager - Initialization and Persistence', () => {
       logger.error = jest.fn();
       
       // Call the initialization function and expect it to throw
-      await expect(personalityManager.initPersonalityManager()).rejects.toThrow(testError);
+      await expect(personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true })).rejects.toThrow(testError);
       
       // Verify the error was logged
       expect(logger.error).toHaveBeenCalled();
