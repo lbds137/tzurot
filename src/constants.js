@@ -147,7 +147,6 @@ exports.DEFAULTS = {
  * @typedef {Object} UserConfig
  * @property {string} OWNER_ID - Discord user ID of the bot owner (from environment variable BOT_OWNER_ID)
  * @property {string} OWNER_PERSONALITIES_LIST - Comma-separated list of personality names to add for the owner (from environment variable OWNER_PERSONALITIES)
- * @property {string} KNOWN_PROBLEMATIC_PERSONALITIES_LIST - Comma-separated list of personality names known to have API issues (from environment variable KNOWN_PROBLEMATIC_PERSONALITIES)
  * @type {UserConfig}
  */
 exports.USER_CONFIG = {
@@ -161,10 +160,4 @@ exports.USER_CONFIG = {
   // The bot will automatically detect each personality's display name and set up proper aliases
   OWNER_PERSONALITIES_LIST:
     process.env.OWNER_PERSONALITIES || 'albert-einstein,sigmund-freud,carl-jung,marie-curie', // Default personalities for development
-
-  // Personalities known to have API issues - loaded from environment variables
-  // Set KNOWN_PROBLEMATIC_PERSONALITIES in your .env file as a comma-separated list
-  // Example: "personality-a,personality-b,personality-c"
-  // These personalities will use special handling with fallback responses
-  KNOWN_PROBLEMATIC_PERSONALITIES_LIST: process.env.KNOWN_PROBLEMATIC_PERSONALITIES || '',
 };

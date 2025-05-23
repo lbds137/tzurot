@@ -1,17 +1,12 @@
 const { 
   getAiResponse, 
   isErrorResponse,
-  registerProblematicPersonality,
   createRequestId,
   isInBlackoutPeriod,
   addToBlackoutList,
   createBlackoutKey,
-  runtimeProblematicPersonalities,
   errorBlackoutPeriods,
-  pendingRequests,
-  knownProblematicPersonalities,
-  initKnownProblematicPersonalities,
-  fallbackResponses
+  pendingRequests
 } = require('../../src/aiService');
 
 const { USER_CONFIG } = require('../../src/constants');
@@ -114,7 +109,6 @@ describe('AI Service', () => {
     // Clear all tracking maps
     pendingRequests.clear();
     errorBlackoutPeriods.clear();
-    runtimeProblematicPersonalities.clear();
   });
   
   afterEach(() => {
@@ -191,89 +185,6 @@ describe('AI Service', () => {
     });
   });
   
-  // Unit test for registerProblematicPersonality function
-  describe('registerProblematicPersonality', () => {
-    it('should register a new problematic personality', () => {
-      registerProblematicPersonality('test-personality', {
-        error: 'test_error',
-        content: 'Test error content'
-      });
-      
-      expect(runtimeProblematicPersonalities.has('test-personality')).toBe(true);
-      
-      const personalityInfo = runtimeProblematicPersonalities.get('test-personality');
-      expect(personalityInfo.isProblematic).toBe(true);
-      expect(personalityInfo.errorCount).toBe(1);
-      expect(personalityInfo.lastErrorContent).toBe('Test error content');
-      expect(personalityInfo.responses.length).toBeGreaterThan(0);
-    });
-    
-    it('should not register a personality that is in the known list', () => {
-      // Create a temporary mock for knownProblematicPersonalities
-      const originalKnownProblematic = { ...knownProblematicPersonalities };
-      const mockPersonality = 'known-problematic-personality';
-      
-      // Directly add a test personality to the knownProblematicPersonalities object
-      knownProblematicPersonalities[mockPersonality] = {
-        isProblematic: true,
-        errorPatterns: ['Error'],
-        responses: ['Fallback response']
-      };
-      
-      registerProblematicPersonality(mockPersonality, {
-        error: 'test_error',
-        content: 'Test error content'
-      });
-      
-      expect(runtimeProblematicPersonalities.has(mockPersonality)).toBe(false);
-      
-      // Clean up our mock
-      delete knownProblematicPersonalities[mockPersonality];
-      // Restore original values
-      Object.keys(originalKnownProblematic).forEach(key => {
-        knownProblematicPersonalities[key] = originalKnownProblematic[key];
-      });
-    });
-    
-    it('should initialize problematic personalities from environment variable', () => {
-      // Back up original process.env and USER_CONFIG
-      const originalEnv = process.env;
-      const originalUserConfig = { ...USER_CONFIG };
-      
-      // Override USER_CONFIG for testing
-      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = 'test-prob-1,test-prob-2,test-prob-3';
-      
-      // Clear any existing problematic personalities
-      Object.keys(knownProblematicPersonalities).forEach(key => {
-        delete knownProblematicPersonalities[key];
-      });
-      
-      // Run initialization
-      initKnownProblematicPersonalities();
-      
-      // Check that personalities were initialized correctly
-      expect(Object.keys(knownProblematicPersonalities).length).toBe(3);
-      expect(knownProblematicPersonalities['test-prob-1']).toBeDefined();
-      expect(knownProblematicPersonalities['test-prob-2']).toBeDefined();
-      expect(knownProblematicPersonalities['test-prob-3']).toBeDefined();
-      
-      // Check that all personalities use the generic fallback responses
-      for (const name of Object.keys(knownProblematicPersonalities)) {
-        const info = knownProblematicPersonalities[name];
-        expect(info.isProblematic).toBe(true);
-        expect(Array.isArray(info.errorPatterns)).toBe(true);
-        expect(Array.isArray(info.responses)).toBe(true);
-        expect(info.responses).toEqual(fallbackResponses);
-      }
-      
-      // Restore original env
-      process.env = originalEnv;
-      // Restore USER_CONFIG
-      Object.keys(USER_CONFIG).forEach(key => {
-        USER_CONFIG[key] = originalUserConfig[key];
-      });
-    });
-  });
   
   // Unit test for createBlackoutKey and blackout period functions
   describe('Blackout Period Management', () => {
@@ -717,106 +628,6 @@ describe('AI Service', () => {
       mockClient.setShouldError(false);
     });
     
-    it('should register problematic personalities when they return errors', async () => {
-      const personalityName = 'new-problematic-personality';
-      const message = 'Test message';
-      const context = { 
-        userId: 'user-123', 
-        channelId: 'channel-456',
-        userName: 'Test User (testuser)'
-      };
-      
-      // Get the mock AI client
-      const openaiModule = require('openai');
-      const OpenAI = openaiModule.OpenAI;
-      const mockClient = new OpenAI();
-      
-      // Mock the client to return a response with an error pattern
-      const createChatCompletionSpy = jest.spyOn(mockClient.chat.completions, 'create');
-      createChatCompletionSpy.mockResolvedValueOnce({
-        id: 'test-id',
-        created: Date.now(),
-        model: 'test-model',
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: 'assistant',
-              content: 'TypeError: Cannot read property of undefined'
-            },
-            finish_reason: 'stop'
-          }
-        ]
-      });
-      
-      const response = await getAiResponse(personalityName, message, context);
-      
-      // Verify the error response contains expected text pattern
-      expect(response).toContain('technical issue');
-      expect(response).toContain('Error ID:');
-      
-      // Verify the personality was registered as problematic
-      expect(runtimeProblematicPersonalities.has(personalityName)).toBe(true);
-      
-      // Verify it was added to the blackout list
-      const key = createBlackoutKey(personalityName, context);
-      expect(errorBlackoutPeriods.has(key)).toBe(true);
-      
-      // Clean up spy
-      createChatCompletionSpy.mockRestore();
-    });
     
-    it('should handle known problematic personalities with custom responses', async () => {
-      const personalityName = 'test-known-problematic';
-      const message = 'Test message';
-      const context = { 
-        userId: 'user-123', 
-        channelId: 'channel-456',
-        userName: 'Test User (testuser)'
-      };
-      
-      // Create a known problematic personality for testing
-      knownProblematicPersonalities[personalityName] = {
-        isProblematic: true,
-        errorPatterns: ['NoneType', 'AttributeError', 'TypeError'],
-        responses: fallbackResponses,
-      };
-      
-      // Get the mock AI client
-      const openaiModule = require('openai');
-      const OpenAI = openaiModule.OpenAI;
-      const mockClient = new OpenAI();
-      
-      // Mock the client to return a response with an error pattern
-      const createChatCompletionSpy = jest.spyOn(mockClient.chat.completions, 'create');
-      createChatCompletionSpy.mockResolvedValueOnce({
-        id: 'test-id',
-        created: Date.now(),
-        model: 'test-model',
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: 'assistant',
-              content: 'NoneType: None has no attribute'
-            },
-            finish_reason: 'stop'
-          }
-        ]
-      });
-      
-      const response = await getAiResponse(personalityName, message, context);
-      
-      // Verify the response is one of the predefined fallback responses
-      expect(fallbackResponses).toContain(response);
-      
-      // Verify it was added to the blackout list
-      const key = createBlackoutKey(personalityName, context);
-      expect(errorBlackoutPeriods.has(key)).toBe(true);
-      
-      // Clean up spy
-      createChatCompletionSpy.mockRestore();
-      delete knownProblematicPersonalities[personalityName];
-    });
   });
 });

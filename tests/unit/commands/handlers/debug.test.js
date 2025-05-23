@@ -18,13 +18,7 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz'
 }));
 
-jest.mock('../../../../src/aiService', () => ({
-  knownProblematicPersonalities: ['problem-personality-1', 'problem-personality-2'],
-  runtimeProblematicPersonalities: new Map([
-    ['runtime-problem-1', Date.now()],
-    ['runtime-problem-2', Date.now() - 3600000]
-  ])
-}));
+jest.mock('../../../../src/aiService', () => ({}));
 
 // Mock utils and commandValidator
 jest.mock('../../../../src/utils', () => ({
@@ -98,53 +92,13 @@ describe('Debug Command', () => {
       expect.stringContaining('You need to provide a subcommand')
     );
     
-    // Should include available subcommands
+    // Should mention no subcommands currently available
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      expect.stringContaining('problems')
+      expect.stringContaining('No subcommands currently available')
     );
   });
   
-  it('should show problematic personalities with "problems" subcommand', async () => {
-    const result = await debugCommand.execute(mockMessage, ['problems']);
-    
-    // Verify that createDirectSend was called with the message
-    expect(validator.createDirectSend).toHaveBeenCalledWith(mockMessage);
-    
-    // Verify embed was created with correct title
-    expect(EmbedBuilder).toHaveBeenCalled();
-    expect(mockEmbed.setTitle).toHaveBeenCalledWith('Problematic Personalities Report');
-    
-    // Verify embed fields were added for both types of problematic personalities
-    expect(mockEmbed.addFields).toHaveBeenCalledWith(
-      expect.objectContaining({ 
-        name: expect.stringContaining('Known Problematic'),
-        value: expect.stringMatching(/problem-personality-1.*problem-personality-2/s)
-      }),
-      expect.objectContaining({ 
-        name: expect.stringContaining('Runtime Problematic'),
-        value: expect.stringMatching(/runtime-problem-1.*runtime-problem-2/s)
-      })
-    );
-    
-    // Verify the message was sent with the embed
-    expect(mockMessage.channel.send).toHaveBeenCalledWith({ embeds: [mockEmbed] });
-  });
-  
-  it('should handle large lists of problematic personalities in production code', () => {
-    // Here we'll manually test the logic in debug.js for truncating large lists
-    // First test that our code will truncate a large list
-    const largeList = Array(100).fill().map((_, i) => `problem-${i}`);
-    const shouldTruncate = largeList.length > 50;
-    
-    // Verify the truncation logic used in the production code
-    const formattedList = shouldTruncate 
-      ? largeList.slice(0, 50).join('\n') + '...' 
-      : largeList.join('\n');
-      
-    // Make sure our truncation logic works correctly
-    expect(formattedList).toContain('...');
-    expect(formattedList.length).toBeLessThan(largeList.join('\n').length);
-  });
+  // Removed problematic personalities tests
   
   it('should show error for unknown subcommand', async () => {
     const result = await debugCommand.execute(mockMessage, ['unknown']);

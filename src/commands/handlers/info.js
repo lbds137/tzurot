@@ -6,10 +6,6 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { getPersonality, getPersonalityByAlias } = require('../../personalityManager');
-const {
-  knownProblematicPersonalities,
-  runtimeProblematicPersonalities,
-} = require('../../aiService');
 const { botPrefix } = require('../../../config');
 
 /**
@@ -75,23 +71,12 @@ async function execute(message, args) {
       embed.addFields({ name: 'Your Aliases', value: 'None set', inline: true });
     }
 
-    // Add health status check
-    const isKnownProblematic = knownProblematicPersonalities.includes(personality.fullName);
-    const isRuntimeProblematic = runtimeProblematicPersonalities.has(personality.fullName);
-
-    if (isKnownProblematic || isRuntimeProblematic) {
-      embed.addFields({
-        name: 'Status',
-        value: '⚠️ This personality has experienced issues. It may not work correctly.',
-        inline: false,
-      });
-    } else {
-      embed.addFields({
-        name: 'Status',
-        value: '✅ This personality is working normally.',
-        inline: false,
-      });
-    }
+    // Add status field
+    embed.addFields({
+      name: 'Status',
+      value: '✅ This personality is working normally.',
+      inline: false,
+    });
 
     // Add avatar if available
     if (personality.avatarUrl) {

@@ -345,9 +345,6 @@ describe('aiService Error Handling', () => {
       
       // Should return an error message
       expect(response).toBe('I received an incomplete response. Please try again.');
-      
-      // Should register as problematic
-      expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
     test('getAiResponse should handle non-string responses gracefully', async () => {
@@ -367,9 +364,6 @@ describe('aiService Error Handling', () => {
       
       // Should return an error message
       expect(response).toBe('I received an unusual response format. Please try again.');
-      
-      // Should register as problematic
-      expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
     test('getAiResponse should detect error content in API responses', async () => {
@@ -392,9 +386,6 @@ describe('aiService Error Handling', () => {
       
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
-      
-      // Should register as problematic
-      expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
     test('getAiResponse should handle completely null response gracefully', async () => {
@@ -406,9 +397,6 @@ describe('aiService Error Handling', () => {
       
       // Should return an error message
       expect(response).toBe('I received an incomplete response. Please try again.');
-      
-      // Should register as problematic
-      expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
     test('getAiResponse should handle network timeouts gracefully', async () => {
@@ -438,9 +426,6 @@ describe('aiService Error Handling', () => {
       
       // Should return an error message
       expect(response).toBe('I received an incomplete response. Please try again.');
-      
-      // Should register as problematic
-      expect(aiService.runtimeProblematicPersonalities.has(personalityName)).toBe(true);
     });
     
     test('getAiResponse should handle response with empty string content', async () => {
@@ -470,58 +455,9 @@ describe('aiService Error Handling', () => {
     });
   });
   
-  describe('Known problematic personalities', () => {
-    test('getAiResponse should identify problematic personalities', async () => {
-      // Create a test known problematic personality with distinct responses
-      const problematicName = 'test-problematic';
-      aiService.knownProblematicPersonalities[problematicName] = {
-        isProblematic: true,
-        errorPatterns: ['test-error'],
-        responses: ['UNIQUE_FALLBACK_RESPONSE_1', 'UNIQUE_FALLBACK_RESPONSE_2']
-      };
-      
-      // Call getProblematicPersonalityInfo with the personality name
-      const personalityInfo = aiService.getProblematicPersonalityInfo(problematicName);
-      
-      // Verify that the personality info is returned correctly
-      expect(personalityInfo).not.toBeNull();
-      expect(personalityInfo.isProblematic).toBe(true);
-      expect(personalityInfo.responses).toContain('UNIQUE_FALLBACK_RESPONSE_1');
-      expect(personalityInfo.responses).toContain('UNIQUE_FALLBACK_RESPONSE_2');
-      
-      // Now check that a non-problematic personality returns null
-      const nonProblematicInfo = aiService.getProblematicPersonalityInfo('non-problematic');
-      expect(nonProblematicInfo).toBeUndefined();
-    });
-    
-    test('initKnownProblematicPersonalities should handle empty environment variable', () => {
-      // Import USER_CONFIG from constants
-      const { USER_CONFIG } = require('../../src/constants');
-      
-      // Back up original value
-      const originalValue = USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST;
-      
-      // Set empty environment variable
-      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = '';
-      
-      // Clear any existing problematic personalities
-      const originalKnownProblematic = { ...aiService.knownProblematicPersonalities };
-      Object.keys(aiService.knownProblematicPersonalities).forEach(key => {
-        delete aiService.knownProblematicPersonalities[key];
-      });
-      
-      // Run initialization - should not throw error
-      expect(() => {
-        aiService.initKnownProblematicPersonalities();
-      }).not.toThrow();
-      
-      // Restore original values
-      USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST = originalValue;
-      Object.keys(originalKnownProblematic).forEach(key => {
-        aiService.knownProblematicPersonalities[key] = originalKnownProblematic[key];
-      });
-    });
-    
+  // Removed problematic personalities tests
+  
+  describe('API error handling', () => {
     test('getAiResponse should detect API errors', async () => {
       // Make API call throw an error
       mockOpenAI.chat.completions.create.mockRejectedValueOnce(

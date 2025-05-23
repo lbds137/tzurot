@@ -11,10 +11,7 @@ const mockPersonalityManager = {
   getPersonalityByAlias: jest.fn()
 };
 
-const mockAiService = {
-  knownProblematicPersonalities: [],
-  runtimeProblematicPersonalities: new Map()
-};
+const mockAiService = {};
 
 const mockUtils = {
   createDirectSend: jest.fn(),
@@ -59,9 +56,7 @@ const mockInfoCommand = {
       }
       
       // Create mock embed response
-      const isProblematic = 
-        mockAiService.knownProblematicPersonalities.includes(personality.fullName) ||
-        mockAiService.runtimeProblematicPersonalities.has(personality.fullName);
+      const isProblematic = false;
         
       // Return success with embed
       return await sendFn({ 
@@ -147,8 +142,6 @@ describe('Info Command', () => {
     mockPersonalityManager.getPersonalityByAlias.mockReturnValue(null);
     
     // Reset mock aiService
-    mockAiService.knownProblematicPersonalities = [];
-    mockAiService.runtimeProblematicPersonalities = new Map();
     
     // Get the mocked info command
     infoCommand = require('../../../../src/commands/handlers/info');
@@ -238,53 +231,6 @@ describe('Info Command', () => {
     );
   });
   
-  it('should show problematic status for known problematic personalities', async () => {
-    // Update the mock to include a problematic personality
-    mockAiService.knownProblematicPersonalities = ['test-personality'];
-    
-    await infoCommand.execute(mockMessage, ['test-personality']);
-    
-    // Check that a response with embed was sent
-    expect(mockDirectSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.arrayContaining([
-          expect.objectContaining({
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'Status',
-                value: expect.stringContaining('Has experienced issues')
-              })
-            ])
-          })
-        ])
-      })
-    );
-  });
-  
-  it('should show problematic status for runtime problematic personalities', async () => {
-    // Set up the mock runtime problematic personalities map
-    const runtimeMap = new Map();
-    runtimeMap.set('test-personality', Date.now());
-    mockAiService.runtimeProblematicPersonalities = runtimeMap;
-    
-    await infoCommand.execute(mockMessage, ['test-personality']);
-    
-    // Check that a response with embed was sent
-    expect(mockDirectSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: expect.arrayContaining([
-          expect.objectContaining({
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'Status',
-                value: expect.stringContaining('Has experienced issues')
-              })
-            ])
-          })
-        ])
-      })
-    );
-  });
   
   it('should handle unexpected errors gracefully', async () => {
     // Mock unexpected error

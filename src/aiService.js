@@ -1,7 +1,7 @@
 const { OpenAI } = require('openai');
 const { getApiEndpoint, getModelPath } = require('../config');
 const logger = require('./logger');
-const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS, USER_CONFIG } = require('./constants');
+const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
 const auth = require('./auth');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const { getPersonality } = require('./personalityManager');
@@ -22,49 +22,8 @@ function initAiClient() {
     },
   });
   logger.info('[AIService] Default AI client initialized');
-
-  // Initialize known problematic personalities after AI client is set up
-  initKnownProblematicPersonalities();
 }
 
-/**
- * Initialize the known problematic personalities from environment variable
- *
- * @returns {void}
- * @description
- * Loads the list of known problematic personalities from the environment variable
- * KNOWN_PROBLEMATIC_PERSONALITIES and configures them with generic
- * fallback responses for error handling.
- */
-function initKnownProblematicPersonalities() {
-  // Get the list of problematic personalities from environment
-  const problematicList = USER_CONFIG.KNOWN_PROBLEMATIC_PERSONALITIES_LIST || '';
-
-  // If the list is empty, nothing to do
-  if (!problematicList.trim()) {
-    return;
-  }
-
-  // Split the comma-separated list and initialize each personality
-  const personalityNames = problematicList.split(',').map(name => name.trim());
-
-  logger.info(
-    `[AIService] Initializing ${personalityNames.length} known problematic personalities from environment`
-  );
-
-  personalityNames.forEach(name => {
-    if (!name) return; // Skip empty names
-
-    // Register the problematic personality with generic fallback responses
-    knownProblematicPersonalities[name] = {
-      isProblematic: true,
-      errorPatterns: ['NoneType', 'AttributeError', 'lower', 'TypeError'],
-      responses: fallbackResponses,
-    };
-
-    logger.info(`[AIService] Registered known problematic personality: ${name}`);
-  });
-}
 
 /**
  * Get an AI client for a specific user, using their auth token if available
@@ -123,24 +82,6 @@ const errorBlackoutPeriods = new Map();
 
 // Use the centralized constants for error blackout duration instead of defining here
 
-// There's a known issue with certain personalities returning errors as content
-// We load these from the environment variable KNOWN_PROBLEMATIC_PERSONALITIES
-// and handle them gracefully with generic fallback responses
-
-// Create generic fallback responses that work for any personality
-const fallbackResponses = [
-  'I seem to be experiencing a momentary lapse in my connection. Let me gather my thoughts.',
-  'How curious. I am unable to formulate a proper response at this moment.',
-  'The connection between us seems unstable right now. Perhaps we could try a different approach.',
-  'I find myself at a loss for words on this particular matter. Let us explore something else.',
-  'There appears to be a disturbance in my thinking process. Give me a moment to recalibrate.',
-];
-
-// Initialize with an empty object, will be populated in initKnownProblematicPersonalities()
-const knownProblematicPersonalities = {};
-
-// Track dynamically identified problematic personalities during runtime
-const runtimeProblematicPersonalities = new Map();
 
 /**
  * Detects whether an AI response contains error patterns
@@ -222,114 +163,6 @@ function isErrorResponse(content) {
   return false;
 }
 
-/**
- * Register a personality as problematic during runtime
- *
- * @param {string} personalityName - The personality name to mark as problematic
- * @param {Object} errorData - Error data including the content that triggered the error
- * @param {string} [errorData.error] - Type of error that occurred
- * @param {string} [errorData.content] - Content that triggered the error
- * @param {string} [errorData.errorType] - Error type name if applicable
- * @returns {void}
- *
- * @example
- * // Register a personality that has returned error content
- * registerProblematicPersonality("unknown-personality", {
- *   error: "api_call_error",
- *   content: "NoneType object has no attribute 'lower'",
- *   errorType: "TypeError"
- * });
- *
- * // Later, the personality will be handled with special care
- * const personalityInfo = getProblematicPersonalityInfo("unknown-personality");
- * // personalityInfo now contains isProblematic: true, firstDetectedAt, errorCount, etc.
- *
- * @description
- * This function adds a personality to the runtime problematic personalities list
- * when it encounters errors during API calls. It creates generic fallback responses
- * that will be used whenever this personality encounters errors in the future.
- *
- * Key features:
- * 1. Skips registration if the personality is already in the known problematic list
- * 2. Logs the registration of a new problematic personality
- * 3. Creates a set of generic fallback responses that can work for any personality
- * 4. Tracks detailed information about the problematic personality:
- *    - When the personality was first detected as problematic (firstDetectedAt)
- *    - Error count to track frequency of issues (errorCount)
- *    - The last error content for debugging purposes (lastErrorContent)
- *    - Generic fallback responses to use when errors occur (responses)
- *
- * This tracking enables the system to automatically adapt to problematic personalities
- * without requiring manual configuration updates.
- */
-function registerProblematicPersonality(personalityName, errorData) {
-  // Don't register if already in the known list - these are hardcoded and permanent
-  if (knownProblematicPersonalities[personalityName]) {
-    return;
-  }
-
-  // Capture current time for tracking
-  const currentTime = Date.now();
-  const errorDetails = errorData.details || 'No additional details';
-  const errorType = errorData.error || 'unknown_error';
-
-  // Improve error logging with more detailed information
-  logger.error(`[AIService] Registering runtime problematic personality: ${personalityName}`);
-  logger.error(`[AIService] Error type: ${errorType}`);
-  logger.error(`[AIService] Error details: ${errorDetails}`);
-
-  // Check if this personality is already in the runtime problematic list
-  if (runtimeProblematicPersonalities.has(personalityName)) {
-    // Update the existing entry instead of creating a new one
-    const existingInfo = runtimeProblematicPersonalities.get(personalityName);
-
-    // Increment error count
-    existingInfo.errorCount++;
-
-    // Update last error time and content
-    existingInfo.lastErrorAt = currentTime;
-    existingInfo.lastErrorContent = errorData.content || 'Empty response';
-    existingInfo.lastErrorDetails = errorDetails;
-
-    // If we've had too many errors in a short time, extend the recovery period
-    // This prevents constant toggling between "problematic" and "recovered" states
-    if (existingInfo.errorCount > 3) {
-      // Set a 10-minute recovery period after multiple errors
-      existingInfo.recoveryTime = currentTime + 10 * 60 * 1000; // 10 minutes
-      logger.warn(
-        `[AIService] Extended recovery period for ${personalityName} due to multiple errors (${existingInfo.errorCount})`
-      );
-    }
-
-    // Update the entry in the map
-    runtimeProblematicPersonalities.set(personalityName, existingInfo);
-    return;
-  }
-
-  // Create themed fallback responses based on the personality name
-  // This creates generic responses that can work for any personality
-  const genericResponses = [
-    'I seem to be experiencing a momentary lapse in my connection. Let me gather my thoughts.',
-    "How curious. I'm unable to formulate a proper response at this moment.",
-    'The connection between us seems unstable right now. Perhaps we could try a different approach.',
-    "I find myself at a loss for words on this particular matter. Let's explore something else.",
-    'There appears to be a disturbance in my thinking process. Give me a moment to recalibrate.',
-  ];
-
-  // Store the problematic personality info with automatic recovery after 2 minutes
-  // This means transient errors will automatically clear after a short period
-  runtimeProblematicPersonalities.set(personalityName, {
-    isProblematic: true,
-    firstDetectedAt: currentTime,
-    lastErrorAt: currentTime,
-    errorCount: 1,
-    recoveryTime: currentTime + 2 * 60 * 1000, // 2-minute recovery period by default
-    lastErrorContent: errorData.content || 'Unknown error',
-    lastErrorDetails: errorDetails,
-    errorType: errorType,
-    responses: genericResponses,
-  });
-}
 
 /**
  * Create a personality-user key for blackout tracking
@@ -407,68 +240,6 @@ function prepareRequestHeaders(context) {
   return headers;
 }
 
-/**
- * Get information about a problematic personality
- *
- * @param {string} personalityName - The personality name to check
- * @returns {Object|null} Information about the problematic personality, or null if not problematic
- *
- * @example
- * // Check if a personality is known to be problematic
- * const personalityInfo = getProblematicPersonalityInfo("lucifer-kochav-shenafal");
- *
- * if (personalityInfo && personalityInfo.isProblematic) {
- *   // Handle with special care using personalityInfo.responses for fallbacks
- *   console.log("This is a known problematic personality");
- *   console.log("Fallback responses available:", personalityInfo.responses.length);
- * } else {
- *   // Handle normally
- *   console.log("This is a normal personality");
- * }
- *
- * @description
- * Checks if a personality is known to be problematic, either from the predefined list
- * or from personalities that were dynamically added to the problematic list during runtime.
- *
- * The function:
- * 1. First checks the knownProblematicPersonalities object for predefined problematic personalities
- * 2. If not found there, checks the runtimeProblematicPersonalities Map for dynamically detected ones
- * 3. Returns the personality information object if found, or null if not problematic
- *
- * The returned personalityInfo object typically includes:
- * - isProblematic: Boolean flag (always true for returned personalities)
- * - responses: Array of themed fallback responses
- * - errorPatterns: (Optional) Array of patterns to detect in error responses
- * - firstDetectedAt: (Runtime personalities only) Timestamp when first detected
- * - errorCount: (Runtime personalities only) Count of errors encountered
- * - lastErrorContent: (Runtime personalities only) Content from the last error
- */
-function getProblematicPersonalityInfo(personalityName) {
-  // Check if this is a personality with known API issues
-  let personalityInfo = knownProblematicPersonalities[personalityName];
-
-  // If not in the predefined list, check the runtime-detected list
-  if (!personalityInfo && runtimeProblematicPersonalities.has(personalityName)) {
-    personalityInfo = runtimeProblematicPersonalities.get(personalityName);
-
-    // Check if the recovery period has elapsed
-    const currentTime = Date.now();
-    if (personalityInfo.recoveryTime && currentTime > personalityInfo.recoveryTime) {
-      // Recovery time has passed, so this personality is no longer problematic
-      logger.info(
-        `[AIService] Personality ${personalityName} has recovered from error state (recovery period elapsed)`
-      );
-
-      // Remove from the problematic list
-      runtimeProblematicPersonalities.delete(personalityName);
-
-      // Return null to indicate it's no longer problematic
-      return null;
-    }
-  }
-
-  return personalityInfo;
-}
 
 /**
  * Check if a personality-user combination is currently in a blackout period
@@ -702,181 +473,6 @@ function createRequestId(personalityName, message, context) {
   return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}_${messagePrefix}`;
 }
 
-/**
- * Handle API requests for personalities with known issues
- *
- * @async
- * @param {string} personalityName - The personality name to use for AI generation
- * @param {string} message - The user's message to respond to
- * @param {Object} context - Additional context information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @param {Object} personalityInfo - Information about the problematic personality
- * @param {boolean} personalityInfo.isProblematic - Flag indicating this is a problematic personality
- * @param {string[]} [personalityInfo.errorPatterns] - Array of patterns to detect in error responses
- * @param {string[]} personalityInfo.responses - Array of fallback responses for this personality
- * @param {number} [personalityInfo.errorCount] - Count of errors for runtime-detected personalities
- * @param {string} modelPath - The model path to use for the API call
- * @param {Object} headers - Request headers
- * @returns {Promise<string>} The AI response or fallback message
- * @throws {Error} Errors are caught internally and converted to fallback responses
- *
- * @example
- * // Handle a known problematic personality
- * const personalityInfo = {
- *   isProblematic: true,
- *   errorPatterns: ['NoneType', 'AttributeError'],
- *   responses: [
- *     'I sense a disturbance in the cosmic forces.',
- *     'The ethereal pathways seem obscured.'
- *   ]
- * };
- *
- * const response = await handleProblematicPersonality(
- *   "lucifer-kochav-shenafal",
- *   "Tell me about the rebellion in heaven",
- *   { userId: "123456", channelId: "789012" },
- *   personalityInfo,
- *   "models/lucifer-v1",
- *   { "X-User-Id": "123456" }
- * );
- *
- * @description
- * Special handling for personalities known to have API issues.
- * This function provides robust error handling for personalities that
- * consistently return problematic responses. It:
- *
- * 1. Still attempts the API call in case the issue has been fixed
- * 2. Performs thorough error checking on any response received
- * 3. Updates error statistics for runtime-detected problematic personalities
- * 4. Returns themed fallback responses appropriate for the personality when errors occur
- * 5. Adds the personality-user combination to the blackout list after errors
- *
- * The function is essential for maintaining a good user experience even when
- * certain personalities have recurring API issues. It ensures users still get
- * responses that fit the personality's character rather than technical error messages.
- */
-async function handleProblematicPersonality(
-  personalityName,
-  message,
-  context,
-  personalityInfo,
-  modelPath,
-  headers
-) {
-  logger.info(`[AIService] Handling known problematic personality: ${personalityName}`);
-  try {
-    // Extract user name from context if available
-    const userName = context.userName || 'a user';
-
-    // Format the message content properly for the API
-    const messages = formatApiMessages(message, personalityName, userName);
-
-    // Debug log the exact messages being sent to detect issues
-    if (typeof message === 'object' && message.referencedMessage) {
-      logger.info(
-        `[AIService] Sending message with reference to ${message.referencedMessage.personalityName || 'unknown'}`
-      );
-
-      // Additional logging to help diagnose message content issues
-      try {
-        if (typeof message.messageContent === 'string') {
-          logger.debug(
-            `[AIService] User message (text): "${message.messageContent.substring(0, 100)}..."`
-          );
-        } else {
-          logger.debug(
-            `[AIService] User message (complex): ${JSON.stringify(message.messageContent).substring(0, 100)}...`
-          );
-        }
-        logger.debug(
-          `[AIService] Referenced message: "${message.referencedMessage.content.substring(0, 100)}..."`
-        );
-      } catch (logError) {
-        logger.warn(`[AIService] Error logging message details: ${logError.message}`);
-      }
-    }
-
-    // Get the appropriate AI client for this user
-    const userId = context.userId || null;
-    const aiClient = getAiClientForUser(userId, context);
-
-    // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
-    if (!aiClient) {
-      logger.error(
-        `[AIService] Cannot make API request: User ${userId || 'unknown'} is not authenticated`
-      );
-      return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
-    }
-
-    // Still try the API call in case the issue has been fixed
-    const response = await aiClient.chat.completions.create({
-      model: modelPath,
-      messages: messages,
-      temperature: 0.7,
-      headers: headers,
-    });
-
-    const content = response.choices?.[0]?.message?.content;
-
-    // Use the more robust error detection function
-    if (!content || isErrorResponse(content)) {
-      logger.warn(
-        `[AIService] Detected error content from problematic personality ${personalityName}`
-      );
-      // Add this personality+user combo to blackout list
-      addToBlackoutList(personalityName, context);
-
-      // If this is a runtime-detected personality, increment the error count
-      if (runtimeProblematicPersonalities.has(personalityName)) {
-        logger.info(
-          `[AIService] Incrementing error count for runtime problematic personality: ${personalityName}`
-        );
-        const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
-        runtimeInfo.errorCount++;
-        runtimeInfo.lastErrorContent = content || 'Empty response';
-        runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
-      }
-
-      // Return a themed response for this personality
-      const responses = personalityInfo.responses;
-      return responses[Math.floor(Math.random() * responses.length)];
-    }
-
-    // If we get here, we got a valid response despite the known issues!
-    if (typeof content === 'string' && content.length > 0) {
-      // Apply content sanitization
-      const sanitizedContent = sanitizeContent(content);
-
-      return sanitizedContent;
-    }
-
-    // Default fallback for empty but not error content
-    return personalityInfo.responses[0];
-  } catch (error) {
-    // Add this personality+user combo to blackout list
-    logger.error(
-      `[AIService] Error handling problematic personality ${personalityName}: ${error.message}`
-    );
-    addToBlackoutList(personalityName, context);
-
-    // If this is a runtime-detected personality, increment the error count
-    if (runtimeProblematicPersonalities.has(personalityName)) {
-      logger.info(
-        `[AIService] Updating error stats for runtime problematic personality: ${personalityName}`
-      );
-      const runtimeInfo = runtimeProblematicPersonalities.get(personalityName);
-      runtimeInfo.errorCount++;
-      runtimeInfo.lastErrorType = error.name;
-      runtimeInfo.lastErrorMessage = error.message;
-      runtimeProblematicPersonalities.set(personalityName, runtimeInfo);
-    }
-
-    // Return our special HARD_BLOCKED_RESPONSE marker
-    logger.info(`[AIService] Returning HARD_BLOCKED_RESPONSE for ${personalityName}`);
-    return MARKERS.HARD_BLOCKED_RESPONSE;
-  }
-}
 
 /**
  * Sanitize API response content
@@ -1047,22 +643,6 @@ async function getAiResponse(personalityName, message, context = {}) {
         return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth\` to set up your account before using this service.`;
       }
 
-      // Check if this is a personality with known or runtime-detected API issues
-      const personalityInfo = getProblematicPersonalityInfo(personalityName);
-
-      if (personalityInfo && personalityInfo.isProblematic) {
-        logger.info(
-          `[AIService] Using special handling for problematic personality: ${personalityName}`
-        );
-        return await handleProblematicPersonality(
-          personalityName,
-          message,
-          context,
-          personalityInfo,
-          modelPath,
-          headers
-        );
-      }
 
       // NORMAL AI CALL PATH: Make the API request
       logger.info(`[AIService] Using normal handling path for personality: ${personalityName}`);
@@ -1109,22 +689,6 @@ async function getAiResponse(personalityName, message, context = {}) {
 
       addToBlackoutList(personalityName, context);
 
-      // Register this personality as potentially problematic
-      if (
-        error.name === 'TypeError' ||
-        error.name === 'SyntaxError' ||
-        error.message.includes('content') ||
-        error.message.includes('NoneType')
-      ) {
-        logger.error(
-          `[AIService] Registering personality ${personalityName} as problematic due to ${error.name}`
-        );
-        registerProblematicPersonality(personalityName, {
-          error: 'api_call_error',
-          errorType: error.name,
-          content: error.message,
-        });
-      }
 
       // Return our special HARD_BLOCKED_RESPONSE marker
       logger.info(
@@ -1624,24 +1188,14 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   logger.debug(`[AIService] Received response for ${personalityName}`);
   // Validate and sanitize response
   if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
-    // Register this personality as problematic
     logger.error(`[AIService] Invalid response structure from ${personalityName}`);
-    registerProblematicPersonality(personalityName, {
-      error: 'invalid_response_structure',
-      content: JSON.stringify(response),
-    });
 
     return 'I received an incomplete response. Please try again.';
   }
 
   let content = response.choices[0].message.content;
   if (typeof content !== 'string') {
-    // Register this personality as problematic
     logger.error(`[AIService] Non-string content from ${personalityName}: ${typeof content}`);
-    registerProblematicPersonality(personalityName, {
-      error: 'non_string_content',
-      content: typeof content,
-    });
 
     return 'I received an unusual response format. Please try again.';
   }
@@ -1690,23 +1244,15 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     // Check if this is the generic 'error_in_content' or a more specific error
     const isGenericError = errorType === 'error_in_content';
 
-    // Register this personality as problematic only for non-generic errors
-    // This makes the system more forgiving for transient issues
+    // Add this personality+user combo to blackout list with appropriate duration
     if (!isGenericError) {
-      // Register this personality as problematic with enhanced error information
-      registerProblematicPersonality(personalityName, {
-        error: errorType,
-        details: errorDetails,
-        content: content,
-      });
-
       // Add this personality+user combo to blackout list, but with a shorter duration
       // for transient errors (5 minutes instead of the default 30)
       addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
     } else {
       // For generic errors, add a much shorter blackout period (30 seconds)
       // This prevents rapid duplicate messages but allows quick recovery
-      logger.info(`[AIService] Skipping problematic registration for generic error: ${errorType}`);
+      logger.info(`[AIService] Using short blackout for generic error: ${errorType}`);
       addToBlackoutList(personalityName, context, 30 * 1000); // 30 seconds
     }
 
@@ -1729,12 +1275,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       );
 
       if (sanitizedContent.length === 0) {
-        // Register this personality as problematic
         logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
-        registerProblematicPersonality(personalityName, {
-          error: 'empty_after_sanitization',
-          content: 'Sanitized content was empty',
-        });
 
         return 'I received an empty response. Please try again.';
       }
@@ -1742,15 +1283,9 @@ async function handleNormalPersonality(personalityName, message, context, modelP
       // Replace the original content with the sanitized version
       content = sanitizedContent;
   } catch (sanitizeError) {
-    // Always register problematic personalities
-    // Register this personality as problematic
     logger.error(
       `[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`
     );
-    registerProblematicPersonality(personalityName, {
-      error: 'sanitization_error',
-      content: sanitizeError.message,
-    });
 
     return 'I encountered an issue processing my response. Please try again.';
   }
@@ -1764,9 +1299,6 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 module.exports = {
   getAiResponse,
   isErrorResponse,
-  registerProblematicPersonality,
-  knownProblematicPersonalities,
-  runtimeProblematicPersonalities,
   pendingRequests,
   createRequestId,
   isInBlackoutPeriod,
@@ -1775,15 +1307,11 @@ module.exports = {
   errorBlackoutPeriods,
   getAiClientForUser,
   initAiClient,
-  initKnownProblematicPersonalities,
 
   // Export for testing
   prepareRequestHeaders,
-  getProblematicPersonalityInfo,
-  handleProblematicPersonality,
   handleNormalPersonality,
   sanitizeContent,
   sanitizeApiText,
   formatApiMessages,
-  fallbackResponses,
 };
