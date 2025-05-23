@@ -138,7 +138,7 @@ async function fetchWithRetry(endpoint, profileName, userId = null) {
 
   // Create an AbortController for timeout handling
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
   try {
     while (retryCount <= maxRetries) {

@@ -81,57 +81,6 @@ function filterWebhookMessage(message) {
   return false; // Don't block this message
 }
 
-/**
- * Checks if an embed is incomplete
- * @param {Object} message - Discord message object
- * @returns {Promise<boolean>} - True if an incomplete embed was detected and deleted
- */
-async function detectAndDeleteIncompleteEmbed(message) {
-  if (!message.embeds || message.embeds.length === 0) {
-    return false;
-  }
-
-  // Detect incomplete Personality Added embeds
-  // The first embed may appear before we have the display name and avatar
-  if (message.embeds[0].title === 'Personality Added') {
-    // Check if this embed has incomplete information (missing display name or avatar)
-    const isIncompleteEmbed =
-      message.embeds[0].fields?.some(
-        field =>
-          field.name === 'Display Name' &&
-          (field.value === 'Not set' ||
-            field.value.includes('-ba-et-') ||
-            field.value.includes('-zeevat-'))
-      ) || !message.embeds[0].thumbnail; // No avatar/thumbnail
-
-    if (isIncompleteEmbed) {
-      logger.warn(
-        `🚨 [ErrorHandler] DETECTED INCOMPLETE EMBED: Found incomplete "Personality Added" embed - attempting to delete`
-      );
-
-      // Try to delete this embed to prevent confusion
-      try {
-        await message.delete();
-        logger.info(
-          `✅ [ErrorHandler] Successfully deleted incomplete embed message ID ${message.id}`
-        );
-        return true; // Embed was detected and deleted
-      } catch (deleteError) {
-        logger.error(`❌ [ErrorHandler] Error deleting incomplete embed:`, deleteError);
-      }
-    } else {
-      logger.info(
-        `✅ [ErrorHandler] GOOD EMBED: This "Personality Added" embed appears to be complete with display name and avatar`
-      );
-    }
-
-    // Update global embed timestamp regardless of deletion
-    // This helps us track when embeds were sent
-    global.lastEmbedTime = Date.now();
-  }
-
-  return false; // No incomplete embeds detected or deletion failed
-}
 
 /**
  * Start a periodic queue cleaner to check for and remove any error messages
@@ -281,6 +230,5 @@ module.exports = {
   patchClientForErrorFiltering,
   hasErrorPatterns,
   filterWebhookMessage,
-  detectAndDeleteIncompleteEmbed,
   startQueueCleaner,
 };

@@ -81,11 +81,6 @@ async function handleMessage(message, client) {
             `Message ${message.id} has ${message.embeds.length} embeds - DETAILED INFO: ${JSON.stringify(embedInfo, null, 2)}`
           );
 
-          // Check for incomplete embeds
-          const incompleteEmbedDeleted = await errorHandler.detectAndDeleteIncompleteEmbed(message);
-          if (incompleteEmbedDeleted) {
-            return; // Skip further processing
-          }
         }
 
         logger.debug(`This is my own message with ID ${message.id} - returning immediately`);
