@@ -138,12 +138,29 @@ async function handlePersonalityInteraction(
     const isReplyToDMFormattedMessage =
       isDM && message.reference && triggeringMention === null ? true : false;
 
-    // Check if the user is age-verified for ALL personality interactions (both DM and server channels)
     const auth = require('../auth');
-
-    // Check if this is a trusted proxy system that should bypass verification
+    
+    // Check if this is a trusted proxy system that should bypass auth and verification
     const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
 
+    // First check authentication (unless bypassed by proxy systems)
+    if (!shouldBypass && !auth.hasValidToken(message.author.id)) {
+      logger.info(
+        `[PersonalityHandler] User ${message.author.id} attempted to use personalities without authentication in ${isDM ? 'DM' : 'server channel'}`
+      );
+      await message
+        .reply(
+          '⚠️ **Authentication Required**\n\n' +
+            'To use AI personalities, you need to authenticate first.\n\n' +
+            'Please run `!tz auth` to set up your account before using this service.'
+        )
+        .catch(error => {
+          logger.error(`[PersonalityHandler] Failed to send authentication notice: ${error.message}`);
+        });
+      return; // Exit without processing the personality interaction
+    }
+
+    // Then check age verification for ALL personality interactions (both DM and server channels)
     // If we should bypass verification, treat as verified
     const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
 

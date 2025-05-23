@@ -33,7 +33,8 @@ jest.mock('../../../src/utils/media', () => ({
   prepareAttachmentOptions: jest.fn().mockReturnValue(null)
 }));
 jest.mock('../../../src/auth', () => ({
-  isNsfwVerified: jest.fn()
+  isNsfwVerified: jest.fn(),
+  hasValidToken: jest.fn()
 }));
 jest.mock('../../../src/conversationManager', () => ({
   recordConversation: jest.fn(),
@@ -117,7 +118,8 @@ describe('Personality Handler Module', () => {
     // Mock webhookUserTracker
     webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     
-    // Mock auth module
+    // Mock auth module - default to authenticated and verified
+    require('../../../src/auth').hasValidToken.mockReturnValue(true);
     require('../../../src/auth').isNsfwVerified.mockReturnValue(true);
     
     // Mock AI response
@@ -265,8 +267,28 @@ describe('Personality Handler Module', () => {
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
-    it('should check age verification requirements', async () => {
-      // Set user to not be verified
+    it('should check authentication before age verification', async () => {
+      // Set user to not have a valid token
+      require('../../../src/auth').hasValidToken.mockReturnValueOnce(false);
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Should reply with authentication requirement message
+      expect(mockMessage.reply).toHaveBeenCalled();
+      expect(mockMessage.reply.mock.calls[0][0]).toContain('Authentication Required');
+      
+      // Should not proceed with AI call
+      expect(getAiResponse).not.toHaveBeenCalled();
+    });
+    
+    it('should check age verification requirements after authentication', async () => {
+      // Set user to have valid token but not be age verified
+      require('../../../src/auth').hasValidToken.mockReturnValueOnce(true);
       require('../../../src/auth').isNsfwVerified.mockReturnValueOnce(false);
       
       await personalityHandler.handlePersonalityInteraction(
