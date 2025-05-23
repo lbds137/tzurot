@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-22 23:36 EDT
+Last updated: 2025-05-22 23:48 EDT
 
 ## Overall Coverage
 
@@ -8,7 +8,7 @@ Last updated: 2025-05-22 23:36 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   59.37 |    50.68 |   61.15 |   59.92 |                                                                                                                                                                                                                                                                                                                                                              
+All files                  |   60.89 |    52.21 |   64.14 |   61.36 |                                                                                                                                                                                                                                                                                                                                                              
  src                       |   54.65 |     51.2 |   64.14 |   55.05 |                                                                                                                                                                                                                                                                                                                                                              
   aiService.js             |   78.55 |    70.77 |   86.66 |   78.19 | 17-24,37-42,395,431,459-470,520-524,607-608,629-631,654,671-697,810-811,852,957-961,981-983,1058-1082,1097-1121,1157,1165,1175-1178,1213-1214,1219-1220,1222-1223,1225-1226,1228-1231,1239-1241,1278-1280,1286-1290                                                                                                                                          
   auth.js                  |   47.48 |    47.36 |   45.45 |   47.48 | 45-80,111-112,133-136,141-142,148-175,207-291,328-329,342,373-382,413-416                                                                                                                                                                                                                                                                                    
@@ -21,13 +21,13 @@ All files                  |   59.37 |    50.68 |   61.15 |   59.92 |
   dataStorage.js           |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   healthCheck.js           |   25.49 |        0 |      25 |   26.53 | 30,84-207                                                                                                                                                                                                                                                                                                                                                    
   logger.js                |   93.33 |      100 |     100 |   93.33 | 74                                                                                                                                                                                                                                                                                                                                                           
-  messageTracker.js        |   29.54 |    34.78 |   22.22 |   29.54 | 63,69-81,100-170                                                                                                                                                                                                                                                                                                                                             
+  messageTracker.js        |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                             
   middleware.js            |   96.59 |    91.89 |     100 |   96.55 | 21,127-128                                                                                                                                                                                                                                                                                                                                                   
   personalityManager.js    |   79.34 |    66.94 |      75 |   80.28 | 65-72,79-80,115-116,199-200,246-250,325-326,334-354,395-396,410-422,446,497-498,519,587-590,617-618,668-671,687-690                                                                                                                                                                                                                                          
   profileInfoFetcher.js    |   53.48 |    31.66 |   61.53 |   53.96 | 55-58,80-85,115-118,159-162,182,187-188,195-217,221-236,249,281-289,295-305,313-343,365-371                                                                                                                                                                                                                                                                  
   requestRegistry.js       |     100 |    94.91 |     100 |     100 | 63,157,159                                                                                                                                                                                                                                                                                                                                                   
   testCommandValidation.js |       0 |        0 |       0 |       0 | 6-380                                                                                                                                                                                                                                                                                                                                                        
-  utils.js                 |    6.45 |        0 |       0 |    7.69 | 14-91                                                                                                                                                                                                                                                                                                                                                        
+  utils.js                 |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                        
   webhookManager.js        |   32.85 |    33.11 |   55.17 |   32.94 | 81-82,112-131,173-174,181-183,196-203,213,237-252,277-286,295-296,306-307,312-319,330-352,453-454,488,494-495,514-703,748,768-769,805,829,845,851-854,894,900-908,931-969,975-1115,1131,1155-1158,1174-1215,1229-1234,1252-1262,1280-1311,1319-1343,1393,1420-1466,1480-1481,1548-2209,2240-2243,2253-2263,2289,2355,2382-2387,2395-2415,2563,2578,2596-2812 
  src/commands              |   65.21 |    36.36 |      75 |   64.44 |                                                                                                                                                                                                                                                                                                                                                              
   index.js                 |   65.21 |    36.36 |      75 |   64.44 | 28,35-47,61-64,70-71,99-101                                                                                                                                                                                                                                                                                                                                  
@@ -67,7 +67,7 @@ All files                  |   59.37 |    50.68 |   61.15 |   59.92 |
  src/monitoring            |   84.21 |    69.69 |   72.72 |   84.21 |                                                                                                                                                                                                                                                                                                                                                              
   deduplicationMonitor.js  |   84.21 |    69.69 |   72.72 |   84.21 | 74-75,115-122,137,153                                                                                                                                                                                                                                                                                                                                        
  src/utils                 |   36.55 |    27.61 |   37.09 |   38.07 |                                                                                                                                                                                                                                                                                                                                                              
-  channelUtils.js          |    8.69 |        0 |       0 |    9.09 | 14-56                                                                                                                                                                                                                                                                                                                                                        
+  channelUtils.js          |     100 |    94.73 |     100 |     100 | 27                                                                                                                                                                                                                                                                                                                                                        
   contentSimilarity.js     |    5.26 |        0 |       0 |    7.14 | 19-97                                                                                                                                                                                                                                                                                                                                                        
   embedBuilders.js         |    42.3 |    27.65 |   27.27 |    42.3 | 24-57,71-73,88-92,131-138,149-150,168-179,218-469                                                                                                                                                                                                                                                                                                            
   embedUtils.js            |    2.59 |        0 |       0 |     2.7 | 19-180                                                                                                                                                                                                                                                                                                                                                       
@@ -86,41 +86,37 @@ All files                  |   59.37 |    50.68 |   61.15 |   59.92 |
 
 ## Test Results Summary
 
-**Date Updated:** May 22, 2025 at 23:36 EDT  
-**Total Test Suites:** 96 passed, 96 total  
-**Total Tests:** 1,014 passed, 8 skipped, 1,022 total  
-**Overall Coverage:** 59.37% statements, 50.68% branches, 61.15% functions, 59.92% lines  
+**Date Updated:** May 22, 2025 at 23:48 EDT  
+**Total Test Suites:** 99 passed, 99 total  
+**Total Tests:** 1,069 passed, 8 skipped, 1,077 total  
+**Overall Coverage:** 60.89% statements, 52.21% branches, 64.14% functions, 61.36% lines  
 
 ## Major Improvements Since Last Update
 
 ### Coverage Improvements
-- **Overall Coverage**: Improved significantly from 52.57% to 59.59% statements (+7.02%)
-- **Key Files Now with 100% Coverage**:
-  - `bot.js`: 24.32% → 100% (fully tested)
-  - `commandLoader.js`: 27.27% → 100% (fully tested)
-  - `commandProcessor.js`: 0% → 98.27% (new comprehensive tests)
-  - `commandValidation.js`: 0% → 91.83% (new comprehensive tests)
-  - `middleware.js`: 0% → 96.59% (new comprehensive tests)
-  - `requestRegistry.js`: 0% → 100% (new comprehensive tests)
-  - `deduplicationMonitor.js`: 0% → 84.21% (new comprehensive tests)
-  - `pluralkitPatterns.js`: 0% → 100% (new comprehensive tests)
 
-### Recent Changes (May 22, 2025)
+**Overall coverage increased from 59.37% to 60.89% (+1.52%)**
 
-1. **Test Coverage Campaign**
-   - ✅ Created comprehensive test suites for 8 previously untested files
-   - ✅ Eliminated all 0% coverage files from critical infrastructure
-   - ✅ Added 189 new tests, bringing total from 803 to 1,028
-   - ✅ Improved overall line coverage by 7.17 percentage points
+New comprehensive test suites added:
+- ✅ **utils.js**: 100% coverage (was 6.45%) - All utility functions fully tested
+- ✅ **messageTracker.js**: 100% coverage (was 29.54%) - Complete deduplication system testing
+- ✅ **channelUtils.js**: 100% coverage (was 8.69%) - NSFW channel detection fully tested
 
-2. **Documentation Improvements**
-   - ✅ Created CRITICAL_COVERAGE_GAPS.md to track testing priorities
-   - ✅ Systematically addressed each identified coverage gap
-   - ✅ Maintained test quality while maximizing coverage gains
+These improvements demonstrate the effectiveness of targeted testing on low-coverage utilities.
 
-3. **Test Quality Enhancements**
-   - All new tests follow established patterns
-   - Proper mocking and dependency injection maintained
+### Recent Changes
+
+1. **May 22, 2025 (23:48 EDT)** - Improved coverage from 59.37% to 60.89%
+   - Added comprehensive tests for utils.js, messageTracker.js, and channelUtils.js
+   - Total of 55 new tests added across 3 test files
+
+2. **May 22, 2025 (23:36 EDT)** - Fixed failing tests after code cleanup
+   - Removed obsolete detectAndDeleteIncompleteEmbed tests
+   - Updated test coverage reporting
+
+3. **May 22, 2025 (earlier)** - Major test campaign
+   - Improved coverage from 52.57% to 59.59%
+   - Created tests for 8 previously untested files
    - Edge cases and error scenarios thoroughly tested
    - No skipped tests added - only legitimate test cases
 
