@@ -32,7 +32,6 @@ Learn about specific features:
 - [Space Aliases](components/SPACE_ALIASES.md) - Using spaces in personality names
 - [Display Names](components/DISPLAY_NAME_ALIASES.md) - Name and alias system
 - [Embed Utilities](components/EMBED_UTILITIES.md) - Discord embed handling
-- [Problematic Personalities](components/PROBLEMATIC_PERSONALITIES.md) - Special cases
 
 ### Testing
 - [Testing Overview](testing/README.md) - Testing approach

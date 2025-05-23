@@ -64,6 +64,7 @@ General system and utility commands.
 | `help` | Display help information | None |
 | `ping` | Test bot responsiveness | None |
 | `status` | Display bot status and statistics | None |
+| `purgbot` | Purge bot messages from DM history | None (DM only) |
 
 ### Administrator Commands
 
@@ -72,8 +73,6 @@ Commands restricted to bot administrators.
 | Command | Description | Permissions |
 |---------|-------------|-------------|
 | `debug` | Display debug information | Administrator |
-| `purgbot` | Remove bot owner's personalities | Administrator |
-| `clearerrors` | Clear error tracking data | Administrator |
 
 ## Command Details
 
@@ -193,7 +192,7 @@ Activate a personality for the entire channel (moderator only).
 **Parameters:**
 - `personality_or_alias`: The personality to activate
 
-**Required Permissions:** Manage Messages
+**Required Permissions:** Manage Messages + NSFW Channel
 
 **Examples:**
 ```
@@ -279,6 +278,7 @@ Manage your authentication with the AI service.
 - `code <code>`: Submit authorization code (DM only for security)
 - `status`: Check authentication status
 - `revoke`: Remove your authorization
+- `cleanup`: Clean up expired authentication tokens (admin only)
 
 **Examples:**
 ```
@@ -286,6 +286,7 @@ Manage your authentication with the AI service.
 !tz auth code ABC123DEF456  (in DM only)
 !tz auth status
 !tz auth revoke
+!tz auth cleanup            (admin only)
 ```
 
 **Security Notes:**
@@ -296,18 +297,22 @@ Manage your authentication with the AI service.
 ---
 
 #### `verify`
-Verify your authentication status.
+Verify your age to use AI personalities in Direct Messages.
 
 **Syntax:** `!tz verify`
+
+**Aliases:** `nsfw`
 
 **Examples:**
 ```
 !tz verify
+!tz nsfw
 ```
 
 **Notes:**
-- Quick way to check if you're authenticated
-- Shows expiration time if authenticated
+- Required for using personalities in DMs
+- Age verification is persistent
+- Only needs to be done once
 
 ### System Commands
 
@@ -370,52 +375,41 @@ Display debug information (admin only).
 **Syntax:** `!tz debug [subcommand]`
 
 **Subcommands:**
-- `problems`: Display problematic personalities
+- (No subcommands currently available)
 
 **Required Permissions:** Bot Administrator
 
 **Examples:**
 ```
 !tz debug
-!tz debug problems
 ```
 
 ---
 
 #### `purgbot`
-Remove all personalities added by the bot owner.
+Purge bot messages from your DM history.
 
-**Syntax:** `!tz purgbot`
+**Syntax:** `!tz purgbot [system|all]`
 
-**Required Permissions:** Bot Administrator
+**Aliases:** `purgebot`, `clearbot`, `cleandm`
+
+**Required Permissions:** None (DM only)
 
 **Examples:**
 ```
-!tz purgbot
+!tz purgbot          # Purge system messages only
+!tz purgbot system   # Purge system messages only
+!tz purgbot all      # Purge all bot messages (including personality messages)
 ```
 
 **Notes:**
-- Irreversible action
-- Only removes bot owner's personalities
-- Useful for cleanup during testing
+- Only works in DM channels
+- `system` - Removes system/command messages only
+- `all` - Removes all bot messages including personality responses
+- User messages are never deleted
 
 ---
 
-#### `clearerrors`
-Clear error tracking data.
-
-**Syntax:** `!tz clearerrors`
-
-**Required Permissions:** Bot Administrator
-
-**Examples:**
-```
-!tz clearerrors
-```
-
-**Notes:**
-- Resets error counters
-- Clears error history
 
 ## Interaction Methods
 

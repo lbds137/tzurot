@@ -74,9 +74,7 @@ async function execute(message, args) {
 
         case 'debug':
           helpContent +=
-            `\n\nAvailable subcommands:\n` +
-            `- \`problems\` - Display information about problematic personalities\n\n` +
-            `Example: \`${botPrefix} debug problems\``;
+            `\n\nCurrently no subcommands are available for this command.`;
           break;
 
         case 'add':
