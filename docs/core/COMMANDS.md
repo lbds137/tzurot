@@ -72,7 +72,7 @@ Commands restricted to bot administrators.
 
 | Command | Description | Permissions |
 |---------|-------------|-------------|
-| `debug` | Display debug information | Administrator |
+| `debug` | Advanced debugging tools | Administrator |
 
 ## Command Details
 
@@ -375,13 +375,14 @@ Display debug information (admin only).
 **Syntax:** `!tz debug [subcommand]`
 
 **Subcommands:**
-- (No subcommands currently available)
+- `clearwebhooks`: Clear cached webhook identifications
 
 **Required Permissions:** Bot Administrator
 
 **Examples:**
 ```
 !tz debug
+!tz debug clearwebhooks
 ```
 
 ---
