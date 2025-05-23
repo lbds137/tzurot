@@ -486,6 +486,9 @@ async function handlePersonalityInteraction(
             personalityName: referencedPersonalityInfo?.name,
             personalityDisplayName: referencedPersonalityInfo?.displayName,
             webhookName: referencedWebhookName,
+            // Include extracted media URLs from embeds
+            imageUrl: referencedImageUrl,
+            audioUrl: referencedAudioUrl,
           },
         };
       }

@@ -776,33 +776,47 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
           // Initialize cleaned reference content early for use throughout the function
           const cleanedRefContent = content.referencedMessage.content;
           
-          // First, extract any media URLs from the referenced message
-          const hasImage = sanitizedReferenceContent.includes('[Image:');
-          const hasAudio = sanitizedReferenceContent.includes('[Audio:');
+          // First, check if media URLs were provided directly (from embed extraction)
           let mediaUrl = null;
           let mediaType = null;
-
-          if (hasAudio) {
-            // Audio has priority over images
-            const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
-            if (audioMatch && audioMatch[1]) {
-              mediaUrl = audioMatch[1];
-              mediaType = 'audio';
-              logger.debug(`[AIService] Found audio URL in reference: ${mediaUrl}`);
-            }
-          } else if (hasImage) {
-            const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
-            if (imageMatch && imageMatch[1]) {
-              mediaUrl = imageMatch[1];
-              mediaType = 'image';
-              logger.debug(`[AIService] Found image URL in reference: ${mediaUrl}`);
+          
+          if (content.referencedMessage.audioUrl) {
+            mediaUrl = content.referencedMessage.audioUrl;
+            mediaType = 'audio';
+            logger.debug(`[AIService] Using provided audio URL from reference: ${mediaUrl}`);
+          } else if (content.referencedMessage.imageUrl) {
+            mediaUrl = content.referencedMessage.imageUrl;
+            mediaType = 'image';
+            logger.debug(`[AIService] Using provided image URL from reference: ${mediaUrl}`);
+          } else {
+            // Fallback to extracting from text content for backward compatibility
+            const hasImage = sanitizedReferenceContent.includes('[Image:');
+            const hasAudio = sanitizedReferenceContent.includes('[Audio:');
+            
+            if (hasAudio) {
+              // Audio has priority over images
+              const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
+              if (audioMatch && audioMatch[1]) {
+                mediaUrl = audioMatch[1];
+                mediaType = 'audio';
+                logger.debug(`[AIService] Found audio URL in reference text: ${mediaUrl}`);
+              }
+            } else if (hasImage) {
+              const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
+              if (imageMatch && imageMatch[1]) {
+                mediaUrl = imageMatch[1];
+                mediaType = 'image';
+                logger.debug(`[AIService] Found image URL in reference text: ${mediaUrl}`);
+              }
             }
           }
 
-          // Clean the referenced message content (remove media URLs)
+          // Clean the referenced message content (remove media URLs and embed media references)
           let cleanContent = sanitizedReferenceContent
             .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
             .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
+            .replace(/\[Embed Image: https?:\/\/[^\s\]]+\]/g, '')
+            .replace(/\[Embed Thumbnail: https?:\/\/[^\s\]]+\]/g, '')
             .trim();
 
           // If the content is empty after removing media URLs, add a placeholder
