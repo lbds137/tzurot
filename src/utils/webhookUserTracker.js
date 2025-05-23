@@ -120,8 +120,8 @@ function isProxySystemWebhook(message) {
     return true;
   }
 
-  // CRITICAL FIX: Check if this is our own bot's webhook
-  // This is vital for preventing both age verification prompts and message echo effects
+  // Check if this is our own bot's webhook
+  // This prevents age verification prompts and message echo effects
   try {
     // Method 1: Check if the webhook owner ID matches our bot's user ID
     if (

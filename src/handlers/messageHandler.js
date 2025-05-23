@@ -54,8 +54,8 @@ async function handleMessage(message, client) {
 
     // Only ignore messages from bots that aren't our webhooks
     if (message.author.bot) {
-      // CRITICAL: More aggressive handling of our own bot's messages
-      // We need to identify these by the bot's own client ID
+      // Handle our own bot's messages more strictly
+      // Identify these by the bot's own client ID
       if (message.author.id === client.user.id) {
         // Check for duplicate bot message
         if (!messageTracker.track(message.id, 'bot-message')) {

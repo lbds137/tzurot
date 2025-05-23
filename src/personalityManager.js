@@ -227,20 +227,6 @@ async function registerPersonality(userId, fullName, data, fetchInfo = true) {
   await saveAllPersonalities();
   logger.info(`[PersonalityManager] Saved personality data for: ${fullName}`);
 
-  // CRITICAL FIX: We're fixing duplication between this function and commands.js
-  // The only alias we set here is the self-referential alias using the full name
-  // But we NEVER save - commands.js will handle all saving operations
-
-  // CRITICAL FIX: Don't set self-referential alias here at all!
-  // This was causing the first embed to be sent too early
-  // Instead, commands.js will handle ALL alias creation including the self-referential one
-
-  // Log this critical change for debugging
-  logger.info(
-    `[PersonalityManager] ⚠️ CRITICAL FIX: Skipping self-referential alias creation here to prevent double embeds`
-  );
-  logger.info(`[PersonalityManager] All alias handling and saving deferred to commands.js`);
-
   // Double-check that we're returning a valid personality object
   if (!personality || !personality.fullName) {
     logger.error(
@@ -311,7 +297,7 @@ function safeToLowerCase(str) {
  * @returns {Promise<Object>} Result object with success flag and any alternate aliases created
  */
 async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayName = false) {
-  // CRITICAL FIX: Default skipSave to true to prevent ANY automatic saves
+  // Default skipSave to true to prevent automatic saves
   logger.info(
     `[PersonalityManager] Setting alias: ${alias} -> ${fullName} (skipSave: ${skipSave}, isDisplayName: ${isDisplayName})`
   );
@@ -335,7 +321,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
     return result;
   }
 
-  // CRITICAL FIX: Check if this alias already exists and points to the same personality
+  // Check if this alias already exists and points to the same personality
   if (personalityAliases.has(normalizedAlias)) {
     const existingTarget = personalityAliases.get(normalizedAlias);
 
@@ -624,9 +610,6 @@ async function seedOwnerPersonalities() {
         logger.info(
           `[PersonalityManager] Added ${personalityName} with display name: ${personality.displayName}`
         );
-
-        // Skip self-referential alias - no longer needed with improved @mention support
-        logger.info(`[PersonalityManager] Skipping self-referential alias for ${personalityName}`);
 
         // Only set display name alias if different from the full name
         if (personality.displayName.toLowerCase() !== personalityName.toLowerCase()) {

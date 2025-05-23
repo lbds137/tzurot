@@ -535,13 +535,13 @@ async function handlePersonalityInteraction(
     await new Promise(resolve => setTimeout(resolve, 500));
 
     // Send response and record conversation
-    // CRITICAL: We must pass the original message to ensure we use the correct user's auth token
+    // Pass the original message to ensure we use the correct user's auth token
     // This ensures user authentication is preserved when replying to webhook messages
 
     // Prepare options with thread information if needed
     const isThread = message.channel.isThread();
 
-    // CRITICAL: Add detailed logging about channel properties to diagnose thread issues
+    // Add detailed logging about channel properties to diagnose thread issues
     logger.info(
       `[PersonalityHandler] Channel type: ${message.channel.type}, ID: ${message.channel.id}`
     );
@@ -611,7 +611,7 @@ async function handlePersonalityInteraction(
     // Extra validation for thread handling
     if (finalIsThread && !webhookOptions.threadId) {
       logger.error(
-        `[PersonalityHandler] CRITICAL ERROR: Thread detected but threadId is not set in webhookOptions!`
+        `[PersonalityHandler] Error: Thread detected but threadId is not set in webhookOptions`
       );
       // Force set the threadId from the channel
       webhookOptions.threadId = message.channel.id;
@@ -636,7 +636,7 @@ async function handlePersonalityInteraction(
 
     let result;
 
-    // CRITICAL: For threads, try our direct thread implementation first - this is the most reliable approach
+    // For threads, try our direct thread implementation first as it's the most reliable approach
     if (finalIsThread) {
       logger.info(
         `[PersonalityHandler] Thread message detected - using priority sendDirectThreadMessage implementation`

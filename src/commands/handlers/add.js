@@ -189,7 +189,7 @@ async function execute(message, args) {
 
     logger.debug(`[AddCommand ${commandId}] Sending basic embed response`);
 
-    // CRITICAL: Block other handlers from processing while we're sending the embed
+    // Block other handlers from processing while we're sending the embed
     messageTracker.markSendingEmbed(messageKey);
     const initialResponse = await message.channel.send({ embeds: [basicEmbed] });
     logger.info(`[AddCommand ${commandId}] Initial embed sent with ID: ${initialResponse.id}`);

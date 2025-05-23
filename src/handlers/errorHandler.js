@@ -91,8 +91,8 @@ async function detectAndDeleteIncompleteEmbed(message) {
     return false;
   }
 
-  // CRITICAL FIX: Detect INCOMPLETE Personality Added embeds
-  // The first embed appears before we have the display name and avatar
+  // Detect incomplete Personality Added embeds
+  // The first embed may appear before we have the display name and avatar
   if (message.embeds[0].title === 'Personality Added') {
     // Check if this embed has incomplete information (missing display name or avatar)
     const isIncompleteEmbed =
@@ -217,7 +217,7 @@ function startQueueCleaner(client) {
           for (const errorMsg of webhookMessages.values()) {
             if (errorMsg.deletable) {
               logger.warn(
-                `[QueueCleaner] CRITICAL: Deleting error message in channel ${channel.name || channel.id} from ${errorMsg.author?.username}: ${errorMsg.content.substring(0, 30)}...`
+                `[QueueCleaner] Deleting error message in channel ${channel.name || channel.id} from ${errorMsg.author?.username}: ${errorMsg.content.substring(0, 30)}...`
               );
               try {
                 await errorMsg.delete();

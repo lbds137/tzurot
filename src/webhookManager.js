@@ -2161,22 +2161,22 @@ function registerEventListeners(discordClient) {
     clearWebhookCache(channel.id);
   });
 
-  // CRITICAL: Patch the WebhookClient prototype to intercept error messages at the source
-  // This is an extreme measure to prevent error messages from ever being sent
+  // Patch the WebhookClient prototype to intercept error messages at the source
+  // This prevents error messages from being sent through webhooks
   const originalSend = require('discord.js').WebhookClient.prototype.send;
 
   require('discord.js').WebhookClient.prototype.send = async function (options) {
     // Normalize options to handle various function signatures
     const normalizedOptions = typeof options === 'string' ? { content: options } : options;
 
-    // CRITICAL: Always allow messages to threads, even if they contain error patterns
+    // Always allow messages to threads, even if they contain error patterns
     const isThread = !!(normalizedOptions.threadId || normalizedOptions.thread_id);
 
     // Check if this is an error message (and not in a thread)
     if (!isThread && isErrorWebhookMessage(normalizedOptions)) {
-      logger.info(`[Webhook CRITICAL] Intercepted error message at WebhookClient.send:`);
+      logger.info(`[Webhook] Intercepted error message at WebhookClient.send:`);
       logger.info(
-        `[Webhook CRITICAL] Options: ${JSON.stringify({
+        `[Webhook] Options: ${JSON.stringify({
           username: normalizedOptions.username,
           content: normalizedOptions.content?.substring(0, 50),
           isThread: isThread,
@@ -2186,7 +2186,7 @@ function registerEventListeners(discordClient) {
 
       // Return a dummy ID to simulate successful sending
       // This will prevent any error handling from triggering or retries
-      logger.info(`[Webhook CRITICAL] Returning dummy ID instead of sending error message`);
+      logger.info(`[Webhook] Returning dummy ID instead of sending error message`);
       return {
         id: `blocked-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
         content: normalizedOptions.content,
