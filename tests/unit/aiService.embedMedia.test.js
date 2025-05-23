@@ -15,15 +15,15 @@ describe('AIService - Embed Media Extraction', () => {
 
   test('should include embed thumbnail as image attachment when referenced', () => {
     const input = {
-      messageContent: "@Beelzebub is this accurate?",
+      messageContent: "@TestPersonality is this accurate?",
       userName: "testuser",
       userId: "user123",
       referencedMessage: {
-        content: "https://www.reddit.com/r/hazbin/s/kCmOa3i3C4\n[Embed Title: u/fhxefj on r/hazbin]\n[Embed Thumbnail: https://i.redd.it/kcg9t4yy2h2f1.jpeg]",
-        author: "lbds137",
+        content: "https://www.example.com/post/12345\n[Embed Title: Example Post Title]\n[Embed Thumbnail: https://example.com/thumbnail.jpg]",
+        author: "TestAuthor",
         authorId: "author456",
         isFromBot: false,
-        imageUrl: "https://i.redd.it/kcg9t4yy2h2f1.jpeg" // This should be provided by personalityHandler
+        imageUrl: "https://example.com/thumbnail.jpg" // This should be provided by personalityHandler
       }
     };
 
@@ -38,13 +38,13 @@ describe('AIService - Embed Media Extraction', () => {
     const imageContent = result[0].content.find(item => item.type === 'image_url');
     
     expect(textContent).toBeDefined();
-    expect(textContent.text).toContain("@Beelzebub is this accurate?");
-    expect(textContent.text).toContain("lbds137 said:");
+    expect(textContent.text).toContain("@TestPersonality is this accurate?");
+    expect(textContent.text).toContain("TestAuthor said (with an image):");
     // Should not contain the embed thumbnail text since it's included as actual image
     expect(textContent.text).not.toContain("[Embed Thumbnail:");
     
     expect(imageContent).toBeDefined();
-    expect(imageContent.image_url.url).toBe("https://i.redd.it/kcg9t4yy2h2f1.jpeg");
+    expect(imageContent.image_url.url).toBe("https://example.com/thumbnail.jpg");
   });
 
   test('should include embed image as image attachment when referenced', () => {
@@ -54,8 +54,8 @@ describe('AIService - Embed Media Extraction', () => {
       userId: "user123",
       referencedMessage: {
         content: "Check out this cool art!\n[Embed Title: Amazing Artwork]\n[Embed Image: https://example.com/art.jpg]",
-        author: "artist123",
-        authorId: "artist456",
+        author: "TestUser2",
+        authorId: "testuser2-456",
         isFromBot: false,
         imageUrl: "https://example.com/art.jpg"
       }

@@ -179,7 +179,7 @@ describe('Referenced Message Media Tests', () => {
     const textItem = singleMessage.content.find(item => item.type === 'text');
     expect(textItem).toBeDefined();
     expect(textItem.text).toContain('What do you think about this image?');
-    expect(textItem.text).toContain('referencing a message with an image from TestUser');
+    expect(textItem.text).toContain('TestUser said (with an image):');
     
     // Find the image content
     const imageItem = singleMessage.content.find(item => item.type === 'image_url');
@@ -232,7 +232,7 @@ describe('Referenced Message Media Tests', () => {
     const textItem = singleMessage.content.find(item => item.type === 'text');
     expect(textItem).toBeDefined();
     expect(textItem.text).toContain('What is being said in this audio?');
-    expect(textItem.text).toContain('referencing a message with audio from TestUser');
+    expect(textItem.text).toContain('TestUser said (with audio):');
     
     // Find the audio content
     const audioItem = singleMessage.content.find(item => item.type === 'audio_url');
@@ -296,7 +296,7 @@ describe('Referenced Message Media Tests', () => {
     const textItem = singleMessage.content.find(item => item.type === 'text');
     expect(textItem).toBeDefined();
     expect(textItem.text).toContain('This image is related to the audio');
-    expect(textItem.text).toContain('referencing a message with audio from TestUser');
+    expect(textItem.text).toContain('TestUser said (with audio):');
     
     // Find the user's image content
     const userImageItem = singleMessage.content.find(item => 
@@ -370,7 +370,7 @@ describe('Referenced Message Media Tests', () => {
     const textItem = singleMessage.content.find(item => item.type === 'text');
     expect(textItem).toBeDefined();
     expect(textItem.text).toContain('This audio is my response to the image');
-    expect(textItem.text).toContain('referencing a message with an image from TestUser');
+    expect(textItem.text).toContain('TestUser said (with an image):');
     
     // Find the user's audio content
     const userAudioItem = singleMessage.content.find(item => 

@@ -838,23 +838,19 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             ? currentUserId === referencedAuthorId 
             : currentUserName === referencedAuthor;
 
-          // Create special text for tests to identify the reference type
-          let referenceText = '';
-          const mediaAuthor = isUserSelfReference ? 'me' : (content.referencedMessage.author || 'another user');
+          // Create natural phrasing for referenced messages with media
+          let mediaContext = '';
           if (mediaType === 'image') {
-            referenceText = `This is a message referencing a message with an image from ${mediaAuthor}`;
-            logger.debug(`[AIService] Created image reference text for matching in tests`);
+            mediaContext = isUserSelfReference ? ' (with an image I shared)' : ` (with an image)`;
+            logger.debug(`[AIService] Created image reference context`);
           } else if (mediaType === 'audio') {
-            referenceText = `This is a message referencing a message with audio from ${mediaAuthor}`;
-            logger.debug(`[AIService] Created audio reference text for matching in tests`);
+            mediaContext = isUserSelfReference ? ' (with audio I shared)' : ` (with audio)`;
+            logger.debug(`[AIService] Created audio reference context`);
           }
 
-          // Add the actual message content (use cleanContent to avoid duplication of media content)
-          
+          // Create natural reference text
           const authorText = isUserSelfReference ? 'I' : content.referencedMessage.author;
-          const fullReferenceContent = referenceText
-            ? `${referenceText}. ${authorText} said:\n"${cleanContent}"`
-            : `${authorText} said:\n"${cleanContent}"`;
+          const fullReferenceContent = `${authorText} said${mediaContext}:\n"${cleanContent}"`;
 
           // For bot messages, try to get the proper display name
           let assistantReferenceContent = '';
@@ -885,10 +881,10 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
 
             if (isSamePersonality) {
               // Second-person reference when user is talking to the same personality
-              assistantReferenceContent = `You said earlier: "${content.referencedMessage.content}"`;
+              assistantReferenceContent = `You said earlier${mediaContext}: "${cleanContent}"`;
             } else {
               // Third-person reference if it's a different personality
-              assistantReferenceContent = `${formattedName} said: "${content.referencedMessage.content}"`;
+              assistantReferenceContent = `${formattedName} said${mediaContext}: "${cleanContent}"`;
             }
           }
 

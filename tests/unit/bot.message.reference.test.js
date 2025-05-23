@@ -97,8 +97,7 @@ describe('Message Reference Handling', () => {
     const textItem = singleMessage.content.find(item => item.type === 'text');
     expect(textItem).toBeDefined();
     expect(textItem.text).toContain("What can you tell me about this image?");
-    expect(textItem.text).toContain('ImagePoster');
-    expect(textItem.text).toContain('referencing a message with an image');
+    expect(textItem.text).toContain('ImagePoster said (with an image):');
     
     // Find the image content from the reference
     const imageItem = singleMessage.content.find(item => 

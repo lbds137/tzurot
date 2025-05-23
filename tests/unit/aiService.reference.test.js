@@ -306,8 +306,7 @@ describe('AI Service Reference Message Handling', () => {
       const textContent = result[0].content.find(item => item.type === 'text');
       expect(textContent).toBeDefined();
       expect(textContent.text).toContain("Let me try this again with better context:");
-      expect(textContent.text).toContain("audio from me");
-      expect(textContent.text).toContain("I said:");
+      expect(textContent.text).toContain("I said (with audio I shared):");
       expect(textContent.text).toContain("[Audio Message]");
       expect(textContent.text).not.toContain("CurrentUser said:");
       
@@ -342,8 +341,7 @@ describe('AI Service Reference Message Handling', () => {
       const textContent = result[0].content.find(item => item.type === 'text');
       expect(textContent).toBeDefined();
       expect(textContent.text).toContain("Let me add more context to this audio");
-      expect(textContent.text).toContain("audio from me");
-      expect(textContent.text).toContain("I said:");
+      expect(textContent.text).toContain("I said (with audio I shared):");
       expect(textContent.text).toContain("[Audio Message]");
       expect(textContent.text).not.toContain("CurrentUser said:");
       
