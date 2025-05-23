@@ -1,105 +1,285 @@
-# tzurot
-A Discord bot that uses webhooks to represent multiple AI personalities
+# Tzurot - Discord AI Personality Bot
 
-## Documentation
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org)
+[![Discord.js](https://img.shields.io/badge/discord.js-v14-blue)](https://discord.js.org)
 
-For detailed documentation, please visit the [docs directory](docs/).
+Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamless interaction with AI personalities through Discord's webhook system. Each AI personality appears with its own name and avatar, creating authentic character interactions within Discord servers.
+
+## 🌟 Key Features
+
+- **🎭 Multiple AI Personalities**: Add and manage multiple AI personalities, each with unique identities
+- **🪝 Webhook Integration**: Personalities use Discord webhooks to appear as distinct users
+- **💬 Natural Conversations**: Multiple interaction methods including mentions, replies, and auto-response
+- **🔐 User Authentication**: Secure OAuth-like authentication system for API access
+- **🎨 Rich Media Support**: Handle images and audio attachments in conversations
+- **🛡️ Advanced Moderation**: Channel-wide activation with permission controls
+- **📊 Health Monitoring**: Built-in health check endpoint for monitoring
+- **🧪 Comprehensive Testing**: 90+ test suites with extensive coverage
+
+## 📋 Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Features](#-features)
+- [Documentation](#-documentation)
+- [Configuration](#-configuration)
+- [Commands](#-commands)
+- [Development](#-development)
+- [Testing](#-testing)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
+- [Support](#-support)
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 16.x or higher
+- npm 7.x or higher
+- Discord Bot Token ([create one here](https://discord.com/developers/applications))
+- AI Service API credentials
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/lbds137/tzurot.git
+   cd tzurot
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your credentials
+   ```
+
+4. **Start the bot**
+   ```bash
+   npm run dev  # Development mode with auto-reload
+   # or
+   npm start    # Production mode
+   ```
+
+### First Steps
+
+1. Invite the bot to your Discord server using the OAuth2 URL
+2. Run `!tz help` to see available commands
+3. Add your first personality: `!tz add personality-name`
+4. Start chatting by mentioning the personality: `@personality-name Hello!`
+
+## ✨ Features
+
+### Personality Management
+- Add personalities with custom aliases for easy reference
+- Each user maintains their own personality collection
+- Automatic profile fetching with avatar and display name
+- Support for problematic personalities with special handling
+
+### Interaction Methods
+1. **Direct Mention**: `@personality Hello!`
+2. **Reply to Personality**: Reply to any personality message to continue the conversation
+3. **Auto-Response Mode**: Enable continuous conversation without mentions
+4. **Channel Activation**: Moderators can activate a personality for an entire channel
+
+### Advanced Features
+- **Message Deduplication**: Sophisticated multi-layer system prevents duplicate responses
+- **Thread Support**: Full support for Discord threads
+- **DM Support**: Private conversations with personalities
+- **Media Handling**: Process images and audio files in conversations
+- **PluralKit Compatibility**: Works alongside PluralKit and other proxy bots
+- **Rate Limiting**: Built-in protection against abuse
+
+### Security & Authentication
+- OAuth-like authentication flow for API access
+- Secure token management with automatic expiration
+- DM-only authorization code submission
+- Permission-based command access
+
+## 📚 Documentation
 
 ### Core Documentation
-- [Architecture](docs/core/ARCHITECTURE.md) - Overall system architecture
-- [Setup](docs/core/SETUP.md) - Development environment setup
-- [Contributing](docs/core/CONTRIBUTING.md) - Contribution guidelines
-- [Coding Standards](docs/core/CODING_STANDARDS.md) - Code style and patterns
-- [Security](docs/core/SECURITY.md) - Security practices
+- [🏗️ Architecture](docs/core/ARCHITECTURE.md) - System design and component overview
+- [🔧 Setup Guide](docs/core/SETUP.md) - Detailed development setup instructions
+- [📜 Commands](docs/core/COMMANDS.md) - Complete command reference
+- [🚀 Deployment](docs/core/DEPLOYMENT.md) - Production deployment guide
+- [🔒 Security](docs/core/SECURITY.md) - Security practices and guidelines
 
-### Features
-- [Audio Attachments](docs/components/AUDIO_ATTACHMENT.md) - Audio URL to Discord attachment feature
-- [Space Aliases](docs/components/SPACE_ALIASES.md) - Using aliases with spaces in mentions
+### Component Documentation
+- [🔐 Authentication](docs/components/AUTHENTICATION.md) - Auth system details
+- [🎵 Audio Handling](docs/components/AUDIO_ATTACHMENT.md) - Audio processing
+- [🖼️ Image Handling](docs/components/IMAGE_HANDLING.md) - Image processing
+- [📝 Message Format](docs/core/MESSAGE_FORMAT_SPECIFICATION.md) - Message specifications
 
-### Testing
-- [Test Coverage Summary](docs/testing/TEST_COVERAGE_SUMMARY.md) - Current test coverage status
-- [Test Standardization](docs/testing/TEST_STANDARDIZATION.md) - Guidelines for standardizing tests
-- [Manual Testing Procedure](docs/testing/MANUAL_TESTING_PROCEDURE.md) - Guide for manual testing
+### Development
+- [💻 Contributing](docs/core/CONTRIBUTING.md) - How to contribute
+- [📏 Coding Standards](docs/core/CODING_STANDARDS.md) - Code style guide
+- [🧪 Testing Guide](docs/testing/README.md) - Testing documentation
+- [📊 Test Coverage](docs/testing/TEST_COVERAGE_SUMMARY.md) - Current test status
 
-## Configuration
+## ⚙️ Configuration
 
-### Environment Variables
+### Required Environment Variables
 
-The bot uses the following environment variables:
+```env
+# Discord Configuration
+DISCORD_TOKEN=your_discord_bot_token
 
-- `DISCORD_TOKEN` - Discord bot token
-- `SERVICE_API_KEY` - API key for the AI service
-- `SERVICE_API_ENDPOINT` - API endpoint for the AI service
-- `SERVICE_ID` - Service identifier
-- `PROFILE_INFO_ENDPOINT` - Endpoint for fetching profile information
-- `AVATAR_URL_BASE` - Base URL for avatar images
-- `PREFIX` - Command prefix (default: `!tz`)
-- `BOT_OWNER_ID` - Discord user ID of the bot owner (required for owner-only commands and personality auto-seeding)
-- `OWNER_PERSONALITIES` - Comma-separated list of personalities to automatically add for the bot owner
-- `KNOWN_PROBLEMATIC_PERSONALITIES` - Comma-separated list of personalities that require special error handling (see [documentation](docs/components/PROBLEMATIC_PERSONALITIES.md))
-- `HEALTH_PORT` - Port for the health check endpoint (optional)
+# AI Service Configuration
+SERVICE_API_KEY=your_api_key
+SERVICE_API_ENDPOINT=https://api.example.com
+SERVICE_ID=your_service_id
+PROFILE_INFO_ENDPOINT=https://example.com/api/profiles
 
-### User Personalities
-
-The bot can automatically seed personalities for the bot owner. Configure the list of personalities using the `OWNER_PERSONALITIES` environment variable in your `.env` file. This should be a comma-separated list of personality names that will be automatically added to the bot owner's account during initialization.
-
-## Health Check Endpoint
-
-The bot includes a health check HTTP endpoint that allows monitoring systems to verify the application's status. By default, it runs on port 3000 and can be accessed at:
-
-```
-http://your-server:3000/health
+# Bot Configuration (Optional)
+PREFIX=!tz
+BOT_OWNER_ID=your_discord_user_id
+OWNER_PERSONALITIES=personality1,personality2
+LOG_LEVEL=info
 ```
 
-The health endpoint provides:
-- Overall application status (ok, degraded, critical)
-- Uptime information
-- Memory usage statistics
-- System information
-- Status of individual components (Discord connection, AI service)
+See [SETUP.md](docs/core/SETUP.md) for complete configuration details.
 
-### Configuration
+## 🎮 Commands
 
-You can configure the health check port by setting the `HEALTH_PORT` environment variable.
+### Basic Commands
+- `!tz help [command]` - Display help information
+- `!tz ping` - Check bot responsiveness
+- `!tz status` - Show bot statistics
 
-### Example Response
+### Personality Management
+- `!tz add <name> [alias]` - Add a personality
+- `!tz remove <name>` - Remove a personality
+- `!tz list [page]` - List your personalities
+- `!tz info <name>` - Show personality details
+- `!tz alias <name> <alias>` - Add an alias
 
-```json
-{
-  "status": "ok",
-  "timestamp": "2025-05-18T12:00:00.000Z",
-  "uptime": {
-    "seconds": 3600,
-    "formatted": "0d 1h 0m 0s"
-  },
-  "memory": {
-    "rss": "120 MB",
-    "heapTotal": "60 MB",
-    "heapUsed": "45 MB",
-    "external": "10 MB",
-    "memoryUsagePercent": "75%"
-  },
-  "system": {
-    "platform": "linux",
-    "arch": "x64",
-    "nodeVersion": "v18.16.0",
-    "cpuCores": 4,
-    "totalMemory": "8192 MB",
-    "freeMemory": "4096 MB",
-    "loadAverage": [1.5, 1.2, 1.0]
-  },
-  "components": {
-    "discord": {
-      "status": "ok",
-      "message": "Connected to Discord",
-      "ping": "42ms",
-      "servers": 5,
-      "uptime": "1h 0m 0s"
-    },
-    "ai": {
-      "status": "ok",
-      "message": "AI service operational"
-    }
-  }
-}
+### Conversation Control
+- `!tz autorespond <on/off>` - Toggle auto-response
+- `!tz reset` - Clear active conversation
+- `!tz activate <name>` - Activate for channel (mod only)
+- `!tz deactivate` - Deactivate channel personality
+
+### Authentication
+- `!tz auth start` - Begin authentication
+- `!tz auth status` - Check auth status
+- `!tz verify` - Verify authentication
+
+See [COMMANDS.md](docs/core/COMMANDS.md) for the complete command reference.
+
+## 🛠️ Development
+
+### Available Scripts
+
+```bash
+npm start          # Start in production mode
+npm run dev        # Start with auto-reload
+npm test           # Run all tests
+npm run lint       # Check code style
+npm run format     # Format code
+npm run quality    # Run lint and format
 ```
+
+### Project Structure
+
+```
+tzurot/
+├── src/              # Source code
+│   ├── commands/     # Command handlers
+│   ├── handlers/     # Message handlers
+│   ├── utils/        # Utility functions
+│   └── ...
+├── tests/            # Test files
+├── docs/             # Documentation
+├── scripts/          # Utility scripts
+└── data/             # Runtime data
+```
+
+## 🧪 Testing
+
+The project includes comprehensive test coverage with 800+ tests across 90+ test suites.
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test
+npx jest tests/unit/bot.test.js
+
+# Run with coverage
+npm test -- --coverage
+
+# Watch mode
+npm run test:watch
+```
+
+See [Testing Documentation](docs/testing/README.md) for more details.
+
+## 📦 Deployment
+
+Tzurot can be deployed in multiple ways:
+
+- **VPS**: Traditional server deployment with PM2
+- **Docker**: Containerized deployment
+- **PaaS**: Railway, Heroku, Render
+- **Systemd**: Linux service deployment
+
+**⚠️ Current Limitations:**
+- Data is stored in JSON files (not persistent across redeploys)
+- Auth tokens are stored in memory (users must re-authenticate after restarts)
+- For production use, database integration is recommended
+
+See [DEPLOYMENT.md](docs/core/DEPLOYMENT.md) for detailed instructions.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please see the [Contributing Guide](docs/core/CONTRIBUTING.md) for details on:
+
+- Development setup
+- Submitting pull requests
+- Coding standards
+- Testing requirements
+
+## 🐛 Troubleshooting
+
+Common issues and solutions:
+
+- **Bot not responding**: Check token and permissions
+- **Personalities not loading**: Verify API credentials
+- **Webhook errors**: Ensure bot has "Manage Webhooks" permission
+
+For more help, see our [Troubleshooting Guide](docs/core/TROUBLESHOOTING.md) or open an issue.
+
+## 📊 Health Monitoring
+
+Tzurot includes a built-in health check endpoint for monitoring:
+
+```
+GET http://your-server:3000/health
+```
+
+Returns system status, memory usage, uptime, and component health.
+
+## 🌐 Support
+
+- 📖 [Documentation](docs/)
+- 🐛 [Issue Tracker](https://github.com/lbds137/tzurot/issues)
+- 💬 [Discussions](https://github.com/lbds137/tzurot/discussions)
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Discord.js](https://discord.js.org)
+- Inspired by PluralKit's proxy system
+- Thanks to all contributors and testers
+
+---
+
+<p align="center">Made with ❤️ as a personal project</p>
