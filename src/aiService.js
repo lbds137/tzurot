@@ -795,14 +795,14 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
             
             if (hasAudio) {
               // Audio has priority over images
-              const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
+              const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)]/);
               if (audioMatch && audioMatch[1]) {
                 mediaUrl = audioMatch[1];
                 mediaType = 'audio';
                 logger.debug(`[AIService] Found audio URL in reference text: ${mediaUrl}`);
               }
             } else if (hasImage) {
-              const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
+              const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)]/);
               if (imageMatch && imageMatch[1]) {
                 mediaUrl = imageMatch[1];
                 mediaType = 'image';
@@ -813,10 +813,10 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
 
           // Clean the referenced message content (remove media URLs and embed media references)
           let cleanContent = sanitizedReferenceContent
-            .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
-            .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
-            .replace(/\[Embed Image: https?:\/\/[^\s\]]+\]/g, '')
-            .replace(/\[Embed Thumbnail: https?:\/\/[^\s\]]+\]/g, '')
+            .replace(/\[Image: https?:\/\/[^\s\]]+]/g, '')
+            .replace(/\[Audio: https?:\/\/[^\s\]]+]/g, '')
+            .replace(/\[Embed Image: https?:\/\/[^\s\]]+]/g, '')
+            .replace(/\[Embed Thumbnail: https?:\/\/[^\s\]]+]/g, '')
             .trim();
 
           // If the content is empty after removing media URLs, add a placeholder
