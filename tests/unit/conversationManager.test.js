@@ -12,6 +12,9 @@ const {
   saveAllData
 } = require('../../src/conversationManager');
 
+// Mock logger
+jest.mock('../../src/logger');
+
 // Mock filesystem with a direct mock definition
 jest.mock('fs', () => {
   const mockFs = {
@@ -461,5 +464,250 @@ describe('Conversation Manager', () => {
     
     // More complex file system error handling tests would require more sophisticated mocking
     // that may not be worth the effort given the nature of the code.
+  });
+  
+  // Test DM functionality
+  describe('DM Functionality', () => {
+    it('should auto-enable auto-response for DM channels', () => {
+      // Verify auto-response is initially disabled
+      expect(isAutoResponseEnabled(testUserId)).toBe(false);
+      
+      // Record a conversation in a DM channel
+      recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName, true);
+      
+      // Verify auto-response was automatically enabled
+      expect(isAutoResponseEnabled(testUserId)).toBe(true);
+      
+      // Verify the conversation is active even in DM
+      expect(getActivePersonality(testUserId, testChannelId, true)).toBe(testPersonalityName);
+    });
+    
+    it('should use extended timeout for DM conversations', () => {
+      const originalDateNow = Date.now;
+      
+      try {
+        // Set up initial time
+        const currentTime = 1600000000000;
+        Date.now = jest.fn().mockReturnValue(currentTime);
+        
+        // Record a DM conversation
+        recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName, true);
+        
+        // Advance time by 90 minutes (more than guild timeout but less than DM timeout)
+        Date.now = jest.fn().mockReturnValue(currentTime + 90 * 60 * 1000);
+        
+        // The DM conversation should still be active (2 hour timeout)
+        expect(getActivePersonality(testUserId, testChannelId, true)).toBe(testPersonalityName);
+        
+        // Advance time by 121 minutes (beyond the 2 hour DM timeout)
+        Date.now = jest.fn().mockReturnValue(currentTime + 121 * 60 * 1000);
+        
+        // Now the conversation should be stale
+        expect(getActivePersonality(testUserId, testChannelId, true)).toBeNull();
+      } finally {
+        Date.now = originalDateNow;
+      }
+    });
+  });
+  
+  // Test getAllActivatedChannels
+  describe('getAllActivatedChannels', () => {
+    it('should return all activated channels', () => {
+      // Re-require to get fresh module state
+      jest.resetModules();
+      const { activatePersonality, getAllActivatedChannels } = require('../../src/conversationManager');
+      
+      // Activate personalities in multiple channels
+      activatePersonality('channel-1', 'personality-one', 'user-1');
+      activatePersonality('channel-2', 'personality-two', 'user-2');
+      activatePersonality('channel-3', 'personality-one', 'user-3');
+      
+      // Get all activated channels
+      const activated = getAllActivatedChannels();
+      
+      // Verify the result
+      expect(activated).toEqual({
+        'channel-1': 'personality-one',
+        'channel-2': 'personality-two',
+        'channel-3': 'personality-one'
+      });
+    });
+    
+    it('should return empty object when no channels are activated', () => {
+      // Re-require to get fresh module state
+      jest.resetModules();
+      const { getAllActivatedChannels } = require('../../src/conversationManager');
+      
+      // Get all activated channels
+      const activated = getAllActivatedChannels();
+      
+      // Verify the result is empty
+      expect(activated).toEqual({});
+    });
+  });
+  
+  // Test error handling
+  describe('Error Handling', () => {
+    it('should handle file system errors gracefully', async () => {
+      // Re-require to get fresh module state  
+      jest.resetModules();
+      const fs = require('fs');
+      
+      // Make mkdir fail
+      fs.promises.mkdir.mockRejectedValueOnce(new Error('Permission denied'));
+      
+      // Re-require the module to trigger initialization
+      const { initConversationManager } = require('../../src/conversationManager');
+      
+      // Initialize should not throw
+      await expect(initConversationManager()).resolves.not.toThrow();
+      
+      // Check that error was logged
+      const logger = require('../../src/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error creating data directory')
+      );
+    });
+    
+    it('should handle file read errors other than ENOENT', async () => {
+      // Re-require to get fresh module state
+      jest.resetModules();
+      const fs = require('fs');
+      
+      // Make readFile fail with permission error
+      const permissionError = new Error('Permission denied');
+      permissionError.code = 'EACCES';
+      fs.promises.readFile.mockRejectedValueOnce(permissionError);
+      
+      // Re-require and initialize
+      const { initConversationManager } = require('../../src/conversationManager');
+      await initConversationManager();
+      
+      // Check that error was logged
+      const logger = require('../../src/logger');
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error loading conversations')
+      );
+    });
+    
+    it('should handle invalid personality data gracefully', () => {
+      // Re-require modules after jest.resetModules()
+      const { getPersonalityFromMessage } = require('../../src/conversationManager');
+      const personalityManager = require('../../src/personalityManager');
+      const logger = require('../../src/logger');
+      
+      // Clear any previous logger calls
+      logger.error.mockClear();
+      
+      // Mock personalityManager to return invalid data
+      personalityManager.listPersonalitiesForUser.mockReturnValueOnce(null);
+      
+      // Try to get personality from webhook username
+      const result = getPersonalityFromMessage('unknown-id', {
+        webhookUsername: 'Test Bot'
+      });
+      
+      // Should return null and log error
+      expect(result).toBeNull();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('[ConversationManager] listPersonalitiesForUser returned invalid data')
+      );
+    });
+    
+    it('should handle errors in personality lookup', () => {
+      // Re-require modules after jest.resetModules()
+      const { getPersonalityFromMessage } = require('../../src/conversationManager');
+      const personalityManager = require('../../src/personalityManager');
+      const logger = require('../../src/logger');
+      
+      // Clear any previous logger calls
+      logger.error.mockClear();
+      
+      // Mock personalityManager to throw error
+      personalityManager.listPersonalitiesForUser.mockImplementationOnce(() => {
+        throw new Error('Database error');
+      });
+      
+      // Try to get personality from webhook username
+      const result = getPersonalityFromMessage('unknown-id', {
+        webhookUsername: 'Test Bot'
+      });
+      
+      // Should return null and log error
+      expect(result).toBeNull();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('[ConversationManager] Error looking up personality by webhook username')
+      );
+    });
+  });
+  
+  // Test legacy support
+  describe('Legacy Support', () => {
+    it('should support legacy lastMessageId in conversations', async () => {
+      // Re-require to get fresh module state
+      jest.resetModules();
+      
+      // Clear the mock logger
+      jest.clearAllMocks();
+      
+      // Mock the filesystem before requiring the module
+      const fs = require('fs');
+      const legacyData = {
+        [`${testUserId}-${testChannelId}`]: {
+          personalityName: testPersonalityName,
+          lastMessageId: 'legacy-message-123',
+          timestamp: Date.now()
+        }
+      };
+      
+      // Set up file to be read on init
+      fs.files.set('/mock/app/data/conversations.json', JSON.stringify(legacyData));
+      
+      // Now require the module
+      const conversationManager = require('../../src/conversationManager');
+      
+      // Initialize to load the legacy data
+      await conversationManager.initConversationManager();
+      
+      // Enable auto-response
+      conversationManager.enableAutoResponse(testUserId);
+      
+      // Should be able to get personality from legacy message ID
+      const personality = conversationManager.getPersonalityFromMessage('legacy-message-123');
+      expect(personality).toBe(testPersonalityName);
+    });
+    
+    it('should handle legacy message ID in clearConversation', async () => {
+      // Re-require to get fresh module state  
+      jest.resetModules();
+      
+      // Clear the mock logger
+      jest.clearAllMocks();
+      
+      // Mock the filesystem before requiring the module
+      const fs = require('fs');
+      const legacyData = {
+        [`${testUserId}-${testChannelId}`]: {
+          personalityName: testPersonalityName,
+          lastMessageId: 'legacy-message-456',
+          timestamp: Date.now()
+        }
+      };
+      
+      fs.files.set('/mock/app/data/conversations.json', JSON.stringify(legacyData));
+      
+      // Now require the module
+      const conversationManager = require('../../src/conversationManager');
+      
+      // Initialize to load the legacy data
+      await conversationManager.initConversationManager();
+      
+      // Clear the conversation
+      const result = conversationManager.clearConversation(testUserId, testChannelId);
+      
+      // Should return true and clean up legacy message ID
+      expect(result).toBe(true);
+      expect(conversationManager.getPersonalityFromMessage('legacy-message-456')).toBeNull();
+    });
   });
 });
