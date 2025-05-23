@@ -83,7 +83,6 @@ describe('messageHandler', () => {
     messageTrackerHandler.delayedProcessing.mockResolvedValue(undefined);
     dmHandler.handleDmReply.mockResolvedValue(false);
     dmHandler.handleDirectMessage.mockResolvedValue(false);
-    errorHandler.detectAndDeleteIncompleteEmbed.mockResolvedValue(false);
     errorHandler.filterWebhookMessage.mockReturnValue(false);
     webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
     processCommand.mockResolvedValue(true);
@@ -176,45 +175,6 @@ describe('messageHandler', () => {
       expect(messageTracker.track).toHaveBeenCalledWith(botSelfMessage.id, 'bot-message');
       
       // Should not have processed commands or references
-      expect(processCommand).not.toHaveBeenCalled();
-      expect(referenceHandler.handleMessageReference).not.toHaveBeenCalled();
-    });
-    
-    it('should check for and delete incomplete embeds', async () => {
-      // Set up a message from the bot itself with embeds
-      const botEmbedMessage = {
-        ...mockMessage,
-        author: {
-          ...mockMessage.author,
-          bot: true,
-          id: 'client-123' // Same as client's ID
-        },
-        embeds: [
-          {
-            title: 'Personality Added',
-            fields: [
-              {
-                name: 'Display Name',
-                value: 'Not set'
-              }
-            ]
-          }
-        ]
-      };
-      
-      // Mock that an incomplete embed was detected and deleted
-      errorHandler.detectAndDeleteIncompleteEmbed.mockResolvedValueOnce(true);
-      
-      // Call the handler
-      await messageHandler.handleMessage(botEmbedMessage, mockClient);
-      
-      // Should have tracked the bot's own message
-      expect(messageTracker.track).toHaveBeenCalledWith(botEmbedMessage.id, 'bot-message');
-      
-      // Should have checked for incomplete embeds
-      expect(errorHandler.detectAndDeleteIncompleteEmbed).toHaveBeenCalledWith(botEmbedMessage);
-      
-      // Should not have processed further
       expect(processCommand).not.toHaveBeenCalled();
       expect(referenceHandler.handleMessageReference).not.toHaveBeenCalled();
     });

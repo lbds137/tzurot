@@ -30,8 +30,7 @@ jest.mock('../../src/conversationManager', () => ({
 
 // Mock errorHandler
 jest.mock('../../src/handlers/errorHandler', () => ({
-  filterWebhookMessage: jest.fn().mockReturnValue(false),
-  detectAndDeleteIncompleteEmbed: jest.fn().mockResolvedValue(false)
+  filterWebhookMessage: jest.fn().mockReturnValue(false)
 }));
 
 // Mock messageTracker
