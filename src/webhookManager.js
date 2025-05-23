@@ -827,7 +827,7 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
   // Double-check threadId was properly set if isThread is true
   if (isThread && !messageData.threadId) {
     logger.error(
-      '[WebhookManager] CRITICAL: threadId not set properly in messageData despite isThread=true'
+      '[WebhookManager] Error: threadId not set properly in messageData despite isThread=true'
     );
   } else if (isThread) {
     logger.info(
@@ -1547,9 +1547,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
   // Minimize console output during webhook operations
   const originalFunctions = minimizeConsoleOutput();
 
-  // Extract user ID from message for authentication if available
-  // This is CRITICAL for ensuring we use the correct user's auth token
-  // when they reply to a webhook message
+  // Extract user ID from message for authentication
+  // This ensures we use the correct user's auth token when they reply to a webhook message
   const userId = message?.author?.id;
   logger.debug(
     `[WebhookManager] Using user ID for authentication: ${userId || 'none'} from ${message?.author?.tag || 'unknown user'}`
@@ -1694,8 +1693,8 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       }
     }
 
-    // CRITICAL: If this is an error message AND the personality has a pending message
-    // in this channel, completely drop this error message UNLESS it's a thread
+    // If this is an error message AND the personality has a pending message
+    // in this channel, drop the error message (except in threads)
     if (
       isErrorMessage &&
       !isThread && // Don't block thread messages!
@@ -1703,7 +1702,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       hasPersonalityPendingMessage(personality.fullName, channel.id)
     ) {
       logger.info(
-        `[Webhook] CRITICAL: Blocking error message for ${personality.fullName} due to pending message`
+        `[Webhook] Blocking error message for ${personality.fullName} due to pending message`
       );
       return null; // Do not send error message at all
     }
@@ -2115,7 +2114,7 @@ function isErrorWebhookMessage(options) {
   // If there's no content, it can't be an error
   if (!options || !options.content) return false;
 
-  // CRITICAL: Allow ALL thread messages to pass through, regardless of content
+  // Allow all thread messages to pass through, regardless of content
   // This prevents the error filter from blocking @mentions in threads
   if (options.threadId || options.thread_id) {
     logger.info(

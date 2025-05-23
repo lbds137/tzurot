@@ -432,9 +432,8 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
   logger.info(`[PersonalityManager] Setting alias mapping: ${normalizedAlias} -> ${fullName}`);
   personalityAliases.set(normalizedAlias, fullName);
 
-  // CRITICAL: We never automatically save here - the caller is responsible for calling saveAllPersonalities
-  // exactly once at the very end of the process
-  logger.info(`[PersonalityManager] No automatic save for alias - will be saved at end of process`);
+  // Defer saving to avoid multiple disk writes - caller should save once at the end
+  logger.info(`[PersonalityManager] Deferring save - will be saved at end of process`);
 
   result.success = true;
   return result;
@@ -599,12 +598,16 @@ async function seedOwnerPersonalities() {
   }
 
   logger.info(
-    `[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities in parallel`
+    `[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities sequentially with delays`
   );
 
-  // Create an array of promises for parallel execution
-  const personalityPromises = personalitiesToAdd.map(async personalityName => {
-    logger.info(`[PersonalityManager] Auto-seeding owner personality: ${personalityName}`);
+  // Process personalities sequentially with delays to avoid rate limiting
+  const addedPersonalities = [];
+  
+  for (let i = 0; i < personalitiesToAdd.length; i++) {
+    const personalityName = personalitiesToAdd[i];
+    logger.info(`[PersonalityManager] Auto-seeding owner personality ${i + 1}/${personalitiesToAdd.length}: ${personalityName}`);
+    
     try {
       // Register the personality for the owner
       const personality = await registerPersonality(
@@ -627,9 +630,8 @@ async function seedOwnerPersonalities() {
 
         // Only set display name alias if different from the full name
         if (personality.displayName.toLowerCase() !== personalityName.toLowerCase()) {
-          // IMPORTANT: Mark this as a display name alias (isDisplayName=true) to ensure
-          // proper collision handling when multiple personalities have the same display name
-          // This is critical for ensuring names like "Lilith" generate unique aliases
+          // Mark this as a display name alias to handle collisions properly
+          // when multiple personalities share the same display name
           logger.info(
             `[PersonalityManager] Setting display name alias: ${personality.displayName.toLowerCase()} -> ${personalityName} with isDisplayName=true`
           );
@@ -643,33 +645,30 @@ async function seedOwnerPersonalities() {
       }
 
       logger.info(`[PersonalityManager] Successfully added owner personality: ${personalityName}`);
-      return personality;
+      addedPersonalities.push(personality);
+      
+      // Add a delay between personality registrations to avoid rate limiting
+      // Skip delay after the last personality
+      if (i < personalitiesToAdd.length - 1) {
+        const delayMs = 5000; // 5 seconds between requests to be safe
+        logger.info(`[PersonalityManager] Waiting ${delayMs}ms before next personality to avoid rate limiting`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     } catch (error) {
       logger.error(
         `[PersonalityManager] Error auto-seeding personality ${personalityName}: ${error.message}`
       );
-      return null;
     }
-  });
+  }
 
-  // Execute all registration requests in parallel and wait for completion
-  try {
-    const results = await Promise.all(personalityPromises);
-    const addedPersonalities = results.filter(p => p !== null);
-
-    // Finally, save all personalities and aliases if any were added
-    if (addedPersonalities.length > 0) {
-      await saveAllPersonalities();
-      logger.info(
-        `[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`
-      );
-    } else {
-      logger.info('[PersonalityManager] No personalities were successfully seeded.');
-    }
-  } catch (error) {
-    logger.error(
-      `[PersonalityManager] Error during parallel personality seeding: ${error.message}`
+  // Finally, save all personalities and aliases if any were added
+  if (addedPersonalities.length > 0) {
+    await saveAllPersonalities();
+    logger.info(
+      `[PersonalityManager] Successfully auto-seeded ${addedPersonalities.length} personalities for owner`
     );
+  } else {
+    logger.info('[PersonalityManager] No personalities were successfully seeded.');
   }
 }
 

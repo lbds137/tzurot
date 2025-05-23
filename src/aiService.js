@@ -578,7 +578,7 @@ async function getAiResponse(personalityName, message, context = {}) {
     message = DEFAULTS.DEFAULT_PROMPT;
   }
 
-  // CRITICAL ERROR PREVENTION: Check if this personality+user is in a blackout period
+  // Check if this personality+user is in a blackout period to prevent error spam
   if (isInBlackoutPeriod(personalityName, context)) {
     // Return a special no-response marker that our bot will completely ignore
     logger.info(
@@ -587,7 +587,7 @@ async function getAiResponse(personalityName, message, context = {}) {
     return MARKERS.HARD_BLOCKED_RESPONSE;
   }
 
-  // CRITICAL DUPLICATE PREVENTION: Create a unique request ID to prevent duplicates
+  // Create a unique request ID to prevent duplicate requests
   const requestId = createRequestId(personalityName, message, context);
   logger.debug(`[AIService] Created request ID: ${requestId}`);
 
