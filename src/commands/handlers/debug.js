@@ -2,9 +2,10 @@
  * Debug Command Handler
  * Advanced debugging tools for administrators
  */
-const _logger = require('../../logger');
+const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
+const webhookUserTracker = require('../../utils/webhookUserTracker');
 
 /**
  * Command metadata
@@ -32,15 +33,23 @@ async function execute(message, args) {
     return await directSend(
       `You need to provide a subcommand. Usage: \`${botPrefix} debug <subcommand>\`\n\n` +
         `Available subcommands:\n` +
-        `(No subcommands currently available)`
+        `• \`clearwebhooks\` - Clear cached webhook identifications`
     );
   }
 
   const subCommand = args[0].toLowerCase();
 
-  return await directSend(
-    `Unknown debug subcommand: \`${subCommand}\`. Use \`${botPrefix} debug\` to see available subcommands.`
-  );
+  switch (subCommand) {
+    case 'clearwebhooks':
+      webhookUserTracker.clearAllCachedWebhooks();
+      logger.info(`[Debug] Webhook cache cleared by ${message.author.tag}`);
+      return await directSend('✅ Cleared all cached webhook identifications.');
+
+    default:
+      return await directSend(
+        `Unknown debug subcommand: \`${subCommand}\`. Use \`${botPrefix} debug\` to see available subcommands.`
+      );
+  }
 }
 
 module.exports = {

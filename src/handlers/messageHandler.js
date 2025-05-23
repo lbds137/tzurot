@@ -98,10 +98,11 @@ async function handleMessage(message, client) {
           return; // Message was filtered
         }
 
-        // Use our improved webhook identification logic to determine if this is our webhook
-        const isOwnWebhook = webhookUserTracker.isProxySystemWebhook(message);
+        // Check if this is our own bot's webhook (not a proxy system like PluralKit)
+        // Our bot's webhooks have applicationId matching our bot's user ID
+        const isOurBotWebhook = message.applicationId === client.user.id;
 
-        if (isOwnWebhook) {
+        if (isOurBotWebhook) {
           // This is one of our own webhooks, which means it's a personality webhook we created
           // We should NEVER process these messages, as that would create an echo effect
           // where the bot responds to its own webhook messages
@@ -109,9 +110,19 @@ async function handleMessage(message, client) {
             `[MessageHandler] Ignoring message from our own webhook (${message.webhookId}): ${message.author.username}`
           );
           return;
+        }
+
+        // Check if this is a proxy system webhook (like PluralKit)
+        const isProxySystem = webhookUserTracker.isProxySystemWebhook(message);
+        
+        if (isProxySystem) {
+          // This is a proxy system webhook (PluralKit, Tupperbox, etc.)
+          // We should process these messages normally as they represent real users
+          logger.debug(`Processing proxy system webhook message from: ${message.author.username}`);
+          // Continue processing - don't return here
         } else {
-          // This is not our webhook, ignore it
-          logger.debug(`Ignoring webhook message - not from our system: ${message.webhookId}`);
+          // This is some other webhook we don't recognize
+          logger.debug(`Ignoring unknown webhook message: ${message.webhookId}`);
           return;
         }
       } else {

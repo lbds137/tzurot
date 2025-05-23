@@ -120,36 +120,9 @@ function isProxySystemWebhook(message) {
     return true;
   }
 
-  // Check if this is our own bot's webhook
-  // This prevents age verification prompts and message echo effects
-  try {
-    // Method 1: Check if the webhook owner ID matches our bot's user ID
-    if (
-      message.webhook &&
-      message.webhook.owner &&
-      message.webhook.owner.id === global.tzurotClient?.user?.id
-    ) {
-      logger.info(`[WebhookUserTracker] Identified webhook as our own bot's webhook (by owner ID)`);
-      knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
-      return true;
-    }
-
-    // Method 2: Check if application ID matches our bot's user ID
-    if (message.webhookId && message.applicationId === global.tzurotClient?.user?.id) {
-      logger.info(`[WebhookUserTracker] Identified webhook with our bot's application ID`);
-      knownProxyWebhooks.set(message.webhookId, { timestamp: Date.now() });
-      return true;
-    }
-
-    // Method 3 removed: Personality name matching is too prone to false positives with PluralKit
-    // PluralKit and other proxy bots often have member names that partially match our personality names
-    // Since PluralKit reuses webhooks for all members in a channel, one false match would mark
-    // all PluralKit messages in that channel as "ours", which is incorrect.
-  } catch (error) {
-    logger.warn(
-      `[WebhookUserTracker] Error checking if webhook belongs to our bot: ${error.message}`
-    );
-  }
+  // Note: We no longer check if this is our bot's webhook here
+  // That check is done separately in messageHandler.js using applicationId === client.user.id
+  // This function is specifically for identifying third-party proxy systems like PluralKit
 
   // Check if the application ID matches any known proxy systems
   // The application ID is the bot user ID that created the webhook
