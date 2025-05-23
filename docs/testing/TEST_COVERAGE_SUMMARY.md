@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-23 13:51 EDT
+Last updated: 2025-05-23 14:21 EDT
 
 ## Overall Coverage
 
@@ -8,7 +8,7 @@ Last updated: 2025-05-23 13:51 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   68.77 |    61.11 |   74.59 |   68.91 |                                                                                                                                                                                                                                                                                                                                                              
+All files                  |   70.51 |     63.5 |      75 |   70.68 |                                                                                                                                                                                                                                                                                                                                                              
  src                       |   60.43 |    56.32 |   75.51 |   60.68 |                                                                                                                                                                                                                                                                                                                                                              
   aiService.js             |   78.55 |    70.77 |   86.66 |   78.19 | 17-24,37-42,395,431,459-470,520-524,607-608,629-631,654,671-697,810-811,852,957-961,981-983,1058-1082,1097-1121,1157,1165,1175-1178,1213-1214,1219-1220,1222-1223,1225-1226,1228-1231,1239-1241,1278-1280,1286-1290                                                                                                                                          
   auth.js                  |   47.48 |    47.36 |   45.45 |   47.48 | 45-80,111-112,133-136,141-142,148-175,207-291,328-329,342,373-382,413-416                                                                                                                                                                                                                                                                                    
@@ -56,12 +56,12 @@ All files                  |   68.77 |    61.11 |   74.59 |   68.91 |
   commandRegistry.js       |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   commandValidator.js      |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                              
   messageTracker.js        |   47.76 |    41.66 |      30 |   47.76 | 47-67,76-87,115-116,146,161-245,260-262                                                                                                                                                                                                                                                                                                                      
- src/handlers              |   60.38 |    46.24 |   53.73 |   60.29 |                                                                                                                                                                                                                                                                                                                                                              
+ src/handlers              |   71.24 |    59.15 |   56.71 |   71.25 |                                                                                                                                                                                                                                                                                                                                                              
   dmHandler.js             |   53.96 |    43.18 |      40 |    54.4 | 74-102,130,146-216,227-230,244-245,284-285,300,311-323                                                                                                                                                                                                                                                                                                       
   errorHandler.js          |   43.75 |    36.36 |   44.44 |      40 | 74,105-222                                                                                                                                                                                                                                                                                                                                                   
   messageHandler.js        |   87.83 |    76.52 |   66.66 |    88.1 | 43,62,67-80,98,116-126,145,176,254,292-293,398,424,430,496,511,517                                                                                                                                                                                                                                                                                           
   messageTrackerHandler.js |   71.42 |     61.7 |   71.42 |   72.94 | 16-34,49-55,63-64,96,212-213,234,250-252                                                                                                                                                                                                                                                                                                                     
-  personalityHandler.js    |   34.06 |    18.22 |      40 |   34.21 | 56,62-67,129,163,193-374,392-397,424-474,508-716,730,734,748                                                                                                                                                                                                                                                                                                 
+  personalityHandler.js    |   73.79 |    57.14 |   53.33 |   73.68 | 62-67,129,163,225,229-234,248-259,276-369,392-397,573,613-617,694-697,730,734,748                                                                                                                                                                                                                                                                                                 
   referenceHandler.js      |   76.42 |    68.26 |   66.66 |   76.42 | 78,94-97,106,171,230-270,292-299,313,343-349,358-366,372                                                                                                                                                                                                                                                                                                     
  src/monitoring            |   84.21 |    69.69 |   72.72 |   84.21 |                                                                                                                                                                                                                                                                                                                                                              
   deduplicationMonitor.js  |   84.21 |    69.69 |   72.72 |   84.21 | 74-75,115-122,137,153                                                                                                                                                                                                                                                                                                                                        
@@ -85,12 +85,19 @@ All files                  |   68.77 |    61.11 |   74.59 |   68.91 |
 
 ## Test Results Summary
 
-**Date Updated:** May 23, 2025 at 13:51 EDT  
+**Date Updated:** May 23, 2025 at 14:21 EDT  
 **Total Test Suites:** 106 passed, 106 total  
-**Total Tests:** 1,298 passed, 8 skipped, 1,306 total  
-**Overall Coverage:** 68.77% statements, 61.11% branches, 74.59% functions, 68.91% lines  
+**Total Tests:** 1,314 passed, 1,314 total  
+**Overall Coverage:** 70.51% statements, 63.5% branches, 75% functions, 70.68% lines  
 
 ## Major Improvements Since Last Update
+
+### Coverage Improvements (May 23, 2025 - 14:21 EDT)
+- Overall coverage increased from 68.77% to 70.51% (1.74% increase)
+- Fixed 8 skipped tests in personalityHandler.test.js
+- Improved personalityHandler.js coverage from 34.06% to 73.79% (39.73% increase!)
+- Added 8 new comprehensive tests for personalityHandler
+- Overall handlers coverage improved from 60.38% to 71.24% (10.86% increase)
 
 ### Coverage Improvements (May 23, 2025 - 13:51 EDT)
 - Overall coverage increased from 65.67% to 68.77% (3.10% increase)
@@ -119,7 +126,22 @@ These improvements demonstrate continued progress in improving test coverage for
 
 ### Recent Changes
 
-1. **May 23, 2025 (13:51 EDT)** - Major test coverage improvements
+1. **May 23, 2025 (14:21 EDT)** - Massive personalityHandler.js coverage improvement
+   - Fixed all 8 skipped tests in personalityHandler.test.js 
+   - Added 8 new comprehensive tests covering:
+     - DM channel handling
+     - Age verification bypass for webhook users
+     - Referenced message handling
+     - Media attachment processing
+     - Forum channel support
+     - Same-personality reference optimization
+     - Typing indicator cleanup on errors
+     - Missing channel permission handling
+   - Improved personalityHandler.js coverage from 34.06% to 73.79% (39.73% increase!)
+   - Overall coverage improved to 70.51% statements (from 68.77%)
+   - Total tests increased to 1,314 (was 1,306 with 8 skipped)
+
+2. **May 23, 2025 (13:51 EDT)** - Major test coverage improvements
    - Added comprehensive tests for errorTracker.js (97.87% coverage from 44.68%)
    - Added comprehensive tests for rateLimiter.js (100% coverage from 52%)
    - Added comprehensive tests for urlValidator.js (100% coverage from 61.29%)

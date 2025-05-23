@@ -8,6 +8,7 @@ const { getAiResponse } = require('../../../src/aiService');
 const webhookManager = require('../../../src/webhookManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
+const conversationManager = require('../../../src/conversationManager');
 const { MARKERS } = require('../../../src/constants');
 
 // Mock dependencies
@@ -23,7 +24,10 @@ jest.mock('../../../src/handlers/referenceHandler', () => ({
   MESSAGE_LINK_REGEX: /discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/gi
 }));
 jest.mock('../../../src/utils/media', () => ({
-  detectMedia: jest.fn().mockReturnValue({ hasMedia: false }),
+  detectMedia: jest.fn().mockImplementation((message, content) => ({
+    hasMedia: false,
+    messageContent: content || message.content
+  })),
   processMediaUrls: jest.fn(),
   processMediaForWebhook: jest.fn(),
   prepareAttachmentOptions: jest.fn().mockReturnValue(null)
@@ -65,8 +69,11 @@ describe('Personality Handler Module', () => {
         name: 'test-channel',
         isDMBased: jest.fn().mockReturnValue(false),
         isThread: jest.fn().mockReturnValue(false),
+        isTextBased: jest.fn().mockReturnValue(true),
+        isVoiceBased: jest.fn().mockReturnValue(false),
         type: 'GUILD_TEXT',
         parent: null,
+        parentId: null,
         sendTyping: jest.fn().mockResolvedValue({}),
         messages: {
           fetch: jest.fn()
@@ -130,6 +137,9 @@ describe('Personality Handler Module', () => {
     // Clear the activeRequests map
     personalityHandler.activeRequests.clear();
   });
+  
+  // Helper to wait for async operations including the 500ms delay
+  const waitForAsyncOperations = () => new Promise(resolve => setTimeout(resolve, 510));
   
   describe('trackRequest', () => {
     it('should track a request and return request key', () => {
@@ -289,46 +299,25 @@ describe('Personality Handler Module', () => {
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
-    it.skip('should start typing indicator', async () => {
-      // Ensure activeRequests is clear
-      personalityHandler.activeRequests.clear();
+    it('should start typing indicator', async () => {
+      mockMessage.channel.sendTyping.mockResolvedValue();
       
-      // Spy on the startTypingIndicator function
-      const startTypingIndicatorSpy = jest.spyOn(personalityHandler, 'startTypingIndicator')
-        .mockReturnValue(123); // Mock return value for interval ID
-      
-      // Also spy on trackRequest to see if it's being called
-      const trackRequestSpy = jest.spyOn(personalityHandler, 'trackRequest');
-      
-      await personalityHandler.handlePersonalityInteraction(
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
       
-      // Log what happened
-      console.log('trackRequest called:', trackRequestSpy.mock.calls.length);
-      console.log('startTypingIndicator called:', startTypingIndicatorSpy.mock.calls.length);
-      console.log('getAiResponse called:', getAiResponse.mock.calls.length);
-      console.log('mockMessage.reply called:', mockMessage.reply.mock.calls.length);
-      if (mockMessage.reply.mock.calls.length > 0) {
-        console.log('Reply message:', mockMessage.reply.mock.calls[0]);
-      }
-      console.log('logger.error called:', logger.error.mock.calls.length);
-      if (logger.error.mock.calls.length > 0) {
-        console.log('Error logs:', logger.error.mock.calls);
-      }
+      await waitForAsyncOperations();
+      await promise;
       
       // Verify typing indicator was started
-      expect(startTypingIndicatorSpy).toHaveBeenCalledWith(mockMessage.channel);
-      
-      // Clean up spies
-      startTypingIndicatorSpy.mockRestore();
-      trackRequestSpy.mockRestore();
+      expect(mockMessage.channel.sendTyping).toHaveBeenCalled();
+      expect(setInterval).toHaveBeenCalled();
     });
     
-    it.skip('should call getAiResponse with correct parameters', async () => {
+    it('should call getAiResponse with correct parameters', async () => {
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
@@ -338,62 +327,66 @@ describe('Personality Handler Module', () => {
       
       // Verify getAiResponse was called with correct parameters
       expect(getAiResponse).toHaveBeenCalledWith(
-        mockPersonality.fullName, // personality name, not the object
-        mockMessage.content,
+        mockPersonality.fullName,
+        expect.any(String), // The constructed message content
         expect.objectContaining({
           userId: mockMessage.author.id,
           channelId: mockMessage.channel.id,
-          message: mockMessage
+          message: mockMessage,
+          userName: expect.any(String)
         })
       );
     });
     
-    it.skip('should send response via webhookManager', async () => {
-      // Spy on recordConversationData
-      const recordConversationDataSpy = jest.spyOn(personalityHandler, 'recordConversationData');
-      
-      await personalityHandler.handlePersonalityInteraction(
+    it('should send response via webhookManager', async () => {
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
+      
+      await waitForAsyncOperations();
+      await promise;
       
       // Verify webhook manager was called
       expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
         mockMessage.channel,
-        mockPersonality,
         'Test AI response',
-        mockMessage.author.id,
-        mockMessage.id,
-        expect.any(Object) // options
+        mockPersonality,
+        expect.objectContaining({
+          userId: mockMessage.author.id,
+          threadId: undefined,
+          channelType: 'GUILD_TEXT',
+          isForum: null,
+          isReplyToDMFormattedMessage: false
+        }),
+        mockMessage
       );
       
-      // Verify conversation data was recorded
-      expect(recordConversationDataSpy).toHaveBeenCalledWith(
+      // Verify conversation was recorded
+      expect(conversationManager.recordConversation).toHaveBeenCalledWith(
         mockMessage.author.id,
         mockMessage.channel.id,
-        expect.objectContaining({
-          messageIds: ['webhook-message-id']
-        }),
+        'webhook-message-id',
         mockPersonality.fullName,
         false
       );
-      
-      // Clean up spy
-      recordConversationDataSpy.mockRestore();
     });
     
-    it.skip('should handle error response markers', async () => {
+    it('should handle error response markers', async () => {
       // Mock AI to return an error marker
       getAiResponse.mockResolvedValueOnce(MARKERS.BOT_ERROR_MESSAGE + ' An error occurred');
       
-      await personalityHandler.handlePersonalityInteraction(
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
+      
+      await waitForAsyncOperations();
+      await promise;
       
       // Verify reply was called with error message (without the marker)
       expect(mockMessage.reply).toHaveBeenCalledWith('An error occurred');
@@ -402,44 +395,52 @@ describe('Personality Handler Module', () => {
       expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
-    it.skip('should handle hard blocked response markers', async () => {
+    it('should handle hard blocked response markers', async () => {
       // Mock AI to return a hard blocked marker
       getAiResponse.mockResolvedValueOnce(MARKERS.HARD_BLOCKED_RESPONSE);
       
-      await personalityHandler.handlePersonalityInteraction(
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
+      
+      await waitForAsyncOperations();
+      await promise;
       
       // Verify no response was sent
       expect(mockMessage.reply).not.toHaveBeenCalled();
       expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
-    it.skip('should use direct thread message for threads', async () => {
+    it('should use direct thread message for threads', async () => {
       // Make the channel a thread
       mockMessage.channel.isThread.mockReturnValue(true);
       mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
       mockMessage.channel.parent = { id: 'parent-channel-id' };
       
-      await personalityHandler.handlePersonalityInteraction(
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
       
+      await waitForAsyncOperations();
+      await promise;
+      
       // Verify sendDirectThreadMessage was called instead of sendWebhookMessage
       expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalledWith(
         mockMessage.channel,
-        mockPersonality,
         'Test AI response',
-        mockMessage.author.id,
-        mockMessage.id,
+        mockPersonality,
         expect.objectContaining({
-          threadId: mockMessage.channel.id
+          userId: mockMessage.author.id,
+          threadId: mockMessage.channel.id,
+          channelType: 'GUILD_PUBLIC_THREAD',
+          isForum: false,
+          isReplyToDMFormattedMessage: false
         })
       );
       
@@ -447,7 +448,7 @@ describe('Personality Handler Module', () => {
       expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
-    it.skip('should fall back to regular webhook if thread message fails', async () => {
+    it('should fall back to regular webhook if thread message fails', async () => {
       // Make the channel a thread
       mockMessage.channel.isThread.mockReturnValue(true);
       mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
@@ -456,30 +457,43 @@ describe('Personality Handler Module', () => {
       // Mock sendDirectThreadMessage to fail
       webhookManager.sendDirectThreadMessage.mockRejectedValueOnce(new Error('Thread message failed'));
       
-      await personalityHandler.handlePersonalityInteraction(
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
+      
+      await waitForAsyncOperations();
+      await promise;
       
       // Verify both methods were called in order
       expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalled();
       expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
     });
     
-    it.skip('should fall back to direct channel.send if all webhook methods fail', async () => {
-      // Mock both webhook methods to fail
-      webhookManager.sendWebhookMessage.mockRejectedValueOnce(new Error('Webhook failed'));
+    it('should fall back to direct channel.send if all webhook methods fail', async () => {
+      // Make the channel a thread to trigger the fallback behavior
+      mockMessage.channel.isThread.mockReturnValue(true);
+      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
+      mockMessage.channel.parent = { id: 'parent-channel-id' };
       
-      await personalityHandler.handlePersonalityInteraction(
+      // Mock both webhook methods to fail
+      webhookManager.sendDirectThreadMessage.mockRejectedValue(new Error('Thread message failed'));
+      webhookManager.sendWebhookMessage.mockRejectedValue(new Error('Webhook failed'));
+      
+      const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
         null, 
         mockClient
       );
       
-      // Verify webhook was attempted
+      await waitForAsyncOperations();
+      await promise;
+      
+      // Verify both webhook methods were attempted
+      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalled();
       expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
       
       // Verify fallback to channel.send with formatted message
