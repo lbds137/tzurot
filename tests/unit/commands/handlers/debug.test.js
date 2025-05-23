@@ -92,9 +92,9 @@ describe('Debug Command', () => {
       expect.stringContaining('You need to provide a subcommand')
     );
     
-    // Should mention no subcommands currently available
+    // Should mention clearwebhooks subcommand
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      expect.stringContaining('No subcommands currently available')
+      expect.stringContaining('clearwebhooks')
     );
   });
   

@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-23 12:45 EDT
+Last updated: 2025-05-23 13:16 EDT
 
 ## Overall Coverage
 
@@ -8,7 +8,7 @@ Last updated: 2025-05-23 12:45 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   64.75 |    56.31 |    69.1 |   65.04 |                                                                                                                                                                                                                                                                                                                                                              
+All files                  |   65.67 |    57.28 |   69.91 |   65.99 |                                                                                                                                                                                                                                                                                                                                                              
  src                       |   60.43 |    56.32 |   75.51 |   60.68 |                                                                                                                                                                                                                                                                                                                                                              
   aiService.js             |   78.55 |    70.77 |   86.66 |   78.19 | 17-24,37-42,395,431,459-470,520-524,607-608,629-631,654,671-697,810-811,852,957-961,981-983,1058-1082,1097-1121,1157,1165,1175-1178,1213-1214,1219-1220,1222-1223,1225-1226,1228-1231,1239-1241,1278-1280,1286-1290                                                                                                                                          
   auth.js                  |   47.48 |    47.36 |   45.45 |   47.48 | 45-80,111-112,133-136,141-142,148-175,207-291,328-329,342,373-382,413-416                                                                                                                                                                                                                                                                                    
@@ -85,14 +85,20 @@ All files                  |   64.75 |    56.31 |    69.1 |   65.04 |
 
 ## Test Results Summary
 
-**Date Updated:** May 23, 2025 at 12:45 EDT  
-**Total Test Suites:** 101 passed, 101 total  
-**Total Tests:** 1,154 passed, 8 skipped, 1,162 total  
-**Overall Coverage:** 64.75% statements, 56.31% branches, 69.10% functions, 65.04% lines  
+**Date Updated:** May 23, 2025 at 13:16 EDT  
+**Total Test Suites:** 99 passed, 3 failed, 102 total  
+**Total Tests:** 1,227 passed, 4 failed, 8 skipped, 1,239 total  
+**Overall Coverage:** 65.67% statements, 57.28% branches, 69.91% functions, 65.99% lines  
 
 ## Major Improvements Since Last Update
 
-### Coverage Improvements
+### Coverage Improvements (May 23, 2025)
+- Overall coverage increased from 64.75% to 65.67% (0.92% increase)
+- Added 77 new tests across 2 test suites
+- Achieved 100% coverage for `webhookUserTracker.js` (was 27.82%)
+- Achieved 89.42% coverage for `embedBuilders.js` (was 42.3%)
+
+### Previously Completed Coverage Improvements
 
 **Overall coverage increased from 60.89% to 64.75% (+3.86%)**
 
@@ -138,9 +144,9 @@ The test infrastructure remains robust with:
 
 ### Testing Strategy Going Forward
 
-**Phase 1 (Next Priority):** Focus on low-coverage utilities
-1. Expand `webhookUserTracker.js` coverage (currently at 27.82%)
-2. Improve `embedBuilders.js` coverage (currently at 42.3%)
+**Phase 1 (Completed):** Focus on low-coverage utilities
+1. ✅ Expanded `webhookUserTracker.js` coverage from 27.82% to 100%
+2. ✅ Improved `embedBuilders.js` coverage from 42.3% to 89.42%
 3. Enhance `errorTracker.js` coverage (currently at 44.68%)
 
 **Phase 2 (Medium-term):** Improve handler coverage
