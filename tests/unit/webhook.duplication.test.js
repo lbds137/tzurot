@@ -108,11 +108,11 @@ describe('Webhook Message Duplication Fix', () => {
   describe('Webhook identification and handling', () => {
     test('should correctly identify and ignore our own webhook messages', async () => {
       // Create a mock webhook message that should be identified as our own
-      // This message has webhookId and bot=true, but author.id != client.user.id
-      // so it will be processed as a webhook bot message
+      // Our own webhooks have applicationId matching the bot's user ID
       const mockMessage = {
         id: '987654321',
         webhookId: '111222333444',
+        applicationId: '123456789012345678', // Same as client.user.id
         author: {
           username: 'Albert Einstein',
           bot: true,
@@ -126,14 +126,11 @@ describe('Webhook Message Duplication Fix', () => {
         reference: null
       };
       
-      // Mock the isProxySystemWebhook function to return true (our own webhook)
-      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
+      // Mock the isProxySystemWebhook function to return false (not a proxy system)
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
       
       // Call the message handler
       await messageHandler.handleMessage(mockMessage, { user: { id: '123456789012345678' } });
-      
-      // Verify the webhook identification function was called
-      expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(mockMessage);
       
       // Verify that a log message was generated indicating we're ignoring our own webhook
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -142,19 +139,12 @@ describe('Webhook Message Duplication Fix', () => {
     });
     
     test('handles webhook messages by personality name', async () => {
-      // Set up the personality matching behavior in our mock
-      webhookUserTracker.isProxySystemWebhook.mockImplementation((message) => {
-        if (message.author && message.author.username === 'Nikola Tesla') {
-          return true;
-        }
-        return false;
-      });
-      
-      // Create a mock message with personality name that doesn't have IDs
-      // Must have webhookId and bot=true, but author.id != client.user.id
+      // Create a mock message from our bot's webhook
+      // Our own webhooks have applicationId matching the bot's user ID
       const mockMessage = {
         id: '222333444',
         webhookId: '888999000',
+        applicationId: '123456789012345678', // Same as client.user.id
         author: {
           username: 'Nikola Tesla',
           bot: true,
@@ -167,13 +157,13 @@ describe('Webhook Message Duplication Fix', () => {
         }
       };
       
+      // Mock that this is not a proxy system webhook
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
+      
       // Call the message handler with our mock
       await messageHandler.handleMessage(mockMessage, { user: { id: '123456789012345678' } });
       
-      // Verify the webhook was identified as our own
-      expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(mockMessage);
-      
-      // Verify proper logging - this should be the log from messageHandler, not webhookUserTracker
+      // Verify proper logging - this should be the log from messageHandler
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringMatching(/Ignoring message from our own webhook/)
       );
