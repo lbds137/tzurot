@@ -21,15 +21,14 @@ With 66 personalities and the rate limiter queue, some requests were timing out 
 - Changed from 5 seconds to 8 seconds between each personality registration
 - Provides more breathing room for the API rate limits
 
-### 3. Added Initial Delay for Large Batches
-- Added 10-second initial delay when seeding more than 10 personalities
-- Ensures bot is fully initialized and reduces early rate limit pressure
+### 3. ~~Added Initial Delay for Large Batches~~ (Removed)
+- ~~Added 10-second initial delay when seeding more than 10 personalities~~
+- This was unnecessary - the bot is already initialized when this runs
 
 ## Time Impact
 For 66 personalities:
-- Initial delay: 10 seconds
 - Per-personality delay: 8 seconds × 65 = 520 seconds
-- Total time: ~9 minutes
+- Total time: ~8.7 minutes
 
 While this is longer, it ensures all personalities are properly seeded without timeouts.
 

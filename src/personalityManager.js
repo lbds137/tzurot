@@ -590,13 +590,6 @@ async function seedOwnerPersonalities(options = {}) {
     `[PersonalityManager] Will seed ${personalitiesToAdd.length} new personalities sequentially with delays`
   );
 
-  // Add initial delay to ensure bot is fully initialized and avoid early rate limits
-  if (personalitiesToAdd.length > 10 && !skipDelays) {
-    const initialDelay = 10000; // 10 seconds initial delay for large batches
-    logger.info(`[PersonalityManager] Waiting ${initialDelay}ms before starting large batch seeding`);
-    await new Promise(resolve => setTimeout(resolve, initialDelay));
-  }
-
   // Process personalities sequentially with delays to avoid rate limiting
   const addedPersonalities = [];
   
