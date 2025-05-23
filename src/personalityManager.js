@@ -332,27 +332,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = true, isDisplayNa
   // Verify the personality exists
   if (!personalityData.has(fullName)) {
     logger.error(`[PersonalityManager] Cannot set alias to non-existent personality: ${fullName}`);
-
-    // IMPROVEMENT: For testing only - if the fullName follows our naming convention, create a dummy entry
-    // This helps with test scripts that mock the data structure but may not fully populate it
-    if (
-      fullName.includes('-') &&
-      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development')
-    ) {
-      logger.warn(
-        `[PersonalityManager] TEST/DEV MODE: Creating dummy personality entry for testing: ${fullName}`
-      );
-
-      // Create a basic personality entry to allow the test to continue
-      personalityData.set(fullName, {
-        fullName,
-        displayName: fullName.split('-')[0],
-        createdBy: 'test-user',
-        createdAt: Date.now(),
-      });
-    } else {
-      return result;
-    }
+    return result;
   }
 
   // CRITICAL FIX: Check if this alias already exists and points to the same personality

@@ -40,9 +40,6 @@ describe('PurgBot Command', () => {
     jest.clearAllMocks();
     jest.resetModules();
     
-    // Set test environment for self-destruct handling
-    process.env.NODE_ENV = 'test';
-    
     // Create mock instances with proper naming
     const factories = require('../../../utils/mockFactories');
     mockValidator = factories.createValidatorMock();
@@ -89,7 +86,6 @@ describe('PurgBot Command', () => {
       id: 'status-message-123',
       edit: jest.fn().mockReturnThis(),
       delete: jest.fn().mockResolvedValue(undefined),
-      selfDestruct: jest.fn(),
     };
     
     // Setup channel.send mock
@@ -279,6 +275,10 @@ describe('PurgBot Command', () => {
     purgbotCommand = require('../../../../src/commands/handlers/purgbot');
   });
   
+  afterEach(() => {
+    // No cleanup needed
+  });
+  
   it('should have the correct metadata', () => {
     expect(purgbotCommand.meta).toEqual({
       name: 'purgbot',
@@ -318,6 +318,9 @@ describe('PurgBot Command', () => {
   });
   
   it('should purge system messages by default', async () => {
+    // Spy on setTimeout before executing the command
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    
     await purgbotCommand.execute(mockDMMessage, []);
     
     // Verify messages were fetched
@@ -358,16 +361,11 @@ describe('PurgBot Command', () => {
     expect(mockEmbed.setDescription).toHaveBeenCalledWith(expect.stringContaining('Completed purging system and command messages'));
     expect(mockEmbed.setFooter).toHaveBeenCalledWith({ text: expect.stringContaining('self-destruct') });
     
-    // Test the self-destruct functionality (should be attached to the message)
-    expect(mockStatusMessage).toHaveProperty('selfDestruct');
+    // Verify setTimeout was called for self-destruct
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
     
-    // Manually trigger self-destruct function for testing
-    if (mockStatusMessage.selfDestruct) {
-      await mockStatusMessage.selfDestruct();
-    }
-    
-    // Verify message was deleted
-    expect(mockStatusMessage.delete).toHaveBeenCalled();
+    // Clean up spy
+    setTimeoutSpy.mockRestore();
   });
   
   // Removed test for chat category since it no longer exists

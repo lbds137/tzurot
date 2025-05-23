@@ -239,14 +239,8 @@ async function execute(message, args) {
       }
     };
 
-    // In testing environments, use a mock and call immediately to avoid timeouts
-    if (process.env.NODE_ENV === 'test') {
-      // For tests, make this available on the message for immediate testing
-      updatedMessage.selfDestruct = selfDestruct;
-    } else {
-      // In real environment, use setTimeout
-      setTimeout(selfDestruct, 10000);
-    }
+    // Schedule self-destruction after 10 seconds
+    setTimeout(selfDestruct, 10000);
 
     return updatedMessage;
   } catch (error) {
