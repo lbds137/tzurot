@@ -51,8 +51,8 @@ describe('Personality Auto-Seeding Feature', () => {
   });
   
   test('handles display name alias collisions properly during seeding', async () => {
-    // Call the function we're testing
-    await personalityManager.seedOwnerPersonalities();
+    // Call the function we're testing with skipDelays option for fast testing
+    await personalityManager.seedOwnerPersonalities({ skipDelays: true });
     
     // Check that both personalities were registered
     expect(personalityManager.getPersonality('lilith-tzel-shani')).toBeTruthy();

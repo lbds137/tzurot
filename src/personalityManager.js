@@ -542,8 +542,11 @@ function listPersonalitiesForUser(userId) {
  * Pre-seeds the bot owner with default personalities from constants.js
  * Only adds personalities if they don't already exist for the owner
  * Uses parallel processing to avoid blocking app startup
+ * @param {Object} [options={}] - Configuration options
+ * @param {boolean} [options.skipDelays=false] - Skip delays between registrations (for testing)
  */
-async function seedOwnerPersonalities() {
+async function seedOwnerPersonalities(options = {}) {
+  const { skipDelays = false } = options;
   // Import constants
   const { USER_CONFIG } = require('./constants');
 
@@ -588,7 +591,7 @@ async function seedOwnerPersonalities() {
   );
 
   // Add initial delay to ensure bot is fully initialized and avoid early rate limits
-  if (personalitiesToAdd.length > 10) {
+  if (personalitiesToAdd.length > 10 && !skipDelays) {
     const initialDelay = 10000; // 10 seconds initial delay for large batches
     logger.info(`[PersonalityManager] Waiting ${initialDelay}ms before starting large batch seeding`);
     await new Promise(resolve => setTimeout(resolve, initialDelay));
@@ -639,7 +642,7 @@ async function seedOwnerPersonalities() {
       
       // Add a delay between personality registrations to avoid rate limiting
       // Skip delay after the last personality
-      if (i < personalitiesToAdd.length - 1) {
+      if (i < personalitiesToAdd.length - 1 && !skipDelays) {
         const delayMs = 8000; // 8 seconds between requests to be extra safe with 66 personalities
         logger.info(`[PersonalityManager] Waiting ${delayMs}ms before next personality to avoid rate limiting`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
