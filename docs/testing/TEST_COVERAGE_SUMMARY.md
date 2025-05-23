@@ -5,9 +5,9 @@
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   52.73 |    44.37 |   51.85 |    53.1 |                                                                                                                                                                                                                                                                                                                                                              
- src                       |   43.54 |    40.27 |   47.08 |   43.71 |                                                                                                                                                                                                                                                                                                                                                              
-  aiService.js             |   72.39 |    65.94 |   88.88 |   72.05 | 17-27,78-83,284-306,452-466,624,660,688-699,777-796,806-809,832-838,847-877,924-928,1011-1012,1033-1035,1074,1091-1133,1246-1247,1288,1393-1397,1417-1419,1494-1518,1533-1557,1593,1601,1611-1614,1659-1660,1665-1666,1668-1669,1671-1672,1674-1677,1685-1687,1733-1739,1747-1755                                                                            
+All files                  |   52.57 |     44.3 |   50.99 |   52.95 |                                                                                                                                                                                                                                                                                                                                                              
+ src                       |   43.32 |    40.16 |   45.81 |   43.51 |                                                                                                                                                                                                                                                                                                                                                              
+  aiService.js             |   78.55 |    70.77 |   86.66 |   78.19 | 17-24,37-42,395,431,459-470,520-524,607-608,629-631,654,671-697,810-811,852,957-961,981-983,1058-1082,1097-1121,1157,1165,1175-1178,1213-1214,1219-1220,1222-1223,1225-1226,1228-1231,1239-1241,1278-1280,1286-1290                                                                                                                                          
   auth.js                  |   47.48 |    47.36 |   45.45 |   47.48 | 45-80,111-112,133-136,141-142,148-175,207-291,328-329,342,373-382,413-416                                                                                                                                                                                                                                                                                    
   bot.js                   |   24.32 |        0 |       0 |   24.32 | 24-128                                                                                                                                                                                                                                                                                                                                                       
   commandLoader.js         |   27.27 |        0 |       0 |   27.27 | 16-32                                                                                                                                                                                                                                                                                                                                                        
@@ -28,17 +28,16 @@ All files                  |   52.73 |    44.37 |   51.85 |    53.1 |
   webhookManager.js        |   32.85 |    33.11 |   55.17 |   32.94 | 81-82,112-131,173-174,181-183,196-203,213,237-252,277-286,295-296,306-307,312-319,330-352,453-454,488,494-495,514-703,748,768-769,805,829,845,851-854,894,900-908,931-969,975-1115,1131,1155-1158,1174-1215,1229-1234,1252-1262,1280-1311,1319-1343,1393,1420-1466,1480-1481,1548-2209,2240-2243,2253-2263,2289,2355,2382-2387,2395-2415,2563,2578,2596-2812 
  src/commands              |   65.21 |    36.36 |      75 |   64.44 |                                                                                                                                                                                                                                                                                                                                                              
   index.js                 |   65.21 |    36.36 |      75 |   64.44 | 28,35-47,61-64,70-71,99-101                                                                                                                                                                                                                                                                                                                                  
- src/commands/handlers     |   89.05 |    74.71 |   86.36 |   89.35 |                                                                                                                                                                                                                                                                                                                                                              
+ src/commands/handlers     |   89.34 |    75.74 |   85.36 |   89.66 |                                                                                                                                                                                                                                                                                                                                                              
   activate.js              |   91.17 |    77.77 |     100 |   91.17 | 98-102                                                                                                                                                                                                                                                                                                                                                       
   add.js                   |   71.79 |    47.22 |      50 |   71.79 | 61-64,73-76,150,168-208                                                                                                                                                                                                                                                                                                                                      
   alias.js                 |      88 |       75 |     100 |      88 | 71-75                                                                                                                                                                                                                                                                                                                                                        
   auth.js                  |   94.05 |       90 |   85.71 |   94.05 | 72-73,105,144-145,286                                                                                                                                                                                                                                                                                                                                        
   autorespond.js           |     100 |    83.33 |     100 |     100 | 56,66                                                                                                                                                                                                                                                                                                                                                        
-  clearerrors.js           |   90.47 |      100 |     100 |   90.47 | 64-65                                                                                                                                                                                                                                                                                                                                                        
   deactivate.js            |      95 |      100 |     100 |      95 | 62                                                                                                                                                                                                                                                                                                                                                           
-  debug.js                 |     100 |    64.28 |     100 |     100 | 55-84                                                                                                                                                                                                                                                                                                                                                        
+  debug.js                 |     100 |    71.42 |     100 |     100 | 39                                                                                                                                                                                                                                                                                                                                                           
   help.js                  |    88.4 |    87.17 |   85.71 |   89.55 | 142-147,194-198                                                                                                                                                                                                                                                                                                                                              
-  info.js                  |   54.54 |       20 |     100 |   54.54 | 61-104                                                                                                                                                                                                                                                                                                                                                       
+  info.js                  |      88 |       75 |     100 |      88 | 86,91-94                                                                                                                                                                                                                                                                                                                                                     
   list.js                  |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   ping.js                  |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   purgbot.js               |   90.36 |       78 |   85.71 |   90.12 | 91-92,115-116,184-185,238,248                                                                                                                                                                                                                                                                                                                                
@@ -84,47 +83,52 @@ All files                  |   52.73 |    44.37 |   51.85 |    53.1 |
 
 ## Test Results Summary
 
-**Date Updated:** May 22, 2025 at 07:07:22 PM EDT  
-**Total Test Suites:** 90 passed, 90 total  
-**Total Tests:** 819 passed, 8 skipped, 827 total  
-**Overall Coverage:** 52.73% statements, 44.37% branches, 51.85% functions, 53.1% lines  
+**Date Updated:** May 22, 2025 at 09:07:25 PM EDT  
+**Total Test Suites:** 89 passed, 89 total  
+**Total Tests:** 803 passed, 8 skipped, 811 total  
+**Overall Coverage:** 52.57% statements, 44.3% branches, 50.99% functions, 52.95% lines  
 
 ## Major Improvements Since Last Update
 
 ### Coverage Improvements
-- **Overall Coverage**: Improved to 52.91% statements (up from ~52%)
-- **Command Handlers**: Improved to 89.05% statement coverage (excellent progress)
-- **Command Middleware**: Achieved 100% coverage across all middleware components
-- **Message Handler**: Achieved 92.06% statement coverage (excellent)
+- **Overall Coverage**: Maintained at ~52.57% statements
+- **Command Handlers**: Maintained excellent coverage at 89.34% statement coverage
+- **Command Middleware**: Maintained 100% coverage across all middleware components
+- **Message Handler**: Maintained excellent coverage at 92.06%
 - **Personality Manager**: Maintained high coverage at 79.34%
-- **AI Service**: Significantly improved to 72.39% statement coverage
+- **AI Service**: Improved to 78.55% statement coverage (up from 72.39%)
 
-### Recent Technical Achievements
+### Recent Changes (May 22, 2025)
 
-1. **Skipped Test Resolution (May 2025)**
-   - ✅ **Reduced Skipped Tests**: From 26 skipped tests down to 14 (12 tests fixed)
-   - ✅ **Fixed imageHandler.test.js**: 5 skipped tests now passing with proper ArrayBuffer mocking
-   - ✅ **Fixed aiService.error.test.js**: 10 skipped tests now passing after removing test environment special handling
-   - ✅ **Fixed dmHandler.test.js**: 1 skipped test now passing with proper mock isolation
-   - ✅ **Fixed commandSystem.test.js**: 1 permissions test rewritten to test metadata registration
-   - ✅ **Fixed help.test.js**: Error handling test simplified to avoid complex module mocking
-   - ❌ **personalityHandler.test.js**: 8 tests remain skipped due to complex mocking requirements
+1. **Removed Problematic Personalities Feature**
+   - ✅ Removed all code related to "known problematic personalities" concept
+   - ✅ Deleted `clearerrors` command handler entirely
+   - ✅ Removed `KNOWN_PROBLEMATIC_PERSONALITIES_LIST` from constants
+   - ✅ Updated all tests to remove problematic personality references
+   - ✅ Updated documentation to reflect changes
+   - ✅ All tests passing after removal (0 failed tests)
 
-2. **Code Quality Improvements**
-   - Removed test environment special handling from production code (aiService.js)
-   - Added proper mock reset in beforeEach blocks to prevent test interference
-   - Improved test isolation and reliability across the suite
-   - Maintained principle of not altering production code solely for tests
+2. **Documentation Corrections**
+   - ✅ Fixed `purgbot` command documentation (was incorrectly described as admin-only personality deletion)
+   - ✅ Updated `auth` command to include missing `cleanup` subcommand
+   - ✅ Fixed `verify` command description and added missing `nsfw` alias
+   - ✅ Corrected `activate` command permissions (requires NSFW Channel + Manage Messages)
+   - ✅ Updated help command to remove references to non-existent subcommands
 
-3. **Test Infrastructure Stability**
-   - Jest still runs cleanly with zero open handles
-   - All dependency injection patterns remain intact
-   - Test suite reliability maintained while fixing skipped tests
-   - Clear separation between unit and integration test responsibilities
+3. **Code Quality Improvements**
+   - Simplified error handling by removing unnecessary complexity
+   - Maintained blackout period mechanism for temporary error prevention
+   - Improved code maintainability by removing special case handling
+
+### Test Infrastructure Status
+✅ **Jest runs cleanly with zero open handles**  
+✅ **All dependency injection patterns intact**  
+✅ **Test suite reliability maintained**  
+✅ **Clear separation between unit and integration tests**  
 
 ## Test Improvement Notes
 
-While we've made significant progress, key areas still requiring improvement:
+While we've maintained good coverage, key areas still requiring improvement:
 
 ### High Priority Areas (0-30% coverage)
 1. **Core Infrastructure**
@@ -134,28 +138,29 @@ While we've made significant progress, key areas still requiring improvement:
    - `deduplicationMonitor.js` (0% coverage) - Message deduplication monitoring
 
 2. **Utility Components**
-   - `embedUtils.js` (0% coverage) - Discord embed utilities  
+   - `embedUtils.js` (2.59% coverage) - Discord embed utilities  
    - `pluralkitPatterns.js` (0% coverage) - PluralKit integration patterns
    - `contentSimilarity.js` (5.26% coverage) - Content comparison logic
    - `channelUtils.js` (8.69% coverage) - Discord channel utilities
 
 ### Medium Priority Areas (30-60% coverage)  
 1. **Handler Components**
-   - `personalityHandler.js` (29.25% coverage) - Core personality interaction logic
+   - `personalityHandler.js` (34.06% coverage) - Core personality interaction logic
    - `errorHandler.js` (51.57% coverage) - Error handling and recovery
    - `dmHandler.js` (53.96% coverage) - Direct message handling
 
 2. **Media Processing**
-   - `mediaHandler.js` (41.54% coverage) - General media processing
+   - `mediaHandler.js` (42.74% coverage) - General media processing
    - `audioHandler.js` (55.1% coverage) - Audio file processing  
-   - `imageHandler.js` (66.32% coverage) - Image file processing
 
 ### Areas with Good Coverage (70%+ coverage)
-- ✅ Command handlers (88.29% average)
+- ✅ Command handlers (89.34% average)
 - ✅ Command middleware (100% coverage)
 - ✅ Message handler (92.06% coverage)
 - ✅ Personality manager (79.34% coverage)
-- ✅ Reference handler (79.86% coverage)
+- ✅ Reference handler (76.42% coverage)
+- ✅ AI Service (78.55% coverage)
+- ✅ Image handler (78.57% coverage)
 
 ### Priority Testing Strategy
 
@@ -165,19 +170,13 @@ While we've made significant progress, key areas still requiring improvement:
 3. Create tests for essential utility functions in `embedUtils.js` and `pluralkitPatterns.js`
 
 **Phase 2 (Medium-term):** Improve handler coverage
-1. Expand `personalityHandler.js` test coverage (currently at 29%)
+1. Expand `personalityHandler.js` test coverage (currently at 34%)
 2. Add comprehensive `dmHandler.js` tests
 3. Improve `errorHandler.js` test completeness
 
 **Phase 3 (Long-term):** Complete media processing coverage  
 1. Add comprehensive media handler tests
-2. Test audio and image processing edge cases
+2. Test audio processing edge cases
 3. Verify media handling error scenarios
 
-## Jest Infrastructure Status
-✅ **Jest runs cleanly with zero open handles**  
-✅ **All teardown errors resolved**  
-✅ **Dependency injection patterns implemented**  
-✅ **Test suite reliability significantly improved**  
-
-The test infrastructure is now robust and supports reliable test development across all components.
+The test infrastructure remains robust and supports reliable test development across all components.
