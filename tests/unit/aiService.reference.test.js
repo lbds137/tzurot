@@ -351,5 +351,84 @@ describe('AI Service Reference Message Handling', () => {
       expect(audioContent).toBeDefined();
       expect(audioContent.audio_url.url).toBe("https://example.com/my-recording.mp3");
     });
+
+    it('should handle user self-references using user IDs', () => {
+      const input = {
+        messageContent: "What did I mean by that?",
+        userId: "user123", // Current user ID
+        userName: "John Doe",
+        referencedMessage: {
+          content: "AI technology is advancing rapidly.",
+          author: "JohnDoe", // Different username format
+          authorId: "user123", // Same user ID
+          isFromBot: false
+        }
+      };
+      
+      const result = formatApiMessages(input);
+      
+      // Should have one combined message
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
+      
+      // Should use "I said" even though usernames don't match exactly
+      const textContent = result[0].content.find(item => item.type === 'text');
+      expect(textContent).toBeDefined();
+      expect(textContent.text).toContain("What did I mean by that?");
+      expect(textContent.text).toContain("I said:");
+      expect(textContent.text).toContain("AI technology is advancing rapidly");
+      expect(textContent.text).not.toContain("JohnDoe said:");
+    });
+
+    it('should not treat as self-reference when user IDs differ', () => {
+      const input = {
+        messageContent: "What does John think?",
+        userId: "user456", // Current user ID
+        userName: "John Smith", // Similar name
+        referencedMessage: {
+          content: "I disagree with that assessment.",
+          author: "John Doe", // Similar name
+          authorId: "user123", // Different user ID
+          isFromBot: false
+        }
+      };
+      
+      const result = formatApiMessages(input);
+      
+      // Should have one combined message
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
+      
+      // Should use the author's name, not "I said"
+      const textContent = result[0].content.find(item => item.type === 'text');
+      expect(textContent).toBeDefined();
+      expect(textContent.text).toContain("What does John think?");
+      expect(textContent.text).toContain("John Doe said:");
+      expect(textContent.text).toContain("I disagree with that assessment");
+      expect(textContent.text).not.toContain("I said:");
+    });
+
+    it('should fall back to username comparison when user IDs are not available', () => {
+      const input = {
+        messageContent: "Let me clarify",
+        userName: "TestUser",
+        // No userId provided
+        referencedMessage: {
+          content: "This needs more explanation.",
+          author: "TestUser", // Same username
+          // No authorId provided
+          isFromBot: false
+        }
+      };
+      
+      const result = formatApiMessages(input);
+      
+      // Should still detect self-reference by username
+      const textContent = result[0].content.find(item => item.type === 'text');
+      expect(textContent).toBeDefined();
+      expect(textContent.text).toContain("Let me clarify");
+      expect(textContent.text).toContain("I said:");
+      expect(textContent.text).toContain("This needs more explanation");
+    });
   });
 });

@@ -180,6 +180,7 @@ async function handlePersonalityInteraction(
     // Check if this message is a reply to another message or contains a message link
     let referencedMessageContent = null;
     let referencedMessageAuthor = null;
+    let referencedMessageAuthorId = null; // Add author ID for self-reference detection
     let isReferencedMessageFromBot = false;
     let referencedImageUrl = null;
     let referencedAudioUrl = null;
@@ -198,6 +199,7 @@ async function handlePersonalityInteraction(
         if (repliedToMessage) {
           referencedMessageContent = repliedToMessage.content || '';
           referencedMessageAuthor = repliedToMessage.author?.username || 'another user';
+          referencedMessageAuthorId = repliedToMessage.author?.id || null;
           isReferencedMessageFromBot = repliedToMessage.author?.bot || false;
 
           // If it's a webhook, try to get personality name
@@ -392,6 +394,7 @@ async function handlePersonalityInteraction(
       messageContent = linkResult.messageContent;
       referencedMessageContent = linkResult.referencedMessageContent;
       referencedMessageAuthor = linkResult.referencedMessageAuthor;
+      referencedMessageAuthorId = linkResult.referencedMessageAuthorId || null;
       isReferencedMessageFromBot = linkResult.isReferencedMessageFromBot;
       referencedPersonalityInfo = linkResult.referencedPersonalityInfo;
       referencedWebhookName = linkResult.referencedWebhookName;
@@ -474,9 +477,11 @@ async function handlePersonalityInteraction(
         finalMessageContent = {
           messageContent: messageContent, // Original message content (text or multimodal array)
           userName: userDisplayName, // Add the user's display name or username
+          userId: message.author?.id, // Add user ID for self-reference detection
           referencedMessage: {
             content: referencedMessageContent,
             author: referencedMessageAuthor,
+            authorId: referencedMessageAuthorId, // Add author ID
             isFromBot: isReferencedMessageFromBot,
             personalityName: referencedPersonalityInfo?.name,
             personalityDisplayName: referencedPersonalityInfo?.displayName,

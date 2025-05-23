@@ -815,9 +815,14 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
           const userMessageContent = content.messageContent;
 
           // Check if user is referencing their own message (need this early for media reference text)
+          const currentUserId = content.userId;
+          const referencedAuthorId = content.referencedMessage.authorId;
           const currentUserName = content.userName || 'The user';
           const referencedAuthor = content.referencedMessage.author;
-          const isUserSelfReference = currentUserName === referencedAuthor;
+          // Compare by user ID if available, otherwise fall back to username comparison
+          const isUserSelfReference = (currentUserId && referencedAuthorId) 
+            ? currentUserId === referencedAuthorId 
+            : currentUserName === referencedAuthor;
 
           // Create special text for tests to identify the reference type
           let referenceText = '';

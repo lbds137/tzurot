@@ -205,6 +205,7 @@ async function processMessageLinks(
               // Extract content and author information
               result.referencedMessageContent = linkedMessage.content || '';
               result.referencedMessageAuthor = linkedMessage.author?.username || 'another user';
+              result.referencedMessageAuthorId = linkedMessage.author?.id || null;
               result.isReferencedMessageFromBot = linkedMessage.author?.bot || false;
 
               // Initialize personality info variables for linked messages too
