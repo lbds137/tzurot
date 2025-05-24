@@ -479,6 +479,9 @@ async function handlePersonalityInteraction(
     }
     
     // Use the reference handler to process message links in the current message
+    logger.debug(
+      `[PersonalityHandler] Calling processMessageLinks with messageContent: "${messageContent}", triggeringMention: "${triggeringMention}", hasActivePersonality: ${hasActivePersonality}`
+    );
     const linkResult = await referenceHandler.processMessageLinks(
       message,
       messageContent,
@@ -492,6 +495,9 @@ async function handlePersonalityInteraction(
 
     // Update variables with the processed results
     if (linkResult.hasProcessedLink) {
+      logger.info(
+        `[PersonalityHandler] ProcessMessageLinks returned with processed link - hasImage: ${!!linkResult.referencedImageUrl}, hasAudio: ${!!linkResult.referencedAudioUrl}`
+      );
       messageContent = linkResult.messageContent;
       referencedMessageContent = linkResult.referencedMessageContent;
       referencedMessageAuthor = linkResult.referencedMessageAuthor;
@@ -514,6 +520,10 @@ async function handlePersonalityInteraction(
           `[PersonalityHandler] Found image in linked message: ${referencedImageUrl}`
         );
       }
+    } else {
+      logger.debug(
+        `[PersonalityHandler] ProcessMessageLinks did not process any links`
+      );
     }
 
     // Get the user's display name and username
@@ -528,6 +538,10 @@ async function handlePersonalityInteraction(
       personalityName: personality.displayName || personality.fullName,
       userName: formattedUserName,
     };
+    
+    logger.debug(
+      `[PersonalityHandler] Calling detectMedia with referencedImageUrl: ${referencedImageUrl}, referencedAudioUrl: ${referencedAudioUrl}`
+    );
 
     // The media handler will detect and process all media (message content, attachments, embeds)
     // and create multimodal content if needed

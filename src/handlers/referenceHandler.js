@@ -60,6 +60,9 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
         logger.info(
           `[ReferenceHandler] Added synthetic link for nested reference: ${syntheticLink}`
         );
+        logger.debug(
+          `[ReferenceHandler] Updated message content: ${message.content}`
+        );
       } catch (nestedError) {
         if (nestedError.message === 'Unknown Message') {
           logger.warn(`[ReferenceHandler] Nested referenced message ${referencedMessage.reference.messageId} no longer exists`);
@@ -192,6 +195,11 @@ async function processMessageLinks(
     (referencedPersonalityInfo?.name || (isReferencedMessageFromBot && referencedWebhookName));
 
   if (!messageLinkMatch || !(isReplyToPersonality || triggeringMention || hasActivePersonality)) {
+    if (messageLinkMatch) {
+      logger.debug(
+        `[ProcessMessageLinks] Found link but conditions not met - isReplyToPersonality: ${isReplyToPersonality}, triggeringMention: ${triggeringMention}, hasActivePersonality: ${hasActivePersonality}`
+      );
+    }
     return result;
   }
 
