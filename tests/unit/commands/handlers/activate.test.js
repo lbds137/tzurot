@@ -130,6 +130,7 @@ describe('Activate Command Handler', () => {
   
   afterEach(() => {
     jest.resetModules();
+    jest.restoreAllMocks();
   });
   
   test('should have the correct metadata', () => {
@@ -161,9 +162,6 @@ describe('Activate Command Handler', () => {
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
       mockMessage.channel.id, 'test-personality', 'user-123'
     );
-    
-    // For future debugging if needed:
-    // console.log('Channel send calls:', mockMessage.channel.send.mock.calls);
     
     // Verify that channel.send was called (but not checking the exact content)
     expect(mockMessage.channel.send).toHaveBeenCalled();
