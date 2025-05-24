@@ -14,7 +14,11 @@ const { MARKERS } = require('../../../src/constants');
 // Mock dependencies
 jest.mock('../../../src/logger');
 jest.mock('../../../src/aiService');
-jest.mock('../../../src/webhookManager');
+jest.mock('../../../src/webhookManager', () => ({
+  sendAsPersonality: jest.fn(),
+  sendWebhookMessage: jest.fn(),
+  sendDirectThreadMessage: jest.fn()
+}));
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/handlers/referenceHandler', () => ({
@@ -62,11 +66,11 @@ describe('Personality Handler Module', () => {
       content: 'Test message',
       author: {
         id: 'user-id',
-        username: 'TestUser',
-        tag: 'TestUser#1234'
+        username: 'testuser',
+        tag: 'testuser#1234'
       },
       channel: {
-        id: 'channel-id',
+        id: 'test-channel-id',
         name: 'test-channel',
         isDMBased: jest.fn().mockReturnValue(false),
         isThread: jest.fn().mockReturnValue(false),
@@ -359,8 +363,8 @@ describe('Personality Handler Module', () => {
     });
     
     it('should handle duplicate requests', async () => {
-      // First request
-      personalityHandler.trackRequest('user-id', 'channel-id', 'test-personality');
+      // First request - use the actual IDs from mockMessage
+      personalityHandler.trackRequest('user-id', 'test-channel-id', 'test-personality');
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -600,6 +604,164 @@ describe('Personality Handler Module', () => {
       // Should reply to user with error message
       expect(mockMessage.reply).toHaveBeenCalledWith(
         expect.stringContaining('Sorry, I encountered an error')
+      );
+    });
+  });
+
+  describe('PluralKit Integration', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      
+      // Setup auth mocks
+      const auth = require('../../../src/auth');
+      auth.hasValidToken.mockReturnValue(true);
+      auth.isNsfwVerified.mockReturnValue(true);
+      
+      // Setup webhook manager mock
+      webhookManager.sendWebhookMessage.mockResolvedValue({
+        messageIds: ['123456789'],
+        result: true
+      });
+    });
+
+    test('should track PluralKit messages to the real user ID', async () => {
+      // Mock a PluralKit webhook message
+      const pluralKitMessage = {
+        ...mockMessage,
+        webhookId: 'pk-webhook-123',
+        author: {
+          id: 'pk-webhook-123',
+          username: 'Alice | Wonderland System',
+          bot: true
+        }
+      };
+      
+      // Mock webhook user tracker to return real user ID
+      webhookUserTracker.getRealUserId.mockReturnValue('real-user-123');
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
+      
+      // Call the handler
+      await personalityHandler.handlePersonalityInteraction(
+        pluralKitMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Verify conversation was recorded with real user ID, not webhook ID
+      expect(conversationManager.recordConversation).toHaveBeenCalledWith(
+        'real-user-123', // Real user ID, not 'pk-webhook-123'
+        'test-channel-id',
+        expect.any(String),
+        'test-personality',
+        false,
+        false
+      );
+    });
+
+    test('should pass isProxyMessage flag to AI service for PluralKit messages', async () => {
+      // Mock a PluralKit webhook message
+      const pluralKitMessage = {
+        ...mockMessage,
+        webhookId: 'pk-webhook-123',
+        author: {
+          id: 'pk-webhook-123',
+          username: 'Bob | Test System',
+          bot: true
+        },
+        member: {
+          displayName: 'Bob | Test System'
+        }
+      };
+      
+      // Mock webhook user tracker
+      webhookUserTracker.getRealUserId.mockReturnValue('real-user-456');
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
+      
+      // Call the handler
+      await personalityHandler.handlePersonalityInteraction(
+        pluralKitMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Verify AI service was called with isProxyMessage flag
+      expect(getAiResponse).toHaveBeenCalledWith(
+        'test-personality',
+        expect.any(String),
+        expect.objectContaining({
+          isProxyMessage: true,
+          userName: 'Bob | Test System' // Should use display name only for PK
+        })
+      );
+    });
+
+    test('should handle regular users without proxy message formatting', async () => {
+      // Regular Discord message (not PluralKit)
+      webhookUserTracker.getRealUserId.mockReturnValue('user-123');
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
+      
+      // Call the handler
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Verify AI service was called without isProxyMessage flag
+      expect(getAiResponse).toHaveBeenCalledWith(
+        'test-personality',
+        expect.any(String),
+        expect.objectContaining({
+          isProxyMessage: false,
+          userName: 'TestUser (testuser)' // Regular format with username
+        })
+      );
+      
+      // Verify conversation tracked with regular user ID
+      expect(conversationManager.recordConversation).toHaveBeenCalledWith(
+        'user-123',
+        'test-channel-id',
+        expect.any(String),
+        'test-personality',
+        false,
+        false
+      );
+    });
+
+    test('should use webhook options with real user ID for PluralKit', async () => {
+      // Mock a PluralKit webhook message
+      const pluralKitMessage = {
+        ...mockMessage,
+        webhookId: 'pk-webhook-123',
+        author: {
+          id: 'pk-webhook-123',
+          username: 'Charlie | Rainbow System',
+          bot: true
+        }
+      };
+      
+      webhookUserTracker.getRealUserId.mockReturnValue('real-user-789');
+      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
+      
+      await personalityHandler.handlePersonalityInteraction(
+        pluralKitMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Verify webhook manager was called with real user ID in options
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        expect.any(Object), // channel
+        expect.any(String), // AI response
+        expect.any(Object), // personality
+        expect.objectContaining({
+          userId: 'real-user-789' // Real user ID in webhook options
+        }),
+        expect.any(Object) // original message
       );
     });
   });

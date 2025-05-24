@@ -453,11 +453,7 @@ function clearConversation(userId, channelId) {
  * @returns {boolean} Success status
  */
 function activatePersonality(channelId, personalityName, userId) {
-  logger.info(`[ConversationManager] ACTIVATING personality "${personalityName}" in channel ${channelId} by user ${userId}`);
-  
-  // Log stack trace to see where this is being called from
-  const stack = new Error().stack;
-  logger.info(`[ConversationManager] Activation stack trace:\n${stack}`);
+  logger.info(`[ConversationManager] Activating personality "${personalityName}" in channel ${channelId} by user ${userId}`);
   
   activatedChannels.set(channelId, {
     personalityName,
@@ -468,6 +464,7 @@ function activatePersonality(channelId, personalityName, userId) {
   // Save to persistent storage
   saveAllData();
 
+  logger.info(`[ConversationManager] Successfully activated personality "${personalityName}" in channel ${channelId}`);
   return true;
 }
 

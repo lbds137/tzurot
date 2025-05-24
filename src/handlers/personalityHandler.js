@@ -204,7 +204,10 @@ async function handlePersonalityInteraction(
     }
 
     // Track the request to prevent duplicates
-    const requestKey = trackRequest(message.author.id, message.channel.id, personality.fullName);
+    // For PluralKit messages, use the real user ID instead of the webhook author ID
+    const trackerRealUserId = webhookUserTracker.getRealUserId(message);
+    
+    const requestKey = trackRequest(trackerRealUserId || message.author.id, message.channel.id, personality.fullName);
     if (!requestKey) {
       return; // Don't process duplicate requests
     }
@@ -529,7 +532,13 @@ async function handlePersonalityInteraction(
     // Get the user's display name and username
     const userDisplayName = message.member?.displayName || message.author?.username || 'User';
     const userUsername = message.author?.username || 'user';
-    const formattedUserName = `${userDisplayName} (${userUsername})`;
+    
+    // For PluralKit or webhook messages, just use the display name to avoid redundancy
+    // PluralKit names often include system tags like "Name | System"
+    const isWebhookMessage = !!(message.webhookId && webhookUserTracker.isProxySystemWebhook(message));
+    const formattedUserName = isWebhookMessage 
+      ? userDisplayName // Just use display name for PluralKit
+      : `${userDisplayName} (${userUsername})`; // Include username for regular users
 
     // Process media in the message and referenced media using the media handler
     const mediaOptions = {
@@ -637,6 +646,8 @@ async function handlePersonalityInteraction(
       message: message,
       // Pass the user's formatted name for audio transcript prompts
       userName: formattedUserName,
+      // Flag to indicate if this is a proxy system message (PluralKit, etc)
+      isProxyMessage: isWebhookMessage,
     });
 
     // Clear typing indicator interval
@@ -724,7 +735,8 @@ async function handlePersonalityInteraction(
 
     const webhookOptions = {
       // Include user ID in options for enhanced tracking
-      userId: message.author?.id,
+      // For PluralKit messages, use the real user ID instead of the webhook author ID
+      userId: trackerRealUserId || message.author?.id,
       // If the message is in a thread, explicitly pass the threadId to ensure
       // webhooks respond in the correct thread context
       threadId: finalIsThread ? message.channel.id : undefined,
@@ -845,8 +857,12 @@ async function handlePersonalityInteraction(
     // Record this conversation with all message IDs
     // Check if this was triggered by a mention (in guild channels only)
     const isMentionOnly = !message.channel.isDMBased() && triggeringMention !== null;
+    
+    // For PluralKit messages, get the real user ID instead of the webhook author ID
+    const conversationUserId = webhookUserTracker.getRealUserId(message);
+    
     recordConversationData(
-      message.author.id,
+      conversationUserId || message.author.id, // Use real user ID if available, otherwise fall back to author ID
       message.channel.id,
       result,
       personality.fullName,

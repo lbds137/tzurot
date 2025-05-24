@@ -353,6 +353,83 @@ describe('AI Service', () => {
       expect(formattedMessages[0].content[1].type).toBe('audio_url');
       expect(formattedMessages[0].content[1].audio_url.url).toBe('https://example.com/audio.mp3');
     });
+
+    // PluralKit speaker identification tests
+    it('should add speaker identification for PluralKit messages', () => {
+      const message = 'Hello from PluralKit!';
+      const personalityName = 'test-personality';
+      const userName = 'Alice | Wonderland System';
+      const isProxyMessage = true;
+      
+      const formattedMessages = formatApiMessages(message, personalityName, userName, isProxyMessage);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: '[Alice | Wonderland System]: Hello from PluralKit!' }
+      ]);
+    });
+
+    it('should NOT add speaker identification for regular users', () => {
+      const message = 'Hello from regular user!';
+      const personalityName = 'test-personality';
+      const userName = 'Bob (bob123)';
+      const isProxyMessage = false;
+      
+      const formattedMessages = formatApiMessages(message, personalityName, userName, isProxyMessage);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: 'Hello from regular user!' }
+      ]);
+    });
+
+    it('should add speaker identification to multimodal PluralKit messages', () => {
+      const multimodalContent = [
+        { type: 'text', text: 'What is this?' },
+        { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
+      ];
+      const personalityName = 'test-personality';
+      const userName = 'Charlie | Rainbow System';
+      const isProxyMessage = true;
+      
+      const formattedMessages = formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
+      
+      expect(formattedMessages).toEqual([
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: '[Charlie | Rainbow System]: What is this?' },
+            { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
+          ]
+        }
+      ]);
+    });
+
+    it('should NOT add speaker identification to multimodal regular user messages', () => {
+      const multimodalContent = [
+        { type: 'text', text: 'What is this?' },
+        { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
+      ];
+      const personalityName = 'test-personality';
+      const userName = 'Dave (dave123)';
+      const isProxyMessage = false;
+      
+      const formattedMessages = formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: multimodalContent }
+      ]);
+    });
+
+    it('should handle default userName parameter correctly', () => {
+      const message = 'Test message';
+      const personalityName = 'test-personality';
+      // Not passing userName, should default to 'a user'
+      
+      const formattedMessages = formatApiMessages(message, personalityName);
+      
+      expect(formattedMessages).toEqual([
+        { role: 'user', content: 'Test message' }
+      ]);
+    });
   });
 
   // Unit test for createRequestId function

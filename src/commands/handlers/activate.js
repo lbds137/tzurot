@@ -77,11 +77,7 @@ async function execute(message, args) {
     }
 
     // Activate the personality for this channel
-    const result = activatePersonality(message.channel.id, personality.fullName, message.author.id);
-
-    if (result.error) {
-      return await directSend(result.error);
-    }
+    activatePersonality(message.channel.id, personality.fullName, message.author.id);
 
     // Create the success embed
     const embed = new EmbedBuilder()

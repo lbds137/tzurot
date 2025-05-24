@@ -311,16 +311,14 @@ describe('Activate Command Handler', () => {
   });
   
   test('should handle activation errors properly', async () => {
-    // Set up an error in activation
-    conversationManager.activatePersonality.mockReturnValueOnce({ 
-      error: 'Failed to activate personality' 
-    });
+    // Set up an error in personality lookup (not in activation itself)
+    personalityManager.getPersonality.mockReturnValueOnce(null);
     
-    await activateCommand.execute(mockMessage, ['test-personality']);
+    await activateCommand.execute(mockMessage, ['nonexistent-personality']);
     
     // Verify the error message
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      'Failed to activate personality'
+      'Personality "nonexistent-personality" not found. Please check the name or alias and try again.'
     );
   });
 });

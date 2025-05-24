@@ -45,10 +45,10 @@ async function execute(message, _args) {
 
   try {
     // Deactivate personality for this channel
-    const result = deactivatePersonality(message.channel.id);
-
-    if (result.error) {
-      return await directSend(result.error);
+    const wasDeactivated = deactivatePersonality(message.channel.id);
+    
+    if (!wasDeactivated) {
+      return await directSend('No active personality found in this channel.');
     }
 
     // Create the success embed

@@ -152,16 +152,14 @@ describe('Deactivate Command Handler', () => {
   });
   
   test('should handle errors from deactivatePersonality', async () => {
-    // Mock an error from deactivatePersonality
-    conversationManager.deactivatePersonality.mockReturnValueOnce({
-      error: 'No active personality found in this channel'
-    });
+    // Mock deactivatePersonality returning false (no personality was active)
+    conversationManager.deactivatePersonality.mockReturnValueOnce(false);
     
     await deactivateCommand.execute(mockMessage, []);
     
     // Check that the error message was sent
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
-      'No active personality found in this channel'
+      'No active personality found in this channel.'
     );
     
     // Check that no embed was created (since we're returning early with an error)

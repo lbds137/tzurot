@@ -760,9 +760,10 @@ function sanitizeApiText(text) {
  * @param {string|Array|Object} content - Text message, array of content objects, or complex object with reference
  * @param {string} personalityName - The name of the personality to use in media prompts
  * @param {string} [userName] - The user's formatted name (displayName + username)
+ * @param {boolean} [isProxyMessage] - Whether this is a proxy system message (PluralKit, etc)
  * @returns {Array} Formatted messages array for API request
  */
-function formatApiMessages(content, personalityName, userName = 'a user') {
+function formatApiMessages(content, personalityName, userName = 'a user', isProxyMessage = false) {
   try {
     // Check if the content is an object with a special reference format
     if (
@@ -1125,12 +1126,30 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
     // Standard handling for non-reference formats
     if (Array.isArray(content)) {
       // Handle standard multimodal content array
+      // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
+      if (isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text') {
+        const modifiedContent = [...content];
+        modifiedContent[0] = {
+          ...modifiedContent[0],
+          text: `[${userName}]: ${modifiedContent[0].text}`
+        };
+        return [{ role: 'user', content: modifiedContent }];
+      }
       return [{ role: 'user', content }];
     }
 
     // Simple text message - sanitize if it's a string
-    const sanitizedContent = typeof content === 'string' ? sanitizeApiText(content) : content;
-    return [{ role: 'user', content: sanitizedContent }];
+    if (typeof content === 'string') {
+      const sanitizedContent = sanitizeApiText(content);
+      // For proxy messages only: prepend speaker identification if we have a userName
+      const finalContent = isProxyMessage && userName !== 'a user' 
+        ? `[${userName}]: ${sanitizedContent}`
+        : sanitizedContent;
+      return [{ role: 'user', content: finalContent }];
+    }
+    
+    // For non-string content, return as is
+    return [{ role: 'user', content }];
   } catch (formatError) {
     // Log the error for debugging
     logger.error(`[AIService] Error in formatApiMessages: ${formatError.message}`);
@@ -1167,11 +1186,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   logger.info(`[AIService] Making API request for normal personality: ${personalityName}`);
   logger.debug(`[AIService] Using model path: ${modelPath}`);
 
-  // Extract user name from context if available
+  // Extract user name and proxy message flag from context if available
   const userName = context.userName || 'a user';
+  const isProxyMessage = context.isProxyMessage || false;
 
   // Format the message content properly for the API
-  const messages = formatApiMessages(message, personalityName, userName);
+  const messages = formatApiMessages(message, personalityName, userName, isProxyMessage);
 
   // Debug log the exact messages being sent to detect issues
   if (typeof message === 'object' && message.referencedMessage) {
