@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-24 17:41 EDT
+Last updated: 2025-05-24 18:07 EDT
 
 ## Overall Coverage
 
@@ -8,7 +8,7 @@ Last updated: 2025-05-24 17:41 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   75.32 |    67.14 |   81.85 |   75.56 |                                                                                                                                                                                                                                                                                                                                                              
+All files                  |    75.2 |    66.88 |   81.78 |   75.43 |                                                                                                                                                                                                                                                                                                                                                              
  src                       |   64.25 |    57.88 |    81.4 |   64.58 |                                                                                                                                                                                                                                                                                                                                                              
   aiService.js             |    75.6 |    67.28 |   86.66 |   75.22 | 18-25,38-43,396,432,460-471,521-525,602-603,624-626,649,682-721,892,997-1001,1021-1023,1098-1122,1152-1179,1216,1224,1234-1237,1276-1277,1282-1283,1285-1286,1288-1289,1291-1294,1298-1309,1339-1349,1383-1384,1397-1404,1413-1416,1439-1441,1447-1451                                                                                                       
   auth.js                  |    92.8 |    81.57 |   95.45 |    92.8 | 135-136,141-142,328-329,342,380-382                                                                                                                                                                                                                                                                                                                          
@@ -72,7 +72,6 @@ All files                  |   75.32 |    67.14 |   81.85 |   75.56 |
   embedUtils.js            |    98.7 |    94.44 |     100 |     100 | 58,90,116-124                                                                                                                                                                                                                                                                                                                                                
   errorTracker.js          |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   pluralkitMessageStore.js |   91.48 |       85 |      90 |   93.47 | 17,147-148                                                                                                                                                                                                                                                                                                                                                   
-  pluralkitPatterns.js     |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   rateLimiter.js           |     100 |    97.36 |     100 |     100 | 62                                                                                                                                                                                                                                                                                                                                                           
   urlValidator.js          |     100 |    97.61 |     100 |     100 | 27                                                                                                                                                                                                                                                                                                                                                           
   webhookUserTracker.js    |    93.7 |    91.66 |     100 |   93.38 | 67-68,227-230,389-391                                                                                                                                                                                                                                                                                                                                        
@@ -86,12 +85,27 @@ All files                  |   75.32 |    67.14 |   81.85 |   75.56 |
 
 ## Test Results Summary
 
-**Date Updated:** May 24, 2025 at 17:41 EDT  
-**Total Test Suites:** 112 passed, 0 failed, 112 total  
-**Total Tests:** 1,490 passed, 0 failed, 5 skipped, 1,495 total  
-**Overall Coverage:** 75.32% statements, 67.14% branches, 81.85% functions, 75.56% lines  
+**Date Updated:** May 24, 2025 at 18:07 EDT  
+**Total Test Suites:** 110 passed, 0 failed, 110 total  
+**Total Tests:** 1,455 passed, 0 failed, 5 skipped, 1,460 total  
+**Overall Coverage:** 75.2% statements, 66.88% branches, 81.78% functions, 75.43% lines  
 
 ## Major Improvements Since Last Update
+
+### May 24, 2025 (18:07 EDT)
+**Coverage: 75.2% statements (-0.12%), 66.88% branches (-0.26%), 81.78% functions (-0.07%), 75.43% lines (-0.13%)**
+
+- **Code Cleanup - Removed Obsolete PluralKit Pattern Detection:**
+  - Removed `src/utils/pluralkitPatterns.js` and its test file (35 tests removed)
+  - Removed multiple manual test scripts that were replaced by unit tests:
+    - `scripts/test_deduplication.js`
+    - `scripts/test_personality_registration.js` 
+    - `scripts/test_readd_personalities.js`
+    - `scripts/test_thread_support.js`
+    - `scripts/test_webhook_proxies.js`
+  - Test count decreased from 1,495 to 1,460 (35 tests removed)
+  - The slight decrease in coverage percentages is expected when removing a file that had 100% coverage
+  - This cleanup reflects the shift from pattern-based to deletion-based PluralKit detection
 
 ### May 24, 2025 (17:41 EDT)
 **Coverage: 75.32% statements (+0.24%), 67.14% branches (+0.32%), 81.85% functions (+0.07%), 75.56% lines (+0.27%)**
