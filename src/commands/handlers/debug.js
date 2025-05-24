@@ -2,6 +2,7 @@
  * Debug Command Handler
  * Advanced debugging tools for administrators
  */
+const { PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
@@ -15,7 +16,7 @@ const meta = {
   description: 'Advanced debugging tools (Requires Administrator permission)',
   usage: 'debug <subcommand>',
   aliases: [],
-  permissions: ['ADMINISTRATOR'],
+  permissions: [PermissionFlagsBits.Administrator],
 };
 
 /**

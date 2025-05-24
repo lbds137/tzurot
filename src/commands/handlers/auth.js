@@ -2,6 +2,7 @@
  * Auth Command Handler
  * Manages user authentication with the AI service
  */
+const { PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const auth = require('../../auth');
@@ -215,7 +216,7 @@ async function handleCleanup(message) {
   const directSend = validator.createDirectSend(message);
 
   // Check if the user is an admin or bot owner
-  const isAdmin = message.member && message.member.permissions.has('ADMINISTRATOR');
+  const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
   const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
 
   if (!isAdmin && !isBotOwner) {
@@ -271,15 +272,17 @@ async function execute(message, args) {
   if (args.length < 1) {
     // Create standard help text for all users
     let helpText =
-      `**Authentication Commands**\n\n` +
+      `**🔐 Authentication Required**\n\n` +
+      `To get started, run: \`${botPrefix} auth start\`\n\n` +
+      `**Available Commands:**\n` +
       `- \`${botPrefix} auth start\` - Begin the authentication process\n` +
       `- \`${botPrefix} auth code <code>\` - Submit your authorization code (DM only)\n` +
       `- \`${botPrefix} auth status\` - Check your authentication status\n` +
       `- \`${botPrefix} auth revoke\` - Revoke your authorization\n\n` +
-      `For security, authorization codes should only be submitted via DM.`;
+      `⚠️ For security, authorization codes must be submitted via DM only.`;
 
     // Check if user is admin or bot owner for additional commands
-    const isAdmin = message.member && message.member.permissions.has('ADMINISTRATOR');
+    const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
     const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
 
     if (isAdmin || isBotOwner) {

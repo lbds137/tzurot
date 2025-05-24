@@ -336,7 +336,8 @@ describe('Auth Command', () => {
       await authCommand.execute(mockMessage, []);
       
       expect(mockMessage.channel.send).toHaveBeenCalled();
-      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Authentication Commands');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Authentication Required');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('To get started, run: `!tz auth start`');
     });
     
     it('should handle unknown subcommands', async () => {

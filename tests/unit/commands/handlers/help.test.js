@@ -14,8 +14,8 @@ jest.mock('discord.js', () => {
   return {
     EmbedBuilder: jest.fn().mockImplementation(createMockEmbed),
     PermissionFlagsBits: {
-      Administrator: 'ADMINISTRATOR',
-      ManageMessages: 'MANAGE_MESSAGES'
+      Administrator: 8n,
+      ManageMessages: 8192n
     }
   };
 });
@@ -70,7 +70,7 @@ describe('Help Command', () => {
           description: 'Debug commands', 
           usage: 'debug <subcommand>', 
           aliases: [], 
-          permissions: ['ADMINISTRATOR'] 
+          permissions: [8n] // PermissionFlagsBits.Administrator
         }
       }]
     ]);
@@ -94,7 +94,7 @@ describe('Help Command', () => {
               description: 'Debug commands',
               usage: 'debug <subcommand>',
               aliases: [],
-              permissions: ['ADMINISTRATOR']
+              permissions: [8n] // PermissionFlagsBits.Administrator
             }
           };
         } else if (name === 'auth') {

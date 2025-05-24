@@ -936,7 +936,7 @@ describe('Personality Handler Module', () => {
       expect(pluralkitMessage.reply).toHaveBeenCalledWith(
         '⚠️ **Authentication Required for PluralKit Users**\n\n' +
         'To use AI personalities through PluralKit, the original Discord user must authenticate first.\n\n' +
-        'Please send `!tz auth` directly (not through PluralKit) to set up your account before using this service.'
+        'Please send `!tz auth start` directly (not through PluralKit) to begin setting up your account.'
       );
     });
   });
