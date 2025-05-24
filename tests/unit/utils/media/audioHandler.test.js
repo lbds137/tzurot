@@ -6,6 +6,7 @@ const audioHandler = require('../../../../src/utils/media/audioHandler');
 const nodeFetch = require('node-fetch');
 const { Readable } = require('stream');
 const logger = require('../../../../src/logger');
+const urlValidator = require('../../../../src/utils/urlValidator');
 
 // Mock the dependencies
 jest.mock('node-fetch');
@@ -15,12 +16,16 @@ jest.mock('../../../../src/logger', () => ({
   warn: jest.fn(),
   error: jest.fn()
 }));
+jest.mock('../../../../src/utils/urlValidator');
 
 describe('audioHandler', () => {
   beforeEach(() => {
     // Reset all mocks and modules before each test
     jest.resetModules();
     jest.clearAllMocks();
+    
+    // Set default mock behavior for urlValidator
+    urlValidator.isValidUrlFormat.mockReturnValue(true);
     
     // Create new instances of required modules
     const mockResponse = {
@@ -68,6 +73,7 @@ describe('audioHandler', () => {
     });
 
     it('should return false for invalid URLs', () => {
+      // Non-URL strings without audio extensions should return false
       expect(audioHandler.hasAudioExtension('not-a-url')).toBe(false);
       expect(audioHandler.hasAudioExtension('')).toBe(false);
       expect(audioHandler.hasAudioExtension(null)).toBe(false);
@@ -82,6 +88,23 @@ describe('audioHandler', () => {
       // Both the full URL and just the filename should return true
       expect(audioHandler.hasAudioExtension(urlFromLogs)).toBe(true);
       expect(audioHandler.hasAudioExtension(filenameFromLogs)).toBe(true);
+    });
+
+    it('should handle invalid URL formats', () => {
+      // Mock URL validator to return false for invalid URLs
+      urlValidator.isValidUrlFormat
+        .mockReturnValueOnce(false) // for 'http://[invalid url].mp3'
+        .mockReturnValueOnce(false); // for 'https://.mp3'
+      
+      // Invalid URL should return false even with .mp3 extension
+      expect(audioHandler.hasAudioExtension('http://[invalid url].mp3')).toBe(false);
+      expect(audioHandler.hasAudioExtension('https://.mp3')).toBe(false);
+    });
+
+    it('should be case-insensitive for extensions', () => {
+      expect(audioHandler.hasAudioExtension('audio.MP3')).toBe(true);
+      expect(audioHandler.hasAudioExtension('audio.WaV')).toBe(true);
+      expect(audioHandler.hasAudioExtension('audio.OGG')).toBe(true);
     });
   });
 
@@ -100,8 +123,96 @@ describe('audioHandler', () => {
     });
 
     it('should return false for invalid URLs', async () => {
+      // Mock URL validator to return false for invalid URL
+      urlValidator.isValidUrlFormat.mockReturnValueOnce(false);
+      
       const result = await audioHandler.isAudioUrl('not-a-url');
       expect(result).toBe(false);
+    });
+
+    it('should trust URLs with audio extensions when trustExtensions is true', async () => {
+      const result = await audioHandler.isAudioUrl('https://example.com/audio.mp3', { trustExtensions: true });
+      expect(result).toBe(true);
+      // Should not make a fetch call
+      expect(nodeFetch).not.toHaveBeenCalled();
+    });
+
+    it('should validate URLs without extensions when trustExtensions is false', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('audio/mpeg')
+        }
+      });
+      
+      const result = await audioHandler.isAudioUrl('https://example.com/audio', { trustExtensions: false });
+      expect(result).toBe(true);
+      expect(nodeFetch).toHaveBeenCalled();
+    });
+
+    it('should handle non-OK response status', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: {
+          get: jest.fn().mockReturnValue('text/html')
+        }
+      });
+      
+      // With default trustExtensions=true and .mp3 extension, it should return true
+      const result = await audioHandler.isAudioUrl('https://example.com/notfound.mp3');
+      expect(result).toBe(true); // Because it has .mp3 extension and trustExtensions is true
+    });
+
+    it('should accept application/octet-stream content type', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('application/octet-stream')
+        }
+      });
+      
+      const result = await audioHandler.isAudioUrl('https://example.com/audio.bin');
+      expect(result).toBe(true);
+    });
+
+    it('should handle missing content-type header with audio extension', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue(null)
+        }
+      });
+      
+      const result = await audioHandler.isAudioUrl('https://example.com/audio.mp3');
+      expect(result).toBe(true);
+    });
+
+    it('should reject non-audio content types', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('text/html')
+        }
+      });
+      
+      const result = await audioHandler.isAudioUrl('https://example.com/page');
+      expect(result).toBe(false);
+    });
+
+    it('should handle timeout with AbortController', async () => {
+      // Mock a slow response that will trigger timeout
+      nodeFetch.mockImplementationOnce(() => 
+        new Promise((resolve) => {
+          setTimeout(() => resolve({
+            ok: true,
+            headers: { get: jest.fn().mockReturnValue('audio/mpeg') }
+          }), 10000);
+        })
+      );
+      
+      const result = await audioHandler.isAudioUrl('https://example.com/slow.mp3', { timeout: 100 });
+      expect(result).toBe(true); // Should trust extension on timeout
     });
   });
 
@@ -229,6 +340,90 @@ describe('audioHandler', () => {
       // Restore original function
       audioHandler.downloadAudioFile = originalDownloadAudioFile;
     });
+
+    it('should handle URLs without extensions and generate filename', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockImplementation(header => {
+            if (header === 'content-type') return 'audio/ogg';
+            return null;
+          })
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+      });
+      
+      const result = await audioHandler.downloadAudioFile('https://example.com/stream');
+      
+      expect(result.filename).toMatch(/^audio_\d+\.ogg$/);
+      expect(result.contentType).toBe('audio/ogg');
+    });
+
+    it('should extract filename from URL path', async () => {
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('audio/mpeg')
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+      });
+      
+      const result = await audioHandler.downloadAudioFile('https://example.com/path/to/song.mp3?token=123');
+      
+      expect(result.filename).toBe('song.mp3');
+    });
+
+    it('should handle different audio content types', async () => {
+      const contentTypes = [
+        { contentType: 'audio/wav', extension: 'wav' },
+        { contentType: 'audio/ogg', extension: 'ogg' },
+        { contentType: 'audio/mpeg', extension: 'mp3' },
+        { contentType: 'audio/unknown', extension: 'mp3' } // default
+      ];
+      
+      for (const { contentType, extension } of contentTypes) {
+        nodeFetch.mockResolvedValueOnce({
+          ok: true,
+          headers: {
+            get: jest.fn().mockReturnValue(contentType)
+          },
+          arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+        });
+        
+        const result = await audioHandler.downloadAudioFile('https://example.com/audio');
+        expect(result.filename).toMatch(new RegExp(`\\.${extension}$`));
+      }
+    });
+
+    it('should handle timeout during download', async () => {
+      // Use fake timers for this test
+      jest.useFakeTimers();
+      
+      // Create an abort error that will be thrown when timeout occurs
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      
+      // Mock fetch to reject after a delay
+      let rejectFn;
+      nodeFetch.mockImplementationOnce(() => new Promise((resolve, reject) => {
+        rejectFn = reject;
+      }));
+      
+      // Start the download
+      const downloadPromise = audioHandler.downloadAudioFile('https://example.com/slow.mp3');
+      
+      // Advance timers to trigger the timeout (30 seconds)
+      jest.advanceTimersByTime(30000);
+      
+      // Manually reject the promise to simulate abort
+      if (rejectFn) rejectFn(abortError);
+      
+      // The download should reject
+      await expect(downloadPromise).rejects.toThrow();
+      
+      // Restore real timers
+      jest.useRealTimers();
+    });
   });
 
   describe('createDiscordAttachment', () => {
@@ -309,6 +504,42 @@ describe('audioHandler', () => {
       expect(result).toHaveProperty('content', content);
       expect(result).toHaveProperty('attachments');
       expect(result.attachments).toHaveLength(0);
+    });
+
+    it('should process first audio URL when multiple are present', async () => {
+      const content = 'Audio 1: https://example.com/first.mp3 and Audio 2: https://example.com/second.mp3';
+      
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('audio/mpeg')
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+      });
+      
+      const result = await audioHandler.processAudioUrls(content);
+      
+      // Should only process the first URL
+      expect(result.content).toBe('Audio 1:  and Audio 2: https://example.com/second.mp3');
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments[0].name).toBe('first.mp3');
+    });
+
+    it('should handle Discord CDN URLs', async () => {
+      const content = 'Discord audio: https://cdn.discordapp.com/attachments/123/456/audio.mp3';
+      
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('audio/mpeg')
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
+      });
+      
+      const result = await audioHandler.processAudioUrls(content);
+      
+      expect(result.content).toBe('Discord audio: ');
+      expect(result.attachments).toHaveLength(1);
     });
 
     it('should handle null or invalid input', async () => {

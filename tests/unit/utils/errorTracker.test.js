@@ -96,11 +96,15 @@ describe('errorTracker', () => {
       // Advance time by another 10 minutes (total 35 minutes)
       jest.advanceTimersByTime(10 * 60 * 1000);
       
-      // Track the first error again - should be treated as new
+      // Track a new error to trigger cleanup
+      const error3 = new Error('New error');
+      errorTracker.trackError(error3);
+      
+      // Now track the first error again - should be treated as new (not frequent)
       errorTracker.trackError(error1);
       
-      // Both errors should have been logged as warnings (not as frequent)
-      expect(logger.warn).toHaveBeenCalledTimes(3);
+      // Should have 4 warnings total (no frequent error detection)
+      expect(logger.warn).toHaveBeenCalledTimes(4);
       expect(logger.error).not.toHaveBeenCalled();
     });
 
@@ -117,6 +121,37 @@ describe('errorTracker', () => {
           expect.any(Object)
         );
       });
+    });
+
+    it('should cleanup multiple old errors when triggered', () => {
+      // Track several errors
+      const errors = [];
+      for (let i = 0; i < 5; i++) {
+        const error = new Error(`Error ${i}`);
+        errors.push(error);
+        errorTracker.trackError(error, { 
+          category: errorTracker.ErrorCategory.MESSAGE,
+          operation: `operation${i}`
+        });
+      }
+
+      // Advance time past cache lifetime
+      jest.advanceTimersByTime(31 * 60 * 1000); // 31 minutes
+
+      // Track a new error to trigger cleanup
+      const triggerError = new Error('Trigger cleanup');
+      errorTracker.trackError(triggerError);
+
+      // Track one of the old errors again
+      errorTracker.trackError(errors[0], {
+        category: errorTracker.ErrorCategory.MESSAGE,
+        operation: 'operation0'
+      });
+
+      // Should have tracked 7 errors total (5 initial + 1 trigger + 1 re-track)
+      // No frequent error detection should occur
+      expect(logger.warn).toHaveBeenCalledTimes(7);
+      expect(logger.error).not.toHaveBeenCalled();
     });
   });
 
@@ -315,6 +350,33 @@ describe('errorTracker', () => {
 
       // All should have been logged
       expect(logger.warn).toHaveBeenCalledTimes(10);
+    });
+
+    it('should handle null and undefined in context metadata', () => {
+      const error = new Error('Test error');
+      
+      // Test with null metadata
+      const errorId1 = errorTracker.trackError(error, {
+        category: errorTracker.ErrorCategory.WEBHOOK,
+        operation: 'test',
+        metadata: null
+      });
+      
+      expect(errorId1).toBeDefined();
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('should handle errors with undefined properties', () => {
+      const error = new Error('Test error');
+      error.stack = undefined;
+      
+      const errorId = errorTracker.trackError(error, {
+        category: undefined,
+        operation: undefined
+      });
+      
+      expect(errorId).toMatch(/^ERR-unk-unk-[a-z0-9]+-[a-z0-9]+$/);
+      expect(logger.warn).toHaveBeenCalled();
     });
   });
 });
