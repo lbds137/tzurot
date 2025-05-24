@@ -41,6 +41,11 @@ class MessageTracker {
    * @private
    */
   _setupCleanupIntervals() {
+    // Only set up intervals if enabled
+    if (!this.enableCleanupTimers) {
+      return;
+    }
+    
     // Clean up processed messages every 10 minutes
     setInterval(
       () => {
