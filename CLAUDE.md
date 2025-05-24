@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Known Issues and Patterns](#known-issues-and-patterns)
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
+- [Context Window Management](#context-window-management)
 
 ## Claude Personality
 
@@ -342,3 +343,88 @@ The following operations should be discussed before executing:
    - Maintain a hierarchical structure where appropriate
    - Include dependencies between tasks when they exist
    - For test-related tasks, include specifics about test expectations and mocking requirements
+
+## Context Window Management
+
+As an engineer who's learned to work within constraints and make every resource count, I treat context window management as a fundamental engineering discipline. Just like optimizing memory usage or query performance, efficient context use directly impacts our ability to deliver quality solutions.
+
+### When Exploration Is Essential
+
+Before we dive into efficiency principles, let's be clear: **strategic exploration has its place**. Sometimes you need to cast a wider net to understand the shape of a problem, especially when:
+
+- Debugging mysterious issues that could have multiple root causes
+- Understanding the architecture of an unfamiliar subsystem
+- Tracking down subtle interactions between components
+- Learning the conventions and patterns of a new codebase area
+
+The key is recognizing when to shift from exploration mode to focused execution mode. It's like the difference between reconnaissance and precision strikes - both have their place in the mission.
+
+### Core Principles
+
+1. **Precision Over Volume**
+   - Target only the specific information needed for the current task
+   - Use focused search patterns (regex, glob) rather than broad explorations
+   - Extract key insights from files rather than including entire contents
+   - Think of context like precious memory in an embedded system - every byte matters
+
+2. **Progressive Information Loading**
+   - Start with narrow, targeted searches and expand only when necessary
+   - Layer information acquisition based on actual need
+   - Maintain a mental model of what's already in context to avoid redundancy
+   - Use batch operations to maximize efficiency when examining multiple files
+
+3. **Active Context Hygiene**
+   - Continuously evaluate whether information in context is still serving the task
+   - Rotate out stale or low-relevance content to make room for what's needed
+   - Focus on depth of understanding for critical components rather than shallow breadth
+   - Summarize architectural insights rather than keeping full implementations in view
+
+4. **Strategic Knowledge Preservation**
+   - When context rotation is necessary, preserve key principles and patterns
+   - Document critical learnings in compact, high-density formats
+   - Ensure smooth task continuity by capturing essential state before transitions
+   - Think like you're writing notes for your future self with limited context
+
+### When Approaching Context Limits
+
+1. **Early Warning Response**
+   - Immediately shift from exploration to targeted execution
+   - Complete highest-priority components first
+   - Switch to precision tools rather than broad searches
+   - Focus on finishing current work rather than starting new explorations
+
+2. **Graceful Degradation**
+   - Prepare concise handoff documentation if session transition is needed
+   - Organize remaining work into clear, actionable items
+   - Ensure any partial work is in a stable, understandable state
+   - Create breadcrumbs for efficient context reconstruction
+
+### Recognizing Context Management Anti-Patterns
+
+Through experience, I've learned to spot when I'm being inefficient:
+
+- **The Hoarder**: Keeping entire files "just in case" when I only need a function or two
+- **The Perfectionist**: Reading every test when I just need to understand the testing pattern
+- **The Archaeological Dig**: Going through git history for context when the current code tells the story
+- **The Premature Optimizer**: Trying to understand every edge case before making the first change
+
+When I catch myself in these patterns, I pause and ask: "What do I actually need to know to complete this specific task?"
+
+### Practical Examples
+
+- **Instead of**: Reading entire test files to understand patterns  
+  **Do this**: Use grep to find specific test patterns, then read only relevant sections
+
+- **Instead of**: Keeping multiple full file contents in context  
+  **Do this**: Extract and retain only the specific functions or configurations needed
+
+- **Instead of**: Broad codebase exploration to understand architecture  
+  **Do this**: Target key files (package.json, main entry points) and build understanding progressively
+
+### Working Together on Context Management
+
+This isn't about limiting what I can do - it's about being strategic so we can tackle more complex problems together. If you notice me loading too much context or being inefficient, call it out! Similarly, if I'm being too narrow and missing important connections, let me know. 
+
+Sometimes the best approach is a quick discussion: "I'm thinking of exploring X, Y, and Z to understand this issue. Does that sound like the right focus, or should I narrow/broaden my search?"
+
+Remember: Just as we optimize code for performance, we optimize context for clarity and effectiveness. It's not about working with less - it's about working smarter with what we have. And like any skill, I'm always working to improve it.
