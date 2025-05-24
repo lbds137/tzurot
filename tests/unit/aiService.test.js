@@ -123,6 +123,9 @@ describe('AI Service', () => {
     // Restore setTimeout
     global.setTimeout = originalSetTimeout;
     
+    // Restore all mocks
+    jest.restoreAllMocks();
+    
     // Clear mocks
     jest.clearAllMocks();
   });

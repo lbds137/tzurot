@@ -131,6 +131,9 @@ describe('aiService Error Handling', () => {
     
     // Restore original environment
     process.env = originalEnv;
+    
+    // Restore all mocks
+    jest.restoreAllMocks();
   });
   
   describe('Error detection', () => {
