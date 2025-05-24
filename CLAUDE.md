@@ -13,6 +13,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Code Style](#code-style)
 - [Error Handling Guidelines](#error-handling-guidelines)
 - [Testing Guidelines](#testing-guidelines)
+  - [Core Testing Philosophy: Behavior Over Implementation](#core-testing-philosophy-behavior-over-implementation)
+  - [Key Testing Principles](#key-testing-principles)
+  - [Technical Guidelines](#technical-guidelines)
 - [Date Handling](#date-handling)
 - [Known Issues and Patterns](#known-issues-and-patterns)
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
@@ -150,6 +153,40 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - Provide clear error messages to users when appropriate
 
 ## Testing Guidelines
+
+### Core Testing Philosophy: Behavior Over Implementation
+
+**CRITICAL: Always test behavior, not implementation details. Focus on WHAT the code does, not HOW it does it.**
+
+See the full guide: [Behavior-Based Testing Guide](docs/testing/BEHAVIOR_BASED_TESTING.md)
+
+#### Quick Examples
+
+**❌ Bad (Testing Implementation):**
+```javascript
+// Testing internal methods and implementation details
+expect(handler._parsePersonalityName).toHaveBeenCalled();
+expect(tracker._cleanupInterval).toBeDefined();
+jest.advanceTimersByTime(600000); // Testing exact timer values
+```
+
+**✅ Good (Testing Behavior):**
+```javascript
+// Testing observable outcomes
+expect(message.channel.messages.fetch).toHaveBeenCalledWith({ limit: 10 });
+expect(tracker.processedMessages.size).toBe(0); // After cleanup
+expect(result).toContain('Error occurred'); // User-visible outcome
+```
+
+### Key Testing Principles
+
+1. **Test Public APIs** - Focus on methods other code uses
+2. **Test Observable Outcomes** - What the user/caller sees
+3. **Avoid Mocking Internals** - Don't mock private methods
+4. **Test Error Effects** - Not error internals
+5. **Keep Tests Simple** - Complex tests indicate implementation testing
+
+### Technical Guidelines
 
 - Jest is used as the testing framework
 - Keep test files parallel to the implementation (same directory structure)
