@@ -24,10 +24,10 @@ jest.mock('../../../src/handlers/referenceHandler', () => ({
   MESSAGE_LINK_REGEX: /discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/gi
 }));
 jest.mock('../../../src/utils/media', () => ({
-  detectMedia: jest.fn().mockImplementation((message, content) => ({
+  detectMedia: jest.fn().mockReturnValue({
     hasMedia: false,
-    messageContent: content || message.content
-  })),
+    messageContent: 'default content'
+  }),
   processMediaUrls: jest.fn(),
   processMediaForWebhook: jest.fn(),
   prepareAttachmentOptions: jest.fn().mockReturnValue(null)
@@ -122,6 +122,12 @@ describe('Personality Handler Module', () => {
     require('../../../src/auth').hasValidToken.mockReturnValue(true);
     require('../../../src/auth').isNsfwVerified.mockReturnValue(true);
     
+    // Mock media detection
+    require('../../../src/utils/media').detectMedia.mockImplementation((message, content) => ({
+      hasMedia: false,
+      messageContent: content || message.content
+    }));
+    
     // Mock AI response
     getAiResponse.mockResolvedValue('Test AI response');
     
@@ -140,8 +146,21 @@ describe('Personality Handler Module', () => {
     personalityHandler.activeRequests.clear();
   });
   
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+  
   // Helper to wait for async operations including the 500ms delay
-  const waitForAsyncOperations = () => new Promise(resolve => setTimeout(resolve, 510));
+  const waitForAsyncOperations = () => {
+    // Use fake timers only for this operation
+    jest.useFakeTimers();
+    const promise = new Promise(resolve => {
+      setTimeout(resolve, 510);
+    });
+    jest.runAllTimers();
+    jest.useRealTimers();
+    return promise;
+  };
   
   describe('trackRequest', () => {
     it('should track a request and return request key', () => {
@@ -216,8 +235,8 @@ describe('Personality Handler Module', () => {
       personalityHandler.recordConversationData('user-id', 'channel-id', result, 'test-personality', false);
       
       expect(recordConversation).toHaveBeenCalledTimes(2);
-      expect(recordConversation).toHaveBeenNthCalledWith(1, 'user-id', 'channel-id', 'msg1', 'test-personality', false);
-      expect(recordConversation).toHaveBeenNthCalledWith(2, 'user-id', 'channel-id', 'msg2', 'test-personality', false);
+      expect(recordConversation).toHaveBeenNthCalledWith(1, 'user-id', 'channel-id', 'msg1', 'test-personality', false, false);
+      expect(recordConversation).toHaveBeenNthCalledWith(2, 'user-id', 'channel-id', 'msg2', 'test-personality', false, false);
     });
     
     it('should record conversation data for single message ID', () => {
@@ -230,7 +249,7 @@ describe('Personality Handler Module', () => {
       personalityHandler.recordConversationData('user-id', 'channel-id', result, 'test-personality', false);
       
       expect(recordConversation).toHaveBeenCalledTimes(1);
-      expect(recordConversation).toHaveBeenCalledWith('user-id', 'channel-id', 'single-message-id', 'test-personality', false);
+      expect(recordConversation).toHaveBeenCalledWith('user-id', 'channel-id', 'single-message-id', 'test-personality', false, false);
     });
     
     it('should handle empty message IDs array', () => {
@@ -392,6 +411,7 @@ describe('Personality Handler Module', () => {
         mockMessage.channel.id,
         'webhook-message-id',
         mockPersonality.fullName,
+        false,
         false
       );
     });

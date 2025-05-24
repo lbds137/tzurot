@@ -142,8 +142,9 @@ async function loadAllData() {
  * @param {string|string[]} messageIds - ID or array of IDs of messages sent by the webhook
  * @param {string} personalityName - Full name of the personality
  * @param {boolean} [isDM=false] - Whether this is a DM channel (for special handling)
+ * @param {boolean} [isMentionOnly=false] - Whether this conversation was initiated by a mention (one-time response)
  */
-function recordConversation(userId, channelId, messageIds, personalityName, isDM = false) {
+function recordConversation(userId, channelId, messageIds, personalityName, isDM = false, isMentionOnly = false) {
   // For DM channels, automatically enable auto-response
   if (isDM) {
     enableAutoResponse(userId);
@@ -166,6 +167,7 @@ function recordConversation(userId, channelId, messageIds, personalityName, isDM
     messageIds: messageIdArray,
     timestamp: timestamp,
     isDM: isDM, // Store whether this is a DM conversation
+    isMentionOnly: isMentionOnly, // Store whether this was initiated by a mention
   });
 
   // Map each message ID to this conversation for quick lookup
@@ -176,6 +178,7 @@ function recordConversation(userId, channelId, messageIds, personalityName, isDM
       personalityName,
       timestamp,
       isDM: isDM, // Store whether this is a DM conversation
+      isMentionOnly: isMentionOnly, // Store whether this was initiated by a mention
     });
   });
 
@@ -197,16 +200,23 @@ function recordConversation(userId, channelId, messageIds, personalityName, isDM
  * @returns {string|null} The personality name or null if no active conversation
  */
 function getActivePersonality(userId, channelId, isDM = false) {
-  // For DM channels, we don't require auto-response to be enabled
-  // For guild channels, only check for active conversation if auto-response is enabled
-  if (!isDM && !isAutoResponseEnabled(userId)) {
-    return null;
-  }
-
   const key = `${userId}-${channelId}`;
 
   const conversation = activeConversations.get(key);
   if (!conversation) {
+    return null;
+  }
+
+  // If this was a mention-only conversation in a guild channel, don't continue it
+  if (!isDM && conversation.isMentionOnly) {
+    // Clean up the mention-only conversation
+    activeConversations.delete(key);
+    return null;
+  }
+
+  // For DM channels, we don't require auto-response to be enabled
+  // For guild channels, only check for active conversation if auto-response is enabled
+  if (!isDM && !isAutoResponseEnabled(userId)) {
     return null;
   }
 

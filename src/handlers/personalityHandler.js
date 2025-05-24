@@ -75,8 +75,9 @@ function startTypingIndicator(channel) {
  * @param {Object} result - Response result from webhook
  * @param {string} personalityName - Personality name
  * @param {boolean} [isDM=false] - Whether this is a DM channel
+ * @param {boolean} [isMentionOnly=false] - Whether this conversation was initiated by a mention
  */
-function recordConversationData(userId, channelId, result, personalityName, isDM = false) {
+function recordConversationData(userId, channelId, result, personalityName, isDM = false, isMentionOnly = false) {
   // Format message IDs for tracking
   const messageIds = Array.isArray(result.messageIds)
     ? result.messageIds
@@ -86,7 +87,7 @@ function recordConversationData(userId, channelId, result, personalityName, isDM
     // Record each message ID in our conversation tracker
     messageIds.forEach(messageId => {
       if (messageId) {
-        recordConversation(userId, channelId, messageId, personalityName, isDM);
+        recordConversation(userId, channelId, messageId, personalityName, isDM, isMentionOnly);
       }
     });
   } else {
@@ -738,12 +739,15 @@ async function handlePersonalityInteraction(
     activeRequests.delete(requestKey);
 
     // Record this conversation with all message IDs
+    // Check if this was triggered by a mention (in guild channels only)
+    const isMentionOnly = !message.channel.isDMBased() && triggeringMention !== null;
     recordConversationData(
       message.author.id,
       message.channel.id,
       result,
       personality.fullName,
-      message.channel.isDMBased()
+      message.channel.isDMBased(),
+      isMentionOnly
     );
   } catch (error) {
     // Enhanced error logging with full error details
