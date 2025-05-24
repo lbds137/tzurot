@@ -403,6 +403,42 @@ async function processMessageLinks(
                 }
               }
 
+              // Also check for media markers in the linked message content
+              // This handles media that was extracted from embeds
+              if (!isFromPersonality) {
+                // Extract image URLs from [Image: url] markers
+                const imageMatches = [...linkedMessage.content.matchAll(/\[Image: ([^\]]+)\]/g)];
+                for (const match of imageMatches) {
+                  const imageUrl = match[1];
+                  if (!result.referencedImageUrl) {
+                    result.referencedImageUrl = imageUrl;
+                    logger.debug(
+                      `[Bot] Found image marker in linked message content: ${imageUrl}`
+                    );
+                  }
+                  // Still add to content for context
+                  if (!result.referencedMessageContent.includes(`[Image: ${imageUrl}]`)) {
+                    result.referencedMessageContent += `\n[Image: ${imageUrl}]`;
+                  }
+                }
+
+                // Extract audio URLs from [Audio: url] markers
+                const audioMatches = [...linkedMessage.content.matchAll(/\[Audio: ([^\]]+)\]/g)];
+                for (const match of audioMatches) {
+                  const audioUrl = match[1];
+                  if (!result.referencedAudioUrl) {
+                    result.referencedAudioUrl = audioUrl;
+                    logger.debug(
+                      `[Bot] Found audio marker in linked message content: ${audioUrl}`
+                    );
+                  }
+                  // Still add to content for context
+                  if (!result.referencedMessageContent.includes(`[Audio: ${audioUrl}]`)) {
+                    result.referencedMessageContent += `\n[Audio: ${audioUrl}]`;
+                  }
+                }
+              }
+
               result.hasProcessedLink = true;
             }
           } catch (messageError) {
