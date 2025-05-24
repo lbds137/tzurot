@@ -464,7 +464,7 @@ async function handlePersonalityInteraction(
         // If we found a Discord message link in the referenced message,
         // add its content to our context
         if (referencedLinkResult.referencedMessageContent) {
-          referencedMessageContent += '\n\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
+          referencedMessageContent += '\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
           
           // Update other reference info if found
           if (referencedLinkResult.referencedMessageAuthor) {
