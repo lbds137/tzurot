@@ -172,6 +172,8 @@ async function processMessageLinks(
     referencedPersonalityInfo: null,
     referencedWebhookName: null,
     hasProcessedLink: false,
+    referencedImageUrl: null,
+    referencedAudioUrl: null,
   };
 
   if (typeof messageContent !== 'string') {
@@ -364,11 +366,19 @@ async function processMessageLinks(
 
                     if (isImage) {
                       result.referencedMessageContent += `\n[Image: ${attachment.url}]`;
+                      // Store the first image URL for media processing
+                      if (!result.referencedImageUrl) {
+                        result.referencedImageUrl = attachment.url;
+                      }
                       logger.debug(
                         `[Bot] Added image attachment from linked message: ${attachment.url}`
                       );
                     } else if (isAudio) {
                       result.referencedMessageContent += `\n[Audio: ${attachment.url}]`;
+                      // Store the first audio URL for media processing (audio takes priority)
+                      if (!result.referencedAudioUrl) {
+                        result.referencedAudioUrl = attachment.url;
+                      }
                       logger.debug(
                         `[Bot] Added audio attachment from linked message: ${attachment.url}`
                       );

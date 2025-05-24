@@ -499,6 +499,21 @@ async function handlePersonalityInteraction(
       isReferencedMessageFromBot = linkResult.isReferencedMessageFromBot;
       referencedPersonalityInfo = linkResult.referencedPersonalityInfo;
       referencedWebhookName = linkResult.referencedWebhookName;
+      
+      // Update media URLs from the linked message if they weren't already set
+      if (linkResult.referencedAudioUrl && !referencedAudioUrl) {
+        referencedAudioUrl = linkResult.referencedAudioUrl;
+        logger.info(
+          `[PersonalityHandler] Found audio in linked message: ${referencedAudioUrl}`
+        );
+      }
+      if (linkResult.referencedImageUrl && !referencedImageUrl && !referencedAudioUrl) {
+        // Only use image if no audio is present (audio takes priority)
+        referencedImageUrl = linkResult.referencedImageUrl;
+        logger.info(
+          `[PersonalityHandler] Found image in linked message: ${referencedImageUrl}`
+        );
+      }
     }
 
     // Get the user's display name and username
