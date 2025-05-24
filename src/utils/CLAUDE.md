@@ -10,7 +10,7 @@ This CLAUDE.md file provides guidance for working with utility functions in Tzur
 - **embedBuilders.js** - Discord embed creation helpers
 - **embedUtils.js** - Embed parsing and manipulation
 - **errorTracker.js** - Error history and tracking system
-- **pluralkitPatterns.js** - PluralKit proxy pattern detection
+- **pluralkitMessageStore.js** - Temporary message storage for PluralKit tracking
 - **rateLimiter.js** - API rate limiting implementation
 - **urlValidator.js** - URL validation and safety checks
 - **webhookUserTracker.js** - Webhook-to-user association tracking
@@ -116,18 +116,27 @@ if (isKnownWebhookUser(webhookId)) {
 }
 ```
 
-## PluralKit Pattern Detection
+## PluralKit Message Tracking
 
-For detecting and parsing PluralKit proxy patterns:
+For tracking messages that might be processed by PluralKit:
 
 ```javascript
-const { detectProxyPattern, parseProxyTags } = require('./pluralkitPatterns');
+const pluralkitMessageStore = require('./pluralkitMessageStore');
 
-// Check if a message uses proxy patterns
-if (detectProxyPattern(message.content)) {
-  const { displayName, content } = parseProxyTags(message.content);
-  // Handle the proxied message
-}
+// Store a user message (done automatically in messageHandler)
+pluralkitMessageStore.store(messageId, {
+  userId: message.author.id,
+  channelId: message.channel.id,
+  content: message.content,
+  guildId: message.guild?.id,
+  username: message.author.username
+});
+
+// When a message is deleted
+pluralkitMessageStore.markAsDeleted(messageId);
+
+// Find a deleted message by content (used by webhookUserTracker)
+const originalMessage = pluralkitMessageStore.findDeletedMessage(content, channelId);
 ```
 
 ## When to Create New Utilities
