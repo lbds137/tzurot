@@ -40,6 +40,35 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
       `Fetched referenced message. Webhook ID: ${referencedMessage.webhookId || 'none'}`
     );
 
+    // Check if the referenced message itself has a reference (nested reply)
+    if (referencedMessage.reference) {
+      logger.info(
+        `[ReferenceHandler] Detected nested reference - reply to a reply. Original reference: ${referencedMessage.reference.messageId}`
+      );
+      
+      try {
+        // Fetch the second-level referenced message
+        const nestedReferencedMessage = await message.channel.messages.fetch(referencedMessage.reference.messageId);
+        
+        // Create a synthetic Discord message link for the nested reference
+        const syntheticLink = `https://discord.com/channels/${message.guild?.id || '@me'}/${message.channel.id}/${nestedReferencedMessage.id}`;
+        
+        // Append the synthetic link to the message content
+        // This will be processed by processMessageLinks in personalityHandler
+        message.content = message.content ? `${message.content} ${syntheticLink}` : syntheticLink;
+        
+        logger.info(
+          `[ReferenceHandler] Added synthetic link for nested reference: ${syntheticLink}`
+        );
+      } catch (nestedError) {
+        if (nestedError.message === 'Unknown Message') {
+          logger.warn(`[ReferenceHandler] Nested referenced message ${referencedMessage.reference.messageId} no longer exists`);
+        } else {
+          logger.error('[ReferenceHandler] Error fetching nested reference:', nestedError);
+        }
+      }
+    }
+
     // Check if the referenced message was from one of our personalities
     logger.debug(
       `Reply detected to message ${referencedMessage.id} with webhookId: ${referencedMessage.webhookId || 'none'}`
