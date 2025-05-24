@@ -91,6 +91,10 @@ jest.mock('../../src/handlers/messageHandler', () => ({
   handleMessage: jest.fn(),
 }));
 
+jest.mock('../../src/utils/pluralkitMessageStore', () => ({
+  markAsDeleted: jest.fn(),
+}));
+
 describe('Bot Core Functionality', () => {
   let bot;
   let mockClient;
@@ -369,6 +373,68 @@ describe('Bot Core Functionality', () => {
       await eventHandlers.messageCreate(mockMessage);
       
       expect(messageHandler.handleMessage).toHaveBeenCalledWith(mockMessage, client);
+    });
+    
+    it('should register messageDelete event handler', () => {
+      expect(eventHandlers.messageDelete).toBeDefined();
+      expect(typeof eventHandlers.messageDelete).toBe('function');
+    });
+    
+    it('should handle messageDelete event for user messages', async () => {
+      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const mockMessage = { 
+        id: 'test-message-id',
+        partial: false,
+        author: { id: 'user123', bot: false },
+        content: 'Test content'
+      };
+      
+      // Trigger messageDelete event
+      await eventHandlers.messageDelete(mockMessage);
+      
+      expect(pluralkitMessageStore.markAsDeleted).toHaveBeenCalledWith('test-message-id');
+    });
+    
+    it('should ignore messageDelete for partial messages', async () => {
+      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const mockMessage = { 
+        id: 'test-message-id',
+        partial: true,
+        author: { id: 'user123', bot: false }
+      };
+      
+      // Trigger messageDelete event
+      await eventHandlers.messageDelete(mockMessage);
+      
+      expect(pluralkitMessageStore.markAsDeleted).not.toHaveBeenCalled();
+    });
+    
+    it('should ignore messageDelete for messages without author', async () => {
+      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const mockMessage = { 
+        id: 'test-message-id',
+        partial: false,
+        author: null
+      };
+      
+      // Trigger messageDelete event
+      await eventHandlers.messageDelete(mockMessage);
+      
+      expect(pluralkitMessageStore.markAsDeleted).not.toHaveBeenCalled();
+    });
+    
+    it('should ignore messageDelete for bot messages', async () => {
+      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const mockMessage = { 
+        id: 'test-message-id',
+        partial: false,
+        author: { id: 'bot123', bot: true }
+      };
+      
+      // Trigger messageDelete event
+      await eventHandlers.messageDelete(mockMessage);
+      
+      expect(pluralkitMessageStore.markAsDeleted).not.toHaveBeenCalled();
     });
   });
   

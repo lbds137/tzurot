@@ -156,6 +156,10 @@ describe('Proxy System Webhook Identification', () => {
     const mockMessage = {
       webhookId: '987654321',
       applicationId: '466378653216014359', // PluralKit bot ID
+      content: 'Test message',
+      channel: {
+        id: 'test-channel-id'
+      },
       author: {
         username: 'Alice | System Name',
         id: 'webhook-user-id'

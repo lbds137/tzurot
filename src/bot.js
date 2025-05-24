@@ -5,6 +5,7 @@ const { messageTracker } = require('./messageTracker');
 const errorHandler = require('./handlers/errorHandler');
 const _personalityHandler = require('./handlers/personalityHandler');
 const messageHandler = require('./handlers/messageHandler');
+const pluralkitMessageStore = require('./utils/pluralkitMessageStore');
 
 // Initialize the bot with necessary intents and partials
 const client = new Client({
@@ -121,6 +122,17 @@ async function initBot() {
   // Message handling
   client.on('messageCreate', async message => {
     await messageHandler.handleMessage(message, client);
+  });
+
+  // Track message deletions for PluralKit detection
+  client.on('messageDelete', async message => {
+    // Only track user message deletions (not bot messages)
+    if (message.partial || !message.author || message.author.bot) {
+      return;
+    }
+    
+    // Mark the message as deleted in our store
+    pluralkitMessageStore.markAsDeleted(message.id);
   });
 
   // Log in to Discord

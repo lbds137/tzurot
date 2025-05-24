@@ -141,46 +141,75 @@ async function handlePersonalityInteraction(
 
     const auth = require('../auth');
     
-    // Check if this is a trusted proxy system that should bypass auth and verification
-    const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
-
-    // First check authentication (unless bypassed by proxy systems)
-    if (!shouldBypass && !auth.hasValidToken(message.author.id)) {
-      logger.info(
-        `[PersonalityHandler] User ${message.author.id} attempted to use personalities without authentication in ${isDM ? 'DM' : 'server channel'}`
-      );
-      await message
-        .reply(
-          '⚠️ **Authentication Required**\n\n' +
-            'To use AI personalities, you need to authenticate first.\n\n' +
-            'Please run `!tz auth` to set up your account before using this service.'
-        )
-        .catch(error => {
-          logger.error(`[PersonalityHandler] Failed to send authentication notice: ${error.message}`);
-        });
-      return; // Exit without processing the personality interaction
+    // Check if this is a proxy system message (like PluralKit)
+    let authUserId = message.author.id;
+    let _authUsername = message.author.username;
+    let _isProxySystem = false;
+    
+    if (webhookUserTracker.isProxySystemWebhook(message)) {
+      _isProxySystem = true;
+      // For PluralKit messages, we need to check the real user's authentication
+      const proxyAuth = webhookUserTracker.checkProxySystemAuthentication(message);
+      
+      if (!proxyAuth.isAuthenticated) {
+        logger.info(
+          `[PersonalityHandler] PluralKit user attempted to use personalities without authentication`
+        );
+        await message
+          .reply(
+            '⚠️ **Authentication Required for PluralKit Users**\n\n' +
+              'To use AI personalities through PluralKit, the original Discord user must authenticate first.\n\n' +
+              'Please send `!tz auth` directly (not through PluralKit) to set up your account before using this service.'
+          )
+          .catch(error => {
+            logger.error(`[PersonalityHandler] Failed to send PluralKit auth notice: ${error.message}`);
+          });
+        return; // Exit without processing the personality interaction
+      }
+      
+      // Use the real user ID for further checks
+      authUserId = proxyAuth.userId;
+      _authUsername = proxyAuth.username || _authUsername;
+      logger.info(`[PersonalityHandler] PluralKit message authenticated for user ${authUserId}`);
+    } else {
+      // Regular non-proxy message - check authentication normally
+      if (!auth.hasValidToken(message.author.id)) {
+        logger.info(
+          `[PersonalityHandler] User ${message.author.id} attempted to use personalities without authentication in ${isDM ? 'DM' : 'server channel'}`
+        );
+        await message
+          .reply(
+            '⚠️ **Authentication Required**\n\n' +
+              'To use AI personalities, you need to authenticate first.\n\n' +
+              'Please run `!tz auth` to set up your account before using this service.'
+          )
+          .catch(error => {
+            logger.error(`[PersonalityHandler] Failed to send authentication notice: ${error.message}`);
+          });
+        return; // Exit without processing the personality interaction
+      }
     }
 
     // Then check age verification for ALL personality interactions (both DM and server channels)
-    // If we should bypass verification, treat as verified
-    let isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+    // For proxy systems, check the real user's verification status
+    let isVerified = auth.isNsfwVerified(authUserId);
 
     // NEW: Automatically verify users who send messages in NSFW channels
     if (!isVerified && isNSFW && !isDM) {
       // User is in an NSFW channel but not verified - verify them automatically
       logger.info(
-        `[PersonalityHandler] Auto-verifying user ${message.author.id} in NSFW channel ${message.channel.id}`
+        `[PersonalityHandler] Auto-verifying user ${authUserId} in NSFW channel ${message.channel.id}`
       );
       
-      const verificationSuccess = await auth.storeNsfwVerification(message.author.id, true);
+      const verificationSuccess = await auth.storeNsfwVerification(authUserId, true);
       if (verificationSuccess) {
         logger.info(
-          `[PersonalityHandler] Successfully auto-verified user ${message.author.id} in NSFW channel`
+          `[PersonalityHandler] Successfully auto-verified user ${authUserId} in NSFW channel`
         );
         isVerified = true; // Update the verification status
       } else {
         logger.error(
-          `[PersonalityHandler] Failed to auto-verify user ${message.author.id} in NSFW channel`
+          `[PersonalityHandler] Failed to auto-verify user ${authUserId} in NSFW channel`
         );
       }
     }
@@ -188,7 +217,7 @@ async function handlePersonalityInteraction(
     if (!isVerified) {
       // User is not verified, prompt them to verify first
       logger.info(
-        `[PersonalityHandler] User ${message.author.id} attempted to use personalities without verification in ${isDM ? 'DM' : 'server channel'}`
+        `[PersonalityHandler] User ${authUserId} attempted to use personalities without verification in ${isDM ? 'DM' : 'server channel'}`
       );
       await message
         .reply(

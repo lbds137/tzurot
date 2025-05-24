@@ -13,6 +13,7 @@
  */
 
 const logger = require('../logger');
+const pluralkitMessageStore = require('./pluralkitMessageStore');
 
 // Map of webhook IDs to real user IDs
 // Format: Map<webhookId, { userId: string, timestamp: number }>
@@ -61,8 +62,11 @@ function cleanupProxyWebhookCache() {
 }
 
 // Periodically clean up old entries
-setInterval(cleanupOldEntries, 15 * 60 * 1000); // Every 15 minutes
-setInterval(cleanupProxyWebhookCache, 15 * 60 * 1000); // Every 15 minutes
+// Only start intervals if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(cleanupOldEntries, 15 * 60 * 1000); // Every 15 minutes
+  setInterval(cleanupProxyWebhookCache, 15 * 60 * 1000); // Every 15 minutes
+}
 
 /**
  * Register an association between a webhook ID and a real user ID
@@ -212,9 +216,20 @@ function getRealUserId(message) {
     return cachedUserId;
   }
 
-  // If we can determine this is a proxy system, we'll be lenient with verification
+  // If we can determine this is a proxy system, try to find the original user
   if (isProxySystemWebhook(message)) {
     logger.info(`[WebhookUserTracker] Detected proxy system webhook: ${message.author?.username}`);
+    
+    // Try to find the original user from our PluralKit message store
+    // Look for a recently deleted message with the same content
+    const originalMessageData = pluralkitMessageStore.findDeletedMessage(message.content, message.channel.id);
+    if (originalMessageData) {
+      logger.info(`[WebhookUserTracker] Found original user ${originalMessageData.userId} for PluralKit message`);
+      // Cache this association for future use
+      associateWebhookWithUser(message.webhookId, originalMessageData.userId);
+      return originalMessageData.userId;
+    }
+    
     // For proxy systems without an associated user, we'll return a special ID that will
     // be handled specially in verification checks
     return 'proxy-system-user';
@@ -338,6 +353,50 @@ function clearAllCachedWebhooks() {
   logger.info(`[WebhookUserTracker] Cleared all ${count} cached webhooks`);
 }
 
+/**
+ * Check if a proxy system message is from an authenticated user
+ * 
+ * @param {Object} message - The Discord message object
+ * @returns {Object} Object with isAuthenticated boolean and userId
+ */
+function checkProxySystemAuthentication(message) {
+  if (!message || !message.webhookId || !isProxySystemWebhook(message)) {
+    return { isAuthenticated: false, userId: null };
+  }
+
+  // Try to find the original user from our PluralKit message store
+  // Look for a recently deleted message with the same content
+  const originalMessageData = pluralkitMessageStore.findDeletedMessage(message.content, message.channel.id);
+  if (originalMessageData) {
+    logger.info(`[WebhookUserTracker] Found original user ${originalMessageData.userId} for authentication check`);
+    // Cache this association for future use
+    associateWebhookWithUser(message.webhookId, originalMessageData.userId);
+    
+    // Check if this user is authenticated
+    const auth = require('../auth');
+    const isAuthenticated = auth.hasValidToken(originalMessageData.userId);
+    
+    return {
+      isAuthenticated,
+      userId: originalMessageData.userId,
+      username: originalMessageData.username
+    };
+  }
+
+  // Check cached associations
+  const cachedUserId = getRealUserIdFromWebhook(message.webhookId);
+  if (cachedUserId && cachedUserId !== 'proxy-system-user') {
+    const auth = require('../auth');
+    const isAuthenticated = auth.hasValidToken(cachedUserId);
+    return {
+      isAuthenticated,
+      userId: cachedUserId
+    };
+  }
+
+  return { isAuthenticated: false, userId: null };
+}
+
 module.exports = {
   associateWebhookWithUser,
   getRealUserIdFromWebhook,
@@ -347,4 +406,8 @@ module.exports = {
   isAuthenticationAllowed,
   clearCachedWebhook,
   clearAllCachedWebhooks,
+  checkProxySystemAuthentication,
+  // Export cleanup functions for testing
+  cleanupOldEntries,
+  cleanupProxyWebhookCache,
 };

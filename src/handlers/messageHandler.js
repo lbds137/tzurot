@@ -15,6 +15,7 @@ const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
 const { getActivePersonality, getActivatedPersonality } = require('../conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../personalityManager');
+const pluralkitMessageStore = require('../utils/pluralkitMessageStore');
 
 /**
  * Main message handler function
@@ -26,6 +27,18 @@ async function handleMessage(message, client) {
   try {
     // Ensure messageTrackerHandler is initialized (lazy initialization)
     messageTrackerHandler.ensureInitialized();
+
+    // Store all user messages temporarily
+    // This allows us to track the original user when PluralKit deletes and re-sends via webhook
+    if (!message.author.bot && !message.webhookId) {
+      pluralkitMessageStore.store(message.id, {
+        userId: message.author.id,
+        channelId: message.channel.id,
+        content: message.content,
+        guildId: message.guild?.id,
+        username: message.author.username
+      });
+    }
 
     // If there was a message before this that was deleted,
     // and this is a webhook message, try to associate them

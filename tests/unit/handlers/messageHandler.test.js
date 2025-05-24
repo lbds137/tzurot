@@ -11,6 +11,7 @@ jest.mock('../../../src/commandLoader');
 jest.mock('../../../src/conversationManager');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/channelUtils');
+jest.mock('../../../src/utils/pluralkitMessageStore');
 jest.mock('../../../config', () => ({
   botPrefix: '!tz'
 }));
@@ -28,6 +29,7 @@ const { processCommand } = require('../../../src/commandLoader');
 const { getActivePersonality, getActivatedPersonality } = require('../../../src/conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
 const channelUtils = require('../../../src/utils/channelUtils');
+const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 const { botPrefix } = require('../../../config');
 
 describe('messageHandler', () => {
@@ -55,6 +57,7 @@ describe('messageHandler', () => {
       author: {
         id: 'author-123',
         tag: 'User#1234',
+        username: 'User',
         bot: false
       },
       webhookId: null,
@@ -875,6 +878,127 @@ describe('messageHandler', () => {
         // Restore original Date.now
         Date.now = oldDateNow;
       }
+    });
+  });
+  
+  describe('PluralKit message storage', () => {
+    beforeEach(() => {
+      // Reset pluralkitMessageStore mocks
+      pluralkitMessageStore.store = jest.fn();
+    });
+    
+    it('should store user messages in pluralkitMessageStore', async () => {
+      const userMessage = {
+        ...mockMessage,
+        author: {
+          id: 'user-123',
+          bot: false,
+          tag: 'User#1234',
+          username: 'User'
+        },
+        webhookId: null,
+        guild: { id: 'guild-123' }
+      };
+      
+      await messageHandler.handleMessage(userMessage, mockClient);
+      
+      // Verify the message was stored
+      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        content: 'Test message content',
+        guildId: 'guild-123',
+        username: 'User'
+      });
+    });
+    
+    it('should store DM messages in pluralkitMessageStore', async () => {
+      const dmMessage = {
+        ...mockMessage,
+        author: {
+          id: 'user-123',
+          bot: false,
+          tag: 'User#1234',
+          username: 'User'
+        },
+        webhookId: null,
+        guild: null,
+        channel: {
+          ...mockMessage.channel,
+          isDMBased: () => true
+        }
+      };
+      
+      await messageHandler.handleMessage(dmMessage, mockClient);
+      
+      // Verify the message was stored with null guildId for DMs
+      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        content: 'Test message content',
+        guildId: undefined,
+        username: 'User'
+      });
+    });
+    
+    it('should not store bot messages in pluralkitMessageStore', async () => {
+      const botMessage = {
+        ...mockMessage,
+        author: {
+          id: 'bot-123',
+          bot: true,
+          tag: 'Bot#0000'
+        },
+        webhookId: null
+      };
+      
+      await messageHandler.handleMessage(botMessage, mockClient);
+      
+      // Verify the message was NOT stored
+      expect(pluralkitMessageStore.store).not.toHaveBeenCalled();
+    });
+    
+    it('should not store webhook messages in pluralkitMessageStore', async () => {
+      const webhookMessage = {
+        ...mockMessage,
+        webhookId: 'webhook-123',
+        author: {
+          id: 'webhook-123',
+          bot: true,
+          discriminator: '0000'
+        }
+      };
+      
+      await messageHandler.handleMessage(webhookMessage, mockClient);
+      
+      // Verify the message was NOT stored
+      expect(pluralkitMessageStore.store).not.toHaveBeenCalled();
+    });
+    
+    
+    it('should handle messages with missing author tag', async () => {
+      const messageWithoutTag = {
+        ...mockMessage,
+        author: {
+          id: 'user-123',
+          bot: false,
+          username: 'JustUsername'
+          // tag is missing
+        },
+        webhookId: null,
+        guild: { id: 'guild-123' }
+      };
+      
+      await messageHandler.handleMessage(messageWithoutTag, mockClient);
+      
+      // Verify the message was stored with username instead of tag
+      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+        userId: 'user-123',
+        channelId: 'channel-123',
+        content: 'Test message content',
+        guildId: 'guild-123',
+        username: 'JustUsername'
+      });
     });
   });
 });
