@@ -136,3 +136,34 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Suppress deprecation warnings during tests
 process.env.NODE_NO_WARNINGS = '1';
+
+// Global test timeout warning
+let testStartTime;
+beforeEach(() => {
+  testStartTime = Date.now();
+});
+
+afterEach(() => {
+  const duration = Date.now() - testStartTime;
+  // Warn if a test takes more than 3 seconds
+  if (duration > 3000) {
+    console.warn(`⚠️  Long-running test detected: ${duration}ms. Consider using fake timers.`);
+  }
+});
+
+// Helper to detect common timeout patterns in test code
+global.detectTimeoutPatterns = (testFn) => {
+  const fnString = testFn.toString();
+  const patterns = [
+    /setTimeout.*\d{4,}/,  // setTimeout with 4+ digit delays
+    /new Promise.*setTimeout/,  // Promise with setTimeout
+    /await.*Promise.*resolve.*setTimeout/  // Awaiting setTimeout promises
+  ];
+  
+  for (const pattern of patterns) {
+    if (pattern.test(fnString)) {
+      console.warn('⚠️  Test contains timeout anti-pattern. Use jest.useFakeTimers()');
+      break;
+    }
+  }
+};

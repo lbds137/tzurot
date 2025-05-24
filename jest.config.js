@@ -24,7 +24,7 @@ module.exports = {
     'node_modules/(?!(chalk|inquirer)/)'
   ],
   // Timeout and open handles configuration
-  testTimeout: 30000,
+  testTimeout: 5000, // 5 seconds default - prevents long-running tests
   detectOpenHandles: true,
   forceExit: true,
   // Setup files to handle global test environment
