@@ -352,6 +352,30 @@ async function processMessageLinks(
                     result.referencedMessageContent += embedText;
                     logger.debug(`[Bot] Added embed content from linked message`);
                   }
+                  
+                  // Also extract media URLs from embeds and add them as markers
+                  if (!isFromPersonality) {
+                    const { extractMediaFromEmbeds } = require('../utils/embedUtils');
+                    const { audioUrl, imageUrl } = extractMediaFromEmbeds(linkedMessage.embeds);
+                    
+                    if (imageUrl && !result.referencedImageUrl) {
+                      result.referencedImageUrl = imageUrl;
+                      // Add the image marker to content if not already present
+                      if (!result.referencedMessageContent.includes(`[Image: ${imageUrl}]`)) {
+                        result.referencedMessageContent += `\n[Image: ${imageUrl}]`;
+                      }
+                      logger.debug(`[Bot] Extracted image from embed: ${imageUrl}`);
+                    }
+                    
+                    if (audioUrl && !result.referencedAudioUrl) {
+                      result.referencedAudioUrl = audioUrl;
+                      // Add the audio marker to content if not already present
+                      if (!result.referencedMessageContent.includes(`[Audio: ${audioUrl}]`)) {
+                        result.referencedMessageContent += `\n[Audio: ${audioUrl}]`;
+                      }
+                      logger.debug(`[Bot] Extracted audio from embed: ${audioUrl}`);
+                    }
+                  }
                 } catch (embedError) {
                   logger.error(
                     `[Bot] Error parsing embeds from linked message: ${embedError.message}`

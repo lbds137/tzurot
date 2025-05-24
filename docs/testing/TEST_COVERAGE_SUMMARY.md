@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-24 01:49 EDT
+Last updated: 2025-05-24 02:56 EDT
 
 ## Overall Coverage
 
@@ -8,9 +8,9 @@ Last updated: 2025-05-24 01:49 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   74.87 |    66.68 |   81.78 |   75.09 |                                                                                                                                                                                                                                                                                                                                                              
- src                       |   64.13 |    57.47 |   81.32 |   64.46 |                                                                                                                                                                                                                                                                                                                                                              
-  aiService.js             |   75.57 |     66.5 |   86.66 |   75.17 | 18-25,38-43,396,432,460-471,521-525,608-609,630-632,655,688-727,897,1002-1006,1026-1028,1103-1127,1142-1166,1202,1210,1220-1223,1262-1263,1268-1269,1271-1272,1274-1275,1277-1280,1284-1295,1325-1335,1362-1363,1375-1382,1392,1415-1417,1423-1427                                                                                                                                                  
+All files                  |   75.06 |    66.62 |   81.78 |   75.28 |                                                                                                                                                                                                                                                                                                                                                              
+ src                       |   64.12 |    57.41 |   81.32 |   64.45 |                                                                                                                                                                                                                                                                                                                                                              
+  aiService.js             |   75.39 |    66.27 |   86.66 |      75 | 18-25,38-43,396,432,460-471,521-525,602-603,624-626,649,682-721,891,996-1000,1020-1022,1097-1121,1136-1160,1196,1204,1214-1217,1256-1257,1262-1263,1265-1266,1268-1269,1271-1274,1278-1289,1319-1329,1363-1364,1377-1384,1393-1396,1419-1421,1427-1431                                                                                                                                                  
   auth.js                  |    92.8 |    81.57 |   95.45 |    92.8 | 135-136,141-142,328-329,342,380-382                                                                                                                                                                                                                                                                                                                          
   bot.js                   |     100 |       50 |     100 |     100 | 42,50-86,94                                                                                                                                                                                                                                                                                                                                                  
   commandLoader.js         |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
@@ -85,12 +85,21 @@ All files                  |   74.87 |    66.68 |   81.78 |   75.09 |
 
 ## Test Results Summary
 
-**Date Updated:** May 24, 2025 at 01:49 EDT  
-**Total Test Suites:** 108 passed, 0 failed, 108 total  
-**Total Tests:** 1,424 passed, 0 failed, 5 skipped, 1,429 total  
-**Overall Coverage:** 74.87% statements, 66.68% branches, 81.78% functions, 75.09% lines  
+**Date Updated:** May 24, 2025 at 02:56 EDT  
+**Total Test Suites:** 111 passed, 0 failed, 111 total  
+**Total Tests:** 1,441 passed, 0 failed, 5 skipped, 1,446 total  
+**Overall Coverage:** 75.06% statements, 66.62% branches, 81.78% functions, 75.28% lines  
 
 ## Major Improvements Since Last Update
+
+### Enhancements (May 24, 2025 - 02:56 EDT)
+- Fixed media extraction from Discord embeds in nested references (reply to a reply)
+- Added `extractMediaFromEmbeds` call in referenceHandler.js to extract images/audio from embeds
+- Created comprehensive tests for media marker extraction in referenceHandler.media.test.js (8 tests)
+- Created additional tests for embed media extraction in referenceHandler.embed.test.js (3 tests)
+- Overall coverage increased from 74.87% to 75.06% (0.19% increase)
+- Total tests increased from 1,429 to 1,446 (17 new tests)
+- Test suites increased from 108 to 111 (3 new test files)
 
 ### Enhancements (May 24, 2025 - 01:49 EDT)
 - Enhanced error handling and logging in aiService.js
