@@ -226,6 +226,7 @@ async function handlePersonalityInteraction(
     // Initialize reference personality variables at a higher scope so they're accessible later
     let referencedPersonalityInfo = null;
     let referencedWebhookName = null;
+    let referencedMessageTimestamp = null; // Store the actual timestamp of the referenced message
 
     // First, handle direct replies
     if (message.reference && message.reference.messageId) {
@@ -239,6 +240,7 @@ async function handlePersonalityInteraction(
           referencedMessageAuthor = repliedToMessage.author?.username || 'another user';
           referencedMessageAuthorId = repliedToMessage.author?.id || null;
           isReferencedMessageFromBot = repliedToMessage.author?.bot || false;
+          referencedMessageTimestamp = repliedToMessage.createdTimestamp; // Capture the actual timestamp
 
           // If it's a webhook, try to get personality name
           if (repliedToMessage.webhookId) {
@@ -529,11 +531,8 @@ async function handlePersonalityInteraction(
 
       // Check if the referenced message is from the same personality we're replying as
       // AND it's in the same thread/channel and recent enough (within the past hour)
-      // Get a reference timestamp if available, sometimes through message.reference
-      const referenceTimestamp =
-        message.reference?.createdTimestamp ||
-        message.reference?.createdAt?.getTime() ||
-        Date.now(); // Fallback to now if no timestamp
+      // Use the actual timestamp from the fetched referenced message
+      const referenceTimestamp = referencedMessageTimestamp || Date.now();
 
       // Add guards against any potential undefined/null values
       const samePersonality =

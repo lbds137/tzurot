@@ -159,7 +159,7 @@ describe('Activate Command Handler', () => {
     expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'test-personality');
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
-      mockMessage.channel.id, 'test-personality'
+      mockMessage.channel.id, 'test-personality', 'user-123'
     );
     
     // For future debugging if needed:
@@ -185,7 +185,7 @@ describe('Activate Command Handler', () => {
     // Check alias lookup
     expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'test');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
-      mockMessage.channel.id, 'test-personality'
+      mockMessage.channel.id, 'test-personality', 'user-123'
     );
     
     // Verify that channel.send was called
@@ -208,7 +208,7 @@ describe('Activate Command Handler', () => {
     // Check that it used the joined string
     expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'lucifer seraph ha lev nafal');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
-      mockMessage.channel.id, 'lucifer-seraph-ha-lev-nafal'
+      mockMessage.channel.id, 'lucifer-seraph-ha-lev-nafal', 'user-123'
     );
     
     // Verify that channel.send was called

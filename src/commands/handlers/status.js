@@ -8,6 +8,7 @@ const validator = require('../utils/commandValidator');
 const auth = require('../../auth');
 const { listPersonalitiesForUser } = require('../../personalityManager');
 const { isAutoResponseEnabled } = require('./autorespond');
+const { getAllActivatedChannels } = require('../../conversationManager');
 const { botPrefix } = require('../../../config');
 
 /**
@@ -96,6 +97,30 @@ async function execute(message, _args) {
       value: autoResponseStatus ? '✅ Enabled' : '❌ Disabled',
       inline: true,
     });
+
+    // Check if current channel has an activated personality
+    const activatedChannels = getAllActivatedChannels();
+    const currentChannelPersonality = activatedChannels[message.channel.id];
+    
+    if (currentChannelPersonality) {
+      embed.addFields({
+        name: 'This Channel',
+        value: `🤖 **${currentChannelPersonality}** is active`,
+        inline: false,
+      });
+    }
+
+    // Show total activated channels count if user is authenticated
+    if (isAuthenticated) {
+      const activatedCount = Object.keys(activatedChannels).length;
+      if (activatedCount > 0) {
+        embed.addFields({
+          name: 'Activated Channels',
+          value: `${activatedCount} channel${activatedCount !== 1 ? 's' : ''} have active personalities`,
+          inline: true,
+        });
+      }
+    }
 
     // Add bot avatar if available
     if (client.user.avatarURL()) {

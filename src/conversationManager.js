@@ -453,6 +453,12 @@ function clearConversation(userId, channelId) {
  * @returns {boolean} Success status
  */
 function activatePersonality(channelId, personalityName, userId) {
+  logger.info(`[ConversationManager] ACTIVATING personality "${personalityName}" in channel ${channelId} by user ${userId}`);
+  
+  // Log stack trace to see where this is being called from
+  const stack = new Error().stack;
+  logger.info(`[ConversationManager] Activation stack trace:\n${stack}`);
+  
   activatedChannels.set(channelId, {
     personalityName,
     activatedBy: userId,
@@ -487,10 +493,16 @@ function deactivatePersonality(channelId) {
  * @returns {string|null} The personality name or null if none activated
  */
 function getActivatedPersonality(channelId) {
+  logger.debug(`[ConversationManager] Checking activated personality for channel ${channelId}`);
+  logger.debug(`[ConversationManager] Current activatedChannels Map size: ${activatedChannels.size}`);
+  
   const activated = activatedChannels.get(channelId);
   if (!activated) {
+    logger.debug(`[ConversationManager] No activated personality found for channel ${channelId}`);
     return null;
   }
+  
+  logger.info(`[ConversationManager] FOUND activated personality "${activated.personalityName}" for channel ${channelId}, activated by user ${activated.activatedBy} at ${new Date(activated.timestamp).toISOString()}`);
   return activated.personalityName;
 }
 
