@@ -1,7 +1,7 @@
 /**
  * Help Command Handler
  */
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
@@ -50,7 +50,7 @@ async function execute(message, args) {
       // Check if the user has the required permissions
       if (
         command.meta.permissions &&
-        command.meta.permissions.includes('ADMINISTRATOR') &&
+        command.meta.permissions.includes(PermissionFlagsBits.Administrator) &&
         !validator.isAdmin(message)
       ) {
         return await directSend(`This command is only available to administrators.`);
@@ -116,7 +116,7 @@ async function execute(message, args) {
     // Filter commands based on user permissions
     const availableCommands = allCommands.filter(cmd => {
       // If command requires admin and user is not admin, filter it out
-      if (cmd.meta.permissions && cmd.meta.permissions.includes('ADMINISTRATOR') && !isAdmin) {
+      if (cmd.meta.permissions && cmd.meta.permissions.includes(PermissionFlagsBits.Administrator) && !isAdmin) {
         return false;
       }
       return true;
@@ -133,7 +133,7 @@ async function execute(message, args) {
 
     // Sort commands into categories
     availableCommands.forEach(cmd => {
-      if (cmd.meta.permissions && cmd.meta.permissions.includes('ADMINISTRATOR')) {
+      if (cmd.meta.permissions && cmd.meta.permissions.includes(PermissionFlagsBits.Administrator)) {
         categories['Admin'].push(cmd);
       } else if (['add', 'remove', 'list', 'alias', 'info'].includes(cmd.meta.name)) {
         categories['Personality Management'].push(cmd);

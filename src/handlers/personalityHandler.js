@@ -159,7 +159,7 @@ async function handlePersonalityInteraction(
           .reply(
             '⚠️ **Authentication Required for PluralKit Users**\n\n' +
               'To use AI personalities through PluralKit, the original Discord user must authenticate first.\n\n' +
-              'Please send `!tz auth` directly (not through PluralKit) to set up your account before using this service.'
+              'Please send `!tz auth start` directly (not through PluralKit) to begin setting up your account.'
           )
           .catch(error => {
             logger.error(`[PersonalityHandler] Failed to send PluralKit auth notice: ${error.message}`);
@@ -181,7 +181,7 @@ async function handlePersonalityInteraction(
           .reply(
             '⚠️ **Authentication Required**\n\n' +
               'To use AI personalities, you need to authenticate first.\n\n' +
-              'Please run `!tz auth` to set up your account before using this service.'
+              'Please run `!tz auth start` to begin setting up your account.'
           )
           .catch(error => {
             logger.error(`[PersonalityHandler] Failed to send authentication notice: ${error.message}`);

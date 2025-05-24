@@ -10,7 +10,10 @@ jest.mock('discord.js', () => ({
     setColor: jest.fn().mockReturnThis(),
     addFields: jest.fn().mockReturnThis(),
     setFooter: jest.fn().mockReturnThis()
-  }))
+  })),
+  PermissionFlagsBits: {
+    Administrator: 8n
+  }
 }));
 
 jest.mock('../../../../src/logger');
@@ -113,6 +116,6 @@ describe('Debug Command', () => {
     expect(debugCommand.meta).toBeDefined();
     expect(debugCommand.meta.name).toBe('debug');
     expect(debugCommand.meta.description).toBeTruthy();
-    expect(debugCommand.meta.permissions).toContain('ADMINISTRATOR');
+    expect(debugCommand.meta.permissions).toContain(8n); // PermissionFlagsBits.Administrator
   });
 });
