@@ -121,6 +121,7 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
  * @param {string|null} referencedWebhookName - The webhook name of the referenced message
  * @param {string|null} triggeringMention - The triggering mention text, if any
  * @param {object} client - Discord.js client instance
+ * @param {boolean} hasActivePersonality - Whether there's an active conversation or activated channel
  * @returns {Promise<object>} - Returns processed content and reference information
  */
 async function processMessageLinks(
@@ -130,7 +131,8 @@ async function processMessageLinks(
   isReferencedMessageFromBot,
   referencedWebhookName,
   triggeringMention,
-  client
+  client,
+  hasActivePersonality = false
 ) {
   // Default return object with original content and no reference info
   const result = {
@@ -152,17 +154,18 @@ async function processMessageLinks(
 
   // If we have a match AND either:
   // 1. We're replying to a personality webhook OR
-  // 2. This is a direct personality interaction via @mention
+  // 2. This is a direct personality interaction via @mention OR
+  // 3. There's an active conversation or activated channel personality
   const isReplyToPersonality =
     message.reference &&
     (referencedPersonalityInfo?.name || (isReferencedMessageFromBot && referencedWebhookName));
 
-  if (!messageLinkMatch || !(isReplyToPersonality || triggeringMention)) {
+  if (!messageLinkMatch || !(isReplyToPersonality || triggeringMention || hasActivePersonality)) {
     return result;
   }
 
   logger.info(
-    `[Bot] Found message link in content while ${isReplyToPersonality ? 'replying to personality' : 'mentioning personality'}: ${messageLinkMatch[0]}`
+    `[Bot] Found message link in content while ${isReplyToPersonality ? 'replying to personality' : triggeringMention ? 'mentioning personality' : 'in active conversation'}: ${messageLinkMatch[0]}`
   );
 
   // Check if there are multiple links (log for info purposes)

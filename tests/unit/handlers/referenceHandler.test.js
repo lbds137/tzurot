@@ -208,7 +208,8 @@ describe('Reference Handler Module', () => {
         false, 
         null, 
         null, // No triggering mention
-        mockClient
+        mockClient,
+        false // No active personality
       );
       
       expect(result.messageContent).toBe(messageContent);
@@ -273,6 +274,62 @@ describe('Reference Handler Module', () => {
       // Verify the guild and channel were accessed properly
       expect(mockClient.guilds.cache.get).toHaveBeenCalledWith('123');
       expect(mockGuild.channels.cache.get).toHaveBeenCalledWith('456');
+    });
+    
+    it('should process a message link when there is an active conversation', async () => {
+      // Mock guild, channel, and linked message
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'Linked message content in active conversation',
+                  author: {
+                    username: 'Active User',
+                    bot: false
+                  },
+                  webhookId: null, // Not a webhook message
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: 'Look at this message https://discord.com/channels/123/456/789',
+        // No reference, no mention - but has active conversation
+      };
+      
+      const messageContent = 'Look at this message https://discord.com/channels/123/456/789';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        messageContent, 
+        null, 
+        false, 
+        null, 
+        null, // No triggering mention
+        mockClient,
+        true // Has active personality
+      );
+      
+      expect(result.messageContent).toBe('Look at this message [Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toBe('Linked message content in active conversation');
+      expect(result.referencedMessageAuthor).toBe('Active User');
+      expect(result.isReferencedMessageFromBot).toBe(false);
     });
     
     it('should process a message link when triggered by a mention', async () => {
@@ -580,6 +637,64 @@ describe('Reference Handler Module', () => {
       expect(result.messageContent).toBe('Look at this message [Discord message link]');
       expect(result.hasProcessedLink).toBe(false);
       expect(logger.error).toHaveBeenCalledWith(`[Bot] Error accessing guild for linked message: Failed to access guild`);
+    });
+  });
+  
+  describe('processMessageLinks with reply scenarios', () => {
+    it('should process Discord links from referenced message when replying with a mention', async () => {
+      // This tests the scenario: user posts message with Discord link, then replies to it with @mention
+      const mockGuild = {
+        name: 'Test Guild',
+        channels: {
+          cache: {
+            get: jest.fn().mockReturnValue({
+              isTextBased: () => true,
+              messages: {
+                fetch: jest.fn().mockResolvedValue({
+                  id: 'linked-msg-id',
+                  content: 'This is the linked message content',
+                  author: {
+                    username: 'Original Author',
+                    bot: false
+                  },
+                  webhookId: null,
+                  channel: {
+                    isDMBased: () => false
+                  },
+                  embeds: [],
+                  attachments: new Map()
+                })
+              }
+            })
+          }
+        }
+      };
+      
+      mockClient.guilds.cache.get.mockReturnValue(mockGuild);
+      
+      const mockMessage = {
+        content: '@TestPersonality check this out', // Current message just has mention
+        reference: { messageId: 'original-msg-id' }, // Replying to another message
+      };
+      
+      // The referenced message content contains the Discord link
+      const referencedMessageContent = 'Here is a link: https://discord.com/channels/123/456/789';
+      
+      const result = await referenceHandler.processMessageLinks(
+        mockMessage, 
+        referencedMessageContent, // Processing the referenced message's content
+        null, 
+        false, 
+        null, 
+        'TestPersonality', // Triggering mention
+        mockClient,
+        true // Should process because we're replying with a mention
+      );
+      
+      expect(result.messageContent).toBe('Here is a link: [Discord message link]');
+      expect(result.hasProcessedLink).toBe(true);
+      expect(result.referencedMessageContent).toBe('This is the linked message content');
+      expect(result.referencedMessageAuthor).toBe('Original Author');
     });
   });
   

@@ -305,10 +305,14 @@ describe('Personality Handler Module', () => {
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
-    it('should check age verification requirements after authentication', async () => {
+    it('should auto-verify users in NSFW channels', async () => {
       // Set user to have valid token but not be age verified
       require('../../../src/auth').hasValidToken.mockReturnValueOnce(true);
       require('../../../src/auth').isNsfwVerified.mockReturnValueOnce(false);
+      
+      // Mock storeNsfwVerification to track if auto-verification was called
+      const mockStoreNsfwVerification = jest.fn().mockResolvedValue(true);
+      require('../../../src/auth').storeNsfwVerification = mockStoreNsfwVerification;
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -316,6 +320,35 @@ describe('Personality Handler Module', () => {
         null, 
         mockClient
       );
+      
+      // Should auto-verify the user since they're in an NSFW channel
+      expect(mockStoreNsfwVerification).toHaveBeenCalledWith(mockMessage.author.id, true);
+      
+      // Should proceed with AI call after auto-verification
+      expect(getAiResponse).toHaveBeenCalled();
+    });
+    
+    it('should require age verification in DMs without auto-verification', async () => {
+      // Set user to have valid token but not be age verified
+      require('../../../src/auth').hasValidToken.mockReturnValueOnce(true);
+      require('../../../src/auth').isNsfwVerified.mockReturnValueOnce(false);
+      
+      // Mock channel as DM
+      mockMessage.channel.isDMBased = jest.fn().mockReturnValue(true);
+      
+      // Mock storeNsfwVerification to track if auto-verification was called
+      const mockStoreNsfwVerification = jest.fn().mockResolvedValue(true);
+      require('../../../src/auth').storeNsfwVerification = mockStoreNsfwVerification;
+      
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage, 
+        mockPersonality, 
+        null, 
+        mockClient
+      );
+      
+      // Should NOT auto-verify in DMs
+      expect(mockStoreNsfwVerification).not.toHaveBeenCalled();
       
       // Should reply with verification requirement message
       expect(mockMessage.reply).toHaveBeenCalled();

@@ -163,7 +163,27 @@ async function handlePersonalityInteraction(
 
     // Then check age verification for ALL personality interactions (both DM and server channels)
     // If we should bypass verification, treat as verified
-    const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+    let isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+
+    // NEW: Automatically verify users who send messages in NSFW channels
+    if (!isVerified && isNSFW && !isDM) {
+      // User is in an NSFW channel but not verified - verify them automatically
+      logger.info(
+        `[PersonalityHandler] Auto-verifying user ${message.author.id} in NSFW channel ${message.channel.id}`
+      );
+      
+      const verificationSuccess = await auth.storeNsfwVerification(message.author.id, true);
+      if (verificationSuccess) {
+        logger.info(
+          `[PersonalityHandler] Successfully auto-verified user ${message.author.id} in NSFW channel`
+        );
+        isVerified = true; // Update the verification status
+      } else {
+        logger.error(
+          `[PersonalityHandler] Failed to auto-verify user ${message.author.id} in NSFW channel`
+        );
+      }
+    }
 
     if (!isVerified) {
       // User is not verified, prompt them to verify first
@@ -396,7 +416,46 @@ async function handlePersonalityInteraction(
       }
     }
 
-    // Use the reference handler to process message links
+    // Determine if this is an active personality context
+    // It's active if it's NOT triggered by a mention (null triggeringMention means reply or active conversation)
+    const hasActivePersonality = !triggeringMention;
+    
+    // Check if the referenced message contains Discord links that we should process
+    // This handles the case where user replies to their own message containing a link
+    if (referencedMessageContent && triggeringMention) {
+      const referencedLinkResult = await referenceHandler.processMessageLinks(
+        message,
+        referencedMessageContent,
+        referencedPersonalityInfo,
+        isReferencedMessageFromBot,
+        referencedWebhookName,
+        triggeringMention,
+        client,
+        true // Process links when replying with a mention
+      );
+      
+      if (referencedLinkResult.hasProcessedLink) {
+        // Update the referenced message content with processed link
+        referencedMessageContent = referencedLinkResult.messageContent;
+        
+        // If we found a Discord message link in the referenced message,
+        // add its content to our context
+        if (referencedLinkResult.referencedMessageContent) {
+          referencedMessageContent += '\n\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
+          
+          // Update other reference info if found
+          if (referencedLinkResult.referencedMessageAuthor) {
+            referencedMessageContent += ' (from ' + referencedLinkResult.referencedMessageAuthor + ')';
+          }
+        }
+        
+        logger.info(
+          `[PersonalityHandler] Processed Discord link from referenced message`
+        );
+      }
+    }
+    
+    // Use the reference handler to process message links in the current message
     const linkResult = await referenceHandler.processMessageLinks(
       message,
       messageContent,
@@ -404,7 +463,8 @@ async function handlePersonalityInteraction(
       isReferencedMessageFromBot,
       referencedWebhookName,
       triggeringMention,
-      client
+      client,
+      hasActivePersonality
     );
 
     // Update variables with the processed results
