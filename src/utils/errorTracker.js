@@ -23,6 +23,8 @@ const ErrorCategory = {
   AVATAR: 'avatar',
   MESSAGE: 'message',
   RATE_LIMIT: 'rate_limit',
+  AI_SERVICE: 'ai_service',
+  API_CONTENT: 'api_content',
   UNKNOWN: 'unknown',
 };
 

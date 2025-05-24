@@ -306,16 +306,26 @@ describe('aiService Error Handling', () => {
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalled();
     });
     
-    test('getAiResponse should skip API call if in blackout period', async () => {
-      // Add to blackout list first
+    test('getAiResponse should track errors but not skip API calls', async () => {
+      // Add to blackout list for monitoring
       aiService.addToBlackoutList(personalityName, context);
       
-      // Call getAiResponse
+      // Verify it's tracked
+      expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
+      
+      // Mock successful response
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Test response' } }]
+      });
+      
+      // Call getAiResponse - should NOT be blocked
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return special marker without calling API
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
-      expect(mockOpenAI.chat.completions.create).not.toHaveBeenCalled();
+      // Should get normal response, not blocked
+      expect(response).toBe('Test response');
+      
+      // API should have been called despite being in "blackout" (monitoring only)
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalled();
     });
     
     test('getAiResponse should handle API errors gracefully', async () => {
@@ -381,10 +391,10 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return an error message with an error ID
-      expect(response).toMatch(/I'm experiencing a.*technical issue.*Error ID:/);
+      // Should return an error message with a reference ID
+      expect(response).toMatch(/I encountered a processing error.*\|\|\(Reference:.*\)\|\|/);
       
-      // Should add to blackout list
+      // Should track error for monitoring (but not block future requests)
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
     });
     
@@ -444,14 +454,14 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
       
       // Empty string is detected as error content
-      expect(response).toMatch(/I'm experiencing a.*technical issue.*Error ID:/);
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
       
-      // Should add to blackout list
+      // Should track for monitoring (empty_response is now tracked but doesn't block)
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
       
       // Check if personality was registered as problematic
       // It might have been cleared, so let's just check that an error was detected
-      expect(response).toContain('Error ID:');
+      expect(response).toContain('||(Reference:');
     });
   });
   

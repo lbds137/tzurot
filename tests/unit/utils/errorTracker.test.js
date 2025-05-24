@@ -115,7 +115,7 @@ describe('errorTracker', () => {
         const error = new Error(`Error for ${category}`);
         const errorId = errorTracker.trackError(error, { category });
         
-        expect(errorId).toMatch(/^ERR-[a-z]{3}-unk-[a-z0-9]+-[a-z0-9]+$/);
+        expect(errorId).toMatch(/^ERR-[a-z_]{3}-unk-[a-z0-9]+-[a-z0-9]+$/);
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining(`[ErrorTracker] ${category.toUpperCase()}: Error for ${category}`),
           expect.any(Object)
@@ -295,6 +295,8 @@ describe('errorTracker', () => {
         AVATAR: 'avatar',
         MESSAGE: 'message',
         RATE_LIMIT: 'rate_limit',
+        AI_SERVICE: 'ai_service',
+        API_CONTENT: 'api_content',
         UNKNOWN: 'unknown'
       });
     });

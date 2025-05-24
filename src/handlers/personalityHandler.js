@@ -614,11 +614,6 @@ async function handlePersonalityInteraction(
     clearInterval(typingInterval);
     typingInterval = null;
 
-    // Check for special marker that tells us to completely ignore this response
-    if (aiResponse === MARKERS.HARD_BLOCKED_RESPONSE) {
-      return; // Necessary return to exit early when receiving blocked response
-    }
-
     // Check for BOT_ERROR_MESSAGE marker - these should come from the bot, not the personality
     if (
       aiResponse &&

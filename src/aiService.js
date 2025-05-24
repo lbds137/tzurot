@@ -5,6 +5,7 @@ const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
 const auth = require('./auth');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const { getPersonality } = require('./personalityManager');
+const { trackError, ErrorCategory } = require('./utils/errorTracker');
 
 // Initialize the default AI client with API key (used when user doesn't have a token)
 // We need to defer creation until after auth module is loaded
@@ -578,14 +579,8 @@ async function getAiResponse(personalityName, message, context = {}) {
     message = DEFAULTS.DEFAULT_PROMPT;
   }
 
-  // Check if this personality+user is in a blackout period to prevent error spam
-  if (isInBlackoutPeriod(personalityName, context)) {
-    // Return a special no-response marker that our bot will completely ignore
-    logger.info(
-      `[AIService] Personality ${personalityName} is in blackout period, returning blocked response`
-    );
-    return MARKERS.HARD_BLOCKED_RESPONSE;
-  }
+  // NOTE: We no longer block errors - users should always get feedback when something goes wrong
+  // The blackout tracking is maintained for logging/monitoring purposes only
 
   // Create a unique request ID to prevent duplicate requests
   const requestId = createRequestId(personalityName, message, context);
@@ -658,6 +653,22 @@ async function getAiResponse(personalityName, message, context = {}) {
         logger.error(
           `[AIService] API error with normal personality ${personalityName}: ${apiError.message}`
         );
+        
+        // Track the API error
+        trackError(apiError, {
+          category: ErrorCategory.AI_SERVICE,
+          operation: 'handleNormalPersonality',
+          metadata: {
+            personalityName,
+            userId: context.userId || 'unknown',
+            channelId: context.channelId || 'unknown',
+            errorMessage: apiError.message || 'Unknown error',
+            errorCode: apiError.code || 'NO_CODE',
+            modelPath: modelPath || 'unknown'
+          },
+          isCritical: true
+        });
+        
         addToBlackoutList(personalityName, context);
 
         // Return our special HARD_BLOCKED_RESPONSE marker
@@ -675,17 +686,30 @@ async function getAiResponse(personalityName, message, context = {}) {
       logger.error(`[AIService] Error stack: ${error.stack || 'No stack trace'}`);
 
       // Log the message content for debugging
+      let messagePreview = 'Unknown';
       try {
-        logger.error(
-          `[AIService] Message content: ${
-            typeof message === 'string'
-              ? message.substring(0, 100) + '...'
-              : 'Complex message type: ' + JSON.stringify(message).substring(0, 200)
-          }`
-        );
+        messagePreview = typeof message === 'string'
+          ? message.substring(0, 100) + '...'
+          : 'Complex message type: ' + JSON.stringify(message).substring(0, 200);
+        logger.error(`[AIService] Message content: ${messagePreview}`);
       } catch (logError) {
         logger.error(`[AIService] Error logging message details: ${logError.message}`);
       }
+      
+      // Track the general error
+      trackError(error, {
+        category: ErrorCategory.AI_SERVICE,
+        operation: 'getAiResponse',
+        metadata: {
+          personalityName,
+          userId: context.userId || 'unknown',
+          channelId: context.channelId || 'unknown',
+          errorType: error.name || 'Unknown',
+          messagePreview,
+          hasConversationHistory: !!context.conversationHistory
+        },
+        isCritical: true
+      });
 
       addToBlackoutList(personalityName, context);
 
@@ -1220,9 +1244,13 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     // Analyze error content to provide more detailed information
     let errorType = 'error_in_content';
     let errorDetails = 'Unknown error format';
+    let errorSample = '';
 
     // Try to extract more specific error information by analyzing the content
     if (typeof content === 'string') {
+      // Capture a sample of the error content for logging
+      errorSample = content ? content.substring(0, 500) : 'Empty content';
+      
       // Look for specific error patterns
       if (content.includes('NoneType') || content.includes('AttributeError')) {
         errorType = 'attribute_error';
@@ -1244,36 +1272,134 @@ async function handleNormalPersonality(personalityName, message, context, modelP
         // Extract the first line of the traceback to get more details
         const lines = content.split('\n');
         errorDetails = lines.length > 1 ? lines[1].trim() : 'Exception with traceback';
+      } else if (!content || content.trim() === '') {
+        errorType = 'empty_response';
+        errorDetails = 'API returned empty or null content';
+      } else if (content.toLowerCase().includes('internal server error') || 
+                 content.toLowerCase().includes('500')) {
+        errorType = 'api_server_error';
+        errorDetails = 'API service internal error';
+      } else if (content.toLowerCase().includes('rate limit') || 
+                 content.toLowerCase().includes('too many requests')) {
+        errorType = 'rate_limit_error';
+        errorDetails = 'API rate limit exceeded';
+      } else if (content.toLowerCase().includes('timeout') || 
+                 content.toLowerCase().includes('timed out')) {
+        errorType = 'timeout_error';
+        errorDetails = 'API request timed out';
       }
 
       // Log the error with more detailed information
       logger.error(`[AIService] Error in content from ${personalityName}: ${errorType}`);
       logger.error(`[AIService] Error details: ${errorDetails}`);
-      logger.error(`[AIService] First 100 chars of content: ${content.substring(0, 100)}...`);
+      logger.error(`[AIService] Error content sample: ${errorSample}`);
+      
+      // Log message context for debugging
+      if (context.userId) {
+        logger.error(`[AIService] Error context - User: ${context.userId}, Channel: ${context.channelId || 'DM'}`);
+      }
+      
+      // Track the error for pattern analysis
+      const errorObj = new Error(`API content error: ${errorDetails}`);
+      trackError(errorObj, {
+        category: ErrorCategory.API_CONTENT,
+        operation: 'getAiResponse',
+        metadata: {
+          personalityName,
+          errorType,
+          errorDetails,
+          userId: context.userId || 'unknown',
+          channelId: context.channelId || 'unknown',
+          contentLength: content ? content.length : 0,
+          sampleContent: errorSample.substring(0, 200)
+        },
+        isCritical: errorType !== 'error_in_content' && errorType !== 'empty_response'
+      });
     } else {
       logger.error(`[AIService] Non-string error from ${personalityName}`);
       errorType = 'non_string_response';
       errorDetails = `Content type: ${typeof content}`;
+      if (content !== null && content !== undefined) {
+        errorSample = JSON.stringify(content).substring(0, 200);
+        logger.error(`[AIService] Non-string content sample: ${errorSample}`);
+      }
+      
+      // Track non-string response errors
+      const errorObj = new Error(`Non-string API response: ${errorDetails}`);
+      trackError(errorObj, {
+        category: ErrorCategory.API_CONTENT,
+        operation: 'getAiResponse',
+        metadata: {
+          personalityName,
+          errorType,
+          errorDetails,
+          userId: context.userId || 'unknown',
+          channelId: context.channelId || 'unknown',
+          contentType: typeof content,
+          sampleContent: errorSample
+        },
+        isCritical: true
+      });
     }
 
     // Check if this is the generic 'error_in_content' or a more specific error
     const isGenericError = errorType === 'error_in_content';
+    
+    // Determine if this error type should show a message to users
+    const userFriendlyErrors = ['empty_response', 'rate_limit_error', 'timeout_error', 'api_server_error'];
+    const isUserFriendlyError = userFriendlyErrors.includes(errorType);
 
-    // Add this personality+user combo to blackout list with appropriate duration
-    if (!isGenericError) {
-      // Add this personality+user combo to blackout list, but with a shorter duration
-      // for transient errors (5 minutes instead of the default 30)
+    // Track errors for monitoring purposes only - we no longer block any errors
+    // Users should always receive feedback when something goes wrong
+    if (isUserFriendlyError) {
+      logger.info(`[AIService] Tracking user-friendly error for monitoring: ${errorType}`);
+      // Track with short duration for rate monitoring
+      addToBlackoutList(personalityName, context, 30 * 1000); // 30 seconds
+    } else if (!isGenericError) {
+      logger.info(`[AIService] Tracking technical error for monitoring: ${errorType}`);
+      // Track technical errors for longer to identify persistent issues
       addToBlackoutList(personalityName, context, 5 * 60 * 1000); // 5 minutes
     } else {
-      // For generic errors, add a much shorter blackout period (30 seconds)
-      // This prevents rapid duplicate messages but allows quick recovery
-      logger.info(`[AIService] Using short blackout for generic error: ${errorType}`);
-      addToBlackoutList(personalityName, context, 30 * 1000); // 30 seconds
+      logger.info(`[AIService] Tracking generic error for monitoring: ${errorType}`);
+      addToBlackoutList(personalityName, context, 60 * 1000); // 1 minute
     }
 
-    // Return a more informative error message with an error ID
+    // Return user-friendly error messages based on error type
+    // IMPORTANT: ALL errors now show messages to users - no silent failures
     const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-    return `I'm experiencing a temporary technical issue (${errorType}, Error ID: ${errorId}). Please try again in a few minutes.`;
+    
+    let userMessage = '';
+    switch (errorType) {
+      case 'empty_response':
+        userMessage = `Hmm, I couldn't generate a response. Could you try rephrasing your message?`;
+        break;
+      case 'api_server_error':
+        userMessage = `The ${process.env.SERVICE_ID} AI service seems to be having issues right now. Please try again in a moment!`;
+        break;
+      case 'rate_limit_error':
+        userMessage = `I'm getting too many requests right now. Please wait a minute and try again.`;
+        break;
+      case 'timeout_error':
+        userMessage = `My response took too long to generate. Let's try again with a simpler request.`;
+        break;
+      case 'attribute_error':
+      case 'type_error':
+      case 'value_error':
+      case 'key_error':
+      case 'index_error':
+        userMessage = `I encountered a processing error. This personality might need maintenance. Please try again or contact support.`;
+        break;
+      case 'exception':
+        userMessage = `Something unexpected happened while generating my response. Please try again or use a different personality.`;
+        break;
+      default:
+        userMessage = `I couldn't process that request due to a technical error. Please try again or contact support if this persists.`;
+    }
+    
+    // Add error reference for support purposes (avoiding filtered terms)
+    userMessage += ` ||(Reference: ${errorId})||`;
+    
+    return userMessage;
   }
 
   // Apply sanitization to all personality responses to be safe

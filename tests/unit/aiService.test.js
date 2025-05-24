@@ -545,7 +545,7 @@ describe('AI Service', () => {
       logger.error = originalLoggerError;
     });
     
-    it('should check for blackout periods before making API calls', async () => {
+    it('should track errors but not block API calls during blackout periods', async () => {
       const personalityName = 'test-personality';
       const message = 'Test message';
       const context = { 
@@ -554,11 +554,16 @@ describe('AI Service', () => {
         userName: 'Test User (testuser)'
       };
       
-      // Add to blackout list
+      // Add to blackout list for monitoring
       addToBlackoutList(personalityName, context);
       
+      // Verify it's tracked
+      expect(isInBlackoutPeriod(personalityName, context)).toBe(true);
+      
+      // API call should still go through
       const response = await getAiResponse(personalityName, message, context);
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      expect(response).toContain('This is a mock response');
+      expect(response).not.toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
     });
     
     it('should prevent duplicate API calls for the same request', async () => {

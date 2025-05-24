@@ -470,9 +470,10 @@ describe('Personality Handler Module', () => {
       expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
-    it('should handle hard blocked response markers', async () => {
-      // Mock AI to return a hard blocked marker
-      getAiResponse.mockResolvedValueOnce(MARKERS.HARD_BLOCKED_RESPONSE);
+    it('should handle error messages from AI service', async () => {
+      // Mock AI to return an error message
+      const errorMessage = 'I encountered a processing error. This personality might need maintenance. Please try again or contact support. ||(Reference: test123)||';
+      getAiResponse.mockResolvedValueOnce(errorMessage);
       
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -484,9 +485,14 @@ describe('Personality Handler Module', () => {
       await waitForAsyncOperations();
       await promise;
       
-      // Verify no response was sent
-      expect(mockMessage.reply).not.toHaveBeenCalled();
-      expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
+      // Verify error message was sent to user
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        expect.any(Object),
+        errorMessage,
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Object)
+      );
     });
     
     it('should use direct thread message for threads', async () => {

@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-23 22:12 EDT
+Last updated: 2025-05-24 01:49 EDT
 
 ## Overall Coverage
 
@@ -8,16 +8,16 @@ Last updated: 2025-05-23 22:12 EDT
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                                                                                                                                                                                                                            
 ---------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   75.14 |    67.31 |   81.78 |   75.36 |                                                                                                                                                                                                                                                                                                                                                              
- src                       |   64.46 |     58.4 |   81.32 |    64.8 |                                                                                                                                                                                                                                                                                                                                                              
-  aiService.js             |   79.54 |    72.19 |   86.66 |   79.22 | 17-24,37-42,395,431,459-470,520-524,607-608,629-631,654,671-697,867,972-976,996-998,1073-1097,1112-1136,1172,1180,1190-1193,1228-1229,1234-1235,1237-1238,1240-1241,1243-1246,1254-1256,1293-1295,1301-1305                                                                                                                                                  
+All files                  |   74.87 |    66.68 |   81.78 |   75.09 |                                                                                                                                                                                                                                                                                                                                                              
+ src                       |   64.13 |    57.47 |   81.32 |   64.46 |                                                                                                                                                                                                                                                                                                                                                              
+  aiService.js             |   75.57 |     66.5 |   86.66 |   75.17 | 18-25,38-43,396,432,460-471,521-525,608-609,630-632,655,688-727,897,1002-1006,1026-1028,1103-1127,1142-1166,1202,1210,1220-1223,1262-1263,1268-1269,1271-1272,1274-1275,1277-1280,1284-1295,1325-1335,1362-1363,1375-1382,1392,1415-1417,1423-1427                                                                                                                                                  
   auth.js                  |    92.8 |    81.57 |   95.45 |    92.8 | 135-136,141-142,328-329,342,380-382                                                                                                                                                                                                                                                                                                                          
   bot.js                   |     100 |       50 |     100 |     100 | 42,50-86,94                                                                                                                                                                                                                                                                                                                                                  
   commandLoader.js         |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   commandProcessor.js      |   98.27 |    91.89 |     100 |   98.27 | 26                                                                                                                                                                                                                                                                                                                                                           
   commandValidation.js     |   91.83 |    70.45 |     100 |   91.83 | 87-96                                                                                                                                                                                                                                                                                                                                                        
   constants.js             |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
-  conversationManager.js   |   78.74 |    77.38 |   85.71 |    79.9 | 69,96-99,102,109-112,115,122-125,128,134,189,213-214,312-313,514-550,559-560,573                                                                                                                                                                                                                                                                             
+  conversationManager.js   |   79.43 |    77.38 |   85.71 |   80.56 | 69,96-99,102,109-112,115,122-125,128,134,189,213-214,312-313,526-562,571-572,585                                                                                                                                                                                                                                                                             
   dataStorage.js           |     100 |      100 |     100 |     100 |                                                                                                                                                                                                                                                                                                                                                              
   healthCheck.js           |   96.07 |    92.59 |     100 |   97.95 | 135                                                                                                                                                                                                                                                                                                                                                          
   logger.js                |   93.33 |      100 |     100 |   93.33 | 74                                                                                                                                                                                                                                                                                                                                                           
@@ -85,12 +85,25 @@ All files                  |   75.14 |    67.31 |   81.78 |   75.36 |
 
 ## Test Results Summary
 
-**Date Updated:** May 23, 2025 at 22:12 EDT  
+**Date Updated:** May 24, 2025 at 01:49 EDT  
 **Total Test Suites:** 108 passed, 0 failed, 108 total  
 **Total Tests:** 1,424 passed, 0 failed, 5 skipped, 1,429 total  
-**Overall Coverage:** 75.14% statements, 67.31% branches, 81.78% functions, 75.36% lines  
+**Overall Coverage:** 74.87% statements, 66.68% branches, 81.78% functions, 75.09% lines  
 
 ## Major Improvements Since Last Update
+
+### Enhancements (May 24, 2025 - 01:49 EDT)
+- Enhanced error handling and logging in aiService.js
+- Added comprehensive error tracking integration with ErrorCategory.API_CONTENT and ErrorCategory.AI_SERVICE
+- Improved error detection for API server errors, rate limits, timeouts, and empty responses
+- Added user-friendly error messages for different error types
+- Included SERVICE_ID environment variable in server error messages
+- **REMOVED all error blocking** - users now always receive feedback when errors occur
+- Changed error reference format to use `||(Reference: xyz123)||` delimiters
+- Updated blackout tracking to be for monitoring purposes only, not blocking
+- Fixed failing tests in aiService.error.test.js, errorTracker.test.js, personalityHandler.test.js, and aiService.test.js
+- Note: aiService.js coverage slightly decreased from 79.54% to 75.57% due to new error handling code
+- Overall coverage slightly decreased from 75.14% to 74.87% due to additional error handling paths
 
 ### Coverage Improvements (May 23, 2025 - 22:12 EDT)
 - Overall coverage increased from 73.97% to 75.14% (1.17% increase)
