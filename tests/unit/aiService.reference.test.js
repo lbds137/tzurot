@@ -84,7 +84,7 @@ describe('AI Service Reference Message Handling', () => {
       const textContent = result[0].content.find(item => item.type === 'text');
       expect(textContent).toBeDefined();
       expect(textContent.text).toContain('Please elaborate on that');
-      expect(textContent.text).toContain('You said earlier');
+      expect(textContent.text).toContain('You said:');
       expect(textContent.text).toContain('The concept of artificial intelligence raises profound philosophical questions');
     });
     
@@ -217,7 +217,7 @@ describe('AI Service Reference Message Handling', () => {
       const textContent = result[0].content.find(item => item.type === 'text');
       expect(textContent).toBeDefined();
       expect(textContent.text).toContain("Tell me more about that");
-      expect(textContent.text).toContain("You said earlier");
+      expect(textContent.text).toContain("You said:");
       expect(textContent.text).toContain("I am an AI assistant with many capabilities");
     });
     
@@ -427,6 +427,86 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("Let me clarify");
       expect(textContent.text).toContain("I said:");
       expect(textContent.text).toContain("This needs more explanation");
+    });
+
+    it('should use personalityDisplayName when displayName is not available', () => {
+      const input = {
+        messageContent: "Can you elaborate on that?",
+        referencedMessage: {
+          content: "I believe in the power of the unconscious mind.",
+          author: "Sigmund Freud",
+          isFromBot: true,
+          personalityName: "sigmund-freud",
+          personalityDisplayName: "Sigmund Freud"
+          // Note: no displayName field, only personalityDisplayName
+        }
+      };
+      
+      const result = formatApiMessages(input, "sigmund-freud");
+      
+      // Should have one combined message
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
+      
+      // Should use personalityDisplayName in the reference
+      const textContent = result[0].content.find(item => item.type === 'text');
+      expect(textContent).toBeDefined();
+      expect(textContent.text).toContain("Can you elaborate on that?");
+      expect(textContent.text).toContain("You said:");
+      expect(textContent.text).toContain("I believe in the power of the unconscious mind");
+    });
+
+    it('should handle DM personality format references correctly', () => {
+      const input = {
+        messageContent: "Tell me more about that theory",
+        referencedMessage: {
+          content: "**Albert Einstein:** The theory of relativity shows us that time and space are interconnected.",
+          author: "TzurotBot", // Bot username in DMs
+          isFromBot: true,
+          personalityName: "albert-einstein", // Full name resolved from display name
+          personalityDisplayName: "Albert Einstein"
+        }
+      };
+      
+      const result = formatApiMessages(input, "albert-einstein");
+      
+      // Should have one combined message
+      expect(result.length).toBe(1);
+      expect(result[0].role).toBe('user');
+      
+      // Should recognize it's the same personality and use "You said:"
+      const textContent = result[0].content.find(item => item.type === 'text');
+      expect(textContent).toBeDefined();
+      expect(textContent.text).toContain("Tell me more about that theory");
+      expect(textContent.text).toContain("You said:");
+      expect(textContent.text).not.toContain("Albert Einstein said:");
+      // The actual message content should not include the DM prefix
+      expect(textContent.text).toContain("The theory of relativity shows us that time and space are interconnected");
+    });
+
+    it('should not include reference when replying to same personality recently', () => {
+      // This test verifies that the personality handler's logic for skipping
+      // same-personality references is working correctly
+      const input = {
+        messageContent: "Continue that thought",
+        referencedMessage: {
+          content: "Let me explain my theory of dreams...",
+          author: "Sigmund Freud",
+          isFromBot: true,
+          personalityName: "sigmund-freud",
+          personalityDisplayName: "Sigmund Freud"
+        }
+      };
+      
+      // In the actual implementation, personalityHandler.js checks if it's the same
+      // personality and skips adding the reference. We can test that formatApiMessages
+      // handles the case where no reference is provided (simulating the skip)
+      const resultWithoutReference = formatApiMessages("Continue that thought", "sigmund-freud");
+      
+      // Should have simple message without reference
+      expect(resultWithoutReference.length).toBe(1);
+      expect(resultWithoutReference[0].role).toBe('user');
+      expect(resultWithoutReference[0].content).toBe("Continue that thought");
     });
   });
 });

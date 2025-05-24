@@ -867,7 +867,7 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
               displayName = personalityObject.displayName;
             } else {
               // Fall back to provided display name or the personality name
-              displayName = content.referencedMessage.displayName || fullName;
+              displayName = content.referencedMessage.personalityDisplayName || content.referencedMessage.displayName || fullName;
             }
 
             // Format name with display name and full name in parentheses, unless they're the same
@@ -881,7 +881,7 @@ function formatApiMessages(content, personalityName, userName = 'a user') {
 
             if (isSamePersonality) {
               // Second-person reference when user is talking to the same personality
-              assistantReferenceContent = `You said earlier${mediaContext}: "${cleanContent}"`;
+              assistantReferenceContent = `You said${mediaContext}: "${cleanContent}"`;
             } else {
               // Third-person reference if it's a different personality
               assistantReferenceContent = `${formattedName} said${mediaContext}: "${cleanContent}"`;

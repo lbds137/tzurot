@@ -328,11 +328,32 @@ async function handlePersonalityInteraction(
                 `[PersonalityHandler] Identified DM personality format message with display name: ${baseName}`
               );
 
-              // Set the referencedPersonalityInfo to use in the API request
-              referencedPersonalityInfo = {
-                name: baseName, // Using the display name since we don't have the full name
-                displayName: baseName,
-              };
+              // Try to find the full personality name from the display name
+              const personalityManager = require('../personalityManager');
+              const allPersonalities = personalityManager.listPersonalitiesForUser();
+              const matchingPersonality = allPersonalities.find(
+                p => p.displayName && p.displayName.toLowerCase() === baseName.toLowerCase()
+              );
+
+              if (matchingPersonality) {
+                // Found the full personality data
+                referencedPersonalityInfo = {
+                  name: matchingPersonality.fullName,
+                  displayName: matchingPersonality.displayName,
+                };
+                logger.info(
+                  `[PersonalityHandler] Found full personality data for DM message: ${matchingPersonality.fullName}`
+                );
+              } else {
+                // Fallback to just using the display name
+                referencedPersonalityInfo = {
+                  name: baseName, // Using the display name since we don't have the full name
+                  displayName: baseName,
+                };
+                logger.warn(
+                  `[PersonalityHandler] Could not find full personality data for display name: ${baseName}`
+                );
+              }
             }
           }
 
