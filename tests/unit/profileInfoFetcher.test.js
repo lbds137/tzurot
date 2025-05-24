@@ -331,122 +331,90 @@ describe('profileInfoFetcher', () => {
   });
   
   test.skip('fetchProfileInfo should handle rate limiting (429) with exponential backoff', async () => {
-    // This test is to verify the concept rather than exact implementation
-    // In our mock implementation, the retry logic is handled differently
+    // Test the BEHAVIOR: When API returns 429, the function should:
+    // 1. Log appropriate warnings
+    // 2. Eventually return null after retries are exhausted
+    // We're NOT testing the exact timing or retry count
     
-    // Mock the implementation to simulate rate limiting behavior
-    const originalFetchProfileInfo = profileInfoFetcher.fetchProfileInfo;
-    
-    // Set up a counter to track retries
-    let callCount = 0;
-    
-    // Create a version that simulates a rate limit then success
-    profileInfoFetcher.fetchProfileInfo = jest.fn().mockImplementation(async (profileName) => {
-      callCount++;
-      
-      if (callCount === 1) {
-        // First call - log a warning as if rate limited
-        console.warn(`[ProfileInfoFetcher] Rate limited (429) for ${profileName}`);
-        // Return null as if the request failed
-        return null;
-      } else {
-        // Second call - return success
-        return mockProfileData;
+    // Mock a 429 response
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      headers: {
+        get: jest.fn().mockReturnValue('5') // retry-after header
       }
     });
     
-    // Call the function twice to simulate a retry
-    const firstResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
-    const secondResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
+    // Call the function
+    const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
-    // Verify warning was logged
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Rate limited (429)')
+    // Test observable behavior:
+    // 1. The function was called with correct endpoint
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(mockProfileName),
+      expect.any(Object)
     );
     
-    // Verify first call "failed" due to rate limiting
-    expect(firstResult).toBeNull();
+    // 2. Rate limit warning was logged
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Rate limited')
+    );
     
-    // Verify second call succeeded
-    expect(secondResult).toEqual(mockProfileData);
-    
-    // Verify the function was called twice
-    expect(profileInfoFetcher.fetchProfileInfo).toHaveBeenCalledTimes(2);
-    
-    // Restore original function
-    profileInfoFetcher.fetchProfileInfo = originalFetchProfileInfo;
+    // 3. Function returns null when rate limited (observable outcome)
+    expect(result).toBeNull();
   });
   
   test.skip('fetchProfileInfo should implement global rate limit cooldown after multiple 429s', async () => {
-    // This test is conceptual since our mock implementation does not test the 
-    // actual rate limit tracking in the real code
+    // Test the BEHAVIOR: Multiple 429s should result in appropriate logging
+    // We're NOT testing the exact cooldown implementation
     
-    // We can test that after multiple consecutive 429s, a global cooldown is implemented
+    // Mock multiple 429 responses
+    for (let i = 0; i < 5; i++) {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        headers: {
+          get: jest.fn().mockReturnValue('5')
+        }
+      });
+    }
     
-    // Mock a warning that would be logged when hitting too many rate limits
-    console.warn = jest.fn();
+    // Call the function
+    const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
-    // Simulate the behavior manually by calling our custom warning
-    console.warn('[ProfileInfoFetcher] Too many consecutive rate limits (3), enforcing global cooldown of 60s');
+    // Test observable behavior:
+    // 1. Function returns null after exhausting retries
+    expect(result).toBeNull();
     
-    // Verify the warning was logged
-    expect(console.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Too many consecutive rate limits')
+    // 2. Appropriate error logging occurred
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Max retries reached')
     );
-    
-    // For a real test, we would:
-    // 1. Modify the code to expose rate limit tracking variables
-    // 2. Modify the code to accept injected timing functions for testability
-    // 3. Track the number of 429s and verify cooldown is enforced after the threshold
   });
   
   test.skip('fetchProfileInfo should handle network timeouts and retry', async () => {
-    // Similar to rate limiting, we need to mock our implementation differently
+    // Test the BEHAVIOR: Network timeouts should be handled gracefully
+    // We're NOT testing retry timing or exact retry count
     
-    // Mock the implementation to simulate a timeout then success
-    const originalFetchProfileInfo = profileInfoFetcher.fetchProfileInfo;
+    // Mock a timeout error (AbortError)
+    const timeoutError = new Error('The operation was aborted');
+    timeoutError.name = 'AbortError';
+    mockFetch.mockRejectedValueOnce(timeoutError);
     
-    // Set up a counter to track retries
-    let callCount = 0;
+    // Call the function
+    const result = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
     
-    // Create a version that simulates a timeout then success
-    profileInfoFetcher.fetchProfileInfo = jest.fn().mockImplementation(async (profileName) => {
-      callCount++;
-      
-      if (callCount === 1) {
-        // First call - log a warning as if request timed out
-        console.warn(`[ProfileInfoFetcher] Request timed out for ${profileName}`);
-        // Return null as if the request failed
-        return null;
-      } else {
-        // Second call - return success
-        return mockProfileData;
-      }
-    });
+    // Test observable behavior:
+    // 1. Function was called
+    expect(mockFetch).toHaveBeenCalled();
     
-    // Spy on console.warn
-    console.warn = jest.fn();
-    
-    // Call the function twice to simulate a retry after timeout
-    const firstResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
-    const secondResult = await profileInfoFetcher.fetchProfileInfo(mockProfileName);
-    
-    // Verify warning was logged
+    // 2. Timeout was logged appropriately
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('Request timed out')
     );
     
-    // Verify first call "failed" due to timeout
-    expect(firstResult).toBeNull();
-    
-    // Verify second call succeeded
-    expect(secondResult).toEqual(mockProfileData);
-    
-    // Verify the function was called twice
-    expect(profileInfoFetcher.fetchProfileInfo).toHaveBeenCalledTimes(2);
-    
-    // Restore original function
-    profileInfoFetcher.fetchProfileInfo = originalFetchProfileInfo;
+    // 3. Function returns null when timeout occurs (observable outcome)
+    expect(result).toBeNull();
   });
   
   test('getProfileAvatarUrl should return null when avatar is not found', async () => {
@@ -564,58 +532,76 @@ describe('profileInfoFetcher', () => {
   });
   
   test.skip('processRequestQueue should respect rate limiting delay between requests', async () => {
-    // This is a more complex test that requires exposing and mocking internal state
-    // For demonstration purposes only - would need adaptation to actual implementation
+    // Test the BEHAVIOR: The system should handle multiple requests gracefully
+    // We're NOT testing internal queue timing
     
-    // Spy on console.debug for rate limit logging
-    console.debug = jest.fn();
+    // Set up mock responses for multiple requests
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({ name: 'Profile1', id: '1' })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce({ name: 'Profile2', id: '2' })
+      });
     
-    // Mock Date.now for timing checks
-    const now = 1000000;
-    Date.now = jest.fn().mockReturnValue(now);
+    // Make two requests in quick succession
+    const promise1 = profileInfoFetcher.fetchProfileInfo('Profile1');
+    const promise2 = profileInfoFetcher.fetchProfileInfo('Profile2');
     
-    // Mock setTimeout to capture delay values but not actually wait
-    const originalSetTimeout = global.setTimeout;
-    const mockSetTimeout = jest.fn().mockImplementation((callback, delay) => {
-      return 123; // Mock timer ID
-    });
-    global.setTimeout = mockSetTimeout;
+    // Wait for both to complete
+    const [result1, result2] = await Promise.all([promise1, promise2]);
     
-    // We would need to call processRequestQueue here, but it's not exported
-    // This is a design consideration for testability
+    // Test observable behavior:
+    // 1. Both requests should complete successfully
+    expect(result1).toEqual({ name: 'Profile1', id: '1' });
+    expect(result2).toEqual({ name: 'Profile2', id: '2' });
     
-    // Verify setTimeout was called with appropriate delay
-    // expect(mockSetTimeout).toHaveBeenCalledWith(expect.any(Function), expect.any(Number));
-    
-    // For demonstration - assertions would depend on actual implementation
-    expect(true).toBe(true);
-    
-    // Restore original functions
-    global.setTimeout = originalSetTimeout;
+    // 2. Both API calls were made
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
   
   test.skip('multiple concurrent requests should be queued and processed in sequence', async () => {
-    // This test would verify that when multiple requests are made simultaneously,
-    // they are properly queued and processed with appropriate delays
+    // Test the BEHAVIOR: Multiple concurrent requests should all complete
+    // We're NOT testing the exact queuing mechanism or timing
     
-    // For a more complete test, we would need to:
-    // 1. Make multiple concurrent calls to fetchProfileInfo
-    // 2. Verify that only the allowed number of concurrent requests are processed at once
-    // 3. Verify that the remaining requests are queued
-    // 4. Verify that queued requests are processed in order with appropriate delays
-    
-    // Mock concurrent calls - this is simplified for demonstration
-    const promises = [
-      profileInfoFetcher.fetchProfileInfo('profile1'),
-      profileInfoFetcher.fetchProfileInfo('profile2'),
-      profileInfoFetcher.fetchProfileInfo('profile3')
+    // Set up mock responses for three concurrent requests
+    const profiles = [
+      { name: 'profile1', id: '1' },
+      { name: 'profile2', id: '2' },
+      { name: 'profile3', id: '3' }
     ];
     
-    // Wait for all promises to resolve
-    await Promise.all(promises);
+    profiles.forEach(profile => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: jest.fn().mockResolvedValueOnce(profile)
+      });
+    });
     
-    // Verify behavior - simplified for demonstration
-    // In reality, these assertions would depend on the specifics of your implementation
+    // Make multiple concurrent requests
+    const promises = profiles.map(p => profileInfoFetcher.fetchProfileInfo(p.name));
+    
+    // Wait for all to complete
+    const results = await Promise.all(promises);
+    
+    // Test observable behavior:
+    // 1. All requests completed successfully
+    expect(results).toHaveLength(3);
+    results.forEach((result, index) => {
+      expect(result).toEqual(profiles[index]);
+    });
+    
+    // 2. All API calls were made
     expect(mockFetch).toHaveBeenCalledTimes(3);
+    
+    // 3. Each profile was requested
+    profiles.forEach(profile => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining(profile.name),
+        expect.any(Object)
+      );
+    });
   });
 });
