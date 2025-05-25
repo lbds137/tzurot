@@ -438,6 +438,17 @@ async function handlePersonalityInteraction(
           if (repliedToMessage.embeds && repliedToMessage.embeds.length > 0) {
             // Use the embed utils to parse embeds
             const embedUtils = require('../utils/embedUtils');
+            
+            // First, extract any Discord message links from the embeds
+            const embedLinks = embedUtils.extractDiscordLinksFromEmbeds(repliedToMessage.embeds);
+            if (embedLinks.length > 0) {
+              logger.info(`[PersonalityHandler] Found ${embedLinks.length} Discord links in referenced message embeds`);
+              // Add the first link to the message content so it can be processed later
+              // We add it as plain text so the regex can find it
+              referencedMessageContent += '\n' + embedLinks[0];
+            }
+            
+            // Then parse the embeds to text
             referencedMessageContent += embedUtils.parseEmbedsToText(
               repliedToMessage.embeds,
               'referenced message'
@@ -499,7 +510,11 @@ async function handlePersonalityInteraction(
           referencedMessageContent += '\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
           
           // Update other reference info if found
-          if (referencedLinkResult.referencedMessageAuthor) {
+          if (referencedLinkResult.referencedPersonalityInfo?.displayName) {
+            referencedMessageContent += ' (from ' + referencedLinkResult.referencedPersonalityInfo.displayName + ')';
+          } else if (referencedLinkResult.referencedWebhookName) {
+            referencedMessageContent += ' (from ' + referencedLinkResult.referencedWebhookName + ')';
+          } else if (referencedLinkResult.referencedMessageAuthor && referencedLinkResult.referencedMessageAuthor !== 'another user') {
             referencedMessageContent += ' (from ' + referencedLinkResult.referencedMessageAuthor + ')';
           }
         }

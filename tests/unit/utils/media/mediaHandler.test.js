@@ -234,8 +234,7 @@ describe('Media Handler', () => {
           userName: 'TestUser'
         });
         
-        expect(result.messageContent[0].text).toContain('transcript of a voice message sent by TestUser');
-        expect(result.messageContent[0].text).toContain('You are TestBot');
+        expect(result.messageContent[0].text).toBe('Voice message from TestUser:');
       });
     });
 
@@ -470,7 +469,7 @@ describe('Media Handler', () => {
         });
         
         expect(result.messageContent[0].type).toBe('text');
-        expect(result.messageContent[0].text).toContain('transcript of a voice message');
+        expect(result.messageContent[0].text).toBe('Voice message from User:');
       });
 
       it('should copy text elements from multimodal array', async () => {

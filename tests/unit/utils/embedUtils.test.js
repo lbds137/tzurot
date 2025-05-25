@@ -1,4 +1,4 @@
-const { parseEmbedsToText, extractMediaFromEmbeds, detectPersonalityInEmbed } = require('../../../src/utils/embedUtils');
+const { parseEmbedsToText, extractMediaFromEmbeds, detectPersonalityInEmbed, extractDiscordLinksFromEmbeds } = require('../../../src/utils/embedUtils');
 const logger = require('../../../src/logger');
 
 // Mock the logger
@@ -413,6 +413,134 @@ describe('embedUtils', () => {
       
       // The regex won't match an empty name between ** and :
       expect(result).toBe(null);
+    });
+  });
+
+  describe('extractDiscordLinksFromEmbeds', () => {
+    it('should return empty array for null or empty embeds', () => {
+      expect(extractDiscordLinksFromEmbeds(null)).toEqual([]);
+      expect(extractDiscordLinksFromEmbeds([])).toEqual([]);
+    });
+
+    it('should extract link from embed description', () => {
+      const embeds = [{
+        description: '**[Reply to:](https://discord.com/channels/1234567890/9876543210/1122334455)** Some message content'
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual(['https://discord.com/channels/1234567890/9876543210/1122334455']);
+    });
+
+    it('should extract link from embed title', () => {
+      const embeds = [{
+        title: 'Check this out: https://discord.com/channels/1234567890/9876543210/1122334455'
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual(['https://discord.com/channels/1234567890/9876543210/1122334455']);
+    });
+
+    it('should extract link from embed fields', () => {
+      const embeds = [{
+        fields: [
+          {
+            name: 'Reference',
+            value: 'See: https://discord.com/channels/1234567890/9876543210/1122334455'
+          }
+        ]
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual(['https://discord.com/channels/1234567890/9876543210/1122334455']);
+    });
+
+    it('should extract link from embed footer', () => {
+      const embeds = [{
+        footer: {
+          text: 'Original: https://discord.com/channels/1234567890/9876543210/1122334455'
+        }
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual(['https://discord.com/channels/1234567890/9876543210/1122334455']);
+    });
+
+    it('should handle multiple links and remove duplicates', () => {
+      const embeds = [{
+        description: 'Link 1: https://discord.com/channels/1234567890/9876543210/1122334455',
+        fields: [
+          {
+            name: 'Same link',
+            value: 'https://discord.com/channels/1234567890/9876543210/1122334455'
+          },
+          {
+            name: 'Different link',
+            value: 'https://discord.com/channels/2222222222/3333333333/4444444444'
+          }
+        ]
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toHaveLength(2);
+      expect(result).toContain('https://discord.com/channels/1234567890/9876543210/1122334455');
+      expect(result).toContain('https://discord.com/channels/2222222222/3333333333/4444444444');
+    });
+
+    it('should handle PTB and Canary Discord URLs', () => {
+      const embeds = [
+        {
+          description: 'PTB: https://ptb.discord.com/channels/1234567890/9876543210/1122334455'
+        },
+        {
+          description: 'Canary: https://canary.discord.com/channels/2222222222/3333333333/4444444444'
+        }
+      ];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual([
+        'https://ptb.discord.com/channels/1234567890/9876543210/1122334455',
+        'https://canary.discord.com/channels/2222222222/3333333333/4444444444'
+      ]);
+    });
+
+    it('should handle discordapp.com URLs', () => {
+      const embeds = [{
+        description: 'Old URL: https://discordapp.com/channels/1234567890/9876543210/1122334455'
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual(['https://discordapp.com/channels/1234567890/9876543210/1122334455']);
+    });
+
+    it('should not extract non-Discord links', () => {
+      const embeds = [{
+        description: 'Random link: https://example.com/channels/1234567890/9876543210/1122334455'
+      }];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual([]);
+    });
+
+    it('should handle embeds with missing properties gracefully', () => {
+      const embeds = [
+        { title: null },
+        { description: undefined },
+        { fields: [] },
+        { footer: {} },
+        {}
+      ];
+      
+      const result = extractDiscordLinksFromEmbeds(embeds);
+      
+      expect(result).toEqual([]);
     });
   });
 });

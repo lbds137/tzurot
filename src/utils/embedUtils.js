@@ -180,8 +180,76 @@ function detectPersonalityInEmbed(embed) {
   return null;
 }
 
+/**
+ * Extracts Discord message links from embed content
+ * @param {Array} embeds - Array of Discord embed objects
+ * @returns {Array<string>} Array of Discord message links found in embeds
+ */
+function extractDiscordLinksFromEmbeds(embeds) {
+  if (!embeds || !embeds.length) return [];
+
+  const links = [];
+  const MESSAGE_LINK_REGEX = /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
+
+  embeds.forEach(embed => {
+    // Check description
+    if (embed.description) {
+      const matches = [...embed.description.matchAll(MESSAGE_LINK_REGEX)];
+      matches.forEach(match => {
+        links.push(match[0]);
+        logger.info(`[EmbedUtils] Found Discord link in embed description: ${match[0]}`);
+      });
+    }
+
+    // Check title
+    if (embed.title) {
+      const matches = [...embed.title.matchAll(MESSAGE_LINK_REGEX)];
+      matches.forEach(match => {
+        links.push(match[0]);
+        logger.info(`[EmbedUtils] Found Discord link in embed title: ${match[0]}`);
+      });
+    }
+
+    // Check fields
+    if (embed.fields && embed.fields.length > 0) {
+      embed.fields.forEach(field => {
+        // Check field name
+        if (field.name) {
+          const nameMatches = [...field.name.matchAll(MESSAGE_LINK_REGEX)];
+          nameMatches.forEach(match => {
+            links.push(match[0]);
+            logger.info(`[EmbedUtils] Found Discord link in embed field name: ${match[0]}`);
+          });
+        }
+        
+        // Check field value
+        if (field.value) {
+          const valueMatches = [...field.value.matchAll(MESSAGE_LINK_REGEX)];
+          valueMatches.forEach(match => {
+            links.push(match[0]);
+            logger.info(`[EmbedUtils] Found Discord link in embed field value: ${match[0]}`);
+          });
+        }
+      });
+    }
+
+    // Check footer
+    if (embed.footer && embed.footer.text) {
+      const matches = [...embed.footer.text.matchAll(MESSAGE_LINK_REGEX)];
+      matches.forEach(match => {
+        links.push(match[0]);
+        logger.info(`[EmbedUtils] Found Discord link in embed footer: ${match[0]}`);
+      });
+    }
+  });
+
+  // Remove duplicates
+  return [...new Set(links)];
+}
+
 module.exports = {
   parseEmbedsToText,
   extractMediaFromEmbeds,
   detectPersonalityInEmbed,
+  extractDiscordLinksFromEmbeds,
 };

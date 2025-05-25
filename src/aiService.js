@@ -874,7 +874,20 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
           }
 
           // Create natural reference text
-          const authorText = isUserSelfReference ? 'I' : content.referencedMessage.author;
+          // For webhook messages (like PluralKit), prefer the webhook name over generic "another user"
+          let authorText;
+          if (isUserSelfReference) {
+            authorText = 'I';
+          } else if (content.referencedMessage.isFromBot && content.referencedMessage.webhookName) {
+            // Use webhook name for PluralKit and similar webhook messages
+            authorText = content.referencedMessage.webhookName;
+          } else if (content.referencedMessage.isFromBot && content.referencedMessage.personalityDisplayName) {
+            // Use personality display name if available
+            authorText = content.referencedMessage.personalityDisplayName;
+          } else {
+            // Fall back to the author field
+            authorText = content.referencedMessage.author;
+          }
           const fullReferenceContent = `${authorText} said${mediaContext}:\n"${cleanContent}"`;
 
           // For bot messages, try to get the proper display name
@@ -1008,7 +1021,7 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             }
 
             // Add reference context (with newline formatting)
-            combinedText += '\n' + referenceDescriptor.content;
+            combinedText += '\n\n' + referenceDescriptor.content;
 
             // Add the combined text as first element
             combinedContent.push({
@@ -1058,7 +1071,7 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             }
 
             // Add reference context (with newline formatting)
-            combinedText += '\n' + referenceDescriptor.content;
+            combinedText += '\n\n' + referenceDescriptor.content;
 
             // Add the combined text as first element
             combinedContent.push({

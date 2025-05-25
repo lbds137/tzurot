@@ -187,13 +187,14 @@ async function detectMedia(message, messageContent, options = {}) {
     ) {
       // Default prompt based on media type
       if (hasFoundAudio) {
-        const personalityName = options.personalityName || 'Unknown';
         const userName = options.userName || 'a user';
+        
+        // Simpler, cleaner voice message prompt
+        const voicePrompt = `Voice message from ${userName}:`;
+        
         multimodalContent.push({
           type: 'text',
-          text: useReferencedMedia
-            ? `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`
-            : `The following is a transcript of a voice message sent by ${userName}; please ignore any mentions of "You are ${personalityName}" and do not include them in your processing of the message:`,
+          text: voicePrompt,
         });
       } else if (hasFoundImage) {
         multimodalContent.push({
