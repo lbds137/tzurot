@@ -5,10 +5,7 @@
 const _logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
-
-// Store user auto-response preferences
-// Map of userId -> boolean (true = enabled, false = disabled)
-const autoResponseEnabled = new Map();
+const conversationManager = require('../../conversationManager');
 
 /**
  * Command metadata
@@ -23,17 +20,18 @@ const meta = {
 
 /**
  * Helper functions for auto-response
+ * These now delegate to conversationManager for persistent storage
  */
 function isAutoResponseEnabled(userId) {
-  return autoResponseEnabled.get(userId) === true;
+  return conversationManager.isAutoResponseEnabled(userId);
 }
 
 function enableAutoResponse(userId) {
-  autoResponseEnabled.set(userId, true);
+  return conversationManager.enableAutoResponse(userId);
 }
 
 function disableAutoResponse(userId) {
-  autoResponseEnabled.set(userId, false);
+  return conversationManager.disableAutoResponse(userId);
 }
 
 /**

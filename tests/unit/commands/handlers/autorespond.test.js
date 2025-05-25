@@ -14,6 +14,20 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz'
 }));
 
+// Mock conversationManager
+const mockAutoResponseState = new Map();
+jest.mock('../../../../src/conversationManager', () => ({
+  isAutoResponseEnabled: jest.fn((userId) => mockAutoResponseState.get(userId) === true),
+  enableAutoResponse: jest.fn((userId) => {
+    mockAutoResponseState.set(userId, true);
+    return true;
+  }),
+  disableAutoResponse: jest.fn((userId) => {
+    mockAutoResponseState.delete(userId);
+    return true;
+  })
+}));
+
 // Mock utils and commandValidator
 jest.mock('../../../../src/utils', () => ({
   createDirectSend: jest.fn().mockImplementation((message) => {
@@ -52,6 +66,9 @@ describe('Autorespond Command', () => {
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
+    
+    // Clear mock auto-response state
+    mockAutoResponseState.clear();
     
     // Reset modules to get a fresh instance of the Map
     jest.resetModules();
