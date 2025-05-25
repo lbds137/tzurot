@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-25 17:56 EDT
+Last updated: 2025-05-25 18:10 EDT
 
 ## Overall Coverage
 
@@ -85,12 +85,22 @@ All files                  |      75 |     66.6 |   81.55 |   75.22 |
 
 ## Test Results Summary
 
-**Date Updated:** May 25, 2025 at 17:56 EDT  
+**Date Updated:** May 25, 2025 at 18:10 EDT  
 **Total Test Suites:** 111 passed, 0 failed, 111 total  
-**Total Tests:** 1,466 passed, 0 failed, 5 skipped, 1,471 total  
+**Total Tests:** 1,475 passed, 0 failed, 5 skipped, 1,480 total  
 **Overall Coverage:** 75% statements, 66.6% branches, 81.55% functions, 75.22% lines  
 
 ## Major Improvements Since Last Update
+
+### May 25, 2025 (18:10 EDT)
+**Coverage: 75% statements, 66.6% branches, 81.55% functions, 75.22% lines**
+
+- **Feature Verification & Test Improvements:**
+  - Verified bot owner can remove any personality (feature already implemented)
+  - Verified add command automatically uses display name as alias when no alias provided (feature already implemented)
+  - Added test case to verify bot owner override for removing personalities
+  - Fixed add command tests to match updated `setPersonalityAlias` signature (4 parameters)
+  - All tests now pass (1,475 tests passing, up from 1,466)
 
 ### May 25, 2025 (17:56 EDT)
 **Coverage: 75% statements, 66.6% branches, 81.55% functions, 75.22% lines**

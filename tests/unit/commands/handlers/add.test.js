@@ -134,7 +134,7 @@ describe('Add Command', () => {
     );
     // Verify alias was set separately
     expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
-      'test-alias', 'test-personality'
+      'test-alias', 'test-personality', false, false
     );
     
     // Verify avatar preloading
@@ -319,7 +319,7 @@ describe('Add Command', () => {
     
     // Verify alias was set separately
     expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
-      'test-alias', 'test-personality'
+      'test-alias', 'test-personality', false, false
     );
     
     // Verify the command completes successfully
@@ -344,6 +344,88 @@ describe('Add Command', () => {
       'The personality "test-personality" already exists. If you want to use it, just mention @test-personality in your messages.'
     );
     expect(personalityManager.registerPersonality).not.toHaveBeenCalled();
+  });
+
+  it('should automatically use display name as alias when no alias is provided', async () => {
+    // Arrange - mock personality with different display name
+    personalityManager.registerPersonality.mockResolvedValue({
+      fullName: 'test-personality',
+      displayName: 'Test Display',
+      avatarUrl: 'https://example.com/avatar.png',
+      createdBy: mockMessage.author.id,
+      createdAt: Date.now()
+    });
+    
+    // Act
+    await addCommand.execute(mockMessage, ['test-personality']); // No alias provided
+    
+    // Assert
+    // Verify personality was registered
+    expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
+      mockMessage.author.id, 'test-personality', {}
+    );
+    
+    // Verify display name was used as alias (lowercase)
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'test display', 'test-personality', false, true
+    );
+    
+    // Verify the command completes successfully
+    expect(mockMessage.channel.send).toHaveBeenCalled();
+  });
+
+  it('should not set display name alias if it matches the full name', async () => {
+    // Arrange - mock personality where display name matches full name
+    personalityManager.registerPersonality.mockResolvedValue({
+      fullName: 'test-personality',
+      displayName: 'test-personality', // Same as full name
+      avatarUrl: 'https://example.com/avatar.png',
+      createdBy: mockMessage.author.id,
+      createdAt: Date.now()
+    });
+    
+    // Act
+    await addCommand.execute(mockMessage, ['test-personality']); // No alias provided
+    
+    // Assert
+    // Verify personality was registered
+    expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
+      mockMessage.author.id, 'test-personality', {}
+    );
+    
+    // Verify no alias was set since display name matches full name
+    expect(personalityManager.setPersonalityAlias).not.toHaveBeenCalled();
+    
+    // Verify the command completes successfully
+    expect(mockMessage.channel.send).toHaveBeenCalled();
+  });
+
+  it('should prefer explicit alias over display name', async () => {
+    // Arrange - mock personality with display name
+    personalityManager.registerPersonality.mockResolvedValue({
+      fullName: 'test-personality',
+      displayName: 'Test Display',
+      avatarUrl: 'https://example.com/avatar.png',
+      createdBy: mockMessage.author.id,
+      createdAt: Date.now()
+    });
+    
+    // Act
+    await addCommand.execute(mockMessage, ['test-personality', 'custom-alias']); // Explicit alias provided
+    
+    // Assert
+    // Verify personality was registered
+    expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
+      mockMessage.author.id, 'test-personality', {}
+    );
+    
+    // Verify explicit alias was used, not display name
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'custom-alias', 'test-personality', false, false
+    );
+    
+    // Verify the command completes successfully
+    expect(mockMessage.channel.send).toHaveBeenCalled();
   });
 
   // Test functionality from the original test file

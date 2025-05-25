@@ -496,14 +496,17 @@ function getPersonalityByAlias(userId, alias) {
  * @returns {Promise<boolean>} Success indicator
  */
 async function removePersonality(userId, fullName) {
+  // Import constants
+  const { USER_CONFIG } = require('./constants');
+  
   // Verify the personality exists
   const personality = personalityData.get(fullName);
   if (!personality) {
     return false;
   }
 
-  // Check if the user owns this personality
-  if (personality.createdBy && personality.createdBy !== userId) {
+  // Check if the user owns this personality or is the bot owner
+  if (personality.createdBy && personality.createdBy !== userId && userId !== USER_CONFIG.OWNER_ID) {
     logger.warn(`[PersonalityManager] User ${userId} attempted to remove personality ${fullName} owned by ${personality.createdBy}`);
     return false;
   }
@@ -521,7 +524,7 @@ async function removePersonality(userId, fullName) {
   // Save the data
   await saveAllPersonalities();
 
-  logger.info(`[PersonalityManager] User ${userId} removed personality ${fullName}`);
+  logger.info(`[PersonalityManager] User ${userId} removed personality ${fullName}${userId === USER_CONFIG.OWNER_ID && personality.createdBy !== userId ? ' (owner override)' : ''}`);
   return true;
 }
 

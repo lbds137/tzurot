@@ -202,11 +202,13 @@ async function execute(message, args) {
       `[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`
     );
 
-    // Set the alias if one was provided
-    if (alias) {
+    // Set the alias - if one was provided, use it; otherwise use display name
+    const aliasToSet = alias || (personality.displayName && personality.displayName.toLowerCase() !== personality.fullName ? personality.displayName.toLowerCase() : null);
+    
+    if (aliasToSet) {
       try {
-        await setPersonalityAlias(alias, personality.fullName);
-        logger.info(`[AddCommand ${commandId}] Alias '${alias}' set for personality ${personality.fullName}`);
+        await setPersonalityAlias(aliasToSet, personality.fullName, false, !alias); // skipSave=false, isDisplayName=true if using display name
+        logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
       } catch (aliasError) {
         logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`);
         // Continue even if alias setting fails - the personality is already registered
@@ -229,7 +231,7 @@ async function execute(message, args) {
       .setColor(0x4caf50)
       .addFields(
         { name: 'Full Name', value: personality.fullName || 'Not available', inline: true },
-        { name: 'Alias', value: alias || 'None set', inline: true }
+        { name: 'Alias', value: aliasToSet || 'None set', inline: true }
       );
 
     // Add placeholder fields for display name and avatar
@@ -251,7 +253,7 @@ async function execute(message, args) {
       });
     } else {
       basicEmbed.setFooter({
-        text: `Use @${personalityName} or ${alias ? `@${alias}` : 'its full name'} to talk to this personality.`,
+        text: `Use @${personalityName} or ${aliasToSet ? `@${aliasToSet}` : 'its full name'} to talk to this personality.`,
       });
     }
 

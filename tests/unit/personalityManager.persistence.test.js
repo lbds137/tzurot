@@ -290,5 +290,29 @@ describe('personalityManager - Initialization and Persistence', () => {
       // Verify the personality still exists
       expect(personalityManager.getPersonality('test-personality')).not.toBeNull();
     });
+    
+    it('should allow bot owner to remove any personality', async () => {
+      // Mock USER_CONFIG to set the bot owner ID
+      const constants = require('../../src/constants');
+      const originalOwnerId = constants.USER_CONFIG.OWNER_ID;
+      constants.USER_CONFIG.OWNER_ID = 'bot-owner-123';
+      
+      // Register a personality for user1
+      await personalityManager.registerPersonality('user1', 'test-personality', {
+        description: 'Test description'
+      }, false);
+      
+      // Try to remove it as the bot owner
+      const result = await personalityManager.removePersonality('bot-owner-123', 'test-personality');
+      
+      // Should return true (owner override)
+      expect(result).toBe(true);
+      
+      // Verify the personality was removed
+      expect(personalityManager.getPersonality('test-personality')).toBeNull();
+      
+      // Restore original owner ID
+      constants.USER_CONFIG.OWNER_ID = originalOwnerId;
+    });
   });
 });

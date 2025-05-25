@@ -155,6 +155,71 @@ describe('personalityManager', () => {
     });
   });
 
+  describe('removePersonality', () => {
+    beforeEach(async () => {
+      // Register test personalities with different owners
+      await personalityManager.registerPersonality('owner-user', 'owner-personality', {
+        description: 'Owned by owner'
+      }, false);
+      
+      await personalityManager.registerPersonality('regular-user', 'user-personality', {
+        description: 'Owned by regular user'
+      }, false);
+      
+      // Set aliases for both
+      await personalityManager.setPersonalityAlias('owner-alias', 'owner-personality');
+      await personalityManager.setPersonalityAlias('user-alias', 'user-personality');
+    });
+
+    it('should allow a user to remove their own personality', async () => {
+      const result = await personalityManager.removePersonality('regular-user', 'user-personality');
+      
+      expect(result).toBe(true);
+      expect(personalityManager.getPersonality('user-personality')).toBeNull();
+      expect(personalityManager.getPersonalityByAlias('user-alias')).toBeNull();
+    });
+
+    it('should not allow a user to remove another user\'s personality', async () => {
+      const result = await personalityManager.removePersonality('regular-user', 'owner-personality');
+      
+      expect(result).toBe(false);
+      expect(personalityManager.getPersonality('owner-personality')).toBeDefined();
+      expect(personalityManager.getPersonalityByAlias('owner-alias')).toBeDefined();
+    });
+
+    it('should allow the bot owner to remove any personality', async () => {
+      // Mock the USER_CONFIG to set a test owner ID
+      jest.doMock('../../src/constants', () => ({
+        USER_CONFIG: {
+          OWNER_ID: 'bot-owner-id'
+        }
+      }));
+      
+      // Re-require the module to get the updated mock
+      delete require.cache[require.resolve('../../src/personalityManager')];
+      const personalityManagerWithOwner = require('../../src/personalityManager');
+      
+      // Re-initialize with existing data
+      await personalityManagerWithOwner.initPersonalityManager(false, { skipBackgroundSeeding: true });
+      
+      // Bot owner should be able to remove any personality
+      const result = await personalityManagerWithOwner.removePersonality('bot-owner-id', 'user-personality');
+      
+      expect(result).toBe(true);
+      expect(personalityManagerWithOwner.getPersonality('user-personality')).toBeNull();
+      
+      // Clean up the mock
+      jest.dontMock('../../src/constants');
+      delete require.cache[require.resolve('../../src/personalityManager')];
+    });
+
+    it('should return false when trying to remove non-existent personality', async () => {
+      const result = await personalityManager.removePersonality('regular-user', 'non-existent');
+      
+      expect(result).toBe(false);
+    });
+  });
+
   describe('getPersonalityByAlias', () => {
     beforeEach(async () => {
       // Register a test personality
