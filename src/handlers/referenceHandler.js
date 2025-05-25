@@ -23,11 +23,11 @@ const MESSAGE_LINK_REGEX =
  * Handle a message reference (a reply to another message)
  * @param {object} message - Discord.js message object
  * @param {function} handlePersonalityInteraction - Callback for handling personality interactions
- * @returns {Promise<boolean>} - Returns true if reference was handled, false otherwise
+ * @returns {Promise<object>} - Returns { processed: boolean, wasReplyToNonPersonality: boolean }
  */
 async function handleMessageReference(message, handlePersonalityInteraction) {
   if (!message.reference) {
-    return false;
+    return { processed: false, wasReplyToNonPersonality: false };
   }
 
   logger.debug(
@@ -41,35 +41,14 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
     );
 
     // Check if the referenced message itself has a reference (nested reply)
+    // DISABLED: This approach was modifying message content and causing issues with text extraction
+    // The personalityHandler already handles nested references properly through its own reference processing
     if (referencedMessage.reference) {
       logger.info(
         `[ReferenceHandler] Detected nested reference - reply to a reply. Original reference: ${referencedMessage.reference.messageId}`
       );
-      
-      try {
-        // Fetch the second-level referenced message
-        const nestedReferencedMessage = await message.channel.messages.fetch(referencedMessage.reference.messageId);
-        
-        // Create a synthetic Discord message link for the nested reference
-        const syntheticLink = `https://discord.com/channels/${message.guild?.id || '@me'}/${message.channel.id}/${nestedReferencedMessage.id}`;
-        
-        // Append the synthetic link to the message content
-        // This will be processed by processMessageLinks in personalityHandler
-        message.content = message.content ? `${message.content} ${syntheticLink}` : syntheticLink;
-        
-        logger.info(
-          `[ReferenceHandler] Added synthetic link for nested reference: ${syntheticLink}`
-        );
-        logger.debug(
-          `[ReferenceHandler] Updated message content: ${message.content}`
-        );
-      } catch (nestedError) {
-        if (nestedError.message === 'Unknown Message') {
-          logger.warn(`[ReferenceHandler] Nested referenced message ${referencedMessage.reference.messageId} no longer exists`);
-        } else {
-          logger.error('[ReferenceHandler] Error fetching nested reference:', nestedError);
-        }
-      }
+      // Note: We no longer modify message content with synthetic links as this was causing
+      // the bot to skip the current message's text content and only use the linked message
     }
 
     // Check if the referenced message was from one of our personalities
@@ -121,7 +100,7 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
           // IMPORTANT: Use message.author.id to ensure the replying user's ID is used
           // This ensures authentication context is preserved correctly
           await handlePersonalityInteraction(message, personality, null);
-          return true;
+          return { processed: true, wasReplyToNonPersonality: false };
         } else {
           logger.debug(`No personality data found for name/alias: ${personalityName}`);
         }
@@ -132,6 +111,8 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
       logger.debug(
         `Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`
       );
+      // This was a reply to a non-personality message
+      return { processed: false, wasReplyToNonPersonality: true };
     }
   } catch (error) {
     if (error.message === 'Unknown Message') {
@@ -141,7 +122,7 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
     }
   }
 
-  return false;
+  return { processed: false, wasReplyToNonPersonality: false };
 }
 
 /**

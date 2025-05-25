@@ -17,7 +17,7 @@ const webhookUserTracker = require('../utils/webhookUserTracker');
 const referenceHandler = require('./referenceHandler');
 const { detectMedia } = require('../utils/media');
 const { MARKERS } = require('../constants');
-const { recordConversation } = require('../conversationManager');
+const { recordConversation, isAutoResponseEnabled } = require('../conversationManager');
 
 // Import activeRequests map and trackRequest function from bot.js
 // These are used to prevent duplicate requests
@@ -475,6 +475,35 @@ async function handlePersonalityInteraction(
           logger.info(
             `[PersonalityHandler] Found referenced message (reply) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`
           );
+          
+          // Handle nested references if we have an active conversation or autoresponse
+          // This ensures the personality can see the full conversation context
+          if (repliedToMessage.reference && (hasActivePersonality || isAutoResponseEnabled(message.author.id))) {
+            logger.info(
+              `[PersonalityHandler] Detected nested reference in active conversation context`
+            );
+            
+            try {
+              // Fetch the nested referenced message
+              const nestedReferencedMessage = await message.channel.messages.fetch(repliedToMessage.reference.messageId);
+              
+              if (nestedReferencedMessage) {
+                // Add nested reference context to the referenced message content
+                const nestedAuthor = nestedReferencedMessage.author?.username || 'another user';
+                const nestedContent = nestedReferencedMessage.content || '[no content]';
+                
+                // Prepend the nested context to show the conversation flow
+                referencedMessageContent = `[Earlier message from ${nestedAuthor}: "${nestedContent.substring(0, 100)}${nestedContent.length > 100 ? '...' : ''}"] ${referencedMessageContent}`;
+                
+                logger.info(
+                  `[PersonalityHandler] Added nested reference context from ${nestedAuthor}`
+                );
+              }
+            } catch (nestedError) {
+              logger.warn(`[PersonalityHandler] Could not fetch nested reference: ${nestedError.message}`);
+              // Continue without nested context
+            }
+          }
         }
       } catch (error) {
         logger.error(`[PersonalityHandler] Error fetching referenced message: ${error.message}`);
@@ -899,14 +928,24 @@ async function handlePersonalityInteraction(
     activeRequests.delete(requestKey);
 
     // Record this conversation with all message IDs
-    // Check if this was triggered by a mention (in guild channels only)
-    const isMentionOnly = !message.channel.isDMBased() && triggeringMention !== null;
-    
     // For PluralKit messages, get the real user ID instead of the webhook author ID
-    const conversationUserId = webhookUserTracker.getRealUserId(message);
+    const conversationUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
+    
+    // Check if autoresponse is enabled for this user
+    const autoResponseEnabled = isAutoResponseEnabled(conversationUserId);
+    
+    // Check if this was triggered by a mention (in guild channels only)
+    // Also treat replies to other users as mention-only to prevent autoresponse loops
+    const isReplyToOtherUser = message.reference && referencedMessageAuthorId && referencedMessageAuthorId !== message.author.id;
+    
+    // If autoresponse is enabled, don't mark as mention-only (allow conversation to continue)
+    // Otherwise, mark as mention-only if it was triggered by a mention or reply to another user
+    const isMentionOnly = !message.channel.isDMBased() && 
+                          !autoResponseEnabled && 
+                          (triggeringMention !== null || isReplyToOtherUser);
     
     recordConversationData(
-      conversationUserId || message.author.id, // Use real user ID if available, otherwise fall back to author ID
+      conversationUserId,
       message.channel.id,
       result,
       personality.fullName,

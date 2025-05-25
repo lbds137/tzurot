@@ -87,7 +87,10 @@ async function execute(message, args) {
     logger.debug(`[AddCommand] Generated command ID: ${commandId}`);
 
     // Check if we've already processed this exact command
-    const commandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
+    // Use a more specific key that includes the alias if provided
+    const commandKey = alias 
+      ? `${message.author.id}-${personalityName}-alias-${alias}`
+      : `${message.author.id}-${personalityName}`;
     if (
       messageTracker.isAddCommandProcessed(message.id) ||
       messageTracker.isAddCommandCompleted(commandKey)
@@ -216,8 +219,10 @@ async function execute(message, args) {
       timestamp: Date.now(),
     });
 
-    // Mark the command as completed with a fresh command key
-    const errorCommandKey = `${message.author.id}-${personalityName}-${args.join('-')}`;
+    // Mark the command as completed with a consistent command key
+    const errorCommandKey = alias 
+      ? `${message.author.id}-${personalityName}-alias-${alias}`
+      : `${message.author.id}-${personalityName}`;
     messageTracker.markAddCommandCompleted(errorCommandKey);
 
     return await directSend(`An error occurred while adding the personality: ${error.message}`);

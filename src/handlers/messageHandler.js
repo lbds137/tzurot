@@ -152,14 +152,20 @@ async function handleMessage(message, client) {
 
     // Reply-based conversation continuation
     // Use the reference handler module to process the message reference
-    const referenceProcessed = await referenceHandler.handleMessageReference(
+    const referenceResult = await referenceHandler.handleMessageReference(
       message,
       (msg, personality, mention) =>
         personalityHandler.handlePersonalityInteraction(msg, personality, mention, client)
     );
 
     // If the reference was processed successfully, return early
-    if (referenceProcessed) {
+    if (referenceResult.processed) {
+      return;
+    }
+    
+    // If this was a reply to a non-personality message, skip active conversation checks
+    // This prevents autoresponse from triggering when replying to other users
+    if (referenceResult.wasReplyToNonPersonality) {
       return;
     }
 

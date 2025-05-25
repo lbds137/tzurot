@@ -74,7 +74,7 @@ describe('Reference Handler Module', () => {
       
       const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
       
-      expect(result).toBe(false);
+      expect(result).toEqual({ processed: false, wasReplyToNonPersonality: false });
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
     });
     
@@ -104,7 +104,7 @@ describe('Reference Handler Module', () => {
       
       const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
       
-      expect(result).toBe(true);
+      expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('webhook-msg-id');
       expect(getPersonalityFromMessage).toHaveBeenCalledWith('webhook-msg-id', { webhookUsername: 'Test Webhook' });
       expect(getPersonality).toHaveBeenCalledWith('test-personality');
@@ -132,7 +132,7 @@ describe('Reference Handler Module', () => {
       
       const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
       
-      expect(result).toBe(false);
+      expect(result).toEqual({ processed: false, wasReplyToNonPersonality: true });
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('non-webhook-msg-id');
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
     });
@@ -150,7 +150,7 @@ describe('Reference Handler Module', () => {
       
       const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
       
-      expect(result).toBe(false);
+      expect(result).toEqual({ processed: false, wasReplyToNonPersonality: false });
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('error-msg-id');
       expect(logger.error).toHaveBeenCalledWith('Error handling message reference:', expect.any(Error));
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
