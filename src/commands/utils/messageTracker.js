@@ -27,6 +27,9 @@ class MessageTracker {
 
     // Specific tracking for add command message IDs
     this.addCommandMessageIds = new Set();
+    
+    // Log initialization for debugging
+    logger.debug('[MessageTracker] Initialized with empty tracking sets');
 
     // Store options
     this.enableCleanupTimers = enableCleanupTimers;
@@ -226,7 +229,10 @@ class MessageTracker {
    * @param {string} commandKey - Unique command key
    */
   markAddCommandCompleted(commandKey) {
+    logger.info(`[MessageTracker] Marking add command as completed: ${commandKey}`);
+    logger.debug(`[MessageTracker] Current completedAddCommands size: ${this.completedAddCommands.size}`);
     this.completedAddCommands.add(commandKey);
+    logger.debug(`[MessageTracker] After adding, completedAddCommands size: ${this.completedAddCommands.size}`);
 
     // Auto-remove after a reasonable timeout (30 minutes)
     // This allows re-adding personalities that were removed
@@ -247,7 +253,12 @@ class MessageTracker {
    * @returns {boolean} Whether command was completed
    */
   isAddCommandCompleted(commandKey) {
-    return this.completedAddCommands.has(commandKey);
+    const isCompleted = this.completedAddCommands.has(commandKey);
+    if (isCompleted) {
+      logger.debug(`[MessageTracker] Command key ${commandKey} found in completedAddCommands`);
+      logger.debug(`[MessageTracker] Current completedAddCommands contents: ${Array.from(this.completedAddCommands).join(', ')}`);
+    }
+    return isCompleted;
   }
 
   /**

@@ -43,7 +43,7 @@ const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !==
  * File outputs include automatic rotation when files reach 5MB
  */
 const logger = createLogger({
-  level: isTest ? 'error' : 'info', // Only show errors in tests to keep output clean
+  level: isTest ? 'error' : (process.env.LOG_LEVEL || 'info'), // Allow LOG_LEVEL override
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
     // Console output

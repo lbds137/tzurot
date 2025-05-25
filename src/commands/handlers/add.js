@@ -24,6 +24,9 @@ const meta = {
 // Track pending personality additions to prevent duplicate processing
 const pendingAdditions = new Map();
 
+// Track message IDs being processed to detect duplicate calls
+const processingMessages = new Set();
+
 /**
  * Execute the add command
  * @param {Object} message - Discord message object
@@ -31,6 +34,22 @@ const pendingAdditions = new Map();
  * @returns {Promise<Object>} Command result
  */
 async function execute(message, args) {
+  logger.info(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
+  
+  // Check if this message is already being processed
+  if (processingMessages.has(message.id)) {
+    logger.warn(`[AddCommand] Message ${message.id} is already being processed - duplicate call detected!`);
+    return null;
+  }
+  
+  // Mark this message as being processed
+  processingMessages.add(message.id);
+  
+  // Clean up after 1 minute
+  setTimeout(() => {
+    processingMessages.delete(message.id);
+  }, 60000);
+  
   const directSend = validator.createDirectSend(message);
 
   // Note: The message is now marked as processed in the middleware
@@ -46,6 +65,8 @@ async function execute(message, args) {
   // Extract the personality name and alias if provided
   const personalityName = args[0].toLowerCase();
   const alias = args[1] ? args[1].toLowerCase() : null;
+  
+  logger.info(`[AddCommand] Processing add command for personality: ${personalityName}, alias: ${alias}`);
 
   try {
     // Check if we've already got a pending or recently completed addition for this user
@@ -104,11 +125,22 @@ async function execute(message, args) {
     const commandKey = alias 
       ? `${message.author.id}-${personalityName}-alias-${alias}`
       : `${message.author.id}-${personalityName}`;
+    
+    // Debug logging to understand the state
+    logger.debug(`[AddCommand] Checking if command was already processed:`);
+    logger.debug(`[AddCommand] - Message ID: ${message.id}`);
+    logger.debug(`[AddCommand] - User ID: ${message.author.id}`);
+    logger.debug(`[AddCommand] - Command Key: ${commandKey}`);
+    logger.debug(`[AddCommand] - isAddCommandProcessed: ${messageTracker.isAddCommandProcessed(message.id)}`);
+    logger.debug(`[AddCommand] - isAddCommandCompleted: ${messageTracker.isAddCommandCompleted(commandKey)}`);
+    
     if (
       messageTracker.isAddCommandProcessed(message.id) ||
       messageTracker.isAddCommandCompleted(commandKey)
     ) {
       logger.warn(`[PROTECTION] Command has already been processed: ${commandKey}`);
+      logger.warn(`[PROTECTION] - Message was processed: ${messageTracker.isAddCommandProcessed(message.id)}`);
+      logger.warn(`[PROTECTION] - Command was completed: ${messageTracker.isAddCommandCompleted(commandKey)}`);
       return null;
     }
 
