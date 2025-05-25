@@ -121,7 +121,7 @@ async function initBot() {
 
   // Message handling
   client.on('messageCreate', async message => {
-    logger.debug(`[Bot] Received messageCreate event for message ${message.id} from ${message.author.tag}`);
+    logger.debug(`[Bot] Received messageCreate event for message ${message.id} from ${message.author?.tag || 'unknown'}`);
     await messageHandler.handleMessage(message, client);
   });
 

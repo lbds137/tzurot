@@ -99,7 +99,8 @@ describe('Deduplication Middleware', () => {
     
     expect(result.shouldProcess).toBe(true);
     expect(messageTracker.isAddCommandProcessed).toHaveBeenCalledWith(mockMessage.id);
-    expect(messageTracker.markAddCommandAsProcessed).toHaveBeenCalledWith(mockMessage.id);
+    // We removed markAddCommandAsProcessed from middleware - it's now done in the handler
+    expect(messageTracker.markAddCommandAsProcessed).not.toHaveBeenCalled();
   });
   
   it('should handle create command as alias for add', () => {
@@ -110,7 +111,8 @@ describe('Deduplication Middleware', () => {
     
     expect(result.shouldProcess).toBe(true);
     expect(messageTracker.isAddCommandProcessed).toHaveBeenCalledWith(mockMessage.id);
-    expect(messageTracker.markAddCommandAsProcessed).toHaveBeenCalledWith(mockMessage.id);
+    // We removed markAddCommandAsProcessed from middleware - it's now done in the handler
+    expect(messageTracker.markAddCommandAsProcessed).not.toHaveBeenCalled();
   });
   
   it('should block already processed add commands', () => {

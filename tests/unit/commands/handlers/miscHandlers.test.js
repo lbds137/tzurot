@@ -77,7 +77,7 @@ describe('Miscellaneous Command Handlers', () => {
     // Reset all mocks
     jest.clearAllMocks();
     
-    // Reset modules
+    // Reset module cache to ensure fresh imports
     jest.resetModules();
     
     // Create mock message
@@ -253,17 +253,22 @@ describe('Miscellaneous Command Handlers', () => {
     });
     
     it('should check auto-response status with "status" parameter', async () => {
-      // Enable auto-response first to have a known state
-      await autoRespondCommand.execute(mockMessage, ['on']);
-      mockMessage.reply.mockClear();
-      mockDirectSend.mockClear();
+      // Get fresh reference to conversationManager after module reset
+      const conversationManager = require('../../../../src/conversationManager');
       
-      // Now check status
+      // Mock auto-response as enabled
+      conversationManager.isAutoResponseEnabled.mockReturnValueOnce(true);
+      
+      // Check status
       await autoRespondCommand.execute(mockMessage, ['status']);
+      
+      // Verify isAutoResponseEnabled was called with the user ID
+      expect(conversationManager.isAutoResponseEnabled).toHaveBeenCalledWith(mockMessage.author.id);
       
       // Check the response
       expect(mockDirectSend).toHaveBeenCalled();
-      expect(mockDirectSend.mock.calls[0][0]).toContain('ON');
+      const responseText = mockDirectSend.mock.calls[0][0];
+      expect(responseText).toContain('ON');
     });
     
     it('should show help with no parameters', async () => {

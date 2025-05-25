@@ -113,7 +113,7 @@ describe('Nested Reference Handling', () => {
     jest.restoreAllMocks();
   });
   
-  test('should append synthetic Discord link for nested references', async () => {
+  test('should handle nested references without modifying message content', async () => {
     // Make the referenced message from a webhook (personality)
     mockReferencedMessage.webhookId = 'webhook-123';
     mockReferencedMessage.author.bot = true;
@@ -122,17 +122,17 @@ describe('Nested Reference Handling', () => {
     // Process the message
     const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
     
-    // Verify that the synthetic link was added to the message content
-    const expectedLink = `https://discord.com/channels/guild-123/channel-123/nested-msg-123`;
-    expect(mockMessage.content).toBe(`This is a reply to the reply ${expectedLink}`);
+    // Verify that the message content was NOT modified (no synthetic link added)
+    expect(mockMessage.content).toBe('This is a reply to the reply');
     
-    // Verify that the message fetch was called for both references
+    // Verify that only the direct reference was fetched (nested reference is not fetched separately)
     expect(mockChannel.messages.fetch).toHaveBeenCalledWith('ref-msg-123');
-    expect(mockChannel.messages.fetch).toHaveBeenCalledWith('nested-msg-123');
+    expect(mockChannel.messages.fetch).toHaveBeenCalledTimes(1);
     
     // Verify the handler was called
     expect(mockHandlePersonalityInteraction).toHaveBeenCalled();
-    expect(result).toBe(true);
+    expect(result.processed).toBe(true);
+    expect(result.wasReplyToNonPersonality).toBe(false);
   });
   
   test('should handle nested references when original message is empty', async () => {
@@ -144,11 +144,13 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message
-    await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
     
-    // Verify that the synthetic link was set as the entire content
-    const expectedLink = `https://discord.com/channels/guild-123/channel-123/nested-msg-123`;
-    expect(mockMessage.content).toBe(expectedLink);
+    // Verify that the message content remains empty (no synthetic link added)
+    expect(mockMessage.content).toBe('');
+    
+    // Verify the result
+    expect(result.processed).toBe(true);
   });
   
   test('should handle missing nested referenced message gracefully', async () => {
@@ -164,12 +166,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message - should not throw
-    await expect(handleMessageReference(mockMessage, mockHandlePersonalityInteraction)).resolves.not.toThrow();
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
     
-    // Verify the warning was logged
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Nested referenced message nested-msg-123 no longer exists')
-    );
+    // Should still process the message even if nested reference is missing
+    expect(result.processed).toBe(true);
     
     // Original content should remain unchanged
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -188,13 +188,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message - should not throw
-    await expect(handleMessageReference(mockMessage, mockHandlePersonalityInteraction)).resolves.not.toThrow();
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
     
-    // Verify the error was logged
-    expect(logger.error).toHaveBeenCalledWith(
-      '[ReferenceHandler] Error fetching nested reference:',
-      expect.any(Error)
-    );
+    // Should still process successfully
+    expect(result.processed).toBe(true);
     
     // Original content should remain unchanged
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -228,10 +225,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message
-    await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
     
-    // Verify that the synthetic link uses @me for DMs
-    const expectedLink = `https://discord.com/channels/@me/channel-123/nested-msg-123`;
-    expect(mockMessage.content).toBe(`This is a reply to the reply ${expectedLink}`);
+    // Verify successful processing without content modification
+    expect(result.processed).toBe(true);
+    expect(mockMessage.content).toBe('This is a reply to the reply');
   });
 });

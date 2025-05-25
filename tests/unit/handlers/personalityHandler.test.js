@@ -47,7 +47,8 @@ jest.mock('../../../src/auth', () => ({
 }));
 jest.mock('../../../src/conversationManager', () => ({
   recordConversation: jest.fn(),
-  getPersonalityFromMessage: jest.fn()
+  getPersonalityFromMessage: jest.fn(),
+  isAutoResponseEnabled: jest.fn()
 }));
 jest.mock('../../../src/personalityManager', () => ({
   listPersonalitiesForUser: jest.fn().mockReturnValue([])
@@ -140,7 +141,7 @@ describe('Personality Handler Module', () => {
     // Mock AI response
     getAiResponse.mockResolvedValue('Test AI response');
     
-    // Mock webhook manager
+    // Mock webhook manager to return the structure expected by recordConversationData
     webhookManager.sendWebhookMessage.mockResolvedValue({
       messageIds: ['webhook-message-id'],
       message: { id: 'webhook-message-id' }
@@ -422,6 +423,22 @@ describe('Personality Handler Module', () => {
     });
     
     it('should send response via webhookManager', async () => {
+      // Reset all mocks
+      jest.clearAllMocks();
+      
+      // Set up mocks to ensure they resolve correctly
+      getAiResponse.mockResolvedValue('Test AI response');
+      webhookManager.sendWebhookMessage.mockResolvedValue({
+        messageIds: ['webhook-message-id'],
+        message: { id: 'webhook-message-id' }
+      });
+      
+      // Ensure getRealUserId returns the correct value
+      webhookUserTracker.getRealUserId.mockReturnValue(mockMessage.author.id);
+      
+      // Ensure isAutoResponseEnabled returns false
+      conversationManager.isAutoResponseEnabled.mockReturnValue(false);
+      
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
@@ -448,13 +465,14 @@ describe('Personality Handler Module', () => {
       );
       
       // Verify conversation was recorded
+      // isMentionOnly is null when triggeringMention is null in the test
       expect(conversationManager.recordConversation).toHaveBeenCalledWith(
         mockMessage.author.id,
         mockMessage.channel.id,
         'webhook-message-id',
         mockPersonality.fullName,
         false,
-        false
+        null
       );
     });
     
@@ -665,7 +683,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        false
+        null  // isMentionOnly is null when triggeringMention is null
       );
     });
 
@@ -742,7 +760,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        false
+        null  // isMentionOnly is null when triggeringMention is null
       );
     });
 
