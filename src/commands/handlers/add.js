@@ -205,12 +205,21 @@ async function execute(message, args) {
     // Set the alias - if one was provided, use it; otherwise use display name
     const aliasToSet = alias || (personality.displayName && personality.displayName.toLowerCase() !== personality.fullName ? personality.displayName.toLowerCase() : null);
     
+    logger.debug(`[AddCommand ${commandId}] Alias calculation: alias='${alias}', displayName='${personality.displayName}', fullName='${personality.fullName}', aliasToSet='${aliasToSet}'`);
+    
     if (aliasToSet) {
       try {
-        await setPersonalityAlias(aliasToSet, personality.fullName, false, !alias); // skipSave=false, isDisplayName=true if using display name
-        logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
+        const aliasResult = await setPersonalityAlias(aliasToSet, personality.fullName, false, !alias); // skipSave=false, isDisplayName=true if using display name
+        if (aliasResult && aliasResult.success) {
+          logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
+          if (aliasResult.alternateAliases && aliasResult.alternateAliases.length > 0) {
+            logger.info(`[AddCommand ${commandId}] Alternate aliases created due to collision: ${aliasResult.alternateAliases.join(', ')}`);
+          }
+        } else {
+          logger.warn(`[AddCommand ${commandId}] Failed to set alias '${aliasToSet}' for personality ${personality.fullName}`);
+        }
       } catch (aliasError) {
-        logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`);
+        logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`, aliasError);
         // Continue even if alias setting fails - the personality is already registered
       }
     }
