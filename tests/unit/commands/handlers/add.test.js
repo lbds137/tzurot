@@ -221,21 +221,24 @@ describe('Add Command', () => {
   });
   
   it('should block commands that already completed', async () => {
-    // Arrange - mock command already completed
-    messageTracker.isAddCommandCompleted.mockReturnValueOnce(true);
+    // Arrange - Need to reset all the mocks to ensure clean state
+    jest.clearAllMocks();
+    
+    // Set up the mocks for this specific test
+    validator.createDirectSend.mockReturnValue(mockDirectSend);
+    personalityManager.getPersonality.mockReturnValue(null); // Personality doesn't exist
+    messageTracker.isAddCommandProcessed.mockReturnValue(false); // Message not processed yet
+    messageTracker.isAddCommandCompleted.mockReturnValue(true);  // But command was completed before
     
     // Act
     const result = await addCommand.execute(mockMessage, ['test-personality']);
     
     // Assert
     // Verify early return and no processing
-    expect(mockMessage.channel.send).not.toHaveBeenCalled();
-    expect(EmbedBuilder).not.toHaveBeenCalled();
-    
-    // Logger warnings are verified in the implementation, not in the test
-    
-    // Verify null was returned
     expect(result).toBeNull();
+    expect(personalityManager.registerPersonality).not.toHaveBeenCalled();
+    expect(mockDirectSend).not.toHaveBeenCalled();
+    expect(mockMessage.channel.send).not.toHaveBeenCalled();
   });
   
   it('should block commands that already generated an embed', async () => {

@@ -42,8 +42,15 @@ async function execute(message, args) {
     return null;
   }
   
+  // Check if this exact message was already processed by the add command
+  if (messageTracker.isAddCommandProcessed(message.id)) {
+    logger.warn(`[AddCommand] Message ${message.id} was already processed by add command`);
+    return null;
+  }
+  
   // Mark this message as being processed
   processingMessages.add(message.id);
+  messageTracker.markAddCommandAsProcessed(message.id);
   
   // Clean up after 1 minute
   setTimeout(() => {
@@ -51,9 +58,6 @@ async function execute(message, args) {
   }, 60000);
   
   const directSend = validator.createDirectSend(message);
-
-  // Note: The message is now marked as processed in the middleware
-  // We don't need to call markAddCommandAsProcessed here anymore
 
   // Check if the user provided the correct arguments
   if (args.length < 1) {
@@ -127,20 +131,16 @@ async function execute(message, args) {
       : `${message.author.id}-${personalityName}`;
     
     // Debug logging to understand the state
-    logger.debug(`[AddCommand] Checking if command was already processed:`);
+    logger.debug(`[AddCommand] Checking if command was already completed:`);
     logger.debug(`[AddCommand] - Message ID: ${message.id}`);
     logger.debug(`[AddCommand] - User ID: ${message.author.id}`);
     logger.debug(`[AddCommand] - Command Key: ${commandKey}`);
-    logger.debug(`[AddCommand] - isAddCommandProcessed: ${messageTracker.isAddCommandProcessed(message.id)}`);
     logger.debug(`[AddCommand] - isAddCommandCompleted: ${messageTracker.isAddCommandCompleted(commandKey)}`);
     
-    if (
-      messageTracker.isAddCommandProcessed(message.id) ||
-      messageTracker.isAddCommandCompleted(commandKey)
-    ) {
-      logger.warn(`[PROTECTION] Command has already been processed: ${commandKey}`);
-      logger.warn(`[PROTECTION] - Message was processed: ${messageTracker.isAddCommandProcessed(message.id)}`);
-      logger.warn(`[PROTECTION] - Command was completed: ${messageTracker.isAddCommandCompleted(commandKey)}`);
+    // Only check if the command was already completed (not if the message was processed)
+    // We already checked message processing at the top of the function
+    if (messageTracker.isAddCommandCompleted(commandKey)) {
+      logger.warn(`[PROTECTION] Command has already been completed: ${commandKey}`);
       return null;
     }
 

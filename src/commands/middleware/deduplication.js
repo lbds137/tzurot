@@ -52,9 +52,10 @@ function deduplicationMiddleware(message, command, args) {
       };
     }
 
-    // Mark as processed here for deduplication purposes
-    // This helps prevent duplicate processing during race conditions
-    messageTracker.markAddCommandAsProcessed(message.id);
+    // NOTE: We removed the markAddCommandAsProcessed call from here
+    // The add command handler itself will mark the message as processed
+    // This prevents the false positive where the middleware marks it as processed
+    // before the command actually runs
   }
 
   // Command should be processed
