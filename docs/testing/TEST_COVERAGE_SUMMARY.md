@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-25 17:34 EDT
+Last updated: 2025-05-25 17:56 EDT
 
 ## Overall Coverage
 
@@ -85,12 +85,22 @@ All files                  |      75 |     66.6 |   81.55 |   75.22 |
 
 ## Test Results Summary
 
-**Date Updated:** May 25, 2025 at 17:34 EDT  
+**Date Updated:** May 25, 2025 at 17:56 EDT  
 **Total Test Suites:** 111 passed, 0 failed, 111 total  
 **Total Tests:** 1,466 passed, 0 failed, 5 skipped, 1,471 total  
 **Overall Coverage:** 75% statements, 66.6% branches, 81.55% functions, 75.22% lines  
 
 ## Major Improvements Since Last Update
+
+### May 25, 2025 (17:56 EDT)
+**Coverage: 75% statements, 66.6% branches, 81.55% functions, 75.22% lines**
+
+- **Security Fix - Remove Command:**
+  - Fixed critical security vulnerability where users could remove personalities they didn't own
+  - Updated `removePersonality` function to require userId parameter and verify ownership
+  - Added ownership validation before allowing personality removal
+  - Added test case to verify users cannot remove personalities owned by others
+  - All remove command tests now pass (7/7 tests passing)
 
 ### May 25, 2025 (17:34 EDT)
 **Coverage: 75% statements (-0.2%), 66.6% branches (-0.28%), 81.55% functions (-0.23%), 75.22% lines (-0.21%)**

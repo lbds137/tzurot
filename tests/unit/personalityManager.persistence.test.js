@@ -254,7 +254,7 @@ describe('personalityManager - Initialization and Persistence', () => {
       expect(personalityManager.getPersonalityByAlias('alias1')).not.toBeNull();
       
       // Remove the personality
-      await personalityManager.removePersonality('test-personality');
+      await personalityManager.removePersonality('user1', 'test-personality');
       
       // Verify the personality is gone
       expect(personalityManager.getPersonality('test-personality')).toBeNull();
@@ -269,10 +269,26 @@ describe('personalityManager - Initialization and Persistence', () => {
     
     it('should return false when trying to remove a non-existent personality', async () => {
       // Try to remove a non-existent personality
-      const result = await personalityManager.removePersonality('non-existent');
+      const result = await personalityManager.removePersonality('user1', 'non-existent');
       
       // Verify the result
       expect(result).toBe(false);
+    });
+    
+    it('should not allow users to remove personalities they do not own', async () => {
+      // Register a personality for user1
+      await personalityManager.registerPersonality('user1', 'test-personality', {
+        description: 'Test description'
+      }, false);
+      
+      // Try to remove it as user2
+      const result = await personalityManager.removePersonality('user2', 'test-personality');
+      
+      // Should return false
+      expect(result).toBe(false);
+      
+      // Verify the personality still exists
+      expect(personalityManager.getPersonality('test-personality')).not.toBeNull();
     });
   });
 });

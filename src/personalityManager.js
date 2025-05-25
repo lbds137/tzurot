@@ -491,12 +491,20 @@ function getPersonalityByAlias(userId, alias) {
 
 /**
  * Remove a personality and all its aliases
+ * @param {string} userId - Discord user ID of the requester
  * @param {string} fullName - Full personality name
  * @returns {Promise<boolean>} Success indicator
  */
-async function removePersonality(fullName) {
+async function removePersonality(userId, fullName) {
   // Verify the personality exists
-  if (!personalityData.has(fullName)) {
+  const personality = personalityData.get(fullName);
+  if (!personality) {
+    return false;
+  }
+
+  // Check if the user owns this personality
+  if (personality.createdBy && personality.createdBy !== userId) {
+    logger.warn(`[PersonalityManager] User ${userId} attempted to remove personality ${fullName} owned by ${personality.createdBy}`);
     return false;
   }
 
@@ -513,6 +521,7 @@ async function removePersonality(fullName) {
   // Save the data
   await saveAllPersonalities();
 
+  logger.info(`[PersonalityManager] User ${userId} removed personality ${fullName}`);
   return true;
 }
 
