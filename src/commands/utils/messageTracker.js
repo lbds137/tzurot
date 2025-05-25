@@ -257,18 +257,46 @@ class MessageTracker {
    * @param {string} personalityName - Personality name
    */
   removeCompletedAddCommand(userId, personalityName) {
-    // Generate a key pattern that matches how keys are created in the add command
-    const keyPattern = `${userId}-${personalityName}-`;
+    // Generate key patterns that match how keys are created in the add command
+    const keyPatternWithDash = `${userId}-${personalityName}-`;
+    const keyPatternExact = `${userId}-${personalityName}`;
 
-    // Find and remove any keys that match this pattern
+    // Find and remove any keys that match these patterns
     for (const key of this.completedAddCommands) {
-      if (key.startsWith(keyPattern)) {
+      if (key.startsWith(keyPatternWithDash) || key === keyPatternExact) {
         this.completedAddCommands.delete(key);
         logger.info(
           `[MessageTracker] Manually removed ${key} from completedAddCommands to allow re-adding`
         );
       }
     }
+  }
+
+  /**
+   * Clear all completed add commands for a specific personality name
+   * This is useful when a personality needs to be re-added by any user
+   * @param {string} personalityName - Personality name
+   */
+  clearAllCompletedAddCommandsForPersonality(personalityName) {
+    let removedCount = 0;
+    // Find and remove any keys that contain this personality name
+    for (const key of this.completedAddCommands) {
+      // Keys are in format: userId-personalityName or userId-personalityName-alias-aliasName
+      const parts = key.split('-');
+      if (parts.length >= 2 && parts[1] === personalityName) {
+        this.completedAddCommands.delete(key);
+        logger.info(
+          `[MessageTracker] Cleared completed add command: ${key}`
+        );
+        removedCount++;
+      }
+    }
+    if (removedCount > 0) {
+      logger.info(
+        `[MessageTracker] Cleared ${removedCount} completed add commands for personality: ${personalityName}`
+      );
+    }
+    return removedCount;
   }
 }
 

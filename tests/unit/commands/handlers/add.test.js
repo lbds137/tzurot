@@ -80,6 +80,7 @@ describe('Add Command', () => {
           }
         };
       }),
+      getPersonality: jest.fn().mockReturnValue(null), // Default to not found
       personalityAliases: new Map()
     }));
     
@@ -95,7 +96,8 @@ describe('Add Command', () => {
       hasFirstEmbed: jest.fn().mockReturnValue(false),
       markGeneratedFirstEmbed: jest.fn(),
       markSendingEmbed: jest.fn(),
-      clearSendingEmbed: jest.fn()
+      clearSendingEmbed: jest.fn(),
+      clearAllCompletedAddCommandsForPersonality: jest.fn()
     }));
     
     jest.doMock('../../../../src/commands/utils/commandValidator', () => {
@@ -315,6 +317,26 @@ describe('Add Command', () => {
     expect(mockMessage.channel.send).toHaveBeenCalled();
   });
   
+  it('should handle personality that already exists', async () => {
+    // Arrange - personality already exists
+    personalityManager.getPersonality.mockReturnValue({
+      fullName: 'test-personality',
+      displayName: 'Test',
+      createdBy: 'another-user'
+    });
+    
+    // Act
+    const result = await addCommand.execute(mockMessage, ['test-personality']);
+    
+    // Assert
+    expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+    expect(messageTracker.clearAllCompletedAddCommandsForPersonality).toHaveBeenCalledWith('test-personality');
+    expect(mockDirectSend).toHaveBeenCalledWith(
+      'The personality "test-personality" already exists. If you want to use it, just mention @test-personality in your messages.'
+    );
+    expect(personalityManager.registerPersonality).not.toHaveBeenCalled();
+  });
+
   // Test functionality from the original test file
   it('should detect incomplete embeds', () => {
     // This test verifies the logic used to detect incomplete embeds

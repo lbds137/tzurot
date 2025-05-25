@@ -6,7 +6,7 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const messageTracker = require('../utils/messageTracker');
-const { registerPersonality, _setPersonalityAlias } = require('../../personalityManager');
+const { registerPersonality, _setPersonalityAlias, getPersonality } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix } = require('../../../config');
 
@@ -85,6 +85,19 @@ async function execute(message, args) {
     // Generate a unique command ID for tracking
     const commandId = `add-${message.author.id}-${personalityName}-${Date.now()}`;
     logger.debug(`[AddCommand] Generated command ID: ${commandId}`);
+
+    // Check if this personality already exists globally first
+    const existingPersonality = getPersonality(personalityName);
+    if (existingPersonality) {
+      logger.info(`[AddCommand] Personality ${personalityName} already exists globally`);
+      
+      // Clear any stale tracking entries for this personality since it already exists
+      messageTracker.clearAllCompletedAddCommandsForPersonality(personalityName);
+      
+      return await directSend(
+        `The personality "${personalityName}" already exists. If you want to use it, just mention @${personalityName} in your messages.`
+      );
+    }
 
     // Check if we've already processed this exact command
     // Use a more specific key that includes the alias if provided
