@@ -6,7 +6,7 @@ const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const messageTracker = require('../utils/messageTracker');
-const { registerPersonality, _setPersonalityAlias, getPersonality } = require('../../personalityManager');
+const { registerPersonality, setPersonalityAlias, getPersonality } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix } = require('../../../config');
 
@@ -169,11 +169,12 @@ async function execute(message, args) {
     logger.info(`[AddCommand ${commandId}] Registering personality: ${personalityName}`);
 
     // Register personality with proper data structure
-    const result = await registerPersonality(message.author.id, personalityName, alias);
-
-    // Check if there was an error during registration
-    if (result.error) {
-      logger.error(`[AddCommand ${commandId}] Error registering personality: ${result.error}`);
+    // Pass an empty object for data, and let the personality manager fetch the info
+    let personality;
+    try {
+      personality = await registerPersonality(message.author.id, personalityName, {});
+    } catch (registerError) {
+      logger.error(`[AddCommand ${commandId}] Error registering personality: ${registerError.message}`);
       pendingAdditions.set(userKey, {
         status: 'completed',
         timestamp: Date.now(),
@@ -183,15 +184,34 @@ async function execute(message, args) {
         messageTracker.markAddCommandCompleted(commandKey);
       }
 
-      return await directSend(result.error);
+      return await directSend(`Failed to register personality: ${registerError.message}`);
     }
+    
+    // Check if we got a valid personality back
+    if (!personality || !personality.fullName) {
+      logger.error(`[AddCommand ${commandId}] Invalid personality returned from registerPersonality`);
+      pendingAdditions.set(userKey, {
+        status: 'completed',
+        timestamp: Date.now(),
+      });
 
-    const personality = result.personality;
+      messageTracker.markAddCommandCompleted(commandKey);
+      return await directSend('Failed to register personality: Invalid response from personality manager');
+    }
     logger.info(
       `[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`
     );
 
-    // No need to set alias separately as it's now passed directly to registerPersonality
+    // Set the alias if one was provided
+    if (alias) {
+      try {
+        await setPersonalityAlias(alias, personality.fullName);
+        logger.info(`[AddCommand ${commandId}] Alias '${alias}' set for personality ${personality.fullName}`);
+      } catch (aliasError) {
+        logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`);
+        // Continue even if alias setting fails - the personality is already registered
+      }
+    }
 
     // Preload the avatar in the background (not awaited)
     preloadPersonalityAvatar(personality).catch(err => {

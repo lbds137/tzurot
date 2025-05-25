@@ -69,17 +69,16 @@ describe('Add Command', () => {
     
     // Enhanced module mocks with proper Jest integration
     jest.doMock('../../../../src/personalityManager', () => ({
-      registerPersonality: jest.fn().mockImplementation((userId, name, alias) => {
+      registerPersonality: jest.fn().mockImplementation((userId, name, data) => {
         return {
-          personality: {
-            fullName: name,
-            displayName: 'Test Personality',
-            avatarUrl: 'https://example.com/avatar.png',
-            createdBy: userId,
-            createdAt: Date.now()
-          }
+          fullName: name,
+          displayName: 'Test Personality',
+          avatarUrl: 'https://example.com/avatar.png',
+          createdBy: userId,
+          createdAt: Date.now()
         };
       }),
+      setPersonalityAlias: jest.fn().mockResolvedValue(true),
       getPersonality: jest.fn().mockReturnValue(null), // Default to not found
       personalityAliases: new Map()
     }));
@@ -129,9 +128,13 @@ describe('Add Command', () => {
     await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
     
     // Assert
-    // Verify the registration call
+    // Verify the registration call with empty data object (alias handled separately now)
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', 'test-alias'
+      mockMessage.author.id, 'test-personality', {}
+    );
+    // Verify alias was set separately
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'test-alias', 'test-personality'
     );
     
     // Verify avatar preloading
@@ -164,17 +167,15 @@ describe('Add Command', () => {
   });
   
   it('should handle registration errors', async () => {
-    // Arrange - mock a registration error
-    personalityManager.registerPersonality.mockReturnValueOnce({
-      error: 'Personality already exists'
-    });
+    // Arrange - mock registerPersonality to return null (invalid response)
+    personalityManager.registerPersonality.mockReturnValueOnce(null);
     
     // Act
     await addCommand.execute(mockMessage, ['test-personality']);
     
     // Assert
     // Verify error message was sent
-    expect(mockDirectSend).toHaveBeenCalledWith('Personality already exists');
+    expect(mockDirectSend).toHaveBeenCalledWith('Failed to register personality: Invalid response from personality manager');
     
     // Verify tracking was updated in error case too
     expect(messageTracker.markAddCommandCompleted).toHaveBeenCalled();
@@ -194,7 +195,7 @@ describe('Add Command', () => {
     
     // Verify error message was sent
     expect(mockDirectSend).toHaveBeenCalledWith(
-      expect.stringContaining('An error occurred while adding the personality:')
+      'Failed to register personality: Test error in personality registration'
     );
   });
   
@@ -311,9 +312,14 @@ describe('Add Command', () => {
     await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
     
     // Assert
-    // Verify personality was registered with the alias
+    // Verify personality was registered with empty data object
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', 'test-alias'
+      mockMessage.author.id, 'test-personality', {}
+    );
+    
+    // Verify alias was set separately
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'test-alias', 'test-personality'
     );
     
     // Verify the command completes successfully
