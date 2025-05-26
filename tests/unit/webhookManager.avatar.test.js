@@ -337,27 +337,21 @@ describe('WebhookManager Avatar URL Handling', () => {
     });
     
     test('should validate and update invalid avatar URLs', async () => {
-      // Create personality with invalid avatar URL
+      // Create personality with avatar URL that will fail validation
       const personality = {
         fullName: 'test-personality',
         displayName: 'Test Personality',
-        avatarUrl: 'invalid-url'
+        avatarUrl: 'https://example.com/invalid.txt'  // Valid URL format but not an image
       };
       
-      // Mock getValidAvatarUrl to return null
-      const originalGetValidAvatarUrl = webhookManager.getValidAvatarUrl;
-      webhookManager.getValidAvatarUrl = jest.fn().mockResolvedValue(null);
+      // Mock fetch to fail, ensuring the avatar URL will be considered invalid
+      nodeFetch.mockRejectedValue(new Error('Not an image'));
       
-      try {
-        // Call the function
-        await webhookManager.preloadPersonalityAvatar(personality);
-        
-        // Should update to null
-        expect(personality.avatarUrl).toBe(null);
-      } finally {
-        // Restore original function
-        webhookManager.getValidAvatarUrl = originalGetValidAvatarUrl;
-      }
+      // Call the function
+      await webhookManager.preloadPersonalityAvatar(personality);
+      
+      // Should update to null when warmup fails
+      expect(personality.avatarUrl).toBe(null);
     });
     
     test('should handle null personality gracefully', async () => {
