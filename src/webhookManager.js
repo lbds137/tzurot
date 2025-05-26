@@ -22,6 +22,7 @@ const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
 const { mediaHandler: _mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
 const webhookCache = require('./utils/webhookCache');
+const messageDeduplication = require('./utils/messageDeduplication');
 
 const { TIME, DISCORD } = require('./constants');
 
@@ -33,9 +34,6 @@ const avatarWarmupCache = new Set();
 
 // We no longer use a fallback avatar URL - Discord will handle this automatically
 
-// Cache to track recently sent messages to prevent duplicates
-const recentMessageCache = new Map();
-
 // Map to track personality+channel combinations with pending messages
 // This is critical to prevent the fast error/slow success issue
 const pendingPersonalityMessages = new Map();
@@ -43,8 +41,6 @@ const pendingPersonalityMessages = new Map();
 // Track the last time a webhook message was sent to each channel
 const channelLastMessageTime = new Map();
 
-// Set a timeout for message caching (from constants)
-const _MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
 
 // Minimum delay between sending messages to ensure proper order (from constants)
 const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
@@ -2518,71 +2514,26 @@ function updateChannelLastMessageTime(channelId) {
 
 /**
  * Hash a message content to create a unique identifier
- * This helps detect duplicate messages
+ * This function now delegates to the messageDeduplication module
  * @param {string} content - The message content
  * @param {string} username - The username sending the message
  * @param {string} channelId - The channel ID
  * @returns {string} - A hash representing this message
  */
 function hashMessage(content, username, channelId) {
-  // Create a simple hash by combining the first 50 chars of content with username and channel
-  const contentPrefix = (content || '').substring(0, 50);
-  const hash = `${channelId}_${username}_${contentPrefix.replace(/\s+/g, '')}`;
-  return hash;
+  return messageDeduplication.hashMessage(content, username, channelId);
 }
 
 /**
  * Check if a message is a duplicate of recently sent messages
+ * This function now delegates to the messageDeduplication module
  * @param {string} content - Message content
  * @param {string} username - Username sending the message
  * @param {string} channelId - Channel ID
  * @returns {boolean} - True if this appears to be a duplicate
  */
 function isDuplicateMessage(content, username, channelId) {
-  // If content is empty, it can't be a duplicate
-  if (!content || content.length === 0) {
-    return false;
-  }
-
-  // No special case for media messages - we'll use a time-based approach instead
-
-  // Create a hash key for this message
-  const hash = hashMessage(content, username, channelId);
-
-  // Check if the hash exists in our cache
-  if (recentMessageCache.has(hash)) {
-    const timestamp = recentMessageCache.get(hash);
-    // Use a much shorter timeout (5 seconds) for duplicate detection
-    // This allows the same message to be sent again after a short delay
-    const shortDuplicateTimeout = 5000; // 5 seconds
-    const timeSinceLastMessage = Date.now() - timestamp;
-
-    if (timeSinceLastMessage < shortDuplicateTimeout) {
-      logger.info(
-        `[Webhook] Detected duplicate message with hash: ${hash}, sent ${timeSinceLastMessage}ms ago`
-      );
-      return true;
-    } else {
-      logger.info(
-        `[Webhook] Message with same hash found but ${timeSinceLastMessage}ms have passed (> ${shortDuplicateTimeout}ms), allowing it`
-      );
-    }
-  }
-
-  // Not a duplicate, add to cache
-  recentMessageCache.set(hash, Date.now());
-
-  // Cleanup old cache entries using the same short timeout
-  // Plus a little extra to ensure we don't remove entries prematurely
-  const now = Date.now();
-  const cleanupTimeout = 10000; // 10 seconds - slightly longer than our duplicate timeout
-  for (const [key, timestamp] of recentMessageCache.entries()) {
-    if (now - timestamp > cleanupTimeout) {
-      recentMessageCache.delete(key);
-    }
-  }
-
-  return false;
+  return messageDeduplication.isDuplicateMessage(content, username, channelId);
 }
 
 /**
