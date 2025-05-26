@@ -161,7 +161,7 @@ function clearWebhookCache(channelId) {
 function clearAllWebhookCaches() {
   logger.info(`[WebhookCache] Clearing all webhook caches (${webhookCache.size} entries)`);
   
-  for (const [channelId, webhook] of webhookCache.entries()) {
+  for (const [_channelId, webhook] of webhookCache.entries()) {
     webhook.destroy(); // Close any open connections
   }
   
