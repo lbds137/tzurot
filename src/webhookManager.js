@@ -21,14 +21,12 @@ const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const urlValidator = require('./utils/urlValidator');
 const { mediaHandler: _mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
+const webhookCache = require('./utils/webhookCache');
 
 const { TIME, DISCORD } = require('./constants');
 
-// Cache to store webhook instances by channel ID
-const webhookCache = new Map();
-
-// Track all active webhooks to prevent duplicates
-const activeWebhooks = new Set();
+// Get activeWebhooks from the webhookCache module
+const activeWebhooks = webhookCache.getActiveWebhooks();
 
 // Cache to track avatar URLs we've already warmed up
 const avatarWarmupCache = new Set();
@@ -532,10 +530,18 @@ function splitMessage(content) {
 
 /**
  * Get or create a webhook for a specific channel
+ * This function now delegates to the webhookCache module
  * @param {Object} channel - Discord.js channel object
  * @returns {Promise<WebhookClient>} The webhook client
  */
 async function getOrCreateWebhook(channel) {
+  return webhookCache.getOrCreateWebhook(channel);
+}
+
+// Legacy function - now replaced by webhookCache module
+// Keeping the old implementation commented for reference
+/*
+async function _getOrCreateWebhook_legacy(channel) {
   // Check if we already have a cached webhook for this channel
   const isThread = channel.isThread();
   const channelId = channel.id;
@@ -703,6 +709,7 @@ async function getOrCreateWebhook(channel) {
     throw new Error('Failed to get or create webhook');
   }
 }
+*/
 
 /**
  * Minimize console output during webhook operations
@@ -1193,7 +1200,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       // Clear the webhook from cache so it will be recreated next time
       const channelId = messageData.threadId || findChannelIdForWebhook(webhook);
       if (channelId) {
-        webhookCache.delete(channelId);
+        webhookCache.clearWebhookCache(channelId);
       }
     } else {
       // For other errors, collect detailed diagnostic information
@@ -1226,7 +1233,9 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
  * @returns {string|null} The channel ID or null if not found
  */
 function findChannelIdForWebhook(webhook) {
-  for (const [channelId, cachedWebhook] of webhookCache.entries()) {
+  // Access the internal cache from webhookCache module
+  const cache = webhookCache._webhookCache;
+  for (const [channelId, cachedWebhook] of cache.entries()) {
     if (cachedWebhook === webhook) {
       return channelId;
     }
@@ -2085,24 +2094,19 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
 
 /**
  * Clear webhook cache for a specific channel
+ * This function now delegates to the webhookCache module
  * @param {string} channelId - Discord channel ID
  */
 function clearWebhookCache(channelId) {
-  if (webhookCache.has(channelId)) {
-    const webhook = webhookCache.get(channelId);
-    webhook.destroy(); // Close any open connections
-    webhookCache.delete(channelId);
-  }
+  return webhookCache.clearWebhookCache(channelId);
 }
 
 /**
  * Clear all webhook caches
+ * This function now delegates to the webhookCache module
  */
 function clearAllWebhookCaches() {
-  for (const [channelId, webhook] of webhookCache.entries()) {
-    webhook.destroy(); // Close any open connections
-    webhookCache.delete(channelId);
-  }
+  return webhookCache.clearAllWebhookCaches();
 }
 
 /**
