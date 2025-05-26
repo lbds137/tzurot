@@ -836,6 +836,11 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
+      
+      // Add a small delay between chunks to prevent Discord from merging/replacing them
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
 
       // Prepare options for the message
       const sendOptions = {};
@@ -1323,6 +1328,11 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
         const chunkContent = contentChunks[i];
+        
+        // Add a small delay between chunks to prevent Discord from merging/replacing them
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
 
         // Check for duplicate messages with time-based approach
         if (isDuplicateMessage(chunkContent, standardizedName, channel.id)) {
@@ -2005,6 +2015,11 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
+      
+      // Add a small delay between chunks to prevent Discord from merging/replacing them
+      if (i > 0) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
 
       // Skip duplicate messages
       if (isDuplicateMessage(chunkContent, standardName, channel.id)) {
