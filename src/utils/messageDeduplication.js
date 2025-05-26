@@ -30,10 +30,22 @@ const CLEANUP_TIMEOUT = 10000;
  * @returns {string} - A hash representing this message
  */
 function hashMessage(content, username, channelId) {
-  // Create a simple hash by combining the first 50 chars of content with username and channel
-  const contentPrefix = (content || '').substring(0, 50);
-  const hash = `${channelId}_${username}_${contentPrefix.replace(/\s+/g, '')}`;
-  return hash;
+  // Create a hash using multiple parts of the content to better handle chunks
+  const contentLength = content ? content.length : 0;
+  
+  // For longer messages, also include middle and end sections to differentiate chunks
+  if (contentLength > 100) {
+    const start = (content || '').substring(0, 30).replace(/\s+/g, '');
+    const middle = (content || '').substring(Math.floor(contentLength / 2), Math.floor(contentLength / 2) + 20).replace(/\s+/g, '');
+    const end = (content || '').substring(contentLength - 20).replace(/\s+/g, '');
+    const hash = `${channelId}_${username}_${start}_${middle}_${end}_${contentLength}`;
+    return hash;
+  } else {
+    // For shorter messages, use the whole content
+    const contentHash = (content || '').replace(/\s+/g, '');
+    const hash = `${channelId}_${username}_${contentHash}`;
+    return hash;
+  }
 }
 
 /**

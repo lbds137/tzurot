@@ -90,7 +90,7 @@ describe('messageDeduplication', () => {
       expect(hash2).toBe(hash3);
     });
 
-    it('should only use first 50 characters of content', () => {
+    it('should create different hashes for messages with different endings', () => {
       const username = 'TestUser';
       const channelId = 'channel-123';
       
@@ -100,8 +100,8 @@ describe('messageDeduplication', () => {
       const hash1 = messageDeduplication.hashMessage(longContent1, username, channelId);
       const hash2 = messageDeduplication.hashMessage(longContent2, username, channelId);
 
-      // Should be the same since first 50 chars are identical
-      expect(hash1).toBe(hash2);
+      // Should be different since we now check multiple parts of the message
+      expect(hash1).not.toBe(hash2);
     });
 
     it('should remove spaces from content when hashing', () => {
