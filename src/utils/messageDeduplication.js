@@ -13,7 +13,7 @@ const { TIME } = require('../constants');
 const recentMessageCache = new Map();
 
 // Set a timeout for message caching (from constants)
-const MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
+const _MESSAGE_CACHE_TIMEOUT = TIME.MESSAGE_CACHE_TIMEOUT;
 
 // Short timeout for duplicate detection (5 seconds)
 const DUPLICATE_DETECTION_TIMEOUT = 5000;
