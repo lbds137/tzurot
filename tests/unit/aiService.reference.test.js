@@ -1,4 +1,5 @@
-const { formatApiMessages, sanitizeApiText } = require('../../src/aiService');
+const { formatApiMessages } = require('../../src/aiService');
+const { sanitizeApiText } = require('../../src/utils/contentSanitizer');
 
 describe('AI Service Reference Message Handling', () => {
   describe('sanitizeApiText', () => {

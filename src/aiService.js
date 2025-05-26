@@ -1,77 +1,21 @@
-const { OpenAI } = require('openai');
-const { getApiEndpoint, getModelPath } = require('../config');
+const { getModelPath } = require('../config');
 const logger = require('./logger');
 const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
 const auth = require('./auth');
+const aiAuth = require('./utils/aiAuth');
+const { sanitizeContent, sanitizeApiText } = require('./utils/contentSanitizer');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const { getPersonality } = require('./personalityManager');
 const { trackError, ErrorCategory } = require('./utils/errorTracker');
 
-// Initialize the default AI client with API key (used when user doesn't have a token)
-// We need to defer creation until after auth module is loaded
-let _defaultAiClient;
-
-/**
- * Initialize the AI client - must be called after auth module is initialized
- */
+// Initialize the AI client - delegates to aiAuth module
 function initAiClient() {
-  _defaultAiClient = new OpenAI({
-    apiKey: auth.API_KEY,
-    baseURL: getApiEndpoint(),
-    defaultHeaders: {
-      // Add any default headers here that should be sent with every request
-    },
-  });
-  logger.info('[AIService] Default AI client initialized');
+  aiAuth.initAiClient();
 }
 
-
-/**
- * Get an AI client for a specific user, using their auth token if available
- * @param {string} userId - The Discord user ID
- * @returns {OpenAI|null} - An OpenAI client instance with appropriate auth, or null if no auth available
- */
+// Get an AI client for a specific user - delegates to aiAuth module
 function getAiClientForUser(userId, context = {}) {
-  // Check if this is a webhook message that should bypass authentication
-  let shouldBypassAuth = false;
-  if (context.message && context.message.webhookId) {
-    shouldBypassAuth = webhookUserTracker.shouldBypassNsfwVerification(context.message);
-    if (shouldBypassAuth) {
-      logger.info(`[AIService] Bypassing authentication for webhook message in AI client creation`);
-
-      // For webhook users that bypass auth, use the default client with no user-specific token
-      return new OpenAI({
-        apiKey: auth.API_KEY,
-        baseURL: getApiEndpoint(),
-        defaultHeaders: {
-          'X-App-ID': auth.APP_ID,
-        },
-      });
-    }
-  }
-
-  // If user has a valid token, create a client with their token
-  if (userId && auth.hasValidToken(userId)) {
-    const userToken = auth.getUserToken(userId);
-    logger.debug(`[AIService] Using user-specific auth token for user ${userId}`);
-
-    // Return a client with the user's auth token
-    return new OpenAI({
-      apiKey: auth.API_KEY,
-      baseURL: getApiEndpoint(),
-      defaultHeaders: {
-        'X-App-ID': auth.APP_ID,
-        'X-User-Auth': userToken,
-      },
-    });
-  }
-
-  // SECURITY UPDATE: For unauthenticated users, we should NOT use the owner's API key
-  // Instead, return null to indicate auth is required
-  logger.warn(
-    `[AIService] User ${userId || 'unknown'} is not authenticated and cannot use the AI service`
-  );
-  return null;
+  return aiAuth.getAiClientForUser(userId, context);
 }
 
 // Track in-progress API requests to prevent duplicate processing
@@ -475,56 +419,7 @@ function createRequestId(personalityName, message, context) {
 }
 
 
-/**
- * Sanitize API response content
- *
- * @param {string} content - Raw content from API response
- * @returns {string} Sanitized content with control characters and problematic sequences removed
- * @throws {TypeError} If content is not a string or cannot be converted to a string
- * @throws {Error} If content cannot be sanitized for other reasons
- *
- * @example
- * // Returns sanitized string with control characters removed
- * sanitizeContent("Hello\x00World\x1F");  // Returns "HelloWorld"
- *
- * // Returns sanitized string with escape sequences removed
- * sanitizeContent("Test\\u0000Message");  // Returns "TestMessage"
- *
- * @description
- * Sanitizes the raw API response content by removing:
- * 1. Null bytes and control characters (while preserving newlines and tabs)
- * 2. Unicode escape sequences that might render as control characters
- * 3. Any non-printable characters that could cause display issues
- *
- * This function is critical for ensuring that AI responses can be safely
- * displayed in Discord without causing formatting or rendering issues.
- */
-function sanitizeContent(content) {
-  if (!content) return '';
-
-  try {
-    return (
-      content
-        // Remove null bytes and control characters, but preserve newlines and tabs
-        // eslint-disable-next-line no-control-regex
-        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
-        // Remove escape sequences
-        .replace(/\\u[0-9a-fA-F]{4}/g, '')
-        // Remove any non-printable characters except newlines and tabs (using safer pattern)
-        // eslint-disable-next-line no-control-regex
-        .replace(/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF\u0100-\uFFFF]/g, '')
-        // Ensure proper string encoding
-        .toString()
-    );
-  } catch (_error) {
-    // Log sanitization errors for debugging - content input was malformed
-    logger.warn(`[AIService] Text sanitization failed, returning empty string. Input type: ${typeof content}, length: ${content?.length || 'N/A'}. Error: ${_error.message || 'Unknown sanitization error'}`);
-    if (content && typeof content === 'string' && content.length > 0) {
-      logger.debug(`[AIService] Problematic content sample: ${content.substring(0, 50)}...`);
-    }
-    return '';
-  }
-}
+// Content sanitization function moved to utils/contentSanitizer.js
 
 /**
  * Gets a response from the AI service for the specified personality
@@ -738,22 +633,7 @@ async function getAiResponse(personalityName, message, context = {}) {
   return responsePromise;
 }
 
-/**
- * Sanitize and truncate text for safe inclusion in API messages
- * TEMPORARILY DISABLED - For testing whether role change alone fixes the issue
- * @param {string} text - The text to sanitize
- * @param {number} [maxLength=1000] - Maximum length before truncation (not used currently)
- * @returns {string} The original text with minimal sanitization
- */
-function sanitizeApiText(text) {
-  // Handle empty or null text
-  if (!text) return '';
-
-  // Just return the text with minimal sanitization
-  // Only removing control characters that might actually break things
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-}
+// API text sanitization function moved to utils/contentSanitizer.js
 
 /**
  * Format messages for API request, handling text, images, and referenced messages
@@ -1485,7 +1365,5 @@ module.exports = {
   // Export for testing
   prepareRequestHeaders,
   handleNormalPersonality,
-  sanitizeContent,
-  sanitizeApiText,
   formatApiMessages,
 };
