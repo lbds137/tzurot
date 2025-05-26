@@ -15,15 +15,16 @@
  * - Consider implementing webhook rotation for high-volume channels
  */
 
-const { WebhookClient, EmbedBuilder } = require('discord.js');
+const { WebhookClient } = require('discord.js');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
 const { mediaHandler: _mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
 const webhookCache = require('./utils/webhookCache');
 const messageDeduplication = require('./utils/messageDeduplication');
 const avatarManager = require('./utils/avatarManager');
+const messageFormatter = require('./utils/messageFormatter');
 
-const { TIME, DISCORD } = require('./constants');
+const { TIME } = require('./constants');
 
 // Get activeWebhooks from the webhookCache module
 const activeWebhooks = webhookCache.getActiveWebhooks();
@@ -44,8 +45,7 @@ const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
 // Maximum time to wait for a real response before allowing error message (from constants)
 const MAX_ERROR_WAIT_TIME = TIME.MAX_ERROR_WAIT_TIME;
 
-// Discord message size limits (from constants)
-const MESSAGE_CHAR_LIMIT = DISCORD.MESSAGE_CHAR_LIMIT;
+// Discord message size limits are now handled by messageFormatter module
 
 // Avatar URL validation moved to avatarManager module
 const validateAvatarUrl = avatarManager.validateAvatarUrl;
@@ -56,182 +56,20 @@ const getValidAvatarUrl = avatarManager.getValidAvatarUrl;
 // Avatar warmup function moved to avatarManager module
 const warmupAvatarUrl = avatarManager.warmupAvatarUrl;
 
-/**
- * Split text by character limit at word boundaries
- * @param {string} text - Text to split
- * @returns {Array<string>} Array of text chunks
- */
-function splitByCharacterLimit(text) {
-  const chunks = [];
-  let remainingText = text;
+// Split text by character limit function moved to messageFormatter module
+const splitByCharacterLimit = messageFormatter.splitByCharacterLimit;
 
-  while (remainingText.length > 0) {
-    // Calculate chunk size based on message limit
-    const chunkSize = Math.min(remainingText.length, MESSAGE_CHAR_LIMIT);
+// Process sentence function moved to messageFormatter module
+const processSentence = messageFormatter.processSentence;
 
-    // Try to find a natural break point (space)
-    let splitIndex = remainingText.lastIndexOf(' ', chunkSize);
+// Process line function moved to messageFormatter module
+const processLine = messageFormatter.processLine;
 
-    // If no good break point found, just split at the limit
-    if (splitIndex <= chunkSize * 0.5) {
-      splitIndex = chunkSize;
-    }
+// Process paragraph function moved to messageFormatter module
+const processParagraph = messageFormatter.processParagraph;
 
-    // Add the chunk to our results
-    chunks.push(remainingText.substring(0, splitIndex));
-
-    // Remove the processed chunk
-    remainingText = remainingText.substring(splitIndex).trim();
-  }
-
-  return chunks;
-}
-
-/**
- * Split a sentence into smaller chunks if needed
- * @param {string} sentence - Sentence to split
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processSentence(sentence, chunks, currentChunk) {
-  // If adding this sentence exceeds the limit
-  if (currentChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
-    // If the sentence itself is too long, split by character limit
-    if (sentence.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split the sentence by character limit
-      const sentenceChunks = splitByCharacterLimit(sentence);
-      chunks.push(...sentenceChunks);
-
-      // Start with a fresh chunk
-      return '';
-    } else {
-      // Sentence is within limit but combined is too long
-      chunks.push(currentChunk);
-      return sentence;
-    }
-  } else {
-    // Add sentence to current chunk with space if needed
-    return currentChunk.length > 0 ? `${currentChunk} ${sentence}` : sentence;
-  }
-}
-
-/**
- * Process a single line of text
- * @param {string} line - Line to process
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processLine(line, chunks, currentChunk) {
-  // If adding this line exceeds the limit
-  if (currentChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
-    // If the line itself is too long, need to split by sentences
-    if (line.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split by sentences and process each
-      const sentences = line.split(/(?<=[.!?])\s+/);
-      const sentenceChunk = '';
-      const processedChunk = sentences.reduce((chunk, sentence) => {
-        return processSentence(sentence, chunks, chunk);
-      }, sentenceChunk);
-
-      // Add any remaining content
-      if (processedChunk.length > 0) {
-        chunks.push(processedChunk);
-      }
-
-      return '';
-    } else {
-      // Line is within limit but combined is too long
-      chunks.push(currentChunk);
-      return line;
-    }
-  } else {
-    // Add line to current chunk with newline if needed
-    return currentChunk.length > 0 ? `${currentChunk}\n${line}` : line;
-  }
-}
-
-/**
- * Process a paragraph
- * @param {string} paragraph - Paragraph to process
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processParagraph(paragraph, chunks, currentChunk) {
-  // If adding this paragraph exceeds the limit
-  if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
-    // If paragraph itself is too long, need to split further
-    if (paragraph.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split paragraph by lines and process each
-      const lines = paragraph.split(/\n/);
-      const lineChunk = '';
-      const processedChunk = lines.reduce((chunk, line) => {
-        return processLine(line, chunks, chunk);
-      }, lineChunk);
-
-      // Add any remaining content
-      if (processedChunk.length > 0) {
-        chunks.push(processedChunk);
-      }
-
-      return '';
-    } else {
-      // Paragraph is within limit but combined is too long
-      chunks.push(currentChunk);
-      return paragraph;
-    }
-  } else {
-    // Add paragraph to current chunk with newlines if needed
-    return currentChunk.length > 0 ? `${currentChunk}\n\n${paragraph}` : paragraph;
-  }
-}
-
-/**
- * Split a long message into chunks at natural break points
- * @param {string} content - Message content to split
- * @returns {Array<string>} Array of message chunks
- */
-function splitMessage(content) {
-  // If message is within limits, return as is
-  if (!content || content.length <= MESSAGE_CHAR_LIMIT) {
-    return [content || ''];
-  }
-
-  const chunks = [];
-  let currentChunk = '';
-
-  // First split by paragraphs (double newlines)
-  const paragraphs = content.split(/\n\s*\n/);
-
-  // Process each paragraph
-  for (const paragraph of paragraphs) {
-    currentChunk = processParagraph(paragraph, chunks, currentChunk);
-  }
-
-  // Add any remaining content
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-}
+// Split message function moved to messageFormatter module
+const splitMessage = messageFormatter.splitMessage;
 
 /**
  * Get or create a webhook for a specific channel
@@ -464,110 +302,11 @@ function isErrorContent(content) {
   return ERROR_MESSAGES.some(pattern => content.includes(pattern));
 }
 
-/**
- * Mark content as an error message by adding a prefix
- * @param {string} content - Message content
- * @returns {string} Content with error prefix if needed
- */
-function markErrorContent(content) {
-  if (!content) return '';
+// Mark error content function moved to messageFormatter module
+const markErrorContent = messageFormatter.markErrorContent;
 
-  // Use the centralized error messages and markers from constants
-  const { ERROR_MESSAGES, MARKERS } = require('./constants');
-
-  // Special case for combined terms
-  if (content.includes('connection') && content.includes('unstable')) {
-    logger.info(`[Webhook] Detected error message (unstable connection), adding special prefix`);
-    return MARKERS.ERROR_PREFIX + ' ' + content;
-  }
-
-  // Check for standard error patterns
-  for (const pattern of ERROR_MESSAGES) {
-    // Skip the marker patterns themselves to avoid duplication
-    if (pattern === MARKERS.ERROR_PREFIX || pattern === MARKERS.HARD_BLOCKED_RESPONSE) {
-      continue;
-    }
-
-    if (content.includes(pattern)) {
-      logger.info(
-        `[Webhook] Detected error message with pattern "${pattern}", adding special prefix`
-      );
-      return MARKERS.ERROR_PREFIX + ' ' + content;
-    }
-  }
-
-  return content;
-}
-
-/**
- * Prepare message data for sending via webhook
- * @param {string} content - Message content
- * @param {string} username - Standardized username
- * @param {string} avatarUrl - Avatar URL
- * @param {boolean} isThread - Whether the channel is a thread
- * @param {string} threadId - Thread ID if applicable
- * @param {Object} options - Additional options
- * @returns {Object} Prepared message data
- */
-function prepareMessageData(content, username, avatarUrl, isThread, threadId, options = {}) {
-  // Enhanced logging for thread troubleshooting
-  if (isThread) {
-    logger.info(`[WebhookManager] Preparing message data for thread with ID: ${threadId}`);
-    if (!threadId) {
-      logger.warn('[WebhookManager] Thread flagged as true but no threadId provided!');
-    }
-  }
-
-  // Thread-specific handling
-  const threadData = isThread
-    ? {
-        threadId,
-        // Store information about the original channel for recovery attempts
-        _isThread: true,
-        _originalChannel: options._originalChannel, // Will be set by calling functions
-      }
-    : {};
-
-  const messageData = {
-    content: content,
-    username: username,
-    avatarURL: avatarUrl || null,
-    allowedMentions: { parse: ['users', 'roles'] },
-    ...threadData,
-  };
-
-  // Double-check threadId was properly set if isThread is true
-  if (isThread && !messageData.threadId) {
-    logger.error(
-      '[WebhookManager] Error: threadId not set properly in messageData despite isThread=true'
-    );
-  } else if (isThread) {
-    logger.info(
-      `[WebhookManager] Successfully set threadId ${messageData.threadId} in messageData`
-    );
-  }
-
-  // Add optional embed if provided
-  if (options.embed) {
-    messageData.embeds = [new EmbedBuilder(options.embed)];
-  }
-
-  // Add optional files if provided
-  if (options.files) {
-    messageData.files = options.files;
-  }
-
-  // Add audio attachments if provided
-  if (options.attachments && options.attachments.length > 0) {
-    // Initialize files array if it doesn't exist
-    messageData.files = messageData.files || [];
-    // Add attachments to files
-    messageData.files.push(...options.attachments);
-    logger.debug(`[Webhook] Added ${options.attachments.length} audio attachments to message`);
-  }
-
-  return messageData;
-}
+// Prepare message data function moved to messageFormatter module
+const prepareMessageData = messageFormatter.prepareMessageData;
 
 /**
  * Send a single message chunk via webhook
