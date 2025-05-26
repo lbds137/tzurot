@@ -128,9 +128,11 @@ describe('Add Command', () => {
     await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
     
     // Assert
-    // Verify the registration call with empty data object (alias handled separately now)
+    // Verify the registration call with description
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {}
+      mockMessage.author.id, 'test-personality', {
+        description: 'Added by User#1234',
+      }
     );
     // Verify alias was set separately
     expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
@@ -314,7 +316,9 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered with empty data object
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {}
+      mockMessage.author.id, 'test-personality', {
+        description: 'Added by User#1234',
+      }
     );
     
     // Verify alias was set separately
@@ -362,7 +366,9 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {}
+      mockMessage.author.id, 'test-personality', {
+        description: 'Added by User#1234',
+      }
     );
     
     // Verify display name was used as alias (lowercase)
@@ -390,7 +396,9 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {}
+      mockMessage.author.id, 'test-personality', {
+        description: 'Added by User#1234',
+      }
     );
     
     // Verify no alias was set since display name matches full name
@@ -416,7 +424,9 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {}
+      mockMessage.author.id, 'test-personality', {
+        description: 'Added by User#1234',
+      }
     );
     
     // Verify explicit alias was used, not display name
