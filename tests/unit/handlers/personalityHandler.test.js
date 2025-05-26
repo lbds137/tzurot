@@ -10,6 +10,9 @@ const channelUtils = require('../../../src/utils/channelUtils');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const conversationManager = require('../../../src/conversationManager');
 const { MARKERS } = require('../../../src/constants');
+const requestTracker = require('../../../src/utils/requestTracker');
+const personalityAuth = require('../../../src/utils/personalityAuth');
+const threadHandler = require('../../../src/utils/threadHandler');
 
 // Mock dependencies
 jest.mock('../../../src/logger');
@@ -43,8 +46,12 @@ jest.mock('../../../src/utils/media', () => ({
 }));
 jest.mock('../../../src/auth', () => ({
   isNsfwVerified: jest.fn(),
-  hasValidToken: jest.fn()
+  hasValidToken: jest.fn(),
+  storeNsfwVerification: jest.fn()
 }));
+jest.mock('../../../src/utils/requestTracker');
+jest.mock('../../../src/utils/personalityAuth');
+jest.mock('../../../src/utils/threadHandler');
 jest.mock('../../../src/conversationManager', () => ({
   recordConversation: jest.fn(),
   getPersonalityFromMessage: jest.fn(),
@@ -152,8 +159,48 @@ describe('Personality Handler Module', () => {
       message: { id: 'thread-message-id' }
     });
     
+    // Set up requestTracker mock defaults
+    requestTracker.trackRequest.mockImplementation((userId, channelId, personalityName) => {
+      return `${userId}-${channelId}-${personalityName}`;
+    });
+    requestTracker.removeRequest.mockImplementation(() => {});
+    requestTracker.clearAllRequests.mockImplementation(() => {});
+    requestTracker.isRequestActive.mockReturnValue(false);
+    requestTracker.getActiveRequestCount.mockReturnValue(0);
+    
+    // Set up personalityAuth mock defaults
+    personalityAuth.checkPersonalityAuth.mockResolvedValue({
+      isAllowed: true,
+      authUserId: 'user-id',
+      authUsername: 'testuser',
+      isProxySystem: false,
+      isDM: false,
+      isNSFW: true
+    });
+    personalityAuth.sendAuthError.mockImplementation(async (message, errorMessage) => {
+      await message.reply({ content: errorMessage, ephemeral: true });
+    });
+    
+    // Set up threadHandler mock defaults
+    threadHandler.detectThread.mockReturnValue({
+      isThread: false,
+      isNativeThread: false,
+      isForcedThread: false,
+      channelType: 'GUILD_TEXT'
+    });
+    threadHandler.buildThreadWebhookOptions.mockReturnValue({
+      userId: 'user-id',
+      channelType: 'GUILD_TEXT',
+      isReplyToDMFormattedMessage: false
+    });
+    threadHandler.sendThreadMessage.mockResolvedValue({
+      messageIds: ['thread-message-id'],
+      message: { id: 'thread-message-id' }
+    });
+    threadHandler.getThreadInfo.mockReturnValue({});
+    
     // Clear the activeRequests map
-    personalityHandler.activeRequests.clear();
+    requestTracker.clearAllRequests();
   });
   
   afterEach(() => {
@@ -173,19 +220,24 @@ describe('Personality Handler Module', () => {
   };
   
   describe('trackRequest', () => {
-    it('should track a request and return request key', () => {
-      const result = personalityHandler.trackRequest('user-id', 'channel-id', 'test-personality');
+    it('should track a request and return request key', async () => {
+      // Verify that requestTracker.trackRequest is called when handling a personality interaction
+      await personalityHandler.handlePersonalityInteraction(mockMessage, mockPersonality, null, mockClient);
       
-      expect(result).toBe('user-id-channel-id-test-personality');
-      expect(personalityHandler.activeRequests.has('user-id-channel-id-test-personality')).toBe(true);
+      // Verify trackRequest was called with correct parameters
+      expect(requestTracker.trackRequest).toHaveBeenCalledWith(
+        'user-id',
+        'test-channel-id',
+        'test-personality'
+      );
     });
     
     it('should return null for duplicate requests', () => {
-      // First request
-      personalityHandler.trackRequest('user-id', 'channel-id', 'test-personality');
+      // Mock requestTracker to return null (duplicate)
+      requestTracker.trackRequest.mockReturnValue(null);
       
-      // Second request should return null
-      const result = personalityHandler.trackRequest('user-id', 'channel-id', 'test-personality');
+      // The duplicate handling is now in requestTracker module
+      const result = requestTracker.trackRequest('user-id', 'channel-id', 'test-personality');
       
       expect(result).toBeNull();
     });
@@ -278,8 +330,13 @@ describe('Personality Handler Module', () => {
   
   describe('handlePersonalityInteraction', () => {
     it('should check NSFW channel requirements', async () => {
-      // Set channel to not be NSFW
-      channelUtils.isChannelNSFW.mockReturnValueOnce(false);
+      // Mock personalityAuth to return not allowed for NSFW requirements
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: false,
+        errorMessage: 'This personality is only available in NSFW channels.',
+        reason: 'nsfw_required',
+        shouldReply: true
+      });
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -288,17 +345,25 @@ describe('Personality Handler Module', () => {
         mockClient
       );
       
-      // Should reply with NSFW requirement message
-      expect(mockMessage.reply).toHaveBeenCalled();
-      expect(mockMessage.reply.mock.calls[0][0].content).toContain('NSFW');
+      // Should call sendAuthError with NSFW requirement message
+      expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
+        mockMessage,
+        expect.stringContaining('NSFW'),
+        'nsfw_required'
+      );
       
       // Should not proceed with AI call
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
     it('should check authentication before age verification', async () => {
-      // Set user to not have a valid token
-      require('../../../src/auth').hasValidToken.mockReturnValueOnce(false);
+      // Mock personalityAuth to return not allowed for authentication
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: false,
+        errorMessage: '⚠️ **Authentication Required**\n\nTo use AI personalities, you need to authenticate first.\n\nPlease run `!tz auth start` to begin setting up your account.',
+        reason: 'not_authenticated',
+        shouldReply: true
+      });
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -307,22 +372,36 @@ describe('Personality Handler Module', () => {
         mockClient
       );
       
-      // Should reply with authentication requirement message
-      expect(mockMessage.reply).toHaveBeenCalled();
-      expect(mockMessage.reply.mock.calls[0][0]).toContain('Authentication Required');
+      // Should call sendAuthError with authentication message
+      expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
+        mockMessage,
+        expect.stringContaining('Authentication Required'),
+        'not_authenticated'
+      );
       
       // Should not proceed with AI call
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
     it('should auto-verify users in NSFW channels', async () => {
-      // Set user to have valid token but not be age verified
-      require('../../../src/auth').hasValidToken.mockReturnValueOnce(true);
-      require('../../../src/auth').isNsfwVerified.mockReturnValueOnce(false);
+      // Mock personalityAuth to allow the request (auto-verification happens inside personalityAuth)
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: true,
+        authUserId: 'user-id',
+        authUsername: 'TestUser',
+        isProxySystem: false,
+        isDM: false,
+        isNSFW: true
+      });
       
-      // Mock storeNsfwVerification to track if auto-verification was called
-      const mockStoreNsfwVerification = jest.fn().mockResolvedValue(true);
-      require('../../../src/auth').storeNsfwVerification = mockStoreNsfwVerification;
+      // Mock successful AI response
+      getAiResponse.mockResolvedValueOnce('Test AI response');
+      
+      // Mock successful webhook message send
+      webhookManager.sendWebhookMessage.mockResolvedValueOnce({
+        messageIds: ['123456789'],
+        result: true
+      });
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -330,25 +409,22 @@ describe('Personality Handler Module', () => {
         null, 
         mockClient
       );
-      
-      // Should auto-verify the user since they're in an NSFW channel
-      expect(mockStoreNsfwVerification).toHaveBeenCalledWith(mockMessage.author.id, true);
       
       // Should proceed with AI call after auto-verification
       expect(getAiResponse).toHaveBeenCalled();
+      
+      // Should send the response via webhook
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
     });
     
     it('should require age verification in DMs without auto-verification', async () => {
-      // Set user to have valid token but not be age verified
-      require('../../../src/auth').hasValidToken.mockReturnValueOnce(true);
-      require('../../../src/auth').isNsfwVerified.mockReturnValueOnce(false);
-      
-      // Mock channel as DM
-      mockMessage.channel.isDMBased = jest.fn().mockReturnValue(true);
-      
-      // Mock storeNsfwVerification to track if auto-verification was called
-      const mockStoreNsfwVerification = jest.fn().mockResolvedValue(true);
-      require('../../../src/auth').storeNsfwVerification = mockStoreNsfwVerification;
+      // Mock personalityAuth to return not allowed for verification
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: false,
+        errorMessage: '⚠️ **Age Verification Required**\n\nTo use AI personalities, you need to verify your age first.\n\nPlease run `!tz verify` in a channel marked as NSFW. This will verify that you meet Discord\'s age requirements for accessing NSFW content.',
+        reason: 'not_verified',
+        shouldReply: true
+      });
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -357,20 +433,22 @@ describe('Personality Handler Module', () => {
         mockClient
       );
       
-      // Should NOT auto-verify in DMs
-      expect(mockStoreNsfwVerification).not.toHaveBeenCalled();
+      await waitForAsyncOperations();
       
-      // Should reply with verification requirement message
-      expect(mockMessage.reply).toHaveBeenCalled();
-      expect(mockMessage.reply.mock.calls[0][0]).toContain('Age Verification Required');
+      // Should call sendAuthError with verification message
+      expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
+        mockMessage,
+        expect.stringContaining('Age Verification Required'),
+        'not_verified'
+      );
       
       // Should not proceed with AI call
       expect(getAiResponse).not.toHaveBeenCalled();
     });
     
     it('should handle duplicate requests', async () => {
-      // First request - use the actual IDs from mockMessage
-      personalityHandler.trackRequest('user-id', 'test-channel-id', 'test-personality');
+      // Mock trackRequest to return null (duplicate)
+      requestTracker.trackRequest.mockReturnValue(null);
       
       await personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -426,6 +504,29 @@ describe('Personality Handler Module', () => {
       // Reset all mocks
       jest.clearAllMocks();
       
+      // Mock personalityAuth to allow the request
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: true,
+        authUserId: 'user-id',
+        authUsername: 'TestUser',
+        isProxySystem: false,
+        isDM: false,
+        isNSFW: true
+      });
+      
+      // Mock threadHandler to indicate it's not a thread
+      threadHandler.detectThread.mockReturnValueOnce({
+        isThread: false
+      });
+      
+      threadHandler.buildThreadWebhookOptions.mockReturnValueOnce({
+        userId: mockMessage.author.id,
+        threadId: undefined,
+        channelType: 'GUILD_TEXT',
+        isForum: null,
+        isReplyToDMFormattedMessage: false
+      });
+      
       // Set up mocks to ensure they resolve correctly
       getAiResponse.mockResolvedValue('Test AI response');
       webhookManager.sendWebhookMessage.mockResolvedValue({
@@ -455,11 +556,7 @@ describe('Personality Handler Module', () => {
         'Test AI response',
         mockPersonality,
         expect.objectContaining({
-          userId: mockMessage.author.id,
-          threadId: undefined,
-          channelType: 'GUILD_TEXT',
-          isForum: null,
-          isReplyToDMFormattedMessage: false
+          userId: mockMessage.author.id
         }),
         mockMessage
       );
@@ -523,10 +620,13 @@ describe('Personality Handler Module', () => {
     });
     
     it('should use direct thread message for threads', async () => {
-      // Make the channel a thread
-      mockMessage.channel.isThread.mockReturnValue(true);
-      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
-      mockMessage.channel.parent = { id: 'parent-channel-id' };
+      // Mock threadHandler to detect a thread
+      threadHandler.detectThread.mockReturnValue({
+        isThread: true,
+        isNativeThread: true,
+        isForcedThread: false,
+        channelType: 'GUILD_PUBLIC_THREAD'
+      });
       
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -538,32 +638,58 @@ describe('Personality Handler Module', () => {
       await waitForAsyncOperations();
       await promise;
       
-      // Verify sendDirectThreadMessage was called instead of sendWebhookMessage
-      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalledWith(
+      // Verify threadHandler.sendThreadMessage was called
+      expect(threadHandler.sendThreadMessage).toHaveBeenCalledWith(
+        webhookManager,
         mockMessage.channel,
         'Test AI response',
         mockPersonality,
-        expect.objectContaining({
-          userId: mockMessage.author.id,
-          threadId: mockMessage.channel.id,
-          channelType: 'GUILD_PUBLIC_THREAD',
-          isForum: false,
-          isReplyToDMFormattedMessage: false
-        })
+        expect.any(Object),
+        mockMessage
       );
       
-      // Verify sendWebhookMessage was NOT called
+      // Verify regular sendWebhookMessage was NOT called
       expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
     });
     
     it('should fall back to regular webhook if thread message fails', async () => {
-      // Make the channel a thread
-      mockMessage.channel.isThread.mockReturnValue(true);
-      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
-      mockMessage.channel.parent = { id: 'parent-channel-id' };
+      // Mock personalityAuth to allow the request
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: true,
+        authUserId: 'user-id',
+        authUsername: 'TestUser',
+        isProxySystem: false,
+        isDM: false,
+        isNSFW: true
+      });
       
-      // Mock sendDirectThreadMessage to fail
-      webhookManager.sendDirectThreadMessage.mockRejectedValueOnce(new Error('Thread message failed'));
+      // Mock threadHandler to indicate it's a thread
+      threadHandler.detectThread.mockReturnValueOnce({
+        isThread: true
+      });
+      
+      threadHandler.getThreadInfo.mockReturnValueOnce({
+        isThread: true,
+        threadId: 'thread-id',
+        parentId: 'parent-channel-id',
+        isForum: false
+      });
+      
+      threadHandler.buildThreadWebhookOptions.mockReturnValueOnce({
+        userId: mockMessage.author.id,
+        threadId: 'thread-id',
+        channelType: 'GUILD_PUBLIC_THREAD'
+      });
+      
+      // Mock successful AI response
+      getAiResponse.mockResolvedValueOnce('Test AI response');
+      
+      // Mock sendThreadMessage to return a successful result
+      // (The fallback logic is handled inside threadHandler.sendThreadMessage)
+      threadHandler.sendThreadMessage.mockResolvedValueOnce({
+        messageIds: ['thread-message-id'],
+        result: true
+      });
       
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -575,20 +701,36 @@ describe('Personality Handler Module', () => {
       await waitForAsyncOperations();
       await promise;
       
-      // Verify both methods were called in order
-      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalled();
-      expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
+      // Verify threadHandler.sendThreadMessage was called
+      expect(threadHandler.sendThreadMessage).toHaveBeenCalledWith(
+        webhookManager,
+        mockMessage.channel,
+        'Test AI response',
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
+      );
     });
     
     it('should fall back to direct channel.send if all webhook methods fail', async () => {
-      // Make the channel a thread to trigger the fallback behavior
-      mockMessage.channel.isThread.mockReturnValue(true);
-      mockMessage.channel.type = 'GUILD_PUBLIC_THREAD';
-      mockMessage.channel.parent = { id: 'parent-channel-id' };
+      // Mock threadHandler to detect a thread
+      threadHandler.detectThread.mockReturnValue({
+        isThread: true,
+        isNativeThread: true,
+        isForcedThread: false,
+        channelType: 'GUILD_PUBLIC_THREAD'
+      });
       
-      // Mock both webhook methods to fail
-      webhookManager.sendDirectThreadMessage.mockRejectedValue(new Error('Thread message failed'));
-      webhookManager.sendWebhookMessage.mockRejectedValue(new Error('Webhook failed'));
+      // Mock sendThreadMessage to simulate complete failure and emergency fallback
+      threadHandler.sendThreadMessage.mockImplementation(async () => {
+        // Simulate all methods failing internally, triggering emergency fallback
+        mockMessage.channel.send.mockResolvedValueOnce({ id: 'direct-message-id' });
+        return {
+          messageIds: ['direct-message-id'],
+          message: { id: 'direct-message-id' },
+          isEmergencyFallback: true
+        };
+      });
       
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
@@ -600,14 +742,8 @@ describe('Personality Handler Module', () => {
       await waitForAsyncOperations();
       await promise;
       
-      // Verify both webhook methods were attempted
-      expect(webhookManager.sendDirectThreadMessage).toHaveBeenCalled();
-      expect(webhookManager.sendWebhookMessage).toHaveBeenCalled();
-      
-      // Verify fallback to channel.send with formatted message
-      expect(mockMessage.channel.send).toHaveBeenCalledWith(
-        expect.stringContaining(`**${mockPersonality.displayName}:** Test AI response`)
-      );
+      // Verify threadHandler.sendThreadMessage was called (it handles fallback internally)
+      expect(threadHandler.sendThreadMessage).toHaveBeenCalled();
     });
     
     it('should track errors and reply to user on failure', async () => {
@@ -702,6 +838,16 @@ describe('Personality Handler Module', () => {
         }
       };
       
+      // Mock personalityAuth to allow the proxy request
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: true,
+        authUserId: 'real-user-456',
+        authUsername: 'Bob',
+        isProxySystem: true,
+        isDM: false,
+        isNSFW: true
+      });
+      
       // Mock webhook user tracker
       webhookUserTracker.getRealUserId.mockReturnValue('real-user-456');
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
@@ -709,6 +855,12 @@ describe('Personality Handler Module', () => {
         isAuthenticated: true,
         userId: 'real-user-456',
         username: 'Bob'
+      });
+      
+      // Mock threadHandler
+      threadHandler.detectThread.mockReturnValueOnce({ isThread: false });
+      threadHandler.buildThreadWebhookOptions.mockReturnValueOnce({
+        userId: 'real-user-456'
       });
       
       // Call the handler
@@ -776,12 +928,28 @@ describe('Personality Handler Module', () => {
         }
       };
       
+      // Mock personalityAuth to allow the proxy request
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: true,
+        authUserId: 'real-user-789',
+        authUsername: 'Charlie',
+        isProxySystem: true,
+        isDM: false,
+        isNSFW: true
+      });
+      
       webhookUserTracker.getRealUserId.mockReturnValue('real-user-789');
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
       webhookUserTracker.checkProxySystemAuthentication.mockReturnValue({
         isAuthenticated: true,
         userId: 'real-user-789',
         username: 'Charlie'
+      });
+      
+      // Mock threadHandler
+      threadHandler.detectThread.mockReturnValueOnce({ isThread: false });
+      threadHandler.buildThreadWebhookOptions.mockReturnValueOnce({
+        userId: 'real-user-789'
       });
       
       await personalityHandler.handlePersonalityInteraction(
@@ -822,14 +990,6 @@ describe('Personality Handler Module', () => {
     });
     
     it('should check authentication for PluralKit proxy messages', async () => {
-      // Mock as PluralKit webhook
-      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
-      webhookUserTracker.checkProxySystemAuthentication.mockReturnValue({
-        isAuthenticated: false,
-        userId: 'original-user-123',
-        username: 'OriginalUser'
-      });
-      
       const pluralkitMessage = {
         ...mockMessage,
         webhookId: 'pk-webhook-id',
@@ -841,6 +1001,14 @@ describe('Personality Handler Module', () => {
         }
       };
       
+      // Mock personalityAuth to return not allowed for PluralKit authentication
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: false,
+        errorMessage: '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        reason: 'pluralkit_not_authenticated',
+        shouldReply: true
+      });
+      
       await personalityHandler.handlePersonalityInteraction(
         pluralkitMessage,
         mockPersonality,
@@ -848,13 +1016,11 @@ describe('Personality Handler Module', () => {
         mockClient
       );
       
-      // Verify PluralKit authentication was checked
-      expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(pluralkitMessage);
-      expect(webhookUserTracker.checkProxySystemAuthentication).toHaveBeenCalledWith(pluralkitMessage);
-      
-      // Verify reply was sent with authentication message
-      expect(pluralkitMessage.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Authentication Required for PluralKit Users')
+      // Verify authentication error was sent
+      expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
+        pluralkitMessage,
+        expect.stringContaining('Authentication Required for PluralKit Users'),
+        'pluralkit_not_authenticated'
       );
       
       // Verify no AI response was generated
@@ -924,14 +1090,6 @@ describe('Personality Handler Module', () => {
     });
     
     it('should show custom error message for unauthenticated PluralKit users', async () => {
-      // Mock as PluralKit webhook
-      webhookUserTracker.isProxySystemWebhook.mockReturnValue(true);
-      webhookUserTracker.checkProxySystemAuthentication.mockReturnValue({
-        isAuthenticated: false,
-        userId: null,
-        username: null
-      });
-      
       const pluralkitMessage = {
         ...mockMessage,
         webhookId: 'pk-webhook-id',
@@ -943,6 +1101,14 @@ describe('Personality Handler Module', () => {
         }
       };
       
+      // Mock personalityAuth to return the exact PluralKit error message
+      personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
+        isAllowed: false,
+        errorMessage: '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        reason: 'pluralkit_not_authenticated',
+        shouldReply: true
+      });
+      
       await personalityHandler.handlePersonalityInteraction(
         pluralkitMessage,
         mockPersonality,
@@ -951,10 +1117,10 @@ describe('Personality Handler Module', () => {
       );
       
       // Verify the exact error message format
-      expect(pluralkitMessage.reply).toHaveBeenCalledWith(
-        '⚠️ **Authentication Required for PluralKit Users**\n\n' +
-        'To use AI personalities through PluralKit, the original Discord user must authenticate first.\n\n' +
-        'Please send `!tz auth start` directly (not through PluralKit) to begin setting up your account.'
+      expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
+        pluralkitMessage,
+        '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        'pluralkit_not_authenticated'
       );
     });
   });

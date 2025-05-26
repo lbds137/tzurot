@@ -1,11 +1,12 @@
 const { getModelPath } = require('../config');
 const logger = require('./logger');
-const { TIME, _ERROR_PATTERNS, MARKERS, DEFAULTS } = require('./constants');
+const { MARKERS, DEFAULTS } = require('./constants');
 const auth = require('./auth');
 const aiAuth = require('./utils/aiAuth');
-const { sanitizeContent, sanitizeApiText } = require('./utils/contentSanitizer');
+const { sanitizeContent } = require('./utils/contentSanitizer');
+const aiRequestManager = require('./utils/aiRequestManager');
+const { formatApiMessages } = require('./utils/aiMessageFormatter');
 const webhookUserTracker = require('./utils/webhookUserTracker');
-const { getPersonality } = require('./personalityManager');
 const { trackError, ErrorCategory } = require('./utils/errorTracker');
 
 // Initialize the AI client - delegates to aiAuth module
@@ -18,14 +19,7 @@ function getAiClientForUser(userId, context = {}) {
   return aiAuth.getAiClientForUser(userId, context);
 }
 
-// Track in-progress API requests to prevent duplicate processing
-const pendingRequests = new Map();
-
-// Track personality-user pairs that should be blocked from generating ANY response
-// after experiencing an error - essential to prevent double messages
-const errorBlackoutPeriods = new Map();
-
-// Use the centralized constants for error blackout duration instead of defining here
+// Request management is now handled by aiRequestManager module
 
 
 /**
@@ -109,314 +103,21 @@ function isErrorResponse(content) {
 }
 
 
-/**
- * Create a personality-user key for blackout tracking
- *
- * @param {string} personalityName - The AI personality name
- * @param {Object} context - The context object with user and channel information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @returns {string} A unique key in the format "{personalityName}_{userId}_{channelId}"
- *
- * @example
- * // Returns "albert-einstein_123456_789012"
- * createBlackoutKey("albert-einstein", { userId: "123456", channelId: "789012" });
- *
- * // Returns "albert-einstein_anon_789012" (with default userId)
- * createBlackoutKey("albert-einstein", { channelId: "789012" });
- *
- * // Returns "albert-einstein_123456_nochannel" (with default channelId)
- * createBlackoutKey("albert-einstein", { userId: "123456" });
- *
- * @description
- * Creates a unique key that combines personality name, user ID, and channel ID.
- * This key is used to track which personality-user-channel combinations are
- * in a blackout period due to errors. If userId or channelId are not provided,
- * fallback values (DEFAULTS.ANONYMOUS_USER and DEFAULTS.NO_CHANNEL) are used to prevent key collisions.
- */
-function createBlackoutKey(personalityName, context) {
-  return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}`;
-}
+// Blackout key creation is now handled by aiRequestManager module
+const createBlackoutKey = aiRequestManager.createBlackoutKey;
 
-/**
- * Prepare request headers for the AI API call
- *
- * @param {Object} context - The context object with user and channel information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @returns {Object} Headers object with user and channel IDs if provided
- *
- * @example
- * // Prepare headers with both user and channel IDs
- * const headers = prepareRequestHeaders({
- *   userId: "123456789",
- *   channelId: "987654321"
- * });
- * // Returns: { "X-User-Id": "123456789", "X-Channel-Id": "987654321" }
- *
- * // Prepare headers with only userId
- * const headers = prepareRequestHeaders({ userId: "123456789" });
- * // Returns: { "X-User-Id": "123456789" }
- *
- * // Prepare headers with neither (empty object)
- * const headers = prepareRequestHeaders({});
- * // Returns: {}
- *
- * @description
- * Creates the headers object for the AI API request, adding any available
- * user and channel identification to help with request tracing and debugging.
- *
- * The function:
- * 1. Creates an empty headers object
- * 2. Adds X-User-Id header if context.userId is provided
- * 3. Adds X-Channel-Id header if context.channelId is provided
- * 4. Returns the populated headers object
- *
- * These headers enhance logging and debugging by allowing API requests
- * to be correlated with specific Discord users and channels.
- */
-function prepareRequestHeaders(context) {
-  const headers = {};
-
-  // Add user/channel ID headers if provided
-  if (context.userId) headers['X-User-Id'] = context.userId;
-  if (context.channelId) headers['X-Channel-Id'] = context.channelId;
-
-  return headers;
-}
+// Request header preparation is now handled by aiRequestManager module
+const prepareRequestHeaders = aiRequestManager.prepareRequestHeaders;
 
 
-/**
- * Check if a personality-user combination is currently in a blackout period
- *
- * @param {string} personalityName - The AI personality name
- * @param {Object} context - The context object with user and channel information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @returns {boolean} True if the combination is in a blackout period
- *
- * @example
- * // Check if a specific personality-user-channel combination is in blackout
- * const isBlocked = isInBlackoutPeriod("albert-einstein", {
- *   userId: "123456",
- *   channelId: "789012"
- * });
- *
- * // Returns true if the combination was added to blackout list within
- * // the last TIME.ERROR_BLACKOUT_DURATION (30 seconds)
- * if (isBlocked) {
- *   console.log("This request is blocked due to recent errors");
- * } else {
- *   console.log("This request is allowed to proceed");
- * }
- *
- * @description
- * Determines if a specific personality-user-channel combination is currently
- * in an error blackout period. A blackout period is a time window after an error
- * during which no new API requests should be made for this combination to prevent
- * duplicate error messages and improve user experience.
- *
- * The function performs these operations:
- * 1. Creates a unique key for the personality-user-channel combination
- * 2. Checks if the key exists in the errorBlackoutPeriods Map
- * 3. If it exists, compares the current time with the expiration time
- * 4. If the blackout period has expired, removes the entry from the Map
- * 5. Returns true if the combination is still in an active blackout period
- *
- * The automatic cleanup of expired entries prevents memory leaks and ensures
- * accurate tracking over time without requiring a separate cleanup process.
- */
-function isInBlackoutPeriod(personalityName, context) {
-  const key = createBlackoutKey(personalityName, context);
-  if (errorBlackoutPeriods.has(key)) {
-    const expirationTime = errorBlackoutPeriods.get(key);
-    if (Date.now() < expirationTime) {
-      return true;
-    } else {
-      // Clean up expired entry
-      errorBlackoutPeriods.delete(key);
-    }
-  }
-  return false;
-}
+// Blackout period checking is now handled by aiRequestManager module
+const isInBlackoutPeriod = aiRequestManager.isInBlackoutPeriod;
 
-/**
- * Add a personality-user combination to the blackout list
- *
- * @param {string} personalityName - The AI personality name
- * @param {Object} context - The context object with user and channel information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @param {number} [duration] - Custom blackout duration in milliseconds. If not provided, defaults to TIME.ERROR_BLACKOUT_DURATION
- * @returns {void}
- *
- * @example
- * // Add a specific personality-user-channel combination to blackout list with default duration
- * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" });
- *
- * // Add with a custom duration of 5 minutes
- * addToBlackoutList("albert-einstein", { userId: "123456", channelId: "789012" }, 5 * 60 * 1000);
- *
- * // The combination will be blocked for the specified duration
- * // Any requests for this combination during the blackout period will be blocked
- * isInBlackoutPeriod("albert-einstein", { userId: "123456", channelId: "789012" }); // Returns true
- *
- * @description
- * Adds a personality-user-channel combination to the blackout list after an error occurs.
- * During the blackout period (defined by duration parameter or TIME.ERROR_BLACKOUT_DURATION),
- * all requests for this combination will be blocked to prevent duplicate error messages.
- *
- * This is a critical function for error prevention that helps ensure users don't see
- * multiple error messages in quick succession when a personality API call is failing.
- * The function:
- * 1. Creates a unique key for the personality-user-channel combination
- * 2. Calculates an expiration time based on current time plus blackout duration
- * 3. Stores the expiration time in the errorBlackoutPeriods Map
- */
-function addToBlackoutList(personalityName, context, duration) {
-  const key = createBlackoutKey(personalityName, context);
-  const blackoutDuration = duration || TIME.ERROR_BLACKOUT_DURATION;
-  const expirationTime = Date.now() + blackoutDuration;
-  errorBlackoutPeriods.set(key, expirationTime);
-}
+// Adding to blackout list is now handled by aiRequestManager module
+const addToBlackoutList = aiRequestManager.addToBlackoutList;
 
-/**
- * Create a unique request ID for tracking API requests
- *
- * @param {string} personalityName - The AI personality name
- * @param {string|Array} message - The message content or array of content objects for multimodal
- * @param {Object} context - The context object with user and channel information
- * @param {string} [context.userId] - The Discord user ID of the requester
- * @param {string} [context.channelId] - The Discord channel ID where the request originated
- * @returns {string} A unique request ID that can be used for deduplication
- *
- * @example
- * // Returns "einstein_123_456_HellohowareyouImfine"
- * createRequestId("einstein", "Hello how are you? I'm fine", {
- *   userId: "123",
- *   channelId: "456"
- * });
- *
- * // With longer message, truncates to 30 chars
- * createRequestId("einstein", "This is a very long message that will be truncated", {
- *   userId: "123",
- *   channelId: "456"
- * });
- * // Returns "einstein_123_456_Thisisaverylongmessagethatwill"
- *
- * // With multimodal content array (image)
- * createRequestId("einstein", [
- *   { type: "text", text: "What is in this image?" },
- *   { type: "image_url", image_url: { url: "https://example.com/image.jpg" }}
- * ], { userId: "123", channelId: "456" });
- *
- * // With multimodal content array (audio)
- * createRequestId("einstein", [
- *   { type: "text", text: "Please transcribe this" },
- *   { type: "audio_url", audio_url: { url: "https://example.com/audio.mp3" }}
- * ], { userId: "123", channelId: "456" });
- *
- * @description
- * Creates a unique identifier string for tracking API requests and preventing duplicate
- * calls from being processed simultaneously. The ID combines four components:
- *
- * 1. Personality name - Identifies which AI personality is being used
- * 2. User ID - From context.userId or DEFAULTS.ANONYMOUS_USER fallback
- * 3. Channel ID - From context.channelId or DEFAULTS.NO_CHANNEL fallback
- * 4. Message prefix -
- *    - For string messages: First 30 characters with spaces removed
- *    - For multimodal content arrays: Content hash based on text and media URLs (image or audio)
- *
- * This ensures that identical requests from the same user to the same personality
- * will be properly deduplicated, while different requests will have unique IDs.
- * The function is used by the request deduplication system to prevent duplicate API calls.
- */
-function createRequestId(personalityName, message, context) {
-  let messagePrefix;
-
-  try {
-    if (!message) {
-      // Handle undefined or null message
-      messagePrefix = 'empty-message';
-    } else if (Array.isArray(message)) {
-      // For multimodal content, create a prefix based on content
-      const textContent = message.find(item => item.type === 'text')?.text || '';
-      const imageUrl = message.find(item => item.type === 'image_url')?.image_url?.url || '';
-      const audioUrl = message.find(item => item.type === 'audio_url')?.audio_url?.url || '';
-
-      // Create a prefix using text and any media URLs, adding type identifiers to distinguish them
-      messagePrefix = (
-        textContent.substring(0, 20) +
-        (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
-        (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
-      ).replace(/\s+/g, '');
-    } else if (typeof message === 'string') {
-      // For regular string messages, use the first 30 chars
-      messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
-    } else if (typeof message === 'object' && message.messageContent) {
-      // Handle our special reference format
-      // Process message content as before
-      let contentPrefix = '';
-      if (typeof message.messageContent === 'string') {
-        contentPrefix = message.messageContent.substring(0, 30).replace(/\s+/g, '');
-      } else if (Array.isArray(message.messageContent)) {
-        // Extract text from multimodal content
-        const textContent = message.messageContent.find(item => item.type === 'text')?.text || '';
-        const imageUrl =
-          message.messageContent.find(item => item.type === 'image_url')?.image_url?.url || '';
-        const audioUrl =
-          message.messageContent.find(item => item.type === 'audio_url')?.audio_url?.url || '';
-
-        contentPrefix = (
-          textContent.substring(0, 20) +
-          (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
-          (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
-        ).replace(/\s+/g, '');
-      } else {
-        contentPrefix = 'complex-object';
-      }
-
-      // Also check for referenced message with media
-      let referencePrefix = '';
-      if (message.referencedMessage && message.referencedMessage.content) {
-        const refContent = message.referencedMessage.content;
-
-        // Check for media in the referenced message
-        if (refContent.includes('[Image:')) {
-          const imageMatch = refContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
-          if (imageMatch && imageMatch[1]) {
-            referencePrefix += 'IMG-' + imageMatch[1].substring(0, 8);
-          }
-        }
-
-        if (refContent.includes('[Audio:')) {
-          const audioMatch = refContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
-          if (audioMatch && audioMatch[1]) {
-            referencePrefix += 'AUD-' + audioMatch[1].substring(0, 8);
-          }
-        }
-      }
-
-      // Combine prefixes to create a unique ID that includes both content and reference info
-      messagePrefix = contentPrefix + referencePrefix;
-    } else {
-      // Fallback for any other type
-      messagePrefix = `type-${typeof message}`;
-    }
-  } catch (error) {
-    // Log the error but continue with a safe fallback
-    logger.error(`[AIService] Error creating request ID: ${error.message}`);
-    logger.error(`[AIService] Message type: ${typeof message}, Array? ${Array.isArray(message)}`);
-    if (message) {
-      logger.error(`[AIService] Message sample: ${JSON.stringify(message).substring(0, 100)}`);
-    }
-
-    // Use a safe fallback
-    messagePrefix = `fallback-${Date.now()}`;
-  }
-
-  return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}_${messagePrefix}`;
-}
+// Request ID creation is now handled by aiRequestManager module
+const createRequestId = aiRequestManager.createRequestId;
 
 
 // Content sanitization function moved to utils/contentSanitizer.js
@@ -482,21 +183,13 @@ async function getAiResponse(personalityName, message, context = {}) {
   logger.debug(`[AIService] Created request ID: ${requestId}`);
 
   // Check if this exact request is already in progress
-  if (pendingRequests.has(requestId)) {
-    const { timestamp, promise } = pendingRequests.get(requestId);
-
-    // If this request was created within the last minute, return the existing promise
-    if (Date.now() - timestamp < TIME.ONE_MINUTE) {
-      // Return the existing promise to avoid duplicate API calls
-      logger.info(
-        `[AIService] Duplicate request detected for ${personalityName}, reusing existing promise`
-      );
-      return promise;
-    } else {
-      // Timed out, clean up and proceed with a new request
-      logger.info(`[AIService] Request for ${personalityName} timed out, creating new request`);
-      pendingRequests.delete(requestId);
-    }
+  const pendingRequest = aiRequestManager.getPendingRequest(requestId);
+  if (pendingRequest) {
+    // Return the existing promise to avoid duplicate API calls
+    logger.info(
+      `[AIService] Duplicate request detected for ${personalityName}, reusing existing promise`
+    );
+    return pendingRequest.promise;
   }
 
   // Create a promise that we'll store to prevent duplicate calls
@@ -619,15 +312,12 @@ async function getAiResponse(personalityName, message, context = {}) {
       logger.debug(
         `[AIService] Cleaning up pending request for ${personalityName} (ID: ${requestId})`
       );
-      pendingRequests.delete(requestId);
+      aiRequestManager.removePendingRequest(requestId);
     }
   })();
 
   // Store this promise in our pending requests map
-  pendingRequests.set(requestId, {
-    timestamp: Date.now(),
-    promise: responsePromise,
-  });
+  aiRequestManager.storePendingRequest(requestId, responsePromise);
 
   // Return the promise that will resolve to the API response
   return responsePromise;
@@ -635,445 +325,7 @@ async function getAiResponse(personalityName, message, context = {}) {
 
 // API text sanitization function moved to utils/contentSanitizer.js
 
-/**
- * Format messages for API request, handling text, images, and referenced messages
- * @param {string|Array|Object} content - Text message, array of content objects, or complex object with reference
- * @param {string} personalityName - The name of the personality to use in media prompts
- * @param {string} [userName] - The user's formatted name (displayName + username)
- * @param {boolean} [isProxyMessage] - Whether this is a proxy system message (PluralKit, etc)
- * @returns {Array} Formatted messages array for API request
- */
-function formatApiMessages(content, personalityName, userName = 'a user', isProxyMessage = false) {
-  try {
-    // Check if the content is an object with a special reference format
-    if (
-      content &&
-      typeof content === 'object' &&
-      !Array.isArray(content) &&
-      content.messageContent
-    ) {
-      // Log for debugging with user info
-      logger.debug(`[AIService] Formatting message from ${userName}`);
-      logger.debug(`[AIService] Formatting special reference message format`);
-
-      // If we have a referenced message
-      if (content.referencedMessage) {
-        // Always use a consistent implementation without test-specific branches
-        logger.debug(`[AIService] Processing referenced message`);
-
-        // Get the name of the Discord user who is making the reference
-        const userName = content.userName || 'The user';
-
-        // Sanitize the content of the referenced message (remove control characters)
-        const sanitizedReferenceContent = content.referencedMessage.content
-          ? sanitizeApiText(content.referencedMessage.content)
-          : '';
-
-        logger.debug(
-          `[AIService] Processing referenced message: ${JSON.stringify({
-            authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
-            contentPreview: sanitizedReferenceContent.substring(0, 50) || 'No content',
-            referencingUser: userName,
-          })}`
-        );
-
-        try {
-          // Initialize cleaned reference content early for use throughout the function
-          const cleanedRefContent = content.referencedMessage.content;
-          
-          // First, check if media URLs were provided directly (from embed extraction)
-          let mediaUrl = null;
-          let mediaType = null;
-          
-          if (content.referencedMessage.audioUrl) {
-            mediaUrl = content.referencedMessage.audioUrl;
-            mediaType = 'audio';
-            logger.debug(`[AIService] Using provided audio URL from reference: ${mediaUrl}`);
-          } else if (content.referencedMessage.imageUrl) {
-            mediaUrl = content.referencedMessage.imageUrl;
-            mediaType = 'image';
-            logger.debug(`[AIService] Using provided image URL from reference: ${mediaUrl}`);
-          } else {
-            // Fallback to extracting from text content for backward compatibility
-            const hasImage = sanitizedReferenceContent.includes('[Image:');
-            const hasAudio = sanitizedReferenceContent.includes('[Audio:');
-            
-            if (hasAudio) {
-              // Audio has priority over images
-              const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)]/);
-              if (audioMatch && audioMatch[1]) {
-                mediaUrl = audioMatch[1];
-                mediaType = 'audio';
-                logger.debug(`[AIService] Found audio URL in reference text: ${mediaUrl}`);
-              }
-            } else if (hasImage) {
-              const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)]/);
-              if (imageMatch && imageMatch[1]) {
-                mediaUrl = imageMatch[1];
-                mediaType = 'image';
-                logger.debug(`[AIService] Found image URL in reference text: ${mediaUrl}`);
-              }
-            }
-          }
-
-          // Clean the referenced message content (remove media URLs and embed media references)
-          let cleanContent = sanitizedReferenceContent
-            .replace(/\[Image: https?:\/\/[^\s\]]+]/g, '')
-            .replace(/\[Audio: https?:\/\/[^\s\]]+]/g, '')
-            .replace(/\[Embed Image: https?:\/\/[^\s\]]+]/g, '')
-            .replace(/\[Embed Thumbnail: https?:\/\/[^\s\]]+]/g, '')
-            .trim();
-
-          // If the content is empty after removing media URLs, add a placeholder
-          if (!cleanContent && mediaUrl) {
-            cleanContent = mediaType === 'image' ? '[Image]' : '[Audio Message]';
-            logger.info(`[AIService] Adding media placeholder to empty reference: ${cleanContent}`);
-          }
-
-          // Get user's message content (text or multimodal)
-          const userMessageContent = content.messageContent;
-
-          // Check if user is referencing their own message (need this early for media reference text)
-          const currentUserId = content.userId;
-          const referencedAuthorId = content.referencedMessage.authorId;
-          const currentUserName = content.userName || 'The user';
-          const referencedAuthor = content.referencedMessage.author;
-          // Compare by user ID if available, otherwise fall back to username comparison
-          const isUserSelfReference = (currentUserId && referencedAuthorId) 
-            ? currentUserId === referencedAuthorId 
-            : currentUserName === referencedAuthor;
-
-          // Create natural phrasing for referenced messages with media
-          let mediaContext = '';
-          if (mediaType === 'image') {
-            mediaContext = isUserSelfReference ? ' (with an image I shared)' : ` (with an image)`;
-            logger.debug(`[AIService] Created image reference context`);
-          } else if (mediaType === 'audio') {
-            mediaContext = isUserSelfReference ? ' (with audio I shared)' : ` (with audio)`;
-            logger.debug(`[AIService] Created audio reference context`);
-          }
-
-          // Create natural reference text
-          // For webhook messages (like PluralKit), prefer the webhook name over generic "another user"
-          let authorText;
-          if (isUserSelfReference) {
-            authorText = 'I';
-          } else if (content.referencedMessage.isFromBot && content.referencedMessage.webhookName) {
-            // Use webhook name for PluralKit and similar webhook messages
-            authorText = content.referencedMessage.webhookName;
-          } else if (content.referencedMessage.isFromBot && content.referencedMessage.personalityDisplayName) {
-            // Use personality display name if available
-            authorText = content.referencedMessage.personalityDisplayName;
-          } else {
-            // Fall back to the author field
-            authorText = content.referencedMessage.author;
-          }
-          const fullReferenceContent = `${authorText} said${mediaContext}:\n"${cleanContent}"`;
-
-          // For bot messages, try to get the proper display name
-          let assistantReferenceContent = '';
-
-          if (content.referencedMessage.isFromBot) {
-            // Try to get proper display name from the personality manager
-            const fullName = content.referencedMessage.personalityName;
-            let displayName;
-
-            // Try to get the personality from the personality manager
-            const personalityObject = fullName ? getPersonality(fullName) : null;
-            if (personalityObject && personalityObject.displayName) {
-              // Use display name from personality manager if available
-              displayName = personalityObject.displayName;
-            } else {
-              // Fall back to provided display name or the personality name
-              displayName = content.referencedMessage.personalityDisplayName || content.referencedMessage.displayName || fullName;
-            }
-
-            // Format name with display name and full name in parentheses, unless they're the same
-            const formattedName =
-              displayName && fullName && displayName !== fullName
-                ? `${displayName} (${fullName})`
-                : displayName || fullName || 'the bot';
-
-            // Check if the referenced personality is the same as the current personality
-            const isSamePersonality = content.referencedMessage.personalityName === personalityName;
-
-            if (isSamePersonality) {
-              // Second-person reference when user is talking to the same personality
-              assistantReferenceContent = `You said${mediaContext}: "${cleanContent}"`;
-            } else {
-              // Third-person reference if it's a different personality
-              assistantReferenceContent = `${formattedName} said${mediaContext}: "${cleanContent}"`;
-            }
-          }
-
-          // When the reference is to a bot message (personality), format it as appropriate
-          // For bot messages we want to use assistant role ONLY for the current personality
-          // For other personalities and users, we use user role to ensure the AI can see them consistently
-          let referenceDescriptor;
-
-          if (content.referencedMessage.isFromBot) {
-            // Check if it's the same personality as the one we're using now
-            const isSamePersonality = content.referencedMessage.personalityName === personalityName;
-
-            if (isSamePersonality) {
-              // Use assistant role for the personality's own messages to avoid echo
-              // Use cleaned content to avoid media duplication
-              referenceDescriptor = {
-                role: 'assistant',
-                content: assistantReferenceContent || cleanedRefContent,
-              };
-              logger.debug(
-                `[AIService] Using assistant role for reference to same personality: ${personalityName}`
-              );
-            } else {
-              // Use user role for references to other personalities
-              // Use cleaned content to avoid media duplication
-              referenceDescriptor = {
-                role: 'user',
-                content: assistantReferenceContent || cleanedRefContent,
-              };
-              logger.debug(
-                `[AIService] Using user role for reference to different personality: ${content.referencedMessage.personalityName}`
-              );
-            }
-          } else {
-            // Use user role for user messages
-            // For user messages, create a cleaned version of the fullReferenceContent
-            const cleanedFullReferenceContent = fullReferenceContent
-              .replace(/\[Image: https?:\/\/[^\s\]]+\]/g, '')
-              .replace(/\[Audio: https?:\/\/[^\s\]]+\]/g, '')
-              .trim();
-            referenceDescriptor = { role: 'user', content: cleanedFullReferenceContent };
-            logger.debug(`[AIService] Using user role for reference to user message`);
-          }
-
-          // Create media message ONCE for the referenced message content (avoiding duplication)
-          let mediaMessage = null;
-
-          // Use the mediaUrl and mediaType that were already extracted earlier
-          if (mediaUrl && mediaType) {
-            if (mediaType === 'image') {
-              mediaMessage = {
-                role: 'user',
-                content: [
-                  { type: 'text', text: 'Please examine this image:' },
-                  { type: 'image_url', image_url: { url: mediaUrl } },
-                ],
-              };
-              logger.debug(`[AIService] Created media message for image: ${mediaUrl}`);
-            } else if (mediaType === 'audio') {
-              mediaMessage = {
-                role: 'user',
-                content: [
-                  { type: 'text', text: 'Audio content:' },
-                  { type: 'audio_url', audio_url: { url: mediaUrl } },
-                ],
-              };
-              logger.debug(`[AIService] Created media message for audio: ${mediaUrl}`);
-            }
-          }
-
-          // Hybrid approach: combine messages when replying to yourself, separate for different senders
-          const isReplyingToSelf = currentUserName.includes(referencedAuthor);
-
-          let messages;
-
-          if (isReplyingToSelf) {
-            // Same sender: combine into single message to avoid duplication
-            const combinedContent = [];
-
-            // Combine all text content into a single text element
-            let combinedText = '';
-            
-            if (Array.isArray(userMessageContent)) {
-              // Extract text from multimodal user content
-              const userTextParts = userMessageContent
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join(' ');
-              combinedText += userTextParts;
-            } else {
-              const sanitizedUserContent =
-                typeof userMessageContent === 'string'
-                  ? sanitizeApiText(userMessageContent)
-                  : 'Message content missing';
-              combinedText += sanitizedUserContent;
-            }
-
-            // Add reference context (with newline formatting)
-            combinedText += '\n\n' + referenceDescriptor.content;
-
-            // Add the combined text as first element
-            combinedContent.push({
-              type: 'text',
-              text: combinedText
-            });
-
-            // Add user's original media content (images/audio from user's message)
-            if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(item => 
-                item.type === 'image_url' || item.type === 'audio_url');
-              combinedContent.push(...userMediaElements);
-            }
-
-            // Add referenced media content if present (just the media URL, not the prompt text)
-            if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(item => 
-                item.type === 'audio_url' || item.type === 'image_url');
-              combinedContent.push(...mediaElements);
-            }
-
-            // Create single combined message
-            const userMessage = { role: 'user', content: combinedContent };
-            messages = [userMessage];
-            
-            logger.debug(`[AIService] Same sender detected - combined into single message`);
-          } else {
-            // Different senders: combine everything into single message for better AI processing
-            const combinedContent = [];
-
-            // Combine all text content into a single text element
-            let combinedText = '';
-            
-            if (Array.isArray(userMessageContent)) {
-              // Extract text from multimodal user content
-              const userTextParts = userMessageContent
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join(' ');
-              combinedText += userTextParts;
-            } else {
-              const sanitizedUserContent =
-                typeof userMessageContent === 'string'
-                  ? sanitizeApiText(userMessageContent)
-                  : 'Message content missing';
-              combinedText += sanitizedUserContent;
-            }
-
-            // Add reference context (with newline formatting)
-            combinedText += '\n\n' + referenceDescriptor.content;
-
-            // Add the combined text as first element
-            combinedContent.push({
-              type: 'text',
-              text: combinedText
-            });
-
-            // Add user's original media content (images/audio from user's message)
-            if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(item => 
-                item.type === 'image_url' || item.type === 'audio_url');
-              combinedContent.push(...userMediaElements);
-            }
-
-            // Add referenced media content if present (just the media URL, not the prompt text)
-            if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(item => 
-                item.type === 'audio_url' || item.type === 'image_url');
-              combinedContent.push(...mediaElements);
-            }
-
-            // Create single combined message
-            const userMessage = { role: 'user', content: combinedContent };
-            messages = [userMessage];
-            
-            logger.debug(`[AIService] Different senders detected - combined everything into single message for better AI processing`);
-          }
-
-          logger.info(`[DEBUG] Final messages being sent to AI API (count: ${messages.length}):`);
-          messages.forEach((msg, index) => {
-            logger.info(`[DEBUG] Message ${index + 1}: ${JSON.stringify(msg, null, 2)}`);
-          });
-
-          return messages;
-        } catch (refError) {
-          // If there's an error processing the reference, log it but continue
-          logger.error(`[AIService] Error processing referenced message: ${refError.message}`);
-          logger.error(`[AIService] Reference processing error stack: ${refError.stack}`);
-
-          // Fall back to just sending the user's message
-          const sanitizedContent =
-            typeof content.messageContent === 'string'
-              ? sanitizeApiText(content.messageContent)
-              : Array.isArray(content.messageContent)
-                ? content.messageContent
-                : 'There was an error processing a referenced message.';
-
-          return [{ role: 'user', content: sanitizedContent }];
-        }
-      }
-
-      // If no reference but still using the special format, process user message normally
-      if (Array.isArray(content.messageContent)) {
-        return [{ role: 'user', content: content.messageContent }];
-      } else {
-        const sanitizedContent =
-          typeof content.messageContent === 'string'
-            ? sanitizeApiText(content.messageContent)
-            : content.messageContent;
-
-        return [{ role: 'user', content: sanitizedContent }];
-      }
-    }
-
-    // Standard handling for non-reference formats
-    if (Array.isArray(content)) {
-      // Handle standard multimodal content array
-      // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
-      if (isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text') {
-        const modifiedContent = [...content];
-        modifiedContent[0] = {
-          ...modifiedContent[0],
-          text: `[${userName}]: ${modifiedContent[0].text}`
-        };
-        return [{ role: 'user', content: modifiedContent }];
-      }
-      return [{ role: 'user', content }];
-    }
-
-    // Simple text message - sanitize if it's a string
-    if (typeof content === 'string') {
-      const sanitizedContent = sanitizeApiText(content);
-      // For proxy messages only: prepend speaker identification if we have a userName
-      const finalContent = isProxyMessage && userName !== 'a user' 
-        ? `[${userName}]: ${sanitizedContent}`
-        : sanitizedContent;
-      return [{ role: 'user', content: finalContent }];
-    }
-    
-    // For non-string content, return as is
-    return [{ role: 'user', content }];
-  } catch (formatError) {
-    // Log the error for debugging
-    logger.error(`[AIService] Error in formatApiMessages: ${formatError.message}`);
-    logger.error(`[AIService] Format error stack: ${formatError.stack}`);
-
-    // Fall back to a simple message
-    if (typeof content === 'string') {
-      return [{ role: 'user', content: sanitizeApiText(content) }];
-    } else if (Array.isArray(content)) {
-      return [{ role: 'user', content }];
-    } else if (content && typeof content === 'object' && content.messageContent) {
-      // Try to extract just the message content without references
-      return [
-        {
-          role: 'user',
-          content:
-            typeof content.messageContent === 'string'
-              ? sanitizeApiText(content.messageContent)
-              : Array.isArray(content.messageContent)
-                ? content.messageContent
-                : 'There was an error formatting my message.',
-        },
-      ];
-    }
-
-    // Ultimate fallback for completely broken content
-    return [
-      { role: 'user', content: 'I wanted to reference another message but there was an error.' },
-    ];
-  }
-}
+// Message formatting function moved to utils/aiMessageFormatter.js
 
 async function handleNormalPersonality(personalityName, message, context, modelPath, headers) {
   logger.info(`[AIService] Making API request for normal personality: ${personalityName}`);
@@ -1353,17 +605,21 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 module.exports = {
   getAiResponse,
   isErrorResponse,
-  pendingRequests,
-  createRequestId,
-  isInBlackoutPeriod,
-  addToBlackoutList,
-  createBlackoutKey,
-  errorBlackoutPeriods,
   getAiClientForUser,
   initAiClient,
 
   // Export for testing
-  prepareRequestHeaders,
   handleNormalPersonality,
-  formatApiMessages,
+  
+  // Re-export from aiRequestManager for backward compatibility
+  createRequestId,
+  isInBlackoutPeriod,
+  addToBlackoutList,
+  createBlackoutKey,
+  prepareRequestHeaders,
+  get pendingRequests() { return aiRequestManager.pendingRequests; },
+  get errorBlackoutPeriods() { return aiRequestManager.errorBlackoutPeriods; },
+  
+  // Re-export from aiMessageFormatter for backward compatibility
+  formatApiMessages
 };

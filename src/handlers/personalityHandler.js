@@ -12,37 +12,15 @@
 const logger = require('../logger');
 const { getAiResponse } = require('../aiService');
 const webhookManager = require('../webhookManager');
-const channelUtils = require('../utils/channelUtils');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const referenceHandler = require('./referenceHandler');
 const { detectMedia } = require('../utils/media');
 const { MARKERS } = require('../constants');
 const { recordConversation, isAutoResponseEnabled } = require('../conversationManager');
+const requestTracker = require('../utils/requestTracker');
+const personalityAuth = require('../utils/personalityAuth');
+const threadHandler = require('../utils/threadHandler');
 
-// Import activeRequests map and trackRequest function from bot.js
-// These are used to prevent duplicate requests
-const activeRequests = new Map();
-
-/**
- * Track a request to prevent duplicates
- * @param {string} userId - User ID
- * @param {string} channelId - Channel ID
- * @param {string} personalityName - Personality name
- * @returns {string|null} Request key if successful, null if duplicate
- */
-function trackRequest(userId, channelId, personalityName) {
-  const requestKey = `${userId}-${channelId}-${personalityName}`;
-
-  // Check if this request is already in progress
-  if (activeRequests.has(requestKey)) {
-    logger.info(`[PersonalityHandler] Ignoring duplicate request: ${requestKey}`);
-    return null;
-  }
-
-  // Track this request
-  activeRequests.set(requestKey, Date.now());
-  return requestKey;
-}
 
 /**
  * Start typing indicator for a channel
@@ -114,129 +92,32 @@ async function handlePersonalityInteraction(
   let typingInterval;
 
   try {
-    // SAFETY CHECK: Only allow personalities to operate in DMs or NSFW channels
-    const isDM = message.channel.isDMBased();
-    const isNSFW = channelUtils.isChannelNSFW(message.channel);
-
-    if (!isDM && !isNSFW) {
-      // Not a DM and not marked as NSFW - inform the user and exit
-      await message
-        .reply({
-          content:
-            '⚠️ For safety and compliance reasons, personalities can only be used in Direct Messages or channels marked as NSFW. Please either chat with me in DMs or ask a server admin to mark this channel as NSFW in the channel settings.',
-          ephemeral: true, // Make the message only visible to the user when possible
-        })
-        .catch(error => {
-          logger.error(
-            `[PersonalityHandler] Failed to send NSFW restriction notice: ${error.message}`
-          );
-        });
+    // Perform complete authentication check
+    const authResult = await personalityAuth.checkPersonalityAuth(message);
+    
+    if (!authResult.isAllowed) {
+      // Authentication failed - send error message and exit
+      await personalityAuth.sendAuthError(
+        message,
+        authResult.errorMessage,
+        authResult.reason
+      );
       return; // Exit without processing the personality interaction
     }
+    
+    // Extract authentication results
+    const { isProxySystem, isDM } = authResult;
 
     // Flag to indicate if this message is a reply to a DM message with a personality prefix
     // This will help prevent duplicate personality prefixes in responses
     const isReplyToDMFormattedMessage =
       isDM && message.reference && triggeringMention === null ? true : false;
 
-    const auth = require('../auth');
-    
-    // Check if this is a proxy system message (like PluralKit)
-    let authUserId = message.author.id;
-    let _authUsername = message.author.username;
-    let _isProxySystem = false;
-    
-    if (webhookUserTracker.isProxySystemWebhook(message)) {
-      _isProxySystem = true;
-      // For PluralKit messages, we need to check the real user's authentication
-      const proxyAuth = webhookUserTracker.checkProxySystemAuthentication(message);
-      
-      if (!proxyAuth.isAuthenticated) {
-        logger.info(
-          `[PersonalityHandler] PluralKit user attempted to use personalities without authentication`
-        );
-        await message
-          .reply(
-            '⚠️ **Authentication Required for PluralKit Users**\n\n' +
-              'To use AI personalities through PluralKit, the original Discord user must authenticate first.\n\n' +
-              'Please send `!tz auth start` directly (not through PluralKit) to begin setting up your account.'
-          )
-          .catch(error => {
-            logger.error(`[PersonalityHandler] Failed to send PluralKit auth notice: ${error.message}`);
-          });
-        return; // Exit without processing the personality interaction
-      }
-      
-      // Use the real user ID for further checks
-      authUserId = proxyAuth.userId;
-      _authUsername = proxyAuth.username || _authUsername;
-      logger.info(`[PersonalityHandler] PluralKit message authenticated for user ${authUserId}`);
-    } else {
-      // Regular non-proxy message - check authentication normally
-      if (!auth.hasValidToken(message.author.id)) {
-        logger.info(
-          `[PersonalityHandler] User ${message.author.id} attempted to use personalities without authentication in ${isDM ? 'DM' : 'server channel'}`
-        );
-        await message
-          .reply(
-            '⚠️ **Authentication Required**\n\n' +
-              'To use AI personalities, you need to authenticate first.\n\n' +
-              'Please run `!tz auth start` to begin setting up your account.'
-          )
-          .catch(error => {
-            logger.error(`[PersonalityHandler] Failed to send authentication notice: ${error.message}`);
-          });
-        return; // Exit without processing the personality interaction
-      }
-    }
-
-    // Then check age verification for ALL personality interactions (both DM and server channels)
-    // For proxy systems, check the real user's verification status
-    let isVerified = auth.isNsfwVerified(authUserId);
-
-    // NEW: Automatically verify users who send messages in NSFW channels
-    if (!isVerified && isNSFW && !isDM) {
-      // User is in an NSFW channel but not verified - verify them automatically
-      logger.info(
-        `[PersonalityHandler] Auto-verifying user ${authUserId} in NSFW channel ${message.channel.id}`
-      );
-      
-      const verificationSuccess = await auth.storeNsfwVerification(authUserId, true);
-      if (verificationSuccess) {
-        logger.info(
-          `[PersonalityHandler] Successfully auto-verified user ${authUserId} in NSFW channel`
-        );
-        isVerified = true; // Update the verification status
-      } else {
-        logger.error(
-          `[PersonalityHandler] Failed to auto-verify user ${authUserId} in NSFW channel`
-        );
-      }
-    }
-
-    if (!isVerified) {
-      // User is not verified, prompt them to verify first
-      logger.info(
-        `[PersonalityHandler] User ${authUserId} attempted to use personalities without verification in ${isDM ? 'DM' : 'server channel'}`
-      );
-      await message
-        .reply(
-          '⚠️ **Age Verification Required**\n\n' +
-            'To use AI personalities, you need to verify your age first.\n\n' +
-            'Please run `!tz verify` in a channel marked as NSFW. ' +
-            "This will verify that you meet Discord's age requirements for accessing NSFW content."
-        )
-        .catch(error => {
-          logger.error(`[PersonalityHandler] Failed to send verification notice: ${error.message}`);
-        });
-      return; // Exit without processing the personality interaction
-    }
-
     // Track the request to prevent duplicates
     // For PluralKit messages, use the real user ID instead of the webhook author ID
     const trackerRealUserId = webhookUserTracker.getRealUserId(message);
     
-    const requestKey = trackRequest(trackerRealUserId || message.author.id, message.channel.id, personality.fullName);
+    const requestKey = requestTracker.trackRequest(trackerRealUserId || message.author.id, message.channel.id, personality.fullName);
     if (!requestKey) {
       return; // Don't process duplicate requests
     }
@@ -608,7 +489,7 @@ async function handlePersonalityInteraction(
     
     // For PluralKit or webhook messages, just use the display name to avoid redundancy
     // PluralKit names often include system tags like "Name | System"
-    const isWebhookMessage = !!(message.webhookId && webhookUserTracker.isProxySystemWebhook(message));
+    const isWebhookMessage = isProxySystem;
     const formattedUserName = isWebhookMessage 
       ? userDisplayName // Just use display name for PluralKit
       : `${userDisplayName} (${userUsername})`; // Include username for regular users
@@ -752,167 +633,35 @@ async function handlePersonalityInteraction(
     // Pass the original message to ensure we use the correct user's auth token
     // This ensures user authentication is preserved when replying to webhook messages
 
-    // Prepare options with thread information if needed
-    const isThread = message.channel.isThread();
-
-    // Add detailed logging about channel properties to diagnose thread issues
-    logger.info(
-      `[PersonalityHandler] Channel type: ${message.channel.type}, ID: ${message.channel.id}`
-    );
-    logger.info(`[PersonalityHandler] isThread check returns: ${isThread}`);
-    logger.info(
-      `[PersonalityHandler] Channel properties: ${JSON.stringify({
-        isThread: isThread,
-        type: message.channel.type,
-        name: message.channel.name,
-        parentId: message.channel.parentId,
-        hasParent: !!message.channel.parent,
-        isTextBased: message.channel.isTextBased(),
-        isVoiceBased: message.channel.isVoiceBased?.(),
-        isDMBased: message.channel.isDMBased?.(),
-      })}`
+    // Detect thread and prepare webhook options
+    const threadInfo = threadHandler.detectThread(message.channel);
+    
+    // Log thread info for debugging
+    if (threadInfo.isThread) {
+      const info = threadHandler.getThreadInfo(message.channel);
+      logger.info(`[PersonalityHandler] Thread info: ${JSON.stringify(info)}`);
+    }
+    
+    // Build webhook options with thread support
+    const webhookOptions = threadHandler.buildThreadWebhookOptions(
+      message.channel,
+      trackerRealUserId || message.author?.id,
+      threadInfo,
+      isReplyToDMFormattedMessage
     );
 
-    // Log detailed thread information for debugging
-    if (isThread) {
-      logger.info(
-        `[PersonalityHandler] @Mention in Thread detected! Thread ID: ${message.channel.id}`
-      );
-      if (message.channel.parent) {
-        logger.info(
-          `[PersonalityHandler] Parent channel ID: ${message.channel.parent.id}, Name: ${message.channel.parent.name}`
-        );
-        logger.info(`[PersonalityHandler] Parent channel type: ${message.channel.parent.type}`);
-      } else {
-        logger.warn(`[PersonalityHandler] Thread parent unavailable - this might cause issues!`);
-      }
-    }
-
-    // Force thread detection for certain channel types
-    let forcedThread = false;
-    if (
-      message.channel.type === 'GUILD_PUBLIC_THREAD' ||
-      message.channel.type === 'GUILD_PRIVATE_THREAD' ||
-      message.channel.type === 'PUBLIC_THREAD' ||
-      message.channel.type === 'PRIVATE_THREAD' ||
-      message.channel.type === 'FORUM'
-    ) {
-      logger.info(
-        `[PersonalityHandler] Forcing thread mode for channel type: ${message.channel.type}`
-      );
-      forcedThread = true;
-    }
-
-    // Combine native thread detection with forced detection
-    const finalIsThread = isThread || forcedThread;
-
-    const webhookOptions = {
-      // Include user ID in options for enhanced tracking
-      // For PluralKit messages, use the real user ID instead of the webhook author ID
-      userId: trackerRealUserId || message.author?.id,
-      // If the message is in a thread, explicitly pass the threadId to ensure
-      // webhooks respond in the correct thread context
-      threadId: finalIsThread ? message.channel.id : undefined,
-      // Add channel type information for better handling
-      channelType: message.channel.type,
-      // Add special forum flag
-      isForum:
-        message.channel.type === 'FORUM' ||
-        (message.channel.parent && message.channel.parent.type === 'FORUM'),
-      // Flag to indicate this is a reply to a DM message with personality prefix already included
-      isReplyToDMFormattedMessage: isReplyToDMFormattedMessage,
-    };
-
-    // Extra validation for thread handling
-    if (finalIsThread && !webhookOptions.threadId) {
-      logger.error(
-        `[PersonalityHandler] Error: Thread detected but threadId is not set in webhookOptions`
-      );
-      // Force set the threadId from the channel
-      webhookOptions.threadId = message.channel.id;
-    }
-
-    // Log if the thread detection was forced
-    if (forcedThread && !isThread) {
-      logger.info(
-        `[PersonalityHandler] Thread detection was forced based on channel type, native isThread() returned false`
-      );
-    }
-
-    // Extra logging to ensure webhook options are correct
-    logger.info(`[PersonalityHandler] Final webhook options: ${JSON.stringify(webhookOptions)}`);
-
-    // For forum channel threads, add special handling
-    if (webhookOptions.isForum) {
-      logger.info(`[PersonalityHandler] Forum channel detected - adding special forum handling`);
-      webhookOptions.forum = true;
-      webhookOptions.forumThreadId = message.channel.id;
-    }
-
+    // Send the response using appropriate method
     let result;
-
-    // For threads, try our direct thread implementation first as it's the most reliable approach
-    if (finalIsThread) {
-      logger.info(
-        `[PersonalityHandler] Thread message detected - using priority sendDirectThreadMessage implementation`
+    if (threadInfo.isThread) {
+      // Use thread-specific handling with fallback strategies
+      result = await threadHandler.sendThreadMessage(
+        webhookManager,
+        message.channel,
+        aiResponse,
+        personality,
+        webhookOptions,
+        message
       );
-
-      try {
-        // First, try our specialized direct thread message function
-        result = await webhookManager.sendDirectThreadMessage(
-          message.channel,
-          aiResponse,
-          personality,
-          webhookOptions
-        );
-
-        logger.info(
-          `[PersonalityHandler] Direct thread message sent successfully with ID: ${result.messageIds?.[0] || 'unknown'}`
-        );
-      } catch (threadError) {
-        logger.error(
-          `[PersonalityHandler] Direct thread message approach failed: ${threadError.message}`
-        );
-        logger.info(`[PersonalityHandler] Falling back to standard webhook approach for thread`);
-
-        // Fallback to regular webhook approach
-        try {
-          result = await webhookManager.sendWebhookMessage(
-            message.channel,
-            aiResponse,
-            personality,
-            webhookOptions,
-            message // Pass the original message for user authentication
-          );
-        } catch (webhookError) {
-          logger.error(
-            `[PersonalityHandler] Both thread delivery approaches failed! Error: ${webhookError.message}`
-          );
-
-          // Final fallback - use the channel's send method directly
-          try {
-            logger.info(`[PersonalityHandler] Attempting last resort direct channel.send`);
-            const formattedContent = `**${personality.displayName || personality.fullName}:** ${aiResponse}`;
-            const directMessage = await message.channel.send(formattedContent);
-
-            // Create a result object mimicking webhook result
-            result = {
-              message: directMessage,
-              messageIds: [directMessage.id],
-              isEmergencyFallback: true,
-            };
-
-            logger.info(
-              `[PersonalityHandler] Emergency direct send succeeded: ${directMessage.id}`
-            );
-          } catch (finalError) {
-            logger.error(
-              `[PersonalityHandler] ALL message delivery methods failed: ${finalError.message}`
-            );
-            throw finalError; // Re-throw the error if all approaches fail
-          }
-        }
-      }
     } else {
       // For non-thread channels, use the standard webhook approach
       result = await webhookManager.sendWebhookMessage(
@@ -925,7 +674,7 @@ async function handlePersonalityInteraction(
     }
 
     // Clean up active request tracking
-    activeRequests.delete(requestKey);
+    requestTracker.removeRequest(requestKey);
 
     // Record this conversation with all message IDs
     // For PluralKit messages, get the real user ID instead of the webhook author ID
@@ -994,8 +743,6 @@ async function handlePersonalityInteraction(
 
 module.exports = {
   handlePersonalityInteraction,
-  trackRequest,
   startTypingIndicator,
   recordConversationData,
-  activeRequests,
 };
