@@ -22,6 +22,9 @@ describe('personalityManager', () => {
     jest.clearAllMocks();
     
     // Reset the personality data between tests
+    if (personalityManager.personalityData && personalityManager.personalityData.clear) {
+      personalityManager.personalityData.clear();
+    }
     if (personalityManager.personalityAliases) {
       personalityManager.personalityAliases.clear();
     }
@@ -58,16 +61,16 @@ describe('personalityManager', () => {
       expect(result.fullName).toBe('test-personality');
       expect(result.displayName).toBe('Test Display');
       expect(result.avatarUrl).toBe('https://example.com/avatar.png');
-      expect(result.createdBy).toBe('test-user');
+      expect(result.addedBy).toBe('test-user');
 
       // Verify that saveAllPersonalities was called
       expect(dataStorage.saveData).toHaveBeenCalled();
 
-      // Verify that no self-referential alias was set
-      // This is a critical test for our fix
+      // Verify that the display name was set as an alias (since it's different from full name)
       const aliasMap = personalityManager.personalityAliases;
-      expect(aliasMap.size).toBe(0);
-      expect(aliasMap.has('test-personality')).toBe(false);
+      expect(aliasMap.size).toBe(1);
+      expect(aliasMap.has('test display')).toBe(true);
+      expect(aliasMap.get('test display')).toBe('test-personality');
     });
 
     it('should handle errors when fetching profile info', async () => {
@@ -84,8 +87,8 @@ describe('personalityManager', () => {
       expect(result).toBeDefined();
       expect(result.fullName).toBe('test-personality');
       expect(result.displayName).toBe('test-personality'); // Fallback to fullName
-      expect(result.avatarUrl).toBeNull();
-      expect(result.createdBy).toBe('test-user');
+      expect(result.avatarUrl).toBeUndefined();
+      expect(result.addedBy).toBe('test-user');
 
       // Verify that saveAllPersonalities was still called
       expect(dataStorage.saveData).toHaveBeenCalled();
@@ -119,10 +122,10 @@ describe('personalityManager', () => {
       // Call the function
       const result = await personalityManager.setPersonalityAlias('test-alias', 'test-personality');
 
-      // Verify the result
-      expect(result.success).toBe(true);
+      // Verify the result (facade returns boolean)
+      expect(result).toBe(true);
       
-      // Verify the alias was set
+      // Verify the alias was set (stored in lowercase)
       expect(personalityManager.personalityAliases.get('test-alias')).toBe('test-personality');
       
       // Our current implementation always calls saveAllPersonalities internally
@@ -188,29 +191,22 @@ describe('personalityManager', () => {
     });
 
     it('should allow the bot owner to remove any personality', async () => {
-      // Mock the USER_CONFIG to set a test owner ID
-      jest.doMock('../../src/constants', () => ({
-        USER_CONFIG: {
-          OWNER_ID: 'bot-owner-id'
-        }
-      }));
-      
-      // Re-require the module to get the updated mock
-      delete require.cache[require.resolve('../../src/personalityManager')];
-      const personalityManagerWithOwner = require('../../src/personalityManager');
-      
-      // Re-initialize with existing data
-      await personalityManagerWithOwner.initPersonalityManager(false, { skipBackgroundSeeding: true });
+      // Set BOT_OWNER_ID environment variable
+      const originalBotOwnerId = process.env.BOT_OWNER_ID;
+      process.env.BOT_OWNER_ID = 'bot-owner-id';
       
       // Bot owner should be able to remove any personality
-      const result = await personalityManagerWithOwner.removePersonality('bot-owner-id', 'user-personality');
+      const result = await personalityManager.removePersonality('bot-owner-id', 'user-personality');
       
       expect(result).toBe(true);
-      expect(personalityManagerWithOwner.getPersonality('user-personality')).toBeNull();
+      expect(personalityManager.getPersonality('user-personality')).toBeNull();
       
-      // Clean up the mock
-      jest.dontMock('../../src/constants');
-      delete require.cache[require.resolve('../../src/personalityManager')];
+      // Restore original environment
+      if (originalBotOwnerId !== undefined) {
+        process.env.BOT_OWNER_ID = originalBotOwnerId;
+      } else {
+        delete process.env.BOT_OWNER_ID;
+      }
     });
 
     it('should return false when trying to remove non-existent personality', async () => {
@@ -222,6 +218,10 @@ describe('personalityManager', () => {
 
   describe('getPersonalityByAlias', () => {
     beforeEach(async () => {
+      // Reset mocks to return expected values
+      profileInfoFetcher.getProfileDisplayName.mockResolvedValue('Test Display');
+      profileInfoFetcher.getProfileAvatarUrl.mockResolvedValue('https://example.com/avatar.png');
+      
       // Register a test personality
       await personalityManager.registerPersonality('test-user', 'test-personality', {
         description: 'Test description',

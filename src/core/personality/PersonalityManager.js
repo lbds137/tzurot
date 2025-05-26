@@ -1,0 +1,418 @@
+const PersonalityRegistry = require('./PersonalityRegistry');
+const PersonalityPersistence = require('./PersonalityPersistence');
+const PersonalityValidator = require('./PersonalityValidator');
+const { getProfileAvatarUrl, getProfileDisplayName } = require('../../profileInfoFetcher');
+const logger = require('../../logger');
+
+/**
+ * PersonalityManager - Main facade for personality management
+ * 
+ * This class coordinates between the registry, persistence, and validation
+ * components to provide a unified interface for personality operations.
+ */
+class PersonalityManager {
+  constructor() {
+    this.registry = new PersonalityRegistry();
+    this.persistence = new PersonalityPersistence();
+    this.validator = new PersonalityValidator();
+    this.initialized = false;
+  }
+
+  /**
+   * Initialize the personality manager
+   * @param {boolean} [deferOwnerPersonalities=true] - Whether to defer loading owner personalities
+   * @param {Object} [options={}] - Configuration options
+   * @returns {Promise<void>}
+   */
+  async initialize(deferOwnerPersonalities = true, options = {}) {
+    try {
+      logger.info('[PersonalityManager] Initializing...');
+
+      // Load data from persistence
+      const { personalities, aliases } = await this.persistence.load();
+      
+      // Load into registry
+      this.registry.loadFromObjects(personalities, aliases);
+
+      // Extract options with defaults
+      const {
+        skipBackgroundSeeding = false,
+        seedingDelay = 500,
+        scheduler = setTimeout
+      } = options;
+
+      // Handle owner personality seeding
+      if (deferOwnerPersonalities && !skipBackgroundSeeding) {
+        logger.info('[PersonalityManager] Deferring owner personality seeding to background');
+        scheduler(async () => {
+          try {
+            await this.seedOwnerPersonalities();
+            logger.info('[PersonalityManager] Background seeding completed');
+          } catch (err) {
+            logger.error(`[PersonalityManager] Background seeding error: ${err.message}`);
+          }
+        }, seedingDelay);
+      } else if (!deferOwnerPersonalities) {
+        logger.info('[PersonalityManager] Loading owner personalities synchronously');
+        await this.seedOwnerPersonalities();
+      } else {
+        logger.info('[PersonalityManager] Skipping owner personality seeding');
+      }
+
+      this.initialized = true;
+      logger.info('[PersonalityManager] Initialization complete');
+    } catch (error) {
+      logger.error(`[PersonalityManager] Initialization error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a new personality
+   * @param {string} fullName - The full name of the personality
+   * @param {string} addedBy - The ID of the user adding the personality
+   * @param {Object} [additionalData={}] - Additional personality data
+   * @returns {Promise<{success: boolean, error?: string}>} Registration result
+   */
+  async registerPersonality(fullName, addedBy, additionalData = {}) {
+    try {
+      // Validate user ID
+      const userValidation = this.validator.validateUserId(addedBy);
+      if (!userValidation.isValid) {
+        return { success: false, error: userValidation.error };
+      }
+
+      // Create personality data
+      const personalityData = {
+        fullName,
+        addedBy,
+        addedAt: new Date().toISOString(),
+        ...additionalData
+      };
+
+      // Validate registration
+      const validation = this.validator.validateRegistration(
+        fullName, 
+        personalityData, 
+        this.registry.personalities
+      );
+      if (!validation.isValid) {
+        return { success: false, error: validation.error };
+      }
+
+      // Sanitize data
+      const sanitized = this.validator.sanitizePersonalityData(personalityData);
+
+      // Fetch profile info if requested (default true unless fetchInfo is explicitly false)
+      if (additionalData.fetchInfo !== false) {
+        try {
+          const [avatarUrl, displayName] = await Promise.all([
+            getProfileAvatarUrl(fullName),
+            getProfileDisplayName(fullName)
+          ]);
+
+          if (avatarUrl) sanitized.avatarUrl = avatarUrl;
+          if (displayName) sanitized.displayName = displayName;
+        } catch (profileError) {
+          logger.warn(`[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`);
+        }
+      }
+
+      // Set default displayName if not set
+      if (!sanitized.displayName) {
+        sanitized.displayName = fullName;
+      }
+
+      // Register in registry
+      const registered = this.registry.register(fullName, sanitized);
+      if (!registered) {
+        return { success: false, error: 'Failed to register personality' };
+      }
+
+      // Set display name as alias if different from full name
+      if (sanitized.displayName && sanitized.displayName !== fullName) {
+        await this._setDisplayNameAlias(sanitized.displayName, fullName);
+      }
+
+      // Save to persistence after all setup is complete
+      await this.save();
+
+      logger.info(`[PersonalityManager] Successfully registered personality: ${fullName}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error registering personality: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get a personality by name
+   * @param {string} name - The personality name
+   * @returns {Object|null} The personality data or null
+   */
+  getPersonality(name) {
+    return this.registry.get(name);
+  }
+
+  /**
+   * Get a personality by alias
+   * @param {string} alias - The alias to look up
+   * @returns {Object|null} The personality data or null
+   */
+  getPersonalityByAlias(alias) {
+    return this.registry.getByAlias(alias);
+  }
+
+  /**
+   * Set an alias for a personality
+   * @param {string} alias - The alias to set
+   * @param {string} fullName - The full name of the personality
+   * @param {boolean} [skipSave=false] - Whether to skip saving to disk
+   * @returns {Promise<{success: boolean, error?: string}>} Result
+   */
+  async setPersonalityAlias(alias, fullName, skipSave = false) {
+    try {
+      // Validate alias
+      const aliasValidation = this.validator.validateAlias(alias);
+      if (!aliasValidation.isValid) {
+        return { success: false, error: aliasValidation.error };
+      }
+
+      // Don't allow self-referential aliases
+      if (alias === fullName) {
+        logger.warn(`[PersonalityManager] Attempted to create self-referential alias: ${alias}`);
+        return { success: false, error: 'Cannot create alias that matches the personality name' };
+      }
+
+      // Set the alias
+      const set = this.registry.setAlias(alias, fullName);
+      if (!set) {
+        return { success: false, error: 'Personality not found' };
+      }
+
+      // Save unless skipped
+      if (!skipSave) {
+        await this.save();
+      }
+
+      return { success: true };
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error setting alias: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Remove a personality
+   * @param {string} fullName - The full name of the personality
+   * @param {string} requestingUserId - The ID of the user requesting removal
+   * @returns {Promise<{success: boolean, error?: string}>} Removal result
+   */
+  async removePersonality(fullName, requestingUserId) {
+    try {
+      // Get the personality
+      const personality = this.registry.get(fullName);
+
+      // Validate removal
+      const validation = this.validator.validateRemoval(fullName, requestingUserId, personality);
+      if (!validation.isValid) {
+        return { success: false, error: validation.error };
+      }
+
+      // Remove from registry
+      const removed = this.registry.remove(fullName);
+      if (!removed) {
+        return { success: false, error: 'Failed to remove personality' };
+      }
+
+      // Save to persistence
+      await this.save();
+
+      logger.info(`[PersonalityManager] Successfully removed personality: ${fullName}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error removing personality: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * List personalities for a user
+   * @param {string} userId - The user ID
+   * @returns {Array<Object>} Array of personalities
+   */
+  listPersonalitiesForUser(userId) {
+    return this.registry.getByUser(userId);
+  }
+
+  /**
+   * Save all data to persistence
+   * @returns {Promise<boolean>} True if saved successfully
+   */
+  async save() {
+    try {
+      const { personalities, aliases } = this.registry.exportToObjects();
+      return await this.persistence.save(personalities, aliases);
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error saving data: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Seed owner personalities
+   * @param {Object} options - Options for seeding
+   * @param {boolean} options.skipDelays - Skip delays between personality additions
+   * @returns {Promise<void>}
+   */
+  async seedOwnerPersonalities(options = {}) {
+    // Get owner ID from environment or constants
+    let ownerId = null;
+    
+    // Check environment variable first (direct, no array)
+    if (process.env.BOT_OWNER_ID) {
+      ownerId = process.env.BOT_OWNER_ID;
+    } else {
+      // Check constants as fallback
+      try {
+        const constants = require('../../constants');
+        if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_ID) {
+          ownerId = constants.USER_CONFIG.OWNER_ID;
+        }
+      } catch (_error) { // eslint-disable-line no-unused-vars
+        // Constants not available
+      }
+    }
+    
+    if (!ownerId) {
+      logger.info('[PersonalityManager] No bot owner ID configured, skipping seeding');
+      return;
+    }
+    const ownerPersonalities = this.listPersonalitiesForUser(ownerId);
+    
+    if (ownerPersonalities.length > 0) {
+      logger.info(`[PersonalityManager] Owner already has ${ownerPersonalities.length} personalities, skipping seeding`);
+      return;
+    }
+
+    logger.info('[PersonalityManager] Starting owner personality seeding...');
+    
+    // Get list of personalities from constants
+    let personalitiesToAdd = [];
+    try {
+      const constants = require('../../constants');
+      if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_PERSONALITIES_LIST) {
+        personalitiesToAdd = constants.USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',').map(p => p.trim());
+      }
+    } catch (_error) { // eslint-disable-line no-unused-vars
+      // If constants not available, use default list
+      personalitiesToAdd = [
+        'assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'
+      ];
+    }
+
+    const addedPersonalities = [];
+    for (const personalityName of personalitiesToAdd) {
+      try {
+        const result = await this.registerPersonality(personalityName, ownerId);
+        if (result.success) {
+          addedPersonalities.push(personalityName);
+          logger.info(`[PersonalityManager] Successfully seeded: ${personalityName}`);
+        }
+        
+        // Add delay to avoid rate limiting (unless skipped)
+        if (!options.skipDelays && personalitiesToAdd.indexOf(personalityName) < personalitiesToAdd.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 8000));
+        }
+      } catch (error) {
+        logger.error(`[PersonalityManager] Error seeding ${personalityName}: ${error.message}`);
+      }
+    }
+
+    logger.info(`[PersonalityManager] Seeding complete. Added ${addedPersonalities.length} personalities`);
+  }
+
+  /**
+   * Get all personalities
+   * @returns {Array<Object>} Array of all personalities
+   */
+  getAllPersonalities() {
+    return this.registry.getAll();
+  }
+
+  /**
+   * Set display name alias with smart collision handling
+   * @private
+   * @param {string} displayName - The display name to set as alias
+   * @param {string} fullName - The full personality name
+   * @returns {Promise<void>}
+   */
+  async _setDisplayNameAlias(displayName, fullName) {
+    const lowerAlias = displayName.toLowerCase();
+    
+    // Check if alias already exists
+    if (this.registry.aliases.has(lowerAlias)) {
+      // Create a smarter alias by using parts of the full personality name
+      const nameParts = fullName.split('-');
+      const aliasParts = displayName.split('-');
+      
+      let alternateAlias = displayName;
+      
+      // If the personality name has more parts than the alias, try adding the next part
+      if (nameParts.length > aliasParts.length) {
+        // Find which part of the name corresponds to the alias
+        let matchIndex = -1;
+        for (let i = 0; i < nameParts.length; i++) {
+          if (nameParts[i].toLowerCase() === aliasParts[0].toLowerCase()) {
+            matchIndex = i;
+            break;
+          }
+        }
+        
+        // If we found a match and there's a next part, use it
+        if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
+          alternateAlias = `${displayName}-${nameParts[matchIndex + 1]}`;
+        }
+      }
+      
+      // If the smart alias is still taken or we couldn't create one, fall back to random
+      if (alternateAlias === displayName || this.registry.aliases.has(alternateAlias.toLowerCase())) {
+        // Generate a random suffix with only lowercase letters
+        const chars = 'abcdefghijklmnopqrstuvwxyz';
+        let randomSuffix = '';
+        for (let i = 0; i < 6; i++) {
+          randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        alternateAlias = `${displayName}-${randomSuffix}`;
+      }
+      
+      // Set the alternate alias
+      this.registry.setAlias(alternateAlias, fullName);
+      logger.info(`[PersonalityManager] Created alternate alias ${alternateAlias} for ${fullName} (${displayName} was taken)`);
+    } else {
+      // Alias is available, use it directly
+      this.registry.setAlias(displayName, fullName);
+    }
+  }
+
+  /**
+   * Get personality aliases map
+   * @returns {Map} The aliases map
+   */
+  get personalityAliases() {
+    return this.registry.aliases;
+  }
+
+  /**
+   * Get the registry size
+   * @returns {number} Number of registered personalities
+   */
+  get size() {
+    return this.registry.size;
+  }
+}
+
+// Create singleton instance
+const personalityManager = new PersonalityManager();
+
+module.exports = personalityManager;

@@ -44,6 +44,9 @@ describe('PersonalityManager Alias Handling', () => {
     
     // Reset any in-memory storage
     const personalityManager = require('../../src/personalityManager');
+    if (personalityManager.personalityData && personalityManager.personalityData.clear) {
+      personalityManager.personalityData.clear();
+    }
     personalityManager.personalityAliases.clear();
   });
   
@@ -55,6 +58,10 @@ describe('PersonalityManager Alias Handling', () => {
   
   // Test that self-referential aliases aren't created anymore
   it('should not set self-referential alias during registerPersonality', async () => {
+    // Mock profile fetcher to return same name as personality (self-referential case)
+    const profileInfoFetcher = require('../../src/profileInfoFetcher');
+    profileInfoFetcher.getProfileDisplayName.mockResolvedValueOnce('test-personality');
+    
     // Spy on setPersonalityAlias to verify it's not called
     const setAliasSpy = jest.spyOn(require('../../src/personalityManager'), 'setPersonalityAlias');
     
@@ -77,6 +84,9 @@ describe('PersonalityManager Alias Handling', () => {
     
     // Restore the spy
     setAliasSpy.mockRestore();
+    
+    // Restore mock to default
+    profileInfoFetcher.getProfileDisplayName.mockResolvedValue('Test Display Name');
   });
   
   // Test the setPersonalityAlias function with skipSave parameter
@@ -315,7 +325,7 @@ describe('PersonalityManager Alias Handling', () => {
   it('should allow a single save operation after setting multiple aliases', async () => {
     // Spy on saveData to verify it's called only once
     const dataStorage = require('../../src/dataStorage');
-    const saveDataSpy = jest.spyOn(dataStorage, 'saveData');
+    const saveDataSpy = jest.spyOn(dataStorage, 'saveData').mockResolvedValue(true);
     
     // Register a personality
     const userId = 'test-user-123';

@@ -147,11 +147,11 @@ describe('personalityManager - Initialization and Persistence', () => {
       const originalLoggerError = logger.error;
       logger.error = jest.fn();
       
-      // Call the initialization function and expect it to throw
-      await expect(personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true })).rejects.toThrow(testError);
+      // Call the initialization function - it should not throw but log the error
+      await personalityManager.initPersonalityManager(true, { skipBackgroundSeeding: true });
       
       // Verify the error was logged
-      expect(logger.error).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error loading data: Test error'));
       
       // Restore logger.error
       logger.error = originalLoggerError;
