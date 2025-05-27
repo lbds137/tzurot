@@ -15,9 +15,10 @@
     "coverage": "jest --coverage && node scripts/update-coverage-summary.js",
     "lint": "eslint src/ --ext .js",
     "lint:fix": "eslint src/ --ext .js --fix",
+    "lint:timers": "node scripts/check-timer-patterns.js",
     "format": "prettier --write \"src/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\"",
-    "quality": "npm run lint && npm run format:check"
+    "quality": "npm run lint && npm run format:check && npm run lint:timers"
   },
   "dependencies": {
     "discord.js": "14.19.3",

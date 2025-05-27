@@ -253,6 +253,188 @@ const TEST_ANTI_PATTERNS = {
       message: 'Shared state between tests. Reset in beforeEach/afterEach.',
       severity: 'info'
     }
+  ],
+
+  // 11. Implementation Testing Anti-patterns (our biggest problem!)
+  implementationTesting: [
+    {
+      pattern: /expect\s*\([^)]*\._[a-zA-Z]+/g,
+      check: () => true,
+      message: 'Testing private method/property (starts with _). Test public API instead.',
+      severity: 'error'
+    },
+    {
+      pattern: /toHaveBeenCalledWith\s*\([^)]*\).*toHaveBeenCalledWith/gs,
+      check: () => true,
+      message: 'Multiple toHaveBeenCalledWith on same spy. Consider testing outcome instead.',
+      severity: 'warning'
+    },
+    {
+      pattern: /expect\s*\([^)]+\.mock\.calls\[/g,
+      check: () => true,
+      message: 'Accessing mock.calls directly. Use toHaveBeenCalledWith() instead.',
+      severity: 'warning'
+    },
+    {
+      pattern: /expect\s*\([^)]+\)\.toHaveBeenCalledTimes\s*\(\s*[4-9]\d*\s*\)/g,
+      check: () => true,
+      message: 'Expecting exact high call count. This is brittle - test outcomes instead.',
+      severity: 'warning'
+    }
+  ],
+
+  // 12. Mock Misuse Anti-patterns
+  mockMisuse: [
+    {
+      pattern: /jest\.mock\s*\(['"`]\.\.\/[^'"]+['"`]\)/g,
+      check: (match, content, fileContent) => {
+        // Check if using __mocks__ directory
+        return !fileContent.includes('__mocks__');
+      },
+      message: 'Mocking relative imports directly. Use __mocks__ directory or factories.',
+      severity: 'warning'
+    },
+    {
+      pattern: /mockImplementation\s*\([^)]*\)[\s\S]*?mockImplementation\s*\(/g,
+      check: () => true,
+      message: 'Multiple mockImplementation calls. Use mockImplementationOnce() for sequences.',
+      severity: 'info'
+    },
+    {
+      pattern: /jest\.fn\(\)\.mockResolvedValue\([^)]+\)\.mockRejectedValue/g,
+      check: () => true,
+      message: 'Conflicting mock setup. Use mockResolvedValueOnce/mockRejectedValueOnce.',
+      severity: 'error'
+    }
+  ],
+
+  // 13. Flaky Test Anti-patterns
+  flakyTests: [
+    {
+      pattern: /expect\s*\([^)]*Date\.now\(\)[^)]*\)/g,
+      check: () => true,
+      message: 'Testing with Date.now(). Use fixed dates or mock Date.',
+      severity: 'error'
+    },
+    {
+      pattern: /expect\s*\([^)]*Math\.random\(\)[^)]*\)/g,
+      check: () => true,
+      message: 'Testing with Math.random(). Use fixed values or mock.',
+      severity: 'error'
+    },
+    {
+      pattern: /\.toBe\s*\(\s*true\s*\).*\.toBe\s*\(\s*false\s*\)/gs,
+      check: () => true,
+      message: 'Conflicting boolean expectations. Test is likely flaky.',
+      severity: 'error'
+    },
+    {
+      pattern: /await\s+.*\n\s*await\s+.*\n\s*await/g,
+      check: () => true,
+      message: 'Multiple sequential awaits. Consider Promise.all() for parallel execution.',
+      severity: 'info'
+    }
+  ],
+
+  // 14. Discord.js Specific Anti-patterns
+  discordPatterns: [
+    {
+      pattern: /new\s+Client\s*\(/g,
+      check: (match, content, fileContent) => {
+        return !fileContent.includes('createMockClient') && 
+               !fileContent.includes('mockClient');
+      },
+      message: 'Creating real Discord Client. Use createMockClient() instead.',
+      severity: 'error'
+    },
+    {
+      pattern: /message\.channel\.send\s*\(/g,
+      check: (match, content, fileContent) => {
+        return !fileContent.includes('.mockResolvedValue') && 
+               !fileContent.includes('.mockImplementation');
+      },
+      message: 'Unmocked channel.send(). This should be mocked.',
+      severity: 'error'
+    },
+    {
+      pattern: /webhook\.send\s*\(/g,
+      check: (match, content, fileContent) => {
+        return !fileContent.includes('mockWebhook');
+      },
+      message: 'Unmocked webhook.send(). Use mock webhooks.',
+      severity: 'error'
+    }
+  ],
+
+  // 15. Test Data Anti-patterns
+  testData: [
+    {
+      pattern: /['"`]personality[0-9]+['"`]/gi,
+      check: () => true,
+      message: 'Generic personality name. Use descriptive names like "TestAssistant".',
+      severity: 'info'
+    },
+    {
+      pattern: /id:\s*['"`]\d{1,3}['"`]/g,
+      check: () => true,
+      message: 'Short numeric ID. Use realistic Discord snowflake IDs.',
+      severity: 'warning'
+    },
+    {
+      pattern: /['"`]test['"`]\s*:\s*['"`]test['"`]/g,
+      check: () => true,
+      message: 'Lazy test data. Use meaningful test values.',
+      severity: 'warning'
+    }
+  ],
+
+  // 16. Assertion Anti-patterns
+  assertions: [
+    {
+      pattern: /expect\s*\(\s*true\s*\)\.toBe\s*\(\s*true\s*\)/g,
+      check: () => true,
+      message: 'Tautological assertion. This test always passes.',
+      severity: 'error'
+    },
+    {
+      pattern: /expect\s*\([^)]+\)\.toBeDefined\(\)[\s\S]{0,20}expect\s*\([^)]+\)\.toBe\(/g,
+      check: () => true,
+      message: 'Redundant toBeDefined() before toBe(). toBe() implies defined.',
+      severity: 'info'
+    },
+    {
+      pattern: /\.toEqual\s*\(\s*expect\.any\s*\(\s*Object\s*\)\s*\)/g,
+      check: () => true,
+      message: 'Testing for any object. Be more specific about expected shape.',
+      severity: 'warning'
+    },
+    {
+      pattern: /expect\s*\(\s*\(\s*\)\s*=>/g,
+      check: () => true,
+      message: 'Testing function directly. Test what the function does instead.',
+      severity: 'warning'
+    }
+  ],
+
+  // 17. Module Import Anti-patterns
+  imports: [
+    {
+      pattern: /require\s*\(\s*['"`]\.\.\/\.\.\/\.\.\/src/g,
+      check: (match, content, fileContent) => {
+        return !fileContent.includes('jest.mock');
+      },
+      message: 'Importing real src modules without mocking. Tests will be slow.',
+      severity: 'error'
+    },
+    {
+      pattern: /import\s+.*\s+from\s+['"`]\.\.\/\.\.\/\.\.\/src.*['"`]/g,
+      check: (match, content, fileContent) => {
+        const modulePath = match.match(/from\s+['"`]([^'"]+)['"`]/)[1];
+        return !fileContent.includes(`jest.mock('${modulePath}')`);
+      },
+      message: 'ES6 import from src without mocking. Use jest.mock().',
+      severity: 'error'
+    }
   ]
 };
 
@@ -286,6 +468,13 @@ function checkFile(filePath) {
 }
 
 function getTestFiles() {
+  // Check if files were provided as command line arguments
+  const args = process.argv.slice(2);
+  if (args.length > 0) {
+    // Filter to only test files
+    return args.filter(file => file && (file.endsWith('.test.js') || file.endsWith('.spec.js')));
+  }
+  
   try {
     // Get staged test files
     const stagedFiles = execSync('git diff --cached --name-only --diff-filter=ACM', { encoding: 'utf8' })

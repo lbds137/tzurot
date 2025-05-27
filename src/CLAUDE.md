@@ -9,6 +9,8 @@ This CLAUDE.md file provides guidance for working with the core source code of T
 3. **Modular Design**: Keep components focused on single responsibilities
 4. **Caching**: Use caching strategically to reduce API calls
 5. **Rate Limiting**: Respect external API limitations
+6. **Injectable Dependencies**: Make timers and external calls testable
+7. **Security First**: Never expose tokens or bypass authentication
 
 ## Component Dependencies
 
@@ -33,40 +35,55 @@ bot.js
 
 ### AI Service (`aiService.js`) - ~1700 lines
 
-IMPORTANT: The AI service handles several critical functions:
-- Uses pendingRequests Map to prevent duplicate API calls
-- Handles multimodal content (text, images, audio)
-- Processes message references properly
-- Manages API communication with proper error handling
+**CRITICAL: The AI service is the heart of personality interactions.**
 
-When modifying this component, maintain clear error handling and API request management.
+Key responsibilities:
+- **Deduplication**: Uses pendingRequests Map to prevent duplicate API calls
+- **Multimodal Support**: Handles text, images, and audio content
+- **Reference Processing**: Properly fetches and includes referenced messages
+- **Error Handling**: Implements retry logic with exponential backoff
+
+⚠️ **Common Pitfalls**:
+- Never bypass the pendingRequests check - it prevents expensive duplicate API calls
+- Always use X-User-Auth header for user-specific requests
+- Maintain the multimodal content extraction logic for embeds
+- Never log or expose user tokens
 
 ### Webhook Manager (`webhookManager.js`) - ~2800 lines ⚠️
 
-**WARNING: This is the largest file in the codebase and exceeds recommended size limits.**
+**WARNING: This is the largest file in the codebase and needs refactoring.**
 
-The webhook manager has complex logic for:
-- Creating and caching webhooks
-- Handling long messages via splitting
-- Supporting fallbacks for DM channels
-- Processing media attachments
-- Managing rate limits and retries
+Critical functionality that must be preserved:
+- **Webhook Caching**: NEVER create webhooks without checking cache first
+- **Message Splitting**: Discord has a 2000 char limit - maintain the splitting logic
+- **DM Fallback**: DMs don't support webhooks - maintain the direct send fallback
+- **Media Handling**: Process attachments for both webhooks and DMs
+- **Rate Limit Handling**: Implement exponential backoff on 429 errors
 
-Any changes must maintain this functionality and error handling. Consider refactoring into smaller modules.
+⚠️ **Injectable Timers Required**:
+```javascript
+// Current pattern that needs to be maintained:
+let delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+```
 
 ### Conversation Manager (`conversationManager.js`) - ~570 lines
 
-Maintains conversation state including:
-- Active personality tracking
-- Message history mapping
-- Auto-respond functionality
+Maintains conversation state - critical for multi-turn interactions:
+- **Message Mapping**: Links Discord message IDs to personality data
+- **Auto-respond**: Tracks which personalities should auto-respond
+- **History Management**: Maintains conversation context
+
+⚠️ **Never clear conversation data without user action**
 
 ### Personality Manager (`personalityManager.js`) - ~690 lines
 
-Handles personality data with:
-- Registration and persistence
-- Alias management
-- Data validation and sanitization
+The personality system core:
+- **Registration**: Validates and stores personality data
+- **Persistence**: Saves to disk - maintain backward compatibility
+- **Alias System**: One personality can have multiple aliases
+- **Owner Validation**: Only owners can modify their personalities
+
+⚠️ **Security Critical**: Always validate ownership before modifications
 
 ## Common Patterns
 
@@ -97,11 +114,107 @@ Handles personality data with:
    });
    ```
 
-## Known Issues
+## Critical Patterns to Follow
 
-Be particularly careful when modifying:
-1. Media handling (image/audio support)
-2. Reference message processing
-3. API authentication
-4. Webhook creation and caching
-5. Message deduplication logic
+### Rate Limiting Pattern
+```javascript
+// Always use the RateLimiter class for external APIs
+const rateLimiter = new RateLimiter({
+  minRequestSpacing: 3000,
+  maxRetries: 5,
+  cooldownPeriod: 60000
+});
+
+await rateLimiter.enqueue(async () => {
+  return await externalAPICall();
+});
+```
+
+### Authentication Pattern
+```javascript
+// Always validate user tokens before personality operations
+const userAuth = await authManager.validateUserAuth(userId, personalityName);
+if (!userAuth.isValid) {
+  throw new Error('Authentication required');
+}
+```
+
+### Media Handling Pattern
+```javascript
+// Always validate media before processing
+if (attachment) {
+  const validated = await mediaHandler.validateMedia(attachment);
+  if (validated.isValid) {
+    const processed = await mediaHandler.processMedia(validated.media);
+  }
+}
+```
+
+### Deduplication Pattern
+```javascript
+// Always check for duplicates before processing
+const messageKey = `${message.id}-${personality.name}`;
+if (processedMessages.has(messageKey)) {
+  logger.info('Duplicate message detected, skipping');
+  return;
+}
+processedMessages.add(messageKey);
+```
+
+## Known Issues and Danger Zones
+
+### 🚨 CRITICAL: Never Modify Without Understanding
+
+1. **Media Reference Chain** (referenceHandler.js)
+   - Complex logic for fetching media from referenced messages
+   - Handles nested references (reply to a reply)
+   - Breaking this breaks media in conversations
+
+2. **Webhook Deduplication** (webhookManager.js)
+   - Multiple layers prevent duplicate webhook messages
+   - Each layer has a specific purpose
+   - Removing any layer causes message spam
+
+3. **Authentication Flow** (auth.js)
+   - Token validation happens at multiple levels
+   - Each check prevents different security issues
+   - Never bypass for "convenience"
+
+4. **Profile Info Caching** (ProfileInfoFetcher.js)
+   - Prevents API rate limits
+   - Has complex invalidation logic
+   - Breaking cache = API bans
+
+5. **Message Splitting Logic** (webhookManager.js)
+   - Handles Discord's 2000 char limit
+   - Preserves code blocks and formatting
+   - Complex edge cases for multiline content
+
+### ⚠️ Performance Critical Sections
+
+1. **Webhook Creation**: Always check cache first
+2. **Message History**: Implement pagination for large channels
+3. **Media Processing**: Validate size limits before processing
+4. **Personality Loading**: Cache in memory after disk read
+
+### 🔒 Security Critical Sections
+
+1. **API Key Handling**: Never log, never expose
+2. **User Tokens**: Always use X-User-Auth header
+3. **Owner Validation**: Check before ANY personality modification
+4. **Input Sanitization**: Clean all user inputs
+5. **URL Validation**: Validate all media URLs
+
+## File Size Warnings
+
+These files exceed recommended limits and need refactoring:
+- `webhookManager.js` (2800+ lines) - Split into webhook, message, and media modules
+- `aiService.js` (1700+ lines) - Extract request handling and formatting
+
+## Testing Considerations
+
+When modifying any component:
+1. **Mock all external calls** - No real API calls in tests
+2. **Use injectable timers** - See timer patterns in root CLAUDE.md
+3. **Test error cases** - Every try/catch needs a test
+4. **Maintain coverage** - Don't reduce test coverage

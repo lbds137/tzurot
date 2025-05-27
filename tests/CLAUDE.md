@@ -2,60 +2,86 @@
 
 This CLAUDE.md file provides guidance for working with and creating tests for Tzurot.
 
-## Testing Framework
+## 🚨 CRITICAL: Test Philosophy
+
+**Always test BEHAVIOR, not IMPLEMENTATION. If you're testing private methods, mock internals, or exact call counts, you're doing it wrong.**
+
+## Testing Framework & Performance
 
 - Jest is used as the testing framework
-- Tests are organized in a directory structure matching the source code
-- Mocks are used extensively to isolate components for testing
+- Tests MUST run in < 30 seconds total (currently ~14s)
+- Individual test files MUST run in < 5 seconds
+- Global mocks are loaded from `tests/setup-global-mocks.js`
+- ALWAYS use fake timers - real delays will fail PR checks
 
 ## Test Organization
 
 - `tests/unit/` - Unit tests for individual components
-- `tests/mocks/` - Custom mocks for Discord.js and other dependencies
-- `tests/__mocks__/` - Jest mocks for npm packages
+- `tests/__mocks__/` - Consolidated mock system (USE THESE!)
+- `tests/mocks/` - Legacy mocks (being phased out)
+- `tests/helpers/` - Test utilities and helpers
+- `tests/setup.js` - Global test setup
+- `tests/setup-global-mocks.js` - Performance-critical global mocks
 
 ## Test File Naming
 
-- Test files should match the source file with a `.test.js` suffix
+- Test files MUST match the source file with a `.test.js` suffix
 - Specialized tests can use descriptive names like `aiService.error.test.js`
+- Keep test files in the same relative path as source files
 
-## Test Structure
+## Proper Test Structure (Copy This!)
 
 ```javascript
-// Require the component to test
-const { functionToTest } = require('../../src/someModule');
-
-// Mock dependencies
+// ALWAYS mock before imports
 jest.mock('../../src/dependency');
+jest.mock('../../src/externalService');
+
+// Import mocks and component
+const { functionToTest } = require('../../src/someModule');
+const dependency = require('../../src/dependency');
 
 describe('Component Name', () => {
-  // Setup before each test
+  // Required setup
   beforeEach(() => {
-    // Reset mocks and state
+    // ALWAYS reset mocks
     jest.clearAllMocks();
+    jest.resetModules();
+    
+    // ALWAYS use fake timers
+    jest.useFakeTimers();
+    
+    // ALWAYS mock console
+    jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
   });
 
-  // Individual test cases
-  it('should perform some specific action', () => {
-    // Arrange - set up test data
-    const testData = { /* ... */ };
-    
-    // Act - call the function
-    const result = functionToTest(testData);
-    
-    // Assert - verify the result
-    expect(result).toBe(expectedValue);
+  afterEach(() => {
+    jest.useRealTimers();
   });
-  
-  // Test error conditions
-  it('should handle errors properly', () => {
-    // Arrange - set up to cause an error
-    const mockFunction = jest.fn().mockRejectedValue(new Error('Test error'));
+
+  describe('specific method or feature', () => {
+    it('should describe the expected BEHAVIOR', async () => {
+      // Arrange - set up test data
+      const input = { id: '123456789012345678', name: 'TestUser' };
+      dependency.someMethod.mockResolvedValue({ success: true });
+      
+      // Act - call the function
+      const result = await functionToTest(input);
+      
+      // Assert - test OUTCOMES not implementation
+      expect(result).toEqual({ status: 'completed' });
+      expect(dependency.someMethod).toHaveBeenCalledWith(
+        expect.objectContaining({ id: input.id })
+      );
+    });
     
-    // Assert that it throws an error
-    expect(async () => {
-      await functionUsingMock();
-    }).rejects.toThrow('Test error');
+    it('should handle errors gracefully', async () => {
+      // Arrange
+      dependency.someMethod.mockRejectedValue(new Error('API Error'));
+      
+      // Act & Assert - test user-visible error
+      await expect(functionToTest({})).rejects.toThrow('Something went wrong');
+    });
   });
 });
 ```
@@ -192,12 +218,132 @@ node --inspect-brk node_modules/.bin/jest --runInBand tests/unit/bot.test.js
 - **Unit Tests**: For testing business logic, utilities, and individual functions
 - **Integration Tests**: For testing command flows, API interactions, and complex workflows
 
+## 🚫 Critical Anti-patterns (Will Fail PR!)
+
+Our automated checks will REJECT your PR if you:
+
+### 1. Use Real Timers
+```javascript
+// ❌ NEVER DO THIS
+await new Promise(resolve => setTimeout(resolve, 1000));
+
+// ✅ DO THIS
+jest.useFakeTimers();
+await act(async () => {
+  jest.advanceTimersByTime(1000);
+});
+```
+
+### 2. Test Implementation Details
+```javascript
+// ❌ NEVER DO THIS
+expect(handler._privateMethod).toHaveBeenCalled();
+expect(mock.mock.calls[0][1]).toBe('internal');
+
+// ✅ DO THIS
+expect(result.visibleOutcome).toBe('expected');
+```
+
+### 3. Import Without Mocking
+```javascript
+// ❌ NEVER DO THIS
+const realModule = require('../../src/heavyModule');
+
+// ✅ DO THIS
+jest.mock('../../src/heavyModule');
+const mockModule = require('../../src/heavyModule');
+```
+
+### 4. Skip or .only Tests
+```javascript
+// ❌ NEVER DO THIS
+it.skip('broken test', () => {});
+it.only('debugging', () => {});
+
+// ✅ FIX THE TEST OR REMOVE IT
+```
+
+## Quality Enforcement
+
+### Pre-commit Checks
+- Timer pattern violations
+- Test anti-patterns
+- ESLint errors
+- Test failures in changed files
+
+### Available Scripts
+```bash
+# Check for test anti-patterns
+node scripts/check-test-antipatterns.js
+
+# Check for timer issues
+node scripts/check-timer-patterns.js
+
+# Analyze test performance
+node scripts/comprehensive-test-timing-analysis.js
+
+# Run quality checks
+npm run quality
+```
+
 ## Coverage Requirements
 
 - Maintain or improve existing test coverage
 - Focus on testing edge cases and error handling
-- Use the jest.spyOn approach for verifying function calls
+- Current target: Tests run in < 30 seconds
 - Aim for:
   - 80%+ coverage for new code
   - 70%+ coverage for critical components
   - 100% coverage for utility functions
+
+## Discord.js Specific Testing
+
+### Always Use Mock Factories
+```javascript
+const { createMockClient, createMockMessage } = require('../__mocks__/discord.js');
+
+const mockMessage = createMockMessage({
+  content: '!tz test',
+  author: { id: '123456789012345678', username: 'TestUser' },
+  channel: { id: '987654321098765432' }
+});
+```
+
+### Mock Webhook Responses
+```javascript
+const mockWebhook = {
+  send: jest.fn().mockResolvedValue({ id: 'message-id' }),
+  edit: jest.fn().mockResolvedValue({}),
+  delete: jest.fn().mockResolvedValue({})
+};
+```
+
+## Performance Tips
+
+1. **Use Global Mocks**: Already loaded in setup-global-mocks.js
+2. **Avoid File I/O**: Mock all fs operations
+3. **Mock Network Calls**: Never make real HTTP requests
+4. **Use Fake Timers**: Real timers slow tests dramatically
+5. **Batch Test Data**: Create reusable test fixtures
+
+## Debugging Slow Tests
+
+```bash
+# Identify slow tests
+node scripts/identify-slow-tests.js
+
+# Check for unmocked imports
+node scripts/comprehensive-test-timing-analysis.js
+```
+
+## Final Checklist
+
+Before submitting your test:
+- [ ] Uses fake timers for ALL delays
+- [ ] Mocks ALL external dependencies
+- [ ] Tests behavior, not implementation
+- [ ] Runs in < 500ms
+- [ ] No .skip() or .only()
+- [ ] Uses realistic test data
+- [ ] Handles both success and error cases
+- [ ] Cleans up in afterEach()

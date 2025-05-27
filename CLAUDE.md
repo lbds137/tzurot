@@ -11,13 +11,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Key Commands](#key-commands)
 - [Architecture](#architecture)
 - [Code Style](#code-style)
+  - [Timer Patterns](#timer-patterns-critical-for-test-performance)
+  - [ESLint Practices](#eslint-practices)
 - [Error Handling Guidelines](#error-handling-guidelines)
 - [Testing Guidelines](#testing-guidelines)
-  - [Core Testing Philosophy: Behavior Over Implementation](#core-testing-philosophy-behavior-over-implementation)
+  - [Core Testing Philosophy](#core-testing-philosophy-behavior-over-implementation)
   - [Key Testing Principles](#key-testing-principles)
+  - [Critical Anti-patterns](#critical-anti-patterns-to-avoid)
+  - [Test Structure Best Practices](#test-structure-best-practices)
   - [Technical Guidelines](#technical-guidelines)
+  - [Performance Guidelines](#performance-guidelines)
 - [Date Handling](#date-handling)
+- [Security Guidelines](#security-guidelines)
+  - [Authentication & Authorization](#authentication--authorization)
+  - [Data Privacy](#data-privacy)
+  - [API Security](#api-security)
 - [Known Issues and Patterns](#known-issues-and-patterns)
+  - [Critical Patterns to Maintain](#critical-patterns-to-maintain)
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
 - [Context Window Management](#context-window-management)
@@ -98,17 +108,24 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `npm run dev` - Start the bot with nodemon for development (auto-restart on file changes)
 - `npm run lint` - Run ESLint to check code quality
 - `npm run lint:fix` - Fix ESLint issues automatically
+- `npm run lint:timers` - Check for problematic timer patterns
 - `npm run format` - Run Prettier to format code
-- `npm run quality` - Run both lint and format checks
+- `npm run quality` - Run lint, format, and timer checks
 - `npm test` - Run all tests
 - `npm run test:watch` - Run tests in watch mode (useful during development)
 - Run a specific test: `npx jest tests/unit/path/to/test.js`
 
+### Quality Enforcement Scripts
+- `node scripts/check-timer-patterns.js` - Check for non-injectable timers
+- `node scripts/check-test-antipatterns.js` - Check for test quality issues
+- `node scripts/comprehensive-test-timing-analysis.js` - Analyze test performance
+
 ### IMPORTANT: After making code changes
-- Always run `npm run lint` to check code quality
+- Always run `npm run quality` to check code quality, formatting, and timer patterns
 - Always run `npm test` to verify that your changes don't break existing functionality
 - For test-driven development, use `npm run test:watch`
 - When running the full test suite with `npm test`, update the `docs/testing/TEST_COVERAGE_SUMMARY.md` file with the latest coverage information
+- Pre-commit hooks will automatically run quality checks on staged files
 
 ## Architecture
 
@@ -178,6 +195,38 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
   - Break large files into smaller, more modular components
   - Large files make code harder to understand and also exceed token limits (25k max)
 
+### Timer Patterns (Critical for Test Performance)
+
+**IMPORTANT**: Non-injectable timers are the #1 cause of slow tests. Always follow these patterns:
+
+#### ❌ Don't: Inline Timer Delays
+```javascript
+// BAD - Blocks fake timer testing
+async function retryOperation() {
+  await new Promise(resolve => setTimeout(resolve, 5000));
+}
+```
+
+#### ✅ Do: Make Delays Injectable
+```javascript
+// GOOD - Testable design
+class MyService {
+  constructor(options = {}) {
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+  }
+  
+  async retryOperation() {
+    await this.delay(5000); // Now testable!
+  }
+}
+```
+
+#### Enforcement Tools
+- Run `npm run lint:timers` before committing (included in `npm run quality`)
+- Pre-commit hook automatically checks for timer violations
+- See `.eslintrc.timer-patterns.js` for ESLint rules
+- Fix existing violations with patterns from this section
+
 ### ESLint Practices
 
 - Run `npm run lint` regularly to check code quality
@@ -209,8 +258,6 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 
 **CRITICAL: Always test behavior, not implementation details. Focus on WHAT the code does, not HOW it does it.**
 
-See the full guide: [Behavior-Based Testing Guide](docs/testing/BEHAVIOR_BASED_TESTING.md)
-
 #### Quick Examples
 
 **❌ Bad (Testing Implementation):**
@@ -219,6 +266,7 @@ See the full guide: [Behavior-Based Testing Guide](docs/testing/BEHAVIOR_BASED_T
 expect(handler._parsePersonalityName).toHaveBeenCalled();
 expect(tracker._cleanupInterval).toBeDefined();
 jest.advanceTimersByTime(600000); // Testing exact timer values
+expect(mock.mock.calls[0][1]).toBe('internal'); // Inspecting mock internals
 ```
 
 **✅ Good (Testing Behavior):**
@@ -227,6 +275,7 @@ jest.advanceTimersByTime(600000); // Testing exact timer values
 expect(message.channel.messages.fetch).toHaveBeenCalledWith({ limit: 10 });
 expect(tracker.processedMessages.size).toBe(0); // After cleanup
 expect(result).toContain('Error occurred'); // User-visible outcome
+expect(mockFunction).toHaveBeenCalledWith(expect.objectContaining({ id: '123' }));
 ```
 
 ### Key Testing Principles
@@ -237,6 +286,101 @@ expect(result).toContain('Error occurred'); // User-visible outcome
 4. **Test Error Effects** - Not error internals
 5. **Keep Tests Simple** - Complex tests indicate implementation testing
 
+### Critical Anti-patterns to Avoid
+
+Our automated test anti-pattern checker (`npm run test:antipatterns`) catches these issues:
+
+#### 1. **Timing Issues** (Most Common Problem!)
+```javascript
+// ❌ BAD - Real delays in tests
+await new Promise(resolve => setTimeout(resolve, 5000));
+
+// ✅ GOOD - Use fake timers
+jest.useFakeTimers();
+jest.advanceTimersByTime(5000);
+```
+
+#### 2. **Implementation Testing**
+```javascript
+// ❌ BAD - Testing private methods/internals
+expect(obj._privateMethod).toHaveBeenCalled();
+expect(spy).toHaveBeenCalledTimes(7); // Brittle!
+
+// ✅ GOOD - Test outcomes
+expect(result.status).toBe('completed');
+```
+
+#### 3. **Unmocked Dependencies**
+```javascript
+// ❌ BAD - Importing real modules
+const realModule = require('../../../src/heavyModule');
+
+// ✅ GOOD - Mock all src imports
+jest.mock('../../../src/heavyModule');
+```
+
+#### 4. **Flaky Tests**
+```javascript
+// ❌ BAD - Non-deterministic
+expect(Date.now()).toBeGreaterThan(before);
+
+// ✅ GOOD - Mock non-deterministic values
+jest.spyOn(Date, 'now').mockReturnValue(1234567890);
+```
+
+### Test Structure Best Practices
+
+```javascript
+describe('ComponentName', () => {
+  // Mock setup
+  let mockDependency;
+  
+  beforeEach(() => {
+    // Reset mocks and state
+    jest.clearAllMocks();
+    jest.resetModules();
+    
+    // Mock timers by default
+    jest.useFakeTimers();
+    
+    // Mock console to keep output clean
+    jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
+    
+    // Initialize mocks
+    mockDependency = createMockDependency();
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+  
+  describe('methodName', () => {
+    it('should handle success case', async () => {
+      // Arrange
+      const input = createTestInput();
+      
+      // Act
+      const result = await component.method(input);
+      
+      // Assert - test outcomes, not implementation
+      expect(result).toEqual(expectedOutput);
+      expect(mockDependency.visibleMethod).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'value' })
+      );
+    });
+    
+    it('should handle error case', async () => {
+      // Arrange
+      mockDependency.method.mockRejectedValue(new Error('Test error'));
+      
+      // Act & Assert
+      await expect(component.method(input)).rejects.toThrow('User-friendly error');
+    });
+  });
+});
+```
+
 ### Technical Guidelines
 
 - Jest is used as the testing framework
@@ -244,30 +388,21 @@ expect(result).toContain('Error occurred'); // User-visible outcome
 - Use Jest's mocking system to replace external dependencies
 - Use `beforeEach` to reset state between tests
 - Mock console methods to keep test output clean
-- Use the existing mock implementations in `tests/mocks/`
+- Use the existing mock implementations in `tests/__mocks__/`
+- Global mocks are loaded from `tests/setup-global-mocks.js`
 - NEVER alter real functionality solely to make a test pass
-  - Never create special code paths that are only used in testing
-  - This defeats the purpose of testing since you're not testing what runs in production
-  - Use proper mocking and dependency injection instead
-  - If tests are hard to write, it's often a sign the code needs refactoring
 - NEVER skip tests as a solution to fixing failures
-  - Tests exist to validate functionality, skipping them bypasses this validation
-  - Always fix the underlying issue causing the test to fail
-  - If a test case is no longer valid, update it to match current expected behavior
-  - Maintain the same level of test coverage when updating tests
-- **NEVER add environment checks in implementation files for testing purposes**
-  - Avoid `if (process.env.NODE_ENV !== 'test')` checks in production code
-  - These checks pollute the codebase with test-specific logic
-  - Use proper mocking in Jest setup files instead (e.g., `tests/setup.js`)
-  - Handle test environment differences through mocking, not conditional code
-- If you run the full test suite (`npm test`), update `/home/deck/WebstormProjects/tzurot/docs/testing/TEST_COVERAGE_SUMMARY.md`
-  - Do not update the summary when running partial tests
-  - The summary should always reflect the result of a complete test run
-  - **IMPORTANT**: When updating TEST_COVERAGE_SUMMARY.md, you MUST update BOTH:
-    1. The detailed coverage table in the "Overall Coverage" section (the full Jest output table)
-    2. The summary statistics in the "Test Results Summary" section
-  - Both sections must match - the summary percentages should be taken from the "All files" row in the coverage table
-  - Never update just one section without updating the other
+- NEVER add environment checks in implementation files for testing
+- Run `npm run test:antipatterns` to check for common issues
+- If you run the full test suite (`npm test`), update `docs/testing/TEST_COVERAGE_SUMMARY.md`
+
+### Performance Guidelines
+
+- Tests should run in < 30 seconds total
+- Individual test files should run in < 5 seconds
+- Use fake timers for all time-based operations
+- Mock all file system and network operations
+- Use the consolidated mock system in `tests/__mocks__/`
 
 ## Date Handling
 
@@ -281,22 +416,62 @@ expect(result).toContain('Error occurred'); // User-visible outcome
     - Any timestamped content
   - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
 
+## Security Guidelines
+
+### Authentication & Authorization
+- **Never log or expose API keys/tokens** in any form
+- Always validate user permissions before executing commands
+- Use environment variables for all sensitive configuration
+- Implement rate limiting on all external API calls
+- Validate and sanitize all user inputs
+
+### Data Privacy
+- Never store or log real user data in tests
+- Use generic test data (test@example.com, @TestUser)
+- Respect Discord's privacy guidelines
+- Implement proper data retention policies
+
+### API Security
+- Always use the X-User-Auth header for user-specific requests
+- Implement exponential backoff for failed requests
+- Monitor for rate limit violations
+- Never bypass authentication checks
+
 ## Known Issues and Patterns
 
-### Error Prevention
+### Critical Patterns to Maintain
+
+#### Error Prevention
 - Multiple layers of error handling are implemented
 - Message deduplication occurs at several levels
 - Always maintain these safety mechanisms
+- Never remove error boundaries without understanding their purpose
 
-### Caching System
-- Webhook caching reduces Discord API calls
-- Profile info caching reduces AI API calls 
+#### Caching System
+- Webhook caching reduces Discord API calls (critical for rate limits)
+- Profile info caching reduces AI API calls (expensive operations)
 - Message tracking prevents duplicate processing
+- Cache invalidation is handled automatically - don't bypass
 
-### Media Handling
+#### Media Handling
 - System supports audio and image attachments
 - References to media (like replies) require special handling
 - DM channels require different media handling than guild channels
+- Always validate media URLs before processing
+- Implement size limits for media processing
+
+#### Message Deduplication
+- Multiple systems prevent duplicate messages:
+  1. Request-level deduplication in aiService.js
+  2. Message tracking in messageTracker.js
+  3. Webhook message tracking
+- Each layer serves a specific purpose - maintain all of them
+
+#### Performance Considerations
+- Webhook creation is expensive - always use cached webhooks
+- Profile fetching triggers API calls - use caching
+- Message history can be large - implement pagination
+- Test suite should run in < 30 seconds - use mocks
 
 ## Claude Code Tool Usage Guidelines
 
@@ -396,85 +571,44 @@ The following operations should be discussed before executing:
 
 ## Context Window Management
 
-As an engineer who's learned to work within constraints and make every resource count, I treat context window management as a fundamental engineering discipline. Just like optimizing memory usage or query performance, efficient context use directly impacts our ability to deliver quality solutions.
+As engineers, we need to be pragmatic about context management. After real-world experience, I've learned that being overly conservative with context often causes more problems than it solves - leading to failed tool calls, incomplete information, and inefficient back-and-forth.
 
-### When Exploration Is Essential
+### Practical Approach to Context
 
-Before we dive into efficiency principles, let's be clear: **strategic exploration has its place**. Sometimes you need to cast a wider net to understand the shape of a problem, especially when:
+1. **Get Complete Information First**
+   - It's better to cast a slightly wider net initially than to make multiple narrow attempts
+   - Use reasonable search patterns that are likely to capture all relevant information
+   - If uncertain about exact names or locations, use broader patterns with appropriate filters
+   - Failed tool calls waste more context than slightly broader successful ones
 
-- Debugging mysterious issues that could have multiple root causes
-- Understanding the architecture of an unfamiliar subsystem
-- Tracking down subtle interactions between components
-- Learning the conventions and patterns of a new codebase area
+2. **Batch Related Operations**
+   - When investigating an issue, gather related information in parallel
+   - Use the multi-tool capability to run complementary searches simultaneously
+   - This is especially important for understanding test failures or code structure
 
-The key is recognizing when to shift from exploration mode to focused execution mode. It's like the difference between reconnaissance and precision strikes - both have their place in the mission.
+3. **Be Realistic About File Sizes**
+   - Most source files in a well-structured project are reasonable to read in full
+   - Reading a complete file often provides better context than multiple targeted reads
+   - Reserve partial file reading for genuinely large files (1000+ lines)
 
-### Core Principles
+4. **Smart Context Rotation**
+   - Keep information that's actively being used
+   - Rotate out content that hasn't been referenced in several interactions
+   - When approaching limits, summarize findings rather than keeping raw content
+   - Preserve key file paths and insights for easy re-retrieval
 
-1. **Precision Over Volume**
-   - Target only the specific information needed for the current task
-   - Use focused search patterns (regex, glob) rather than broad explorations
-   - Extract key insights from files rather than including entire contents
-   - Think of context like precious memory in an embedded system - every byte matters
+### Anti-Patterns to Avoid
 
-2. **Progressive Information Loading**
-   - Start with narrow, targeted searches and expand only when necessary
-   - Layer information acquisition based on actual need
-   - Maintain a mental model of what's already in context to avoid redundancy
-   - Use batch operations to maximize efficiency when examining multiple files
+- **Over-Precision**: Making grep patterns so specific they miss variations (e.g., different spacing, quotes)
+- **Sequential Discovery**: Running commands one by one when batch operations would be more efficient
+- **Premature Optimization**: Trying to minimize context usage at the cost of effectiveness
+- **Information Hoarding**: Keeping large amounts of content that's no longer actively needed
 
-3. **Active Context Hygiene**
-   - Continuously evaluate whether information in context is still serving the task
-   - Rotate out stale or low-relevance content to make room for what's needed
-   - Focus on depth of understanding for critical components rather than shallow breadth
-   - Summarize architectural insights rather than keeping full implementations in view
+### When Context Limits Approach
 
-4. **Strategic Knowledge Preservation**
-   - When context rotation is necessary, preserve key principles and patterns
-   - Document critical learnings in compact, high-density formats
-   - Ensure smooth task continuity by capturing essential state before transitions
-   - Think like you're writing notes for your future self with limited context
+1. **Complete Current Work**: Focus on finishing active tasks rather than starting new explorations
+2. **Document Progress**: Use the TodoWrite tool to capture current state and next steps
+3. **Summarize Findings**: Convert raw file contents into actionable insights
+4. **Prepare for Handoff**: Ensure any partial work is well-documented and in a stable state
 
-### When Approaching Context Limits
-
-1. **Early Warning Response**
-   - Immediately shift from exploration to targeted execution
-   - Complete highest-priority components first
-   - Switch to precision tools rather than broad searches
-   - Focus on finishing current work rather than starting new explorations
-
-2. **Graceful Degradation**
-   - Prepare concise handoff documentation if session transition is needed
-   - Organize remaining work into clear, actionable items
-   - Ensure any partial work is in a stable, understandable state
-   - Create breadcrumbs for efficient context reconstruction
-
-### Recognizing Context Management Anti-Patterns
-
-Through experience, I've learned to spot when I'm being inefficient:
-
-- **The Hoarder**: Keeping entire files "just in case" when I only need a function or two
-- **The Perfectionist**: Reading every test when I just need to understand the testing pattern
-- **The Archaeological Dig**: Going through git history for context when the current code tells the story
-- **The Premature Optimizer**: Trying to understand every edge case before making the first change
-
-When I catch myself in these patterns, I pause and ask: "What do I actually need to know to complete this specific task?"
-
-### Practical Examples
-
-- **Instead of**: Reading entire test files to understand patterns  
-  **Do this**: Use grep to find specific test patterns, then read only relevant sections
-
-- **Instead of**: Keeping multiple full file contents in context  
-  **Do this**: Extract and retain only the specific functions or configurations needed
-
-- **Instead of**: Broad codebase exploration to understand architecture  
-  **Do this**: Target key files (package.json, main entry points) and build understanding progressively
-
-### Working Together on Context Management
-
-This isn't about limiting what I can do - it's about being strategic so we can tackle more complex problems together. If you notice me loading too much context or being inefficient, call it out! Similarly, if I'm being too narrow and missing important connections, let me know. 
-
-Sometimes the best approach is a quick discussion: "I'm thinking of exploring X, Y, and Z to understand this issue. Does that sound like the right focus, or should I narrow/broaden my search?"
-
-Remember: Just as we optimize code for performance, we optimize context for clarity and effectiveness. It's not about working with less - it's about working smarter with what we have. And like any skill, I'm always working to improve it.
+The goal is effective problem-solving, not minimal context usage. It's better to be slightly generous with initial information gathering than to waste time and context on multiple failed attempts.
