@@ -372,7 +372,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Get the appropriate AI client for this user
   const userId = context.userId || null;
-  const aiClient = getAiClientForUser(userId, context);
+  const aiClient = await getAiClientForUser(userId, context);
 
   // SECURITY UPDATE: Check if we have a valid AI client (authenticated user)
   if (!aiClient) {

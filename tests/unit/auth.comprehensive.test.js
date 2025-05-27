@@ -24,11 +24,24 @@ jest.mock('fs', () => ({
 const mockFetch = jest.fn();
 jest.mock('node-fetch', () => mockFetch);
 
+// Mock OpenAI
+const mockOpenAIInstance = {
+  chat: {
+    completions: {
+      create: jest.fn()
+    }
+  }
+};
+const mockOpenAI = jest.fn(() => mockOpenAIInstance);
+jest.mock('openai', () => ({
+  OpenAI: mockOpenAI
+}));
+
 describe('Auth Module - Comprehensive Tests', () => {
   let auth;
   let logger;
   
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset mocks
     jest.clearAllMocks();
     jest.resetModules();
@@ -38,6 +51,7 @@ describe('Auth Module - Comprehensive Tests', () => {
     process.env.SERVICE_API_KEY = 'test-api-key';
     process.env.SERVICE_WEBSITE = 'https://test.example.com';
     process.env.SERVICE_API_BASE_URL = 'https://api.test.example.com';
+    process.env.OWNER_ID = 'test-owner-id';
     
     // Setup default fs mock behavior
     mockFs.readFile.mockResolvedValue('{}');
@@ -52,13 +66,21 @@ describe('Auth Module - Comprehensive Tests', () => {
   });
   
   describe('getAuthorizationUrl', () => {
-    it('should return correct authorization URL', () => {
+    it('should return correct authorization URL', async () => {
+      // Initialize auth system first
+      await auth.initAuth();
+      
       const url = auth.getAuthorizationUrl();
       expect(url).toBe('https://test.example.com/authorize?app_id=test-app-id');
     });
   });
   
   describe('exchangeCodeForToken', () => {
+    beforeEach(async () => {
+      // Initialize auth system for these tests
+      await auth.initAuth();
+    });
+    
     it('should successfully exchange code for token', async () => {
       const mockResponse = {
         ok: true,
@@ -113,6 +135,11 @@ describe('Auth Module - Comprehensive Tests', () => {
   });
   
   describe('getUserToken', () => {
+    beforeEach(async () => {
+      // Initialize auth system for these tests
+      await auth.initAuth();
+    });
+    
     it('should return token for existing user', () => {
       auth.userTokens = {
         'user123': { token: 'user-token-123' }
@@ -138,6 +165,11 @@ describe('Auth Module - Comprehensive Tests', () => {
   });
   
   describe('deleteUserToken', () => {
+    beforeEach(async () => {
+      // Initialize auth system for these tests
+      await auth.initAuth();
+    });
+    
     it('should delete existing user token', async () => {
       auth.userTokens = {
         'user123': { token: 'token-123' },
@@ -175,6 +207,11 @@ describe('Auth Module - Comprehensive Tests', () => {
   });
   
   describe('NSFW Verification', () => {
+    beforeEach(async () => {
+      // Initialize auth system for these tests
+      await auth.initAuth();
+    });
+    
     describe('storeNsfwVerification', () => {
       it('should store NSFW verification', async () => {
         // Test the BEHAVIOR: storeNsfwVerification should save data and return success
