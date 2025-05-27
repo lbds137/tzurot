@@ -16,6 +16,7 @@ class AIClientFactory {
     this.serviceApiBaseUrl = serviceApiBaseUrl;
     this.defaultClient = null;
     this.userClients = new Map(); // Cache user-specific clients
+    
   }
 
   /**
@@ -72,7 +73,7 @@ class AIClientFactory {
       const headers = {};
       
       if (userToken) {
-        headers['Authorization'] = `Bearer ${userToken}`;
+        headers['X-User-Auth'] = userToken;
         logger.debug(`[AIClientFactory] Creating client with user token for ${userId}`);
       }
 
