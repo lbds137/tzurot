@@ -343,8 +343,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should handle error and return special marker
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      // Should handle error and return user-friendly error message
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.');
       
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -424,8 +424,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should handle error and return special marker
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      // Should handle error and return user-friendly error message
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.');
       
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -483,8 +483,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return the special marker for blocked responses
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      // Should return user-friendly error message
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.');
       
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);

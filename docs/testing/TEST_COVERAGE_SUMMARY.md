@@ -1,6 +1,6 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-26 17:14 EDT
+Last updated: 2025-05-27 02:40 EDT
 
 ## Overall Coverage
 
@@ -8,10 +8,10 @@ Last updated: 2025-05-26 17:14 EDT
 ---------------------------|---------|----------|---------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------
 File                       | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                           
 ---------------------------|---------|----------|---------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------
-All files                  |   78.28 |    69.28 |   83.86 |   78.51 |                                                                                                                                                             
- src                       |   64.09 |    55.02 |      80 |   64.69 |                                                                                                                                                             
-  aiService.js             |   69.08 |    57.54 |   88.88 |   68.93 | 14,212-214,237,270-309,361,369,379-382,421-422,427-428,430-431,433-434,436-439,443-454,484-494,528-529,542-549,558-561,584-586,592-596                      
-  auth.js                  |    92.8 |    81.57 |   95.45 |    92.8 | 135-136,141-142,328-329,342,380-382                                                                                                                         
+All files                  |    79.3 |     70.2 |   84.85 |   79.58 |                                                                                                                                                             
+ src                       |   65.49 |    56.49 |   80.48 |   66.19 |                                                                                                                                                             
+  aiService.js             |   70.95 |    58.82 |   88.88 |   70.89 | 14,119-121,207,212-214,290,298,308-311,350-351,356-357,359-360,362-363,365-368,372-383,413-423,458-459,473-480,489-492,516-518,524-528                      
+  auth.js                  |    92.8 |    81.57 |   95.45 |    92.8 | 154-155,159-160,306-307,320,356-358                                                                                                                         
   bot.js                   |     100 |    58.53 |     100 |     100 | 43,51-87,95                                                                                                                                                 
   commandLoader.js         |     100 |      100 |     100 |     100 |                                                                                                                                                             
   commandProcessor.js      |   98.27 |    91.89 |     100 |   98.27 | 26                                                                                                                                                          
@@ -24,7 +24,7 @@ All files                  |   78.28 |    69.28 |   83.86 |   78.51 |
   messageTracker.js        |     100 |      100 |     100 |     100 |                                                                                                                                                             
   middleware.js            |   96.59 |    91.89 |     100 |   96.55 | 21,127-128                                                                                                                                                  
   personalityManager.js    |   81.94 |       75 |   68.42 |   83.33 | 65-72,115-116,199-200,232-236,311-312,320-321,361-362,376-388,412,462-463,484,597-598,651-656,669                                                           
-  profileInfoFetcher.js    |   53.48 |    31.66 |   61.53 |   53.96 | 55-58,80-85,115-118,159-162,182,187-188,195-217,221-236,249,281-289,295-305,313-343,365-371                                                                 
+  profileInfoFetcher.js    |   54.29 |    31.66 |   61.53 |   54.76 | 55-58,80-85,114-117,157-160,180,185-186,193-215,219-234,247,279-287,293-303,311-340,362-368                                                                 
   requestRegistry.js       |     100 |    94.91 |     100 |     100 | 63,157,159                                                                                                                                                  
   utils.js                 |     100 |      100 |     100 |     100 |                                                                                                                                                             
   webhookManager.js        |   24.34 |    20.73 |   40.47 |   24.62 | 81,298,345,351-359,382-420,426-566,582,606-609,625-666,681-687,705-715,733-764,772-796,842,851,878-924,938-939,1006-1666,1735,1762-1767,1775-1795,1931-2152 
@@ -56,6 +56,28 @@ All files                  |   78.28 |    69.28 |   83.86 |   78.51 |
   commandRegistry.js       |     100 |      100 |     100 |     100 |                                                                                                                                                             
   commandValidator.js      |     100 |      100 |     100 |     100 |                                                                                                                                                             
   messageTracker.js        |   68.18 |    55.55 |   76.19 |   68.18 | 55-75,84-95,181,241-242,292-310                                                                                                                             
+ src/core/authentication   |   96.91 |     92.3 |     100 |   97.36 |                                                                                                                                                             
+  AIClientFactory.js       |   88.37 |    88.23 |     100 |   88.37 | 38-39,98-99,119                                                                                                                                             
+  AuthManager.js           |     100 |    96.42 |     100 |     100 | 185                                                                                                                                                         
+  AuthPersistence.js       |      92 |    72.22 |     100 |   93.87 | 141,153,159-160,231-232                                                                                                                                     
+  NsfwVerificationManager.js |     100 |    96.66 |     100 |     100 | 121                                                                                                                                                         
+  PersonalityAuthValidator.js |     100 |     90.9 |     100 |     100 | 81,105,114-124                                                                                                                                              
+  UserTokenManager.js      |     100 |      100 |     100 |     100 |                                                                                                                                                             
+  index.js                 |     100 |      100 |     100 |     100 |                                                                                                                                                             
+ src/core/conversation     |   83.43 |    83.33 |   76.92 |   84.43 |                                                                                                                                                             
+  AutoResponder.js         |   83.33 |    66.66 |    62.5 |   88.23 | 53,72                                                                                                                                                       
+  ChannelActivation.js     |   81.81 |     87.5 |      75 |   81.81 | 87-91,103,114                                                                                                                                               
+  ConversationManager.js   |   77.41 |    73.07 |   84.37 |   77.41 | 58-59,220-230,245-246,256-284,306                                                                                                                           
+  ConversationPersistence.js |   60.78 |    71.42 |   36.36 |   60.78 | 45-68,115-120,151-160                                                                                                                                       
+  ConversationTracker.js   |   96.73 |    90.74 |   93.33 |   96.73 | 124,229,255                                                                                                                                                 
+  MessageHistory.js        |   93.33 |       84 |     100 |     100 | 21,64-70,81                                                                                                                                                 
+  index.js                 |     100 |      100 |     100 |     100 |                                                                                                                                                             
+ src/core/personality      |   84.35 |    87.26 |    87.5 |   84.21 |                                                                                                                                                             
+  PersonalityManager.js    |   83.43 |    84.61 |   88.23 |   83.44 | 48-52,65-66,82,129,143-144,200-201,225,234-235,257-258,274,288-289,294-295,309,325-328                                                                      
+  PersonalityPersistence.js |   50.79 |       50 |      40 |   50.79 | 81-146                                                                                                                                                      
+  PersonalityRegistry.js   |   98.73 |    89.28 |   93.75 |   98.71 | 73                                                                                                                                                          
+  PersonalityValidator.js  |   96.47 |    95.55 |     100 |   96.34 | 33,101,170                                                                                                                                                  
+  index.js                 |     100 |      100 |     100 |     100 |                                                                                                                                                             
  src/handlers              |   72.82 |     57.6 |   64.61 |   72.87 |                                                                                                                                                             
   dmHandler.js             |   84.12 |    79.54 |      60 |    84.8 | 74-102,196-199,210,227                                                                                                                                      
   errorHandler.js          |    82.5 |    72.72 |   72.22 |   81.33 | 128-131,142,159-175,209                                                                                                                                     
@@ -65,8 +87,8 @@ All files                  |   78.28 |    69.28 |   83.86 |   78.51 |
   referenceHandler.js      |   84.66 |    72.53 |   66.66 |   84.66 | 89,105-108,119,194,260-278,294,316-323,399-405,426,442,450-458,464                                                                                          
  src/monitoring            |   84.21 |    69.69 |   72.72 |   84.21 |                                                                                                                                                             
   deduplicationMonitor.js  |   84.21 |    69.69 |   72.72 |   84.21 | 74-75,115-122,137,153                                                                                                                                       
- src/utils                 |   94.15 |    87.27 |   95.88 |   94.07 |                                                                                                                                                             
-  aiAuth.js                |     100 |      100 |     100 |     100 |                                                                                                                                                             
+ src/utils                 |   94.02 |    86.42 |   95.88 |   93.95 |                                                                                                                                                             
+  aiAuth.js                |   96.55 |    85.71 |     100 |   96.55 | 71                                                                                                                                                          
   aiMessageFormatter.js    |    84.3 |     75.3 |      70 |    84.3 | 135,157,262-266,286-288,363-387,417-444                                                                                                                     
   aiRequestManager.js      |   92.59 |    89.18 |     100 |   91.78 | 121,153-160                                                                                                                                                 
   avatarManager.js         |    86.3 |    76.59 |      90 |   86.01 | 95,194-209,239-240,252-253,263-264,269-275,316,366-370                                                                                                      
@@ -78,7 +100,7 @@ All files                  |   78.28 |    69.28 |   83.86 |   78.51 |
   errorTracker.js          |     100 |      100 |     100 |     100 |                                                                                                                                                             
   messageDeduplication.js  |     100 |       88 |     100 |     100 | 38-40                                                                                                                                                       
   messageFormatter.js      |      98 |    95.29 |     100 |   97.95 | 248,272                                                                                                                                                     
-  personalityAuth.js       |     100 |    94.28 |     100 |     100 | 85,180                                                                                                                                                      
+  personalityAuth.js       |     100 |       75 |     100 |     100 | 19-20,59-71,74                                                                                                                                              
   pluralkitMessageStore.js |   91.48 |       85 |      90 |   93.47 | 17,147-148                                                                                                                                                  
   rateLimiter.js           |     100 |    97.36 |     100 |     100 | 62                                                                                                                                                          
   requestTracker.js        |     100 |      100 |     100 |     100 |                                                                                                                                                             
@@ -96,164 +118,37 @@ All files                  |   78.28 |    69.28 |   83.86 |   78.51 |
 
 ## Test Results Summary
 
-**Date Updated:** May 26, 2025 at 17:20 EDT  
-**Total Test Suites:** 125 passed, 0 failed, 125 total  
-**Total Tests:** 1,775 passed, 0 failed, 5 skipped, 1,780 total  
-**Overall Coverage:** 78.28% statements, 69.28% branches, 83.86% functions, 78.51% lines  
+**Date Updated:** May 27, 2025 at 02:40 EDT  
+**Total Test Suites:** 132 passed, 0 failed, 132 total  
+**Total Tests:** 15 skipped, 1931 passed, 1946 total  
+**Coverage:**
+- Statements: 79.3%
+- Branches: 70.2%
+- Functions: 84.85%
+- Lines: 79.58%
 
-## Major Improvements Since Last Update
+## Key Areas
 
-### May 26, 2025 (17:20 EDT)
-**Coverage: 78.28% statements (maintained), 69.28% branches (maintained), 83.86% functions (maintained), 78.51% lines (maintained)**
+### High Coverage (>90%)
+- Authentication system (96.91%)
+- Utils (94.02%)
+- Media handlers (89.72%)
+- Command middleware (100%)
+- Core constants and utilities (100%)
 
-- **PersonalityManager Refactoring Completed:**
-  - Successfully extracted PersonalityManager from monolithic 673-line file into modular architecture:
-    - `PersonalityManager.js` (344 lines) - Main facade and orchestration
-    - `PersonalityRegistry.js` (228 lines) - In-memory personality and alias storage
-    - `PersonalityValidator.js` (270 lines) - Validation logic and business rules
-    - `PersonalityPersistence.js` (147 lines) - File-based persistence layer
-  - Fixed critical environment variable issue: BOT_OWNER_IDS → BOT_OWNER_ID (singular)
-  - Fixed PersonalityValidator to use correct environment variable for bot owner checks
-  - Fixed TypeError in PersonalityManager by properly handling async operations
-  - Fixed remaining test failures by updating all BOT_OWNER_IDS references to BOT_OWNER_ID
-  - All tests now pass (1,775 tests, 0 failures)
-  
-- **Test Suite Fixes:**
-  - Fixed PersonalityPersistence tests by updating log message expectations
-  - Fixed PersonalityManager tests by correcting environment variable references
-  - Fixed test isolation issues with fake timers and singleton state
-  - Fixed two failing bot owner tests in personalityManager.test.js and PersonalityValidator.test.js
-  - Removed test-skipping anti-patterns and fixed root causes instead
-  
-- **Code Quality:**
-  - Clean separation of concerns in personality management
-  - Better testability with focused modules
-  - Maintained high test coverage throughout refactoring
-  - Fixed all ESLint warnings in new modules
-  - Consistent use of BOT_OWNER_ID throughout the codebase
+### Low Coverage (<70%)
+- Webhook Manager (24.34%) - The largest and most complex component
+- Personality Handler (42.06%) - Complex personality processing logic
+- Profile Info Fetcher (54.29%) - External API integration
+- Conversation Persistence (60.78%) - File system operations
 
-### May 26, 2025 (13:09 EDT)
-**Coverage: 78.28% statements (+3.28%), 69.28% branches (+2.68%), 83.86% functions (+2.31%), 78.51% lines (+3.29%)**
+### Skipped Tests
+- 8 tests in AIClientFactory due to Jest limitations with dynamic imports
+- 7 other tests related to rate limiting and file system operations
 
-- **Major Code Refactoring - Module Extraction for Separation of Concerns:**
-  - **aiService.js:** Reduced from 1,491 to 625 lines (58% reduction) by extracting:
-    - `aiRequestManager.js` (283 lines) - Request deduplication and blackout management
-    - `aiMessageFormatter.js` (447 lines) - Message formatting and multimodal content handling
-    - `aiAuth.js` - Authorization checks
-    - `messageDeduplication.js` - Deduplication logic
-    - `contentSanitizer.js` - Content validation
-    - `messageFormatter.js` - Basic formatting
-  - **personalityHandler.js:** Reduced from 1,001 to 748 lines (25% reduction) by extracting:
-    - `requestTracker.js` (112 lines) - Active request tracking
-    - `personalityAuth.js` (236 lines) - NSFW, authentication, and verification checks
-    - `threadHandler.js` (236 lines) - Thread detection and handling
-  - **Previously extracted from webhookManager.js:** 
-    - `avatarManager.js` - Avatar handling and validation
-    - `webhookCache.js` - Webhook caching logic
-  
-- **Test Suite Improvements:**
-  - Fixed all failing personalityHandler tests after module extraction
-  - Updated test mocks to work with new extracted modules
-  - Added comprehensive tests for all new modules:
-    - `aiRequestManager.test.js` - 80.82% coverage
-    - `requestTracker.test.js` - 100% coverage  
-    - `personalityAuth.test.js` - 100% coverage
-    - `threadHandler.test.js` - 100% coverage
-  - Test count increased by 214 (1,475 → 1,689 total tests)
-  - All 121 test suites pass with 0 failures
-  
-- **Coverage Improvements:**
-  - **src/utils:** 95.89% → 94.15% (slight decrease due to new complex modules)
-  - **Overall project:** 75% → 78.28% statements (+3.28%)
-  - **New modules with excellent coverage:**
-    - aiAuth.js: 100%
-    - messageDeduplication.js: 100%
-    - messageFormatter.js: 98%
-    - contentSanitizer.js: 96.55%
-    - requestTracker.js: 100%
-    - personalityAuth.js: 100%
-    - threadHandler.js: 100%
-    - webhookCache.js: 96.96%
-  
-- **Code Quality Benefits:**
-  - Improved separation of concerns
-  - More maintainable codebase with smaller, focused modules
-  - Easier testing of individual components
-  - Better code organization and discoverability
-  - Reduced complexity in large files
+## Recent Changes
 
-### May 25, 2025 (18:10 EDT)
-**Coverage: 75% statements, 66.6% branches, 81.55% functions, 75.22% lines**
-
-- **Feature Verification & Test Improvements:**
-  - Verified bot owner can remove any personality (feature already implemented)
-  - Verified add command automatically uses display name as alias when no alias provided (feature already implemented)
-  - Added test case to verify bot owner override for removing personalities
-  - Fixed add command tests to match updated `setPersonalityAlias` signature (4 parameters)
-  - All tests now pass (1,475 tests passing, up from 1,466)
-
-### May 25, 2025 (17:56 EDT)
-**Coverage: 75% statements, 66.6% branches, 81.55% functions, 75.22% lines**
-
-- **Security Fix - Remove Command:**
-  - Fixed critical security vulnerability where users could remove personalities they didn't own
-  - Updated `removePersonality` function to require userId parameter and verify ownership
-  - Added ownership validation before allowing personality removal
-  - Added test case to verify users cannot remove personalities owned by others
-  - All remove command tests now pass (7/7 tests passing)
-
-### May 25, 2025 (17:34 EDT)
-**Coverage: 75% statements (-0.2%), 66.6% branches (-0.28%), 81.55% functions (-0.23%), 75.22% lines (-0.21%)**
-
-- **Critical Bug Fixes:**
-  - Fixed the add command being blocked by deduplication middleware race condition
-  - Fixed "Cannot read properties of null" error in add command when registering personalities
-  - Fixed failing tests after removing synthetic link functionality for nested references
-  
-- **Test Suite Improvements:**
-  - Fixed all failing tests in bot.nested.reference.test.js by updating expectations to match new behavior
-  - Fixed personalityHandler.test.js tests that were expecting wrong isMentionOnly values
-  - All 111 test suites now pass with 0 failures (previously had 1 failing suite with 3 tests)
-  - Test count increased by 11 (1,460 → 1,471 total tests)
-  
-- **Code Quality:**
-  - Removed synthetic link approach for nested message references
-  - Improved add command implementation to properly handle personality registration
-  - Enhanced message tracker with better debug logging and cleanup methods
-  - The slight decrease in coverage percentages is normal variation from code changes
-
-### Test Infrastructure Status
-
-The test infrastructure remains robust with:
-- ✅ **NEW:** Excellent coverage for extracted modules (95%+ average)
-- ✅ 100% coverage middleware (auth, deduplication, permissions)
-- ✅ 100% coverage for core utilities (commandLoader, commandValidator, dataStorage)
-- ✅ Strong command handler coverage (88.08% average)
-- ✅ Excellent utils coverage (94.15% average)
-- ✅ Outstanding media handler coverage (89.72% average)
-- ✅ Deduplication monitor (84.21% coverage)
-- ✅ PluralKit message store (91.48% coverage)
-- ✅ Enhanced webhook user tracker (93.7% coverage)
-
-### Testing Strategy Going Forward
-
-**✅ Primary Goal Achieved: 78.28% Overall Coverage (exceeded 75% target)**
-
-**Completed Phases:**
-- ✅ Major refactoring for separation of concerns
-- ✅ Module extraction from large files (aiService, personalityHandler, webhookManager)
-- ✅ Low-coverage utilities - All major utilities now have 89%+ coverage
-- ✅ Handler improvements - Most handlers now have 70%+ coverage  
-- ✅ Media handling - Achieved 89.72% average coverage
-- ✅ Core functionality - Auth, commands, and middleware at 90%+ coverage
-- ✅ PluralKit security - Comprehensive tracking and authentication
-- ✅ Critical bug fixes - Add command and nested reference handling
-- ✅ PersonalityManager modularization - Clean architecture with maintained coverage
-
-**Remaining Opportunities:**
-1. **webhookManager.js** - Currently at 24.34% (largest opportunity but also most complex)
-2. **personalityHandler.js** - Currently at 42.06% (reduced coverage after extraction, but cleaner code)
-3. **profileInfoFetcher.js** - Currently at 53.48% (has 5 skipped tests)
-4. **Command handlers** - Several at 60-80% coverage
-
-The test infrastructure is mature and well-established, with the recent refactoring making the codebase more maintainable and testable.
+- Updated aiService error handling to return user-friendly messages instead of HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY
+- Fixed authentication header to use 'X-User-Auth' instead of 'Authorization' to prevent OpenAI client conflicts
+- All personality interactions now require authentication
+- Fixed personality persistence save functionality

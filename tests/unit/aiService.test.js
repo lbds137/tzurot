@@ -705,8 +705,8 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      // Verify we get the special error marker
-      expect(response).toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      // Verify we get the user-friendly error message
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.');
       
       // Verify the personality was added to the blackout list
       const key = createBlackoutKey(personalityName, context);
