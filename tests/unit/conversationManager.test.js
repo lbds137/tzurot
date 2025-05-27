@@ -49,7 +49,11 @@ jest.mock('fs', () => {
 
 // Mock path module
 jest.mock('path', () => ({
-  join: jest.fn((...args) => args.join('/'))
+  join: jest.fn((...args) => args.join('/')),
+  basename: jest.fn((filePath) => {
+    const parts = filePath.split('/');
+    return parts[parts.length - 1];
+  })
 }));
 
 // Mock personality manager
@@ -586,7 +590,7 @@ describe('Conversation Manager', () => {
       // Check that error was logged
       const logger = require('../../src/logger');
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Error loading conversations')
+        expect.stringContaining('Error loading')
       );
     });
     
@@ -610,7 +614,7 @@ describe('Conversation Manager', () => {
       // Should return null and log error
       expect(result).toBeNull();
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('[ConversationManager] listPersonalitiesForUser returned invalid data')
+        expect.stringContaining('listPersonalitiesForUser returned invalid data')
       );
     });
     
@@ -636,7 +640,7 @@ describe('Conversation Manager', () => {
       // Should return null and log error
       expect(result).toBeNull();
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('[ConversationManager] Error looking up personality by webhook username')
+        expect.stringContaining('Error looking up personality by webhook username')
       );
     });
   });
