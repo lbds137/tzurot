@@ -298,6 +298,68 @@ function createCommandValidatorMock(options = {}) {
 }
 
 /**
+ * Mock Rate Limiter
+ * CRITICAL: This mock prevents test timeouts by executing queued functions immediately
+ */
+function createRateLimiterMock(options = {}) {
+  const queue = [];
+  let isProcessing = false;
+  
+  const mock = {
+    // Execute function immediately - no delays!
+    enqueue: jest.fn().mockImplementation((fn) => {
+      if (options.simulateQueue) {
+        return new Promise((resolve) => {
+          queue.push({ fn, resolve });
+          if (!isProcessing) {
+            isProcessing = true;
+            process.nextTick(() => {
+              while (queue.length > 0) {
+                const { fn: queuedFn, resolve: queuedResolve } = queue.shift();
+                queuedResolve(queuedFn());
+              }
+              isProcessing = false;
+            });
+          }
+        });
+      }
+      // Default: execute immediately
+      return Promise.resolve(fn());
+    }),
+    
+    // Handle rate limit - return retry count
+    handleRateLimit: jest.fn().mockImplementation(async (resourceId, retryAfter, retryCount) => {
+      const newRetryCount = retryCount + 1;
+      if (options.simulateMaxRetries && newRetryCount >= (options.maxRetries || 3)) {
+        return options.maxRetries || 3; // Signal max retries reached
+      }
+      return newRetryCount;
+    }),
+    
+    // Record successful request
+    recordSuccess: jest.fn(),
+    
+    // Properties
+    maxRetries: options.maxRetries || 3,
+    minRequestSpacing: options.minRequestSpacing || 0,
+    maxConcurrent: options.maxConcurrent || 1,
+    
+    // Test utilities
+    _getQueueLength: () => queue.length,
+    _clearQueue: () => {
+      queue.length = 0;
+      isProcessing = false;
+    }
+  };
+  
+  // Add constructor mock
+  const RateLimiterConstructor = jest.fn().mockImplementation(() => mock);
+  RateLimiterConstructor.mock = mock;
+  
+  return RateLimiterConstructor;
+}
+
+/**
  * Factory function to create module mock environment
  */
 function createModuleEnvironment(options = {}) {
@@ -327,6 +389,10 @@ function createModuleEnvironment(options = {}) {
     mocks.commandValidator = createCommandValidatorMock(options.commandValidator);
   }
 
+  if (options.rateLimiter !== false) {
+    mocks.rateLimiter = createRateLimiterMock(options.rateLimiter);
+  }
+
   return mocks;
 }
 
@@ -337,5 +403,6 @@ module.exports = {
   createWebhookManagerMock,
   createAuthMock,
   createCommandValidatorMock,
+  createRateLimiterMock,
   createModuleEnvironment
 };
