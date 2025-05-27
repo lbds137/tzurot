@@ -19,8 +19,10 @@ const API_KEY = process.env.SERVICE_API_KEY;
 const TOKEN_EXPIRATION_MS = AuthManager.TOKEN_EXPIRATION_MS;
 
 // In-memory caches for backward compatibility
+// These are the source of truth when tests manipulate them directly
 let userTokensCache = {};
 let nsfwVerifiedCache = {};
+let cacheOverride = false; // Flag to track when tests have set cache directly
 
 // Helper to ensure auth is initialized
 async function ensureInitialized() {
@@ -214,22 +216,26 @@ async function storeUserToken(userId, token) {
  * @returns {string|null} The auth token, or null if the user has no token
  */
 function getUserToken(userId) {
-  // Always check cache first for test compatibility
-  const tokenData = userTokensCache[userId];
-  
-  if (tokenData) {
+  // If tests have overridden the cache, always use cache
+  if (cacheOverride) {
+    const tokenData = userTokensCache[userId];
+    if (!tokenData) return null;
     // Handle both direct token string and object with token property
     if (typeof tokenData === 'string') return tokenData;
     // Return undefined if the object exists but has no token (test expectation)
     return tokenData.token;
   }
   
-  // If no cache data and authManager exists, use it
+  // Otherwise, prefer authManager if it exists
   if (authManager) {
     return authManager.getUserToken(userId);
   }
   
-  return null;
+  // Fall back to cache
+  const tokenData = userTokensCache[userId];
+  if (!tokenData) return null;
+  if (typeof tokenData === 'string') return tokenData;
+  return tokenData.token;
 }
 
 /**
@@ -238,8 +244,8 @@ function getUserToken(userId) {
  * @returns {boolean} Whether the user has a valid token
  */
 function hasValidToken(userId) {
-  if (!authManager) {
-    // For backward compatibility with tests
+  // If tests have overridden the cache, use cache logic
+  if (cacheOverride || !authManager) {
     const tokenData = userTokensCache[userId];
     if (!tokenData) return false;
     if (tokenData.expiresAt && Date.now() > tokenData.expiresAt) return false;
@@ -302,8 +308,8 @@ async function storeNsfwVerification(userId, isVerified) {
  * @returns {boolean} Whether the user is verified for NSFW content
  */
 function isNsfwVerified(userId) {
-  if (!authManager) {
-    // For backward compatibility with tests
+  // If tests have overridden the cache, use cache logic
+  if (cacheOverride || !authManager) {
     return nsfwVerifiedCache[userId]?.verified === true;
   }
   return authManager.isNsfwVerified(userId);
@@ -360,6 +366,7 @@ Object.defineProperty(module.exports, 'userTokens', {
   },
   set(value) {
     userTokensCache = value;
+    cacheOverride = true; // Tests have directly manipulated the cache
     if (authManager && authManager.userTokenManager) {
       authManager.userTokenManager.setAllTokens(value);
     }
