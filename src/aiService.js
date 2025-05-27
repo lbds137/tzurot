@@ -259,11 +259,21 @@ async function getAiResponse(personalityName, message, context = {}) {
         
         addToBlackoutList(personalityName, context);
 
-        // Return our special HARD_BLOCKED_RESPONSE marker
+        // Return a user-friendly error message instead of blocking
         logger.info(
-          `[AIService] Returning HARD_BLOCKED_RESPONSE after API error for ${personalityName}`
+          `[AIService] Returning error message after API error for ${personalityName}`
         );
-        return MARKERS.HARD_BLOCKED_RESPONSE;
+        
+        // Check for specific error types
+        if (apiError.status === 404) {
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ I couldn't find the personality "${personalityName}". The personality might not be available on the server.`;
+        } else if (apiError.status === 429) {
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Rate limit exceeded. Please try again in a moment.`;
+        } else if (apiError.status === 500 || apiError.status === 502 || apiError.status === 503) {
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ The AI service is temporarily unavailable. Please try again later.`;
+        } else {
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ An error occurred while processing your request. Please try again later.`;
+        }
       }
     } catch (error) {
       // Add this personality+user combo to blackout list to prevent duplicates
@@ -301,12 +311,11 @@ async function getAiResponse(personalityName, message, context = {}) {
 
       addToBlackoutList(personalityName, context);
 
-
-      // Return our special HARD_BLOCKED_RESPONSE marker
+      // Return a user-friendly error message instead of blocking
       logger.info(
-        `[AIService] Returning HARD_BLOCKED_RESPONSE after general error for ${personalityName}`
+        `[AIService] Returning error message after general error for ${personalityName}`
       );
-      return MARKERS.HARD_BLOCKED_RESPONSE;
+      return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ An unexpected error occurred. Please try again later.`;
     } finally {
       // Clean up immediately when the request completes (success or error)
       logger.debug(
