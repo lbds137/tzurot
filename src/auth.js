@@ -94,7 +94,7 @@ async function initAuth() {
       apiKey: API_KEY,
       authWebsite: process.env.SERVICE_WEBSITE,
       authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
-      serviceApiBaseUrl: process.env.SERVICE_API_BASE_URL,
+      serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
       ownerId: process.env.OWNER_ID
     });
     
