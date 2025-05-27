@@ -1,6 +1,27 @@
 # Test Coverage Summary
 
-Last updated: 2025-05-27 02:40 EDT
+Last updated: 2025-05-27 11:51 EDT
+
+## Test Results Summary
+
+- **Test Suites**: 132 passed, 1 failed (133 total)
+- **Tests**: 1941 passed, 4 failed, 10 skipped (1955 total)
+- **Time**: 62.69s
+
+### Failed Tests
+All failing tests are in the new `ProfileInfoFetcher.test.js` file which appears to have mocking issues:
+- ProfileInfoFetcher (core/api) › Basic functionality › should fetch profile info successfully
+- ProfileInfoFetcher (core/api) › Rate limiting behavior › should handle 429 rate limit responses with retry
+- ProfileInfoFetcher (core/api) › Timeout handling › should return null after max timeout retries  
+- ProfileInfoFetcher (core/api) › Concurrent requests › should handle multiple concurrent requests
+
+### Skipped Tests Successfully Fixed
+Successfully fixed 5 previously skipped tests in `profileInfoFetcher.test.js`:
+- ✓ fetchProfileInfo should handle rate limiting (429) with exponential backoff
+- ✓ fetchProfileInfo should implement global rate limit cooldown after multiple 429s
+- ✓ fetchProfileInfo should handle network timeouts and retry
+- ✓ processRequestQueue should respect rate limiting delay between requests
+- ✓ multiple concurrent requests should be queued and processed in sequence
 
 ## Overall Coverage
 

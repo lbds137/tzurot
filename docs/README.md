@@ -1,98 +1,97 @@
 # Tzurot Documentation
 
-Welcome to the Tzurot documentation! This is a personal Discord bot project that I've been developing to enable AI personality interactions through Discord.
+This directory contains the documentation for the Tzurot Discord bot project.
 
-## 📚 Documentation Structure
+## 📁 Structure
 
-### Getting Started
-If you're new here, start with these:
-- [Setup Guide](core/SETUP.md) - Get your development environment ready
-- [Architecture Overview](core/ARCHITECTURE.md) - Understand how everything fits together
-- [Commands Reference](core/COMMANDS.md) - Learn what the bot can do
+### `/core` - Core Documentation
+Essential documentation for understanding and working with the system:
+- **SETUP.md** - Getting started guide
+- **ARCHITECTURE.md** - System design and component overview
+- **API_REFERENCE.md** - API endpoints and interfaces
+- **DEPLOYMENT.md** - Deployment instructions
+- **TROUBLESHOOTING.md** - Common issues and solutions
+- **SECURITY.md** - Security guidelines and best practices
+- **MESSAGE_FORMAT_SPECIFICATION.md** - Message format details
+- **COMMANDS.md** - Command reference and usage
+- **COMMAND_ARCHITECTURE.md** - Command system design
+- **TIMER_PATTERNS.md** - Timer pattern guidelines for testability
 
-### Core Documentation
-- [Architecture](core/ARCHITECTURE.md) - System design and components
-- [Setup](core/SETUP.md) - Development environment setup
-- [Commands](core/COMMANDS.md) - All available bot commands
-- [API Reference](core/API_REFERENCE.md) - Module and function documentation
-- [Security](core/SECURITY.md) - Security practices and guidelines
-- [Deployment](core/DEPLOYMENT.md) - How to deploy the bot
-- [Troubleshooting](core/TROUBLESHOOTING.md) - Common issues and solutions
-- [Contributing](core/CONTRIBUTING.md) - How to contribute
-- [Coding Standards](core/CODING_STANDARDS.md) - Code style guide
-- [Message Format](core/MESSAGE_FORMAT_SPECIFICATION.md) - Message specifications
+### `/components` - Feature Documentation
+Documentation for specific features and components:
+- **AUTHENTICATION.md** - Authentication system details
+- **AUDIO_ATTACHMENT.md** - Audio handling capabilities
+- **DEDUPLICATION.md** - Message deduplication system
+- **DISPLAY_NAME_ALIASES.md** - Personality alias system
+- **EMBED_UTILITIES.md** - Discord embed handling
+- **IMAGE_HANDLING.md** - Image processing features
+- **MEDIA_HANDLING_SYSTEM.md** - Overall media system
+- **PLURALKIT_PROXY_HANDLING.md** - PluralKit integration
+- **SPACE_ALIASES.md** - Space-based alias handling
 
-### Feature Documentation
-Learn about specific features:
-- [Authentication System](components/AUTHENTICATION.md) - User auth for AI service
-- [Audio Attachments](components/AUDIO_ATTACHMENT.md) - Audio message handling
-- [Image Handling](components/IMAGE_HANDLING.md) - Image processing
-- [Media System](components/MEDIA_HANDLING_SYSTEM.md) - Overall media handling
-- [PluralKit Support](components/PLURALKIT_PROXY_HANDLING.md) - Proxy bot compatibility
-- [Space Aliases](components/SPACE_ALIASES.md) - Using spaces in personality names
-- [Display Names](components/DISPLAY_NAME_ALIASES.md) - Name and alias system
-- [Embed Utilities](components/EMBED_UTILITIES.md) - Discord embed handling
+### `/testing` - Testing Documentation
+Testing guidelines and coverage information:
+- **README.md** - Testing overview
+- **BEHAVIOR_BASED_TESTING.md** - Testing philosophy
+- **TEST_ANTIPATTERNS_REFERENCE.md** - Anti-patterns to avoid
+- **TIMER_TESTING_GUIDE.md** - Testing timer-based code
+- **TEST_COVERAGE_SUMMARY.md** - Current test coverage
+- **MANUAL_TESTING_PROCEDURE.md** - Manual testing guide
+- **CRITICAL_COVERAGE_GAPS.md** - Areas needing tests
+- **COMMANDLOADER_TEST_APPROACH.md** - Command loader testing
 
-### Testing
-- [Testing Overview](testing/README.md) - Testing approach
-- [Test Coverage](testing/TEST_COVERAGE_SUMMARY.md) - Current test statistics
-- [Manual Testing](testing/MANUAL_TESTING_PROCEDURE.md) - How to test manually
-- [Test Migration](testing/TEST_MIGRATION_PLAN.md) - Mock system migration
+### `/improvements` - Future Improvements
+Plans and proposals for future enhancements:
+- **README.md** - Improvement overview
+- **FEATURE_IDEAS.md** - Feature roadmap
+- **MODULE_STRUCTURE_PROPOSAL.md** - Proposed refactoring
+- **AISERVICE_REFACTORING_PLAN.md** - AI service improvements
+- **CODE_IMPROVEMENT_OPPORTUNITIES.md** - Code quality improvements
+- **MULTI_USER_SCALABILITY.md** - Scaling considerations
+- **REFERENCE_AND_MEDIA_REFACTOR.md** - Media system improvements
+- **DOCUMENTATION_ORGANIZATION_PROPOSAL.md** - Doc improvements
+- **MULTIPLE_MEDIA_API_FIX.md** - Media API enhancements
 
-### Development History
-I've kept records of various fixes and improvements:
-- [Command System History](history/command/) - Command system evolution
-- [Webhook System History](history/webhook/) - Webhook handling improvements
-- [Authentication History](history/auth/) - Auth system development
-- [Deduplication History](history/deduplication/) - Message dedup implementation
-- [General Updates](history/general/) - Other improvements
+### `/development` - Development Guides
+Development-specific documentation:
+- **TIMER_ENFORCEMENT_GUIDE.md** - Timer pattern enforcement
 
-### Future Ideas
-- [Improvement Proposals](improvements/) - Ideas for future enhancements
-- [Code Cleanup](improvements/CODE_CLEANUP_RECOMMENDATIONS.md) - Refactoring ideas
-- [Multi-User Scalability](improvements/MULTI_USER_SCALABILITY.md) - Scaling thoughts
+### `/archive` - Historical Documentation
+- **DEVELOPMENT_HISTORY.md** - Archive of all historical fixes and development journey
 
-## 🎯 Quick Links
+## 🔍 Where to Find Information
 
-### For Users
-- [Commands](core/COMMANDS.md) - What can the bot do?
-- [Setup](core/SETUP.md) - How to run it yourself
-- [Troubleshooting](core/TROUBLESHOOTING.md) - Something not working?
+### For New Developers
+1. Start with `/core/SETUP.md`
+2. Read `/core/ARCHITECTURE.md`
+3. Review the root `CLAUDE.md` for coding guidelines
 
-### For Developers
-- [Architecture](core/ARCHITECTURE.md) - How it all works
-- [API Reference](core/API_REFERENCE.md) - Function documentation
-- [Contributing](core/CONTRIBUTING.md) - Want to help?
+### For Testing
+1. Read `tests/CLAUDE.md` for testing guidelines
+2. Check `/testing/BEHAVIOR_BASED_TESTING.md` for philosophy
+3. Avoid patterns in `/testing/TEST_ANTIPATTERNS_REFERENCE.md`
 
-### For Operators
-- [Deployment](core/DEPLOYMENT.md) - Running in production
-- [Security](core/SECURITY.md) - Keeping it secure
-- [Troubleshooting](core/TROUBLESHOOTING.md) - Fixing issues
+### For Contributing
+1. Read `/core/CONTRIBUTING.md`
+2. Check the root `CLAUDE.md` for standards
+3. Review `/development/TIMER_ENFORCEMENT_GUIDE.md`
 
-## 📝 About This Project
+### For Feature Development
+1. Check `/components` for existing features
+2. Review `/improvements` for planned enhancements
+3. Read `src/CLAUDE.md` for source code guidelines
 
-Tzurot (Hebrew for "shapes") is a personal project I created to explore Discord bot development and AI integration. It started as a way to bring AI personalities into Discord after a certain service discontinued their official integration.
+## 📝 Important Notes
 
-The bot has grown to include:
-- Multiple personality management
-- Webhook-based authentic messaging
-- Media handling (images and audio)
-- User authentication system
-- Comprehensive test suite
-- And much more!
+- **Primary guidance lives in CLAUDE.md files** (root, src/, tests/)
+- Historical fixes are archived in `/archive/DEVELOPMENT_HISTORY.md`
+- All new code must follow timer patterns in `/core/TIMER_PATTERNS.md`
+- Test anti-patterns are automatically checked by pre-commit hooks
 
-## 🤝 Contributing
+## 🚀 Quick Links
 
-This is a personal project, but I welcome contributions! Check out the [Contributing Guide](core/CONTRIBUTING.md) if you'd like to help.
-
-## 📬 Questions?
-
-- Create an issue on GitHub
-- Start a discussion
-- Check existing documentation
-
-Thanks for checking out Tzurot! I hope you find it useful or interesting. 😊
-
----
-
-*Last updated: Check commit history for latest changes*
+- [Setup Guide](core/SETUP.md)
+- [Architecture Overview](core/ARCHITECTURE.md)
+- [Testing Guide](testing/README.md)
+- [Command Reference](core/COMMANDS.md)
+- [Security Guidelines](core/SECURITY.md)

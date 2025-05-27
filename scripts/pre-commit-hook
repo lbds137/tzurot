@@ -46,8 +46,10 @@ if [ -n "$STAGED_FILES" ]; then
     # Check for timer patterns (only on staged files)
     run_check "Timer patterns check" "node scripts/check-timer-patterns.js --staged"
     
-    # Run linting only on staged files
-    run_check "ESLint" "npx eslint $STAGED_FILES"
+    # Run linting only on staged files (skip if no JS files)
+    if [ -n "$STAGED_FILES" ]; then
+        run_check "ESLint" "npx eslint $STAGED_FILES"
+    fi
     
     # Run tests for changed test files
     if [ -n "$STAGED_TEST_FILES" ]; then
