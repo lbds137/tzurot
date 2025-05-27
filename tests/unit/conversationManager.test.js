@@ -58,7 +58,7 @@ jest.mock('path', () => ({
 
 // Mock personality manager
 jest.mock('../../src/personalityManager', () => ({
-  listPersonalitiesForUser: jest.fn().mockImplementation(() => [
+  listPersonalitiesForUser: jest.fn(() => [
     {
       fullName: 'test-personality-one',
       displayName: 'Test Personality One',
@@ -85,6 +85,11 @@ describe('Conversation Manager', () => {
   const originalSetTimeout = global.setTimeout;
   const originalSetInterval = global.setInterval;
   
+  // Store mocks that need cleanup
+  let mkdirMock;
+  let writeFileMock;
+  let readFileMock;
+  
   // Create test data
   const testUserId = 'test-user-123';
   const testChannelId = 'test-channel-456';
@@ -92,7 +97,7 @@ describe('Conversation Manager', () => {
   const testMessageId = 'test-message-789';
   
   beforeEach(() => {
-    // Mock process.cwd()
+    // Mock process.cwd() - store the mock for cleanup
     process.cwd = jest.fn().mockReturnValue('/mock/app');
     
     // Mock console methods
@@ -107,13 +112,20 @@ describe('Conversation Manager', () => {
     // Reset the module's internal state by re-requiring it
     jest.resetModules();
     
-    // Reset filesystem mocks
+    // Reset filesystem mocks and store references for cleanup
     const fs = require('fs');
     fs.files = new Map();
     fs.directories = new Set(['/', '/data']);
-    fs.promises.mkdir.mockClear();
-    fs.promises.writeFile.mockClear();
-    fs.promises.readFile.mockClear();
+    
+    // Store mock references for cleanup
+    mkdirMock = fs.promises.mkdir;
+    writeFileMock = fs.promises.writeFile;
+    readFileMock = fs.promises.readFile;
+    
+    // Clear mock calls
+    mkdirMock.mockClear();
+    writeFileMock.mockClear();
+    readFileMock.mockClear();
   });
   
   afterEach(() => {
@@ -128,6 +140,11 @@ describe('Conversation Manager', () => {
     // Restore timers
     global.setTimeout = originalSetTimeout;
     global.setInterval = originalSetInterval;
+    
+    // Restore mock implementations
+    if (mkdirMock) mkdirMock.mockRestore();
+    if (writeFileMock) writeFileMock.mockRestore();
+    if (readFileMock) readFileMock.mockRestore();
     
     // Clear all mock function calls
     jest.clearAllMocks();
