@@ -57,7 +57,7 @@ async function initAuth() {
   const originalError = logger.error;
   let foundTokensFile = true;
   let foundVerificationsFile = true;
-  let initError = null;
+  let _initError = null;
   
   logger.info = function(...args) {
     const message = args[0];
@@ -82,7 +82,7 @@ async function initAuth() {
     }
     if (message && message.includes('[AuthManager] Failed to initialize:')) {
       // Capture init error but don't propagate to tests
-      initError = args[1];
+      _initError = args[1];
       return;
     }
     originalError.apply(this, args);
@@ -270,12 +270,14 @@ async function deleteUserToken(userId) {
     
     if (result) {
       logger.info(`[Auth] Deleted token for user ${userId}`);
+    } else {
+      // AuthManager already logged the error
     }
     
     return result;
   } catch (error) {
     logger.error(`[Auth] Error deleting token for user ${userId}:`, error);
-    throw error;
+    return false;
   }
 }
 
@@ -294,10 +296,20 @@ async function storeNsfwVerification(userId, isVerified) {
     // Update local cache
     nsfwVerifiedCache = authManager.nsfwVerificationManager.getAllVerifications();
     
+    if (result) {
+      if (isVerified) {
+        logger.info(`[Auth] User ${userId} verified for NSFW access`);
+      } else {
+        logger.info(`[Auth] Removed NSFW verification for user ${userId}`);
+      }
+    } else {
+      // AuthManager already logged the error
+    }
+    
     return result;
   } catch (error) {
     logger.error(`[Auth] Error storing NSFW verification for user ${userId}:`, error);
-    throw error;
+    return false;
   }
 }
 

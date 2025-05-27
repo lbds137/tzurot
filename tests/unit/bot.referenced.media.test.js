@@ -70,7 +70,18 @@ jest.mock('../../src/auth', () => ({
   API_KEY: 'mock-api-key',
   APP_ID: 'mock-app-id',
   hasValidToken: jest.fn().mockReturnValue(true),
-  getUserToken: jest.fn().mockReturnValue('mock-user-token')
+  getUserToken: jest.fn().mockReturnValue('mock-user-token'),
+  getAuthManager: jest.fn().mockReturnValue(null), // Add missing mock
+  userTokens: {},
+  nsfwVerified: {}
+}));
+
+// Mock aiAuth module
+jest.mock('../../src/utils/aiAuth', () => ({
+  initAiClient: jest.fn(),
+  getAiClientForUser: jest.fn().mockResolvedValue(new (require('openai').OpenAI)()),
+  getAI: jest.fn().mockReturnValue(new (require('openai').OpenAI)()),
+  getAIForUser: jest.fn().mockResolvedValue(new (require('openai').OpenAI)())
 }));
 
 // Mock other dependencies

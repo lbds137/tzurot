@@ -177,7 +177,7 @@ describe('Personality Handler Module', () => {
       isDM: false,
       isNSFW: true
     });
-    personalityAuth.sendAuthError.mockImplementation(async (message, errorMessage) => {
+    personalityAuth.sendAuthError = jest.fn().mockImplementation(async (message, errorMessage) => {
       await message.reply({ content: errorMessage, ephemeral: true });
     });
     
