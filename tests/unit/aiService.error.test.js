@@ -15,7 +15,10 @@ jest.mock('../../src/auth', () => ({
   getUserToken: jest.fn().mockReturnValue('mock-token'),
   APP_ID: 'mock-app-id',
   API_KEY: 'mock-api-key',
-  isNsfwVerified: jest.fn().mockReturnValue(true)
+  isNsfwVerified: jest.fn().mockReturnValue(true),
+  getAuthManager: jest.fn().mockReturnValue(null), // For aiAuth module
+  userTokens: {},
+  nsfwVerified: {}
 }));
 
 // Mock webhookUserTracker to bypass authentication
