@@ -5,14 +5,11 @@
 // Create a mock OpenAI constructor
 const mockOpenAI = jest.fn();
 
-// These will be set in beforeEach after mocking
-let auth;
-let webhookUserTracker;
-
 // Mock dependencies
 jest.mock('openai', () => ({
   OpenAI: mockOpenAI
 }));
+
 jest.mock('../../../src/logger', () => ({
   info: jest.fn(),
   debug: jest.fn(),
@@ -26,12 +23,21 @@ describe('aiAuth', () => {
   const mockAppId = 'test-app-id';
   const mockUserToken = 'user-token-123';
   let aiAuth;
+  let auth;
+  let mockAuthManager;
+  let mockAIClient;
 
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Reset the module to clear the default client
+    // Reset the module to clear any cached state
     jest.resetModules();
+    
+    // Create mock AI client
+    mockAIClient = {
+      _config: { apiKey: mockApiKey },
+      _type: 'mock-openai-client'
+    };
     
     // Reset and configure the OpenAI mock
     mockOpenAI.mockReset();
@@ -40,208 +46,170 @@ describe('aiAuth', () => {
       _type: 'mock-openai-client' 
     }));
     
-    // Setup mocks before requiring any modules
-    jest.doMock('../../../config', () => ({
-      getApiEndpoint: jest.fn().mockReturnValue(mockApiEndpoint)
-    }));
+    // Create mock auth manager
+    mockAuthManager = {
+      aiClientFactory: {
+        getDefaultClient: jest.fn().mockReturnValue(mockAIClient)
+      },
+      getAIClient: jest.fn().mockResolvedValue(mockAIClient)
+    };
     
+    // Setup mocks before requiring any modules
     jest.doMock('../../../src/auth', () => ({
       API_KEY: mockApiKey,
       APP_ID: mockAppId,
       hasValidToken: jest.fn(),
-      getUserToken: jest.fn()
-    }));
-    
-    jest.doMock('../../../src/utils/webhookUserTracker', () => ({
-      shouldBypassNsfwVerification: jest.fn()
+      getUserToken: jest.fn(),
+      getAuthManager: jest.fn().mockReturnValue(mockAuthManager)
     }));
     
     // Now require the modules after mocks are set up
-    const { getApiEndpoint } = require('../../../config');
     auth = require('../../../src/auth');
-    webhookUserTracker = require('../../../src/utils/webhookUserTracker');
     
     // Require the module under test
     aiAuth = require('../../../src/utils/aiAuth');
   });
 
-  describe('initAiClient', () => {
-    it('should initialize the default AI client', () => {
-      // Clear the mock before the call
-      mockOpenAI.mockClear();
+  describe('initAI', () => {
+    it('should log that initialization is handled by auth system', async () => {
+      const logger = require('../../../src/logger');
       
-      aiAuth.initAiClient();
-
-      expect(mockOpenAI).toHaveBeenCalledTimes(1);
-      expect(mockOpenAI).toHaveBeenCalledWith({
-        apiKey: mockApiKey,
-        baseURL: mockApiEndpoint,
-        defaultHeaders: {},
-      });
-    });
-  });
-
-  describe('getDefaultClient', () => {
-    it('should return the default client after initialization', () => {
-      aiAuth.initAiClient();
-      const client = aiAuth.getDefaultClient();
-
-      expect(client._type).toBe('mock-openai-client');
-    });
-
-    it('should throw error if called before initialization', () => {
-      expect(() => aiAuth.getDefaultClient()).toThrow(
-        '[AIAuth] Default AI client not initialized. Call initAiClient() first.'
-      );
-    });
-  });
-
-  describe('createAiClient', () => {
-    it('should create a new AI client with provided headers', () => {
-      const headers = { 'X-Custom': 'value' };
+      await aiAuth.initAI();
       
-      const client = aiAuth.createAiClient(headers);
-
-      expect(mockOpenAI).toHaveBeenCalledWith({
-        apiKey: mockApiKey,
-        baseURL: mockApiEndpoint,
-        defaultHeaders: headers,
-      });
-      expect(client._type).toBe('mock-openai-client');
+      expect(logger.info).toHaveBeenCalledWith('[AIAuth] AI client initialization is now handled by auth system');
     });
-
-    it('should create a client with empty headers if none provided', () => {
-      aiAuth.createAiClient();
-
-      expect(mockOpenAI).toHaveBeenCalledWith({
-        apiKey: mockApiKey,
-        baseURL: mockApiEndpoint,
-        defaultHeaders: {},
-      });
+    
+    it('should support legacy initAiClient alias', async () => {
+      const logger = require('../../../src/logger');
+      
+      await aiAuth.initAiClient();
+      
+      expect(logger.info).toHaveBeenCalledWith('[AIAuth] AI client initialization is now handled by auth system');
     });
   });
 
-  describe('shouldBypassAuth', () => {
-    it('should return true when webhook message should bypass auth', () => {
-      const context = {
-        message: { webhookId: 'webhook123' }
-      };
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(true);
-
-      const result = aiAuth.shouldBypassAuth(context);
-
-      expect(result).toBe(true);
-      expect(webhookUserTracker.shouldBypassNsfwVerification).toHaveBeenCalledWith(context.message);
+  describe('getAI', () => {
+    it('should return the default AI client from auth manager', () => {
+      const client = aiAuth.getAI();
+      
+      expect(auth.getAuthManager).toHaveBeenCalled();
+      expect(mockAuthManager.aiClientFactory.getDefaultClient).toHaveBeenCalled();
+      expect(client).toBe(mockAIClient);
     });
-
-    it('should return false when webhook message should not bypass auth', () => {
-      const context = {
-        message: { webhookId: 'webhook123' }
-      };
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
-
-      const result = aiAuth.shouldBypassAuth(context);
-
-      expect(result).toBe(false);
+    
+    it('should return a test client when auth manager is not available in test mode', () => {
+      // Mock auth manager not available
+      auth.getAuthManager.mockReturnValue(null);
+      
+      // Ensure we're in test mode
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'test';
+      
+      try {
+        const client = aiAuth.getAI();
+        
+        expect(mockOpenAI).toHaveBeenCalledWith({
+          apiKey: 'test-key',
+          baseURL: 'http://test.example.com'
+        });
+        expect(client._type).toBe('mock-openai-client');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
-
-    it('should return false when no webhook message in context', () => {
-      expect(aiAuth.shouldBypassAuth({})).toBe(false);
-      expect(aiAuth.shouldBypassAuth({ message: {} })).toBe(false);
-    });
-  });
-
-  describe('getAiClientForUser', () => {
-    it('should return client with bypass auth when webhook bypass is enabled', () => {
-      const context = {
-        message: { webhookId: 'webhook123' }
-      };
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(true);
-
-      const client = aiAuth.getAiClientForUser('user123', context);
-
-      expect(client).toBeTruthy();
-      expect(mockOpenAI).toHaveBeenCalledWith({
-        apiKey: mockApiKey,
-        baseURL: mockApiEndpoint,
-        defaultHeaders: {
-          'X-App-ID': mockAppId,
-        },
-      });
-    });
-
-    it('should return client with user token when user has valid token', () => {
-      auth.hasValidToken.mockReturnValue(true);
-      auth.getUserToken.mockReturnValue(mockUserToken);
-
-      const client = aiAuth.getAiClientForUser('user123');
-
-      expect(client).toBeTruthy();
-      expect(mockOpenAI).toHaveBeenCalledWith({
-        apiKey: mockApiKey,
-        baseURL: mockApiEndpoint,
-        defaultHeaders: {
-          'X-App-ID': mockAppId,
-          'X-User-Auth': mockUserToken,
-        },
-      });
-    });
-
-    it('should return null when user has no valid token and no bypass', () => {
-      auth.hasValidToken.mockReturnValue(false);
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
-
-      const client = aiAuth.getAiClientForUser('user123');
-
-      expect(client).toBeNull();
-    });
-
-    it('should handle null userId gracefully', () => {
-      auth.hasValidToken.mockReturnValue(false);
-
-      const client = aiAuth.getAiClientForUser(null);
-
-      expect(client).toBeNull();
+    
+    it('should throw error when auth manager is not available in non-test mode', () => {
+      // Mock auth manager not available
+      auth.getAuthManager.mockReturnValue(null);
+      
+      // Ensure we're not in test mode
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      
+      try {
+        expect(() => aiAuth.getAI()).toThrow('Auth system not initialized. Call initAuth() first.');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
     });
   });
 
-  describe('hasValidAuth', () => {
-    it('should return true when auth bypass is enabled', () => {
-      const context = {
-        message: { webhookId: 'webhook123' }
-      };
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(true);
-
-      const result = aiAuth.hasValidAuth('user123', context);
-
-      expect(result).toBe(true);
+  describe('getAIForUser', () => {
+    it('should return AI client for user from auth manager', async () => {
+      const logger = require('../../../src/logger');
+      const userId = 'user123';
+      
+      const client = await aiAuth.getAIForUser({ userId, isWebhook: false });
+      
+      expect(auth.getAuthManager).toHaveBeenCalled();
+      expect(mockAuthManager.getAIClient).toHaveBeenCalledWith({ userId, isWebhook: false });
+      expect(client).toBe(mockAIClient);
+      expect(logger.debug).toHaveBeenCalledWith('[AIAuth] Got AI client for user user123 (webhook: false)');
     });
-
-    it('should return true when user has valid token', () => {
-      auth.hasValidToken.mockReturnValue(true);
-
-      const result = aiAuth.hasValidAuth('user123');
-
-      expect(result).toBe(true);
-      expect(auth.hasValidToken).toHaveBeenCalledWith('user123');
+    
+    it('should handle webhook context', async () => {
+      const userId = 'user123';
+      
+      const client = await aiAuth.getAIForUser({ userId, isWebhook: true });
+      
+      expect(mockAuthManager.getAIClient).toHaveBeenCalledWith({ userId, isWebhook: true });
+      expect(client).toBe(mockAIClient);
     });
-
-    it('should return false when no bypass and no valid token', () => {
-      auth.hasValidToken.mockReturnValue(false);
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
-
-      const result = aiAuth.hasValidAuth('user123');
-
-      expect(result).toBe(false);
+    
+    it('should fall back to default client on error', async () => {
+      const logger = require('../../../src/logger');
+      const userId = 'user123';
+      const error = new Error('Test error');
+      
+      mockAuthManager.getAIClient.mockRejectedValue(error);
+      
+      const client = await aiAuth.getAIForUser({ userId });
+      
+      expect(logger.error).toHaveBeenCalledWith('[AIAuth] Failed to get AI client for user user123:', error);
+      expect(mockAuthManager.aiClientFactory.getDefaultClient).toHaveBeenCalled();
+      expect(client).toBe(mockAIClient);
     });
+    
+    it('should return test client when auth manager not available in test mode', async () => {
+      auth.getAuthManager.mockReturnValue(null);
+      
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'test';
+      
+      try {
+        const client = await aiAuth.getAIForUser({ userId: 'user123' });
+        
+        expect(mockOpenAI).toHaveBeenCalledWith({
+          apiKey: 'test-key',
+          baseURL: 'http://test.example.com'
+        });
+        expect(client._type).toBe('mock-openai-client');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+      }
+    });
+  });
 
-    it('should return false for null userId without bypass', () => {
-      auth.hasValidToken.mockReturnValue(false);
-      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
-
-      const result = aiAuth.hasValidAuth(null);
-
-      expect(result).toBe(false);
+  describe('getAiClientForUser (legacy)', () => {
+    it('should delegate to getAIForUser with isWebhook from context', async () => {
+      const userId = 'user123';
+      const context = { isWebhook: true };
+      
+      const client = await aiAuth.getAiClientForUser(userId, context);
+      
+      // Verify it called the auth manager with the right parameters
+      expect(mockAuthManager.getAIClient).toHaveBeenCalledWith({ userId, isWebhook: true });
+      expect(client).toBe(mockAIClient);
+    });
+    
+    it('should default isWebhook to false when no context', async () => {
+      const userId = 'user123';
+      
+      const client = await aiAuth.getAiClientForUser(userId);
+      
+      // Verify it called the auth manager with the right parameters
+      expect(mockAuthManager.getAIClient).toHaveBeenCalledWith({ userId, isWebhook: false });
+      expect(client).toBe(mockAIClient);
     });
   });
 });

@@ -65,6 +65,15 @@ describe('Auth Module - Comprehensive Tests', () => {
     auth.nsfwVerified = {};
   });
   
+  afterEach(async () => {
+    // Clear all timers to prevent hanging tests
+    jest.clearAllTimers();
+    jest.useRealTimers();
+    
+    // Shutdown auth system to clean up intervals
+    await auth.shutdown();
+  });
+  
   describe('getAuthorizationUrl', () => {
     it('should return correct authorization URL', async () => {
       // Initialize auth system first

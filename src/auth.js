@@ -366,6 +366,20 @@ function getTokenExpirationInfo(userId) {
   return authManager.getTokenExpirationInfo(userId);
 }
 
+/**
+ * Shutdown the auth system and cleanup resources
+ * Used primarily for testing to prevent hanging intervals
+ * @returns {Promise<void>}
+ */
+async function shutdown() {
+  if (authManager) {
+    await authManager.shutdown();
+    authManager = null;
+    _initPromise = null;
+    _isInitializing = false;
+  }
+}
+
 // Export for backward compatibility - these provide direct access to internal state
 Object.defineProperty(module.exports, 'userTokens', {
   get() {
@@ -415,6 +429,7 @@ module.exports = {
   cleanupExpiredTokens,
   getTokenAge,
   getTokenExpirationInfo,
+  shutdown,
   TOKEN_EXPIRATION_MS,
   APP_ID,
   API_KEY,

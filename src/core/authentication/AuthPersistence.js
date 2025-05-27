@@ -178,7 +178,7 @@ class AuthPersistence {
         size: tokenStats.size,
         modified: tokenStats.mtime
       };
-    } catch (_error) {
+    } catch (_error) { // eslint-disable-line no-unused-vars
       stats.files.authTokens = { exists: false };
     }
 
@@ -189,7 +189,7 @@ class AuthPersistence {
         size: nsfwStats.size,
         modified: nsfwStats.mtime
       };
-    } catch (_error) {
+    } catch (_error) { // eslint-disable-line no-unused-vars
       stats.files.nsfwVerified = { exists: false };
     }
 
