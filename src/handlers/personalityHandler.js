@@ -93,7 +93,7 @@ async function handlePersonalityInteraction(
 
   try {
     // Perform complete authentication check
-    const authResult = await personalityAuth.checkPersonalityAuth(message);
+    const authResult = await personalityAuth.checkPersonalityAuth(message, personality);
     
     if (!authResult.isAllowed) {
       // Authentication failed - send error message and exit
