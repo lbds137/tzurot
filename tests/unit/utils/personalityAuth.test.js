@@ -257,8 +257,8 @@ describe('Personality Authentication Module', () => {
       await personalityAuth.sendAuthError(mockMessage, errorMessage, reason);
       
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: errorMessage,
-        ephemeral: true
+        content: errorMessage
+        // Note: ephemeral only works for slash command interactions, not regular messages
       });
     });
 

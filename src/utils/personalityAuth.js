@@ -145,8 +145,8 @@ function getUserAuthStatus(userId) {
 async function sendAuthError(message, errorMessage, _reason) {
   try {
     await message.reply({
-      content: errorMessage,
-      ephemeral: true
+      content: errorMessage
+      // Note: ephemeral only works for slash command interactions, not regular messages
     });
   } catch (error) {
     logger.error('[PersonalityAuth] Error sending auth error message:', error);

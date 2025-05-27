@@ -127,15 +127,12 @@ describe('PersonalityAuthValidator', () => {
       });
       
       expect(result.isAuthorized).toBe(false);
-      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
+      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
     });
     
-    it('should authorize owner without token', async () => {
+    it('should require auth even for owner', async () => {
       const ownerMessage = { author: { id: ownerId } };
       mockTokenManager.hasValidToken.mockReturnValue(false);
-      mockNsfwManager.verifyAccess.mockReturnValue({ isAllowed: true });
-      mockNsfwManager.requiresNsfwVerification.mockReturnValue(false);
-      mockNsfwManager.checkProxySystem.mockReturnValue({ isProxy: false });
       
       const result = await validator.validateAccess({
         message: ownerMessage,
@@ -143,8 +140,8 @@ describe('PersonalityAuthValidator', () => {
         channel: mockChannel
       });
       
-      expect(result.isAuthorized).toBe(true);
-      expect(result.details.ownerBypass).toBe(true);
+      expect(result.isAuthorized).toBe(false);
+      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
     });
     
     it('should check NSFW verification when required', async () => {
@@ -214,7 +211,7 @@ describe('PersonalityAuthValidator', () => {
       
       expect(result.isAuthorized).toBe(false);
       expect(result.requiresAuth).toBe(true);
-      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
+      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
       expect(mockTokenManager.hasValidToken).toHaveBeenCalled();
     });
     
@@ -273,7 +270,7 @@ describe('PersonalityAuthValidator', () => {
   describe('getAuthHelpMessage', () => {
     it('should generate help message for auth failures', () => {
       const validationResult = {
-        errors: ['This personality requires authentication. Please use the `auth` command to authenticate.'],
+        errors: ['Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.'],
         warnings: [],
         requiresAuth: true,
         requiresNsfwVerification: false,

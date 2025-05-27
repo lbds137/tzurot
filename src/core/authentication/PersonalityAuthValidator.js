@@ -63,23 +63,19 @@ class PersonalityAuthValidator {
       return result;
     }
 
-    // ALL personality interactions require authentication
+    // ALL personality interactions require authentication (including bot owner)
     result.requiresAuth = true;
     
-    // Bot owner bypasses auth requirements
-    if (this.isOwner(effectiveUserId)) {
-      logger.debug(`[PersonalityAuthValidator] Bot owner ${effectiveUserId} bypasses auth requirement`);
-      result.details.ownerBypass = true;
-    } else {
-      // Check if user has valid token
-      const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
-      if (!hasToken) {
-        result.errors.push('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
-        logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
-        return result;
-      }
-      result.details.hasValidToken = true;
+    // Check if user has valid token (no bypass for bot owner)
+    const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
+    if (!hasToken) {
+      // Get bot prefix from config or use default
+      const botPrefix = process.env.PREFIX || '!tz';
+      result.errors.push(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
+      logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
+      return result;
     }
+    result.details.hasValidToken = true;
 
     // Check NSFW verification if needed
     if (channel) {
