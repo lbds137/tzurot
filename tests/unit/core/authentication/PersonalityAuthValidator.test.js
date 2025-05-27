@@ -49,23 +49,23 @@ describe('PersonalityAuthValidator', () => {
   });
   
   describe('requiresAuth', () => {
-    it('should return true for personalities requiring auth', () => {
+    it('should always return true (all personalities require auth)', () => {
       const personality = { requiresAuth: true };
       expect(validator.requiresAuth(personality)).toBe(true);
     });
     
-    it('should return false for personalities not requiring auth', () => {
+    it('should return true even for personalities marked as not requiring auth', () => {
       const personality = { requiresAuth: false };
-      expect(validator.requiresAuth(personality)).toBe(false);
+      expect(validator.requiresAuth(personality)).toBe(true);
     });
     
-    it('should handle undefined personality', () => {
-      expect(validator.requiresAuth(undefined)).toBe(false);
+    it('should return true for undefined personality', () => {
+      expect(validator.requiresAuth(undefined)).toBe(true);
     });
     
-    it('should handle personality without requiresAuth property', () => {
+    it('should return true for personality without requiresAuth property', () => {
       const personality = { name: 'TestBot' };
-      expect(validator.requiresAuth(personality)).toBe(false);
+      expect(validator.requiresAuth(personality)).toBe(true);
     });
   });
   
@@ -127,7 +127,7 @@ describe('PersonalityAuthValidator', () => {
       });
       
       expect(result.isAuthorized).toBe(false);
-      expect(result.errors).toContain('This personality requires authentication. Please use the `auth` command to authenticate.');
+      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
     });
     
     it('should authorize owner without token', async () => {
@@ -202,11 +202,9 @@ describe('PersonalityAuthValidator', () => {
       expect(result.errors).toContain('Unable to determine user ID');
     });
     
-    it('should authorize personalities not requiring auth', async () => {
+    it('should require auth even for personalities marked as not requiring auth', async () => {
       const openPersonality = { name: 'OpenBot', requiresAuth: false };
-      mockNsfwManager.verifyAccess.mockReturnValue({ isAllowed: true });
-      mockNsfwManager.requiresNsfwVerification.mockReturnValue(false);
-      mockNsfwManager.checkProxySystem.mockReturnValue({ isProxy: false });
+      mockTokenManager.hasValidToken.mockReturnValue(false);
       
       const result = await validator.validateAccess({
         message: mockMessage,
@@ -214,9 +212,10 @@ describe('PersonalityAuthValidator', () => {
         channel: mockChannel
       });
       
-      expect(result.isAuthorized).toBe(true);
-      expect(result.requiresAuth).toBe(false);
-      expect(mockTokenManager.hasValidToken).not.toHaveBeenCalled();
+      expect(result.isAuthorized).toBe(false);
+      expect(result.requiresAuth).toBe(true);
+      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
+      expect(mockTokenManager.hasValidToken).toHaveBeenCalled();
     });
     
     it('should use provided userId over message author id', async () => {

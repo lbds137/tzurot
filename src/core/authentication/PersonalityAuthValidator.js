@@ -19,11 +19,13 @@ class PersonalityAuthValidator {
 
   /**
    * Check if a personality requires authentication
+   * Note: Currently ALL personalities require authentication
    * @param {Object} personality - The personality object
-   * @returns {boolean} Whether authentication is required
+   * @returns {boolean} Whether authentication is required (always true)
    */
-  requiresAuth(personality) {
-    return personality?.requiresAuth === true;
+  requiresAuth(personality) { // eslint-disable-line no-unused-vars
+    // All personality interactions require authentication
+    return true;
   }
 
   /**
@@ -61,24 +63,22 @@ class PersonalityAuthValidator {
       return result;
     }
 
-    // Check if personality requires authentication
-    result.requiresAuth = this.requiresAuth(personality);
+    // ALL personality interactions require authentication
+    result.requiresAuth = true;
     
-    if (result.requiresAuth) {
-      // Bot owner bypasses auth requirements
-      if (this.isOwner(effectiveUserId)) {
-        logger.debug(`[PersonalityAuthValidator] Bot owner ${effectiveUserId} bypasses auth requirement`);
-        result.details.ownerBypass = true;
-      } else {
-        // Check if user has valid token
-        const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
-        if (!hasToken) {
-          result.errors.push('This personality requires authentication. Please use the `auth` command to authenticate.');
-          logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
-          return result;
-        }
-        result.details.hasValidToken = true;
+    // Bot owner bypasses auth requirements
+    if (this.isOwner(effectiveUserId)) {
+      logger.debug(`[PersonalityAuthValidator] Bot owner ${effectiveUserId} bypasses auth requirement`);
+      result.details.ownerBypass = true;
+    } else {
+      // Check if user has valid token
+      const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
+      if (!hasToken) {
+        result.errors.push('Authentication is required to interact with personalities. Please use the `auth` command to authenticate.');
+        logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
+        return result;
       }
+      result.details.hasValidToken = true;
     }
 
     // Check NSFW verification if needed
