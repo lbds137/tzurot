@@ -55,7 +55,7 @@ async function initStorage() {
  * @function saveData
  * @param {string} filename - The name of the file (without .json extension)
  * @param {Object} data - The data to save (will be converted to JSON)
- * @returns {Promise<void>} Resolves when the data is saved
+ * @returns {Promise<boolean>} Returns true when the data is saved successfully
  * @throws {Error} If the data cannot be saved
  *
  * @description
@@ -67,6 +67,7 @@ async function saveData(filename, data) {
   try {
     const filePath = path.join(DATA_DIR, `${filename}.json`);
     await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    return true;
   } catch (error) {
     logger.error(`[DataStorage] Error saving data to ${filename}: ${error.message}`);
     throw error;
