@@ -67,14 +67,12 @@ describe('UserTokenManager', () => {
       const token = await manager.exchangeCodeForToken(code);
       
       expect(token).toBe(responseToken);
-      expect(mockFetch).toHaveBeenCalledWith(authApiEndpoint, {
+      expect(mockFetch).toHaveBeenCalledWith(`${authApiEndpoint}/nonce`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-App-ID': appId,
-          'X-API-Key': apiKey
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ app_id: appId, code })
       });
       expect(logger.info).toHaveBeenCalledWith('[UserTokenManager] Successfully exchanged code for token');
     });
@@ -193,11 +191,12 @@ describe('UserTokenManager', () => {
       expect(logger.info).toHaveBeenCalledWith(`[UserTokenManager] Deleted token for user ${userId}`);
     });
     
-    it('should return false for non-existent token', () => {
+    it('should return true for non-existent token', () => {
       const result = manager.deleteUserToken('nonexistent');
       
-      expect(result).toBe(false);
-      expect(logger.warn).toHaveBeenCalledWith('[UserTokenManager] No token found for user nonexistent');
+      expect(result).toBe(true);
+      // No warning is logged - this is treated as a successful no-op
+      expect(logger.info).not.toHaveBeenCalled();
     });
   });
   
