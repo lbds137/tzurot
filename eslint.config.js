@@ -2,6 +2,7 @@ const js = require('@eslint/js');
 const eslintPluginJest = require('eslint-plugin-jest');
 const prettier = require('eslint-config-prettier');
 const globals = require('globals');
+const moduleSizeRules = require('./.eslintrc.module-size.js');
 
 module.exports = [
   js.configs.recommended,
@@ -18,7 +19,8 @@ module.exports = [
       'no-unused-vars': ['warn', { 'argsIgnorePattern': '^_', 'varsIgnorePattern': '^_' }],
       'no-console': 'off',
       'no-var': 'warn',
-      'prefer-const': 'warn'
+      'prefer-const': 'warn',
+      ...moduleSizeRules.rules
     }
   },
   {

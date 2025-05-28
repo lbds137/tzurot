@@ -16,9 +16,12 @@
     "lint": "eslint src/ --ext .js",
     "lint:fix": "eslint src/ --ext .js --fix",
     "lint:timers": "node scripts/check-timer-patterns.js",
+    "lint:module-size": "./scripts/check-module-size.sh",
+    "lint:test-mocks": "node scripts/check-test-mock-patterns.js",
     "format": "prettier --write \"src/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\"",
-    "quality": "npm run lint && npm run format:check && npm run lint:timers"
+    "quality": "npm run lint && npm run format:check && npm run lint:timers && npm run lint:module-size",
+    "quality:tests": "npm run lint:test-mocks"
   },
   "dependencies": {
     "discord.js": "14.19.3",

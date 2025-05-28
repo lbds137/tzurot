@@ -29,6 +29,38 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 - Specialized tests can use descriptive names like `aiService.error.test.js`
 - Keep test files in the same relative path as source files
 
+## 🚨 Mock Pattern Enforcement (NEW)
+
+### Required for All New Tests
+Use ONE of these approaches:
+
+1. **Migration Helper** (for gradual migration):
+   ```javascript
+   const { createMigrationHelper } = require('../../../utils/testEnhancements');
+   const migrationHelper = createMigrationHelper();
+   const mockMessage = migrationHelper.bridge.createCompatibleMockMessage();
+   ```
+
+2. **Direct Presets** (for new tests):
+   ```javascript
+   const { presets } = require('../../__mocks__');
+   const mockEnv = presets.commandTest();
+   const message = mockEnv.discord.createMessage();
+   ```
+
+### Patterns That Will FAIL Enforcement
+- ❌ `jest.doMock()` - Deprecated, use standard mocks
+- ❌ `helpers.createMockMessage()` - Use migration helper instead
+- ❌ `require('mockFactories')` - Use consolidated mocks
+- ❌ `jest.resetModules()` - Breaks imports, use `jest.clearAllMocks()`
+
+### Enforcement Active In:
+- **Pre-commit hooks** - Blocks commits with violations
+- **npm run lint:test-mocks** - Manual check all files
+- **CI/CD pipeline** - Blocks PRs with violations
+
+See `docs/testing/MOCK_PATTERN_RULES.md` for complete rules.
+
 ## Proper Test Structure (Copy This!)
 
 ```javascript

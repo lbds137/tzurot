@@ -109,8 +109,9 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `npm run lint` - Run ESLint to check code quality
 - `npm run lint:fix` - Fix ESLint issues automatically
 - `npm run lint:timers` - Check for problematic timer patterns
+- `npm run lint:module-size` - Check for oversized modules and multiple test files
 - `npm run format` - Run Prettier to format code
-- `npm run quality` - Run lint, format, and timer checks
+- `npm run quality` - Run lint, format, timer checks, and module size checks
 - `npm test` - Run all tests
 - `npm run test:watch` - Run tests in watch mode (useful during development)
 - Run a specific test: `npx jest tests/unit/path/to/test.js`
@@ -119,6 +120,7 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `node scripts/check-timer-patterns.js` - Check for non-injectable timers
 - `node scripts/check-test-antipatterns.js` - Check for test quality issues
 - `node scripts/comprehensive-test-timing-analysis.js` - Analyze test performance
+- `./scripts/check-module-size.sh` - Check for modules exceeding size limits (500 lines)
 
 ### IMPORTANT: After making code changes
 - Always run `npm run quality` to check code quality, formatting, and timer patterns
@@ -194,6 +196,51 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
   - Absolutely avoid files larger than 1500 lines whenever possible
   - Break large files into smaller, more modular components
   - Large files make code harder to understand and also exceed token limits (25k max)
+
+### Module Design Guidelines (Critical for Maintainability)
+
+**IMPORTANT**: Large modules with multiple test files indicate poor separation of concerns.
+
+#### Signs Your Module is Too Large
+1. **Multiple test files** - If you need `module.test.js`, `module.error.test.js`, etc., the module is doing too much
+2. **File exceeds 500 lines** - Our linter will warn at 400 lines, error at 500 lines
+3. **High cyclomatic complexity** - Too many if/else branches and logic paths
+4. **Mixed responsibilities** - e.g., API calls, formatting, caching, and error handling in one file
+
+#### Module Refactoring Principles
+1. **Single Responsibility** - Each module should have ONE clear purpose
+2. **Clear Interfaces** - Define explicit public APIs, hide implementation details
+3. **Dependency Injection** - Make external dependencies (timers, APIs, etc.) injectable
+4. **Composability** - Small modules that work together are better than large monoliths
+
+#### Example: Refactoring a Large Module
+```javascript
+// ❌ BAD: webhookManager.js doing everything (2000+ lines)
+class WebhookManager {
+  createWebhook() { /* webhook creation */ }
+  cacheWebhook() { /* caching logic */ }
+  sendMessage() { /* message sending */ }
+  splitMessage() { /* message splitting */ }
+  handleMedia() { /* media processing */ }
+  formatUsername() { /* username formatting */ }
+  // ... dozens more methods
+}
+
+// ✅ GOOD: Separate focused modules
+// webhookCreator.js (200 lines)
+class WebhookCreator { /* only webhook creation */ }
+
+// webhookCache.js (150 lines)
+class WebhookCache { /* only caching logic */ }
+
+// messageSender.js (200 lines)
+class MessageSender { /* only sending logic */ }
+```
+
+#### Enforcement
+- Run `npm run lint:module-size` to check for oversized modules
+- Pre-commit hooks will fail if modules exceed 500 lines
+- Multiple test files per module will trigger warnings
 
 ### Timer Patterns (Critical for Test Performance)
 
@@ -403,6 +450,141 @@ describe('ComponentName', () => {
 - Use fake timers for all time-based operations
 - Mock all file system and network operations
 - Use the consolidated mock system in `tests/__mocks__/`
+
+### Mock Pattern Enforcement
+
+**IMPORTANT**: We have strict enforcement for test mock patterns to prevent inconsistency issues:
+
+#### Required Patterns for New Tests
+- Use `createMigrationHelper()` from `tests/utils/testEnhancements.js` for gradual migration
+- Or use `presets.commandTest()` from `tests/__mocks__/` for fully migrated tests
+- Command tests MUST use one of these approaches
+
+#### Deprecated Patterns (Will Fail Checks)
+- ❌ `jest.doMock()` - Use standard `jest.mock()` with migration helper
+- ❌ `helpers.createMockMessage()` - Use `migrationHelper.bridge.createCompatibleMockMessage()`
+- ❌ Legacy mock imports (`mockFactories`, `discordMocks`, `apiMocks`)
+- ❌ `jest.resetModules()` - Breaks helper imports, use `jest.clearAllMocks()` instead
+
+#### Enforcement Mechanisms
+- **Pre-commit hook** - Checks staged test files for violations
+- **npm run lint:test-mocks** - Check all test files
+- **npm run quality:tests** - Part of quality checks
+- See `docs/testing/MOCK_PATTERN_RULES.md` for complete rules
+
+#### Migration Status
+- Run `node scripts/generate-mock-migration-report.js` to see progress
+- Currently ~5% migrated to new system
+- Goal: 100% consistent mock usage across all tests
+
+### CRITICAL: Bulk Test Modification Guidelines
+
+**⚠️ EXTREME CAUTION REQUIRED**: After experiencing catastrophic test suite failures from automated scripts, these guidelines are MANDATORY:
+
+#### Before Creating Any Bulk Modification Script
+
+1. **Test on a Small Subset First**
+   - ALWAYS test your script on 2-3 files maximum before applying broadly
+   - Manually verify the output is syntactically correct
+   - Run the modified tests to ensure they still pass
+   - Check for edge cases that your script might not handle
+
+2. **Include Syntax Validation**
+   ```javascript
+   // Example: Use a parser to validate JavaScript syntax
+   const { parse } = require('@babel/parser');
+   try {
+     parse(modifiedCode, { sourceType: 'module' });
+   } catch (error) {
+     console.error(`Syntax error in ${file}: ${error.message}`);
+     // DO NOT write invalid code to file
+   }
+   ```
+
+3. **Create Rollback Mechanisms**
+   - Use git branches for large changes: `git checkout -b bulk-test-updates`
+   - Or create backup files: `cp test.js test.js.backup`
+   - Log all changes made for easy reversal
+
+4. **Implement Incremental Processing**
+   - Process files in small batches (10-20 at a time)
+   - Allow for manual review between batches
+   - Include dry-run mode to preview changes without applying them
+
+5. **Common Pitfalls That Break Tests**
+   - Parentheses mismatches in complex expressions
+   - Missing closing braces or brackets
+   - Incorrect string escaping or quote handling
+   - Breaking mock references or imports
+   - Removing necessary semicolons or adding extras
+   - Modifying test structure without updating assertions
+
+#### Script Safety Checklist
+- [ ] Script tested on 2-3 files first
+- [ ] Syntax validation implemented
+- [ ] Rollback mechanism in place
+- [ ] Dry-run mode available
+- [ ] Edge cases considered and handled
+- [ ] Manual review of sample output completed
+- [ ] Test suite runs successfully on modified subset
+
+#### Example Safe Script Pattern
+```javascript
+// GOOD: Safe bulk modification script
+const fs = require('fs');
+const path = require('path');
+const { parse } = require('@babel/parser');
+
+const DRY_RUN = process.argv.includes('--dry-run');
+const BACKUP = process.argv.includes('--backup');
+
+function modifyTestFile(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const backup = BACKUP ? `${filePath}.backup` : null;
+  
+  if (backup) {
+    fs.writeFileSync(backup, content);
+  }
+  
+  // Make modifications
+  let modified = content;
+  // ... your modifications here ...
+  
+  // Validate syntax
+  try {
+    parse(modified, { sourceType: 'module' });
+  } catch (error) {
+    console.error(`Syntax error in ${filePath}: ${error.message}`);
+    return false;
+  }
+  
+  if (!DRY_RUN) {
+    fs.writeFileSync(filePath, modified);
+  }
+  
+  console.log(`${DRY_RUN ? '[DRY RUN] Would modify' : 'Modified'}: ${filePath}`);
+  return true;
+}
+
+// Process in small batches
+const files = getTestFiles();
+const BATCH_SIZE = 10;
+
+for (let i = 0; i < files.length; i += BATCH_SIZE) {
+  const batch = files.slice(i, i + BATCH_SIZE);
+  console.log(`Processing batch ${i / BATCH_SIZE + 1}...`);
+  
+  const results = batch.map(modifyTestFile);
+  const failures = results.filter(r => !r).length;
+  
+  if (failures > 0) {
+    console.error(`${failures} files failed. Stopping.`);
+    process.exit(1);
+  }
+}
+```
+
+**Remember**: It's better to spend 30 minutes making a script safe than 2 hours fixing broken tests!
 
 ## Date Handling
 
