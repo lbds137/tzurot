@@ -853,9 +853,10 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
       
-      // Add a small delay between chunks to prevent Discord from merging/replacing them
+      // Add a delay between chunks to prevent Discord from merging/replacing them
+      // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {
-        await delayFn(300);
+        await delayFn(750);
       }
 
       // Prepare options for the message
@@ -892,7 +893,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
     // For multimodal content, send media as separate messages in DMs
     if (isMultimodalContent) {
       logger.info(`[WebhookManager] Sending multimodal media as separate messages in DM`);
-      const mediaDelay = 500; // Small delay between text and media messages for better UX
+      const mediaDelay = 750; // Delay between text and media messages to prevent Discord issues
 
       // Send audio if present (always prioritize audio over image)
       if (multimodalAudioUrl) {
@@ -1345,9 +1346,10 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         const isFirstChunk = i === 0;
         const chunkContent = contentChunks[i];
         
-        // Add a small delay between chunks to prevent Discord from merging/replacing them
+        // Add a delay between chunks to prevent Discord from merging/replacing them
+      // 750ms delay provides a good balance between speed and reliability
         if (i > 0) {
-          await delayFn(300);
+          await delayFn(750);
         }
 
         // Check for duplicate messages with time-based approach
@@ -1445,7 +1447,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       // For multimodal content, send media as separate messages
       if (isMultimodalContent) {
         logger.info(`[Webhook] Sending multimodal media as separate messages`);
-        const mediaDelay = 500; // Small delay between text and media messages for better UX
+        const mediaDelay = 750; // Delay between text and media messages to prevent Discord issues
 
         // Send audio if present (always send audio first due to API limitations)
         if (multimodalAudioUrl) {
@@ -2032,9 +2034,10 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
       
-      // Add a small delay between chunks to prevent Discord from merging/replacing them
+      // Add a delay between chunks to prevent Discord from merging/replacing them
+      // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {
-        await delayFn(300);
+        await delayFn(750);
       }
 
       // Skip duplicate messages
