@@ -7,7 +7,7 @@
 
 const AuthManager = require('./core/authentication');
 const logger = require('./logger');
-const { botConfig } = require('./config');
+const { botConfig } = require('../config');
 
 // Create singleton instance
 let authManager = null;

@@ -5,7 +5,12 @@
 // Mock all dependencies before imports  
 jest.mock('../../../../config', () => ({
   getProfileInfoEndpoint: jest.fn((profileName) => 
-    `https://api.example.com/profiles/${profileName}`)
+    `https://api.example.com/profiles/${profileName}`),
+  botConfig: {
+    mentionChar: '@',
+    isDevelopment: false,
+    environment: 'production'
+  }
 }));
 jest.mock('node-fetch');
 jest.mock('../../../../src/logger');
