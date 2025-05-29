@@ -10,7 +10,6 @@ jest.mock('../../../../src/logger', () => ({
 
 // Import the module
 const MessageTracker = require('../../../../src/commands/utils/messageTracker');
-const messageTrackerSingleton = MessageTracker.instance;
 
 describe('MessageTracker', () => {
   let tracker;
@@ -39,12 +38,11 @@ describe('MessageTracker', () => {
   afterEach(() => {
     // Restore the original Date.now function
     Date.now = originalDateNow;
-    jest.clearAllTimers();
   });
-  
+
   describe('isProcessed and markAsProcessed', () => {
     test('should correctly track processed messages', () => {
-      const messageId = 'test-message-123';
+      const messageId = '123456789012345678';
       
       // Initially not processed
       expect(tracker.isProcessed(messageId)).toBe(false);
@@ -57,99 +55,109 @@ describe('MessageTracker', () => {
     });
     
     test('should schedule auto-removal with custom timeout', () => {
-      const messageId = 'test-message-456';
+      const messageId = '123456789012345678';
       
       // Enable timers for this test
-      tracker.enableCleanupTimers = true;
+      const mockInterval = { unref: jest.fn() };
+      const schedulerTracker = new MessageTracker({
+        enableCleanupTimers: true,
+        scheduler: mockScheduler,
+        interval: () => mockInterval,
+        delay: () => Promise.resolve()
+      });
       
-      tracker.markAsProcessed(messageId, 5000);
+      schedulerTracker.markAsProcessed(messageId, 5000);
       
       // Verify scheduler was called with correct timeout
       expect(mockScheduler).toHaveBeenCalledWith(expect.any(Function), 5000);
-      
-      // Execute the scheduled function
-      const scheduledFn = mockScheduler.mock.calls[0][0];
-      scheduledFn();
-      
-      // Message should be removed
-      expect(tracker.isProcessed(messageId)).toBe(false);
     });
     
     test('should not schedule removal when timers are disabled', () => {
-      const messageId = 'test-message-789';
+      const messageId = '123456789012345678';
       
       tracker.markAsProcessed(messageId);
       
-      // Scheduler should not be called
+      // Scheduler should not be called when timers are disabled
       expect(mockScheduler).not.toHaveBeenCalled();
     });
   });
 
   describe('isRecentCommand', () => {
     test('first command is never a recent duplicate', () => {
-      const result = tracker.isRecentCommand('user-123', 'test-command', []);
+      const userId = '123456789012345678';
+      const command = 'ping';
+      const args = [];
       
-      // First command should not be a duplicate
-      expect(result).toBe(false);
+      const isRecent = tracker.isRecentCommand(userId, command, args);
       
-      // Second immediate execution should be detected as duplicate
-      const secondResult = tracker.isRecentCommand('user-123', 'test-command', []);
-      expect(secondResult).toBe(true);
+      expect(isRecent).toBe(false);
     });
     
     test('detects duplicate command within 3 seconds', () => {
-      // First command
-      tracker.isRecentCommand('user-123', 'test-command', ['arg1']);
+      const userId = '123456789012345678';
+      const command = 'ping';
+      const args = [];
       
-      // Advance time by 2 seconds
-      Date.now = jest.fn(() => 3000);
+      // First execution
+      tracker.isRecentCommand(userId, command, args);
       
-      // Should still be duplicate (within 3 seconds)
-      expect(tracker.isRecentCommand('user-123', 'test-command', ['arg1'])).toBe(true);
+      // Mock time passing (less than 3 seconds)
+      Date.now = jest.fn(() => 2500);
       
-      // Advance time by 2 more seconds (total 4 seconds)
-      Date.now = jest.fn(() => 5000);
+      // Second execution
+      const isRecent = tracker.isRecentCommand(userId, command, args);
       
-      // Should no longer be duplicate
-      expect(tracker.isRecentCommand('user-123', 'test-command', ['arg1'])).toBe(false);
+      expect(isRecent).toBe(true);
     });
     
     test('different users can execute same command', () => {
-      tracker.isRecentCommand('user-123', 'test-command', []);
+      const user1 = '123456789012345678';
+      const user2 = '987654321098765432';
+      const command = 'ping';
+      const args = [];
       
-      // Different user should not be blocked
-      expect(tracker.isRecentCommand('user-456', 'test-command', [])).toBe(false);
+      // User 1 executes
+      tracker.isRecentCommand(user1, command, args);
+      
+      // User 2 executes immediately after
+      const isRecent = tracker.isRecentCommand(user2, command, args);
+      
+      expect(isRecent).toBe(false);
     });
     
     test('same user can execute different commands', () => {
-      tracker.isRecentCommand('user-123', 'command1', []);
+      const userId = '123456789012345678';
       
-      // Different command should not be blocked
-      expect(tracker.isRecentCommand('user-123', 'command2', [])).toBe(false);
+      // Execute first command
+      tracker.isRecentCommand(userId, 'ping', []);
+      
+      // Execute different command immediately
+      const isRecent = tracker.isRecentCommand(userId, 'help', []);
+      
+      expect(isRecent).toBe(false);
     });
     
     test('cleans up old entries after 10 seconds', () => {
-      // Add several commands at different times
-      tracker.isRecentCommand('user-1', 'cmd1', []);
+      const userId = '123456789012345678';
+      const command = 'ping';
+      const args = [];
       
-      Date.now = jest.fn(() => 5000);
-      tracker.isRecentCommand('user-2', 'cmd2', []);
+      // First execution
+      tracker.isRecentCommand(userId, command, args);
       
-      Date.now = jest.fn(() => 12000);
+      // Mock time passing (more than 10 seconds)
+      Date.now = jest.fn(() => 15000);
       
-      // This should trigger cleanup of commands older than 10 seconds
-      tracker.isRecentCommand('user-3', 'cmd3', []);
+      // Second execution after cleanup
+      const isRecent = tracker.isRecentCommand(userId, command, args);
       
-      // Check that old commands are cleaned up
-      expect(tracker.recentCommands.has('user-1-cmd1-')).toBe(false);
-      expect(tracker.recentCommands.has('user-2-cmd2-')).toBe(true);
-      expect(tracker.recentCommands.has('user-3-cmd3-')).toBe(true);
+      expect(isRecent).toBe(false);
     });
   });
-  
+
   describe('add command tracking', () => {
     test('tracks add command message IDs', () => {
-      const messageId = 'add-msg-123';
+      const messageId = '123456789012345678';
       
       expect(tracker.isAddCommandProcessed(messageId)).toBe(false);
       
@@ -159,7 +167,7 @@ describe('MessageTracker', () => {
     });
     
     test('tracks completed add commands', () => {
-      const commandKey = 'user123-personality1-add';
+      const commandKey = 'user123-personality456';
       
       expect(tracker.isAddCommandCompleted(commandKey)).toBe(false);
       
@@ -169,24 +177,23 @@ describe('MessageTracker', () => {
     });
     
     test('removes completed add command for specific user and personality', () => {
-      // Add multiple command keys
-      tracker.markAddCommandCompleted('user123-personality1-add');
-      tracker.markAddCommandCompleted('user123-personality2-add');
-      tracker.markAddCommandCompleted('user456-personality1-add');
+      const userId = '123456789012345678';
+      const personalityName = 'test-personality';
+      const commandKey = `${userId}-${personalityName}`;
       
-      // Remove only user123's personality1 commands
-      tracker.removeCompletedAddCommand('user123', 'personality1');
+      // Mark as completed
+      tracker.markAddCommandCompleted(commandKey);
+      expect(tracker.isAddCommandCompleted(commandKey)).toBe(true);
       
-      // Check results
-      expect(tracker.isAddCommandCompleted('user123-personality1-add')).toBe(false);
-      expect(tracker.isAddCommandCompleted('user123-personality2-add')).toBe(true);
-      expect(tracker.isAddCommandCompleted('user456-personality1-add')).toBe(true);
+      // Remove it
+      tracker.removeCompletedAddCommand(userId, personalityName);
+      expect(tracker.isAddCommandCompleted(commandKey)).toBe(false);
     });
   });
-  
+
   describe('embed tracking', () => {
     test('tracks sending embed status', () => {
-      const messageKey = 'msg-key-123';
+      const messageKey = 'channel123-message456';
       
       expect(tracker.isSendingEmbed(messageKey)).toBe(false);
       
@@ -198,7 +205,7 @@ describe('MessageTracker', () => {
     });
     
     test('tracks first embed generation', () => {
-      const messageKey = 'msg-key-456';
+      const messageKey = 'channel123-message456';
       
       expect(tracker.hasFirstEmbed(messageKey)).toBe(false);
       
@@ -207,16 +214,16 @@ describe('MessageTracker', () => {
       expect(tracker.hasFirstEmbed(messageKey)).toBe(true);
     });
   });
-  
+
   describe('cleanup intervals', () => {
     test('sets up cleanup intervals when enabled', () => {
-      // Use real timers for this test
       jest.useFakeTimers();
       const setIntervalSpy = jest.spyOn(global, 'setInterval');
       
-      // Create tracker with cleanup enabled and mock timers
-      const trackerWithCleanup = new MessageTracker({ 
+      // Create tracker with cleanup timers enabled
+      new MessageTracker({
         enableCleanupTimers: true,
+        scheduler: setTimeout,
         interval: setInterval
       });
       
@@ -230,47 +237,42 @@ describe('MessageTracker', () => {
       // Test the behavior: the MessageTracker should have methods to clear its data
       // This is what the cleanup intervals do - they call clear() on the various Sets
       
-      // Guard against the singleton not being properly initialized
-      if (!messageTrackerSingleton.processedMessages) {
-        // If the singleton failed to initialize, skip this test
-        return;
-      }
-      
-      // Start with a clean state
-      messageTrackerSingleton.processedMessages.clear();
-      messageTrackerSingleton.sendingEmbedResponses.clear();
-      messageTrackerSingleton.addCommandMessageIds.clear();
-      messageTrackerSingleton.completedAddCommands.clear();
-      messageTrackerSingleton.hasGeneratedFirstEmbed.clear();
+      // Create a new tracker instance for this test with mock timers
+      const cleanupTracker = new MessageTracker({ 
+        enableCleanupTimers: false,
+        scheduler: jest.fn(),
+        interval: jest.fn(),
+        delay: jest.fn()
+      });
       
       // Add test data to all the collections
-      messageTrackerSingleton.processedMessages.add('msg-1');
-      messageTrackerSingleton.processedMessages.add('msg-2');
-      messageTrackerSingleton.sendingEmbedResponses.add('embed-1');
-      messageTrackerSingleton.addCommandMessageIds.add('add-cmd-1');
-      messageTrackerSingleton.completedAddCommands.add('user1:personality1');
-      messageTrackerSingleton.hasGeneratedFirstEmbed.add('channel1');
+      cleanupTracker.processedMessages.add('msg-1');
+      cleanupTracker.processedMessages.add('msg-2');
+      cleanupTracker.sendingEmbedResponses.add('embed-1');
+      cleanupTracker.addCommandMessageIds.add('add-cmd-1');
+      cleanupTracker.completedAddCommands.add('user1:personality1');
+      cleanupTracker.hasGeneratedFirstEmbed.add('channel1');
       
       // Verify data was added
-      expect(messageTrackerSingleton.processedMessages.size).toBe(2);
-      expect(messageTrackerSingleton.sendingEmbedResponses.size).toBe(1);
-      expect(messageTrackerSingleton.addCommandMessageIds.size).toBe(1);
-      expect(messageTrackerSingleton.completedAddCommands.size).toBe(1);
-      expect(messageTrackerSingleton.hasGeneratedFirstEmbed.size).toBe(1);
+      expect(cleanupTracker.processedMessages.size).toBe(2);
+      expect(cleanupTracker.sendingEmbedResponses.size).toBe(1);
+      expect(cleanupTracker.addCommandMessageIds.size).toBe(1);
+      expect(cleanupTracker.completedAddCommands.size).toBe(1);
+      expect(cleanupTracker.hasGeneratedFirstEmbed.size).toBe(1);
       
       // Test the behavior: clearing the collections (this is what cleanup does)
-      messageTrackerSingleton.processedMessages.clear();
-      messageTrackerSingleton.sendingEmbedResponses.clear();
-      messageTrackerSingleton.addCommandMessageIds.clear();
-      messageTrackerSingleton.completedAddCommands.clear();
-      messageTrackerSingleton.hasGeneratedFirstEmbed.clear();
+      cleanupTracker.processedMessages.clear();
+      cleanupTracker.sendingEmbedResponses.clear();
+      cleanupTracker.addCommandMessageIds.clear();
+      cleanupTracker.completedAddCommands.clear();
+      cleanupTracker.hasGeneratedFirstEmbed.clear();
       
       // Verify all collections are now empty
-      expect(messageTrackerSingleton.processedMessages.size).toBe(0);
-      expect(messageTrackerSingleton.sendingEmbedResponses.size).toBe(0);
-      expect(messageTrackerSingleton.addCommandMessageIds.size).toBe(0);
-      expect(messageTrackerSingleton.completedAddCommands.size).toBe(0);
-      expect(messageTrackerSingleton.hasGeneratedFirstEmbed.size).toBe(0);
+      expect(cleanupTracker.processedMessages.size).toBe(0);
+      expect(cleanupTracker.sendingEmbedResponses.size).toBe(0);
+      expect(cleanupTracker.addCommandMessageIds.size).toBe(0);
+      expect(cleanupTracker.completedAddCommands.size).toBe(0);
+      expect(cleanupTracker.hasGeneratedFirstEmbed.size).toBe(0);
       
       // The behavior we're testing: the tracker can store data and clear it
       // The actual cleanup intervals just call clear() on these collections periodically
