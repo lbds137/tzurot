@@ -8,9 +8,9 @@ jest.mock('../../../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
-// Import the module - it now ensures timers exist
-const messageTrackerSingleton = require('../../../../src/commands/utils/messageTracker');
-const MessageTracker = messageTrackerSingleton.constructor;
+// Import the module
+const MessageTracker = require('../../../../src/commands/utils/messageTracker');
+const messageTrackerSingleton = MessageTracker.instance;
 
 describe('MessageTracker', () => {
   let tracker;
@@ -28,7 +28,9 @@ describe('MessageTracker', () => {
     // Create a new tracker instance with timers disabled for most tests
     tracker = new MessageTracker({ 
       enableCleanupTimers: false,
-      scheduler: mockScheduler 
+      scheduler: mockScheduler,
+      interval: () => {},
+      delay: () => Promise.resolve()
     });
     
     jest.clearAllMocks();
@@ -212,9 +214,10 @@ describe('MessageTracker', () => {
       jest.useFakeTimers();
       const setIntervalSpy = jest.spyOn(global, 'setInterval');
       
-      // Create tracker with cleanup enabled
+      // Create tracker with cleanup enabled and mock timers
       const trackerWithCleanup = new MessageTracker({ 
-        enableCleanupTimers: true 
+        enableCleanupTimers: true,
+        interval: setInterval
       });
       
       // Should set up 2 intervals (10 minutes and 1 hour cleanup)

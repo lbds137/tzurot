@@ -9,9 +9,9 @@ class MessageTracker {
   constructor(options = {}) {
     const {
       enableCleanupTimers = true,
-      scheduler = (typeof setTimeout !== 'undefined' ? setTimeout : () => {}),
-      interval = (typeof setInterval !== 'undefined' ? setInterval : () => {}),
-      delay = ((ms) => new Promise(resolve => (typeof setTimeout !== 'undefined' ? setTimeout : (fn) => fn())(resolve, ms)))
+      scheduler = setTimeout,
+      interval = setInterval,
+      delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
     } = options;
 
     // Track processed message IDs to prevent duplicates
@@ -327,10 +327,5 @@ class MessageTracker {
   }
 }
 
-// Create singleton instance
-const messageTracker = new MessageTracker();
-
-// Add the constructor as a property for tests
-messageTracker.constructor = MessageTracker;
-
-module.exports = messageTracker;
+// Export the class
+module.exports = MessageTracker;

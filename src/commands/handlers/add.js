@@ -5,7 +5,6 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const messageTracker = require('../utils/messageTracker');
 const { registerPersonality, setPersonalityAlias, getPersonality } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix, botConfig } = require('../../../config');
@@ -35,8 +34,17 @@ const processingMessages = new Set();
  * @returns {Promise<Object>} Command result
  */
 async function execute(message, args, context = {}) {
-  // Use default timers if context not provided (backward compatibility)
-  const { scheduler = setTimeout, clearScheduler = clearTimeout } = context;
+  // Use default timers and messageTracker if context not provided (backward compatibility)
+  const { 
+    scheduler = setTimeout, 
+    messageTracker = null 
+  } = context;
+  
+  // If no messageTracker injected, create a local instance (for backward compatibility)
+  const tracker = messageTracker || (() => {
+    const MessageTracker = require('../utils/messageTracker');
+    return new MessageTracker();
+  })();
   logger.info(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
   
   // Check if this message is already being processed
@@ -46,14 +54,14 @@ async function execute(message, args, context = {}) {
   }
   
   // Check if this exact message was already processed by the add command
-  if (messageTracker.isAddCommandProcessed(message.id)) {
+  if (tracker.isAddCommandProcessed(message.id)) {
     logger.warn(`[AddCommand] Message ${message.id} was already processed by add command`);
     return null;
   }
   
   // Mark this message as being processed
   processingMessages.add(message.id);
-  messageTracker.markAddCommandAsProcessed(message.id);
+  tracker.markAddCommandAsProcessed(message.id);
   
   // Clean up after 1 minute
   scheduler(() => {
@@ -120,7 +128,7 @@ async function execute(message, args, context = {}) {
       logger.info(`[AddCommand] Personality ${personalityName} already exists globally`);
       
       // Clear any stale tracking entries for this personality since it already exists
-      messageTracker.clearAllCompletedAddCommandsForPersonality(personalityName);
+      tracker.clearAllCompletedAddCommandsForPersonality(personalityName);
       
       return await directSend(
         `The personality "${personalityName}" already exists. If you want to use it, just mention ${botConfig.mentionChar}${personalityName} in your messages.`
@@ -138,25 +146,25 @@ async function execute(message, args, context = {}) {
     logger.debug(`[AddCommand] - Message ID: ${message.id}`);
     logger.debug(`[AddCommand] - User ID: ${message.author.id}`);
     logger.debug(`[AddCommand] - Command Key: ${commandKey}`);
-    logger.debug(`[AddCommand] - isAddCommandCompleted: ${messageTracker.isAddCommandCompleted(commandKey)}`);
+    logger.debug(`[AddCommand] - isAddCommandCompleted: ${tracker.isAddCommandCompleted(commandKey)}`);
     
     // Only check if the command was already completed (not if the message was processed)
     // We already checked message processing at the top of the function
-    if (messageTracker.isAddCommandCompleted(commandKey)) {
+    if (tracker.isAddCommandCompleted(commandKey)) {
       logger.warn(`[PROTECTION] Command has already been completed: ${commandKey}`);
       return null;
     }
 
     // Create unique operation key for this add command
     const messageKey = `add-${message.id}-${personalityName}`;
-    if (messageTracker.hasFirstEmbed(messageKey)) {
+    if (tracker.hasFirstEmbed(messageKey)) {
       logger.warn(`[PROTECTION] Already generated first embed for: ${messageKey}`);
       // Update the status in our tracking
       pendingAdditions.set(userKey, {
         status: 'completed',
         timestamp: Date.now(),
       });
-      messageTracker.markAddCommandCompleted(commandKey);
+      tracker.markAddCommandCompleted(commandKey);
       return null;
     }
 
@@ -186,7 +194,7 @@ async function execute(message, args, context = {}) {
       });
 
       if (typeof commandKey !== 'undefined') {
-        messageTracker.markAddCommandCompleted(commandKey);
+        tracker.markAddCommandCompleted(commandKey);
       }
 
       return await directSend(`Failed to register personality: ${registerError.message}`);
@@ -200,7 +208,7 @@ async function execute(message, args, context = {}) {
         timestamp: Date.now(),
       });
 
-      messageTracker.markAddCommandCompleted(commandKey);
+      tracker.markAddCommandCompleted(commandKey);
       return await directSend('Failed to register personality: Invalid response from personality manager');
     }
     logger.info(
@@ -235,7 +243,7 @@ async function execute(message, args, context = {}) {
     });
 
     // First embed for immediate feedback - mark this specific message as having generated the first embed
-    messageTracker.markGeneratedFirstEmbed(messageKey);
+    tracker.markGeneratedFirstEmbed(messageKey);
     logger.info(`[AddCommand ${commandId}] Marked as having generated first embed: ${messageKey}`);
 
     // Prepare the basic embed fields with info we know will be available
@@ -274,10 +282,10 @@ async function execute(message, args, context = {}) {
     logger.debug(`[AddCommand ${commandId}] Sending basic embed response`);
 
     // Block other handlers from processing while we're sending the embed
-    messageTracker.markSendingEmbed(messageKey);
+    tracker.markSendingEmbed(messageKey);
     const initialResponse = await message.channel.send({ embeds: [basicEmbed] });
     logger.info(`[AddCommand ${commandId}] Initial embed sent with ID: ${initialResponse.id}`);
-    messageTracker.clearSendingEmbed(messageKey);
+    tracker.clearSendingEmbed(messageKey);
 
     // Mark this request as completed
     pendingAdditions.set(userKey, {
@@ -286,7 +294,7 @@ async function execute(message, args, context = {}) {
     });
 
     // Add to completed commands set
-    messageTracker.markAddCommandCompleted(commandKey);
+    tracker.markAddCommandCompleted(commandKey);
 
     logger.info(`[AddCommand ${commandId}] Command completed successfully`);
     return initialResponse;
@@ -304,7 +312,7 @@ async function execute(message, args, context = {}) {
     const errorCommandKey = alias 
       ? `${message.author.id}-${personalityName}-alias-${alias}`
       : `${message.author.id}-${personalityName}`;
-    messageTracker.markAddCommandCompleted(errorCommandKey);
+    tracker.markAddCommandCompleted(errorCommandKey);
 
     return await directSend(`An error occurred while adding the personality: ${error.message}`);
   }

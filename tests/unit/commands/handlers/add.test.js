@@ -92,7 +92,8 @@ describe('Add Command', () => {
       preloadPersonalityAvatar: jest.fn().mockResolvedValue(true)
     }));
     
-    jest.doMock('../../../../src/commands/utils/messageTracker', () => ({
+    // Mock MessageTracker as a class
+    const mockMessageTrackerInstance = {
       isAddCommandProcessed: jest.fn().mockReturnValue(false),
       markAddCommandAsProcessed: jest.fn(),
       isAddCommandCompleted: jest.fn().mockReturnValue(false),
@@ -102,7 +103,11 @@ describe('Add Command', () => {
       markSendingEmbed: jest.fn(),
       clearSendingEmbed: jest.fn(),
       clearAllCompletedAddCommandsForPersonality: jest.fn()
-    }));
+    };
+    
+    jest.doMock('../../../../src/commands/utils/messageTracker', () => {
+      return jest.fn().mockImplementation(() => mockMessageTrackerInstance);
+    });
     
     jest.doMock('../../../../src/commands/utils/commandValidator', () => {
       return {
@@ -116,7 +121,8 @@ describe('Add Command', () => {
     // Import modules after mocking
     personalityManager = require('../../../../src/personalityManager');
     webhookManager = require('../../../../src/webhookManager');
-    messageTracker = require('../../../../src/commands/utils/messageTracker');
+    const MessageTracker = require('../../../../src/commands/utils/messageTracker');
+    messageTracker = mockMessageTrackerInstance;
     validator = require('../../../../src/commands/utils/commandValidator');
     addCommand = require('../../../../src/commands/handlers/add');
   });

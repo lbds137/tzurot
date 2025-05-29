@@ -6,7 +6,11 @@ const authMiddleware = require('./middleware/auth');
 const deduplicationMiddleware = require('./middleware/deduplication');
 const permissionsMiddleware = require('./middleware/permissions');
 const commandRegistry = require('./utils/commandRegistry');
+const MessageTracker = require('./utils/messageTracker');
 const { botPrefix } = require('../../config');
+
+// Create a shared message tracker instance
+let messageTracker = new MessageTracker();
 
 // Default command context that can be overridden for testing
 let commandContext = {
@@ -14,6 +18,7 @@ let commandContext = {
   clearScheduler: clearTimeout,
   interval: setInterval,
   clearInterval: clearInterval,
+  messageTracker: messageTracker,
 };
 
 // Function to override command context for testing
@@ -35,8 +40,8 @@ async function processCommand(message, command, args) {
       `Processing command: ${command} with args: ${args.join(' ')} from user: ${message.author.tag}`
     );
 
-    // Apply deduplication middleware
-    const deduplicationResult = deduplicationMiddleware(message, command, args);
+    // Apply deduplication middleware with injected messageTracker
+    const deduplicationResult = deduplicationMiddleware(message, command, args, commandContext.messageTracker);
     if (!deduplicationResult.shouldProcess) {
       return null;
     }
@@ -125,8 +130,10 @@ loadCommands();
 module.exports = {
   processCommand,
   registry: commandRegistry,
-  // Re-export message tracker for testing
-  messageTracker: require('./utils/messageTracker'),
+  // Export the shared message tracker instance
+  messageTracker,
   // Export context setter for testing
   setCommandContext,
+  // Export MessageTracker class for testing
+  MessageTracker,
 };

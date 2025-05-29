@@ -2,7 +2,6 @@
  * Deduplication Middleware
  */
 const logger = require('../../logger');
-const messageTracker = require('../utils/messageTracker');
 
 /**
  * Deduplication middleware for commands
@@ -11,9 +10,10 @@ const messageTracker = require('../utils/messageTracker');
  * @param {Object} message - Discord message object
  * @param {string} command - Command being executed
  * @param {Array<string>} args - Command arguments
+ * @param {Object} messageTracker - MessageTracker instance
  * @returns {Object} Result with status and error
  */
-function deduplicationMiddleware(message, command, args) {
+function deduplicationMiddleware(message, command, args, messageTracker) {
   // Check if message was already processed
   if (messageTracker.isProcessed(message.id)) {
     logger.info(

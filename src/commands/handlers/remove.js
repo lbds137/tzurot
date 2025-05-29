@@ -5,7 +5,6 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const messageTracker = require('../utils/messageTracker');
 const {
   getPersonality,
   getPersonalityByAlias,
@@ -28,9 +27,16 @@ const meta = {
  * Execute the remove command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
+ * @param {Object} context - Command context with injectable dependencies
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, args, context = {}) {
+  // Use injected messageTracker if available, otherwise create local instance
+  const { messageTracker = null } = context;
+  const tracker = messageTracker || (() => {
+    const MessageTracker = require('../utils/messageTracker');
+    return new MessageTracker();
+  })();
   // Create direct send function
   const directSend = validator.createDirectSend(message);
 
@@ -82,14 +88,14 @@ async function execute(message, args) {
     }
 
     // Clear the completed add command tracking to allow immediate re-adding
-    messageTracker.removeCompletedAddCommand(message.author.id, personalityName);
+    tracker.removeCompletedAddCommand(message.author.id, personalityName);
     logger.info(
       `[RemoveCommand] Cleared add command tracking for ${message.author.id}-${personalityName}`
     );
 
     // Also try clearing with the full name in case that was used instead
     if (personality.fullName !== personalityName) {
-      messageTracker.removeCompletedAddCommand(message.author.id, personality.fullName);
+      tracker.removeCompletedAddCommand(message.author.id, personality.fullName);
     }
 
     // Create the success embed
