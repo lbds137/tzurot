@@ -3,11 +3,15 @@
  */
 const logger = require('../../logger');
 
+// Timer functions will be injected or use defaults
+
 class MessageTracker {
   constructor(options = {}) {
     const {
       enableCleanupTimers = true,
-      scheduler = setTimeout
+      scheduler = (typeof setTimeout !== 'undefined' ? setTimeout : () => {}),
+      interval = (typeof setInterval !== 'undefined' ? setInterval : () => {}),
+      delay = ((ms) => new Promise(resolve => (typeof setTimeout !== 'undefined' ? setTimeout : (fn) => fn())(resolve, ms)))
     } = options;
 
     // Track processed message IDs to prevent duplicates
@@ -34,6 +38,8 @@ class MessageTracker {
     // Store options
     this.enableCleanupTimers = enableCleanupTimers;
     this.scheduler = scheduler;
+    this.interval = interval;
+    this.delay = delay;
 
     // Set up cleanup intervals
     this._setupCleanupIntervals();
@@ -50,7 +56,7 @@ class MessageTracker {
     }
     
     // Clean up processed messages every 10 minutes
-    setInterval(
+    const processedInterval = this.interval(
       () => {
         if (this.processedMessages.size > 0) {
           logger.debug(
@@ -76,10 +82,15 @@ class MessageTracker {
         }
       },
       10 * 60 * 1000
-    ).unref(); // 10 minutes
+    );
+    
+    // Allow process to exit even with interval running
+    if (processedInterval.unref) {
+      processedInterval.unref();
+    }
 
     // Clean up completedAddCommands and hasGeneratedFirstEmbed every hour
-    setInterval(
+    const completedInterval = this.interval(
       () => {
         if (this.completedAddCommands.size > 0) {
           logger.debug(
@@ -96,7 +107,12 @@ class MessageTracker {
         }
       },
       60 * 60 * 1000
-    ).unref(); // 1 hour
+    );
+    
+    // Allow process to exit even with interval running
+    if (completedInterval.unref) {
+      completedInterval.unref();
+    }
   }
 
   /**
@@ -177,7 +193,7 @@ class MessageTracker {
     this.addCommandMessageIds.add(messageId);
 
     // Auto-remove after 1 minute
-    setTimeout(() => {
+    this.scheduler(() => {
       this.addCommandMessageIds.delete(messageId);
     }, 60 * 1000);
   }
@@ -236,7 +252,7 @@ class MessageTracker {
 
     // Auto-remove after a reasonable timeout (30 minutes)
     // This allows re-adding personalities that were removed
-    setTimeout(
+    this.scheduler(
       () => {
         this.completedAddCommands.delete(commandKey);
         logger.debug(
@@ -311,6 +327,10 @@ class MessageTracker {
   }
 }
 
-// Export singleton instance
+// Create singleton instance
 const messageTracker = new MessageTracker();
+
+// Add the constructor as a property for tests
+messageTracker.constructor = MessageTracker;
+
 module.exports = messageTracker;

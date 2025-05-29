@@ -13,7 +13,11 @@ const MessageHistory = require('./MessageHistory');
  * and persisting data.
  */
 class ConversationManager {
-  constructor() {
+  constructor(options = {}) {
+    // Injectable timer functions
+    this.scheduler = options.scheduler || setTimeout;
+    this.interval = options.interval || setInterval;
+    
     // Initialize sub-modules
     this.tracker = new ConversationTracker();
     this.autoResponder = new AutoResponder();
@@ -241,7 +245,7 @@ class ConversationManager {
       return;
     }
     
-    this.pendingSave = setTimeout(() => {
+    this.pendingSave = this.scheduler(() => {
       this.pendingSave = null;
       this.saveAllData();
     }, 1000); // Save after 1 second of inactivity
@@ -252,10 +256,15 @@ class ConversationManager {
    * @private
    */
   _startPeriodicSave() {
-    this.saveInterval = setInterval(() => {
+    this.saveInterval = this.interval(() => {
       logger.info('[ConversationManager] Running periodic data save...');
       this.saveAllData();
     }, 5 * 60 * 1000); // Save every 5 minutes
+    
+    // Add unref if available (Node.js timers)
+    if (this.saveInterval && this.saveInterval.unref) {
+      this.saveInterval.unref();
+    }
   }
 
   /**

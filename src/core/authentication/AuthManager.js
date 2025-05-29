@@ -45,6 +45,9 @@ class AuthManager {
 
     // Cleanup interval handle
     this.cleanupInterval = null;
+    
+    // Injectable timer function
+    this.interval = config.interval || setInterval;
   }
 
   /**
@@ -76,12 +79,17 @@ class AuthManager {
       }
 
       // Schedule periodic cleanup (every 24 hours)
-      this.cleanupInterval = setInterval(
+      this.cleanupInterval = this.interval(
         async () => {
           await this.performScheduledCleanup();
         },
         24 * 60 * 60 * 1000
       );
+      
+      // Allow process to exit even with interval running
+      if (this.cleanupInterval.unref) {
+        this.cleanupInterval.unref();
+      }
 
       logger.info(`[AuthManager] Auth system initialized successfully`);
     } catch (error) {

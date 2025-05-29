@@ -34,6 +34,9 @@ const knownProxyWebhooks = new Map();
 // Cache expiration time (1 hour)
 const CACHE_EXPIRATION = 60 * 60 * 1000;
 
+// Store cleanup intervals for proper cleanup
+let cleanupIntervals = [];
+
 /**
  * Clean up old entries from the webhook user map
  * @private
@@ -61,12 +64,50 @@ function cleanupProxyWebhookCache() {
   }
 }
 
-// Periodically clean up old entries
-// Only start intervals if not in test environment
-if (process.env.NODE_ENV !== 'test') {
-  setInterval(cleanupOldEntries, 15 * 60 * 1000); // Every 15 minutes
-  setInterval(cleanupProxyWebhookCache, 15 * 60 * 1000); // Every 15 minutes
+/**
+ * Start cleanup intervals
+ * @param {Object} options - Configuration options
+ * @param {Function} options.interval - Injectable interval function (default: setInterval)
+ * @returns {Array} Array of interval IDs for cleanup
+ */
+function startCleanupIntervals(options = {}) {
+  const { interval = setInterval } = options;
+  
+  // Clear any existing intervals
+  stopCleanupIntervals();
+  
+  // Start new intervals
+  const userCleanupInterval = interval(cleanupOldEntries, 15 * 60 * 1000); // Every 15 minutes
+  const proxyCleanupInterval = interval(cleanupProxyWebhookCache, 15 * 60 * 1000); // Every 15 minutes
+  
+  // Add unref if available (Node.js timers)
+  if (userCleanupInterval && userCleanupInterval.unref) {
+    userCleanupInterval.unref();
+  }
+  if (proxyCleanupInterval && proxyCleanupInterval.unref) {
+    proxyCleanupInterval.unref();
+  }
+  
+  cleanupIntervals = [userCleanupInterval, proxyCleanupInterval];
+  return cleanupIntervals;
 }
+
+/**
+ * Stop cleanup intervals
+ */
+function stopCleanupIntervals() {
+  cleanupIntervals.forEach(intervalId => {
+    if (intervalId && typeof intervalId === 'object' && intervalId.close) {
+      intervalId.close(); // For Node.js timers
+    } else if (intervalId) {
+      clearInterval(intervalId); // For browser timers
+    }
+  });
+  cleanupIntervals = [];
+}
+
+// Start cleanup intervals by default
+startCleanupIntervals();
 
 /**
  * Register an association between a webhook ID and a real user ID
@@ -410,4 +451,6 @@ module.exports = {
   // Export cleanup functions for testing
   cleanupOldEntries,
   cleanupProxyWebhookCache,
+  startCleanupIntervals,
+  stopCleanupIntervals,
 };

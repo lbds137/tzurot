@@ -47,6 +47,22 @@ const MAX_ERROR_WAIT_TIME = TIME.MAX_ERROR_WAIT_TIME;
 
 // Discord message size limits are now handled by messageFormatter module
 
+// Injectable delay function for testability
+let delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Injectable scheduler function for testability
+let schedulerFn = setTimeout;
+
+// Function to override the delay for testing
+function setDelayFunction(fn) {
+  delayFn = fn;
+}
+
+// Function to override the scheduler for testing
+function setSchedulerFunction(fn) {
+  schedulerFn = fn;
+}
+
 // Avatar URL validation moved to avatarManager module
 const validateAvatarUrl = avatarManager.validateAvatarUrl;
 
@@ -839,7 +855,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       
       // Add a small delay between chunks to prevent Discord from merging/replacing them
       if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await delayFn(300);
       }
 
       // Prepare options for the message
@@ -882,7 +898,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       if (multimodalAudioUrl) {
         try {
           // Add a small delay
-          await new Promise(resolve => setTimeout(resolve, mediaDelay));
+          await delayFn(mediaDelay);
 
           // Send the audio message with the personality name prefix
           const audioContent = `**${displayName}:** [Audio: ${multimodalAudioUrl}]`;
@@ -906,7 +922,7 @@ async function sendFormattedMessageInDM(channel, content, personality, options =
       if (multimodalImageUrl && !multimodalAudioUrl) {
         try {
           // Add a small delay
-          await new Promise(resolve => setTimeout(resolve, mediaDelay));
+          await delayFn(mediaDelay);
 
           // Send the image message with the personality name prefix
           const imageContent = `**${displayName}:** [Image: ${multimodalImageUrl}]`;
@@ -1180,7 +1196,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
     const delayNeeded = calculateMessageDelay(channel.id);
     if (delayNeeded > 0) {
       logger.info(`[Webhook] Delaying message by ${delayNeeded}ms for channel ${channel.id}`);
-      await new Promise(resolve => setTimeout(resolve, delayNeeded));
+      await delayFn(delayNeeded);
     }
 
     // Mark this message as being processed
@@ -1331,7 +1347,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         
         // Add a small delay between chunks to prevent Discord from merging/replacing them
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await delayFn(300);
         }
 
         // Check for duplicate messages with time-based approach
@@ -1435,7 +1451,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         if (multimodalAudioUrl) {
           try {
             // Add a small delay
-            await new Promise(resolve => setTimeout(resolve, mediaDelay));
+            await delayFn(mediaDelay);
 
             // Use the audio URL
             const audioUrl = multimodalAudioUrl;
@@ -1465,7 +1481,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         if (multimodalImageUrl && !multimodalAudioUrl) {
           try {
             // Add a small delay
-            await new Promise(resolve => setTimeout(resolve, mediaDelay));
+            await delayFn(mediaDelay);
 
             // Use the image URL
             const imageUrl = multimodalImageUrl;
@@ -1495,7 +1511,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       }
 
       // Clean up tracking after a short delay
-      setTimeout(() => {
+      schedulerFn(() => {
         activeWebhooks.delete(messageTrackingId);
       }, 5000);
 
@@ -2018,7 +2034,7 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
       
       // Add a small delay between chunks to prevent Discord from merging/replacing them
       if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await delayFn(300);
       }
 
       // Skip duplicate messages
@@ -2163,6 +2179,10 @@ module.exports = {
   preloadPersonalityAvatar,
   sendFormattedMessageInDM,
   sendDirectThreadMessage, // Add the new function
+  
+  // Testing utilities
+  setDelayFunction,
+  setSchedulerFunction,
 
   // Helper functions for usernames and messages
   getStandardizedUsername,
