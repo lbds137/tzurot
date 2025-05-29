@@ -125,9 +125,12 @@ function filterMessagesByCategory(messages, message, category) {
  * Execute the purgbot command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
+ * @param {Object} context - Command context with injectable dependencies
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, args, context = {}) {
+  // Use default timers if context not provided (backward compatibility)
+  const { scheduler = setTimeout, delay = ((ms) => new Promise(resolve => setTimeout(resolve, ms))) } = context;
   const directSend = validator.createDirectSend(message);
 
   // This command is only available in DMs for security
@@ -203,7 +206,7 @@ async function execute(message, args) {
         deletedCount++;
 
         // Add small delay between deletions to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await delay(100);
       } catch (deleteErr) {
         logger.warn(`[PurgBot] Failed to delete message ${id}: ${deleteErr.message}`);
         failedCount++;
@@ -240,7 +243,7 @@ async function execute(message, args) {
     };
 
     // Schedule self-destruction after 10 seconds
-    setTimeout(selfDestruct, 10000);
+    scheduler(selfDestruct, 10000);
 
     return updatedMessage;
   } catch (error) {

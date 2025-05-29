@@ -8,6 +8,19 @@ const permissionsMiddleware = require('./middleware/permissions');
 const commandRegistry = require('./utils/commandRegistry');
 const { botPrefix } = require('../../config');
 
+// Default command context that can be overridden for testing
+let commandContext = {
+  scheduler: setTimeout,
+  clearScheduler: clearTimeout,
+  interval: setInterval,
+  clearInterval: clearInterval,
+};
+
+// Function to override command context for testing
+function setCommandContext(context) {
+  commandContext = { ...commandContext, ...context };
+}
+
 /**
  * Process a command
  * @param {Object} message - Discord message object
@@ -64,8 +77,8 @@ async function processCommand(message, command, args) {
       return null;
     }
 
-    // Execute the command
-    return await commandModule.execute(message, args);
+    // Execute the command with injectable context
+    return await commandModule.execute(message, args, commandContext);
   } catch (error) {
     logger.error(`Error processing command ${command}:`, error);
     return await message.channel.send(
@@ -114,4 +127,6 @@ module.exports = {
   registry: commandRegistry,
   // Re-export message tracker for testing
   messageTracker: require('./utils/messageTracker'),
+  // Export context setter for testing
+  setCommandContext,
 };

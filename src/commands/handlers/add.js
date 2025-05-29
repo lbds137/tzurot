@@ -31,9 +31,12 @@ const processingMessages = new Set();
  * Execute the add command
  * @param {Object} message - Discord message object
  * @param {Array<string>} args - Command arguments
+ * @param {Object} context - Command context with injectable dependencies
  * @returns {Promise<Object>} Command result
  */
-async function execute(message, args) {
+async function execute(message, args, context = {}) {
+  // Use default timers if context not provided (backward compatibility)
+  const { scheduler = setTimeout, clearScheduler = clearTimeout } = context;
   logger.info(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
   
   // Check if this message is already being processed
@@ -53,7 +56,7 @@ async function execute(message, args) {
   messageTracker.markAddCommandAsProcessed(message.id);
   
   // Clean up after 1 minute
-  setTimeout(() => {
+  scheduler(() => {
     processingMessages.delete(message.id);
   }, 60000);
   
