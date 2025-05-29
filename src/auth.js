@@ -7,6 +7,7 @@
 
 const AuthManager = require('./core/authentication');
 const logger = require('./logger');
+const { botConfig } = require('./config');
 
 // Create singleton instance
 let authManager = null;
@@ -14,7 +15,7 @@ let _initPromise = null;
 let _isInitializing = false;
 
 // Export configuration from environment
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = botConfig.isDevelopment;
 const APP_ID = isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID;
 const API_KEY = isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY;
 const TOKEN_EXPIRATION_MS = AuthManager.TOKEN_EXPIRATION_MS;
@@ -103,6 +104,7 @@ async function initAuth() {
       await authManager.initialize();
     } catch (error) {
       // In test environment, continue even if OpenAI initialization fails
+      // eslint-disable-next-line no-restricted-syntax -- Need to check for test environment to avoid throwing in tests
       if (process.env.NODE_ENV === 'test') {
         // AuthManager is created but not fully initialized
         // We can still use it for basic operations
