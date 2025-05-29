@@ -6,6 +6,7 @@
 // Import enhanced test helpers
 const { createMigrationHelper } = require('../utils/testEnhancements');
 const { Message } = require('discord.js');
+const { botConfig } = require('../../config');
 
 describe('Bot Features', () => {
   let migrationHelper;
@@ -36,14 +37,17 @@ describe('Bot Features', () => {
     
     beforeEach(() => {
       // Define the regex patterns as they are in the updated messageHandler.js
-      standardMentionRegex = /@([\w-]+)(?:[.,!?;:)"']|\s|$)/gi;
+      const mentionChar = botConfig.mentionChar || '@';
+      const escapedMentionChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      standardMentionRegex = new RegExp(`${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
       // New improved regex that handles mentions at end of messages and with punctuation
-      spacedMentionRegex = /@([^\s@\n]+(?:\s+[^\s@\n]+){0,4})(?:[.,!?;:)"']|\s|$)/g;
+      spacedMentionRegex = new RegExp(`${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,4})(?:[.,!?;:)"']|\\s|$)`, 'g');
     });
     
-    // Test standard @mention (without spaces)
-    it('should match standard @mentions without spaces', () => {
-      const message = 'Hey @testname how are you doing?';
+    // Test standard mention (without spaces)
+    it('should match standard mentions without spaces', () => {
+      const mentionChar = botConfig.mentionChar || '@';
+      const message = `Hey ${mentionChar}testname how are you doing?`;
       standardMentionRegex.lastIndex = 0;
       const match = standardMentionRegex.exec(message);
       

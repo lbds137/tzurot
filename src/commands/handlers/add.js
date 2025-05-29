@@ -8,7 +8,7 @@ const validator = require('../utils/commandValidator');
 const messageTracker = require('../utils/messageTracker');
 const { registerPersonality, setPersonalityAlias, getPersonality } = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
-const { botPrefix } = require('../../../config');
+const { botPrefix, botConfig } = require('../../../config');
 
 /**
  * Command metadata
@@ -123,7 +123,7 @@ async function execute(message, args, context = {}) {
       messageTracker.clearAllCompletedAddCommandsForPersonality(personalityName);
       
       return await directSend(
-        `The personality "${personalityName}" already exists. If you want to use it, just mention @${personalityName} in your messages.`
+        `The personality "${personalityName}" already exists. If you want to use it, just mention ${botConfig.mentionChar}${personalityName} in your messages.`
       );
     }
 
@@ -267,7 +267,7 @@ async function execute(message, args, context = {}) {
       });
     } else {
       basicEmbed.setFooter({
-        text: `Use @${personalityName} or ${aliasToSet ? `@${aliasToSet}` : 'its full name'} to talk to this personality.`,
+        text: `Use ${botConfig.mentionChar}${personalityName} or ${aliasToSet ? `${botConfig.mentionChar}${aliasToSet}` : 'its full name'} to talk to this personality.`,
       });
     }
 
