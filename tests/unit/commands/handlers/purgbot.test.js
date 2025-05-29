@@ -18,6 +18,11 @@ jest.mock('../../../../src/personalityManager', () => ({
   ])
 }));
 
+// Mock commandValidator to avoid loading utils and other dependencies
+jest.mock('../../../../src/commands/utils/commandValidator', () => ({
+  createDirectSend: jest.fn()
+}));
+
 // Import test helpers
 const helpers = require('../../../utils/commandTestHelpers');
 
@@ -34,10 +39,17 @@ describe('PurgBot Command', () => {
   let mockValidator;
   let mockChannelMessages;
   let mockCollection;
+  let fakeTimerContext;
   
   beforeEach(() => {
     // Use fake timers
     jest.useFakeTimers();
+    
+    // Create fake timer context for the command
+    fakeTimerContext = {
+      scheduler: jest.fn((fn, delay) => setTimeout(fn, delay)),
+      delay: jest.fn(() => Promise.resolve()) // Instant delay!
+    };
     
     // Reset all mocks
     jest.clearAllMocks();
@@ -47,8 +59,9 @@ describe('PurgBot Command', () => {
     const factories = require('../../../utils/mockFactories');
     mockValidator = factories.createValidatorMock();
     
-    // Mock specific dependencies that the command uses directly
-    jest.mock('../../../../src/commands/utils/commandValidator', () => mockValidator);
+    // Update the commandValidator mock with our mock instance
+    const commandValidator = require('../../../../src/commands/utils/commandValidator');
+    commandValidator.createDirectSend = mockValidator.createDirectSend;
     
     // Create the mock messages and embeds
     const { EmbedBuilder } = require('discord.js');
@@ -294,7 +307,7 @@ describe('PurgBot Command', () => {
   });
   
   it('should reject use outside of DM channels', async () => {
-    const executePromise = purgbotCommand.execute(mockMessage, []);
+    const executePromise = purgbotCommand.execute(mockMessage, [], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -310,7 +323,7 @@ describe('PurgBot Command', () => {
   });
   
   it('should reject invalid category', async () => {
-    const executePromise = purgbotCommand.execute(mockDMMessage, ['invalid']);
+    const executePromise = purgbotCommand.execute(mockDMMessage, ['invalid'], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -330,7 +343,7 @@ describe('PurgBot Command', () => {
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
     
     // Execute command without waiting - let it run in background
-    const executePromise = purgbotCommand.execute(mockDMMessage, []);
+    const executePromise = purgbotCommand.execute(mockDMMessage, [], fakeTimerContext);
     
     // Fast-forward through all timers to complete the delete operations
     await jest.runAllTimersAsync();
@@ -386,7 +399,7 @@ describe('PurgBot Command', () => {
   // Removed test for chat category since it no longer exists
   
   it('should purge all bot messages with "all" category', async () => {
-    const executePromise = purgbotCommand.execute(mockDMMessage, ['all']);
+    const executePromise = purgbotCommand.execute(mockDMMessage, ['all'], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -416,7 +429,7 @@ describe('PurgBot Command', () => {
   });
   
   it('should explicitly purge system messages with "system" category', async () => {
-    const executePromise = purgbotCommand.execute(mockDMMessage, ['system']);
+    const executePromise = purgbotCommand.execute(mockDMMessage, ['system'], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -482,7 +495,7 @@ describe('PurgBot Command', () => {
     // Update the fetch method
     mockChannelMessages.fetch.mockResolvedValueOnce(emptyCollection);
     
-    const executePromise = purgbotCommand.execute(mockDMMessage, []);
+    const executePromise = purgbotCommand.execute(mockDMMessage, [], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -499,7 +512,7 @@ describe('PurgBot Command', () => {
     // Make one of the deletes fail
     mockCollection.get('auth-msg-1').delete.mockRejectedValueOnce(new Error('Could not delete message'));
     
-    const executePromise = purgbotCommand.execute(mockDMMessage, []);
+    const executePromise = purgbotCommand.execute(mockDMMessage, [], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     
@@ -517,7 +530,7 @@ describe('PurgBot Command', () => {
     // Make the fetch fail
     mockChannelMessages.fetch.mockRejectedValueOnce(new Error('Failed to fetch messages'));
     
-    const executePromise = purgbotCommand.execute(mockDMMessage, []);
+    const executePromise = purgbotCommand.execute(mockDMMessage, [], fakeTimerContext);
     await jest.runAllTimersAsync();
     await executePromise;
     

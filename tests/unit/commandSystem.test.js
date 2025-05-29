@@ -141,7 +141,14 @@ describe('Command System', () => {
       await commandSystem.processCommand(mockMessage, 'test', []);
 
       // Verify the command was executed
-      expect(testCommand.execute).toHaveBeenCalledWith(mockMessage, []);
+      expect(testCommand.execute).toHaveBeenCalledWith(
+        mockMessage, 
+        [],
+        expect.objectContaining({
+          scheduler: expect.any(Function),
+          interval: expect.any(Function)
+        })
+      );
     });
 
     it('should handle unknown commands', async () => {
@@ -162,7 +169,14 @@ describe('Command System', () => {
       await commandSystem.processCommand(mockMessage, 't', []);
 
       // Verify the command was executed
-      expect(testCommand.execute).toHaveBeenCalledWith(mockMessage, []);
+      expect(testCommand.execute).toHaveBeenCalledWith(
+        mockMessage, 
+        [],
+        expect.objectContaining({
+          scheduler: expect.any(Function),
+          interval: expect.any(Function)
+        })
+      );
     });
   });
 

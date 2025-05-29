@@ -8,15 +8,9 @@ jest.mock('../../../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
-// Delay singleton import to ensure mocks are ready
-let messageTrackerSingleton;
-let MessageTracker;
-
-beforeAll(() => {
-  // Import after all mocks are set up
-  messageTrackerSingleton = require('../../../../src/commands/utils/messageTracker');
-  MessageTracker = messageTrackerSingleton.constructor;
-});
+// Import the module - it now ensures timers exist
+const messageTrackerSingleton = require('../../../../src/commands/utils/messageTracker');
+const MessageTracker = messageTrackerSingleton.constructor;
 
 describe('MessageTracker', () => {
   let tracker;

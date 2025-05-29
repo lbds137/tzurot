@@ -394,7 +394,8 @@ describe('auth', () => {
       
       // The error should be logged in debug, not necessarily in error
       // Since the mock is set to fail on initialize, it should handle gracefully
-      expect(true).toBe(true); // Test that it doesn't crash
+      // Test that it doesn't crash - the important outcome is that initAuth completes
+      expect(mockAuthManager.initialize).toHaveBeenCalled();
     });
   });
   
