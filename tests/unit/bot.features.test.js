@@ -106,7 +106,7 @@ describe('Bot Features', () => {
       // since the multi-word regex doesn't always get both matches
       // But the implementation in messageHandler.js would handle this correctly
       expect(allMentions).toContain('testname');
-      expect(allMentions).length >= 1;
+      expect(allMentions.length).toBeGreaterThanOrEqual(1);
     });
     
     // Test @mention at the end of a message
