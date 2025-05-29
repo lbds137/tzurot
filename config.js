@@ -10,6 +10,7 @@ const botConfig = {
   // Bot identification
   name: isDevelopment ? 'Rotzot' : 'Tzurot',
   prefix: isDevelopment ? '!rtz' : '!tz',
+  mentionChar: isDevelopment ? '&' : '@',
   token: isDevelopment ? process.env.DISCORD_DEV_TOKEN : process.env.DISCORD_TOKEN,
   
   // Environment flag

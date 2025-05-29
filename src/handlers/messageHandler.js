@@ -2,7 +2,7 @@
  * Handles message routing, processing, and command dispatching
  */
 const logger = require('../logger');
-const { botPrefix } = require('../../config');
+const { botPrefix, botConfig } = require('../../config');
 const { processCommand } = require('../commandLoader');
 const { messageTracker } = require('../messageTracker');
 const referenceHandler = require('./referenceHandler');
@@ -242,15 +242,19 @@ async function handleCommand(message) {
  */
 async function handleMentions(message, client) {
   try {
-    // IMPROVEMENT: Check for both standard @mentions and multi-word @mentions
-    // And prioritize the longest match to handle cases like @bambi vs @bambi prime
+    // IMPROVEMENT: Check for both standard mentions and multi-word mentions
+    // And prioritize the longest match to handle cases like &bambi vs &bambi prime
+    // Use configured mention character (@ for production, & for development)
+    const mentionChar = botConfig.mentionChar;
 
     // We'll store all potential matches and their personalities in this array
     const potentialMatches = [];
 
-    // First gather all standard @mentions (without spaces) - use global flag to find all
+    // First gather all standard mentions (without spaces) - use global flag to find all
     // Improved regex to handle mentions at the end of messages with punctuation
-    const standardMentionRegex = /@([\w-]+)(?:[.,!?;:)"']|\s|$)/gi;
+    // Escape the mention character for regex safety
+    const escapedMentionChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const standardMentionRegex = new RegExp(`${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
     let standardMentionMatch;
     const standardMentions = [];
 
@@ -265,7 +269,7 @@ async function handleMentions(message, client) {
 
     // Check each standard mention
     for (const mentionName of standardMentions) {
-      logger.debug(`Found standard @mention: ${mentionName}, checking if it's a valid personality`);
+      logger.debug(`Found standard ${mentionChar}mention: ${mentionName}, checking if it's a valid personality`);
 
       // Check if this is a valid personality (directly or as an alias)
       let personality = getPersonality(mentionName);
@@ -275,7 +279,7 @@ async function handleMentions(message, client) {
 
       if (personality) {
         logger.debug(
-          `Found standard @mention personality: ${mentionName} -> ${personality.fullName}`
+          `Found standard ${mentionChar}mention personality: ${mentionName} -> ${personality.fullName}`
         );
         potentialMatches.push({
           mentionText: mentionName,
@@ -286,16 +290,16 @@ async function handleMentions(message, client) {
     }
 
     // Now check for mentions with spaces - whether or not we found standard mentions
-    if (message.content && message.content.includes('@')) {
+    if (message.content && message.content.includes(mentionChar)) {
       // Improved regex to match multi-word mentions
-      // This captures @word1 word2 word3 patterns more precisely
+      // This captures &word1 word2 word3 patterns more precisely
       // Limited to a maximum of 4 words to avoid capturing too much text
       // Updated to handle mentions at the end of messages with or without punctuation
-      const mentionWithSpacesRegex = /@([^\s@\n]+(?:\s+[^\s@\n]+){0,4})(?:[.,!?;:)"']|\s|$)/g;
+      const mentionWithSpacesRegex = new RegExp(`${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,4})(?:[.,!?;:)"']|\\s|$)`, 'g');
       let spacedMentionMatch;
       const mentionsWithSpaces = [];
 
-      // Find all potential @mentions with spaces
+      // Find all potential mentions with spaces
       while ((spacedMentionMatch = mentionWithSpacesRegex.exec(message.content)) !== null) {
         if (spacedMentionMatch[1] && spacedMentionMatch[1].trim()) {
           mentionsWithSpaces.push(spacedMentionMatch[1].trim());
@@ -304,7 +308,7 @@ async function handleMentions(message, client) {
 
       // Try each potential multi-word mention
       for (const rawMentionText of mentionsWithSpaces) {
-        logger.debug(`Processing potential multi-word @mention: "${rawMentionText}"`);
+        logger.debug(`Processing potential multi-word ${mentionChar}mention: "${rawMentionText}"`);
 
         // Skip if this is just a single word (already handled by standard regex)
         if (!rawMentionText.includes(' ')) {
@@ -319,7 +323,7 @@ async function handleMentions(message, client) {
         const words = cleanedMentionText.split(/\s+/);
 
         // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
-        // For example, match "@bambi prime" before "@bambi" when user types "@bambi prime hi"
+        // For example, match "&bambi prime" before "&bambi" when user types "&bambi prime hi" (in dev mode)
 
         // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
         const maxWords = Math.min(4, words.length);
@@ -352,7 +356,7 @@ async function handleMentions(message, client) {
             const wordCount = mentionText.split(/\s+/).length;
 
             logger.info(
-              `Found multi-word @mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
+              `Found multi-word ${mentionChar}mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
             );
 
             // Add to potential matches
@@ -375,7 +379,7 @@ async function handleMentions(message, client) {
       if (potentialMatches.length > 0) {
         const bestMatch = potentialMatches[0];
         logger.info(
-          `Selected best @mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
+          `Selected best ${mentionChar}mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
         );
 
         // If there were multiple matches, log them for debugging
