@@ -15,7 +15,7 @@ const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
 const { getActivePersonality, getActivatedPersonality } = require('../conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../personalityManager');
-const pluralkitMessageStore = require('../utils/pluralkitMessageStore');
+const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
 /**
  * Main message handler function

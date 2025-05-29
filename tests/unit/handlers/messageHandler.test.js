@@ -11,7 +11,11 @@ jest.mock('../../../src/commandLoader');
 jest.mock('../../../src/conversationManager');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/channelUtils');
-jest.mock('../../../src/utils/pluralkitMessageStore');
+jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
+  instance: {
+    store: jest.fn()
+  }
+}));
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -882,7 +886,7 @@ describe('messageHandler', () => {
   describe('PluralKit message storage', () => {
     beforeEach(() => {
       // Reset pluralkitMessageStore mocks
-      pluralkitMessageStore.store = jest.fn();
+      pluralkitMessageStore.instance.store = jest.fn();
     });
     
     it('should store user messages in pluralkitMessageStore', async () => {
@@ -901,7 +905,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(userMessage, mockClient);
       
       // Verify the message was stored
-      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+      expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
         userId: 'user-123',
         channelId: 'channel-123',
         content: 'Test message content',
@@ -930,7 +934,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(dmMessage, mockClient);
       
       // Verify the message was stored with null guildId for DMs
-      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+      expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
         userId: 'user-123',
         channelId: 'channel-123',
         content: 'Test message content',
@@ -953,7 +957,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(botMessage, mockClient);
       
       // Verify the message was NOT stored
-      expect(pluralkitMessageStore.store).not.toHaveBeenCalled();
+      expect(pluralkitMessageStore.instance.store).not.toHaveBeenCalled();
     });
     
     it('should not store webhook messages in pluralkitMessageStore', async () => {
@@ -970,7 +974,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(webhookMessage, mockClient);
       
       // Verify the message was NOT stored
-      expect(pluralkitMessageStore.store).not.toHaveBeenCalled();
+      expect(pluralkitMessageStore.instance.store).not.toHaveBeenCalled();
     });
     
     
@@ -990,7 +994,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(messageWithoutTag, mockClient);
       
       // Verify the message was stored with username instead of tag
-      expect(pluralkitMessageStore.store).toHaveBeenCalledWith('message-123', {
+      expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
         userId: 'user-123',
         channelId: 'channel-123',
         content: 'Test message content',

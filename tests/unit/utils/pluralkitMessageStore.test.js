@@ -24,7 +24,8 @@ describe('PluralKitMessageStore', () => {
     jest.resetModules();
     
     // Re-require the store to get a fresh instance
-    store = require('../../../src/utils/pluralkitMessageStore');
+    const PluralKitMessageStore = require('../../../src/utils/pluralkitMessageStore');
+    store = new PluralKitMessageStore();
 
     // Mock Date.now for consistent testing
     dateNowSpy = jest.spyOn(Date, 'now');

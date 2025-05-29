@@ -13,7 +13,7 @@
  */
 
 const logger = require('../logger');
-const pluralkitMessageStore = require('./pluralkitMessageStore');
+const pluralkitMessageStore = require('./pluralkitMessageStore').instance;
 
 // Map of webhook IDs to real user IDs
 // Format: Map<webhookId, { userId: string, timestamp: number }>

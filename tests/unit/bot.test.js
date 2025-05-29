@@ -92,7 +92,9 @@ jest.mock('../../src/handlers/messageHandler', () => ({
 }));
 
 jest.mock('../../src/utils/pluralkitMessageStore', () => ({
-  markAsDeleted: jest.fn(),
+  instance: {
+    markAsDeleted: jest.fn(),
+  }
 }));
 
 describe('Bot Core Functionality', () => {
@@ -401,7 +403,7 @@ describe('Bot Core Functionality', () => {
     });
     
     it('should handle messageDelete event for user messages', async () => {
-      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const pluralkitMessageStore = require("../../src/utils/pluralkitMessageStore").instance;
       const mockMessage = { 
         id: 'test-message-id',
         partial: false,
@@ -416,7 +418,7 @@ describe('Bot Core Functionality', () => {
     });
     
     it('should ignore messageDelete for partial messages', async () => {
-      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const pluralkitMessageStore = require("../../src/utils/pluralkitMessageStore").instance;
       const mockMessage = { 
         id: 'test-message-id',
         partial: true,
@@ -430,7 +432,7 @@ describe('Bot Core Functionality', () => {
     });
     
     it('should ignore messageDelete for messages without author', async () => {
-      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const pluralkitMessageStore = require("../../src/utils/pluralkitMessageStore").instance;
       const mockMessage = { 
         id: 'test-message-id',
         partial: false,
@@ -444,7 +446,7 @@ describe('Bot Core Functionality', () => {
     });
     
     it('should ignore messageDelete for bot messages', async () => {
-      const pluralkitMessageStore = require('../../src/utils/pluralkitMessageStore');
+      const pluralkitMessageStore = require("../../src/utils/pluralkitMessageStore").instance;
       const mockMessage = { 
         id: 'test-message-id',
         partial: false,

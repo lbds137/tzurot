@@ -22,7 +22,7 @@ describe('AIClientFactory', () => {
   let factory;
   let logger;
   const serviceApiKey = 'test-api-key';
-  const serviceApiBaseUrl = 'https://service.example.com';
+  const serviceApiBaseUrl = 'https://api.example.com';
   
   // Mock OpenAI instance
   let mockOpenAIInstance;

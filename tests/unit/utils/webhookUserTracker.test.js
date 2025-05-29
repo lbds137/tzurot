@@ -618,7 +618,9 @@ describe('webhookUserTracker', () => {
       };
       // Make findByContent delegate to findDeletedMessage for backward compatibility
       mockPluralKitStore.findByContent = mockPluralKitStore.findDeletedMessage;
-      jest.doMock('../../../src/utils/pluralkitMessageStore', () => mockPluralKitStore);
+      jest.doMock('../../../src/utils/pluralkitMessageStore', () => ({
+        instance: mockPluralKitStore
+      }));
 
       // Clear the module cache to ensure fresh mocks
       jest.resetModules();

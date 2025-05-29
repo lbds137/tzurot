@@ -5,7 +5,7 @@ const { messageTracker } = require('./messageTracker');
 const errorHandler = require('./handlers/errorHandler');
 const _personalityHandler = require('./handlers/personalityHandler');
 const messageHandler = require('./handlers/messageHandler');
-const pluralkitMessageStore = require('./utils/pluralkitMessageStore');
+const pluralkitMessageStore = require('./utils/pluralkitMessageStore').instance;
 const { botConfig } = require('../config');
 
 // Initialize the bot with necessary intents and partials

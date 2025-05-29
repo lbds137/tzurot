@@ -153,5 +153,6 @@ class PluralKitMessageStore {
   }
 }
 
-// Export singleton instance
-module.exports = new PluralKitMessageStore();
+// Export the class and a singleton instance for backward compatibility
+module.exports = PluralKitMessageStore;
+module.exports.instance = new PluralKitMessageStore();
