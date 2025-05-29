@@ -12,6 +12,7 @@ const {
   createRateLimitMiddleware
 } = require('../../src/middleware');
 const logger = require('../../src/logger');
+const { botPrefix } = require('../../config');
 
 // Mock dependencies
 jest.mock('../../src/logger');
@@ -60,7 +61,7 @@ describe('Middleware System', () => {
 
     mockMessage = {
       author: mockAuthor,
-      content: '!tz test command'
+      content: `${botPrefix} test command`
     };
   });
 

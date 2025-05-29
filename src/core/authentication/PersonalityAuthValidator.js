@@ -69,8 +69,8 @@ class PersonalityAuthValidator {
     // Check if user has valid token (no bypass for bot owner)
     const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
     if (!hasToken) {
-      // Get bot prefix from config or use default
-      const botPrefix = process.env.PREFIX || '!tz';
+      // Get bot prefix from config
+      const { botPrefix } = require('../../../config');
       result.errors.push(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
       logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
       return result;

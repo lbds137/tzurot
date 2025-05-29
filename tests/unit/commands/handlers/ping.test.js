@@ -1,9 +1,9 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../../src/logger');
-jest.mock('../../../../config', () => ({
-  botPrefix: '!tz'
-}));
+
+// Import config to get the actual bot prefix
+const { botPrefix } = require('../../../../config');
 
 jest.mock('../../../../src/commands/utils/commandValidator', () => {
   return {
@@ -35,7 +35,7 @@ describe('Ping Command', () => {
     
     // Create enhanced mock message with less boilerplate
     mockMessage = migrationHelper.enhanced.createMessage({
-      content: '!tz ping',
+      content: `${botPrefix} ping`,
       author: { id: 'user-123', username: 'testuser' }
     });
     

@@ -1,8 +1,24 @@
 // Load environment variables
 require('dotenv').config();
 
-// Bot configuration
-const botPrefix = process.env.PREFIX || '!tz';
+// Environment detection
+// eslint-disable-next-line no-restricted-syntax -- Config file needs to check environment
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Environment-based bot configuration
+const botConfig = {
+  // Bot identification
+  name: isDevelopment ? 'Rotzot' : 'Tzurot',
+  prefix: isDevelopment ? '!rtz' : '!tz',
+  token: isDevelopment ? process.env.DISCORD_DEV_TOKEN : process.env.DISCORD_TOKEN,
+  
+  // Environment flag
+  isDevelopment,
+  environment: isDevelopment ? 'development' : 'production'
+};
+
+// Legacy export for backward compatibility
+const botPrefix = botConfig.prefix;
 
 // Function to get the API endpoint
 function getApiEndpoint() {
@@ -30,5 +46,6 @@ module.exports = {
   getApiEndpoint,
   getModelPath,
   getProfileInfoEndpoint,
-  botPrefix
+  botPrefix,
+  botConfig
 };

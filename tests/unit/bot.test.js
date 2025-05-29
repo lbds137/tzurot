@@ -98,13 +98,16 @@ jest.mock('../../src/utils/pluralkitMessageStore', () => ({
 describe('Bot Core Functionality', () => {
   let bot;
   let mockClient;
-  let originalEnv;
+  let originalToken;
+  let originalDevToken;
   
   beforeEach(() => {
     jest.clearAllMocks();
     // Save original environment
-    originalEnv = process.env.DISCORD_TOKEN;
+    originalToken = process.env.DISCORD_TOKEN;
+    originalDevToken = process.env.DISCORD_DEV_TOKEN;
     process.env.DISCORD_TOKEN = 'test-token';
+    process.env.DISCORD_DEV_TOKEN = 'test-token';
     
     // Clear the module cache to ensure fresh imports
     jest.resetModules();
@@ -115,7 +118,8 @@ describe('Bot Core Functionality', () => {
   
   afterEach(() => {
     // Restore original environment
-    process.env.DISCORD_TOKEN = originalEnv;
+    process.env.DISCORD_TOKEN = originalToken;
+    process.env.DISCORD_DEV_TOKEN = originalDevToken;
     
     // Clean up global client
     delete global.tzurotClient;
@@ -152,7 +156,23 @@ describe('Bot Core Functionality', () => {
     });
     
     it('should handle missing Discord token', async () => {
-      delete process.env.DISCORD_TOKEN;
+      // Mock config to return undefined token
+      jest.resetModules();
+      jest.doMock('../../config', () => ({
+        botConfig: {
+          name: 'Rotzot',
+          prefix: '!rtz',
+          token: undefined,
+          isDevelopment: true,
+          environment: 'development'
+        },
+        botPrefix: '!rtz',
+        getApiEndpoint: jest.fn(),
+        getModelPath: jest.fn(),
+        getProfileInfoEndpoint: jest.fn()
+      }));
+      
+      bot = require('../../src/bot');
       
       const client = await bot.initBot();
       

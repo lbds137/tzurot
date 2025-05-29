@@ -13,14 +13,14 @@ jest.mock('../../src/conversationManager');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
 jest.mock('../../src/commands');
-jest.mock('../../config');
+// Don't mock config - we want the real values
 jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
 const personalityManager = require('../../src/personalityManager');
 const conversationManager = require('../../src/conversationManager');
-const config = require('../../config');
+const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');
 
 describe('Bot Activated Personality Webhook Handling', () => {
@@ -34,8 +34,7 @@ describe('Bot Activated Personality Webhook Handling', () => {
     // Reset module registry to ensure fresh imports
     jest.resetModules();
     
-    // Set up mock config
-    config.botPrefix = '!tz';
+    // Config is now imported, not mocked
     
     // Mock discord.js Client
     mockClient = {

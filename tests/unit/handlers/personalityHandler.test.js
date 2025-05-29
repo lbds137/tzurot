@@ -2,6 +2,7 @@
  * Tests for the personality handler module
  */
 
+const { botPrefix } = require('../../../config');
 const personalityHandler = require('../../../src/handlers/personalityHandler');
 const logger = require('../../../src/logger');
 const { getAiResponse } = require('../../../src/aiService');
@@ -360,7 +361,7 @@ describe('Personality Handler Module', () => {
       // Mock personalityAuth to return not allowed for authentication
       personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
         isAllowed: false,
-        errorMessage: '⚠️ **Authentication Required**\n\nTo use AI personalities, you need to authenticate first.\n\nPlease run `!tz auth start` to begin setting up your account.',
+        errorMessage: `⚠️ **Authentication Required**\n\nTo use AI personalities, you need to authenticate first.\n\nPlease run \`${botPrefix} auth start\` to begin setting up your account.`,
         reason: 'not_authenticated',
         shouldReply: true
       });
@@ -421,7 +422,7 @@ describe('Personality Handler Module', () => {
       // Mock personalityAuth to return not allowed for verification
       personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
         isAllowed: false,
-        errorMessage: '⚠️ **Age Verification Required**\n\nTo use AI personalities, you need to verify your age first.\n\nPlease run `!tz verify` in a channel marked as NSFW. This will verify that you meet Discord\'s age requirements for accessing NSFW content.',
+        errorMessage: `⚠️ **Age Verification Required**\n\nTo use AI personalities, you need to verify your age first.\n\nPlease run \`${botPrefix} verify\` in a channel marked as NSFW. This will verify that you meet Discord's age requirements for accessing NSFW content.`,
         reason: 'not_verified',
         shouldReply: true
       });
@@ -1004,7 +1005,7 @@ describe('Personality Handler Module', () => {
       // Mock personalityAuth to return not allowed for PluralKit authentication
       personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
         isAllowed: false,
-        errorMessage: '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        errorMessage: `⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send \`${botPrefix} auth start\` directly (not through PluralKit) to begin setting up your account.`,
         reason: 'pluralkit_not_authenticated',
         shouldReply: true
       });
@@ -1104,7 +1105,7 @@ describe('Personality Handler Module', () => {
       // Mock personalityAuth to return the exact PluralKit error message
       personalityAuth.checkPersonalityAuth.mockResolvedValueOnce({
         isAllowed: false,
-        errorMessage: '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        errorMessage: `⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send \`${botPrefix} auth start\` directly (not through PluralKit) to begin setting up your account.`,
         reason: 'pluralkit_not_authenticated',
         shouldReply: true
       });
@@ -1119,7 +1120,7 @@ describe('Personality Handler Module', () => {
       // Verify the exact error message format
       expect(personalityAuth.sendAuthError).toHaveBeenCalledWith(
         pluralkitMessage,
-        '⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send `!tz auth start` directly (not through PluralKit) to begin setting up your account.',
+        `⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send \`${botPrefix} auth start\` directly (not through PluralKit) to begin setting up your account.`,
         'pluralkit_not_authenticated'
       );
     });

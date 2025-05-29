@@ -15,14 +15,14 @@ jest.mock('../../src/conversationManager');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
 jest.mock('../../src/commands');
-jest.mock('../../config');
+// Don't mock config - we want the real values
 jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
 const personalityManager = require('../../src/personalityManager');
 const conversationManager = require('../../src/conversationManager');
-const config = require('../../config');
+const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');
 
 describe('Bot Activated Personality Handling', () => {
@@ -36,8 +36,7 @@ describe('Bot Activated Personality Handling', () => {
     // Reset module registry to ensure fresh imports
     jest.resetModules();
     
-    // Set up mock config
-    config.botPrefix = '!tz';
+    // Config is now imported, not mocked
     
     // Mock discord.js Client
     mockClient = {
@@ -131,7 +130,7 @@ describe('Bot Activated Personality Handling', () => {
         
         if (!message.author.bot && activatedPersonality) {
           // Check if message is a command
-          const isCommand = message.content.startsWith(config.botPrefix);
+          const isCommand = message.content.startsWith(botPrefix);
           
           if (isCommand) {
             logger.info(`Activated personality in channel ${message.channel.id}, ignoring command message`);
@@ -147,7 +146,7 @@ describe('Bot Activated Personality Handling', () => {
   describe('Command Activation', () => {
     it('should ignore command messages when a personality is activated', async () => {
       // Set message to be a deactivate command
-      mockMessage.content = '!tz deactivate';
+      mockMessage.content = `${botPrefix} deactivate`;
       
       // Trigger message handler
       await messageHandler(mockMessage);
@@ -177,9 +176,9 @@ describe('Bot Activated Personality Handling', () => {
       expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     });
     
-    it('should treat !tz by itself as a command and ignore it', async () => {
+    it(`should treat ${botPrefix} by itself as a command and ignore it`, async () => {
       // Set message to be just the command prefix
-      mockMessage.content = '!tz';
+      mockMessage.content = botPrefix;
       
       // Trigger message handler
       await messageHandler(mockMessage);
@@ -193,7 +192,7 @@ describe('Bot Activated Personality Handling', () => {
     
     it('should only consider messages starting with the exact prefix as commands', async () => {
       // Set message with text that contains but doesn't start with the prefix
-      mockMessage.content = 'This message has !tz in the middle';
+      mockMessage.content = `This message has ${botPrefix} in the middle`;
       
       // Trigger message handler
       await messageHandler(mockMessage);
@@ -207,10 +206,10 @@ describe('Bot Activated Personality Handling', () => {
     });
     
     it('should ignore commands without a space after prefix (bug fix)', async () => {
-      // This test specifically verifies the fix for the issue where commands like "!tzhelp" were not being ignored
+      // This test specifically verifies the fix for the issue where commands like "${botPrefix}help" were not being ignored
       
       // Set message to be a command without a space after prefix
-      mockMessage.content = '!tzhelp';
+      mockMessage.content = `${botPrefix}help`;
       
       // Trigger message handler
       await messageHandler(mockMessage);

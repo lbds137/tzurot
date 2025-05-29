@@ -42,11 +42,6 @@ jest.mock('../../src/personalityManager', () => ({
   registerPersonality: jest.fn()
 }));
 
-// Mock the config module
-jest.mock('../../config', () => ({
-  botPrefix: '!tz'
-}));
-
 // Mock the logger module
 jest.mock('../../src/logger', () => ({
   info: jest.fn(),
@@ -54,6 +49,8 @@ jest.mock('../../src/logger', () => ({
   warn: jest.fn(),
   error: jest.fn()
 }));
+
+const { botPrefix } = require('../../config');
 
 // Extract the message handling logic from bot.js
 function createMessageHandler() {
@@ -203,7 +200,7 @@ describe('Bot Message Handler', () => {
         username: 'MockUser',
         bot: false
       },
-      content: '!tz help',
+      content: `${botPrefix} help`,
       channel: {
         id: 'mock-channel-id',
         send: jest.fn().mockResolvedValue({ id: 'response-id' })
@@ -418,7 +415,7 @@ describe('Bot Message Handler', () => {
         username: 'MockUser',
         bot: false
       },
-      content: '!tz list 2',
+      content: `${botPrefix} list 2`,
       channel: {
         id: 'mock-channel-id',
         send: jest.fn().mockResolvedValue({ id: 'response-id' })

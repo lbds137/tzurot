@@ -12,9 +12,8 @@ jest.mock('../../../src/conversationManager');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/pluralkitMessageStore');
-jest.mock('../../../config', () => ({
-  botPrefix: '!tz'
-}));
+// Import config to get the actual bot prefix
+const { botPrefix } = require('../../../config');
 
 // IMPORTANT: Import the messageHandler module AFTER mocking all its dependencies
 const messageHandler = require('../../../src/handlers/messageHandler');
@@ -30,7 +29,6 @@ const { getActivePersonality, getActivatedPersonality } = require('../../../src/
 const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
-const { botPrefix } = require('../../../config');
 
 describe('messageHandler', () => {
   let mockClient;

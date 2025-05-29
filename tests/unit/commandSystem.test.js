@@ -1,11 +1,10 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../src/logger');
-jest.mock('../../config');
 
 // Import mocked modules
 const { PermissionFlagsBits } = require('discord.js');
-const config = require('../../config');
+const { botPrefix } = require('../../config');
 
 // Mock PermissionFlagsBits
 PermissionFlagsBits.Administrator = 'ADMINISTRATOR';
@@ -63,7 +62,7 @@ describe('Command System', () => {
       channel: mockChannel,
       member: mockMember,
       reply: jest.fn().mockResolvedValue({ id: 'reply-123' }),
-      content: '!tz test'
+      content: `${botPrefix} test`
     };
 
     // Mock auth
@@ -72,8 +71,6 @@ describe('Command System', () => {
       isNsfwVerified: jest.fn().mockReturnValue(true)
     }));
 
-    // Mock config
-    config.botPrefix = '!tz';
 
     // Import the command system
     commandSystem = require('../../src/commands/index');

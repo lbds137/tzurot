@@ -19,8 +19,9 @@ const logger = require('../../logger');
 class AuthManager {
   constructor(config = {}) {
     // Configuration
-    this.appId = config.appId || process.env.SERVICE_APP_ID;
-    this.apiKey = config.apiKey || process.env.SERVICE_API_KEY;
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    this.appId = config.appId || (isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID);
+    this.apiKey = config.apiKey || (isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY);
     this.authWebsite = config.authWebsite || process.env.SERVICE_WEBSITE;
     this.authApiEndpoint = config.authApiEndpoint || `${process.env.SERVICE_API_BASE_URL}/auth`;
     this.serviceApiBaseUrl = config.serviceApiBaseUrl || process.env.SERVICE_API_BASE_URL;

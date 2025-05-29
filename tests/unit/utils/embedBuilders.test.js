@@ -3,6 +3,7 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
+const { botPrefix } = require('../../../config');
 
 describe('embedBuilders', () => {
   let embedBuilders;
@@ -21,7 +22,7 @@ describe('embedBuilders', () => {
     
     // Mock config
     mockConfig = {
-      botPrefix: '!tz'
+      botPrefix
     };
     jest.doMock('../../../config', () => mockConfig);
     
@@ -302,8 +303,8 @@ describe('embedBuilders', () => {
       expect(embed.data.footer.text).toBe('Page 2 of 3');
       expect(embed.data.fields).toHaveLength(1);
       expect(embed.data.fields[0].name).toBe('Navigation');
-      expect(embed.data.fields[0].value).toContain('!tz list 3');
-      expect(embed.data.fields[0].value).toContain('!tz list 1');
+      expect(embed.data.fields[0].value).toContain(`${botPrefix} list 3`);
+      expect(embed.data.fields[0].value).toContain(`${botPrefix} list 1`);
     });
 
     it('should handle error during creation', () => {
@@ -473,9 +474,9 @@ describe('embedBuilders', () => {
       // Check that it has authentication commands
       const fieldNames = embed.data.fields.map(f => f.name);
       expect(fieldNames).toContain('Authentication');
-      expect(fieldNames).toContain('!tz auth start');
-      expect(fieldNames).toContain('!tz auth code <code>');
-      expect(fieldNames).toContain('!tz auth status');
+      expect(fieldNames).toContain(`${botPrefix} auth start`);
+      expect(fieldNames).toContain(`${botPrefix} auth code <code>`);
+      expect(fieldNames).toContain(`${botPrefix} auth status`);
     });
 
     it('should include admin commands for admin user', () => {
@@ -493,7 +494,7 @@ describe('embedBuilders', () => {
       const embed = embedBuilders.createHelpEmbed(false);
       
       // Check that commands use the configured prefix
-      const commandFields = embed.data.fields.filter(f => f.name.startsWith('!tz'));
+      const commandFields = embed.data.fields.filter(f => f.name.startsWith(botPrefix));
       expect(commandFields.length).toBeGreaterThan(0);
     });
   });

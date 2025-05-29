@@ -8,6 +8,7 @@
 const commandProcessor = require('../../src/commandProcessor');
 const { middlewareManager } = require('../../src/middleware');
 const logger = require('../../src/logger');
+const { botPrefix } = require('../../config');
 
 // Mock dependencies
 jest.mock('../../src/logger');
@@ -332,7 +333,7 @@ describe('Command Processor', () => {
       
       expect(result.success).toBe(false);
       expect(result.message).toContain('Unknown command: `invalid`');
-      expect(result.message).toContain('!tz help');
+      expect(result.message).toContain(`${botPrefix} help`);
       expect(mockChannel.send).toHaveBeenCalledWith(result.message);
       expect(result.sent).toEqual({ id: 'sent-message-id' });
     });
@@ -356,16 +357,16 @@ describe('Command Processor', () => {
     it('should create basic help text', () => {
       const helpText = commandProcessor.createHelpText('test');
       
-      expect(helpText).toBe('**!tz test**');
+      expect(helpText).toBe(`**${botPrefix} test**`);
     });
 
     it('should include usage if provided', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        usage: 'Usage: !tz test <arg>'
+        usage: `Usage: ${botPrefix} test <arg>`
       });
       
-      expect(helpText).toContain('**!tz test**');
-      expect(helpText).toContain('Usage: !tz test <arg>');
+      expect(helpText).toContain(`**${botPrefix} test**`);
+      expect(helpText).toContain(`Usage: ${botPrefix} test <arg>`);
     });
 
     it('should include description if provided', () => {
@@ -382,23 +383,23 @@ describe('Command Processor', () => {
       });
       
       expect(helpText).toContain('Examples:');
-      expect(helpText).toContain('`!tz test hello`');
-      expect(helpText).toContain('`!tz test world`');
+      expect(helpText).toContain(`\`${botPrefix} test hello\``);
+      expect(helpText).toContain(`\`${botPrefix} test world\``);
     });
 
     it('should create complete help text with all options', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        usage: 'Usage: !tz test <arg>',
+        usage: `Usage: ${botPrefix} test <arg>`,
         description: 'This is a test command',
         examples: ['test hello', 'test world']
       });
       
-      expect(helpText).toContain('**!tz test**');
-      expect(helpText).toContain('Usage: !tz test <arg>');
+      expect(helpText).toContain(`**${botPrefix} test**`);
+      expect(helpText).toContain(`Usage: ${botPrefix} test <arg>`);
       expect(helpText).toContain('This is a test command');
       expect(helpText).toContain('Examples:');
-      expect(helpText).toContain('`!tz test hello`');
-      expect(helpText).toContain('`!tz test world`');
+      expect(helpText).toContain(`\`${botPrefix} test hello\``);
+      expect(helpText).toContain(`\`${botPrefix} test world\``);
     });
 
     it('should handle empty examples array', () => {
@@ -406,7 +407,7 @@ describe('Command Processor', () => {
         examples: []
       });
       
-      expect(helpText).toBe('**!tz test**');
+      expect(helpText).toBe(`**${botPrefix} test**`);
       expect(helpText).not.toContain('Examples:');
     });
   });

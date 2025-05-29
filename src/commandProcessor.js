@@ -15,7 +15,7 @@ const {
   createRateLimitMiddleware,
 } = require('./middleware');
 // Load config without creating circular dependencies
-const botPrefix = process.env.BOT_PREFIX || require('../config').botPrefix || '!tzurot';
+const { botPrefix } = require('../config');
 
 // Set up default middleware chain
 // These middleware functions will be applied to every command in order

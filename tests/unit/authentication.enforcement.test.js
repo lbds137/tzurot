@@ -15,6 +15,7 @@ jest.mock('openai', () => ({
 
 const aiService = require('../../src/aiService');
 const auth = require('../../src/auth');
+const { botPrefix } = require('../../config');
 
 // Mock dependencies
 jest.mock('../../src/auth', () => ({
@@ -55,7 +56,7 @@ describe('Authentication Enforcement', () => {
 
     // Verify that we get an authentication required message with the bot error marker
     expect(response).toContain('Authentication required');
-    expect(response).toContain('!tz auth start');
+    expect(response).toContain(`${botPrefix} auth start`);
     expect(response).toContain('BOT_ERROR_MESSAGE:');
 
     // Verify auth.hasValidToken was called with the user ID

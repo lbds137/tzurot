@@ -1,7 +1,6 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../src/logger');
-jest.mock('../../../config');
 jest.mock('../../../src/commands/middleware/auth');
 jest.mock('../../../src/commands/middleware/deduplication');
 jest.mock('../../../src/commands/middleware/permissions');
@@ -9,7 +8,7 @@ jest.mock('../../../src/commands/utils/commandLoader');
 
 // Import mocked modules
 const { PermissionFlagsBits } = require('discord.js');
-const config = require('../../../config');
+const { botPrefix } = require('../../../config');
 const authMiddleware = require('../../../src/commands/middleware/auth');
 const deduplicationMiddleware = require('../../../src/commands/middleware/deduplication');
 const permissionsMiddleware = require('../../../src/commands/middleware/permissions');
@@ -85,13 +84,11 @@ describe('Command System', () => {
       channel: mockChannel,
       member: mockMember,
       reply: jest.fn().mockResolvedValue({ id: 'reply-123' }),
-      content: '!tz test'
+      content: `${botPrefix} test`
     };
 
     // Auth is now mocked through middleware above
 
-    // Mock config
-    config.botPrefix = '!tz';
 
     // Import the command system
     commandSystem = require('../../../src/commands/index');

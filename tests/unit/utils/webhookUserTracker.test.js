@@ -2,6 +2,8 @@
  * Tests for webhookUserTracker.js
  */
 
+const { botPrefix } = require('../../../config');
+
 describe('webhookUserTracker', () => {
   let webhookUserTracker;
   let mockLogger;
@@ -26,7 +28,7 @@ describe('webhookUserTracker', () => {
     
     // Mock config
     mockConfig = {
-      botPrefix: '!tz'
+      botPrefix
     };
     jest.doMock('../../../config', () => mockConfig);
     
@@ -355,7 +357,7 @@ describe('webhookUserTracker', () => {
     it('should bypass for non-auth webhook commands', () => {
       const message = {
         webhookId: 'webhook123',
-        content: '!tz add personality',
+        content: `${botPrefix} add personality`,
         author: { username: 'Test' }
       };
       
@@ -369,7 +371,7 @@ describe('webhookUserTracker', () => {
     it('should not bypass for auth command', () => {
       const message = {
         webhookId: 'webhook123',
-        content: '!tz auth start',
+        content: `${botPrefix} auth start`,
         author: { username: 'Test' }
       };
       
@@ -383,7 +385,7 @@ describe('webhookUserTracker', () => {
     it('should handle commands with no arguments', () => {
       const message = {
         webhookId: 'webhook123',
-        content: '!tz',
+        content: `${botPrefix}`,
         author: { username: 'Test' }
       };
       

@@ -6,6 +6,7 @@ const errorHandler = require('./handlers/errorHandler');
 const _personalityHandler = require('./handlers/personalityHandler');
 const messageHandler = require('./handlers/messageHandler');
 const pluralkitMessageStore = require('./utils/pluralkitMessageStore');
+const { botConfig } = require('../config');
 
 // Initialize the bot with necessary intents and partials
 const client = new Client({
@@ -21,6 +22,11 @@ const client = new Client({
 
 // Bot initialization function
 async function initBot() {
+  // Log startup information
+  logger.info(`🤖 Starting ${botConfig.name} in ${botConfig.environment.toUpperCase()} mode`);
+  logger.info(`📝 Using prefix: ${botConfig.prefix}`);
+  logger.info(`🌍 Environment: ${botConfig.environment}`);
+
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
 
@@ -136,8 +142,8 @@ async function initBot() {
     pluralkitMessageStore.markAsDeleted(message.id);
   });
 
-  // Log in to Discord
-  await client.login(process.env.DISCORD_TOKEN);
+  // Log in to Discord with environment-appropriate token
+  await client.login(botConfig.token);
   return client;
 }
 

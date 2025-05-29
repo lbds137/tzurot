@@ -13,6 +13,8 @@ jest.mock('../../src/commands/index', () => ({
   processCommand: jest.fn(),
 }));
 
+const { botPrefix } = require('../../config');
+
 describe('CommandLoader Comprehensive Tests', () => {
   let commandLoader;
   let logger;
@@ -38,7 +40,7 @@ describe('CommandLoader Comprehensive Tests', () => {
         id: 'test-channel-id',
         send: jest.fn().mockResolvedValue({ id: 'error-message-id' }),
       },
-      content: '!tz test command args',
+      content: `${botPrefix} test command args`,
     };
   });
   

@@ -13,10 +13,6 @@ jest.mock('../../src/logger', () => ({
   error: jest.fn()
 }));
 
-jest.mock('../../config', () => ({
-  botPrefix: '!tz'
-}));
-
 const webhookUserTracker = require('../../src/utils/webhookUserTracker');
 const mockLogger = require('../../src/logger');
 

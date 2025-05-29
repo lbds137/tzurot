@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "dev:bot": "node scripts/start-dev.js",
     "test": "jest",
+    "test:dev": "NODE_ENV=development jest",
+    "test:dev:watch": "NODE_ENV=development jest --watch",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:debug": "jest --detectOpenHandles --verbose",
