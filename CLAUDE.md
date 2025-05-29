@@ -121,6 +121,41 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `node scripts/check-test-antipatterns.js` - Check for test quality issues
 - `node scripts/comprehensive-test-timing-analysis.js` - Analyze test performance
 - `./scripts/check-module-size.sh` - Check for modules exceeding size limits (500 lines)
+- `node scripts/check-singleton-exports.js` - Check for singleton anti-patterns (NEW!)
+
+### Anti-Patterns That Are Now Enforced
+
+**These patterns will FAIL pre-commit hooks and CI:**
+
+1. **Singleton Exports**
+   ```javascript
+   // ❌ FORBIDDEN
+   const instance = new MyClass();
+   module.exports = instance;
+   
+   // ✅ CORRECT
+   module.exports = { MyClass, create: (deps) => new MyClass(deps) };
+   ```
+
+2. **NODE_ENV Checks in Source**
+   ```javascript
+   // ❌ FORBIDDEN
+   if (process.env.NODE_ENV === 'test') { /* ... */ }
+   
+   // ✅ CORRECT
+   // Use dependency injection instead
+   ```
+
+3. **Timer Existence Checks**
+   ```javascript
+   // ❌ FORBIDDEN
+   typeof setTimeout !== 'undefined' ? setTimeout : () => {}
+   
+   // ✅ CORRECT
+   // Inject timers as dependencies
+   ```
+
+See `docs/improvements/TIMER_INJECTION_REFACTOR.md` and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for migration guides.
 
 ### IMPORTANT: After making code changes
 - Always run `npm run quality` to check code quality, formatting, and timer patterns

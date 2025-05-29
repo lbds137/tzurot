@@ -47,6 +47,12 @@ if [ -n "$STAGED_FILES" ]; then
     # Check for timer patterns (only on staged files)
     run_check "Timer patterns check" "node scripts/check-timer-patterns.js --staged"
     
+    # Check for singleton anti-patterns (only on staged src files)
+    STAGED_SRC_FILES=$(echo "$STAGED_FILES" | grep -E '^src/.*\.js$' || true)
+    if [ -n "$STAGED_SRC_FILES" ]; then
+        run_check "Anti-pattern check" "node scripts/check-singleton-exports.js"
+    fi
+    
     # Run linting only on staged files (skip if no JS files)
     if [ -n "$STAGED_FILES" ]; then
         run_check "ESLint" "npx eslint $STAGED_FILES"

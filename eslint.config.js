@@ -3,6 +3,7 @@ const eslintPluginJest = require('eslint-plugin-jest');
 const prettier = require('eslint-config-prettier');
 const globals = require('globals');
 const moduleSizeRules = require('./.eslintrc.module-size.js');
+const antipatternRules = require('./.eslintrc.antipatterns.js');
 
 module.exports = [
   js.configs.recommended,
@@ -20,7 +21,8 @@ module.exports = [
       'no-console': 'off',
       'no-var': 'warn',
       'prefer-const': 'warn',
-      ...moduleSizeRules.rules
+      ...moduleSizeRules.rules,
+      ...antipatternRules.rules
     }
   },
   {
