@@ -10,43 +10,84 @@ const fs = require('fs');
 const path = require('path');
 const glob = require('glob');
 
+// Helper to check if code is inside a default parameter or arrow function
+function isInsideDefaultParam(content, matchIndex) {
+  // Look for patterns like: = (ms) => new Promise(resolve => setTimeout
+  // or: || ((ms) => new Promise(resolve => setTimeout
+  const before = content.substring(Math.max(0, matchIndex - 100), matchIndex);
+  return /(?:=|\|\|)\s*\(?\([^)]*\)\s*=>\s*(?:new\s+)?Promise\s*\(\s*(?:resolve|res)\s*=>\s*$/.test(before);
+}
+
+// Helper to check if code is defining an injectable function
+function isInjectableDefinition(content, matchIndex) {
+  // Check if this is part of a scheduler/delay/timer function definition
+  const before = content.substring(Math.max(0, matchIndex - 50), matchIndex);
+  return /(?:scheduler|delay|timer|interval)(?:Fn)?\s*(?:=|\|\|)\s*/.test(before);
+}
+
 // Patterns to look for
 const TIMER_PATTERNS = [
   {
     name: 'Promise with setTimeout',
     pattern: /await\s+new\s+Promise\s*\(\s*(?:resolve|res)\s*=>\s*setTimeout/g,
     message: 'Found Promise-wrapped setTimeout. Consider using injectable delay function.',
-    severity: 'error'
+    severity: 'error',
+    filter: (content, match, index) => !isInsideDefaultParam(content, index)
   },
   {
-    name: 'Direct setTimeout in async function',
-    pattern: /async[\s\S]*?setTimeout\s*\((?!.*options\.scheduler)(?!.*context\.)(?!.*this\.scheduler)/g,
-    message: 'setTimeout in async function. Consider making it injectable.',
-    severity: 'error'
+    name: 'Direct setTimeout usage',
+    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!schedulerFn|delayFn|timer|scheduler|delay)\s*setTimeout\s*\(/g,
+    message: 'Direct setTimeout usage. Use injectable timer instead.',
+    severity: 'error',
+    filter: (content, match, index) => {
+      // Skip if it's inside a default parameter
+      if (isInsideDefaultParam(content, index)) return false;
+      // Skip if it's part of an injectable definition
+      if (isInjectableDefinition(content, index)) return false;
+      // Skip if it's in a comment
+      const lineStart = content.lastIndexOf('\n', index) + 1;
+      const lineEnd = content.indexOf('\n', index);
+      const line = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
+      if (line.trim().startsWith('//') || line.trim().startsWith('*')) return false;
+      return true;
+    }
+  },
+  {
+    name: 'Direct setInterval usage',
+    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!intervalFn|timer|scheduler|interval)\s*setInterval\s*\(/g,
+    message: 'Direct setInterval usage. Use injectable timer instead.',
+    severity: 'error',
+    filter: (content, match, index) => {
+      // Skip if it's part of an injectable definition
+      if (isInjectableDefinition(content, index)) return false;
+      // Skip if it's in a comment
+      const lineStart = content.lastIndexOf('\n', index) + 1;
+      const lineEnd = content.indexOf('\n', index);
+      const line = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
+      if (line.trim().startsWith('//') || line.trim().startsWith('*')) return false;
+      return true;
+    }
   },
   {
     name: 'setInterval without cleanup tracking',
-    pattern: /setInterval\s*\([^)]+\)(?!\.unref)/g,
-    message: 'setInterval without unref(). Consider storing interval ID for cleanup.',
-    severity: 'warning'
-  },
-  {
-    name: 'Direct setTimeout in class method',
-    pattern: /class[\s\S]*?setTimeout\s*\(/g,
-    message: 'setTimeout in class. Use injectable timer from constructor options.',
-    severity: 'error'
+    pattern: /(?:this\.|options\.|context\.)?(?:interval|scheduler)\s*\([^)]+\)(?!\.unref)/g,
+    message: 'setInterval without unref(). Consider adding unref() for cleanup.',
+    severity: 'warning',
+    filter: (content, match, index) => {
+      // Only check if it looks like setInterval usage
+      return match.includes('interval');
+    }
   },
   {
     name: 'Global timer in module scope',
-    pattern: /^(?!.*function)(?!.*=).*(?:setTimeout|setInterval)\s*\(/gm,
+    pattern: /^(?!.*(?:function|const|let|var|class)).*(?:setTimeout|setInterval)\s*\(/gm,
     message: 'Timer at module scope. Consider making it injectable.',
-    severity: 'warning'
-  },
-  {
-    name: 'Timer in constructor without injection',
-    pattern: /constructor\s*\([^)]*\)[\s\S]*?(?<!options\.)(?<!this\.)(?:setTimeout|setInterval)\s*\([^=]/g,
-    message: 'Timer in constructor. Accept timer functions via options.',
-    severity: 'error'
+    severity: 'warning',
+    filter: (content, match, index) => {
+      // Skip if it's in a comment
+      if (match.trim().startsWith('//') || match.trim().startsWith('*')) return false;
+      return true;
+    }
   }
 ];
 
@@ -65,20 +106,31 @@ function checkFile(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
   const issues = [];
 
-  TIMER_PATTERNS.forEach(({ name, pattern, message, severity }) => {
-    const matches = content.match(pattern);
-    if (matches) {
-      // Find line numbers for each match
-      matches.forEach(match => {
-        const lines = content.substring(0, content.indexOf(match)).split('\n');
-        const lineNumber = lines.length;
-        issues.push({
-          pattern: name,
-          message,
-          severity,
-          line: lineNumber,
-          code: match.trim()
-        });
+  TIMER_PATTERNS.forEach(({ name, pattern, message, severity, filter }) => {
+    let match;
+    pattern.lastIndex = 0; // Reset regex state
+    
+    while ((match = pattern.exec(content)) !== null) {
+      // Apply filter if provided
+      if (filter && !filter(content, match[0], match.index)) {
+        continue;
+      }
+      
+      // Find line number
+      const lines = content.substring(0, match.index).split('\n');
+      const lineNumber = lines.length;
+      
+      // Get the line containing the match for context
+      const lineStart = content.lastIndexOf('\n', match.index) + 1;
+      const lineEnd = content.indexOf('\n', match.index + match[0].length);
+      const codeLine = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd).trim();
+      
+      issues.push({
+        pattern: name,
+        message,
+        severity,
+        line: lineNumber,
+        code: codeLine.substring(0, 80) + (codeLine.length > 80 ? '...' : '')
       });
     }
   });
