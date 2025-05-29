@@ -21,6 +21,16 @@ const SKIP_WARMUP_DOMAINS = [
   'cdn.discordapp.com',
 ];
 
+// Injectable timer functions for testability
+let schedulerFn = setTimeout;
+let clearSchedulerFn = clearTimeout;
+
+// Function to override timers for testing
+function setTimerFunctions(scheduler, clearScheduler) {
+  schedulerFn = scheduler;
+  clearSchedulerFn = clearScheduler;
+}
+
 /**
  * Validate if an avatar URL is accessible and correctly formatted
  * @param {string} avatarUrl - The URL to validate
@@ -173,7 +183,7 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
     // Make a GET request to ensure Discord caches the image
     // Use a timeout to prevent hanging on bad URLs
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = schedulerFn(() => controller.abort(), 5000);
 
     const response = await fetch(validUrl, {
       method: 'GET',
@@ -188,7 +198,7 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
       },
     });
 
-    clearTimeout(timeoutId);
+    clearSchedulerFn(timeoutId);
 
     if (!response.ok) {
       logger.warn(`[AvatarManager] Avatar URL returned non-OK status: ${response.status}`);
@@ -425,4 +435,5 @@ module.exports = {
   clearAvatarCache,
   getAvatarCacheSize,
   isAvatarCached,
+  setTimerFunctions,
 };

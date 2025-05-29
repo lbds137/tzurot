@@ -140,19 +140,25 @@ async function saveStats() {
 
 /**
  * Start monitoring with periodic logging
+ * @param {Object} options - Options for monitoring
+ * @returns {NodeJS.Timeout} - The interval ID
  */
-function startMonitoring() {
+function startMonitoring(options = {}) {
   logger.info('[DedupeMonitor] Deduplication monitoring started');
 
+  // Injectable timer function for testability
+  const intervalFn = options.interval || setInterval;
+  const logInterval = options.logInterval || LOG_INTERVAL;
+
   // Periodically log statistics
-  setInterval(() => {
+  const interval = intervalFn(() => {
     logStats();
 
     // In production, also save to file
     if (stats.isProduction) {
       saveStats().catch(() => {});
     }
-  }, LOG_INTERVAL);
+  }, logInterval);
 
   // Save stats on exit
   process.on('SIGINT', async () => {

@@ -7,7 +7,7 @@ const logger = require('../../logger');
  * maintaining the relationship between messages and their originating conversations.
  */
 class ConversationTracker {
-  constructor() {
+  constructor(options = {}) {
     // Track ongoing conversations by user-channel key
     this.activeConversations = new Map();
     
@@ -18,8 +18,14 @@ class ConversationTracker {
     this.CONVERSATION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
     this.DM_CONVERSATION_TIMEOUT = 120 * 60 * 1000; // 2 hours for DMs
     
+    // Injectable timer functions for testability
+    this.interval = options.interval || setInterval;
+    this.enableCleanup = options.enableCleanup !== false; // Default to true
+    
     // Start cleanup interval
-    this._startCleanupInterval();
+    if (this.enableCleanup) {
+      this._startCleanupInterval();
+    }
   }
 
   /**
@@ -225,9 +231,14 @@ class ConversationTracker {
    * @private
    */
   _startCleanupInterval() {
-    this.cleanupInterval = setInterval(() => {
+    this.cleanupInterval = this.interval(() => {
       this._cleanupStaleConversations();
     }, 10 * 60 * 1000); // Run every 10 minutes
+    
+    // Allow process to exit even with interval running
+    if (this.cleanupInterval.unref) {
+      this.cleanupInterval.unref();
+    }
   }
 
   /**
@@ -279,6 +290,15 @@ class ConversationTracker {
    * Stop the cleanup interval (for testing)
    */
   stopCleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+  /**
+   * Clean up and stop the interval
+   */
+  destroy() {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;

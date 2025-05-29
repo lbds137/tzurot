@@ -42,6 +42,9 @@ class ProfileInfoFetcher {
     this.ongoingRequests = new Map();
     this.maxRetries = options.maxRetries || this.rateLimiter.maxRetries || 5;
     this.logPrefix = '[ProfileInfoFetcher]';
+    
+    // Allow injection of delay function for testing
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   /**
@@ -160,7 +163,7 @@ class ProfileInfoFetcher {
         if (retryCount <= this.maxRetries) {
           const jitter = Math.floor(Math.random() * 500);
           const waitTime = 2000 * Math.pow(2, retryCount) + jitter;
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+          await this.delay(waitTime);
           continue;
         } else {
           logger.error(`${this.logPrefix} Max retries reached for ${profileName} after timeout`);

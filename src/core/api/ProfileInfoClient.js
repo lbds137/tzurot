@@ -13,6 +13,8 @@ class ProfileInfoClient {
     this.timeout = options.timeout || 30000; // 30 seconds default
     this.logPrefix = options.logPrefix || '[ProfileInfoClient]';
     this.fetchImplementation = options.fetchImplementation || nodeFetch;
+    this.scheduler = options.scheduler || setTimeout;
+    this.clearScheduler = options.clearScheduler || clearTimeout;
   }
 
   /**
@@ -23,7 +25,7 @@ class ProfileInfoClient {
    */
   async fetch(endpoint, headers = {}) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutId = this.scheduler(() => controller.abort(), this.timeout);
 
     try {
       logger.debug(`${this.logPrefix} Fetching from: ${endpoint}`);
@@ -83,7 +85,7 @@ class ProfileInfoClient {
         data: null
       };
     } finally {
-      clearTimeout(timeoutId);
+      this.clearScheduler(timeoutId);
     }
   }
 

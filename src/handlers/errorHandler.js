@@ -87,9 +87,14 @@ function filterWebhookMessage(message) {
  * This is an aggressive approach to catch any error messages that slip through
  * other mechanisms
  * @param {Object} client - Discord.js client instance
+ * @param {Object} options - Options for the queue cleaner
  * @returns {NodeJS.Timeout} - The interval ID
  */
-function startQueueCleaner(client) {
+function startQueueCleaner(client, options = {}) {
+  // Injectable timer functions for testability
+  const intervalFn = options.interval || setInterval;
+  const checkInterval = options.checkInterval || 7000; // Default 7 seconds
+  
   // Track channels we've attempted but don't have access to
   const inaccessibleChannels = new Set();
 
@@ -100,7 +105,7 @@ function startQueueCleaner(client) {
   const activeChannels = new Set();
 
   // Check for error messages periodically
-  const interval = setInterval(async () => {
+  const interval = intervalFn(async () => {
     // Using structured logging for queue cleaning
     try {
       // Get all channels the bot has access to, excluding already identified inaccessible ones
@@ -221,7 +226,7 @@ function startQueueCleaner(client) {
       // Silently fail
       logger.error('[QueueCleaner] Unhandled error:', error);
     }
-  }, 7000); // Check every 7 seconds
+  }, checkInterval);
 
   return interval;
 }

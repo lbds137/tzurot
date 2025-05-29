@@ -6,15 +6,18 @@ const logger = require('../logger');
  * by finding a recently deleted message with the same content.
  */
 class PluralKitMessageStore {
-  constructor() {
+  constructor(options = {}) {
     this.pendingMessages = new Map();
     this.deletedMessages = new Map(); // Track deleted messages separately
-    this.expirationTime = 5000; // 5 seconds - PluralKit usually processes within 1-2 seconds
+    this.expirationTime = options.expirationTime || 5000; // 5 seconds - PluralKit usually processes within 1-2 seconds
+    
+    // Injectable timer function for testability
+    const intervalFn = options.interval || setInterval;
+    const enableCleanup = options.enableCleanup !== undefined ? options.enableCleanup : process.env.NODE_ENV !== 'test';
     
     // Clean up expired messages every 10 seconds
-    // Only start the interval if not in test environment
-    if (process.env.NODE_ENV !== 'test') {
-      this.cleanupInterval = setInterval(() => this.cleanup(), 10000);
+    if (enableCleanup) {
+      this.cleanupInterval = intervalFn(() => this.cleanup(), 10000);
     }
   }
 

@@ -33,6 +33,10 @@ class RateLimiter {
     this.maxRetries = options.maxRetries || 5;
     this.logPrefix = options.logPrefix || '[RateLimiter]';
 
+    // Injectable timer functions for testability
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.scheduler = options.scheduler || setTimeout;
+
     // State tracking
     this.lastRequestTime = 0;
     this.consecutiveRateLimits = 0;
@@ -100,7 +104,7 @@ class RateLimiter {
       this.inCooldown = true;
 
       // Schedule end of cooldown
-      setTimeout(() => {
+      this.scheduler(() => {
         logger.info(`${this.logPrefix} Global cooldown period ended, resuming normal operation`);
         this.inCooldown = false;
         this.consecutiveRateLimits = 0;
@@ -126,7 +130,7 @@ class RateLimiter {
           `${this.logPrefix} Rate limiting: waiting ${waitTime}ms before next request (queue length: ${this.requestQueue.length})`
         );
 
-        setTimeout(() => this.processQueue(), waitTime);
+        this.scheduler(() => this.processQueue(), waitTime);
         return;
       }
 
@@ -141,7 +145,7 @@ class RateLimiter {
       if (this.requestQueue.length > 0) {
         // Use the configured delay plus jitter
         const nextCheckDelay = this.minRequestSpacing + jitter;
-        setTimeout(() => this.processQueue(), nextCheckDelay);
+        this.scheduler(() => this.processQueue(), nextCheckDelay);
       }
     }
   }
@@ -189,7 +193,7 @@ class RateLimiter {
     );
 
     // Wait for the backoff period
-    await new Promise(resolve => setTimeout(resolve, waitTime));
+    await this.delay(waitTime);
 
     // Return updated retry count
     return retryCount + 1;
