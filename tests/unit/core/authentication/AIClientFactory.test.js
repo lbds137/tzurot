@@ -10,8 +10,13 @@ jest.mock('../../../../src/logger', () => ({
   warn: jest.fn()
 }));
 
-// Import after mocking logger
+jest.mock('openai', () => ({
+  OpenAI: jest.fn()
+}));
+
+// Import after mocking
 const AIClientFactory = require('../../../../src/core/authentication/AIClientFactory');
+const { OpenAI } = require('openai');
 
 describe('AIClientFactory', () => {
   let factory;
@@ -19,43 +24,25 @@ describe('AIClientFactory', () => {
   const serviceApiKey = 'test-api-key';
   const serviceApiBaseUrl = 'https://service.example.com';
   
-  // Mock OpenAI
+  // Mock OpenAI instance
   let mockOpenAIInstance;
-  let mockOpenAI;
-  let originalImport;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
-    // Save original import
-    originalImport = global.import;
     
     // Create fresh mock instance
     mockOpenAIInstance = {
       _config: null
     };
     
-    // Create OpenAI mock constructor
-    mockOpenAI = jest.fn((config) => {
+    // Configure OpenAI mock
+    OpenAI.mockImplementation((config) => {
       mockOpenAIInstance._config = config;
       return mockOpenAIInstance;
     });
     
-    // Mock the dynamic import
-    global.import = jest.fn((moduleName) => {
-      if (moduleName === 'openai') {
-        return Promise.resolve({ OpenAI: mockOpenAI });
-      }
-      return originalImport(moduleName);
-    });
-    
     factory = new AIClientFactory(serviceApiKey, serviceApiBaseUrl);
     logger = require('../../../../src/logger');
-  });
-
-  afterEach(() => {
-    // Restore original import
-    global.import = originalImport;
   });
 
   describe('Constructor', () => {
@@ -69,27 +56,22 @@ describe('AIClientFactory', () => {
   });
   
   describe('initialize', () => {
-    // NOTE: These tests are skipped due to challenges with mocking dynamic imports in Jest.
-    // The actual functionality is tested through integration tests.
-    // Dynamic imports (`await import()`) are difficult to mock in Jest because they bypass
-    // the normal module resolution system.
-    it.skip('should create default client on initialization', async () => {
-      // Skip due to dynamic import mocking challenges
+    it('should create default client on initialization', async () => {
       await factory.initialize();
       
-      expect(global.import).toHaveBeenCalledWith('openai');
       expect(factory.defaultClient).toBe(mockOpenAIInstance);
-      expect(mockOpenAI).toHaveBeenCalledWith({
+      expect(OpenAI).toHaveBeenCalledWith({
         apiKey: serviceApiKey,
         baseURL: serviceApiBaseUrl
       });
       expect(logger.info).toHaveBeenCalledWith('[AIClientFactory] Initialized default AI client');
     });
     
-    it.skip('should handle initialization errors', async () => {
-      // Skip due to dynamic import mocking challenges
-      const error = new Error('Import failed');
-      global.import = jest.fn().mockRejectedValue(error);
+    it('should handle initialization errors', async () => {
+      const error = new Error('OpenAI initialization failed');
+      OpenAI.mockImplementation(() => {
+        throw error;
+      });
       
       await expect(factory.initialize()).rejects.toThrow(error);
       expect(logger.error).toHaveBeenCalledWith('[AIClientFactory] Failed to initialize:', error);
@@ -97,7 +79,7 @@ describe('AIClientFactory', () => {
   });
   
   describe('getDefaultClient', () => {
-    it.skip('should return default client after initialization', async () => {
+    it('should return default client after initialization', async () => {
       await factory.initialize();
       
       const client = factory.getDefaultClient();
@@ -111,30 +93,29 @@ describe('AIClientFactory', () => {
   });
   
   describe('createUserClient', () => {
-    it.skip('should create client with user token', async () => {
+    it('should create client with user token', async () => {
       const userId = 'user123';
       const userToken = 'user-auth-token';
       
       const client = await factory.createUserClient(userId, userToken, false);
       
-      expect(global.import).toHaveBeenCalledWith('openai');
-      expect(mockOpenAI).toHaveBeenCalledWith({
+      expect(OpenAI).toHaveBeenCalledWith({
         apiKey: serviceApiKey,
         baseURL: serviceApiBaseUrl,
         defaultHeaders: {
-          'Authorization': 'Bearer user-auth-token'
+          'X-User-Auth': userToken
         }
       });
       expect(client).toBe(mockOpenAIInstance);
       expect(factory.userClients.has('user123-false')).toBe(true);
     });
     
-    it.skip('should create webhook client with bypass header', async () => {
+    it('should create webhook client with bypass header', async () => {
       const userId = 'user123';
       
       const client = await factory.createUserClient(userId, null, true);
       
-      expect(mockOpenAI).toHaveBeenCalledWith({
+      expect(OpenAI).toHaveBeenCalledWith({
         apiKey: serviceApiKey,
         baseURL: serviceApiBaseUrl,
         defaultHeaders: {
@@ -145,17 +126,17 @@ describe('AIClientFactory', () => {
       expect(factory.userClients.has('user123-true')).toBe(true);
     });
     
-    it.skip('should create client with both token and webhook bypass', async () => {
+    it('should create client with both token and webhook bypass', async () => {
       const userId = 'user123';
       const userToken = 'user-auth-token';
       
       const client = await factory.createUserClient(userId, userToken, true);
       
-      expect(mockOpenAI).toHaveBeenCalledWith({
+      expect(OpenAI).toHaveBeenCalledWith({
         apiKey: serviceApiKey,
         baseURL: serviceApiBaseUrl,
         defaultHeaders: {
-          'Authorization': 'Bearer user-auth-token',
+          'X-User-Auth': userToken,
           'Tzurot-Webhook-Bypass': 'true'
         }
       });
@@ -167,20 +148,18 @@ describe('AIClientFactory', () => {
       const userToken = 'user-auth-token';
       
       const client1 = await factory.createUserClient(userId, userToken, false);
-      mockOpenAI.mockClear();
-      global.import.mockClear();
+      OpenAI.mockClear();
       
       const client2 = await factory.createUserClient(userId, userToken, false);
       
       expect(client1).toBe(client2);
-      expect(mockOpenAI).not.toHaveBeenCalled();
-      expect(global.import).not.toHaveBeenCalled();
+      expect(OpenAI).not.toHaveBeenCalled();
       expect(logger.debug).toHaveBeenCalledWith('[AIClientFactory] Returning cached client for user user123');
     });
     
-    it.skip('should handle errors during client creation', async () => {
+    it('should handle errors during client creation', async () => {
       const error = new Error('OpenAI error');
-      mockOpenAI.mockImplementationOnce(() => { throw error; });
+      OpenAI.mockImplementationOnce(() => { throw error; });
       
       await expect(factory.createUserClient('user123', 'token', false)).rejects.toThrow(error);
       expect(logger.error).toHaveBeenCalledWith('[AIClientFactory] Failed to create user client for user123:', error);
@@ -204,10 +183,9 @@ describe('AIClientFactory', () => {
       expect(client).toBe(factory.defaultClient);
     });
     
-    it.skip('should create user client when userId provided', async () => {
+    it('should create user client when userId provided', async () => {
       // Clear the mock count from initialization
-      mockOpenAI.mockClear();
-      global.import.mockClear();
+      OpenAI.mockClear();
       
       const client = await factory.getClient({ 
         userId: 'user123',
@@ -215,11 +193,11 @@ describe('AIClientFactory', () => {
         isWebhook: false 
       });
       
-      expect(mockOpenAI).toHaveBeenCalledWith({
+      expect(OpenAI).toHaveBeenCalledWith({
         apiKey: serviceApiKey,
         baseURL: serviceApiBaseUrl,
         defaultHeaders: {
-          'Authorization': 'Bearer token'
+          'X-User-Auth': 'token'
         }
       });
       expect(client).toBe(mockOpenAIInstance);

@@ -8,6 +8,7 @@
  * - Default client management
  */
 
+const { OpenAI } = require('openai');
 const logger = require('../../logger');
 
 class AIClientFactory {
@@ -25,8 +26,6 @@ class AIClientFactory {
    */
   async initialize() {
     try {
-      const { OpenAI } = await import('openai');
-      
       // Create default client with service API key
       this.defaultClient = new OpenAI({
         apiKey: this.serviceApiKey,
@@ -66,8 +65,6 @@ class AIClientFactory {
         logger.debug(`[AIClientFactory] Returning cached client for user ${userId}`);
         return this.userClients.get(cacheKey);
       }
-
-      const { OpenAI } = await import('openai');
 
       // Build headers based on authentication type
       const headers = {};
