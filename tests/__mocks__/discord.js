@@ -294,6 +294,42 @@ class MockEmbedBuilder {
 }
 
 /**
+ * Mock Webhook Client
+ */
+class MockWebhookClient {
+  constructor(url) {
+    this.url = url;
+    this.send = jest.fn().mockImplementation(async (options) => {
+      return new MockMessage({
+        id: `webhook-msg-${Date.now()}`,
+        content: options.content || '',
+        author: new MockUser({ username: options.username || 'Webhook' }),
+        embeds: options.embeds || [],
+        attachments: options.files || []
+      });
+    });
+    
+    this.thread = jest.fn().mockImplementation((threadId) => {
+      return {
+        send: jest.fn().mockImplementation(async (options) => {
+          return new MockMessage({
+            id: `thread-msg-${Date.now()}`,
+            content: options.content || '',
+            author: new MockUser({ username: options.username || 'Webhook' }),
+            embeds: options.embeds || [],
+            attachments: options.files || [],
+            channelId: threadId
+          });
+        })
+      };
+    });
+    
+    this.edit = jest.fn().mockResolvedValue({});
+    this.delete = jest.fn().mockResolvedValue({});
+  }
+}
+
+/**
  * Mock REST API Client
  */
 class MockREST {
@@ -349,6 +385,7 @@ module.exports = {
   User: MockUser,
   Guild: MockGuild,
   Webhook: MockWebhook,
+  WebhookClient: MockWebhookClient,
   EmbedBuilder: MockEmbedBuilder,
   REST: MockREST,
   
