@@ -6,6 +6,11 @@
 // Set NODE_ENV to test environment
 process.env.NODE_ENV = 'test';
 
+// Set JEST_WORKER_ID if not already set (for singleton detection)
+if (!process.env.JEST_WORKER_ID) {
+  process.env.JEST_WORKER_ID = '1';
+}
+
 // Store original timer functions
 const originalSetInterval = global.setInterval;
 const originalSetTimeout = global.setTimeout;

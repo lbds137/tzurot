@@ -28,5 +28,8 @@ module.exports = {
   detectOpenHandles: true,
   forceExit: true,
   // Setup files to handle global test environment
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js']
+  setupFilesAfterEnv: [
+    '<rootDir>/tests/setup.js',
+    '<rootDir>/tests/setup-auth.js'
+  ]
 };

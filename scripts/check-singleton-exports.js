@@ -46,16 +46,8 @@ function checkFile(filePath) {
   }
 
   const fileName = path.relative(process.cwd(), filePath);
-  let hasClassDeclaration = false;
-  let hasNewExpression = false;
-  let exportsInstance = false;
 
   traverse(ast, {
-    // Check for class declarations
-    ClassDeclaration() {
-      hasClassDeclaration = true;
-    },
-
     // Check for singleton pattern: const instance = new Class()
     VariableDeclarator(path) {
       if (path.node.init && path.node.init.type === 'NewExpression') {
@@ -69,8 +61,6 @@ function checkFile(filePath) {
           }
           parent = parent.parent;
         }
-        
-        hasNewExpression = true;
         const varName = path.node.id.name;
         const className = path.node.init.callee.name;
         

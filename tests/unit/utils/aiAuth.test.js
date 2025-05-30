@@ -101,21 +101,8 @@ describe('aiAuth', () => {
       // Mock auth manager not available
       auth.getAuthManager.mockReturnValue(null);
       
-      // Ensure we're in test mode
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'test';
-      
-      try {
-        const client = aiAuth.getAI();
-        
-        expect(mockOpenAI).toHaveBeenCalledWith({
-          apiKey: 'test-key',
-          baseURL: 'http://test.example.com'
-        });
-        expect(client._type).toBe('mock-openai-client');
-      } finally {
-        process.env.NODE_ENV = originalEnv;
-      }
+      // Since we removed NODE_ENV check, this should now throw
+      expect(() => aiAuth.getAI()).toThrow('Auth system not initialized. Call initAuth() first.');
     });
     
     it('should throw error when auth manager is not available in non-test mode', () => {
@@ -173,20 +160,9 @@ describe('aiAuth', () => {
     it('should return test client when auth manager not available in test mode', async () => {
       auth.getAuthManager.mockReturnValue(null);
       
-      const originalEnv = process.env.NODE_ENV;
-      process.env.NODE_ENV = 'test';
-      
-      try {
-        const client = await aiAuth.getAIForUser({ userId: 'user123' });
-        
-        expect(mockOpenAI).toHaveBeenCalledWith({
-          apiKey: 'test-key',
-          baseURL: 'http://test.example.com'
-        });
-        expect(client._type).toBe('mock-openai-client');
-      } finally {
-        process.env.NODE_ENV = originalEnv;
-      }
+      // Since we removed NODE_ENV check, this should now throw
+      await expect(aiAuth.getAIForUser({ userId: 'user123' }))
+        .rejects.toThrow('Auth system not initialized. Call initAuth() first.');
     });
   });
 
