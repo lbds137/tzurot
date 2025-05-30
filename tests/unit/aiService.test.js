@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */
 const { 
   getAiResponse, 
   isErrorResponse,
@@ -9,7 +10,7 @@ const {
   pendingRequests
 } = require('../../src/aiService');
 
-const { USER_CONFIG } = require('../../src/constants');
+// Constants are imported but not used in this test file
 
 // Mock auth module to bypass authentication
 jest.mock('../../src/auth', () => ({
@@ -105,6 +106,9 @@ jest.mock('../../config', () => ({
   botPrefix: '!tz'
 }));
 
+// Import botPrefix from the mocked config
+const { botPrefix } = require('../../config');
+
 describe('AI Service', () => {
   // Save original environment variables
   const originalEnv = process.env;
@@ -113,9 +117,6 @@ describe('AI Service', () => {
   const originalConsoleLog = console.log;
   const originalConsoleError = console.error;
   const originalConsoleWarn = console.warn;
-  
-  // Original setTimeout
-  const originalSetTimeout = global.setTimeout;
   
   beforeEach(() => {
     // Mock environment variables
@@ -126,11 +127,8 @@ describe('AI Service', () => {
     console.error = jest.fn();
     console.warn = jest.fn();
     
-    // Mock setTimeout to execute immediately
-    global.setTimeout = jest.fn((callback) => {
-      // Don't actually call the callback to avoid cleaning up pending requests too early
-      return 123; // Mock timer ID
-    });
+    // Use fake timers properly
+    jest.useFakeTimers();
     
     // Clear all tracking maps
     pendingRequests.clear();
@@ -146,8 +144,8 @@ describe('AI Service', () => {
     console.error = originalConsoleError;
     console.warn = originalConsoleWarn;
     
-    // Restore setTimeout
-    global.setTimeout = originalSetTimeout;
+    // Restore real timers
+    jest.useRealTimers();
     
     // Restore all mocks
     jest.restoreAllMocks();
@@ -171,14 +169,9 @@ describe('AI Service', () => {
       ];
       
       // Test each error pattern individually
-      expect(isErrorResponse(highConfidenceErrors[0])).toBe(true); // NoneType
-      expect(isErrorResponse(highConfidenceErrors[1])).toBe(true); // AttributeError
-      expect(isErrorResponse(highConfidenceErrors[2])).toBe(true); // TypeError
-      expect(isErrorResponse(highConfidenceErrors[3])).toBe(true); // ValueError
-      expect(isErrorResponse(highConfidenceErrors[4])).toBe(true); // KeyError
-      expect(isErrorResponse(highConfidenceErrors[5])).toBe(true); // IndexError
-      expect(isErrorResponse(highConfidenceErrors[6])).toBe(true); // ModuleNotFoundError
-      expect(isErrorResponse(highConfidenceErrors[7])).toBe(true); // ImportError
+      for (const errorPattern of highConfidenceErrors) {
+        expect(isErrorResponse(errorPattern)).toBe(true);
+      }
     });
     
     it('should return true for low confidence patterns with sufficient context', () => {
@@ -848,7 +841,7 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
+      expect(response).toBe(`BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`);
     });
 
     it('should handle errors when logging message content fails', async () => {
@@ -971,7 +964,7 @@ describe('AI Service', () => {
       });
       
       // When AI client is null, it's treated as an authentication issue
-      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
+      expect(response).toBe(`BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`);
     });
 
     it('should handle empty content after sanitization', async () => {

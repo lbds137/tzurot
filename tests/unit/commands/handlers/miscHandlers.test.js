@@ -12,7 +12,16 @@ jest.mock('../../../../src/conversationManager', () => ({
 }));
 jest.mock('../../../../src/aiService');
 jest.mock('../../../../src/webhookManager');
-jest.mock('../../../../config');
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    prefix: '!tz',
+    isDevelopment: false,
+    environment: 'production',
+    name: 'Tzurot',
+    token: 'mock-token'
+  }
+}));
 jest.mock('../../../../src/logger');
 
 // Mock utils and commandValidator - crucial for proper test functionality
@@ -51,7 +60,6 @@ const personalityManager = require('../../../../src/personalityManager');
 const conversationManager = require('../../../../src/conversationManager');
 const aiService = require('../../../../src/aiService');
 const webhookManager = require('../../../../src/webhookManager');
-const config = require('../../../../config');
 const validator = require('../../../../src/commands/utils/commandValidator');
 
 // Mock console to keep test output clean
@@ -107,9 +115,6 @@ describe('Miscellaneous Command Handlers', () => {
     
     // Set NODE_ENV to test
     process.env.NODE_ENV = 'test';
-    
-    // Mock configuration
-    config.botPrefix = '!tz';
     
     // Create mock client
     const mockClient = {
