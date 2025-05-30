@@ -74,17 +74,24 @@ function checkFile(filePath) {
         const varName = path.node.id.name;
         const className = path.node.init.callee.name;
         
-        // Check if this instance is exported
-        path.getFunctionParent()?.traverse({
+        // Store info about this instance
+        const instanceInfo = {
+          varName,
+          className,
+          line: path.node.loc.start.line
+        };
+        
+        // Check if this instance is exported later in the file
+        const programPath = path.getFunctionParent() || path.scope.getProgramParent().path;
+        programPath.traverse({
           AssignmentExpression(assignPath) {
             if (assignPath.node.left.type === 'MemberExpression' &&
                 assignPath.node.left.object.name === 'module' &&
                 assignPath.node.left.property.name === 'exports' &&
                 assignPath.node.right.name === varName) {
-              exportsInstance = true;
               patterns.singletonExports.push({
                 file: fileName,
-                line: path.node.loc.start.line,
+                line: instanceInfo.line,
                 code: `const ${varName} = new ${className}()`,
                 export: `module.exports = ${varName}`
               });
@@ -94,8 +101,40 @@ function checkFile(filePath) {
       }
     },
 
-    // Check for direct module.exports = new Class()
+    // Check for module.exports.property = new Class()
     AssignmentExpression(path) {
+      if (path.node.left.type === 'MemberExpression' &&
+          path.node.left.object.type === 'MemberExpression' &&
+          path.node.left.object.object.name === 'module' &&
+          path.node.left.object.property.name === 'exports' &&
+          path.node.right.type === 'NewExpression') {
+        
+        // Skip if inside a function
+        let parent = path.parent;
+        let insideFunction = false;
+        while (parent) {
+          if (parent.type === 'FunctionDeclaration' || 
+              parent.type === 'FunctionExpression' ||
+              parent.type === 'ArrowFunctionExpression') {
+            insideFunction = true;
+            break;
+          }
+          parent = parent.parent;
+        }
+        
+        if (!insideFunction) {
+          const propertyName = path.node.left.property.name;
+          const className = path.node.right.callee.name;
+          patterns.singletonExports.push({
+            file: fileName,
+            line: path.node.loc.start.line,
+            code: `module.exports.${propertyName} = new ${className}()`,
+            export: `module.exports.${propertyName}`
+          });
+        }
+      }
+      
+      // Check for direct module.exports = new Class()
       if (path.node.left.type === 'MemberExpression' &&
           path.node.left.object.name === 'module' &&
           path.node.left.property.name === 'exports' &&

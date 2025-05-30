@@ -415,7 +415,46 @@ class PersonalityManager {
   }
 }
 
-// Create singleton instance
-const personalityManager = new PersonalityManager();
+// Export the class itself
+module.exports = PersonalityManager;
 
-module.exports = personalityManager;
+// Factory function to create instances
+module.exports.create = function(options = {}) {
+  return new PersonalityManager(options);
+};
+
+// For backward compatibility, create a lazy-loaded singleton
+let _instance = null;
+module.exports.getInstance = function() {
+  if (!_instance) {
+    // In tests, inject a no-op delay to prevent real timers
+    const isTestEnvironment = process.env.JEST_WORKER_ID !== undefined;
+    _instance = new PersonalityManager({
+      delay: isTestEnvironment ? (() => Promise.resolve()) : undefined
+    });
+  }
+  return _instance;
+};
+
+// For modules that import this directly (backward compatibility)
+// We'll gradually migrate these to use getInstance()
+const personalityManager = module.exports.getInstance();
+Object.assign(module.exports, {
+  // Re-export all methods from the instance
+  initialize: (...args) => personalityManager.initialize(...args),
+  registerPersonality: (...args) => personalityManager.registerPersonality(...args),
+  removePersonality: (...args) => personalityManager.removePersonality(...args),
+  getPersonality: (...args) => personalityManager.getPersonality(...args),
+  getPersonalityByAlias: (...args) => personalityManager.getPersonalityByAlias(...args),
+  setPersonalityAlias: (...args) => personalityManager.setPersonalityAlias(...args),
+  removePersonalityAlias: (...args) => personalityManager.removePersonalityAlias(...args),
+  listPersonalities: (...args) => personalityManager.listPersonalities(...args),
+  listPersonalitiesForUser: (...args) => personalityManager.listPersonalitiesForUser(...args),
+  getAllAliasesForPersonality: (...args) => personalityManager.getAllAliasesForPersonality(...args),
+  seedOwnerPersonalities: (...args) => personalityManager.seedOwnerPersonalities(...args),
+  validatePersonalityName: (...args) => personalityManager.validatePersonalityName(...args),
+  
+  // Properties
+  get personalityAliases() { return personalityManager.personalityAliases; },
+  get size() { return personalityManager.size; }
+});

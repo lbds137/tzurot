@@ -86,6 +86,35 @@ class CommandRegistry {
   }
 }
 
-// Export a singleton instance
-const registry = new CommandRegistry();
-module.exports = registry;
+// Export the class itself
+module.exports = CommandRegistry;
+
+// Factory function to create instances
+module.exports.create = function() {
+  return new CommandRegistry();
+};
+
+// For backward compatibility, create a lazy-loaded singleton
+let _instance = null;
+module.exports.getInstance = function() {
+  if (!_instance) {
+    _instance = new CommandRegistry();
+  }
+  return _instance;
+};
+
+// For modules that import this directly (backward compatibility)
+const registry = module.exports.getInstance();
+Object.assign(module.exports, {
+  // Re-export all methods from the instance
+  register: (...args) => registry.register(...args),
+  unregister: (...args) => registry.unregister(...args),
+  get: (...args) => registry.get(...args),
+  has: (...args) => registry.has(...args),
+  getAll: () => registry.getAll(),
+  findByPermission: (...args) => registry.findByPermission(...args),
+  
+  // Properties
+  get commands() { return registry.commands; },
+  get size() { return registry.size; }
+});

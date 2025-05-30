@@ -153,6 +153,30 @@ class PluralKitMessageStore {
   }
 }
 
-// Export the class and a singleton instance for backward compatibility
+// Export the class
 module.exports = PluralKitMessageStore;
-module.exports.instance = new PluralKitMessageStore();
+
+// Factory function to create instances
+module.exports.create = function(options = {}) {
+  return new PluralKitMessageStore(options);
+};
+
+// For backward compatibility, create a lazy-loaded singleton
+// This will be created on first access, not at module load time
+let _instance = null;
+Object.defineProperty(module.exports, 'instance', {
+  get() {
+    if (!_instance) {
+      // Create with cleanup disabled in test environment
+      const isTestEnvironment = process.env.JEST_WORKER_ID !== undefined;
+      _instance = new PluralKitMessageStore({ 
+        enableCleanup: !isTestEnvironment 
+      });
+    }
+    return _instance;
+  },
+  // Allow tests to reset the instance
+  set(value) {
+    _instance = value;
+  }
+});
