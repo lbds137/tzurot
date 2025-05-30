@@ -20,6 +20,7 @@
 const logger = require('../logger');
 const fs = require('fs').promises;
 const path = require('path');
+const { botConfig } = require('../../config');
 
 // Statistics tracking
 const stats = {
@@ -30,7 +31,7 @@ const stats = {
   channelStats: {}, // Counts by channel ID
   hourlyStats: {}, // Counts by hour
   startTime: Date.now(), // When monitoring started
-  isProduction: process.env.NODE_ENV === 'production',
+  isProduction: botConfig.environment === 'production',
 };
 
 // Configuration

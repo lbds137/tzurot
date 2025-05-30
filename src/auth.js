@@ -97,20 +97,18 @@ async function initAuth() {
       authWebsite: process.env.SERVICE_WEBSITE,
       authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
       serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
-      ownerId: process.env.OWNER_ID
+      ownerId: process.env.OWNER_ID,
+      isDevelopment: botConfig.isDevelopment
     });
     
     try {
       await authManager.initialize();
     } catch (error) {
-      // In test environment, continue even if OpenAI initialization fails
-      // eslint-disable-next-line no-restricted-syntax -- Need to check for test environment to avoid throwing in tests
-      if (process.env.NODE_ENV === 'test') {
-        // AuthManager is created but not fully initialized
-        // We can still use it for basic operations
-      } else {
-        throw error;
-      }
+      // Log the error but don't throw during initialization
+      // This allows the bot to start even if auth service is temporarily unavailable
+      logger.error('[Auth] Failed to fully initialize auth manager:', error);
+      // AuthManager is created but not fully initialized
+      // We can still use it for basic operations
     }
     
     // For backward compatibility, also load into local caches

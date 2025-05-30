@@ -21,6 +21,32 @@ const requestTracker = require('../utils/requestTracker');
 const personalityAuth = require('../utils/personalityAuth');
 const threadHandler = require('../utils/threadHandler');
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout,
+  setInterval: global.setInterval,
+  clearInterval: global.clearInterval
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
+// Injectable delay function for testability
+let delayFn = (ms) => new Promise(resolve => timerFunctions.setTimeout(resolve, ms));
+
+/**
+ * Configure the delay function (for testing)
+ * @param {Function} customDelay - Custom delay implementation
+ */
+function configureDelay(customDelay) {
+  delayFn = customDelay;
+}
 
 /**
  * Start typing indicator for a channel
@@ -35,7 +61,7 @@ function startTypingIndicator(channel) {
     });
 
     // Set up interval for continuous typing (every 5 seconds)
-    return setInterval(() => {
+    return timerFunctions.setInterval(() => {
       channel.sendTyping().catch(error => {
         logger.warn(`[PersonalityHandler] Failed to continue typing indicator: ${error.message}`);
       });
@@ -605,7 +631,7 @@ async function handlePersonalityInteraction(
     });
 
     // Clear typing indicator interval
-    clearInterval(typingInterval);
+    timerFunctions.clearInterval(typingInterval);
     typingInterval = null;
 
     // Check for BOT_ERROR_MESSAGE marker - these should come from the bot, not the personality
@@ -627,7 +653,7 @@ async function handlePersonalityInteraction(
 
     // Add a small delay before sending any webhook message
     // This helps prevent the race condition between error messages and real responses
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await delayFn(500);
 
     // Send response and record conversation
     // Pass the original message to ensure we use the correct user's auth token
@@ -736,7 +762,7 @@ async function handlePersonalityInteraction(
   } finally {
     // Clear typing indicator if it's still active
     if (typingInterval) {
-      clearInterval(typingInterval);
+      timerFunctions.clearInterval(typingInterval);
     }
   }
 }
@@ -745,4 +771,6 @@ module.exports = {
   handlePersonalityInteraction,
   startTypingIndicator,
   recordConversationData,
+  configureTimers,
+  configureDelay,
 };

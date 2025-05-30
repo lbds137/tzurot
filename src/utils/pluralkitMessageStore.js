@@ -13,7 +13,7 @@ class PluralKitMessageStore {
     
     // Injectable timer function for testability
     const intervalFn = options.interval || setInterval;
-    const enableCleanup = options.enableCleanup !== undefined ? options.enableCleanup : process.env.NODE_ENV !== 'test';
+    const enableCleanup = options.enableCleanup !== undefined ? options.enableCleanup : true;
     
     // Clean up expired messages every 10 seconds
     if (enableCleanup) {

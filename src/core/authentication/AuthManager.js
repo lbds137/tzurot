@@ -19,7 +19,8 @@ const logger = require('../../logger');
 class AuthManager {
   constructor(config = {}) {
     // Configuration
-    const isDevelopment = process.env.NODE_ENV === 'development';
+    // isDevelopment should be passed in via config, not checked directly
+    const isDevelopment = config.isDevelopment !== undefined ? config.isDevelopment : false;
     this.appId = config.appId || (isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID);
     this.apiKey = config.apiKey || (isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY);
     this.authWebsite = config.authWebsite || process.env.SERVICE_WEBSITE;

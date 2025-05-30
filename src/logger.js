@@ -30,7 +30,8 @@ const logFormat = printf(({ level, message, timestamp }) => {
 });
 
 // Check if we're running in a test environment
-const isTest = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+// Use JEST_WORKER_ID to detect test environment without checking NODE_ENV
+const isTest = process.env.JEST_WORKER_ID !== undefined;
 
 /**
  * Winston logger instance

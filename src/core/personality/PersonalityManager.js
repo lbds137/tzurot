@@ -11,11 +11,14 @@ const logger = require('../../logger');
  * components to provide a unified interface for personality operations.
  */
 class PersonalityManager {
-  constructor() {
+  constructor(options = {}) {
     this.registry = new PersonalityRegistry();
     this.persistence = new PersonalityPersistence();
     this.validator = new PersonalityValidator();
     this.initialized = false;
+    
+    // Injectable delay function for testability
+    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   /**
@@ -322,7 +325,7 @@ class PersonalityManager {
         
         // Add delay to avoid rate limiting (unless skipped)
         if (!options.skipDelays && personalitiesToAdd.indexOf(personalityName) < personalitiesToAdd.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          await this.delay(8000);
         }
       } catch (error) {
         logger.error(`[PersonalityManager] Error seeding ${personalityName}: ${error.message}`);

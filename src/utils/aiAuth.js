@@ -41,14 +41,6 @@ async function initAI() {
 function getAI() {
   const manager = getAuthManager();
   if (!manager) {
-    // In test environments, return a mock client
-    if (process.env.NODE_ENV === 'test') {
-      const { OpenAI } = require('openai');
-      return new OpenAI({
-        apiKey: 'test-key',
-        baseURL: 'http://test.example.com'
-      });
-    }
     throw new Error('Auth system not initialized. Call initAuth() first.');
   }
   return manager.aiClientFactory.getDefaultClient();
@@ -64,10 +56,6 @@ function getAI() {
 async function getAIForUser({ userId, isWebhook = false }) {
   const manager = getAuthManager();
   if (!manager) {
-    // In test environments, return the default client
-    if (process.env.NODE_ENV === 'test') {
-      return getAI();
-    }
     throw new Error('Auth system not initialized. Call initAuth() first.');
   }
 

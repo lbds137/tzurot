@@ -169,7 +169,7 @@ async function removePersonality(userIdOrFullName, fullNameOrUserId) {
   } else {
     // Handle new API: removePersonality(fullName, userId)
     fullName = userIdOrFullName;
-    requestingUserId = fullNameOrUserId || (process.env.NODE_ENV === 'test' ? 'test-user' : '0');
+    requestingUserId = fullNameOrUserId || 'unknown-user';
   }
   
   const result = await personalityManager.removePersonality(fullName, requestingUserId);

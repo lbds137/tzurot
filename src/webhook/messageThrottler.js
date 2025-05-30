@@ -26,6 +26,20 @@ const MAX_ERROR_WAIT_TIME = TIME.MAX_ERROR_WAIT_TIME;
 // Minimum delay between sending messages to ensure proper order (from constants)
 const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
 /**
  * Create a unique key for a personality+channel combination
  * @param {string} personalityName - Name of the personality
@@ -72,7 +86,7 @@ function registerPendingMessage(personalityName, channelId, requestId) {
   
   // Clear any existing timeout for this key
   if (pendingTimeouts.has(key)) {
-    clearTimeout(pendingTimeouts.get(key));
+    timerFunctions.clearTimeout(pendingTimeouts.get(key));
   }
   
   pendingPersonalityMessages.set(key, {
@@ -81,7 +95,7 @@ function registerPendingMessage(personalityName, channelId, requestId) {
   });
   
   // Schedule automatic cleanup after MAX_ERROR_WAIT_TIME
-  const timeoutId = setTimeout(() => {
+  const timeoutId = timerFunctions.setTimeout(() => {
     if (pendingPersonalityMessages.has(key)) {
       pendingPersonalityMessages.delete(key);
       pendingTimeouts.delete(key);
@@ -110,7 +124,7 @@ function clearPendingMessage(personalityName, channelId, requestId = null) {
     
     // Clear the timeout if it exists
     if (pendingTimeouts.has(key)) {
-      clearTimeout(pendingTimeouts.get(key));
+      timerFunctions.clearTimeout(pendingTimeouts.get(key));
       pendingTimeouts.delete(key);
     }
     
@@ -153,7 +167,7 @@ function updateChannelLastMessageTime(channelId) {
 function clearAllPendingMessages() {
   // Clear all timeouts first
   for (const timeoutId of pendingTimeouts.values()) {
-    clearTimeout(timeoutId);
+    timerFunctions.clearTimeout(timeoutId);
   }
   pendingTimeouts.clear();
   
@@ -181,6 +195,7 @@ module.exports = {
   updateChannelLastMessageTime,
   clearAllPendingMessages,
   getThrottlerState,
+  configureTimers,
   MAX_ERROR_WAIT_TIME,
   MIN_MESSAGE_DELAY,
 };
