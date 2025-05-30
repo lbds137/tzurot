@@ -197,7 +197,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     if (totalPages > 1 && page < totalPages) {
       embed.addFields({
         name: 'Navigation',
-        value: `Use \`!tz list ${page + 1}\` to see the next page`,
+        value: `Use \`${botPrefix} list ${page + 1}\` to see the next page`,
       });
     }
 
@@ -205,7 +205,7 @@ function createPersonalityListEmbed(userId, page = 1) {
     if (page > 1) {
       embed.addFields({
         name: 'Navigation',
-        value: `Use \`!tz list ${page - 1}\` to go back to the previous page`,
+        value: `Use \`${botPrefix} list ${page - 1}\` to go back to the previous page`,
       });
     }
 
@@ -283,11 +283,11 @@ function createListEmbed(personalities, page, totalPages, _author) {
       let navigationText = '';
 
       if (page < totalPages) {
-        navigationText += `Use \`!tz list ${page + 1}\` to see the next page\n`;
+        navigationText += `Use \`${botPrefix} list ${page + 1}\` to see the next page\n`;
       }
 
       if (page > 1) {
-        navigationText += `Use \`!tz list ${page - 1}\` to see the previous page`;
+        navigationText += `Use \`${botPrefix} list ${page - 1}\` to see the previous page`;
       }
 
       if (navigationText) {

@@ -101,7 +101,8 @@ jest.mock('openai', () => {
 // Mock config module
 jest.mock('../../config', () => ({
   getApiEndpoint: jest.fn().mockReturnValue('https://example.com/api'),
-  getModelPath: jest.fn().mockReturnValue('mock-model-path')
+  getModelPath: jest.fn().mockReturnValue('mock-model-path'),
+  botPrefix: '!tz'
 }));
 
 describe('AI Service', () => {

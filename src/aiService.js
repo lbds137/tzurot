@@ -1,4 +1,4 @@
-const { getModelPath } = require('../config');
+const { getModelPath, botPrefix } = require('../config');
 const logger = require('./logger');
 const { MARKERS, DEFAULTS } = require('./constants');
 const auth = require('./auth');
@@ -145,7 +145,7 @@ async function getAiResponse(personalityName, message, context = {}) {
           `[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`
         );
         // Return special marker for bot-level error message, not from the personality
-        return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth start\` to begin authentication.`;
+        return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`;
       }
 
 
@@ -156,7 +156,7 @@ async function getAiResponse(personalityName, message, context = {}) {
       } catch (apiError) {
         // Check if this is an authentication error
         if (apiError.message && apiError.message.includes('Authentication required')) {
-          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`!tz auth start\` to begin authentication.`;
+          return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`;
         }
 
         // Add this personality+user combo to blackout list
