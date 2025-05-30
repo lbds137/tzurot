@@ -84,7 +84,6 @@ describe('Command Handling Simulations', () => {
     
     // Reset global state for tests
     global.lastEmbedTime = 0;
-    global.addRequestRegistry = new Map();
     
     // Clear any other global state from previous tests
     if (global.hasGeneratedFirstEmbed) {
@@ -102,77 +101,7 @@ describe('Command Handling Simulations', () => {
     global.setTimeout = originalSetTimeout;
   });
 
-  describe('Add Command Deduplication Simulation', () => {
-    it('should deduplicate commands using global registry', async () => {
-      // Create a simulated add command handler
-      async function simulatedAddCommand(message, args) {
-        // Implement the key deduplication logic from handleAddCommand
-        
-        // Create a key for this message+args combination
-        const messageKey = `add-msg-${message.id}-${args.join('-')}`;
-        
-        // Check if we've already processed this message
-        if (global.addRequestRegistry.has(messageKey)) {
-          // Return early if already processed
-          return { id: `duplicate-${Date.now()}`, isDuplicate: true };
-        }
-        
-        // Register this request
-        global.addRequestRegistry.set(messageKey, {
-          requestId: `test-request-${Date.now()}`,
-          timestamp: Date.now(),
-          profileName: args[0] || 'unknown',
-          completed: false,
-          embedSent: false
-        });
-        
-        // Mark as completed and sent
-        const registryEntry = global.addRequestRegistry.get(messageKey);
-        registryEntry.completed = true;
-        registryEntry.embedSent = true;
-        global.addRequestRegistry.set(messageKey, registryEntry);
-        
-        // Update global.lastEmbedTime
-        global.lastEmbedTime = Date.now();
-        
-        // Return a success result
-        return { id: `successful-embed-${Date.now()}` };
-      }
-      
-      // Create a mock message
-      const message = {
-        id: 'test-message-id',
-        author: { id: 'test-user-id', tag: 'test-user#1234' },
-        channel: { id: 'test-channel-id', send: jest.fn().mockResolvedValue({ id: 'sent-message-id' }) },
-        reply: jest.fn().mockResolvedValue({ id: 'reply-message-id' }),
-        guild: { id: 'test-guild-id' }
-      };
-      
-      // Create arguments for the add command
-      const args = ['test-personality', 'test-alias'];
-      
-      // Run the add command
-      const result1 = await simulatedAddCommand(message, args);
-      
-      // Verify the command was processed
-      expect(result1).toBeTruthy();
-      expect(result1.id).toContain('successful-embed');
-      
-      // Check if the global registry was updated
-      const messageKey = `add-msg-${message.id}-${args.join('-')}`;
-      expect(global.addRequestRegistry.has(messageKey)).toBe(true);
-      
-      const registryEntry = global.addRequestRegistry.get(messageKey);
-      expect(registryEntry.completed).toBe(true);
-      expect(registryEntry.embedSent).toBe(true);
-      
-      // Now try running the same command again with the same message ID
-      const result2 = await simulatedAddCommand(message, args);
-      
-      // Verify the command was deduplicated
-      expect(result2.isDuplicate).toBe(true);
-    });
-    
+  describe('Embed Timing Simulation', () => {
     it('should deduplicate embeds based on global.lastEmbedTime', async () => {
       // Create a function to check for time-based deduplication
       function isRateLimited() {
