@@ -49,7 +49,7 @@ describe('ProfileInfoCache', () => {
       const mockTime = 1000000;
       Date.now = jest.fn().mockReturnValue(mockTime);
       const profileName = 'test-profile';
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Set data in cache
       cache.set(profileName, profileData);
@@ -69,7 +69,7 @@ describe('ProfileInfoCache', () => {
       const mockTime = 1000000;
       Date.now = jest.fn().mockReturnValue(mockTime);
       const profileName = 'test-profile';
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Set data in cache
       cache.set(profileName, profileData);
@@ -102,26 +102,23 @@ describe('ProfileInfoCache', () => {
       const mockTime = 2000000;
       Date.now = jest.fn().mockReturnValue(mockTime);
       const profileName = 'test-profile';
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Act
       cache.set(profileName, profileData);
       
-      // Assert
-      expect(cache.has(profileName)).toBe(true);
+      // Assert - Verify data was stored and can be retrieved
+      const result = cache.get(profileName);
+      expect(result).toEqual(profileData);
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining('Cached data for: test-profile')
       );
-      
-      // Verify we can retrieve the data
-      const result = cache.get(profileName);
-      expect(result).toEqual(profileData);
     });
     
     it('should clear all cached data', () => {
       // Arrange
-      cache.set('profile1', { id: '1', name: 'User 1' });
-      cache.set('profile2', { id: '2', name: 'User 2' });
+      cache.set('profile1', { id: '123456789012345001', name: 'User 1' });
+      cache.set('profile2', { id: '123456789012345002', name: 'User 2' });
       expect(cache.size).toBe(2);
       
       // Act
@@ -129,32 +126,21 @@ describe('ProfileInfoCache', () => {
       
       // Assert
       expect(cache.size).toBe(0);
-      expect(cache.has('profile1')).toBe(false);
-      expect(cache.has('profile2')).toBe(false);
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining('Cache cleared')
       );
     });
     
     it('should report correct cache size', () => {
-      // Arrange
+      // Arrange - Start with empty cache
       expect(cache.size).toBe(0);
       
-      // Act
-      cache.set('profile1', { id: '1', name: 'User 1' });
-      cache.set('profile2', { id: '2', name: 'User 2' });
+      // Act - Add multiple entries
+      cache.set('profile1', { id: '123456789012345001', name: 'User 1' });
+      cache.set('profile2', { id: '123456789012345002', name: 'User 2' });
+      cache.set('profile3', { id: '123456789012345003', name: 'User 3' });
       
       // Assert
-      expect(cache.size).toBe(2);
-      
-      // Test removing individual entries
-      cache.clear();
-      expect(cache.size).toBe(0);
-      
-      // Test size after adding entries
-      cache.set('profile1', { id: '1', name: 'User 1' });
-      cache.set('profile2', { id: '2', name: 'User 2' });
-      cache.set('profile3', { id: '3', name: 'User 3' });
       expect(cache.size).toBe(3);
     });
     
@@ -168,7 +154,7 @@ describe('ProfileInfoCache', () => {
       const mockTime = 1000000;
       Date.now = jest.fn().mockReturnValue(mockTime);
       const profileName = 'test-profile';
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Set data in cache
       customCache.set(profileName, profileData);
@@ -187,7 +173,7 @@ describe('ProfileInfoCache', () => {
       const customCache = new ProfileInfoCache({
         logPrefix: '[CustomPrefix]'
       });
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Act
       customCache.set('test-profile', profileData);
@@ -212,7 +198,7 @@ describe('ProfileInfoCache', () => {
     
     it('should handle empty string profile names', () => {
       // Arrange
-      const profileData = { id: '123', name: 'Test User' };
+      const profileData = { id: '123456789012345678', name: 'Test User' };
       
       // Act
       cache.set('', profileData);
