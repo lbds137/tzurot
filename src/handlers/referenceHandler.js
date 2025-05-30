@@ -60,6 +60,16 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
 
     if (referencedMessage.webhookId) {
       logger.debug(`Looking up personality for message ID: ${referencedMessage.id}`);
+      
+      // Check if this webhook belongs to the current bot instance
+      // This prevents both dev and prod bots from responding to the same personality webhook
+      if (client && referencedMessage.applicationId && referencedMessage.applicationId !== client.user.id) {
+        logger.debug(
+          `Ignoring reply to webhook from different bot instance. Webhook applicationId: ${referencedMessage.applicationId}, Current bot ID: ${client.user.id}`
+        );
+        return { processed: false, wasReplyToNonPersonality: true };
+      }
+      
       // Pass the webhook username as a fallback for finding personalities
       const webhookUsername = referencedMessage.author ? referencedMessage.author.username : null;
       logger.debug(`Webhook username: ${webhookUsername || 'unknown'}`);
@@ -71,6 +81,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
             username: referencedMessage.author.username,
             id: referencedMessage.author.id,
             webhookId: referencedMessage.webhookId,
+            applicationId: referencedMessage.applicationId,
           })}`
         );
       }

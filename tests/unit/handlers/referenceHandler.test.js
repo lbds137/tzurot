@@ -88,6 +88,44 @@ describe('Reference Handler Module', () => {
       expect(result).toEqual({ processed: false, wasReplyToNonPersonality: false });
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
     });
+
+    it('should ignore replies to webhooks from different bot instances', async () => {
+      const mockReferencedMessage = {
+        id: 'webhook-msg-id',
+        webhookId: 'webhook-id',
+        applicationId: 'OTHER_BOT_ID', // Different bot's webhook
+        author: {
+          username: 'Test Webhook',
+          bot: true
+        }
+      };
+
+      const mockMessage = {
+        reference: { messageId: 'webhook-msg-id' },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
+          }
+        },
+        author: { id: 'user-id', tag: 'User#1234' }
+      };
+
+      const mockClient = {
+        user: { id: 'THIS_BOT_ID' } // Current bot's ID
+      };
+
+      const result = await referenceHandler.handleMessageReference(
+        mockMessage,
+        mockHandlePersonalityInteraction,
+        mockClient
+      );
+
+      expect(result).toEqual({ processed: false, wasReplyToNonPersonality: true });
+      expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('webhook-msg-id');
+      expect(logger.debug).toHaveBeenCalledWith(
+        expect.stringContaining('Ignoring reply to webhook from different bot instance')
+      );
+    });
     
     it('should fetch and process a referenced webhook message with personality', async () => {
       const mockReferencedMessage = {
