@@ -4,7 +4,7 @@
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { botPrefix } = require('../../../config');
+const { botPrefix, botConfig } = require('../../../config');
 const _embedHelpers = require('../../utils/embedBuilders');
 
 /**
@@ -148,7 +148,7 @@ async function execute(message, args) {
 
     // Create embed with categories
     const embed = new EmbedBuilder()
-      .setTitle('Tzurot Commands')
+      .setTitle(`${botConfig.name} Commands`)
       .setDescription(
         `Use \`${botPrefix} help <command>\` for more information about a specific command.`
       )

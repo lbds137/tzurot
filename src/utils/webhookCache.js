@@ -196,6 +196,29 @@ function getActiveWebhooks() {
   return activeWebhooks;
 }
 
+/**
+ * Register event listeners for Discord client to handle webhook cleanup
+ * @param {Client} discordClient - Discord.js client instance
+ */
+function registerEventListeners(discordClient) {
+  // Clean up webhooks when channels are deleted
+  discordClient.on('channelDelete', (channel) => {
+    if (webhookCache.has(channel.id)) {
+      logger.info(`[WebhookCache] Channel ${channel.id} deleted, clearing webhook cache`);
+      clearWebhookCache(channel.id);
+    }
+    
+    // Also clean up any thread-specific webhooks for this channel
+    const threadKey = `thread-${channel.id}`;
+    if (webhookCache.has(threadKey)) {
+      logger.info(`[WebhookCache] Thread ${channel.id} deleted, clearing thread webhook cache`);
+      clearWebhookCache(threadKey);
+    }
+  });
+  
+  logger.info('[WebhookCache] Event listeners registered for webhook cleanup');
+}
+
 module.exports = {
   getOrCreateWebhook,
   clearWebhookCache,
@@ -203,6 +226,7 @@ module.exports = {
   getCacheSize,
   hasWebhook,
   getActiveWebhooks,
+  registerEventListeners,
   // Expose for testing purposes
   _webhookCache: webhookCache,
   _activeWebhooks: activeWebhooks

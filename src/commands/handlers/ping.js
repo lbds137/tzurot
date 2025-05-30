@@ -3,6 +3,7 @@
  */
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
+const { botConfig } = require('../../../config');
 
 /**
  * Command metadata
@@ -24,7 +25,7 @@ const meta = {
 async function execute(message, _args) {
   try {
     const directSend = validator.createDirectSend(message);
-    return await directSend('Pong! Tzurot is operational.');
+    return await directSend(`Pong! ${botConfig.name} is operational.`);
   } catch (error) {
     logger.error('Error executing ping command:', error);
     throw error;

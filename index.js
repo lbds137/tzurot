@@ -9,6 +9,7 @@ const { createHealthServer } = require('./src/healthCheck');
 const { initAuth } = require('./src/auth');
 const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
+const { botConfig } = require('./config');
 
 // Track whether app has been initialized
 let isInitialized = false;
@@ -37,7 +38,7 @@ async function init() {
   }
   
   try {
-    logger.info('Starting Tzurot initialization...');
+    logger.info(`Starting ${botConfig.name} initialization...`);
     
     // Initialize data storage
     await initStorage();
@@ -84,7 +85,7 @@ async function init() {
     }
     
     isInitialized = true;
-    logger.info('Tzurot initialization complete');
+    logger.info(`${botConfig.name} initialization complete`);
   } catch (error) {
     logger.error('Failed to initialize application:', error);
     process.exit(1);
@@ -93,7 +94,7 @@ async function init() {
 
 // Cleanup function for proper shutdown
 async function cleanup() {
-  logger.info('Shutting down Tzurot...');
+  logger.info(`Shutting down ${botConfig.name}...`);
   
   // Send deactivation messages to all channels with activated personalities
   try {

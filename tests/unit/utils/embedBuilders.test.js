@@ -22,7 +22,12 @@ describe('embedBuilders', () => {
     
     // Mock config
     mockConfig = {
-      botPrefix
+      botPrefix,
+      botConfig: {
+        name: 'TestBot',
+        prefix: botPrefix,
+        environment: 'test'
+      }
     };
     jest.doMock('../../../config', () => mockConfig);
     
@@ -421,7 +426,7 @@ describe('embedBuilders', () => {
         'Verified'
       );
       
-      expect(embed.data.title).toBe('Tzurot Status');
+      expect(embed.data.title).toBe('TestBot Status');
       expect(embed.data.description).toBe('Current bot status and statistics');
       expect(embed.data.color).toBe('#5865F2');
       expect(embed.data.fields).toHaveLength(6);
@@ -467,8 +472,8 @@ describe('embedBuilders', () => {
     it('should create help embed for regular user', () => {
       const embed = embedBuilders.createHelpEmbed(false);
       
-      expect(embed.data.title).toBe('Tzurot Help');
-      expect(embed.data.description).toBe('Tzurot allows you to interact with multiple AI personalities in Discord.');
+      expect(embed.data.title).toBe('TestBot Help');
+      expect(embed.data.description).toBe('TestBot allows you to interact with multiple AI personalities in Discord.');
       expect(embed.data.color).toBe('#5865F2');
       
       // Check that it has authentication commands

@@ -9,7 +9,7 @@
  */
 
 const { EmbedBuilder } = require('discord.js');
-const { botPrefix } = require('../../config');
+const { botPrefix, botConfig } = require('../../config');
 const { listPersonalitiesForUser, personalityAliases } = require('../personalityManager');
 
 /**
@@ -354,7 +354,7 @@ function createStatusEmbed(
   verificationStatus = 'Unknown'
 ) {
   const embed = new EmbedBuilder()
-    .setTitle('Tzurot Status')
+    .setTitle(`${botConfig.name} Status`)
     .setDescription('Current bot status and statistics')
     .setColor('#5865F2')
     .addFields(
@@ -381,8 +381,8 @@ function createStatusEmbed(
 function createHelpEmbed(isAdmin) {
   const prefix = botPrefix;
   const embed = new EmbedBuilder()
-    .setTitle('Tzurot Help')
-    .setDescription('Tzurot allows you to interact with multiple AI personalities in Discord.')
+    .setTitle(`${botConfig.name} Help`)
+    .setDescription(`${botConfig.name} allows you to interact with multiple AI personalities in Discord.`)
     .setColor('#5865F2')
     .addFields(
       // Authentication commands
