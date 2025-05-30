@@ -28,6 +28,24 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false)
 }));
 
+// Mock aiAuth module
+jest.mock('../../src/utils/aiAuth', () => ({
+  initAiClient: jest.fn(),
+  getAiClientForUser: jest.fn()
+}));
+
+// Mock contentSanitizer module  
+jest.mock('../../src/utils/contentSanitizer', () => ({
+  sanitizeContent: jest.fn().mockImplementation(content => content),
+  sanitizeApiText: jest.fn().mockImplementation(content => content),
+  needsSanitization: jest.fn().mockReturnValue(false),
+  sanitizeWithInfo: jest.fn().mockImplementation(content => ({
+    content,
+    changed: false,
+    removedChars: 0
+  }))
+}));
+
 // Mock OpenAI module
 jest.mock('openai', () => {
   // Create a mock AI client
@@ -36,12 +54,16 @@ jest.mock('openai', () => {
       this.shouldError = shouldError;
     }),
     
+    setErrorMessage: jest.fn().mockImplementation(function(message) {
+      this.errorMessage = message;
+    }),
+    
     chat: {
       completions: {
         create: jest.fn().mockImplementation(async function(params) {
           // Check if we should return an error
           if (mockAIClient.shouldError) {
-            throw new Error('Mock API error');
+            throw new Error(mockAIClient.errorMessage || 'Mock API error');
           }
           
           // Return a successful response
@@ -78,7 +100,7 @@ jest.mock('openai', () => {
 
 // Mock config module
 jest.mock('../../config', () => ({
-  getApiEndpoint: jest.fn().mockReturnValue('https://api.example.com'),
+  getApiEndpoint: jest.fn().mockReturnValue('https://example.com/api'),
   getModelPath: jest.fn().mockReturnValue('mock-model-path')
 }));
 
@@ -147,9 +169,15 @@ describe('AI Service', () => {
         'ImportError: cannot import name'
       ];
       
-      for (const message of highConfidenceErrors) {
-        expect(isErrorResponse(message)).toBe(true);
-      }
+      // Test each error pattern individually
+      expect(isErrorResponse(highConfidenceErrors[0])).toBe(true); // NoneType
+      expect(isErrorResponse(highConfidenceErrors[1])).toBe(true); // AttributeError
+      expect(isErrorResponse(highConfidenceErrors[2])).toBe(true); // TypeError
+      expect(isErrorResponse(highConfidenceErrors[3])).toBe(true); // ValueError
+      expect(isErrorResponse(highConfidenceErrors[4])).toBe(true); // KeyError
+      expect(isErrorResponse(highConfidenceErrors[5])).toBe(true); // IndexError
+      expect(isErrorResponse(highConfidenceErrors[6])).toBe(true); // ModuleNotFoundError
+      expect(isErrorResponse(highConfidenceErrors[7])).toBe(true); // ImportError
     });
     
     it('should return true for low confidence patterns with sufficient context', () => {
@@ -557,6 +585,29 @@ describe('AI Service', () => {
   
   // Integration test for getAiResponse function
   describe('getAiResponse', () => {
+    beforeEach(() => {
+      // Ensure auth is mocked to return true
+      const auth = require('../../src/auth');
+      auth.hasValidToken.mockReturnValue(true);
+      
+      // Ensure AI client is properly mocked
+      const aiAuth = require('../../src/utils/aiAuth');
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      // Reset the mock to return proper responses
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [{
+          message: {
+            content: 'This is a mock response'
+          }
+        }]
+      });
+      
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+    });
+    
     it('should return a response from the AI service', async () => {
       const personalityName = 'test-personality';
       const message = 'Hello, how are you?';
@@ -695,13 +746,15 @@ describe('AI Service', () => {
         userName: 'Test User (testuser)'
       };
       
-      // Get the mock AI client
+      // Mock the AI client to throw an error
+      const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
       
-      // Force an error
-      mockClient.setShouldError(true);
+      // Make the create method throw an error
+      mockClient.chat.completions.create.mockRejectedValue(new Error('Mock API error'));
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
       
       const response = await getAiResponse(personalityName, message, context);
       
@@ -711,11 +764,298 @@ describe('AI Service', () => {
       // Verify the personality was added to the blackout list
       const key = createBlackoutKey(personalityName, context);
       expect(errorBlackoutPeriods.has(key)).toBe(true);
-      
-      // Reset the mock for other tests
-      mockClient.setShouldError(false);
     });
     
+  });
+
+  describe('Additional Coverage Tests', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+      
+      // Ensure auth is properly mocked
+      const auth = require('../../src/auth');
+      auth.hasValidToken.mockReturnValue(true);
+      
+      // Reset default mock implementations
+      const aiAuth = require('../../src/utils/aiAuth');
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      // Ensure the mock client returns proper responses
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [{
+          message: {
+            content: 'This is a mock response'
+          }
+        }]
+      });
+      
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
+      sanitizeContent.mockImplementation(content => content);
+      
+      const webhookUserTracker = require('../../src/utils/webhookUserTracker');
+      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
+    });
     
+    it('should delegate initAiClient to aiAuth module', () => {
+      const { initAiClient } = require('../../src/aiService');
+      const aiAuth = require('../../src/utils/aiAuth');
+      
+      initAiClient();
+      expect(aiAuth.initAiClient).toHaveBeenCalled();
+    });
+
+    it('should bypass authentication for recognized webhook users', async () => {
+      const context = {
+        userId: 'webhook-user-123',
+        channelId: 'test-channel',
+        message: {
+          webhookId: 'webhook-123',
+          author: { username: 'PluralKit' }
+        }
+      };
+      
+      const webhookUserTracker = require('../../src/utils/webhookUserTracker');
+      webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(true);
+      
+      const response = await getAiResponse('test-personality', 'Hello', context);
+      
+      expect(webhookUserTracker.shouldBypassNsfwVerification).toHaveBeenCalledWith(context.message);
+      expect(response).toContain('This is a mock response');
+    });
+
+    it('should handle authentication required errors from API', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Mock the AI client to throw authentication error
+      const aiAuth = require('../../src/utils/aiAuth');
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      const authError = new Error('Authentication required');
+      mockClient.chat.completions.create.mockRejectedValue(authError);
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      const response = await getAiResponse(personalityName, message, context);
+      
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
+    });
+
+    it('should handle errors when logging message content fails', async () => {
+      const complexMessage = {
+        messageContent: { 
+          circular: null 
+        }
+      };
+      // Create circular reference
+      complexMessage.messageContent.circular = complexMessage.messageContent;
+      
+      const personalityName = 'test-personality';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Force an error by making the AI call fail
+      const aiAuth = require('../../src/utils/aiAuth');
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      mockClient.chat.completions.create.mockRejectedValue(new Error('Test error'));
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      // Mock JSON.stringify to throw for circular reference
+      const originalStringify = JSON.stringify;
+      JSON.stringify = jest.fn().mockImplementation((obj) => {
+        if (obj === complexMessage.messageContent) {
+          throw new Error('Converting circular structure to JSON');
+        }
+        return originalStringify(obj);
+      });
+      
+      const response = await getAiResponse(personalityName, complexMessage, context);
+      
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.');
+      
+      // Restore
+      JSON.stringify = originalStringify;
+    });
+
+    it('should log reference with webhook name when available', async () => {
+      const message = {
+        messageContent: 'Reply text',
+        referencedMessage: {
+          content: 'Original message',
+          webhookName: 'TestWebhook'
+        }
+      };
+      
+      const response = await getAiResponse('test-personality', message, {
+        userId: 'test-user',
+        channelId: 'test-channel'
+      });
+      
+      expect(response).toContain('This is a mock response');
+    });
+
+    it('should log reference with author when no personality or webhook name', async () => {
+      const message = {
+        messageContent: 'Reply text',
+        referencedMessage: {
+          content: 'Original message',
+          author: 'TestUser'
+        }
+      };
+      
+      const response = await getAiResponse('test-personality', message, {
+        userId: 'test-user',
+        channelId: 'test-channel'
+      });
+      
+      expect(response).toContain('This is a mock response');
+    });
+
+    it('should log reference as unknown-source when no identifying info', async () => {
+      const message = {
+        messageContent: 'Reply text',
+        referencedMessage: {
+          content: 'Original message'
+        }
+      };
+      
+      const response = await getAiResponse('test-personality', message, {
+        userId: 'test-user',
+        channelId: 'test-channel'
+      });
+      
+      expect(response).toContain('This is a mock response');
+    });
+
+    it('should handle errors when logging reference details', async () => {
+      const message = {
+        messageContent: { complex: 'object' },
+        referencedMessage: {
+          content: null, // This will cause substring() to fail
+          personalityName: 'TestPersonality'
+        }
+      };
+      
+      const response = await getAiResponse('test-personality', message, {
+        userId: 'test-user',
+        channelId: 'test-channel'
+      });
+      
+      expect(response).toContain('This is a mock response');
+    });
+
+    it('should throw error when AI client is not available', async () => {
+      const aiAuth = require('../../src/utils/aiAuth');
+      
+      // Mock getAiClientForUser to return null
+      aiAuth.getAiClientForUser.mockResolvedValue(null);
+      
+      const response = await getAiResponse('test-personality', 'Hello', {
+        userId: 'test-user',
+        channelId: 'test-channel'
+      });
+      
+      // When AI client is null, it's treated as an authentication issue
+      expect(response).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
+    });
+
+    it('should handle empty content after sanitization', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Mock sanitizeContent to return empty string
+      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
+      sanitizeContent.mockReturnValueOnce('');
+      
+      const response = await getAiResponse(personalityName, message, context);
+      
+      expect(response).toBe('I received an empty response. Please try again.');
+    });
+
+    it('should handle sanitization errors', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Mock sanitizeContent to throw error
+      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
+      sanitizeContent.mockImplementationOnce(() => {
+        throw new Error('Sanitization failed');
+      });
+      
+      const response = await getAiResponse(personalityName, message, context);
+      
+      expect(response).toBe('I encountered an issue processing my response. Please try again.');
+    });
+    
+    it('should handle invalid response structure', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Mock AI client to return invalid structure
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      mockClient.chat.completions.create.mockResolvedValue({
+        // Missing choices array
+        id: 'test-id'
+      });
+      
+      const response = await getAiResponse(personalityName, message, context);
+      
+      expect(response).toBe('I received an incomplete response. Please try again.');
+    });
+    
+    it('should handle non-string content from AI', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+      
+      // Mock AI client to return non-string content
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [{
+          message: {
+            content: { unexpected: 'object' } // Non-string content
+          }
+        }]
+      });
+      
+      const response = await getAiResponse(personalityName, message, context);
+      
+      expect(response).toBe('I received an unusual response format. Please try again.');
+    });
   });
 });
