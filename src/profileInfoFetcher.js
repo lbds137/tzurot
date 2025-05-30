@@ -11,8 +11,15 @@ const { ProfileInfoFetcher } = require('./core/api');
 const logger = require('./logger');
 const urlValidator = require('./utils/urlValidator');
 
-// Create a singleton instance
-const fetcher = new ProfileInfoFetcher();
+// Create factory function for dependency injection
+let fetcher = null;
+
+function getFetcher() {
+  if (!fetcher) {
+    fetcher = new ProfileInfoFetcher();
+  }
+  return fetcher;
+}
 
 /**
  * Fetch information about a profile
@@ -21,7 +28,7 @@ const fetcher = new ProfileInfoFetcher();
  * @returns {Promise<Object>} The profile information object
  */
 async function fetchProfileInfo(profileName, userId = null) {
-  return fetcher.fetchProfileInfo(profileName, userId);
+  return getFetcher().fetchProfileInfo(profileName, userId);
 }
 
 /**
@@ -33,14 +40,13 @@ async function fetchProfileInfo(profileName, userId = null) {
 async function getProfileAvatarUrl(profileName, userId = null) {
   logger.info(`[ProfileInfoFetcher] Getting avatar URL for: ${profileName}`);
 
-  const profileInfo = await fetchProfileInfo(profileName, userId);
-
-  if (!profileInfo) {
-    logger.warn(`[ProfileInfoFetcher] No profile info found for avatar: ${profileName}`);
-    return null;
-  }
-
   try {
+    const profileInfo = await fetchProfileInfo(profileName, userId);
+
+    if (!profileInfo) {
+      logger.warn(`[ProfileInfoFetcher] No profile info found for avatar: ${profileName}`);
+      return null;
+    }
     // Check if avatar is directly available in the response (new API format)
     if (profileInfo.avatar) {
       logger.debug(
@@ -110,7 +116,7 @@ async function getProfileDisplayName(profileName, userId = null) {
  * Exported for testing purposes
  */
 function clearCache() {
-  fetcher.clearCache();
+  getFetcher().clearCache();
 }
 
 // Export the module
@@ -121,13 +127,15 @@ module.exports = {
   // For testing
   _testing: {
     clearCache,
-    getCache: () => fetcher.getCache(),
+    getCache: () => getFetcher().getCache(),
     // Allow tests to inject dependencies
     setFetchImplementation: (impl) => {
-      fetcher.client.fetchImplementation = impl;
+      getFetcher().client.fetchImplementation = impl;
     },
     // Expose internals for testing
-    getRateLimiter: () => fetcher.rateLimiter,
-    getFetcher: () => fetcher
+    getRateLimiter: () => getFetcher().rateLimiter,
+    getFetcher: () => getFetcher(),
+    // Allow tests to reset the singleton for clean test state
+    resetFetcher: () => { fetcher = null; }
   },
 };
