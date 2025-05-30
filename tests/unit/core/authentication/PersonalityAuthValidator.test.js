@@ -3,12 +3,17 @@
  */
 
 const PersonalityAuthValidator = require('../../../../src/core/authentication/PersonalityAuthValidator');
+const { botPrefix } = require('../../../../config');
 
 jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   debug: jest.fn(),
   warn: jest.fn()
+}));
+
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz'
 }));
 
 describe('PersonalityAuthValidator', () => {
@@ -127,7 +132,7 @@ describe('PersonalityAuthValidator', () => {
       });
       
       expect(result.isAuthorized).toBe(false);
-      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
+      expect(result.errors).toContain(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
     });
     
     it('should require auth even for owner', async () => {
@@ -141,7 +146,7 @@ describe('PersonalityAuthValidator', () => {
       });
       
       expect(result.isAuthorized).toBe(false);
-      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
+      expect(result.errors).toContain(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
     });
     
     it('should check NSFW verification when required', async () => {
@@ -211,7 +216,7 @@ describe('PersonalityAuthValidator', () => {
       
       expect(result.isAuthorized).toBe(false);
       expect(result.requiresAuth).toBe(true);
-      expect(result.errors).toContain('Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.');
+      expect(result.errors).toContain(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
       expect(mockTokenManager.hasValidToken).toHaveBeenCalled();
     });
     
@@ -270,7 +275,7 @@ describe('PersonalityAuthValidator', () => {
   describe('getAuthHelpMessage', () => {
     it('should generate help message for auth failures', () => {
       const validationResult = {
-        errors: ['Authentication is required to interact with personalities. Please use `!tz auth start` to authenticate.'],
+        errors: [`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`],
         warnings: [],
         requiresAuth: true,
         requiresNsfwVerification: false,

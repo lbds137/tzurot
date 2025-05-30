@@ -47,6 +47,7 @@ const { createMigrationHelper } = require('../../../utils/testEnhancements');
 const logger = require('../../../../src/logger');
 const validator = require('../../../../src/commands/utils/commandValidator');
 const auth = require('../../../../src/auth');
+const { botPrefix } = require('../../../../config');
 
 // Get migration helper for enhanced patterns
 const migrationHelper = createMigrationHelper('command');
@@ -66,7 +67,7 @@ describe('Status Command', () => {
     
     // Create enhanced mock message with less boilerplate
     mockMessage = migrationHelper.enhanced.createMessage({
-      content: '!tz status',
+      content: `${botPrefix} status`,
       author: { id: 'user-123', username: 'testuser' }
     });
     

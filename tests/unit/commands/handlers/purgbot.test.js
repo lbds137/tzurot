@@ -25,6 +25,7 @@ jest.mock('../../../../src/commands/utils/commandValidator', () => ({
 
 // Import test helpers
 const helpers = require('../../../utils/commandTestHelpers');
+const { botPrefix } = require('../../../../config');
 
 describe('PurgBot Command', () => {
   // Restore environment after all tests
@@ -228,7 +229,7 @@ describe('PurgBot Command', () => {
     mockCollection.set('user-auth-msg', {
       id: 'user-auth-msg',
       author: { id: mockDMMessage.author.id },
-      content: '!tz auth start',
+      content: `${botPrefix} auth start`,
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (45 * 60 * 1000),
@@ -244,7 +245,7 @@ describe('PurgBot Command', () => {
     mockCollection.set('user-system-msg', {
       id: 'user-system-msg',
       author: { id: mockDMMessage.author.id },
-      content: '!tz status',
+      content: `${botPrefix} status`,
       embeds: [],
       delete: jest.fn().mockResolvedValue(undefined),
       createdTimestamp: oneHourAgo - (2.2 * 60 * 60 * 1000),

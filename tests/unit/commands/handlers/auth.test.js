@@ -52,6 +52,7 @@ const auth = require('../../../../src/auth');
 const logger = require('../../../../src/logger');
 const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
 const validator = require('../../../../src/commands/utils/commandValidator');
+const { botPrefix } = require('../../../../config');
 
 describe('Auth Command', () => {
   let authCommand;
@@ -337,7 +338,7 @@ describe('Auth Command', () => {
       
       expect(mockMessage.channel.send).toHaveBeenCalled();
       expect(mockMessage.channel.send.mock.calls[0][0]).toContain('Authentication Required');
-      expect(mockMessage.channel.send.mock.calls[0][0]).toContain('To get started, run: `!tz auth start`');
+      expect(mockMessage.channel.send.mock.calls[0][0]).toContain(`To get started, run: \`${botPrefix} auth start\``);
     });
     
     it('should handle unknown subcommands', async () => {
