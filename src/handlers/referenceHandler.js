@@ -152,8 +152,14 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
         }
       }
       
-      // No message links found in referenced message
-      return { processed: false, wasReplyToNonPersonality: true };
+      // No message links found in referenced message, but still return the content
+      // for potential mention processing in messageHandler
+      return { 
+        processed: false, 
+        wasReplyToNonPersonality: true,
+        referencedMessageContent: referencedMessage.content,
+        referencedMessageAuthor: referencedMessage.author?.username || 'another user'
+      };
     }
   } catch (error) {
     if (error.message === 'Unknown Message') {

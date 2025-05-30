@@ -147,7 +147,12 @@ describe('Reference Handler Module', () => {
       
       const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
       
-      expect(result).toEqual({ processed: false, wasReplyToNonPersonality: true });
+      expect(result).toEqual({ 
+        processed: false, 
+        wasReplyToNonPersonality: true,
+        referencedMessageContent: undefined,
+        referencedMessageAuthor: 'another user'
+      });
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('non-webhook-msg-id');
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
     });

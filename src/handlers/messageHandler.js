@@ -18,6 +18,62 @@ const { getPersonalityByAlias, getPersonality } = require('../personalityManager
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
 /**
+ * Check if a message contains any personality mentions (without processing them)
+ * @param {Object} message - Discord message object  
+ * @returns {boolean} - Whether the message contains personality mentions
+ */
+function checkForPersonalityMentions(message) {
+  if (!message.content) return false;
+  
+  // Use configured mention character (@ for production, & for development)
+  const mentionChar = botConfig.mentionChar;
+  
+  // Escape the mention character for regex safety
+  const escapedMentionChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const standardMentionRegex = new RegExp(`${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+  let match;
+  
+  // Check for standard mentions
+  while ((match = standardMentionRegex.exec(message.content)) !== null) {
+    if (match[1] && match[1].trim()) {
+      const cleanedName = match[1].trim().replace(/[.,!?;:)"']+$/, '');
+      
+      // Check if this is a valid personality (directly or as an alias)
+      let personality = getPersonality(cleanedName);
+      if (!personality) {
+        personality = getPersonalityByAlias(message.author.id, cleanedName);
+      }
+      
+      if (personality) {
+        return true; // Found a valid personality mention
+      }
+    }
+  }
+  
+  // Check for multi-word mentions with spaces
+  const multiWordMentionRegex = new RegExp(`${escapedMentionChar}([\\w\\s-]+?)(?=[.,!?;:)"']|\\s*$|\\s+[${escapedMentionChar}]|\\s+[^\\w\\s-])`, 'gi');
+  let multiWordMatch;
+  
+  while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
+    if (multiWordMatch[1] && multiWordMatch[1].trim()) {
+      const multiWordName = multiWordMatch[1].trim();
+      
+      // Skip if it's the same as a standard mention we already checked
+      const standardMatch = standardMentionRegex.test(`${mentionChar}${multiWordName}`);
+      if (standardMatch) continue;
+      
+      // Check if this multi-word mention is a valid personality alias
+      const personality = getPersonalityByAlias(message.author.id, multiWordName);
+      if (personality) {
+        return true; // Found a valid multi-word personality mention
+      }
+    }
+  }
+  
+  return false; // No personality mentions found
+}
+
+/**
  * Main message handler function
  * @param {Object} message - Discord message object
  * @param {Object} client - Discord.js client
@@ -164,11 +220,17 @@ async function handleMessage(message, client) {
       return;
     }
     
-    // If this was a reply to a non-personality message, skip active conversation checks
-    // This prevents autoresponse from triggering when replying to other users
-    // UNLESS the referenced message contains Discord message links that should be processed
-    if (referenceResult.wasReplyToNonPersonality && !referenceResult.containsMessageLinks) {
-      return;
+    // If this was a reply to a non-personality message, check if there's a mention
+    // before skipping processing. This prevents autoresponse from triggering when 
+    // replying to other users, but allows mentions to be processed.
+    if (referenceResult.wasReplyToNonPersonality) {
+      // Check if the message contains a personality mention
+      const hasMention = checkForPersonalityMentions(message);
+      
+      // Only skip processing if there are no mentions AND no Discord links
+      if (!hasMention && !referenceResult.containsMessageLinks) {
+        return;
+      }
     }
 
     // @mention personality triggering
