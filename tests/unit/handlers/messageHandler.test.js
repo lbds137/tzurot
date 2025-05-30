@@ -225,7 +225,8 @@ describe('messageHandler', () => {
       // Should have processed the reference
       expect(referenceHandler.handleMessageReference).toHaveBeenCalledWith(
         referenceMessage,
-        expect.any(Function)
+        expect.any(Function),
+        mockClient
       );
       
       // Don't test internals that might have changed

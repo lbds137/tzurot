@@ -6,11 +6,13 @@
 jest.mock('../../src/logger');
 jest.mock('../../src/personalityManager');
 jest.mock('../../src/conversationManager');
+jest.mock('../../src/handlers/messageTrackerHandler');
 
 const logger = require('../../src/logger');
 const { handleMessageReference } = require('../../src/handlers/referenceHandler');
 const { getPersonalityFromMessage } = require('../../src/conversationManager');
 const { getPersonality, getPersonalityByAlias } = require('../../src/personalityManager');
+const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
 
 describe('Nested Reference Handling', () => {
   let mockMessage;
@@ -19,6 +21,7 @@ describe('Nested Reference Handling', () => {
   let mockChannel;
   let mockGuild;
   let mockHandlePersonalityInteraction;
+  let mockClient;
   
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,6 +37,7 @@ describe('Nested Reference Handling', () => {
       messages: {
         fetch: jest.fn(),
       },
+      isDMBased: jest.fn().mockReturnValue(false), // Not a DM channel
     };
     
     // Set up the nested referenced message (the original message being referenced)
@@ -107,6 +111,19 @@ describe('Nested Reference Handling', () => {
     global.console.log = jest.fn();
     global.console.error = jest.fn();
     global.console.warn = jest.fn();
+    
+    // Mock client
+    mockClient = {
+      user: { id: 'bot-user-id' }
+    };
+    
+    // Mock messageTrackerHandler.delayedProcessing to immediately call the handler
+    messageTrackerHandler.delayedProcessing = jest.fn().mockImplementation(
+      async (message, personality, mention, client, handlerFunction) => {
+        // Immediately call the handler function with the provided arguments
+        await handlerFunction(message, personality, mention, client);
+      }
+    );
   });
   
   afterEach(() => {
@@ -120,7 +137,7 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.username = 'Test Personality';
     
     // Process the message
-    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Verify that the message content was NOT modified (no synthetic link added)
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -131,8 +148,7 @@ describe('Nested Reference Handling', () => {
     
     // Verify the handler was called
     expect(mockHandlePersonalityInteraction).toHaveBeenCalled();
-    expect(result.processed).toBe(true);
-    expect(result.wasReplyToNonPersonality).toBe(false);
+    expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
   });
   
   test('should handle nested references when original message is empty', async () => {
@@ -144,13 +160,13 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message
-    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Verify that the message content remains empty (no synthetic link added)
     expect(mockMessage.content).toBe('');
     
     // Verify the result
-    expect(result.processed).toBe(true);
+    expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
   });
   
   test('should handle missing nested referenced message gracefully', async () => {
@@ -166,10 +182,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message - should not throw
-    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Should still process the message even if nested reference is missing
-    expect(result.processed).toBe(true);
+    expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
     
     // Original content should remain unchanged
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -188,10 +204,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message - should not throw
-    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Should still process successfully
-    expect(result.processed).toBe(true);
+    expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
     
     // Original content should remain unchanged
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -206,7 +222,7 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message
-    await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Verify that content remains unchanged
     expect(mockMessage.content).toBe('This is a reply to the reply');
@@ -225,10 +241,10 @@ describe('Nested Reference Handling', () => {
     mockReferencedMessage.author.bot = true;
     
     // Process the message
-    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+    const result = await handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
     
     // Verify successful processing without content modification
-    expect(result.processed).toBe(true);
+    expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
     expect(mockMessage.content).toBe('This is a reply to the reply');
   });
 });

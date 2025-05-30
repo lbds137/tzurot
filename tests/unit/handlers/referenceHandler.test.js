@@ -15,6 +15,9 @@ jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/embedUtils', () => ({
   parseEmbedsToText: jest.fn()
 }));
+jest.mock('../../../src/handlers/messageTrackerHandler');
+
+const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
 
 describe('Reference Handler Module', () => {
   // Mock Discord client and objects
@@ -63,6 +66,14 @@ describe('Reference Handler Module', () => {
       }
       return null;
     });
+    
+    // Mock messageTrackerHandler.delayedProcessing to immediately call the handler
+    messageTrackerHandler.delayedProcessing.mockImplementation(
+      async (message, personality, mention, client, handlerFunction) => {
+        // Immediately call the handler function with the provided arguments
+        await handlerFunction(message, personality, mention, client);
+      }
+    );
   });
 
   describe('handleMessageReference', () => {
@@ -98,17 +109,21 @@ describe('Reference Handler Module', () => {
         channel: {
           messages: {
             fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
-          }
+          },
+          isDMBased: jest.fn().mockReturnValue(false) // Not a DM channel
         }
       };
       
-      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
       
       expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('webhook-msg-id');
       expect(getPersonalityFromMessage).toHaveBeenCalledWith('webhook-msg-id', { webhookUsername: 'Test Webhook' });
       expect(getPersonality).toHaveBeenCalledWith('test-personality');
-      expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, mockPersonality, null);
+      
+      // Since we're mocking a non-DM channel and passing a client, delayedProcessing should be used
+      // The delayedProcessing mock will call the handler with the client parameter
+      expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, mockPersonality, null, mockClient);
     });
     
     it('should handle referenced messages with no personality', async () => {

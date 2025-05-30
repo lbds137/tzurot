@@ -11,6 +11,7 @@ const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../conversationManager');
 const { getPersonality, getPersonalityByAlias } = require('../personalityManager');
 const { parseEmbedsToText } = require('../utils/embedUtils');
+const messageTrackerHandler = require('./messageTrackerHandler');
 
 /**
  * The regex pattern for matching Discord message links
@@ -23,9 +24,10 @@ const MESSAGE_LINK_REGEX =
  * Handle a message reference (a reply to another message)
  * @param {object} message - Discord.js message object
  * @param {function} handlePersonalityInteraction - Callback for handling personality interactions
+ * @param {object} client - Discord.js client instance (optional, for PluralKit delay processing)
  * @returns {Promise<object>} - Returns { processed: boolean, wasReplyToNonPersonality: boolean }
  */
-async function handleMessageReference(message, handlePersonalityInteraction) {
+async function handleMessageReference(message, handlePersonalityInteraction, client = null) {
   if (!message.reference) {
     return { processed: false, wasReplyToNonPersonality: false };
   }
@@ -99,7 +101,27 @@ async function handleMessageReference(message, handlePersonalityInteraction) {
           // Since this is a reply, not a direct @mention, pass null for triggeringMention
           // IMPORTANT: Use message.author.id to ensure the replying user's ID is used
           // This ensures authentication context is preserved correctly
-          await handlePersonalityInteraction(message, personality, null);
+          
+          // Skip delay for DMs (PluralKit doesn't work in DMs)
+          if (message.channel.isDMBased()) {
+            // Process DM messages immediately
+            await handlePersonalityInteraction(message, personality, null);
+          } else {
+            // For server channels, implement the delay for PluralKit proxy handling
+            // If client is provided, use delayed processing for PluralKit compatibility
+            if (client) {
+              await messageTrackerHandler.delayedProcessing(
+                message,
+                personality,
+                null,
+                client,
+                handlePersonalityInteraction
+              );
+            } else {
+              // Fallback to direct handling if no client provided
+              await handlePersonalityInteraction(message, personality, null);
+            }
+          }
           return { processed: true, wasReplyToNonPersonality: false };
         } else {
           logger.debug(`No personality data found for name/alias: ${personalityName}`);

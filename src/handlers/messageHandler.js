@@ -155,7 +155,8 @@ async function handleMessage(message, client) {
     const referenceResult = await referenceHandler.handleMessageReference(
       message,
       (msg, personality, mention) =>
-        personalityHandler.handlePersonalityInteraction(msg, personality, mention, client)
+        personalityHandler.handlePersonalityInteraction(msg, personality, mention, client),
+      client
     );
 
     // If the reference was processed successfully, return early
