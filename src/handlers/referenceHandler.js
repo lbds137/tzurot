@@ -133,7 +133,26 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
       logger.debug(
         `Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`
       );
+      
       // This was a reply to a non-personality message
+      // Check if the referenced message contains Discord message links that should be processed
+      if (referencedMessage.content && typeof referencedMessage.content === 'string') {
+        const hasMessageLink = MESSAGE_LINK_REGEX.test(referencedMessage.content);
+        if (hasMessageLink) {
+          logger.debug(`Referenced non-personality message contains Discord link(s), will need further processing`);
+          // Return a special flag indicating this needs link processing in the messageHandler
+          // Also return the referenced message content so it can be processed for links
+          return { 
+            processed: false, 
+            wasReplyToNonPersonality: true, 
+            containsMessageLinks: true,
+            referencedMessageContent: referencedMessage.content,
+            referencedMessageAuthor: referencedMessage.author?.username || 'another user'
+          };
+        }
+      }
+      
+      // No message links found in referenced message
       return { processed: false, wasReplyToNonPersonality: true };
     }
   } catch (error) {

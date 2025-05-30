@@ -166,7 +166,8 @@ async function handleMessage(message, client) {
     
     // If this was a reply to a non-personality message, skip active conversation checks
     // This prevents autoresponse from triggering when replying to other users
-    if (referenceResult.wasReplyToNonPersonality) {
+    // UNLESS the referenced message contains Discord message links that should be processed
+    if (referenceResult.wasReplyToNonPersonality && !referenceResult.containsMessageLinks) {
       return;
     }
 

@@ -152,6 +152,39 @@ describe('Reference Handler Module', () => {
       expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
     });
     
+    it('should detect Discord message links in non-personality messages', async () => {
+      const mockReferencedMessage = {
+        id: 'non-webhook-msg-id',
+        content: 'Check this out: https://discord.com/channels/123456789/987654321/555555555',
+        author: {
+          tag: 'Regular User#1234',
+          username: 'RegularUser'
+        }
+      };
+      
+      const mockMessage = {
+        reference: { messageId: 'non-webhook-msg-id' },
+        author: { tag: 'User#1234' },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
+          }
+        }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction);
+      
+      expect(result).toEqual({ 
+        processed: false, 
+        wasReplyToNonPersonality: true,
+        containsMessageLinks: true,
+        referencedMessageContent: 'Check this out: https://discord.com/channels/123456789/987654321/555555555',
+        referencedMessageAuthor: 'RegularUser'
+      });
+      expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith('non-webhook-msg-id');
+      expect(mockHandlePersonalityInteraction).not.toHaveBeenCalled();
+    });
+    
     it('should handle errors when fetching referenced messages', async () => {
       const mockMessage = {
         reference: { messageId: 'error-msg-id' },
