@@ -8,7 +8,6 @@
  */
 
 const nodeFetch = require('node-fetch');
-const { Readable } = require('stream');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
@@ -244,13 +243,10 @@ function createDiscordAttachment(imageFile) {
   // Convert ArrayBuffer to Buffer
   const nodeBuffer = Buffer.from(imageFile.buffer);
 
-  // Create a readable stream from the buffer
-  const stream = new Readable();
-  stream.push(nodeBuffer);
-  stream.push(null);
-
+  // Discord.js v13+ can accept Buffer directly
+  // Return the buffer instead of a stream to avoid undici compatibility issues
   return {
-    attachment: stream,
+    attachment: nodeBuffer,
     name: imageFile.filename,
     contentType: imageFile.contentType,
   };

@@ -8,7 +8,6 @@
  */
 
 const nodeFetch = require('node-fetch');
-const { Readable } = require('stream');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
@@ -281,22 +280,10 @@ function createDiscordAttachment(audioFile) {
     throw new Error('Audio buffer is empty');
   }
 
-  // Create a readable stream from the buffer
-  // For newer versions of undici/discord.js, we need to ensure the stream is properly initialized
-  const stream = new Readable({
-    read() {} // Required for proper stream initialization
-  });
-  
-  try {
-    stream.push(nodeBuffer);
-    stream.push(null); // Signal end of stream
-  } catch (error) {
-    logger.error(`[AudioHandler] Failed to create stream: ${error.message}`);
-    throw new Error('Failed to create audio stream');
-  }
-
+  // Discord.js v13+ can accept Buffer directly
+  // Return the buffer instead of a stream to avoid undici compatibility issues
   return {
-    attachment: stream,
+    attachment: nodeBuffer,
     name: audioFile.filename,
     contentType: audioFile.contentType,
   };
