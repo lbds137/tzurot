@@ -18,6 +18,7 @@
     "coverage": "jest --coverage && node scripts/update-coverage-summary.js",
     "lint": "eslint src/ --ext .js",
     "lint:fix": "eslint src/ --ext .js --fix",
+    "lint:errors": "eslint src/ --ext .js --quiet",
     "lint:timers": "node scripts/check-timer-patterns.js",
     "lint:module-size": "./scripts/check-module-size.sh",
     "lint:test-mocks": "node scripts/check-test-mock-patterns.js",
