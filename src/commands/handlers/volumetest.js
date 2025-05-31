@@ -10,8 +10,12 @@ const path = require('path');
 const logger = require('../../logger');
 
 module.exports = {
-  name: 'volumetest',
-  description: 'Test if persistent volume is working (admin only)',
+  meta: {
+    name: 'volumetest',
+    description: 'Test if persistent volume is working (admin only)',
+    usage: '!tz volumetest',
+    permissions: ['ADMIN']
+  },
   
   async execute(message, args, config) {
     // Check if user is bot owner
@@ -21,7 +25,10 @@ module.exports = {
     }
 
     try {
-      const testDir = path.join(process.cwd(), 'data');
+      // Use the same DATA_DIR as dataStorage.js
+      const testDir = process.env.RAILWAY_ENVIRONMENT 
+        ? '/app/data'
+        : path.join(process.cwd(), 'data');
       const testFile = path.join(testDir, 'volume_test.txt');
       const timestamp = new Date().toISOString();
       
