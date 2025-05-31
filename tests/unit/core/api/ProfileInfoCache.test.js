@@ -34,7 +34,8 @@ describe('ProfileInfoCache', () => {
     // Create cache instance with short duration for testing
     cache = new ProfileInfoCache({
       cacheDuration: 60000, // 1 minute for easy testing
-      logPrefix: '[TestCache]'
+      logPrefix: '[TestCache]',
+      enableCleanup: false // Disable cleanup interval in tests
     });
   });
   
@@ -80,11 +81,9 @@ describe('ProfileInfoCache', () => {
       // Act - try to get expired data
       const result = cache.get(profileName);
       
-      // Assert
+      // Assert - With LRUCache TTL, expired entries return undefined/null
       expect(result).toBeNull();
-      expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Cache expired for: test-profile')
-      );
+      // Note: LRUCache handles expiration internally, so we won't see the "expired" log
       expect(cache.has(profileName)).toBe(false); // Should be removed from cache
     });
     
@@ -148,7 +147,8 @@ describe('ProfileInfoCache', () => {
       // Arrange
       const customCache = new ProfileInfoCache({
         cacheDuration: 5000, // 5 seconds
-        logPrefix: '[CustomCache]'
+        logPrefix: '[CustomCache]',
+        enableCleanup: false // Disable cleanup interval in tests
       });
       
       const mockTime = 1000000;
@@ -185,6 +185,60 @@ describe('ProfileInfoCache', () => {
     });
   });
 
+  describe('LRU eviction', () => {
+    it('should evict least recently used profiles when reaching max size', () => {
+      // Create cache with small size for testing
+      const smallCache = new ProfileInfoCache({
+        maxSize: 3,
+        enableCleanup: false
+      });
+      
+      // Add profiles to fill cache
+      smallCache.set('profile1', { id: '123456789012345001', name: 'User 1' });
+      smallCache.set('profile2', { id: '123456789012345002', name: 'User 2' });
+      smallCache.set('profile3', { id: '123456789012345003', name: 'User 3' });
+      
+      expect(smallCache.size).toBe(3);
+      
+      // Add one more profile - should evict profile1 (least recently used)
+      smallCache.set('profile4', { id: '123456789012345004', name: 'User 4' });
+      
+      expect(smallCache.size).toBe(3);
+      expect(smallCache.has('profile1')).toBe(false); // Evicted
+      expect(smallCache.has('profile2')).toBe(true);
+      expect(smallCache.has('profile3')).toBe(true);
+      expect(smallCache.has('profile4')).toBe(true);
+    });
+    
+    it('should update LRU order when accessing profiles', () => {
+      // Create cache with small size for testing
+      const smallCache = new ProfileInfoCache({
+        maxSize: 3,
+        enableCleanup: false
+      });
+      
+      // Add profiles with time gaps to ensure proper ordering
+      smallCache.set('profile1', { id: '123456789012345001', name: 'User 1' });
+      jest.advanceTimersByTime(100);
+      smallCache.set('profile2', { id: '123456789012345002', name: 'User 2' });
+      jest.advanceTimersByTime(100);
+      smallCache.set('profile3', { id: '123456789012345003', name: 'User 3' });
+      jest.advanceTimersByTime(100);
+      
+      // Access profile1 to make it recently used
+      smallCache.get('profile1');
+      jest.advanceTimersByTime(100);
+      
+      // Add new profile - should evict profile2 (now least recently used)
+      smallCache.set('profile4', { id: '123456789012345004', name: 'User 4' });
+      
+      expect(smallCache.has('profile1')).toBe(true); // Still there (was accessed)
+      expect(smallCache.has('profile2')).toBe(false); // Evicted
+      expect(smallCache.has('profile3')).toBe(true);
+      expect(smallCache.has('profile4')).toBe(true);
+    });
+  });
+  
   describe('edge cases', () => {
     it('should handle cache operations with null/undefined data', () => {
       // Test setting null data
@@ -193,7 +247,8 @@ describe('ProfileInfoCache', () => {
       
       // Test setting undefined data
       cache.set('undefined-profile', undefined);
-      expect(cache.get('undefined-profile')).toBeUndefined();
+      // Our get() method returns null for non-existent/undefined values
+      expect(cache.get('undefined-profile')).toBeNull();
     });
     
     it('should handle empty string profile names', () => {
