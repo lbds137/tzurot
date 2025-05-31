@@ -11,7 +11,7 @@
   "volumes": [
     {
       "mount": "/app/data",
-      "name": "tzurot-persistent-data"
+      "name": "dress-volume"
     }
   ]
 }
