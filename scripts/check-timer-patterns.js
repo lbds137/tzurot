@@ -36,7 +36,7 @@ const TIMER_PATTERNS = [
   },
   {
     name: 'Direct setTimeout usage',
-    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!schedulerFn|delayFn|timer|scheduler|delay)\s*setTimeout\s*\(/g,
+    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!timerFunctions\.)(?<!schedulerFn|delayFn|timer|scheduler|delay)\s*setTimeout\s*\(/g,
     message: 'Direct setTimeout usage. Use injectable timer instead.',
     severity: 'error',
     filter: (content, match, index) => {
@@ -54,7 +54,7 @@ const TIMER_PATTERNS = [
   },
   {
     name: 'Direct setInterval usage',
-    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!intervalFn|timer|scheduler|interval)\s*setInterval\s*\(/g,
+    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!timerFunctions\.)(?<!intervalFn|timer|scheduler|interval)\s*setInterval\s*\(/g,
     message: 'Direct setInterval usage. Use injectable timer instead.',
     severity: 'error',
     filter: (content, match, index) => {
@@ -80,12 +80,14 @@ const TIMER_PATTERNS = [
   },
   {
     name: 'Global timer in module scope',
-    pattern: /^(?!.*(?:function|const|let|var|class)).*(?:setTimeout|setInterval)\s*\(/gm,
+    pattern: /^(?!.*(?:function|const|let|var|class|return|timerFunctions\.)).*(?:setTimeout|setInterval)\s*\(/gm,
     message: 'Timer at module scope. Consider making it injectable.',
     severity: 'warning',
     filter: (content, match, index) => {
       // Skip if it's in a comment
       if (match.trim().startsWith('//') || match.trim().startsWith('*')) return false;
+      // Skip if it's already using injectable pattern
+      if (match.includes('timerFunctions.')) return false;
       return true;
     }
   }

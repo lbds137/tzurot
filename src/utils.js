@@ -5,6 +5,20 @@
 
 const logger = require('./logger');
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
 /**
  * Validates an alias to ensure it meets requirements
  * @param {string} alias - The alias to validate
@@ -32,7 +46,7 @@ function validateAlias(alias) {
  * @returns {NodeJS.Timeout} Timeout object
  */
 function cleanupTimeout(collection, key, timeout, logPrefix) {
-  return setTimeout(() => {
+  return timerFunctions.setTimeout(() => {
     if (collection.has(key)) {
       collection.delete(key);
       logger.info(`[${logPrefix}] Removing ${key} from collection after timeout`);
@@ -97,4 +111,5 @@ module.exports = {
   safeToLowerCase,
   createDirectSend,
   getAllAliasesForPersonality,
+  configureTimers,
 };

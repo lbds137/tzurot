@@ -14,6 +14,12 @@ describe('utils', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
+    
+    // Configure utils to use Jest's fake timers
+    utils.configureTimers({
+      setTimeout: jest.fn().mockImplementation((fn, ms) => setTimeout(fn, ms)),
+      clearTimeout: jest.fn().mockImplementation((id) => clearTimeout(id))
+    });
   });
 
   afterEach(() => {

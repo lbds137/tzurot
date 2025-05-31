@@ -4,6 +4,20 @@
 const logger = require('../logger');
 const contentSimilarity = require('../utils/contentSimilarity');
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
 // Map to track recent messages by content to detect proxy duplicates
 // Format: Map<channelId, Array<{content: string, timestamp: number, handled: boolean, messageId: string}>>
 const recentMessagesByChannel = new Map();
@@ -187,7 +201,7 @@ async function delayedProcessing(message, personality, triggeringMention, client
   logger.info(`[MessageTracker] Adding delay for message ${message.id}`);
 
   return new Promise(resolve => {
-    setTimeout(async () => {
+    timerFunctions.setTimeout(async () => {
       try {
         // Re-fetch the message to ensure it still exists
         let messageToProcess = null;
@@ -263,4 +277,5 @@ module.exports = {
   initMessageTrackerHandler,
   createMessageTrackerHandler,
   ensureInitialized,
+  configureTimers,
 };
