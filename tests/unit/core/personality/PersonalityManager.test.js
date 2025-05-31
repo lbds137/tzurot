@@ -9,6 +9,10 @@ jest.mock('../../../../src/logger', () => ({
   debug: jest.fn()
 }));
 
+// TECH DEBT: PersonalityManager uses singleton pattern which causes test isolation issues
+// TODO: Remove singleton pattern and use dependency injection instead
+// See: docs/improvements/SINGLETON_MIGRATION_GUIDE.md
+
 jest.mock('../../../../src/profileInfoFetcher', () => ({
   getProfileAvatarUrl: jest.fn(),
   getProfileDisplayName: jest.fn()
@@ -42,10 +46,23 @@ describe('PersonalityManager Integration Tests', () => {
     
     // Get the singleton instance and reset its state
     personalityManager = PersonalityManager.getInstance();
+    
+    // IMPORTANT: Reset ALL state to ensure test isolation
     if (personalityManager.registry) {
       personalityManager.registry.clear();
     }
+    if (personalityManager.persistence) {
+      // Reset any cached data in persistence layer
+      personalityManager.persistence.personalities = null;
+      personalityManager.persistence.aliases = null;
+    }
     personalityManager.initialized = false;
+    
+    // Clear any background tasks
+    if (personalityManager.backgroundTaskTimeout) {
+      clearTimeout(personalityManager.backgroundTaskTimeout);
+      personalityManager.backgroundTaskTimeout = null;
+    }
 
     // Set up default mocks for external dependencies
     loadData.mockResolvedValue(null);
@@ -348,6 +365,12 @@ describe('PersonalityManager Integration Tests', () => {
       // Ensure a clean state before each test
       jest.clearAllMocks();
       jest.clearAllTimers();
+      
+      // IMPORTANT: Get fresh references to mocks after clearAllMocks
+      const logger = require('../../../../src/logger');
+      logger.info.mockClear();
+      logger.error.mockClear();
+      
       personalityManager.registry.clear();
       personalityManager.initialized = false;
       delete process.env.BOT_OWNER_ID;
