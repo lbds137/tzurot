@@ -8,7 +8,7 @@
  */
 
 const nodeFetch = require('node-fetch');
-const { AttachmentBuilder } = require('discord.js');
+const { Readable } = require('stream');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
@@ -220,28 +220,7 @@ async function downloadAudioFile(url) {
     }
 
     // Read the response as an array buffer
-    let buffer;
-    try {
-      buffer = await response.arrayBuffer();
-    } catch (error) {
-      logger.error(`[AudioHandler] Failed to read response as array buffer: ${error.message}`);
-      throw new Error(`Failed to read audio data: ${error.message}`);
-    }
-
-    // Validate buffer
-    if (!buffer) {
-      logger.error('[AudioHandler] Response returned null or undefined buffer');
-      throw new Error('Audio download returned empty data');
-    }
-
-    // Check buffer size
-    const bufferSize = buffer.byteLength;
-    if (bufferSize === 0) {
-      logger.error('[AudioHandler] Downloaded audio file is empty');
-      throw new Error('Downloaded audio file is empty');
-    }
-
-    logger.info(`[AudioHandler] Successfully downloaded audio file: ${filename} (${bufferSize} bytes)`);
+    const buffer = await response.arrayBuffer();
 
     return {
       buffer,
@@ -260,36 +239,19 @@ async function downloadAudioFile(url) {
  * @returns {Object} - Discord.js compatible attachment object
  */
 function createDiscordAttachment(audioFile) {
-  // Validate input
-  if (!audioFile || !audioFile.buffer) {
-    logger.error('[AudioHandler] Invalid audio file object - missing buffer');
-    throw new Error('Cannot create attachment from invalid audio file');
-  }
-
   // Convert ArrayBuffer to Buffer
-  let nodeBuffer;
-  try {
-    nodeBuffer = Buffer.from(audioFile.buffer);
-  } catch (error) {
-    logger.error(`[AudioHandler] Failed to convert ArrayBuffer to Buffer: ${error.message}`);
-    throw new Error('Failed to create buffer from audio data');
-  }
+  const nodeBuffer = Buffer.from(audioFile.buffer);
 
-  // Validate buffer is not empty
-  if (!nodeBuffer || nodeBuffer.length === 0) {
-    logger.error('[AudioHandler] Buffer is empty or invalid');
-    throw new Error('Audio buffer is empty');
-  }
+  // Create a readable stream from the buffer
+  const stream = new Readable();
+  stream.push(nodeBuffer);
+  stream.push(null);
 
-  // Discord.js v14 requires AttachmentBuilder for files
-  // For webhooks, we need to return the AttachmentBuilder directly
-  const attachmentBuilder = new AttachmentBuilder(nodeBuffer, {
+  return {
+    attachment: stream,
     name: audioFile.filename,
-    description: `Audio file: ${audioFile.filename}`
-  });
-
-  // Return the AttachmentBuilder directly for Discord.js v14
-  return attachmentBuilder;
+    contentType: audioFile.contentType,
+  };
 }
 
 /**
@@ -319,19 +281,15 @@ async function processAudioUrls(content) {
     // Download the audio file
     const audioFile = await downloadAudioFile(audioUrl.url);
 
-    // Create a Discord attachment (returns AttachmentBuilder directly)
-    const attachmentBuilder = createDiscordAttachment(audioFile);
+    // Create a Discord attachment
+    const attachment = createDiscordAttachment(audioFile);
 
     // Minify the original audio link
     const modifiedContent = content.replace(audioUrl.url, '');
 
     return {
       content: modifiedContent,
-      attachments: [{
-        attachment: attachmentBuilder,
-        name: audioFile.filename,
-        contentType: audioFile.contentType
-      }],
+      attachments: [attachment],
     };
   } catch (error) {
     logger.error(`[AudioHandler] Failed to process audio URL: ${error.message}`);

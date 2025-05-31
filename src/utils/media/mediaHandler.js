@@ -13,11 +13,10 @@
  * 3. Media attachment creation (converting URLs to Discord attachments)
  */
 
-const { AttachmentBuilder } = require('discord.js');
 const logger = require('../../logger');
 const audioHandler = require('./audioHandler');
 const imageHandler = require('./imageHandler');
-const _urlValidator = require('../urlValidator');
+const urlValidator = require('../urlValidator');
 
 /**
  * Detect and process media in a Discord message
@@ -161,8 +160,8 @@ async function detectMedia(message, messageContent, options = {}) {
 
   // Referenced media should be handled separately by aiService, not included in current message
   const useReferencedMedia = false;
-  const _referencedAudioUrl = options.referencedAudioUrl;
-  const _referencedImageUrl = options.referencedImageUrl;
+  const referencedAudioUrl = options.referencedAudioUrl;
+  const referencedImageUrl = options.referencedImageUrl;
 
   // Note: We no longer automatically include referenced media in the current message
   // Referenced media is handled separately in the aiService formatApiMessages function
@@ -340,25 +339,12 @@ function prepareAttachmentOptions(attachments) {
     return {};
   }
 
-  // For Discord.js v14, if attachment is already an AttachmentBuilder, use it directly
   return {
-    files: attachments.map(attachment => {
-      // If it's already an AttachmentBuilder instance, return it directly
-      if (attachment.attachment instanceof AttachmentBuilder) {
-        logger.debug('[MediaHandler] Using AttachmentBuilder directly for Discord.js v14');
-        return attachment.attachment;
-      }
-      
-      // Log what we're getting if it's not an AttachmentBuilder
-      logger.debug(`[MediaHandler] Attachment is not AttachmentBuilder, type: ${typeof attachment.attachment}, constructor: ${attachment.attachment?.constructor?.name}`);
-      
-      // Otherwise, maintain backward compatibility with the old format
-      return {
-        attachment: attachment.attachment,
-        name: attachment.name,
-        contentType: attachment.contentType,
-      };
-    }),
+    files: attachments.map(attachment => ({
+      attachment: attachment.attachment,
+      name: attachment.name,
+      contentType: attachment.contentType,
+    })),
   };
 }
 
