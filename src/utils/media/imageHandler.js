@@ -8,7 +8,7 @@
  */
 
 const nodeFetch = require('node-fetch');
-const { AttachmentBuilder } = require('discord.js');
+const { Readable } = require('stream');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
@@ -244,15 +244,16 @@ function createDiscordAttachment(imageFile) {
   // Convert ArrayBuffer to Buffer
   const nodeBuffer = Buffer.from(imageFile.buffer);
 
-  // Discord.js v14 requires AttachmentBuilder for files
-  // For webhooks, we need to return the AttachmentBuilder directly
-  const attachmentBuilder = new AttachmentBuilder(nodeBuffer, {
-    name: imageFile.filename,
-    description: `Image file: ${imageFile.filename}`
-  });
+  // Create a readable stream from the buffer
+  const stream = new Readable();
+  stream.push(nodeBuffer);
+  stream.push(null);
 
-  // Return the AttachmentBuilder directly for Discord.js v14
-  return attachmentBuilder;
+  return {
+    attachment: stream,
+    name: imageFile.filename,
+    contentType: imageFile.contentType,
+  };
 }
 
 /**
@@ -282,19 +283,15 @@ async function processImageUrls(content) {
     // Download the image file
     const imageFile = await downloadImageFile(imageUrl.url);
 
-    // Create a Discord attachment (returns AttachmentBuilder directly)
-    const attachmentBuilder = createDiscordAttachment(imageFile);
+    // Create a Discord attachment
+    const attachment = createDiscordAttachment(imageFile);
 
     // Remove the original image link
     const modifiedContent = content.replace(imageUrl.url, '');
 
     return {
       content: modifiedContent,
-      attachments: [{
-        attachment: attachmentBuilder,
-        name: imageFile.filename,
-        contentType: imageFile.contentType
-      }],
+      attachments: [attachment],
     };
   } catch (error) {
     logger.error(`[ImageHandler] Failed to process image URL: ${error.message}`);
