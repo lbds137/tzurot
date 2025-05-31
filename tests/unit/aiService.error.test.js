@@ -125,9 +125,9 @@ describe('aiService Error Handling', () => {
       const OpenAI = require('openai').OpenAI;
       
       // Should not throw an error even with missing API key
-      expect(() => {
-        require('../../src/aiService');
-      }).not.toThrow();
+      // Test that the module can be required without throwing
+      const testModule = require('../../src/aiService');
+      expect(testModule).toBeDefined();
       
       // Restore environment
       process.env = envBackup;
@@ -144,9 +144,9 @@ describe('aiService Error Handling', () => {
       jest.resetModules();
       
       // Should not throw an error with undefined config values
-      expect(() => {
-        require('../../src/aiService');
-      }).not.toThrow();
+      // Test that the module can be required without throwing
+      const testModule = require('../../src/aiService');
+      expect(testModule).toBeDefined();
     });
   });
   
@@ -178,9 +178,9 @@ describe('aiService Error Handling', () => {
       ];
       
       // All of these should be detected as errors
-      highConfidencePatterns.forEach(pattern => {
+      for (const pattern of highConfidencePatterns) {
         expect(aiService.isErrorResponse(pattern)).toBe(true);
-      });
+      }
     });
     
     test('isErrorResponse should correctly identify low confidence patterns with context', () => {
