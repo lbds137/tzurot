@@ -221,6 +221,16 @@ function clearAllData() {
   }
 }
 
+// Wrapper for getAllPersonalities
+function getAllPersonalities() {
+  return personalityManager.getAllPersonalities();
+}
+
+// Wrapper for save
+async function save() {
+  return personalityManager.save();
+}
+
 // Export the same API as the old personalityManager
 module.exports = {
   initPersonalityManager,
@@ -233,6 +243,8 @@ module.exports = {
   personalityAliases: personalityManager.personalityAliases,
   saveAllPersonalities,
   seedOwnerPersonalities,
+  getAllPersonalities,
+  save,
   // For backward compatibility with tests
   personalityData: { clear: clearAllData }
 };

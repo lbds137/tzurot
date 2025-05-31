@@ -111,10 +111,12 @@ Object.assign(module.exports, {
   unregister: (...args) => registry.unregister(...args),
   get: (...args) => registry.get(...args),
   has: (...args) => registry.has(...args),
-  getAll: () => registry.getAll(),
+  getAllCommands: (...args) => registry.getAllCommands(...args),
+  getFilteredCommands: (...args) => registry.getFilteredCommands(...args),
   findByPermission: (...args) => registry.findByPermission(...args),
   
   // Properties
   get commands() { return registry.commands; },
+  get aliases() { return registry.aliases; },
   get size() { return registry.size; }
 });

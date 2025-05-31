@@ -21,6 +21,25 @@ jest.mock('../../src/auth', () => ({
   nsfwVerified: {}
 }));
 
+// Mock aiAuth module
+jest.mock('../../src/utils/aiAuth', () => ({
+  initAiClient: jest.fn(),
+  getAI: jest.fn().mockReturnValue({
+    chat: {
+      completions: {
+        create: jest.fn()
+      }
+    }
+  }),
+  getAiClientForUser: jest.fn().mockResolvedValue({
+    chat: {
+      completions: {
+        create: jest.fn()
+      }
+    }
+  })
+}));
+
 // Mock webhookUserTracker to bypass authentication
 jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false)
@@ -84,6 +103,11 @@ describe('aiService Error Handling', () => {
     
     // Override the OpenAI constructor to return our mock
     OpenAI.mockImplementation(() => mockOpenAI);
+    
+    // Update aiAuth mock to return our mockOpenAI
+    const aiAuth = require('../../src/utils/aiAuth');
+    aiAuth.getAI.mockReturnValue(mockOpenAI);
+    aiAuth.getAiClientForUser.mockResolvedValue(mockOpenAI);
     
     // Import the module under test after mocking
     aiService = require('../../src/aiService');

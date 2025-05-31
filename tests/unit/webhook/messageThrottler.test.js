@@ -10,12 +10,19 @@ const {
   calculateMessageDelay,
   updateChannelLastMessageTime,
   clearAllPendingMessages,
+  configureTimers,
 } = require('../../../src/webhook/messageThrottler');
 
 describe('messageThrottler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    
+    // Configure messageThrottler to use fake timers
+    configureTimers({
+      setTimeout: jest.fn((callback, delay) => global.setTimeout(callback, delay)),
+      clearTimeout: jest.fn((id) => global.clearTimeout(id))
+    });
     
     // Mock console methods
     jest.spyOn(console, 'log').mockImplementation();

@@ -48,7 +48,10 @@ describe('PurgBot Command', () => {
     
     // Create fake timer context for the command
     fakeTimerContext = {
-      scheduler: jest.fn((fn, delay) => setTimeout(fn, delay)),
+      scheduler: jest.fn((fn, delay) => {
+        // Use the fake timer's setTimeout
+        return global.setTimeout(fn, delay);
+      }),
       delay: jest.fn(() => Promise.resolve()) // Instant delay!
     };
     
@@ -340,8 +343,7 @@ describe('PurgBot Command', () => {
   });
   
   it('should purge system messages by default', async () => {
-    // Spy on setTimeout before executing the command
-    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    // No need to spy on setTimeout since we're using fake timers
     
     // Execute command without waiting - let it run in background
     const executePromise = purgbotCommand.execute(mockDMMessage, [], fakeTimerContext);
@@ -390,11 +392,8 @@ describe('PurgBot Command', () => {
     expect(mockEmbed.setDescription).toHaveBeenCalledWith(expect.stringContaining('Completed purging system and command messages'));
     expect(mockEmbed.setFooter).toHaveBeenCalledWith({ text: expect.stringContaining('self-destruct') });
     
-    // Verify setTimeout was called for self-destruct
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
-    
-    // Clean up spy
-    setTimeoutSpy.mockRestore();
+    // Verify scheduler was called for self-destruct
+    expect(fakeTimerContext.scheduler).toHaveBeenCalledWith(expect.any(Function), 10000);
   }, 10000); // 10 second timeout
   
   // Removed test for chat category since it no longer exists

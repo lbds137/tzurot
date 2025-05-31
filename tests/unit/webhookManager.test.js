@@ -9,8 +9,7 @@ let webhookManager;
 // Mock node-fetch
 jest.mock('node-fetch', () => {
   return jest.fn().mockImplementation(async (url, requestOptions = {}) => {
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // No need to simulate network delay in tests
     
     // Create a mock Response object
     return {

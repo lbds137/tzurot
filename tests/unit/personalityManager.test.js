@@ -22,11 +22,17 @@ describe('personalityManager', () => {
     jest.clearAllMocks();
     
     // Reset the personality data between tests
+    // The facade provides a clear method through personalityData
     if (personalityManager.personalityData && personalityManager.personalityData.clear) {
       personalityManager.personalityData.clear();
     }
-    if (personalityManager.personalityAliases) {
-      personalityManager.personalityAliases.clear();
+    
+    // Also directly access the underlying registry if available
+    // This is needed because the core module is a singleton that persists between tests
+    const PersonalityManager = require('../../src/core/personality/PersonalityManager');
+    const instance = PersonalityManager.getInstance();
+    if (instance && instance.registry) {
+      instance.registry.clear();
     }
     
     // Set up enhanced mocks using migration helper

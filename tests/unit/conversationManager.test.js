@@ -81,9 +81,7 @@ describe('Conversation Manager', () => {
   const originalConsoleError = console.error;
   const originalConsoleWarn = console.warn;
   
-  // Original setTimeout and setInterval
-  const originalSetTimeout = global.setTimeout;
-  const originalSetInterval = global.setInterval;
+  // Note: We'll use Jest fake timers instead of manually mocking
   
   // Store mocks that need cleanup
   let mkdirMock;
@@ -105,9 +103,8 @@ describe('Conversation Manager', () => {
     console.error = jest.fn();
     console.warn = jest.fn();
     
-    // Mock setTimeout and setInterval to prevent actual timers
-    global.setTimeout = jest.fn().mockReturnValue(123);
-    global.setInterval = jest.fn().mockReturnValue(456);
+    // Use Jest's fake timers
+    jest.useFakeTimers();
     
     // Reset the module's internal state by re-requiring it
     jest.resetModules();
@@ -137,9 +134,8 @@ describe('Conversation Manager', () => {
     console.error = originalConsoleError;
     console.warn = originalConsoleWarn;
     
-    // Restore timers
-    global.setTimeout = originalSetTimeout;
-    global.setInterval = originalSetInterval;
+    // Restore real timers
+    jest.useRealTimers();
     
     // Restore mock implementations
     if (mkdirMock) mkdirMock.mockRestore();

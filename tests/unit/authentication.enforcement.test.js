@@ -13,6 +13,51 @@ jest.mock('openai', () => ({
   }))
 }));
 
+// Mock aiAuth before requiring aiService
+jest.mock('../../src/utils/aiAuth', () => ({
+  initAiClient: jest.fn(),
+  getAI: jest.fn().mockReturnValue({
+    chat: {
+      completions: {
+        create: jest.fn().mockResolvedValue({
+          choices: [{
+            message: { content: 'Test response' }
+          }]
+        })
+      }
+    }
+  }),
+  getAiClientForUser: jest.fn().mockImplementation(async (userId) => {
+    const auth = require('../../src/auth');
+    // Return different clients based on auth status
+    if (auth.hasValidToken(userId)) {
+      return {
+        chat: {
+          completions: {
+            create: jest.fn().mockResolvedValue({
+              choices: [{
+                message: { content: 'Authenticated response' }
+              }]
+            })
+          }
+        }
+      };
+    }
+    // Return default client for unauthenticated users
+    return {
+      chat: {
+        completions: {
+          create: jest.fn().mockResolvedValue({
+            choices: [{
+              message: { content: 'Default response' }
+            }]
+          })
+        }
+      }
+    };
+  })
+}));
+
 const aiService = require('../../src/aiService');
 const auth = require('../../src/auth');
 const { botPrefix } = require('../../config');

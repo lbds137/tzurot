@@ -5,6 +5,23 @@
  * statistics tracking, logging, and file persistence.
  */
 
+// Mock dependencies first
+jest.mock('../../src/logger');
+jest.mock('fs', () => ({
+  promises: {
+    writeFile: jest.fn(),
+    mkdir: jest.fn()
+  }
+}));
+
+// Mock config to control environment
+jest.mock('../../config', () => ({
+  botConfig: {
+    environment: 'development'
+  }
+}));
+
+// Now require the module after mocks are set up
 const {
   trackDedupe,
   getDedupStats,
@@ -15,10 +32,6 @@ const {
 const logger = require('../../src/logger');
 const fs = require('fs').promises;
 const path = require('path');
-
-// Mock dependencies
-jest.mock('../../src/logger');
-jest.mock('fs').promises;
 
 describe('Deduplication Monitor', () => {
   let originalEnv;

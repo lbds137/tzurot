@@ -1,4 +1,4 @@
-const { isValidUrlFormat, isTrustedDomain, hasImageExtension, isImageUrl } = require('../../../src/utils/urlValidator');
+const { isValidUrlFormat, isTrustedDomain, hasImageExtension, isImageUrl, configureTimers } = require('../../../src/utils/urlValidator');
 const logger = require('../../../src/logger');
 const nodeFetch = require('node-fetch');
 
@@ -16,6 +16,21 @@ jest.mock('node-fetch', () => jest.fn());
 describe('urlValidator', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    
+    // Configure urlValidator to use fake timers
+    configureTimers({
+      setTimeout: jest.fn((callback, delay) => {
+        return global.setTimeout(callback, delay);
+      }),
+      clearTimeout: jest.fn((id) => {
+        return global.clearTimeout(id);
+      })
+    });
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('isValidUrlFormat', () => {
@@ -407,7 +422,12 @@ describe('urlValidator', () => {
     });
 
     it('should clear timeout on successful fetch', async () => {
-      const clearTimeoutSpy = jest.spyOn(global, 'clearTimeout');
+      // Get the mock clearTimeout from our configured timers
+      const mockTimers = {
+        setTimeout: jest.fn((callback, delay) => global.setTimeout(callback, delay)),
+        clearTimeout: jest.fn((id) => global.clearTimeout(id))
+      };
+      configureTimers(mockTimers);
       
       nodeFetch.mockResolvedValue({
         ok: true,
@@ -424,8 +444,7 @@ describe('urlValidator', () => {
 
       await isImageUrl('https://example.com/image', { trustExtensions: false, timeout: 5000 });
       
-      expect(clearTimeoutSpy).toHaveBeenCalled();
-      clearTimeoutSpy.mockRestore();
+      expect(mockTimers.clearTimeout).toHaveBeenCalled();
     });
   });
 });

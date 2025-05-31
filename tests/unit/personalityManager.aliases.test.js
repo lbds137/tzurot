@@ -38,16 +38,24 @@ describe('PersonalityManager Alias Handling', () => {
     // Mock logger instead of console
     const logger = require('../../src/logger');
     logger.info = jest.fn();
-    logger.error = jest.fn();
-    logger.debug = jest.fn();
-    logger.warn = jest.fn();
     
-    // Reset any in-memory storage
+    // Reset personality manager state
     const personalityManager = require('../../src/personalityManager');
     if (personalityManager.personalityData && personalityManager.personalityData.clear) {
       personalityManager.personalityData.clear();
     }
-    personalityManager.personalityAliases.clear();
+    
+    // Also reset the underlying core module singleton
+    const PersonalityManager = require('../../src/core/personality/PersonalityManager');
+    const instance = PersonalityManager.getInstance();
+    if (instance && instance.registry) {
+      instance.registry.clear();
+    }
+    
+    // Continue mocking logger methods
+    logger.error = jest.fn();
+    logger.debug = jest.fn();
+    logger.warn = jest.fn();
   });
   
   afterEach(() => {

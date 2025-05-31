@@ -12,6 +12,20 @@ const { Readable } = require('stream');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
 /**
  * Checks if a URL or filename has an image file extension
  * @param {string} urlOrFilename - The URL or filename to check
@@ -58,7 +72,7 @@ async function isImageUrl(url, options = {}) {
   // Validate by actually fetching the URL
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = timerFunctions.setTimeout(() => controller.abort(), timeout);
 
     const response = await nodeFetch(url, {
       method: 'HEAD', // Use HEAD to avoid downloading the entire file
@@ -72,7 +86,7 @@ async function isImageUrl(url, options = {}) {
       },
     });
 
-    clearTimeout(timeoutId);
+    timerFunctions.clearTimeout(timeoutId);
 
     if (!response.ok) {
       logger.warn(`[ImageHandler] URL returned non-OK status: ${response.status} for ${url}`);
@@ -159,7 +173,7 @@ async function downloadImageFile(url) {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = timerFunctions.setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
     const response = await nodeFetch(url, {
       method: 'GET',
@@ -173,7 +187,7 @@ async function downloadImageFile(url) {
       },
     });
 
-    clearTimeout(timeoutId);
+    timerFunctions.clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`Failed to download image file: ${response.status} ${response.statusText}`);
@@ -293,4 +307,5 @@ module.exports = {
   downloadImageFile,
   createDiscordAttachment,
   processImageUrls,
+  configureTimers,
 };

@@ -453,6 +453,8 @@ Object.assign(module.exports, {
   getAllAliasesForPersonality: (...args) => personalityManager.getAllAliasesForPersonality(...args),
   seedOwnerPersonalities: (...args) => personalityManager.seedOwnerPersonalities(...args),
   validatePersonalityName: (...args) => personalityManager.validatePersonalityName(...args),
+  getAllPersonalities: (...args) => personalityManager.getAllPersonalities(...args),
+  save: (...args) => personalityManager.save(...args),
   
   // Properties
   get personalityAliases() { return personalityManager.personalityAliases; },

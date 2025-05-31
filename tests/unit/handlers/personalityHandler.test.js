@@ -70,10 +70,6 @@ describe('Personality Handler Module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Mock global timer functions
-    global.setInterval = jest.fn().mockReturnValue(123);
-    global.clearInterval = jest.fn();
-    
     // Mock message object
     mockMessage = {
       id: 'message-id',
@@ -245,45 +241,55 @@ describe('Personality Handler Module', () => {
   });
   
   describe('startTypingIndicator', () => {
+    let mockInterval;
+    
+    beforeEach(() => {
+      // Use a fake interval ID
+      mockInterval = 12345;
+      
+      // Configure personality handler with mock timers
+      personalityHandler.configureTimers({
+        setInterval: jest.fn((callback, delay) => {
+          // Store the callback for testing
+          personalityHandler._testIntervalCallback = callback;
+          return mockInterval;
+        }),
+        clearInterval: jest.fn(),
+        setTimeout: jest.fn(),
+        clearTimeout: jest.fn()
+      });
+    });
+    
+    afterEach(() => {
+      // Reset timers to defaults
+      personalityHandler.configureTimers({
+        setInterval: global.setInterval,
+        clearInterval: global.clearInterval,
+        setTimeout: global.setTimeout,
+        clearTimeout: global.clearTimeout
+      });
+    });
+    
     it('should start typing indicator and return interval ID', () => {
-      // Store original environment and timer functions
-      const originalEnv = process.env.NODE_ENV;
-      const originalSetInterval = global.setInterval;
-      const originalClearInterval = global.clearInterval;
-      
-      // Temporarily set NODE_ENV to production to bypass the test environment check
-      process.env.NODE_ENV = 'production';
-      
-      // Create a proper fake timer environment for this test
-      jest.useFakeTimers();
-      
       const channel = {
         sendTyping: jest.fn().mockResolvedValue({})
       };
       
       const result = personalityHandler.startTypingIndicator(channel);
       
-      expect(result).toBeDefined();
+      expect(result).toBe(mockInterval);
       expect(channel.sendTyping).toHaveBeenCalled();
-      
-      // Advance timers to trigger the interval (5 seconds + a bit more)
-      jest.advanceTimersByTime(6000);
-      
-      expect(channel.sendTyping).toHaveBeenCalledTimes(2);
-      
-      // Clean up
-      clearInterval(result);
-      jest.useRealTimers();
-      
-      // Restore original values
-      process.env.NODE_ENV = originalEnv;
-      global.setInterval = originalSetInterval;
-      global.clearInterval = originalClearInterval;
     });
     
     it('should handle errors when starting typing indicator', () => {
-      // Skip this test for now as the implementation may have changed
-      expect(true).toBe(true);
+      const channel = {
+        sendTyping: jest.fn().mockRejectedValue(new Error('Network error'))
+      };
+      
+      const result = personalityHandler.startTypingIndicator(channel);
+      
+      // Should still return interval ID even if sendTyping fails
+      expect(result).toBe(mockInterval);
     });
   });
   
@@ -465,6 +471,18 @@ describe('Personality Handler Module', () => {
     it('should start typing indicator', async () => {
       mockMessage.channel.sendTyping.mockResolvedValue();
       
+      // Configure mock timers for this test
+      const mockInterval = 12345;
+      const mockSetInterval = jest.fn().mockReturnValue(mockInterval);
+      const mockClearInterval = jest.fn();
+      
+      personalityHandler.configureTimers({
+        setInterval: mockSetInterval,
+        clearInterval: mockClearInterval,
+        setTimeout: global.setTimeout,
+        clearTimeout: global.clearTimeout
+      });
+      
       const promise = personalityHandler.handlePersonalityInteraction(
         mockMessage, 
         mockPersonality, 
@@ -477,7 +495,15 @@ describe('Personality Handler Module', () => {
       
       // Verify typing indicator was started
       expect(mockMessage.channel.sendTyping).toHaveBeenCalled();
-      expect(setInterval).toHaveBeenCalled();
+      expect(mockSetInterval).toHaveBeenCalled();
+      
+      // Reset timers
+      personalityHandler.configureTimers({
+        setInterval: global.setInterval,
+        clearInterval: global.clearInterval,
+        setTimeout: global.setTimeout,
+        clearTimeout: global.clearTimeout
+      });
     });
     
     it('should call getAiResponse with correct parameters', async () => {

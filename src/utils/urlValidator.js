@@ -11,6 +11,20 @@
 const nodeFetch = require('node-fetch');
 const logger = require('../logger');
 
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout
+};
+
+/**
+ * Configure timer functions (for testing)
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function configureTimers(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
 /**
  * Validates if a URL is properly formatted
  * @param {string} url - The URL to validate
@@ -97,7 +111,7 @@ async function isImageUrl(url, options = {}) {
   // Validate by actually fetching the URL
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = timerFunctions.setTimeout(() => controller.abort(), timeout);
 
     const response = await nodeFetch(url, {
       method: 'GET',
@@ -112,7 +126,7 @@ async function isImageUrl(url, options = {}) {
       },
     });
 
-    clearTimeout(timeoutId);
+    timerFunctions.clearTimeout(timeoutId);
 
     if (!response.ok) {
       logger.warn(`[UrlValidator] URL returned non-OK status: ${response.status} for ${url}`);
@@ -168,4 +182,5 @@ module.exports = {
   isTrustedDomain,
   hasImageExtension,
   isImageUrl,
+  configureTimers,
 };

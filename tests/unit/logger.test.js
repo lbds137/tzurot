@@ -138,10 +138,21 @@ describe('Logger module', () => {
     // In test environment, the logger will use 'error' level instead of 'info'
     // and only create console transport, not file transports
     
+    // Make sure JEST_WORKER_ID is set
+    const originalJestWorkerId = process.env.JEST_WORKER_ID;
+    process.env.JEST_WORKER_ID = '1';
+    
     // Import the logger module
     jest.isolateModules(() => {
       require('../../src/logger');
     });
+    
+    // Restore environment
+    if (originalJestWorkerId === undefined) {
+      delete process.env.JEST_WORKER_ID;
+    } else {
+      process.env.JEST_WORKER_ID = originalJestWorkerId;
+    }
     
     // Winston's createLogger should be called once
     expect(winston.createLogger).toHaveBeenCalledTimes(1);

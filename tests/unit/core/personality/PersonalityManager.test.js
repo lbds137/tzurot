@@ -28,18 +28,23 @@ jest.mock('../../../../src/constants', () => ({
 }));
 
 // Import after mocking external deps
-const personalityManager = require('../../../../src/core/personality/PersonalityManager');
+const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
 const logger = require('../../../../src/logger');
 const { getProfileAvatarUrl, getProfileDisplayName } = require('../../../../src/profileInfoFetcher');
 const { loadData, saveData } = require('../../../../src/dataStorage');
 
 describe('PersonalityManager Integration Tests', () => {
+  let personalityManager;
+  
   beforeEach(() => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     
-    // Reset the singleton state
-    personalityManager.registry.clear();
+    // Get the singleton instance and reset its state
+    personalityManager = PersonalityManager.getInstance();
+    if (personalityManager.registry) {
+      personalityManager.registry.clear();
+    }
     personalityManager.initialized = false;
 
     // Set up default mocks for external dependencies

@@ -27,6 +27,13 @@ describe('personalityManager - Initialization and Persistence', () => {
     // Reset the personality data between tests
     personalityManager.personalityData?.clear();
     personalityManager.personalityAliases?.clear();
+    
+    // Also reset the underlying core module singleton
+    const PersonalityManager = require('../../src/core/personality/PersonalityManager');
+    const instance = PersonalityManager.getInstance();
+    if (instance && instance.registry) {
+      instance.registry.clear();
+    }
   });
   
   describe('initPersonalityManager', () => {
