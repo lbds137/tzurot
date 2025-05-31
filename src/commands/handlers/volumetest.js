@@ -12,14 +12,13 @@ const logger = require('../../logger');
 module.exports = {
   meta: {
     name: 'volumetest',
-    description: 'Test if persistent volume is working (admin only)',
-    usage: '!tz volumetest',
-    permissions: ['ADMIN']
+    description: 'Test if persistent volume is working (bot owner only)',
+    usage: '!tz volumetest'
   },
   
   async execute(message, args, config) {
     // Check if user is bot owner
-    if (message.author.id !== config.botOwner) {
+    if (message.author.id !== process.env.BOT_OWNER_ID) {
       await message.reply('This command is restricted to the bot owner.');
       return;
     }
@@ -89,6 +88,16 @@ module.exports = {
             name: 'Files in Directory',
             value: files.join(', ') || 'None',
             inline: false
+          },
+          {
+            name: 'Debug: Your ID',
+            value: message.author.id,
+            inline: true
+          },
+          {
+            name: 'Debug: Bot Owner ID',
+            value: process.env.BOT_OWNER_ID || 'Not set',
+            inline: true
           }
         ],
         timestamp: new Date().toISOString()
