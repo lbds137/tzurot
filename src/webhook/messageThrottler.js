@@ -28,8 +28,8 @@ const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: global.setTimeout,
-  clearTimeout: global.clearTimeout
+  setTimeout: (...args) => setTimeout(...args),
+  clearTimeout: (...args) => clearTimeout(...args)
 };
 
 /**
