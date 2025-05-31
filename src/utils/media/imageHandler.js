@@ -14,8 +14,8 @@ const urlValidator = require('../urlValidator');
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  setTimeout: globalThis.setTimeout,
+  clearTimeout: globalThis.clearTimeout
 };
 
 /**

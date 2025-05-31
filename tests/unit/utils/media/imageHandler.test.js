@@ -7,6 +7,16 @@ const imageHandler = require('../../../../src/utils/media/imageHandler');
 jest.mock('node-fetch');
 const nodeFetch = require('node-fetch');
 
+// Mock Discord.js
+jest.mock('discord.js', () => ({
+  AttachmentBuilder: jest.fn().mockImplementation((buffer, options) => ({
+    constructor: { name: 'AttachmentBuilder' },
+    attachment: buffer,
+    name: options?.name,
+    description: options?.description,
+  })),
+}));
+
 // Mock the logger
 jest.mock('../../../../src/logger');
 const logger = require('../../../../src/logger');

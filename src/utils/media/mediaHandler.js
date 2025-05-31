@@ -16,7 +16,7 @@
 const logger = require('../../logger');
 const audioHandler = require('./audioHandler');
 const imageHandler = require('./imageHandler');
-const _urlValidator = require('../urlValidator');
+const urlValidator = require('../urlValidator');
 
 /**
  * Detect and process media in a Discord message
@@ -160,8 +160,8 @@ async function detectMedia(message, messageContent, options = {}) {
 
   // Referenced media should be handled separately by aiService, not included in current message
   const useReferencedMedia = false;
-  const _referencedAudioUrl = options.referencedAudioUrl;
-  const _referencedImageUrl = options.referencedImageUrl;
+  const referencedAudioUrl = options.referencedAudioUrl;
+  const referencedImageUrl = options.referencedImageUrl;
 
   // Note: We no longer automatically include referenced media in the current message
   // Referenced media is handled separately in the aiService formatApiMessages function
