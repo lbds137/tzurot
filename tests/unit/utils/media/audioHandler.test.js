@@ -4,7 +4,6 @@
 
 const audioHandler = require('../../../../src/utils/media/audioHandler');
 const nodeFetch = require('node-fetch');
-const { Readable } = require('stream');
 const logger = require('../../../../src/logger');
 const urlValidator = require('../../../../src/utils/urlValidator');
 
@@ -437,7 +436,7 @@ describe('audioHandler', () => {
       const result = audioHandler.createDiscordAttachment(audioFile);
       
       expect(result).toHaveProperty('attachment');
-      expect(result.attachment).toBeInstanceOf(Readable);
+      expect(result.attachment).toBeInstanceOf(Buffer);
       expect(result).toHaveProperty('name', 'audio.mp3');
       expect(result).toHaveProperty('contentType', 'audio/mpeg');
     });
