@@ -22,7 +22,7 @@ This guide covers various deployment options for Tzurot, from simple VPS deploym
 
 ### System Requirements
 
-- **Node.js**: Version 16.x or higher
+- **Node.js**: Version 22.x or higher (specified in package.json)
 - **Memory**: Minimum 512MB RAM (1GB recommended)
 - **Storage**: 500MB for application and dependencies
 - **Network**: Stable internet connection
@@ -273,6 +273,38 @@ docker-compose down
    railway variables set SERVICE_API_KEY=your_key
    # Set all other required variables
    ```
+
+4. **Configure Persistent Volume** (Critical for data persistence):
+   
+   The bot uses a persistent volume to maintain data across deployments. This is configured in `railway.json`:
+   
+   ```json
+   {
+     "$schema": "https://railway.app/railway.schema.json",
+     "build": {
+       "builder": "NIXPACKS"
+     },
+     "deploy": {
+       "numReplicas": 1,
+       "restartPolicyType": "ON_FAILURE",
+       "restartPolicyMaxRetries": 10
+     },
+     "volumes": [
+       {
+         "mount": "/app/data",
+         "name": "tzurot-persistent-data"
+       }
+     ]
+   }
+   ```
+   
+   This ensures:
+   - User authentication tokens persist across deployments
+   - Personality registrations are retained
+   - Aliases are preserved
+   - No data loss during deployments
+   
+   The volume is automatically created when you deploy with this configuration.
 
 #### Heroku Deployment
 
