@@ -293,26 +293,33 @@ class PersonalityManager {
     }
     const ownerPersonalities = this.listPersonalitiesForUser(ownerId);
     
-    if (ownerPersonalities.length > 0) {
-      logger.info(`[PersonalityManager] Owner already has ${ownerPersonalities.length} personalities, skipping seeding`);
-      return;
-    }
-
-    logger.info('[PersonalityManager] Starting owner personality seeding...');
-    
-    // Get list of personalities from constants
-    let personalitiesToAdd = [];
+    // Get list of expected personalities from constants
+    let expectedPersonalities = [];
     try {
       const constants = require('../../constants');
       if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_PERSONALITIES_LIST) {
-        personalitiesToAdd = constants.USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',').map(p => p.trim());
+        expectedPersonalities = constants.USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',').map(p => p.trim());
       }
     } catch (_error) { // eslint-disable-line no-unused-vars
       // If constants not available, use default list
-      personalitiesToAdd = [
+      expectedPersonalities = [
         'assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'
       ];
     }
+    
+    // Check which personalities are missing
+    const existingNames = ownerPersonalities.map(p => p.personality).map(name => name.toLowerCase());
+    const personalitiesToAdd = expectedPersonalities.filter(
+      name => !existingNames.includes(name.toLowerCase())
+    );
+    
+    if (personalitiesToAdd.length === 0) {
+      logger.info(`[PersonalityManager] Owner has all ${expectedPersonalities.length} expected personalities`);
+      return;
+    }
+
+    logger.info(`[PersonalityManager] Owner has ${ownerPersonalities.length} personalities, missing ${personalitiesToAdd.length}: ${personalitiesToAdd.join(', ')}`);
+    logger.info('[PersonalityManager] Starting personality seeding for missing entries...');
 
     const addedPersonalities = [];
     for (const personalityName of personalitiesToAdd) {
