@@ -10,7 +10,7 @@ const MessageTracker = require('./utils/messageTracker');
 const { botPrefix } = require('../../config');
 
 // Create a shared message tracker instance
-let messageTracker = new MessageTracker();
+const messageTracker = new MessageTracker();
 
 // Default command context that can be overridden for testing
 let commandContext = {

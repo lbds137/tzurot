@@ -220,7 +220,28 @@ async function downloadAudioFile(url) {
     }
 
     // Read the response as an array buffer
-    const buffer = await response.arrayBuffer();
+    let buffer;
+    try {
+      buffer = await response.arrayBuffer();
+    } catch (error) {
+      logger.error(`[AudioHandler] Failed to read response as array buffer: ${error.message}`);
+      throw new Error(`Failed to read audio data: ${error.message}`);
+    }
+
+    // Validate buffer
+    if (!buffer) {
+      logger.error('[AudioHandler] Response returned null or undefined buffer');
+      throw new Error('Audio download returned empty data');
+    }
+
+    // Check buffer size
+    const bufferSize = buffer.byteLength;
+    if (bufferSize === 0) {
+      logger.error('[AudioHandler] Downloaded audio file is empty');
+      throw new Error('Downloaded audio file is empty');
+    }
+
+    logger.info(`[AudioHandler] Successfully downloaded audio file: ${filename} (${bufferSize} bytes)`);
 
     return {
       buffer,
@@ -239,13 +260,40 @@ async function downloadAudioFile(url) {
  * @returns {Object} - Discord.js compatible attachment object
  */
 function createDiscordAttachment(audioFile) {
+  // Validate input
+  if (!audioFile || !audioFile.buffer) {
+    logger.error('[AudioHandler] Invalid audio file object - missing buffer');
+    throw new Error('Cannot create attachment from invalid audio file');
+  }
+
   // Convert ArrayBuffer to Buffer
-  const nodeBuffer = Buffer.from(audioFile.buffer);
+  let nodeBuffer;
+  try {
+    nodeBuffer = Buffer.from(audioFile.buffer);
+  } catch (error) {
+    logger.error(`[AudioHandler] Failed to convert ArrayBuffer to Buffer: ${error.message}`);
+    throw new Error('Failed to create buffer from audio data');
+  }
+
+  // Validate buffer is not empty
+  if (!nodeBuffer || nodeBuffer.length === 0) {
+    logger.error('[AudioHandler] Buffer is empty or invalid');
+    throw new Error('Audio buffer is empty');
+  }
 
   // Create a readable stream from the buffer
-  const stream = new Readable();
-  stream.push(nodeBuffer);
-  stream.push(null);
+  // For newer versions of undici/discord.js, we need to ensure the stream is properly initialized
+  const stream = new Readable({
+    read() {} // Required for proper stream initialization
+  });
+  
+  try {
+    stream.push(nodeBuffer);
+    stream.push(null); // Signal end of stream
+  } catch (error) {
+    logger.error(`[AudioHandler] Failed to create stream: ${error.message}`);
+    throw new Error('Failed to create audio stream');
+  }
 
   return {
     attachment: stream,
