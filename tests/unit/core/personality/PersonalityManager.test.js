@@ -44,8 +44,10 @@ describe('PersonalityManager Integration Tests', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     
-    // Get the singleton instance and reset its state
-    personalityManager = PersonalityManager.getInstance();
+    // Create a fresh instance for each test to avoid singleton issues
+    personalityManager = PersonalityManager.create({
+      delay: () => Promise.resolve() // No-op delay for tests
+    });
     
     // IMPORTANT: Reset ALL state to ensure test isolation
     if (personalityManager.registry) {
@@ -371,13 +373,20 @@ describe('PersonalityManager Integration Tests', () => {
       logger.info.mockClear();
       logger.error.mockClear();
       
+      // Reset ALL PersonalityManager state
       personalityManager.registry.clear();
       personalityManager.initialized = false;
+      
+      // CRITICAL: Reset the expected personalities list
+      if (personalityManager._expectedPersonalities) {
+        personalityManager._expectedPersonalities = null;
+      }
+      
       delete process.env.BOT_OWNER_ID;
       // Force all timers to complete
       jest.runOnlyPendingTimers();
       
-      // Initialize the PersonalityManager
+      // Initialize the PersonalityManager fresh
       await personalityManager.initialize();
     });
 
@@ -401,20 +410,17 @@ describe('PersonalityManager Integration Tests', () => {
       const personalities = personalityManager.listPersonalitiesForUser('owner123');
       
       // Check that the function ran and logged appropriately
-      // The test environment might not add personalities due to mocking
       expect(logger.info).toHaveBeenCalled();
       
-      // If personalities were added, verify the completion message
-      const seedingCompleteCall = logger.info.mock.calls.find(
-        call => call[0] && call[0].includes('[PersonalityManager] Seeding complete. Added')
+      // Log all info calls for debugging
+      const allInfoCalls = logger.info.mock.calls.map(call => call[0]);
+      
+      // Should either complete seeding or skip if already has personalities
+      const hasOwnerMessage = allInfoCalls.some(msg => 
+        msg && (msg.includes('Owner has') || msg.includes('Seeding complete'))
       );
       
-      // Either seeding was skipped or completed
-      const seedingSkippedCall = logger.info.mock.calls.find(
-        call => call[0] && call[0].includes('[PersonalityManager] Owner has')
-      );
-      
-      expect(seedingCompleteCall || seedingSkippedCall).toBeTruthy();
+      expect(hasOwnerMessage).toBeTruthy();
 
       delete process.env.BOT_OWNER_ID;
     });
@@ -511,17 +517,17 @@ describe('PersonalityManager Integration Tests', () => {
       // Clear all mocks first
       jest.clearAllMocks();
 
-      // Run timers to completion before testing
-      jest.runAllTimers();
-
       const registerSpy = jest.spyOn(personalityManager, 'registerPersonality');
       await personalityManager.seedOwnerPersonalities();
 
       // Should not have registered any personalities
       expect(registerSpy).not.toHaveBeenCalled();
       
+      // Should log the skip message
+      expect(logger.info).toHaveBeenCalledWith('[PersonalityManager] No bot owner ID configured, skipping seeding');
+      
       registerSpy.mockRestore();
-    }, 10000);
+    });
   });
 
   describe('listPersonalitiesForUser', () => {
