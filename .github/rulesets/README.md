@@ -9,13 +9,13 @@ This directory contains GitHub ruleset configurations for the repository.
 # Install GitHub CLI if not already installed
 # https://cli.github.com/
 
-# Import the ruleset
+# Import the ruleset (use the no-bypass version to avoid actor ID issues)
 gh api \
   --method POST \
   -H "Accept: application/vnd.github+json" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   /repos/OWNER/REPO/rulesets \
-  --input .github/rulesets/branch-protection.json
+  --input .github/rulesets/branch-protection-no-bypass.json
 ```
 
 ### Method 2: GitHub Web UI
