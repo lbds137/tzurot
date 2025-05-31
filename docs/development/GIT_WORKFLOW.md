@@ -189,6 +189,9 @@ git branch -d feature/name
 When you push:
 1. **Pre-commit hooks** run locally (if setup)
 2. **GitHub Actions** run tests and linting
+   - Configured in `.github/workflows/ci.yml`
+   - Runs on every PR and push to main/develop
+   - Must pass for PRs to be mergeable
 3. **Railway** auto-deploys:
    - `develop` → Development environment
    - `main` → Production environment
