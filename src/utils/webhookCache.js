@@ -4,13 +4,27 @@
  * This module manages caching of Discord webhook clients to reduce API calls
  * and improve performance. It handles both regular channel webhooks and
  * thread-specific webhooks.
+ * 
+ * Now uses LRUCache to prevent unbounded memory growth.
  */
 
 const { WebhookClient } = require('discord.js');
 const logger = require('../logger');
+const LRUCache = require('./LRUCache');
 
 // Cache to store webhook instances by channel ID
-const webhookCache = new Map();
+// Using LRU cache with a reasonable limit for webhook clients
+const webhookCache = new LRUCache({
+  maxSize: 100, // 100 webhooks should be enough for most servers
+  ttl: 24 * 60 * 60 * 1000, // 24 hours TTL
+  onEvict: (channelId, webhook) => {
+    logger.debug(`[WebhookCache] Evicting webhook for channel ${channelId}`);
+    // Important: Destroy the webhook client to close connections
+    if (webhook && typeof webhook.destroy === 'function') {
+      webhook.destroy();
+    }
+  }
+});
 
 // Track all active webhooks to prevent duplicates
 const activeWebhooks = new Set();
@@ -138,9 +152,8 @@ async function getOrCreateWebhook(channel) {
  * @param {string} channelId - Discord channel ID
  */
 function clearWebhookCache(channelId) {
+  // The LRUCache will call the onEvict callback which handles destroy()
   if (webhookCache.has(channelId)) {
-    const webhook = webhookCache.get(channelId);
-    webhook.destroy(); // Close any open connections
     webhookCache.delete(channelId);
     logger.info(`[WebhookCache] Cleared webhook cache for channel ${channelId}`);
   }
@@ -148,8 +161,6 @@ function clearWebhookCache(channelId) {
   // Also clear thread-specific cache if it exists
   const threadKey = `thread-${channelId}`;
   if (webhookCache.has(threadKey)) {
-    const webhook = webhookCache.get(threadKey);
-    webhook.destroy();
     webhookCache.delete(threadKey);
     logger.info(`[WebhookCache] Cleared thread webhook cache for ${threadKey}`);
   }
@@ -161,10 +172,7 @@ function clearWebhookCache(channelId) {
 function clearAllWebhookCaches() {
   logger.info(`[WebhookCache] Clearing all webhook caches (${webhookCache.size} entries)`);
   
-  for (const [_channelId, webhook] of webhookCache.entries()) {
-    webhook.destroy(); // Close any open connections
-  }
-  
+  // LRUCache.clear() will call onEvict for each entry, which handles destroy()
   webhookCache.clear();
   activeWebhooks.clear();
   
@@ -203,16 +211,17 @@ function getActiveWebhooks() {
 function registerEventListeners(discordClient) {
   // Clean up webhooks when channels are deleted
   discordClient.on('channelDelete', (channel) => {
-    if (webhookCache.has(channel.id)) {
-      logger.info(`[WebhookCache] Channel ${channel.id} deleted, clearing webhook cache`);
-      clearWebhookCache(channel.id);
+    const channelId = String(channel.id);
+    if (webhookCache.has(channelId)) {
+      logger.info(`[WebhookCache] Channel ${channelId} deleted, clearing webhook cache`);
+      clearWebhookCache(channelId);
     }
     
     // Also clean up any thread-specific webhooks for this channel
-    const threadKey = `thread-${channel.id}`;
+    const threadKey = `thread-${channelId}`;
     if (webhookCache.has(threadKey)) {
-      logger.info(`[WebhookCache] Thread ${channel.id} deleted, clearing thread webhook cache`);
-      clearWebhookCache(threadKey);
+      logger.info(`[WebhookCache] Thread ${channelId} deleted, clearing thread webhook cache`);
+      clearWebhookCache(channelId);
     }
   });
   
