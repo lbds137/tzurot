@@ -374,24 +374,36 @@ describe('PersonalityManager Integration Tests', () => {
       // Check if personalities were added to the registry (using default list)
       const personalities = personalityManager.listPersonalitiesForUser('owner123');
       
-      // If no personalities were added, it could be due to constants or rate limiting
-      // Just check that the function ran and logged appropriately
-      if (personalities.length > 0) {
-        expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('[PersonalityManager] Seeding complete. Added'));
-      } else {
-        // Might skip due to various reasons in test environment
-        expect(logger.info).toHaveBeenCalled();
-      }
+      // Check that the function ran and logged appropriately
+      // The test environment might not add personalities due to mocking
+      expect(logger.info).toHaveBeenCalled();
+      
+      // If personalities were added, verify the completion message
+      const seedingCompleteCall = logger.info.mock.calls.find(
+        call => call[0] && call[0].includes('[PersonalityManager] Seeding complete. Added')
+      );
+      
+      // Either seeding was skipped or completed
+      const seedingSkippedCall = logger.info.mock.calls.find(
+        call => call[0] && call[0].includes('[PersonalityManager] Owner has')
+      );
+      
+      expect(seedingCompleteCall || seedingSkippedCall).toBeTruthy();
 
       delete process.env.BOT_OWNER_ID;
     });
 
-    it('should skip seeding if owner already has personalities', async () => {
+    it('should skip seeding if owner has all expected personalities', async () => {
       process.env.BOT_OWNER_ID = 'owner123';
       
-      // Register a personality for the owner
-      personalityManager.registry.register('existing', {
-        fullName: 'existing',
+      // Register all expected personalities
+      personalityManager.registry.register('test-personality1', {
+        fullName: 'test-personality1',
+        addedBy: 'owner123',
+        addedAt: new Date().toISOString()
+      });
+      personalityManager.registry.register('test-personality2', {
+        fullName: 'test-personality2',
         addedBy: 'owner123',
         addedAt: new Date().toISOString()
       });
@@ -403,9 +415,64 @@ describe('PersonalityManager Integration Tests', () => {
       await personalityManager.seedOwnerPersonalities();
 
       expect(registerSpy).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[PersonalityManager] Owner has all 2 expected personalities');
+
+      delete process.env.BOT_OWNER_ID;
+      registerSpy.mockRestore();
+    });
+
+    it('should add only missing personalities when some already exist', async () => {
+      process.env.BOT_OWNER_ID = 'owner123';
       
-      // The function should have returned early without registering any personalities
-      expect(personalityManager.listPersonalitiesForUser('owner123').length).toBe(1);
+      // Register only one of the expected personalities
+      personalityManager.registry.register('test-personality1', {
+        fullName: 'test-personality1',
+        addedBy: 'owner123',
+        addedAt: new Date().toISOString()
+      });
+      
+      // Clear the mocks before the test
+      jest.clearAllMocks();
+      
+      // Mock successful registration
+      const registerSpy = jest.spyOn(personalityManager, 'registerPersonality')
+        .mockResolvedValue({ success: true });
+
+      await personalityManager.seedOwnerPersonalities({ skipDelays: true });
+
+      // Should only register the missing personality
+      expect(registerSpy).toHaveBeenCalledTimes(1);
+      expect(registerSpy).toHaveBeenCalledWith('test-personality2', 'owner123');
+      expect(logger.info).toHaveBeenCalledWith('[PersonalityManager] Owner has 1 personalities, missing 1: test-personality2');
+
+      delete process.env.BOT_OWNER_ID;
+      registerSpy.mockRestore();
+    });
+
+    it('should handle case-insensitive personality comparison', async () => {
+      process.env.BOT_OWNER_ID = 'owner123';
+      
+      // Register personalities with different casing
+      personalityManager.registry.register('Test-Personality1', {
+        fullName: 'Test-Personality1',
+        addedBy: 'owner123',
+        addedAt: new Date().toISOString()
+      });
+      personalityManager.registry.register('TEST-PERSONALITY2', {
+        fullName: 'TEST-PERSONALITY2',
+        addedBy: 'owner123',
+        addedAt: new Date().toISOString()
+      });
+      
+      // Clear the mocks before the test
+      jest.clearAllMocks();
+
+      const registerSpy = jest.spyOn(personalityManager, 'registerPersonality');
+      await personalityManager.seedOwnerPersonalities();
+
+      // Should recognize both personalities despite case differences
+      expect(registerSpy).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[PersonalityManager] Owner has all 2 expected personalities');
 
       delete process.env.BOT_OWNER_ID;
       registerSpy.mockRestore();

@@ -308,7 +308,7 @@ class PersonalityManager {
     }
     
     // Check which personalities are missing
-    const existingNames = ownerPersonalities.map(p => p.personality).map(name => name.toLowerCase());
+    const existingNames = ownerPersonalities.map(p => p.fullName).map(name => name.toLowerCase());
     const personalitiesToAdd = expectedPersonalities.filter(
       name => !existingNames.includes(name.toLowerCase())
     );
