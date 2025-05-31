@@ -222,10 +222,13 @@ describe('WebhookManager - Chunk Delay Tests', () => {
   });
   
   it('should handle delay errors gracefully', async () => {
-    // Create content that will be split into 3 chunks
-    const content = 'This will be split into three chunks for testing the delay error handling properly. '.repeat(2);
+    // Create content that will be split into 3 chunks (each chunk can be ~2000 chars)
+    const chunk1 = 'A'.repeat(1950);
+    const chunk2 = 'B'.repeat(1950);
+    const chunk3 = 'C'.repeat(1950);
+    const content = chunk1 + ' ' + chunk2 + ' ' + chunk3;
     
-    // Mock processMediaForWebhook to return simple content without multimodal
+    // Mock processMediaForWebhook to return the long content
     require('../../src/utils/media').processMediaForWebhook.mockResolvedValue({ 
       content: content,
       attachments: [],
