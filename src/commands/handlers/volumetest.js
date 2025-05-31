@@ -13,7 +13,7 @@ module.exports = {
   meta: {
     name: 'volumetest',
     description: 'Test if persistent volume is working (bot owner only)',
-    usage: '!tz volumetest'
+    usage: 'volumetest'
   },
   
   async execute(message, args, config) {
