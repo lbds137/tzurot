@@ -344,7 +344,7 @@ describe('PersonalityManager Integration Tests', () => {
   });
 
   describe('seedOwnerPersonalities', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
       // Ensure a clean state before each test
       jest.clearAllMocks();
       jest.clearAllTimers();
@@ -353,6 +353,9 @@ describe('PersonalityManager Integration Tests', () => {
       delete process.env.BOT_OWNER_ID;
       // Force all timers to complete
       jest.runOnlyPendingTimers();
+      
+      // Initialize the PersonalityManager
+      await personalityManager.initialize();
     });
 
     afterEach(() => {
