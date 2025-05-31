@@ -44,6 +44,23 @@ async function init() {
     await initStorage();
     logger.info('Data storage initialized');
     
+    // Check if Railway volume is mounted
+    const fs = require('fs').promises;
+    try {
+      const dataDir = '/app/data';
+      const stats = await fs.stat(dataDir);
+      if (stats.isDirectory()) {
+        logger.info(`Railway volume mounted successfully at ${dataDir}`);
+        // Test write permissions
+        const testFile = `${dataDir}/.volume-test`;
+        await fs.writeFile(testFile, new Date().toISOString());
+        await fs.unlink(testFile);
+        logger.info('Railway volume is writable');
+      }
+    } catch (volumeError) {
+      logger.warn('Railway volume not detected or not writable:', volumeError.message);
+    }
+    
     // Initialize basic personality manager (loads existing data)
     await initPersonalityManager();
     logger.info('Personality manager initialized');
