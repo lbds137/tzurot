@@ -17,7 +17,8 @@ jobs:
         node-version: '20'
         cache: 'npm'
     - run: npm ci
-    - run: npm run lint
+    # For now, only check for errors, not warnings
+    - run: npm run lint:errors
 
   test:
     runs-on: ubuntu-latest

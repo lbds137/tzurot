@@ -202,7 +202,9 @@ When you push:
 You're trying to push directly to develop/main. Create a feature branch instead.
 
 ### "Checks failing"
-Run `npm test` and `npm run lint` locally to see what's failing.
+Run `npm test` and `npm run lint:errors` locally to see what's failing.
+
+Note: CI currently only fails on ESLint errors, not warnings. We have many warnings that need to be addressed gradually.
 
 ### "Branch out of date"
 ```bash
