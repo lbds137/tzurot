@@ -48,12 +48,12 @@ describe('VolumeTest Command', () => {
     // Set up environment
     process.env.BOT_OWNER_ID = mockBotOwnerId;
     
-    // Mock process.cwd
-    jest.spyOn(process, 'cwd').mockReturnValue('/home/deck/WebstormProjects/tzurot');
+    // Mock process.cwd with a generic test directory
+    jest.spyOn(process, 'cwd').mockReturnValue('/test/project');
     
     // Mock path.join and path.resolve
     path.join.mockImplementation((...args) => args.join('/'));
-    path.resolve.mockImplementation((p) => p.startsWith('/') ? p : `/home/deck/WebstormProjects/tzurot/${p}`);
+    path.resolve.mockImplementation((p) => p.startsWith('/') ? p : `/test/project/${p}`);
     
     // Create enhanced mock message
     mockMessage = migrationHelper.enhanced.createMessage({
