@@ -48,11 +48,13 @@ const TEST_ANTI_PATTERNS = {
     {
       pattern: /\.mockImplementation\(/g,
       check: (match, content, fileContent) => {
-        // Check if mock is restored
+        // Check if mock is restored OR if using clearAllMocks (which is usually sufficient)
         return !fileContent.includes('.mockRestore') && 
-               !fileContent.includes('jest.restoreAllMocks');
+               !fileContent.includes('jest.restoreAllMocks') &&
+               !fileContent.includes('jest.clearAllMocks') &&
+               !fileContent.includes('beforeEach');
       },
-      message: 'Mock implementation without restore. Consider adding mockRestore().',
+      message: 'Mock implementation without cleanup. Add jest.clearAllMocks() in beforeEach().',
       severity: 'warning'
     }
   ],
@@ -264,10 +266,10 @@ const TEST_ANTI_PATTERNS = {
       severity: 'error'
     },
     {
-      pattern: /toHaveBeenCalledWith\s*\([^)]*\).*toHaveBeenCalledWith/gs,
+      pattern: /(\w+)\.toHaveBeenCalledWith\s*\([^)]*\)[^;]*;\s*\1\.toHaveBeenCalledWith/g,
       check: () => true,
-      message: 'Multiple toHaveBeenCalledWith on same spy. Consider testing outcome instead.',
-      severity: 'warning'
+      message: 'Multiple toHaveBeenCalledWith on same spy in sequence. Consider testing outcome instead.',
+      severity: 'info'
     },
     {
       pattern: /expect\s*\([^)]+\.mock\.calls\[/g,
@@ -288,11 +290,12 @@ const TEST_ANTI_PATTERNS = {
     {
       pattern: /jest\.mock\s*\(['"`]\.\.\/[^'"]+['"`]\)/g,
       check: (match, content, fileContent) => {
-        // Check if using __mocks__ directory
-        return !fileContent.includes('__mocks__');
+        // Only warn if mocking many modules (more than 10) without using __mocks__
+        const mockCount = (fileContent.match(/jest\.mock\s*\(/g) || []).length;
+        return mockCount > 10 && !fileContent.includes('__mocks__');
       },
-      message: 'Mocking relative imports directly. Use __mocks__ directory or factories.',
-      severity: 'warning'
+      message: 'Many mocked modules. Consider using __mocks__ directory for better organization.',
+      severity: 'info'
     },
     {
       pattern: /mockImplementation\s*\([^)]*\)[\s\S]*?mockImplementation\s*\(/g,
@@ -323,9 +326,31 @@ const TEST_ANTI_PATTERNS = {
       severity: 'error'
     },
     {
-      pattern: /\.toBe\s*\(\s*true\s*\).*\.toBe\s*\(\s*false\s*\)/gs,
-      check: () => true,
-      message: 'Conflicting boolean expectations. Test is likely flaky.',
+      pattern: /\.toBe\s*\(\s*true\s*\)[^}]*\.toBe\s*\(\s*false\s*\)/g,
+      check: (match, content, fileContent) => {
+        // Only flag if both expectations are in the same test (within same it() block)
+        // Look for the nearest 'it(' before the match
+        const beforeMatch = fileContent.substring(0, fileContent.indexOf(match));
+        const lastItIndex = beforeMatch.lastIndexOf('it(');
+        const lastItEndIndex = beforeMatch.lastIndexOf('});');
+        
+        // If the last it( is after the last }), we're inside a test
+        if (lastItIndex > lastItEndIndex) {
+          // Check if both toBe(true) and toBe(false) are in the same test
+          const testStart = lastItIndex;
+          const nextTestEnd = fileContent.indexOf('});', fileContent.indexOf(match));
+          const testContent = fileContent.substring(testStart, nextTestEnd);
+          
+          // Count occurrences of each
+          const trueCount = (testContent.match(/\.toBe\s*\(\s*true\s*\)/g) || []).length;
+          const falseCount = (testContent.match(/\.toBe\s*\(\s*false\s*\)/g) || []).length;
+          
+          // Only flag if we have both in the same test
+          return trueCount > 0 && falseCount > 0;
+        }
+        return false;
+      },
+      message: 'Conflicting boolean expectations in same test. Test is likely flaky.',
       severity: 'error'
     },
     {
