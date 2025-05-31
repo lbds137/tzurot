@@ -23,10 +23,10 @@ const threadHandler = require('../utils/threadHandler');
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: (...args) => setTimeout(...args),
-  clearTimeout: (...args) => clearTimeout(...args),
-  setInterval: (...args) => setInterval(...args),
-  clearInterval: (...args) => clearInterval(...args)
+  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
+  clearTimeout: (id) => clearTimeout(id),
+  setInterval: (callback, delay, ...args) => setInterval(callback, delay, ...args),
+  clearInterval: (id) => clearInterval(id)
 };
 
 /**
