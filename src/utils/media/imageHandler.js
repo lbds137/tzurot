@@ -14,8 +14,8 @@ const urlValidator = require('../urlValidator');
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  setTimeout: globalThis.setTimeout,
+  clearTimeout: globalThis.clearTimeout
 };
 
 /**
@@ -245,17 +245,14 @@ function createDiscordAttachment(imageFile) {
   const nodeBuffer = Buffer.from(imageFile.buffer);
 
   // Discord.js v14 requires AttachmentBuilder for files
+  // For webhooks, we need to return the AttachmentBuilder directly
   const attachmentBuilder = new AttachmentBuilder(nodeBuffer, {
     name: imageFile.filename,
     description: `Image file: ${imageFile.filename}`
   });
 
-  // Return in the format expected by our webhook system
-  return {
-    attachment: attachmentBuilder,
-    name: imageFile.filename,
-    contentType: imageFile.contentType,
-  };
+  // Return the AttachmentBuilder directly for Discord.js v14
+  return attachmentBuilder;
 }
 
 /**
@@ -285,15 +282,19 @@ async function processImageUrls(content) {
     // Download the image file
     const imageFile = await downloadImageFile(imageUrl.url);
 
-    // Create a Discord attachment
-    const attachment = createDiscordAttachment(imageFile);
+    // Create a Discord attachment (returns AttachmentBuilder directly)
+    const attachmentBuilder = createDiscordAttachment(imageFile);
 
     // Remove the original image link
     const modifiedContent = content.replace(imageUrl.url, '');
 
     return {
       content: modifiedContent,
-      attachments: [attachment],
+      attachments: [{
+        attachment: attachmentBuilder,
+        name: imageFile.filename,
+        contentType: imageFile.contentType
+      }],
     };
   } catch (error) {
     logger.error(`[ImageHandler] Failed to process image URL: ${error.message}`);

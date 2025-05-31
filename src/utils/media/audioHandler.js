@@ -14,8 +14,8 @@ const urlValidator = require('../urlValidator');
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  setTimeout: globalThis.setTimeout,
+  clearTimeout: globalThis.clearTimeout
 };
 
 /**
@@ -282,17 +282,14 @@ function createDiscordAttachment(audioFile) {
   }
 
   // Discord.js v14 requires AttachmentBuilder for files
+  // For webhooks, we need to return the AttachmentBuilder directly
   const attachmentBuilder = new AttachmentBuilder(nodeBuffer, {
     name: audioFile.filename,
     description: `Audio file: ${audioFile.filename}`
   });
 
-  // Return in the format expected by our webhook system
-  return {
-    attachment: attachmentBuilder,
-    name: audioFile.filename,
-    contentType: audioFile.contentType,
-  };
+  // Return the AttachmentBuilder directly for Discord.js v14
+  return attachmentBuilder;
 }
 
 /**
@@ -322,15 +319,19 @@ async function processAudioUrls(content) {
     // Download the audio file
     const audioFile = await downloadAudioFile(audioUrl.url);
 
-    // Create a Discord attachment
-    const attachment = createDiscordAttachment(audioFile);
+    // Create a Discord attachment (returns AttachmentBuilder directly)
+    const attachmentBuilder = createDiscordAttachment(audioFile);
 
     // Minify the original audio link
     const modifiedContent = content.replace(audioUrl.url, '');
 
     return {
       content: modifiedContent,
-      attachments: [attachment],
+      attachments: [{
+        attachment: attachmentBuilder,
+        name: audioFile.filename,
+        contentType: audioFile.contentType
+      }],
     };
   } catch (error) {
     logger.error(`[AudioHandler] Failed to process audio URL: ${error.message}`);

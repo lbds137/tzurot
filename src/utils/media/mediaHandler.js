@@ -13,6 +13,7 @@
  * 3. Media attachment creation (converting URLs to Discord attachments)
  */
 
+const { AttachmentBuilder } = require('discord.js');
 const logger = require('../../logger');
 const audioHandler = require('./audioHandler');
 const imageHandler = require('./imageHandler');
@@ -343,10 +344,13 @@ function prepareAttachmentOptions(attachments) {
   return {
     files: attachments.map(attachment => {
       // If it's already an AttachmentBuilder instance, return it directly
-      if (attachment.attachment && attachment.attachment.constructor && 
-          attachment.attachment.constructor.name === 'AttachmentBuilder') {
+      if (attachment.attachment instanceof AttachmentBuilder) {
+        logger.debug('[MediaHandler] Using AttachmentBuilder directly for Discord.js v14');
         return attachment.attachment;
       }
+      
+      // Log what we're getting if it's not an AttachmentBuilder
+      logger.debug(`[MediaHandler] Attachment is not AttachmentBuilder, type: ${typeof attachment.attachment}, constructor: ${attachment.attachment?.constructor?.name}`);
       
       // Otherwise, maintain backward compatibility with the old format
       return {

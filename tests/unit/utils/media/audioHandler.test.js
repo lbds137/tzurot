@@ -444,11 +444,11 @@ describe('audioHandler', () => {
       
       const result = audioHandler.createDiscordAttachment(audioFile);
       
-      expect(result).toHaveProperty('attachment');
-      expect(result.attachment).toHaveProperty('constructor');
-      expect(result.attachment.constructor.name).toBe('AttachmentBuilder');
-      expect(result).toHaveProperty('name', 'audio.mp3');
-      expect(result).toHaveProperty('contentType', 'audio/mpeg');
+      // createDiscordAttachment returns AttachmentBuilder directly
+      expect(result).toBeDefined();
+      expect(result.attachment).toBeDefined(); // The mock has an attachment property
+      expect(result.name).toBe('audio.mp3');
+      expect(result.description).toBe('Audio file: audio.mp3');
       
       // Verify AttachmentBuilder was called correctly
       expect(AttachmentBuilder).toHaveBeenCalledWith(
@@ -466,39 +466,34 @@ describe('audioHandler', () => {
       // Clean mocks and set up specific behavior for this test
       jest.clearAllMocks();
       
-      // Create a custom mock implementation for processAudioUrls
-      const originalProcessAudioUrls = audioHandler.processAudioUrls;
-      
-      // Create a predictable implementation for this test
-      audioHandler.processAudioUrls = jest.fn().mockImplementation(async (content) => {
-        if (content.includes('https://files.example.org/')) {
-          return {
-            content: content.replace(
-              /https:\/\/files\.example\.org\/[a-zA-Z0-9-]+-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.mp3/g, 
-              '[Audio: ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3]'
-            ),
-            attachments: [{
-              name: 'ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3',
-              attachment: 'mock-stream',
-              contentType: 'audio/mpeg'
-            }]
-          };
-        }
-        return { content, attachments: [] };
+      // Set up successful download mock
+      nodeFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('audio/mpeg')
+        },
+        arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1024))
       });
       
       const content = 'Check out this audio file: https://files.example.org/ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3 it sounds great!';
       
       const result = await audioHandler.processAudioUrls(content);
       
-      // Restore original function
-      audioHandler.processAudioUrls = originalProcessAudioUrls;
-      
       expect(result).toHaveProperty('content');
-      expect(result.content).toBe('Check out this audio file: [Audio: ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3] it sounds great!');
+      // URL should be removed from content
+      expect(result.content).toBe('Check out this audio file:  it sounds great!');
       expect(result).toHaveProperty('attachments');
       expect(result.attachments).toHaveLength(1);
+      
+      // Check attachment structure
+      expect(result.attachments[0]).toHaveProperty('attachment');
       expect(result.attachments[0]).toHaveProperty('name', 'ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3');
+      expect(result.attachments[0]).toHaveProperty('contentType', 'audio/mpeg');
+      
+      // The attachment should be an AttachmentBuilder instance (from our mock)
+      const attachmentBuilder = result.attachments[0].attachment;
+      expect(attachmentBuilder).toBeDefined();
+      expect(attachmentBuilder.name).toBe('ha-shem-keev-ima-rxk-2025-05-18-16-48-24.mp3');
     });
 
     it('should return original content and empty attachments if no audio URLs found', async () => {
