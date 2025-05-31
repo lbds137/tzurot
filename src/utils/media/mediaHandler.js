@@ -339,12 +339,22 @@ function prepareAttachmentOptions(attachments) {
     return {};
   }
 
+  // For Discord.js v14, if attachment is already an AttachmentBuilder, use it directly
   return {
-    files: attachments.map(attachment => ({
-      attachment: attachment.attachment,
-      name: attachment.name,
-      contentType: attachment.contentType,
-    })),
+    files: attachments.map(attachment => {
+      // If it's already an AttachmentBuilder instance, return it directly
+      if (attachment.attachment && attachment.attachment.constructor && 
+          attachment.attachment.constructor.name === 'AttachmentBuilder') {
+        return attachment.attachment;
+      }
+      
+      // Otherwise, maintain backward compatibility with the old format
+      return {
+        attachment: attachment.attachment,
+        name: attachment.name,
+        contentType: attachment.contentType,
+      };
+    }),
   };
 }
 

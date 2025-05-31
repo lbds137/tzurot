@@ -8,7 +8,7 @@
  */
 
 const nodeFetch = require('node-fetch');
-const { Readable } = require('stream');
+const { AttachmentBuilder } = require('discord.js');
 const logger = require('../../logger');
 const urlValidator = require('../urlValidator');
 
@@ -244,13 +244,15 @@ function createDiscordAttachment(imageFile) {
   // Convert ArrayBuffer to Buffer
   const nodeBuffer = Buffer.from(imageFile.buffer);
 
-  // Create a readable stream from the buffer
-  const stream = new Readable();
-  stream.push(nodeBuffer);
-  stream.push(null);
+  // Discord.js v14 requires AttachmentBuilder for files
+  const attachmentBuilder = new AttachmentBuilder(nodeBuffer, {
+    name: imageFile.filename,
+    description: `Image file: ${imageFile.filename}`
+  });
 
+  // Return in the format expected by our webhook system
   return {
-    attachment: stream,
+    attachment: attachmentBuilder,
     name: imageFile.filename,
     contentType: imageFile.contentType,
   };
