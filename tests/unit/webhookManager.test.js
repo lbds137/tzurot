@@ -190,6 +190,11 @@ describe('WebhookManager', () => {
   });
   
   describe('Pending Message Tracking', () => {
+    afterEach(() => {
+      // Clear any pending timeouts to prevent open handles
+      jest.clearAllTimers();
+    });
+
     it('should create a consistent key for personality-channel combinations', () => {
       const personalityName = 'test-personality';
       const channelId = 'channel-123';

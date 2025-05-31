@@ -7,8 +7,8 @@ const logger = require('./logger');
 
 // Injectable timer functions for testability
 let timerFunctions = {
-  setTimeout: global.setTimeout,
-  clearTimeout: global.clearTimeout
+  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
+  clearTimeout: (id) => clearTimeout(id)
 };
 
 /**
