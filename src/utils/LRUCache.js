@@ -1,6 +1,16 @@
 /**
  * Least Recently Used (LRU) Cache implementation
  * 
+ * TODO: Consider migrating to npm 'lru-cache' package (v11+) which provides:
+ * - Async fetch with deduplication
+ * - Size-based eviction
+ * - Stale-while-revalidate
+ * - Better performance
+ * - Battle-tested edge cases
+ * 
+ * This implementation works well for our current needs, but lru-cache
+ * would provide more features and better performance.
+ * 
  * This cache automatically evicts the least recently used items when it reaches
  * its maximum size. Items are considered "used" when they are get, set, or has
  * operations are performed on them.
