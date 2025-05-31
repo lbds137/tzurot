@@ -22,7 +22,9 @@ const logger = require('./logger');
  * Path to the data storage directory
  * @constant {string}
  */
-const DATA_DIR = path.join(__dirname, '..', 'data');
+const DATA_DIR = process.env.RAILWAY_ENVIRONMENT 
+  ? '/app/data'  // Use Railway persistent volume when deployed
+  : path.join(__dirname, '..', 'data');  // Use local data directory in development
 
 /**
  * Initialize the data storage
@@ -41,6 +43,22 @@ async function initStorage() {
   try {
     // Create the data directory if it doesn't exist
     await fs.mkdir(DATA_DIR, { recursive: true });
+    
+    // Check if we're on Railway with a persistent volume
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      const stats = await fs.stat(DATA_DIR);
+      logger.info(`[DataStorage] Railway environment detected - Data directory: ${DATA_DIR}`);
+      logger.info(`[DataStorage] Directory exists: ${stats.isDirectory()}, Path: ${path.resolve(DATA_DIR)}`);
+      
+      // Check if any data files exist (indicating persistence is working)
+      try {
+        const files = await fs.readdir(DATA_DIR);
+        logger.info(`[DataStorage] Found ${files.length} files in data directory: ${files.join(', ')}`);
+      } catch (readError) {
+        logger.info('[DataStorage] No existing files in data directory (fresh volume or first run)');
+      }
+    }
+    
     logger.info('[DataStorage] Data storage initialized');
   } catch (error) {
     logger.error(`[DataStorage] Error initializing data storage: ${error.message}`);
