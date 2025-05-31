@@ -883,6 +883,72 @@ describe('messageHandler', () => {
       }
     });
   });
+
+  describe('handleMessage with activated channels and replies', () => {
+    it('should still process messages in activated channels when replying to other users', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
+      // Set up an activated channel
+      getActivatedPersonality.mockReturnValue('TestPersonality');
+      getPersonality.mockReturnValue(mockPersonality);
+      channelUtils.isChannelNSFW.mockReturnValue(true);
+      
+      // Set up a reply to another user (not a personality)
+      const replyMessage = {
+        ...mockMessage,
+        reference: { messageId: 'other-user-msg-id' }
+      };
+      
+      // Mock the reference handler to indicate this is a reply to a non-personality
+      referenceHandler.handleMessageReference.mockResolvedValue({
+        processed: false,
+        wasReplyToNonPersonality: true,
+        containsMessageLinks: false
+      });
+      
+      // Make messageTrackerHandler.ensureInitialized a no-op
+      messageTrackerHandler.ensureInitialized = jest.fn();
+      
+      // Process the message
+      await messageHandler.handleMessage(replyMessage, mockClient);
+      
+      // Verify that despite being a reply to a non-personality, 
+      // the message was still processed because of the activated channel
+      expect(getActivatedPersonality).toHaveBeenCalledWith(replyMessage.channel.id);
+      expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalled();
+    });
+
+    it('should not process replies to other users when no personality is activated', async () => {
+      // Reset mocks for this test
+      jest.clearAllMocks();
+      
+      // No activated personality
+      getActivatedPersonality.mockReturnValue(null);
+      
+      // Set up a reply to another user
+      const replyMessage = {
+        ...mockMessage,
+        reference: { messageId: 'other-user-msg-id' }
+      };
+      
+      // Mock the reference handler to indicate this is a reply to a non-personality
+      referenceHandler.handleMessageReference.mockResolvedValue({
+        processed: false,
+        wasReplyToNonPersonality: true,
+        containsMessageLinks: false
+      });
+      
+      // Make messageTrackerHandler.ensureInitialized a no-op
+      messageTrackerHandler.ensureInitialized = jest.fn();
+      
+      // Process the message
+      await messageHandler.handleMessage(replyMessage, mockClient);
+      
+      // Verify that the message was not processed (no personality interaction)
+      expect(messageTrackerHandler.delayedProcessing).not.toHaveBeenCalled();
+    });
+  });
   
   describe('PluralKit message storage', () => {
     beforeEach(() => {

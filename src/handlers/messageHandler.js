@@ -223,12 +223,17 @@ async function handleMessage(message, client) {
     // If this was a reply to a non-personality message, check if there's a mention
     // before skipping processing. This prevents autoresponse from triggering when 
     // replying to other users, but allows mentions to be processed.
+    // EXCEPTION: Don't filter if there's an activated personality in this channel
     if (referenceResult.wasReplyToNonPersonality) {
+      // Check if this channel has an activated personality
+      const hasActivatedPersonality = getActivatedPersonality(message.channel.id);
+      
       // Check if the message contains a personality mention
       const hasMention = checkForPersonalityMentions(message);
       
       // Only skip processing if there are no mentions AND no Discord links
-      if (!hasMention && !referenceResult.containsMessageLinks) {
+      // AND no activated personality in this channel
+      if (!hasMention && !referenceResult.containsMessageLinks && !hasActivatedPersonality) {
         return;
       }
     }
