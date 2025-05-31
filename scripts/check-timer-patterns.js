@@ -7,7 +7,6 @@
  */
 
 const fs = require('fs');
-const path = require('path');
 const glob = require('glob');
 
 // Helper to check if code is inside a default parameter or arrow function
@@ -73,7 +72,7 @@ const TIMER_PATTERNS = [
     pattern: /(?:this\.|options\.|context\.)?(?:interval|scheduler)\s*\([^)]+\)(?!\.unref)/g,
     message: 'setInterval without unref(). Consider adding unref() for cleanup.',
     severity: 'warning',
-    filter: (content, match, index) => {
+    filter: (content, match, _index) => {
       // Only check if it looks like setInterval usage
       return match.includes('interval');
     }
@@ -83,7 +82,7 @@ const TIMER_PATTERNS = [
     pattern: /^(?!.*(?:function|const|let|var|class|return|timerFunctions\.)).*(?:setTimeout|setInterval)\s*\(/gm,
     message: 'Timer at module scope. Consider making it injectable.',
     severity: 'warning',
-    filter: (content, match, index) => {
+    filter: (content, match, _index) => {
       // Skip if it's in a comment
       if (match.trim().startsWith('//') || match.trim().startsWith('*')) return false;
       // Skip if it's already using injectable pattern
