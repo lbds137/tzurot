@@ -6,9 +6,18 @@ const audioHandler = require('../../../../src/utils/media/audioHandler');
 const nodeFetch = require('node-fetch');
 const logger = require('../../../../src/logger');
 const urlValidator = require('../../../../src/utils/urlValidator');
+const { AttachmentBuilder } = require('discord.js');
 
 // Mock the dependencies
 jest.mock('node-fetch');
+jest.mock('discord.js', () => ({
+  AttachmentBuilder: jest.fn().mockImplementation((buffer, options) => ({
+    constructor: { name: 'AttachmentBuilder' },
+    attachment: buffer,
+    name: options?.name,
+    description: options?.description,
+  })),
+}));
 jest.mock('../../../../src/logger', () => ({
   debug: jest.fn(),
   info: jest.fn(),
@@ -436,9 +445,19 @@ describe('audioHandler', () => {
       const result = audioHandler.createDiscordAttachment(audioFile);
       
       expect(result).toHaveProperty('attachment');
-      expect(result.attachment).toBeInstanceOf(Buffer);
+      expect(result.attachment).toHaveProperty('constructor');
+      expect(result.attachment.constructor.name).toBe('AttachmentBuilder');
       expect(result).toHaveProperty('name', 'audio.mp3');
       expect(result).toHaveProperty('contentType', 'audio/mpeg');
+      
+      // Verify AttachmentBuilder was called correctly
+      expect(AttachmentBuilder).toHaveBeenCalledWith(
+        expect.any(Buffer),
+        expect.objectContaining({
+          name: 'audio.mp3',
+          description: 'Audio file: audio.mp3'
+        })
+      );
     });
   });
 
