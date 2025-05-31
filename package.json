@@ -49,9 +49,6 @@
     "nodemon": "3.1.10",
     "prettier": "^3.5.3"
   },
-  "overrides": {
-    "undici": "^7.10.0"
-  },
   "engines": {
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
