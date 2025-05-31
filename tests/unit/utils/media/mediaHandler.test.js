@@ -5,6 +5,26 @@
 jest.mock('../../../../src/logger');
 jest.mock('node-fetch');
 
+// Mock Discord.js
+jest.mock('discord.js', () => {
+  const mockInstances = [];
+  
+  class MockAttachmentBuilder {
+    constructor(buffer, options) {
+      this.attachment = buffer;
+      this.name = options?.name;
+      this.description = options?.description;
+      mockInstances.push(this);
+    }
+  }
+  
+  MockAttachmentBuilder._instances = mockInstances;
+  
+  return {
+    AttachmentBuilder: MockAttachmentBuilder
+  };
+});
+
 // Mock the audio and image handlers
 jest.mock('../../../../src/utils/media/audioHandler', () => ({
   processAudioUrls: jest.fn(),
@@ -161,6 +181,26 @@ describe('Media Handler', () => {
           { attachment: 'buffer2', name: 'file2.jpg', contentType: 'image/jpeg' }
         ]
       });
+    });
+    
+    it('should return AttachmentBuilder instances directly when present', () => {
+      const { AttachmentBuilder } = require('discord.js');
+      
+      // Create mock AttachmentBuilder instances
+      const mockAttachmentBuilder1 = new AttachmentBuilder(Buffer.from('test1'), { name: 'file1.mp3' });
+      const mockAttachmentBuilder2 = new AttachmentBuilder(Buffer.from('test2'), { name: 'file2.jpg' });
+      
+      const attachments = [
+        { attachment: mockAttachmentBuilder1, name: 'file1.mp3', contentType: 'audio/mpeg' },
+        { attachment: mockAttachmentBuilder2, name: 'file2.jpg', contentType: 'image/jpeg' }
+      ];
+      
+      const result = mediaHandler.prepareAttachmentOptions(attachments);
+      
+      expect(result).toHaveProperty('files');
+      expect(result.files).toHaveLength(2);
+      expect(result.files[0]).toBe(mockAttachmentBuilder1);
+      expect(result.files[1]).toBe(mockAttachmentBuilder2);
     });
   });
   
