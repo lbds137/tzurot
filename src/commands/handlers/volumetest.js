@@ -50,7 +50,12 @@ module.exports = {
         fields: [
           {
             name: 'Environment',
-            value: process.env.RAILWAY_ENVIRONMENT ? 'Railway' : 'Local',
+            value: process.env.RAILWAY_ENVIRONMENT ? `Railway (${process.env.RAILWAY_ENVIRONMENT})` : 'Local',
+            inline: true
+          },
+          {
+            name: 'NODE_ENV',
+            value: process.env.NODE_ENV || 'Not set',
             inline: true
           },
           {
