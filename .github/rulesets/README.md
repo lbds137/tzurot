@@ -16,6 +16,9 @@ gh api \
   -H "X-GitHub-Api-Version: 2022-11-28" \
   /repos/OWNER/REPO/rulesets \
   --input .github/rulesets/branch-protection-no-bypass.json
+
+# For temporary use without CI checks:
+# --input .github/rulesets/branch-protection-no-checks.json
 ```
 
 ### Method 2: GitHub Web UI

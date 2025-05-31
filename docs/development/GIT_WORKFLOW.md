@@ -189,6 +189,9 @@ git branch -d feature/name
 When you push:
 1. **Pre-commit hooks** run locally (if setup)
 2. **GitHub Actions** run tests and linting
+   - Configured in `.github/workflows/ci.yml`
+   - Runs on every PR and push to main/develop
+   - Must pass for PRs to be mergeable
 3. **Railway** auto-deploys:
    - `develop` → Development environment
    - `main` → Production environment
@@ -199,7 +202,9 @@ When you push:
 You're trying to push directly to develop/main. Create a feature branch instead.
 
 ### "Checks failing"
-Run `npm test` and `npm run lint` locally to see what's failing.
+Run `npm test` and `npm run lint:errors` locally to see what's failing.
+
+Note: CI currently only fails on ESLint errors, not warnings. We have many warnings that need to be addressed gradually.
 
 ### "Branch out of date"
 ```bash
