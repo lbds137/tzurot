@@ -69,7 +69,7 @@ class ConversationTracker {
       });
     });
     
-    logger.debug(`[ConversationTracker] Recorded conversation for ${key} with personality ${personalityName}`);
+    logger.debug(`[ConversationTracker] Recorded conversation for ${key} with personality ${personalityName}, isDM: ${isDM}, isMentionOnly: ${isMentionOnly}`);
   }
 
   /**
@@ -88,14 +88,18 @@ class ConversationTracker {
       return null;
     }
     
+    logger.debug(`[ConversationTracker] Checking active conversation for ${key}: isMentionOnly=${conversation.isMentionOnly}, isDM=${isDM}, autoResponseEnabled=${autoResponseEnabled}`);
+    
     // If this was a mention-only conversation in a guild channel, don't continue it
     if (!isDM && conversation.isMentionOnly) {
+      logger.debug(`[ConversationTracker] Removing mention-only conversation for ${userId} in channel ${channelId}`);
       this.activeConversations.delete(key);
       return null;
     }
     
     // For guild channels, only continue if auto-response is enabled
     if (!isDM && !autoResponseEnabled) {
+      logger.debug(`[ConversationTracker] Not continuing conversation in guild channel without autoResponse`);
       return null;
     }
     
