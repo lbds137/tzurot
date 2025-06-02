@@ -75,7 +75,7 @@ class ConversationTracker {
         isMentionOnly,
       });
     });
-    
+
     logger.info(
       `[ConversationTracker] Recorded conversation for ${key} with personality ${personalityName}, isDM: ${isDM}, isMentionOnly: ${isMentionOnly}, messageIds: ${messageIdArray.join(', ')}`
     );
@@ -97,11 +97,10 @@ class ConversationTracker {
       logger.debug(`[ConversationTracker] No active conversation found for ${key}`);
       return null;
     }
-    
+
     logger.info(`
-      [ConversationTracker] Checking active conversation for ${key}: isMentionOnly=${conversation.isMentionOnly}, isDM=${isDM}, autoResponseEnabled=${autoResponseEnabled}, personalityName=${conversation.personalityName}`
-    );
-    
+      [ConversationTracker] Checking active conversation for ${key}: isMentionOnly=${conversation.isMentionOnly}, isDM=${isDM}, autoResponseEnabled=${autoResponseEnabled}, personalityName=${conversation.personalityName}`);
+
     // If this was a mention-only conversation in a guild channel, don't continue it
     if (!isDM && conversation.isMentionOnly) {
       logger.debug(

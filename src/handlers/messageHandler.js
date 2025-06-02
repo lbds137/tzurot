@@ -522,13 +522,13 @@ async function handleMentions(message, client) {
 async function handleActiveConversation(message, client) {
   // Check if auto-response is enabled for this user
   const autoResponseEnabled = isAutoResponseEnabled(message.author.id);
-  
-  logger.info(
+
+  logger.debug(
     `[MessageHandler] Checking for active conversation - User: ${message.author.id}, ` +
-    `Channel: ${message.channel.id}, isDM: ${message.channel.isDMBased()}, ` +
-    `autoResponseEnabled: ${autoResponseEnabled}`
+      `Channel: ${message.channel.id}, isDM: ${message.channel.isDMBased()}, ` +
+      `autoResponseEnabled: ${autoResponseEnabled}`
   );
-  
+
   // Check for active conversation
   const activePersonalityName = getActivePersonality(
     message.author.id,
