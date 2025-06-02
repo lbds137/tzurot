@@ -29,7 +29,7 @@ const dmHandler = require('../../../src/handlers/dmHandler');
 const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const { processCommand } = require('../../../src/commandLoader');
-const { getActivePersonality, getActivatedPersonality } = require('../../../src/conversationManager');
+const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../../../src/conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
@@ -93,6 +93,7 @@ describe('messageHandler', () => {
     processCommand.mockResolvedValue(true);
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);
+    isAutoResponseEnabled.mockReturnValue(undefined);
     getPersonality.mockReturnValue(mockPersonality);
     getPersonalityByAlias.mockReturnValue(null);
     channelUtils.isChannelNSFW.mockReturnValue(true);
@@ -289,7 +290,9 @@ describe('messageHandler', () => {
       // Verify that active personality was checked
       expect(getActivePersonality).toHaveBeenCalledWith(
         conversationMessage.author.id,
-        conversationMessage.channel.id
+        conversationMessage.channel.id,
+        false, // isDM
+        undefined // autoResponseEnabled (from isAutoResponseEnabled mock)
       );
       
       // Verify that delayedProcessing was called with the right arguments
@@ -646,7 +649,9 @@ describe('messageHandler', () => {
       // Should have checked for active personality
       expect(getActivePersonality).toHaveBeenCalledWith(
         mockMessage.author.id,
-        mockMessage.channel.id
+        mockMessage.channel.id,
+        false, // isDM
+        undefined // autoResponseEnabled
       );
       
       // For server channels (default mock), should use delayed processing
@@ -675,7 +680,9 @@ describe('messageHandler', () => {
       // Should have checked for active personality
       expect(getActivePersonality).toHaveBeenCalledWith(
         mockMessage.author.id,
-        mockMessage.channel.id
+        mockMessage.channel.id,
+        false, // isDM
+        undefined // autoResponseEnabled
       );
       
       // Should not have called the personality handler or delayed processing
