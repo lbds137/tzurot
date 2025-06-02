@@ -268,14 +268,18 @@ async function execute(message, args, context = {}) {
       basicEmbed.setThumbnail(personality.avatarUrl);
     }
 
-    // Add DM channel-specific note
+    // Add footer with mention instructions
+    const mentionText = aliasToSet 
+      ? `Use ${botConfig.mentionChar}${personalityName} or ${botConfig.mentionChar}${aliasToSet} to talk to this personality`
+      : `Use ${botConfig.mentionChar}${personalityName} to talk to this personality`;
+    
     if (message.channel.isDMBased()) {
       basicEmbed.setFooter({
-        text: 'This personality is now available in your DMs and all servers with the bot.',
+        text: `${mentionText}. Available in your DMs and all servers with the bot.`,
       });
     } else {
       basicEmbed.setFooter({
-        text: `Use ${botConfig.mentionChar}${personalityName} or ${aliasToSet ? `${botConfig.mentionChar}${aliasToSet}` : 'its full name'} to talk to this personality.`,
+        text: `${mentionText}.`,
       });
     }
 
