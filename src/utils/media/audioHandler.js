@@ -284,8 +284,17 @@ async function processAudioUrls(content) {
     // Create a Discord attachment
     const attachment = createDiscordAttachment(audioFile);
 
-    // Minify the original audio link
-    const modifiedContent = content.replace(audioUrl.url, '');
+    // Remove the entire [Audio: URL] pattern or just the URL
+    let modifiedContent = content;
+    
+    // First try to remove the [Audio: URL] pattern
+    const audioPattern = `[Audio: ${audioUrl.url}]`;
+    if (content.includes(audioPattern)) {
+      modifiedContent = content.replace(audioPattern, '').trim();
+    } else {
+      // Fall back to just removing the URL
+      modifiedContent = content.replace(audioUrl.url, '').trim();
+    }
 
     return {
       content: modifiedContent,
