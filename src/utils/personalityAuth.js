@@ -48,7 +48,7 @@ async function checkPersonalityAuth(message, personality) {
       message,
       personality,
       channel: message.channel,
-      userId: message.author.id
+      userId: message.author.id,
     });
 
     // Convert to legacy format for backward compatibility
@@ -60,7 +60,7 @@ async function checkPersonalityAuth(message, personality) {
         reason: result.errors.length > 0 ? 'auth_failed' : 'unknown',
         // Also include new format for gradual migration
         isAuthorized: false,
-        error: errorMessage || 'Authorization failed'
+        error: errorMessage || 'Authorization failed',
       };
     }
 
@@ -74,7 +74,7 @@ async function checkPersonalityAuth(message, personality) {
       isNSFW: result.details?.nsfwCheck?.channelRequiresVerification || false,
       // Also include new format for gradual migration
       isAuthorized: true,
-      details: result.details
+      details: result.details,
     };
   } catch (error) {
     logger.error('[PersonalityAuth] Error checking personality auth:', error);
@@ -84,7 +84,7 @@ async function checkPersonalityAuth(message, personality) {
       reason: 'error',
       // Also include new format for gradual migration
       isAuthorized: false,
-      error: 'An error occurred while checking authorization.'
+      error: 'An error occurred while checking authorization.',
     };
   }
 }
@@ -129,7 +129,7 @@ function getUserAuthStatus(userId) {
       hasValidToken: false,
       tokenExpiration: null,
       nsfwVerified: false,
-      nsfwVerificationDate: null
+      nsfwVerificationDate: null,
     };
   }
   return manager.getUserAuthStatus(userId);
@@ -145,7 +145,7 @@ function getUserAuthStatus(userId) {
 async function sendAuthError(message, errorMessage, _reason) {
   try {
     await message.reply({
-      content: errorMessage
+      content: errorMessage,
       // Note: ephemeral only works for slash command interactions, not regular messages
     });
   } catch (error) {

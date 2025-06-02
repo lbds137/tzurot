@@ -41,7 +41,12 @@ async function processCommand(message, command, args) {
     );
 
     // Apply deduplication middleware with injected messageTracker
-    const deduplicationResult = deduplicationMiddleware(message, command, args, commandContext.messageTracker);
+    const deduplicationResult = deduplicationMiddleware(
+      message,
+      command,
+      args,
+      commandContext.messageTracker
+    );
     if (!deduplicationResult.shouldProcess) {
       return null;
     }

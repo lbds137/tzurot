@@ -1,6 +1,6 @@
 /**
  * Webhook Message Utilities
- * 
+ *
  * Helper functions for message preparation and tracking
  */
 
@@ -108,7 +108,8 @@ function getStandardizedUsername(personality) {
       }
 
       // If no hyphens, use the full name (capitalized) with suffix
-      const capitalizedName = personality.fullName.charAt(0).toUpperCase() + personality.fullName.slice(1);
+      const capitalizedName =
+        personality.fullName.charAt(0).toUpperCase() + personality.fullName.slice(1);
       const fullNameWithSuffix = `${capitalizedName}${botSuffix}`;
       if (fullNameWithSuffix.length <= 32) {
         logger.debug(`[WebhookManager] Using fullName with suffix: ${fullNameWithSuffix}`);
@@ -147,7 +148,7 @@ function generateMessageTrackingId(personality, channelId) {
   const timestamp = Date.now();
   const random = Math.random().toString(36).substring(2, 9);
   const personalityName = personality?.fullName || 'unknown';
-  
+
   return `${personalityName}-${channelId}-${timestamp}-${random}`;
 }
 
@@ -161,7 +162,14 @@ function generateMessageTrackingId(personality, channelId) {
  * @param {Object} additionalOptions - Additional options
  * @returns {Object} Prepared message data
  */
-function prepareMessageData(content, username, avatarUrl, isThread, channelId, additionalOptions = {}) {
+function prepareMessageData(
+  content,
+  username,
+  avatarUrl,
+  isThread,
+  channelId,
+  additionalOptions = {}
+) {
   const messageData = {
     content,
     username,
@@ -194,7 +202,7 @@ function prepareMessageData(content, username, avatarUrl, isThread, channelId, a
  */
 function createVirtualResult(personality, channelId) {
   const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-  
+
   return {
     message: {
       id: virtualId,
@@ -224,31 +232,28 @@ function createVirtualResult(personality, channelId) {
  */
 async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
   try {
-    logger.info(
-      `[MessageUtils] Sending chunk ${chunkIndex + 1}/${totalChunks} via webhook`
-    );
+    logger.info(`[MessageUtils] Sending chunk ${chunkIndex + 1}/${totalChunks} via webhook`);
 
     const sentMessage = await webhook.send(messageData);
 
-    logger.info(
-      `[MessageUtils] Successfully sent chunk ${chunkIndex + 1}/${totalChunks}`
-    );
+    logger.info(`[MessageUtils] Successfully sent chunk ${chunkIndex + 1}/${totalChunks}`);
 
     return sentMessage;
   } catch (error) {
     logger.error(
       `[MessageUtils] Failed to send chunk ${chunkIndex + 1}/${totalChunks}: ${error.message}`
     );
-    
+
     // If thread_id is not accepted, retry without it
     if (error.message && error.message.includes('thread_id')) {
       logger.info(`[MessageUtils] Retrying without thread_id parameter`);
       const { thread_id, threadId, ...cleanData } = messageData;
       return await webhook.send(cleanData);
     }
-    
+
     // For other errors, try sending an error message
-    if (error.code === 50035) { // Invalid form body
+    if (error.code === 50035) {
+      // Invalid form body
       try {
         const errorMessage = {
           content: `Error: ${error.message}`,
@@ -262,7 +267,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
         throw error;
       }
     }
-    
+
     throw error;
   }
 }

@@ -29,12 +29,12 @@ let cacheOverride = false; // Flag to track when tests have set cache directly
 // Helper to ensure auth is initialized
 async function ensureInitialized() {
   if (authManager) return;
-  
+
   if (_initPromise) {
     await _initPromise;
     return;
   }
-  
+
   if (!_isInitializing) {
     _isInitializing = true;
     _initPromise = initAuth().catch(error => {
@@ -53,15 +53,15 @@ async function ensureInitialized() {
  */
 async function initAuth() {
   if (authManager) return; // Already initialized
-  
+
   // Create a temporary logger interceptor for backward compatibility
   const originalInfo = logger.info;
   const originalError = logger.error;
   let foundTokensFile = true;
   let foundVerificationsFile = true;
   let _initError = null;
-  
-  logger.info = function(...args) {
+
+  logger.info = function (...args) {
     const message = args[0];
     if (message && message.includes('[AuthPersistence] No tokens file found')) {
       foundTokensFile = false;
@@ -75,8 +75,8 @@ async function initAuth() {
     }
     originalInfo.apply(this, args);
   };
-  
-  logger.error = function(...args) {
+
+  logger.error = function (...args) {
     const message = args[0];
     if (message && message.includes('[AuthPersistence] Error reading tokens file:')) {
       originalError.call(this, '[Auth] Error reading tokens file:', args[1]);
@@ -89,7 +89,7 @@ async function initAuth() {
     }
     originalError.apply(this, args);
   };
-  
+
   try {
     authManager = new AuthManager({
       appId: APP_ID,
@@ -98,9 +98,9 @@ async function initAuth() {
       authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
       serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
       ownerId: process.env.OWNER_ID,
-      isDevelopment: botConfig.isDevelopment
+      isDevelopment: botConfig.isDevelopment,
     });
-    
+
     try {
       await authManager.initialize();
     } catch (error) {
@@ -110,11 +110,11 @@ async function initAuth() {
       // AuthManager is created but not fully initialized
       // We can still use it for basic operations
     }
-    
+
     // For backward compatibility, also load into local caches
     userTokensCache = authManager.userTokenManager.getAllTokens();
     nsfwVerifiedCache = authManager.nsfwVerificationManager.getAllVerifications();
-    
+
     // Log in the format tests expect (only if files existed)
     if (foundTokensFile) {
       const tokenCount = Object.keys(userTokensCache).length;
@@ -149,13 +149,13 @@ function getAuthorizationUrl() {
  */
 async function exchangeCodeForToken(code) {
   await ensureInitialized();
-  
+
   // We need to intercept the logger to capture what UserTokenManager logs
   const originalInfo = logger.info;
   const originalError = logger.error;
   let capturedError = null;
-  
-  logger.info = function(...args) {
+
+  logger.info = function (...args) {
     const message = args[0];
     if (message && message.includes('[UserTokenManager] Successfully exchanged code for token')) {
       originalInfo.call(this, '[Auth] Successfully exchanged code for token');
@@ -163,8 +163,8 @@ async function exchangeCodeForToken(code) {
     }
     originalInfo.apply(this, args);
   };
-  
-  logger.error = function(...args) {
+
+  logger.error = function (...args) {
     const message = args[0];
     if (message && message.includes('[UserTokenManager] Failed to exchange code for token:')) {
       // Extract the error details
@@ -181,7 +181,7 @@ async function exchangeCodeForToken(code) {
     }
     originalError.apply(this, args);
   };
-  
+
   try {
     const token = await authManager.userTokenManager.exchangeCodeForToken(code);
     return token;
@@ -200,16 +200,17 @@ async function exchangeCodeForToken(code) {
  */
 async function storeUserToken(userId, token) {
   await ensureInitialized();
-  
+
   authManager.userTokenManager.storeUserToken(userId, token);
-  const result = await authManager.authPersistence.saveUserTokens(authManager.userTokenManager.getAllTokens());
-  
+  const result = await authManager.authPersistence.saveUserTokens(
+    authManager.userTokenManager.getAllTokens()
+  );
+
   // Update local cache
   userTokensCache = authManager.userTokenManager.getAllTokens();
-  
+
   return result;
 }
-
 
 /**
  * Get the auth token for a user
@@ -226,12 +227,12 @@ function getUserToken(userId) {
     // Return undefined if the object exists but has no token (test expectation)
     return tokenData.token;
   }
-  
+
   // Otherwise, prefer authManager if it exists
   if (authManager) {
     return authManager.getUserToken(userId);
   }
-  
+
   // Fall back to cache
   const tokenData = userTokensCache[userId];
   if (!tokenData) return null;
@@ -262,19 +263,19 @@ function hasValidToken(userId) {
  */
 async function deleteUserToken(userId) {
   await ensureInitialized();
-  
+
   try {
     const result = await authManager.deleteUserToken(userId);
-    
+
     // Update local cache
     userTokensCache = authManager.userTokenManager.getAllTokens();
-    
+
     if (result) {
       logger.info(`[Auth] Deleted token for user ${userId}`);
     } else {
       // AuthManager already logged the error
     }
-    
+
     return result;
   } catch (error) {
     logger.error(`[Auth] Error deleting token for user ${userId}:`, error);
@@ -290,13 +291,13 @@ async function deleteUserToken(userId) {
  */
 async function storeNsfwVerification(userId, isVerified) {
   await ensureInitialized();
-  
+
   try {
     const result = await authManager.storeNsfwVerification(userId, isVerified);
-    
+
     // Update local cache
     nsfwVerifiedCache = authManager.nsfwVerificationManager.getAllVerifications();
-    
+
     if (result) {
       if (isVerified) {
         logger.info(`[Auth] User ${userId} verified for NSFW access`);
@@ -306,14 +307,13 @@ async function storeNsfwVerification(userId, isVerified) {
     } else {
       // AuthManager already logged the error
     }
-    
+
     return result;
   } catch (error) {
     logger.error(`[Auth] Error storing NSFW verification for user ${userId}:`, error);
     return false;
   }
 }
-
 
 /**
  * Check if a user is verified for NSFW content
@@ -334,12 +334,12 @@ function isNsfwVerified(userId) {
  */
 async function cleanupExpiredTokens() {
   await ensureInitialized();
-  
+
   const count = await authManager.cleanupExpiredTokens();
-  
+
   // Update local cache
   userTokensCache = authManager.userTokenManager.getAllTokens();
-  
+
   return count;
 }
 
@@ -397,7 +397,7 @@ Object.defineProperty(module.exports, 'userTokens', {
     if (authManager && authManager.userTokenManager) {
       authManager.userTokenManager.setAllTokens(value);
     }
-  }
+  },
 });
 
 Object.defineProperty(module.exports, 'nsfwVerified', {
@@ -414,7 +414,7 @@ Object.defineProperty(module.exports, 'nsfwVerified', {
     if (authManager && authManager.nsfwVerificationManager) {
       authManager.nsfwVerificationManager.setAllVerifications(value);
     }
-  }
+  },
 });
 
 module.exports = {
@@ -435,5 +435,5 @@ module.exports = {
   APP_ID,
   API_KEY,
   // Provide access to the underlying auth manager for advanced usage
-  getAuthManager: () => authManager
+  getAuthManager: () => authManager,
 };

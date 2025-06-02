@@ -6,7 +6,7 @@ const logger = require('../../logger');
 
 /**
  * PersonalityManager - Main facade for personality management
- * 
+ *
  * This class coordinates between the registry, persistence, and validation
  * components to provide a unified interface for personality operations.
  */
@@ -16,9 +16,9 @@ class PersonalityManager {
     this.persistence = new PersonalityPersistence();
     this.validator = new PersonalityValidator();
     this.initialized = false;
-    
+
     // Injectable delay function for testability
-    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   /**
@@ -33,16 +33,12 @@ class PersonalityManager {
 
       // Load data from persistence
       const { personalities, aliases } = await this.persistence.load();
-      
+
       // Load into registry
       this.registry.loadFromObjects(personalities, aliases);
 
       // Extract options with defaults
-      const {
-        skipBackgroundSeeding = false,
-        seedingDelay = 500,
-        scheduler = setTimeout
-      } = options;
+      const { skipBackgroundSeeding = false, seedingDelay = 500, scheduler = setTimeout } = options;
 
       // Handle owner personality seeding
       if (deferOwnerPersonalities && !skipBackgroundSeeding) {
@@ -90,13 +86,13 @@ class PersonalityManager {
         fullName,
         addedBy,
         addedAt: new Date().toISOString(),
-        ...additionalData
+        ...additionalData,
       };
 
       // Validate registration
       const validation = this.validator.validateRegistration(
-        fullName, 
-        personalityData, 
+        fullName,
+        personalityData,
         this.registry.personalities
       );
       if (!validation.isValid) {
@@ -111,13 +107,15 @@ class PersonalityManager {
         try {
           const [avatarUrl, displayName] = await Promise.all([
             getProfileAvatarUrl(fullName),
-            getProfileDisplayName(fullName)
+            getProfileDisplayName(fullName),
           ]);
 
           if (avatarUrl) sanitized.avatarUrl = avatarUrl;
           if (displayName) sanitized.displayName = displayName;
         } catch (profileError) {
-          logger.warn(`[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`);
+          logger.warn(
+            `[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`
+          );
         }
       }
 
@@ -271,7 +269,7 @@ class PersonalityManager {
   async seedOwnerPersonalities(options = {}) {
     // Get owner ID from environment or constants
     let ownerId = null;
-    
+
     // Check environment variable first (direct, no array)
     if (process.env.BOT_OWNER_ID) {
       ownerId = process.env.BOT_OWNER_ID;
@@ -282,43 +280,49 @@ class PersonalityManager {
         if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_ID) {
           ownerId = constants.USER_CONFIG.OWNER_ID;
         }
-      } catch (_error) { // eslint-disable-line no-unused-vars
+      } catch (_error) {
+        // eslint-disable-line no-unused-vars
         // Constants not available
       }
     }
-    
+
     if (!ownerId) {
       logger.info('[PersonalityManager] No bot owner ID configured, skipping seeding');
       return;
     }
     const ownerPersonalities = this.listPersonalitiesForUser(ownerId);
-    
+
     // Get list of expected personalities from constants
     let expectedPersonalities = [];
     try {
       const constants = require('../../constants');
       if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_PERSONALITIES_LIST) {
-        expectedPersonalities = constants.USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',').map(p => p.trim());
+        expectedPersonalities = constants.USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',').map(p =>
+          p.trim()
+        );
       }
-    } catch (_error) { // eslint-disable-line no-unused-vars
+    } catch (_error) {
+      // eslint-disable-line no-unused-vars
       // If constants not available, use default list
-      expectedPersonalities = [
-        'assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'
-      ];
+      expectedPersonalities = ['assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
     }
-    
+
     // Check which personalities are missing
     const existingNames = ownerPersonalities.map(p => p.fullName).map(name => name.toLowerCase());
     const personalitiesToAdd = expectedPersonalities.filter(
       name => !existingNames.includes(name.toLowerCase())
     );
-    
+
     if (personalitiesToAdd.length === 0) {
-      logger.info(`[PersonalityManager] Owner has all ${expectedPersonalities.length} expected personalities`);
+      logger.info(
+        `[PersonalityManager] Owner has all ${expectedPersonalities.length} expected personalities`
+      );
       return;
     }
 
-    logger.info(`[PersonalityManager] Owner has ${ownerPersonalities.length} personalities, missing ${personalitiesToAdd.length}: ${personalitiesToAdd.join(', ')}`);
+    logger.info(
+      `[PersonalityManager] Owner has ${ownerPersonalities.length} personalities, missing ${personalitiesToAdd.length}: ${personalitiesToAdd.join(', ')}`
+    );
     logger.info('[PersonalityManager] Starting personality seeding for missing entries...');
 
     const addedPersonalities = [];
@@ -329,9 +333,12 @@ class PersonalityManager {
           addedPersonalities.push(personalityName);
           logger.info(`[PersonalityManager] Successfully seeded: ${personalityName}`);
         }
-        
+
         // Add delay to avoid rate limiting (unless skipped)
-        if (!options.skipDelays && personalitiesToAdd.indexOf(personalityName) < personalitiesToAdd.length - 1) {
+        if (
+          !options.skipDelays &&
+          personalitiesToAdd.indexOf(personalityName) < personalitiesToAdd.length - 1
+        ) {
           await this.delay(8000);
         }
       } catch (error) {
@@ -339,7 +346,9 @@ class PersonalityManager {
       }
     }
 
-    logger.info(`[PersonalityManager] Seeding complete. Added ${addedPersonalities.length} personalities`);
+    logger.info(
+      `[PersonalityManager] Seeding complete. Added ${addedPersonalities.length} personalities`
+    );
   }
 
   /**
@@ -359,15 +368,15 @@ class PersonalityManager {
    */
   async _setDisplayNameAlias(displayName, fullName) {
     const lowerAlias = displayName.toLowerCase();
-    
+
     // Check if alias already exists
     if (this.registry.aliases.has(lowerAlias)) {
       // Create a smarter alias by using parts of the full personality name
       const nameParts = fullName.split('-');
       const aliasParts = displayName.split('-');
-      
+
       let alternateAlias = displayName;
-      
+
       // If the personality name has more parts than the alias, try adding the next part
       if (nameParts.length > aliasParts.length) {
         // Find which part of the name corresponds to the alias
@@ -378,15 +387,18 @@ class PersonalityManager {
             break;
           }
         }
-        
+
         // If we found a match and there's a next part, use it
         if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
           alternateAlias = `${displayName}-${nameParts[matchIndex + 1]}`;
         }
       }
-      
+
       // If the smart alias is still taken or we couldn't create one, fall back to random
-      if (alternateAlias === displayName || this.registry.aliases.has(alternateAlias.toLowerCase())) {
+      if (
+        alternateAlias === displayName ||
+        this.registry.aliases.has(alternateAlias.toLowerCase())
+      ) {
         // Generate a random suffix with only lowercase letters
         const chars = 'abcdefghijklmnopqrstuvwxyz';
         let randomSuffix = '';
@@ -395,10 +407,12 @@ class PersonalityManager {
         }
         alternateAlias = `${displayName}-${randomSuffix}`;
       }
-      
+
       // Set the alternate alias
       this.registry.setAlias(alternateAlias.toLowerCase(), fullName);
-      logger.info(`[PersonalityManager] Created alternate alias ${alternateAlias} for ${fullName} (${displayName} was taken)`);
+      logger.info(
+        `[PersonalityManager] Created alternate alias ${alternateAlias} for ${fullName} (${displayName} was taken)`
+      );
     } else {
       // Alias is available, use it directly
       this.registry.setAlias(lowerAlias, fullName);
@@ -427,18 +441,18 @@ class PersonalityManager {
 module.exports = PersonalityManager;
 
 // Factory function to create instances
-module.exports.create = function(options = {}) {
+module.exports.create = function (options = {}) {
   return new PersonalityManager(options);
 };
 
 // For backward compatibility, create a lazy-loaded singleton
 let _instance = null;
-module.exports.getInstance = function() {
+module.exports.getInstance = function () {
   if (!_instance) {
     // In tests, inject a no-op delay to prevent real timers
     const isTestEnvironment = process.env.JEST_WORKER_ID !== undefined;
     _instance = new PersonalityManager({
-      delay: isTestEnvironment ? (() => Promise.resolve()) : undefined
+      delay: isTestEnvironment ? () => Promise.resolve() : undefined,
     });
   }
   return _instance;
@@ -463,8 +477,12 @@ Object.assign(module.exports, {
   validatePersonalityName: (...args) => personalityManager.validatePersonalityName(...args),
   getAllPersonalities: (...args) => personalityManager.getAllPersonalities(...args),
   save: (...args) => personalityManager.save(...args),
-  
+
   // Properties
-  get personalityAliases() { return personalityManager.personalityAliases; },
-  get size() { return personalityManager.size; }
+  get personalityAliases() {
+    return personalityManager.personalityAliases;
+  },
+  get size() {
+    return personalityManager.size;
+  },
 });

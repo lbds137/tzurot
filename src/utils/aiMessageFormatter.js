@@ -52,24 +52,28 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
         try {
           // Initialize cleaned reference content early for use throughout the function
           const cleanedRefContent = content.referencedMessage.content;
-          
+
           // First, check if media URLs were provided directly (from embed extraction)
           let mediaUrl = null;
           let mediaType = null;
-          
+
           if (content.referencedMessage.audioUrl) {
             mediaUrl = content.referencedMessage.audioUrl;
             mediaType = 'audio';
-            logger.debug(`[AIMessageFormatter] Using provided audio URL from reference: ${mediaUrl}`);
+            logger.debug(
+              `[AIMessageFormatter] Using provided audio URL from reference: ${mediaUrl}`
+            );
           } else if (content.referencedMessage.imageUrl) {
             mediaUrl = content.referencedMessage.imageUrl;
             mediaType = 'image';
-            logger.debug(`[AIMessageFormatter] Using provided image URL from reference: ${mediaUrl}`);
+            logger.debug(
+              `[AIMessageFormatter] Using provided image URL from reference: ${mediaUrl}`
+            );
           } else {
             // Fallback to extracting from text content for backward compatibility
             const hasImage = sanitizedReferenceContent.includes('[Image:');
             const hasAudio = sanitizedReferenceContent.includes('[Audio:');
-            
+
             if (hasAudio) {
               // Audio has priority over images
               const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)]/);
@@ -99,7 +103,9 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
           // If the content is empty after removing media URLs, add a placeholder
           if (!cleanContent && mediaUrl) {
             cleanContent = mediaType === 'image' ? '[Image]' : '[Audio Message]';
-            logger.info(`[AIMessageFormatter] Adding media placeholder to empty reference: ${cleanContent}`);
+            logger.info(
+              `[AIMessageFormatter] Adding media placeholder to empty reference: ${cleanContent}`
+            );
           }
 
           // Get user's message content (text or multimodal)
@@ -111,9 +117,10 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
           const currentUserName = content.userName || 'The user';
           const referencedAuthor = content.referencedMessage.author;
           // Compare by user ID if available, otherwise fall back to username comparison
-          const isUserSelfReference = (currentUserId && referencedAuthorId) 
-            ? currentUserId === referencedAuthorId 
-            : currentUserName === referencedAuthor;
+          const isUserSelfReference =
+            currentUserId && referencedAuthorId
+              ? currentUserId === referencedAuthorId
+              : currentUserName === referencedAuthor;
 
           // Create natural phrasing for referenced messages with media
           let mediaContext = '';
@@ -133,7 +140,10 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
           } else if (content.referencedMessage.isFromBot && content.referencedMessage.webhookName) {
             // Use webhook name for PluralKit and similar webhook messages
             authorText = content.referencedMessage.webhookName;
-          } else if (content.referencedMessage.isFromBot && content.referencedMessage.personalityDisplayName) {
+          } else if (
+            content.referencedMessage.isFromBot &&
+            content.referencedMessage.personalityDisplayName
+          ) {
             // Use personality display name if available
             authorText = content.referencedMessage.personalityDisplayName;
           } else {
@@ -157,7 +167,10 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
               displayName = personalityObject.displayName;
             } else {
               // Fall back to provided display name or the personality name
-              displayName = content.referencedMessage.personalityDisplayName || content.referencedMessage.displayName || fullName;
+              displayName =
+                content.referencedMessage.personalityDisplayName ||
+                content.referencedMessage.displayName ||
+                fullName;
             }
 
             // Format name with display name and full name in parentheses, unless they're the same
@@ -256,7 +269,7 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             if (Array.isArray(userMessageContent)) {
               // Extract text from multimodal user content
               const userTextParts = userMessageContent
@@ -278,35 +291,39 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             // Add the combined text as first element
             combinedContent.push({
               type: 'text',
-              text: combinedText
+              text: combinedText,
             });
 
             // Add user's original media content (images/audio from user's message)
             if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(item => 
-                item.type === 'image_url' || item.type === 'audio_url');
+              const userMediaElements = userMessageContent.filter(
+                item => item.type === 'image_url' || item.type === 'audio_url'
+              );
               combinedContent.push(...userMediaElements);
             }
 
             // Add referenced media content if present (just the media URL, not the prompt text)
             if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(item => 
-                item.type === 'audio_url' || item.type === 'image_url');
+              const mediaElements = mediaMessage.content.filter(
+                item => item.type === 'audio_url' || item.type === 'image_url'
+              );
               combinedContent.push(...mediaElements);
             }
 
             // Create single combined message
             const userMessage = { role: 'user', content: combinedContent };
             messages = [userMessage];
-            
-            logger.debug(`[AIMessageFormatter] Same sender detected - combined into single message`);
+
+            logger.debug(
+              `[AIMessageFormatter] Same sender detected - combined into single message`
+            );
           } else {
             // Different senders: combine everything into single message for better AI processing
             const combinedContent = [];
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             if (Array.isArray(userMessageContent)) {
               // Extract text from multimodal user content
               const userTextParts = userMessageContent
@@ -328,28 +345,32 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             // Add the combined text as first element
             combinedContent.push({
               type: 'text',
-              text: combinedText
+              text: combinedText,
             });
 
             // Add user's original media content (images/audio from user's message)
             if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(item => 
-                item.type === 'image_url' || item.type === 'audio_url');
+              const userMediaElements = userMessageContent.filter(
+                item => item.type === 'image_url' || item.type === 'audio_url'
+              );
               combinedContent.push(...userMediaElements);
             }
 
             // Add referenced media content if present (just the media URL, not the prompt text)
             if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(item => 
-                item.type === 'audio_url' || item.type === 'image_url');
+              const mediaElements = mediaMessage.content.filter(
+                item => item.type === 'audio_url' || item.type === 'image_url'
+              );
               combinedContent.push(...mediaElements);
             }
 
             // Create single combined message
             const userMessage = { role: 'user', content: combinedContent };
             messages = [userMessage];
-            
-            logger.debug(`[AIMessageFormatter] Different senders detected - combined everything into single message for better AI processing`);
+
+            logger.debug(
+              `[AIMessageFormatter] Different senders detected - combined everything into single message for better AI processing`
+            );
           }
 
           logger.info(`[DEBUG] Final messages being sent to AI API (count: ${messages.length}):`);
@@ -360,7 +381,9 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
           return messages;
         } catch (refError) {
           // If there's an error processing the reference, log it but continue
-          logger.error(`[AIMessageFormatter] Error processing referenced message: ${refError.message}`);
+          logger.error(
+            `[AIMessageFormatter] Error processing referenced message: ${refError.message}`
+          );
           logger.error(`[AIMessageFormatter] Reference processing error stack: ${refError.stack}`);
 
           // Fall back to just sending the user's message
@@ -392,11 +415,16 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
     if (Array.isArray(content)) {
       // Handle standard multimodal content array
       // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
-      if (isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text') {
+      if (
+        isProxyMessage &&
+        userName !== 'a user' &&
+        content.length > 0 &&
+        content[0].type === 'text'
+      ) {
         const modifiedContent = [...content];
         modifiedContent[0] = {
           ...modifiedContent[0],
-          text: `[${userName}]: ${modifiedContent[0].text}`
+          text: `[${userName}]: ${modifiedContent[0].text}`,
         };
         return [{ role: 'user', content: modifiedContent }];
       }
@@ -407,12 +435,13 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
     if (typeof content === 'string') {
       const sanitizedContent = sanitizeApiText(content);
       // For proxy messages only: prepend speaker identification if we have a userName
-      const finalContent = isProxyMessage && userName !== 'a user' 
-        ? `[${userName}]: ${sanitizedContent}`
-        : sanitizedContent;
+      const finalContent =
+        isProxyMessage && userName !== 'a user'
+          ? `[${userName}]: ${sanitizedContent}`
+          : sanitizedContent;
       return [{ role: 'user', content: finalContent }];
     }
-    
+
     // For non-string content, return as is
     return [{ role: 'user', content }];
   } catch (formatError) {
@@ -448,5 +477,5 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
 }
 
 module.exports = {
-  formatApiMessages
+  formatApiMessages,
 };

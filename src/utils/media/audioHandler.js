@@ -15,7 +15,7 @@ const urlValidator = require('../urlValidator');
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: globalThis.setTimeout,
-  clearTimeout: globalThis.clearTimeout
+  clearTimeout: globalThis.clearTimeout,
 };
 
 /**
@@ -286,7 +286,7 @@ async function processAudioUrls(content) {
 
     // Remove the entire [Audio: URL] pattern or just the URL
     let modifiedContent = content;
-    
+
     // First try to remove the [Audio: URL] pattern
     const audioPattern = `[Audio: ${audioUrl.url}]`;
     if (content.includes(audioPattern)) {

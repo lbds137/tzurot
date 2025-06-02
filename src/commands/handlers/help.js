@@ -73,8 +73,7 @@ async function execute(message, args) {
           break;
 
         case 'debug':
-          helpContent +=
-            `\n\nCurrently no subcommands are available for this command.`;
+          helpContent += `\n\nCurrently no subcommands are available for this command.`;
           break;
 
         case 'add':
@@ -116,7 +115,11 @@ async function execute(message, args) {
     // Filter commands based on user permissions
     const availableCommands = allCommands.filter(cmd => {
       // If command requires admin and user is not admin, filter it out
-      if (cmd.meta.permissions && cmd.meta.permissions.includes(PermissionFlagsBits.Administrator) && !isAdmin) {
+      if (
+        cmd.meta.permissions &&
+        cmd.meta.permissions.includes(PermissionFlagsBits.Administrator) &&
+        !isAdmin
+      ) {
         return false;
       }
       return true;
@@ -133,7 +136,10 @@ async function execute(message, args) {
 
     // Sort commands into categories
     availableCommands.forEach(cmd => {
-      if (cmd.meta.permissions && cmd.meta.permissions.includes(PermissionFlagsBits.Administrator)) {
+      if (
+        cmd.meta.permissions &&
+        cmd.meta.permissions.includes(PermissionFlagsBits.Administrator)
+      ) {
         categories['Admin'].push(cmd);
       } else if (['add', 'remove', 'list', 'alias', 'info'].includes(cmd.meta.name)) {
         categories['Personality Management'].push(cmd);

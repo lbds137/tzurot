@@ -1,6 +1,6 @@
 /**
  * DM Message Handler
- * 
+ *
  * Handles direct message formatting and sending for AI personalities
  * DMs don't support webhooks, so we format messages manually
  */
@@ -19,11 +19,11 @@ const { processMediaForWebhook, prepareAttachmentOptions } = require('../utils/m
  * @returns {Promise<Object>} Result with message and messageIds
  */
 async function sendFormattedMessageInDM(
-  channel, 
-  content, 
-  personality, 
+  channel,
+  content,
+  personality,
   options = {},
-  delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  delayFn = ms => new Promise(resolve => setTimeout(resolve, ms))
 ) {
   try {
     // For DMs, use just the personality name without the suffix
@@ -99,9 +99,7 @@ async function sendFormattedMessageInDM(
     // Check if content is a multimodal array
     else if (Array.isArray(content) && content.length > 0) {
       isMultimodalContent = true;
-      logger.info(
-        `[DM Handler] Detected multimodal content array with ${content.length} items`
-      );
+      logger.info(`[DM Handler] Detected multimodal content array with ${content.length} items`);
 
       // Extract text content and media URLs from multimodal array
       content.forEach(item => {
@@ -109,14 +107,10 @@ async function sendFormattedMessageInDM(
           multimodalTextContent += item.text + '\n';
         } else if (item.type === 'image_url' && item.image_url?.url) {
           multimodalImageUrl = item.image_url.url;
-          logger.info(
-            `[DM Handler] Found image URL in multimodal content: ${multimodalImageUrl}`
-          );
+          logger.info(`[DM Handler] Found image URL in multimodal content: ${multimodalImageUrl}`);
         } else if (item.type === 'audio_url' && item.audio_url?.url) {
           multimodalAudioUrl = item.audio_url.url;
-          logger.info(
-            `[DM Handler] Found audio URL in multimodal content: ${multimodalAudioUrl}`
-          );
+          logger.info(`[DM Handler] Found audio URL in multimodal content: ${multimodalAudioUrl}`);
         }
       });
 
@@ -135,9 +129,7 @@ async function sendFormattedMessageInDM(
           mediaAttachments = mediaResult.attachments;
 
           if (mediaAttachments.length > 0) {
-            logger.info(
-              `[DM Handler] Processed ${mediaAttachments.length} media URLs`
-            );
+            logger.info(`[DM Handler] Processed ${mediaAttachments.length} media URLs`);
           }
         }
       } catch (error) {
@@ -163,7 +155,7 @@ async function sendFormattedMessageInDM(
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
-      
+
       // Add a delay between chunks to prevent Discord from merging/replacing them
       // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {
@@ -214,9 +206,7 @@ async function sendFormattedMessageInDM(
 
           // Send the audio message with the personality name prefix
           const audioContent = `**${displayName}:** [Audio: ${multimodalAudioUrl}]`;
-          logger.info(
-            `[DM Handler] Sending audio as separate message: ${multimodalAudioUrl}`
-          );
+          logger.info(`[DM Handler] Sending audio as separate message: ${multimodalAudioUrl}`);
 
           const audioMessage = await channel.send({
             content: audioContent,
@@ -238,9 +228,7 @@ async function sendFormattedMessageInDM(
 
           // Send the image message with the personality name prefix
           const imageContent = `**${displayName}:** [Image: ${multimodalImageUrl}]`;
-          logger.info(
-            `[DM Handler] Sending image as separate message: ${multimodalImageUrl}`
-          );
+          logger.info(`[DM Handler] Sending image as separate message: ${multimodalImageUrl}`);
 
           const imageMessage = await channel.send({
             content: imageContent,

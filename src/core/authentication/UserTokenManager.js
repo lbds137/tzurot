@@ -207,7 +207,7 @@ class UserTokenManager {
    */
   setAllTokens(tokens) {
     this.userTokens = tokens || {};
-    
+
     // Update tokens with missing expiration dates
     let updatedCount = 0;
     Object.keys(this.userTokens).forEach(userId => {

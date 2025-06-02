@@ -2,7 +2,7 @@ const logger = require('../../logger');
 
 /**
  * ChannelActivation - Manages personality activations in channels
- * 
+ *
  * This module handles channels where a personality is activated to respond
  * to all messages, not just those directed at the bot.
  */
@@ -20,15 +20,19 @@ class ChannelActivation {
    * @returns {boolean} Success status
    */
   activate(channelId, personalityName, userId) {
-    logger.info(`[ChannelActivation] Activating personality "${personalityName}" in channel ${channelId} by user ${userId}`);
-    
+    logger.info(
+      `[ChannelActivation] Activating personality "${personalityName}" in channel ${channelId} by user ${userId}`
+    );
+
     this.activatedChannels.set(channelId, {
       personalityName,
       activatedBy: userId,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
-    
-    logger.info(`[ChannelActivation] Successfully activated personality "${personalityName}" in channel ${channelId}`);
+
+    logger.info(
+      `[ChannelActivation] Successfully activated personality "${personalityName}" in channel ${channelId}`
+    );
     return true;
   }
 
@@ -39,11 +43,11 @@ class ChannelActivation {
    */
   deactivate(channelId) {
     const result = this.activatedChannels.delete(channelId);
-    
+
     if (result) {
       logger.info(`[ChannelActivation] Deactivated personality in channel ${channelId}`);
     }
-    
+
     return result;
   }
 
@@ -54,16 +58,20 @@ class ChannelActivation {
    */
   getActivatedPersonality(channelId) {
     logger.debug(`[ChannelActivation] Checking activated personality for channel ${channelId}`);
-    logger.debug(`[ChannelActivation] Current activatedChannels Map size: ${this.activatedChannels.size}`);
-    
+    logger.debug(
+      `[ChannelActivation] Current activatedChannels Map size: ${this.activatedChannels.size}`
+    );
+
     const activated = this.activatedChannels.get(channelId);
-    
+
     if (!activated) {
       logger.debug(`[ChannelActivation] No activated personality found for channel ${channelId}`);
       return null;
     }
-    
-    logger.info(`[ChannelActivation] FOUND activated personality "${activated.personalityName}" for channel ${channelId}, activated by user ${activated.activatedBy} at ${new Date(activated.timestamp).toISOString()}`);
+
+    logger.info(
+      `[ChannelActivation] FOUND activated personality "${activated.personalityName}" for channel ${channelId}, activated by user ${activated.activatedBy} at ${new Date(activated.timestamp).toISOString()}`
+    );
     return activated.personalityName;
   }
 
@@ -98,11 +106,11 @@ class ChannelActivation {
   loadFromData(activations) {
     if (activations && typeof activations === 'object') {
       this.activatedChannels.clear();
-      
+
       for (const [channelId, data] of Object.entries(activations)) {
         this.activatedChannels.set(channelId, data);
       }
-      
+
       logger.info(`[ChannelActivation] Loaded ${this.activatedChannels.size} activated channels`);
     }
   }

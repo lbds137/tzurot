@@ -23,7 +23,8 @@ class PersonalityAuthValidator {
    * @param {Object} personality - The personality object
    * @returns {boolean} Whether authentication is required (always true)
    */
-  requiresAuth(personality) { // eslint-disable-line no-unused-vars
+  requiresAuth(personality) {
+    // eslint-disable-line no-unused-vars
     // All personality interactions require authentication
     return true;
   }
@@ -53,7 +54,7 @@ class PersonalityAuthValidator {
       requiresNsfwVerification: false,
       errors: [],
       warnings: [],
-      details: {}
+      details: {},
     };
 
     // Determine user ID
@@ -65,26 +66,39 @@ class PersonalityAuthValidator {
 
     // ALL personality interactions require authentication (including bot owner)
     result.requiresAuth = true;
-    
+
     // Check if user has valid token (no bypass for bot owner)
     const hasToken = this.userTokenManager.hasValidToken(effectiveUserId);
     if (!hasToken) {
       // Get bot prefix from config
       const { botPrefix } = require('../../../config');
-      result.errors.push(`Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`);
-      logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`);
+      result.errors.push(
+        `Authentication is required to interact with personalities. Please use \`${botPrefix} auth start\` to authenticate.`
+      );
+      logger.info(
+        `[PersonalityAuthValidator] User ${effectiveUserId} lacks required authentication for personality ${personality.name}`
+      );
       return result;
     }
     result.details.hasValidToken = true;
 
     // Check NSFW verification if needed
     if (channel) {
-      const nsfwCheck = this.nsfwVerificationManager.verifyAccess(channel, effectiveUserId, message);
-      result.requiresNsfwVerification = this.nsfwVerificationManager.requiresNsfwVerification(channel);
-      
+      const nsfwCheck = this.nsfwVerificationManager.verifyAccess(
+        channel,
+        effectiveUserId,
+        message
+      );
+      result.requiresNsfwVerification =
+        this.nsfwVerificationManager.requiresNsfwVerification(channel);
+
       if (!nsfwCheck.isAllowed) {
-        result.errors.push('This channel requires age verification. Please use the `verify` command to confirm you are 18 or older.');
-        logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} lacks NSFW verification for channel ${channel.id}`);
+        result.errors.push(
+          'This channel requires age verification. Please use the `verify` command to confirm you are 18 or older.'
+        );
+        logger.info(
+          `[PersonalityAuthValidator] User ${effectiveUserId} lacks NSFW verification for channel ${channel.id}`
+        );
         return result;
       }
 
@@ -93,7 +107,7 @@ class PersonalityAuthValidator {
         channelRequiresVerification: result.requiresNsfwVerification,
         userVerified: nsfwCheck.isAllowed,
         autoVerified: nsfwCheck.autoVerified || false,
-        isProxy: nsfwCheck.isProxy || false
+        isProxy: nsfwCheck.isProxy || false,
       };
 
       if (nsfwCheck.isProxy) {
@@ -107,9 +121,9 @@ class PersonalityAuthValidator {
       if (proxyCheck.isProxy) {
         result.details.proxySystem = {
           detected: true,
-          type: proxyCheck.systemType
+          type: proxyCheck.systemType,
         };
-        
+
         // For proxy systems, we may need additional validation
         if (result.requiresAuth && !result.details.ownerBypass) {
           result.warnings.push('Authentication through proxy systems may have limitations');
@@ -119,10 +133,12 @@ class PersonalityAuthValidator {
 
     // All checks passed
     result.isAuthorized = true;
-    
+
     // Log successful authorization
-    logger.info(`[PersonalityAuthValidator] User ${effectiveUserId} authorized for personality ${personality?.name || 'unknown'}`);
-    
+    logger.info(
+      `[PersonalityAuthValidator] User ${effectiveUserId} authorized for personality ${personality?.name || 'unknown'}`
+    );
+
     return result;
   }
 
@@ -143,7 +159,7 @@ class PersonalityAuthValidator {
       hasValidToken: hasToken,
       tokenExpiration: tokenInfo,
       nsfwVerified: isVerified,
-      nsfwVerificationDate: verificationInfo?.verifiedAt || null
+      nsfwVerificationDate: verificationInfo?.verifiedAt || null,
     };
   }
 
@@ -160,14 +176,21 @@ class PersonalityAuthValidator {
       messages.push(...validationResult.errors.map(err => `• ${err}`));
     }
 
-    if (validationResult.requiresAuth && !validationResult.details.hasValidToken && !validationResult.details.ownerBypass) {
+    if (
+      validationResult.requiresAuth &&
+      !validationResult.details.hasValidToken &&
+      !validationResult.details.ownerBypass
+    ) {
       messages.push('\n**How to authenticate:**');
       messages.push('1. Use the `auth` command to get an authentication link');
       messages.push('2. Visit the link and authorize the application');
       messages.push('3. Copy the code and use `auth <code>` to complete authentication');
     }
 
-    if (validationResult.requiresNsfwVerification && !validationResult.details.nsfwCheck?.userVerified) {
+    if (
+      validationResult.requiresNsfwVerification &&
+      !validationResult.details.nsfwCheck?.userVerified
+    ) {
       messages.push('\n**Age verification required:**');
       messages.push('• This channel contains age-restricted content');
       messages.push('• Use the `verify` command to confirm you are 18 or older');

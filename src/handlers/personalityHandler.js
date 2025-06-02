@@ -30,9 +30,9 @@ const globalClearInterval = clearInterval;
 
 let timerFunctions = {
   setTimeout: (callback, delay, ...args) => globalSetTimeout(callback, delay, ...args),
-  clearTimeout: (id) => globalClearTimeout(id),
+  clearTimeout: id => globalClearTimeout(id),
   setInterval: (callback, delay, ...args) => globalSetInterval(callback, delay, ...args),
-  clearInterval: (id) => globalClearInterval(id)
+  clearInterval: id => globalClearInterval(id),
 };
 
 /**
@@ -44,7 +44,7 @@ function configureTimers(customTimers) {
 }
 
 // Injectable delay function for testability
-let delayFn = (ms) => new Promise(resolve => timerFunctions.setTimeout(resolve, ms));
+let delayFn = ms => new Promise(resolve => timerFunctions.setTimeout(resolve, ms));
 
 /**
  * Configure the delay function (for testing)
@@ -87,7 +87,14 @@ function startTypingIndicator(channel) {
  * @param {boolean} [isDM=false] - Whether this is a DM channel
  * @param {boolean} [isMentionOnly=false] - Whether this conversation was initiated by a mention
  */
-function recordConversationData(userId, channelId, result, personalityName, isDM = false, isMentionOnly = false) {
+function recordConversationData(
+  userId,
+  channelId,
+  result,
+  personalityName,
+  isDM = false,
+  isMentionOnly = false
+) {
   // Format message IDs for tracking
   const messageIds = Array.isArray(result.messageIds)
     ? result.messageIds
@@ -126,28 +133,24 @@ async function handlePersonalityInteraction(
   try {
     // Perform complete authentication check
     const authResult = await personalityAuth.checkPersonalityAuth(message, personality);
-    
+
     if (!authResult.isAllowed) {
       // Authentication failed - send error message and exit
-      await personalityAuth.sendAuthError(
-        message,
-        authResult.errorMessage,
-        authResult.reason
-      );
+      await personalityAuth.sendAuthError(message, authResult.errorMessage, authResult.reason);
       return; // Exit without processing the personality interaction
     }
-    
+
     // Extract authentication results
     const { isProxySystem, isDM } = authResult;
-    
+
     // CRITICAL: Check autoresponse status NOW, not later
     // This prevents race conditions where autoresponse changes during processing
     const conversationUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
     const autoResponseEnabledAtStart = isAutoResponseEnabled(conversationUserId);
-    
+
     logger.debug(
       `[PersonalityHandler] Starting interaction - User: ${conversationUserId}, ` +
-      `autoResponseEnabled: ${autoResponseEnabledAtStart}, triggeringMention: ${triggeringMention}`
+        `autoResponseEnabled: ${autoResponseEnabledAtStart}, triggeringMention: ${triggeringMention}`
     );
 
     // Flag to indicate if this message is a reply to a DM message with a personality prefix
@@ -158,8 +161,12 @@ async function handlePersonalityInteraction(
     // Track the request to prevent duplicates
     // For PluralKit messages, use the real user ID instead of the webhook author ID
     const trackerRealUserId = webhookUserTracker.getRealUserId(message);
-    
-    const requestKey = requestTracker.trackRequest(trackerRealUserId || message.author.id, message.channel.id, personality.fullName);
+
+    const requestKey = requestTracker.trackRequest(
+      trackerRealUserId || message.author.id,
+      message.channel.id,
+      personality.fullName
+    );
     if (!requestKey) {
       return; // Don't process duplicate requests
     }
@@ -361,16 +368,18 @@ async function handlePersonalityInteraction(
           if (repliedToMessage.embeds && repliedToMessage.embeds.length > 0) {
             // Use the embed utils to parse embeds
             const embedUtils = require('../utils/embedUtils');
-            
+
             // First, extract any Discord message links from the embeds
             const embedLinks = embedUtils.extractDiscordLinksFromEmbeds(repliedToMessage.embeds);
             if (embedLinks.length > 0) {
-              logger.info(`[PersonalityHandler] Found ${embedLinks.length} Discord links in referenced message embeds`);
+              logger.info(
+                `[PersonalityHandler] Found ${embedLinks.length} Discord links in referenced message embeds`
+              );
               // Add the first link to the message content so it can be processed later
               // We add it as plain text so the regex can find it
               referencedMessageContent += '\n' + embedLinks[0];
             }
-            
+
             // Then parse the embeds to text
             referencedMessageContent += embedUtils.parseEmbedsToText(
               repliedToMessage.embeds,
@@ -398,32 +407,39 @@ async function handlePersonalityInteraction(
           logger.info(
             `[PersonalityHandler] Found referenced message (reply) from ${referencedMessageAuthor}: "${referencedMessageContent.substring(0, 50)}${referencedMessageContent.length > 50 ? '...' : ''}"`
           );
-          
+
           // Handle nested references if we have an active conversation or autoresponse
           // This ensures the personality can see the full conversation context
-          if (repliedToMessage.reference && (hasActivePersonality || isAutoResponseEnabled(message.author.id))) {
+          if (
+            repliedToMessage.reference &&
+            (hasActivePersonality || isAutoResponseEnabled(message.author.id))
+          ) {
             logger.info(
               `[PersonalityHandler] Detected nested reference in active conversation context`
             );
-            
+
             try {
               // Fetch the nested referenced message
-              const nestedReferencedMessage = await message.channel.messages.fetch(repliedToMessage.reference.messageId);
-              
+              const nestedReferencedMessage = await message.channel.messages.fetch(
+                repliedToMessage.reference.messageId
+              );
+
               if (nestedReferencedMessage) {
                 // Add nested reference context to the referenced message content
                 const nestedAuthor = nestedReferencedMessage.author?.username || 'another user';
                 const nestedContent = nestedReferencedMessage.content || '[no content]';
-                
+
                 // Prepend the nested context to show the conversation flow
                 referencedMessageContent = `[Earlier message from ${nestedAuthor}: "${nestedContent.substring(0, 100)}${nestedContent.length > 100 ? '...' : ''}"] ${referencedMessageContent}`;
-                
+
                 logger.info(
                   `[PersonalityHandler] Added nested reference context from ${nestedAuthor}`
                 );
               }
             } catch (nestedError) {
-              logger.warn(`[PersonalityHandler] Could not fetch nested reference: ${nestedError.message}`);
+              logger.warn(
+                `[PersonalityHandler] Could not fetch nested reference: ${nestedError.message}`
+              );
               // Continue without nested context
             }
           }
@@ -437,7 +453,7 @@ async function handlePersonalityInteraction(
     // Determine if this is an active personality context
     // It's active if it's NOT triggered by a mention (null triggeringMention means reply or active conversation)
     const hasActivePersonality = !triggeringMention;
-    
+
     // Check if the referenced message contains Discord links that we should process
     // This handles the case where user replies to their own message containing a link
     if (referencedMessageContent && triggeringMention) {
@@ -451,32 +467,37 @@ async function handlePersonalityInteraction(
         client,
         true // Process links when replying with a mention
       );
-      
+
       if (referencedLinkResult.hasProcessedLink) {
         // Update the referenced message content with processed link
         referencedMessageContent = referencedLinkResult.messageContent;
-        
+
         // If we found a Discord message link in the referenced message,
         // add its content to our context
         if (referencedLinkResult.referencedMessageContent) {
-          referencedMessageContent += '\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
-          
+          referencedMessageContent +=
+            '\n[Linked Message]: ' + referencedLinkResult.referencedMessageContent;
+
           // Update other reference info if found
           if (referencedLinkResult.referencedPersonalityInfo?.displayName) {
-            referencedMessageContent += ' (from ' + referencedLinkResult.referencedPersonalityInfo.displayName + ')';
+            referencedMessageContent +=
+              ' (from ' + referencedLinkResult.referencedPersonalityInfo.displayName + ')';
           } else if (referencedLinkResult.referencedWebhookName) {
-            referencedMessageContent += ' (from ' + referencedLinkResult.referencedWebhookName + ')';
-          } else if (referencedLinkResult.referencedMessageAuthor && referencedLinkResult.referencedMessageAuthor !== 'another user') {
-            referencedMessageContent += ' (from ' + referencedLinkResult.referencedMessageAuthor + ')';
+            referencedMessageContent +=
+              ' (from ' + referencedLinkResult.referencedWebhookName + ')';
+          } else if (
+            referencedLinkResult.referencedMessageAuthor &&
+            referencedLinkResult.referencedMessageAuthor !== 'another user'
+          ) {
+            referencedMessageContent +=
+              ' (from ' + referencedLinkResult.referencedMessageAuthor + ')';
           }
         }
-        
-        logger.info(
-          `[PersonalityHandler] Processed Discord link from referenced message`
-        );
+
+        logger.info(`[PersonalityHandler] Processed Discord link from referenced message`);
       }
     }
-    
+
     // Use the reference handler to process message links in the current message
     logger.debug(
       `[PersonalityHandler] Calling processMessageLinks with messageContent: "${messageContent}", triggeringMention: "${triggeringMention}", hasActivePersonality: ${hasActivePersonality}`
@@ -504,35 +525,29 @@ async function handlePersonalityInteraction(
       isReferencedMessageFromBot = linkResult.isReferencedMessageFromBot;
       referencedPersonalityInfo = linkResult.referencedPersonalityInfo;
       referencedWebhookName = linkResult.referencedWebhookName;
-      
+
       // Update media URLs from the linked message if they weren't already set
       if (linkResult.referencedAudioUrl && !referencedAudioUrl) {
         referencedAudioUrl = linkResult.referencedAudioUrl;
-        logger.info(
-          `[PersonalityHandler] Found audio in linked message: ${referencedAudioUrl}`
-        );
+        logger.info(`[PersonalityHandler] Found audio in linked message: ${referencedAudioUrl}`);
       }
       if (linkResult.referencedImageUrl && !referencedImageUrl && !referencedAudioUrl) {
         // Only use image if no audio is present (audio takes priority)
         referencedImageUrl = linkResult.referencedImageUrl;
-        logger.info(
-          `[PersonalityHandler] Found image in linked message: ${referencedImageUrl}`
-        );
+        logger.info(`[PersonalityHandler] Found image in linked message: ${referencedImageUrl}`);
       }
     } else {
-      logger.debug(
-        `[PersonalityHandler] ProcessMessageLinks did not process any links`
-      );
+      logger.debug(`[PersonalityHandler] ProcessMessageLinks did not process any links`);
     }
 
     // Get the user's display name and username
     const userDisplayName = message.member?.displayName || message.author?.username || 'User';
     const userUsername = message.author?.username || 'user';
-    
+
     // For PluralKit or webhook messages, just use the display name to avoid redundancy
     // PluralKit names often include system tags like "Name | System"
     const isWebhookMessage = isProxySystem;
-    const formattedUserName = isWebhookMessage 
+    const formattedUserName = isWebhookMessage
       ? userDisplayName // Just use display name for PluralKit
       : `${userDisplayName} (${userUsername})`; // Include username for regular users
 
@@ -543,7 +558,7 @@ async function handlePersonalityInteraction(
       personalityName: personality.displayName || personality.fullName,
       userName: formattedUserName,
     };
-    
+
     logger.debug(
       `[PersonalityHandler] Calling detectMedia with referencedImageUrl: ${referencedImageUrl}, referencedAudioUrl: ${referencedAudioUrl}`
     );
@@ -670,7 +685,7 @@ async function handlePersonalityInteraction(
     // Add a small delay before sending any webhook message
     // This helps prevent the race condition between error messages and real responses
     await delayFn(500);
-    
+
     // Process markdown-style image links if present
     // Pattern: [https://files.example.com/image.png](https://files.example.com/image.png)
     let processedResponse = aiResponse;
@@ -678,14 +693,14 @@ async function handlePersonalityInteraction(
       // Regex to match markdown image links at the end of the message
       const markdownImageRegex = /\[([^\]]+\.(png|jpg|jpeg|gif|webp|bmp))\]\(\1\)$/i;
       const match = aiResponse.match(markdownImageRegex);
-      
+
       if (match) {
         const imageUrl = match[1];
         logger.info(`[PersonalityHandler] Detected markdown image link: ${imageUrl}`);
-        
+
         // Remove the markdown link from the response
         processedResponse = aiResponse.replace(markdownImageRegex, '').trim();
-        
+
         // Add the image in the format that mediaHandler expects
         // This will trigger the image download and reupload
         processedResponse = `${processedResponse}\n[Image: ${imageUrl}]`;
@@ -699,13 +714,13 @@ async function handlePersonalityInteraction(
 
     // Detect thread and prepare webhook options
     const threadInfo = threadHandler.detectThread(message.channel);
-    
+
     // Log thread info for debugging
     if (threadInfo.isThread) {
       const info = threadHandler.getThreadInfo(message.channel);
       logger.info(`[PersonalityHandler] Thread info: ${JSON.stringify(info)}`);
     }
-    
+
     // Build webhook options with thread support
     const webhookOptions = threadHandler.buildThreadWebhookOptions(
       message.channel,
@@ -742,10 +757,10 @@ async function handlePersonalityInteraction(
 
     // Record this conversation with all message IDs
     // We already got conversationUserId earlier in the function
-    
+
     // Use the autoresponse status from the START of the interaction
     // This prevents race conditions where autoresponse changes during processing
-    
+
     // In guild channels (not DMs), conversations should ALWAYS be marked as mention-only
     // unless autoresponse is explicitly enabled. This prevents the bot from continuing
     // to respond to subsequent messages after:
@@ -754,7 +769,7 @@ async function handlePersonalityInteraction(
     // 3. A reply to another user's message
     // Only DMs or autoresponse-enabled channels should have continuous conversations
     const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabledAtStart;
-    
+
     recordConversationData(
       conversationUserId,
       message.channel.id,

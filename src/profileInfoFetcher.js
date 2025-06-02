@@ -3,7 +3,7 @@
  *
  * This module provides backward compatibility for the old profileInfoFetcher API
  * while using the new modular architecture under the hood.
- * 
+ *
  * TODO: Migrate all consumers to use the new ProfileInfoFetcher class directly
  */
 
@@ -129,13 +129,15 @@ module.exports = {
     clearCache,
     getCache: () => getFetcher().getCache(),
     // Allow tests to inject dependencies
-    setFetchImplementation: (impl) => {
+    setFetchImplementation: impl => {
       getFetcher().client.fetchImplementation = impl;
     },
     // Expose internals for testing
     getRateLimiter: () => getFetcher().rateLimiter,
     getFetcher: () => getFetcher(),
     // Allow tests to reset the singleton for clean test state
-    resetFetcher: () => { fetcher = null; }
+    resetFetcher: () => {
+      fetcher = null;
+    },
   },
 };

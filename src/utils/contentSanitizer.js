@@ -1,6 +1,6 @@
 /**
  * Content Sanitization Module
- * 
+ *
  * Handles text sanitization for AI responses and API requests.
  * This module ensures that content can be safely displayed in Discord
  * and processed by the AI API without formatting or encoding issues.
@@ -50,7 +50,9 @@ function sanitizeContent(content) {
     );
   } catch (_error) {
     // Log sanitization errors for debugging - content input was malformed
-    logger.warn(`[ContentSanitizer] Text sanitization failed, returning empty string. Input type: ${typeof content}, length: ${content?.length || 'N/A'}. Error: ${_error.message || 'Unknown sanitization error'}`);
+    logger.warn(
+      `[ContentSanitizer] Text sanitization failed, returning empty string. Input type: ${typeof content}, length: ${content?.length || 'N/A'}. Error: ${_error.message || 'Unknown sanitization error'}`
+    );
     if (content && typeof content === 'string' && content.length > 0) {
       logger.debug(`[ContentSanitizer] Problematic content sample: ${content.substring(0, 50)}...`);
     }
@@ -61,10 +63,10 @@ function sanitizeContent(content) {
 /**
  * Sanitize text for safe inclusion in API messages.
  * This is a lighter sanitization used for user input before sending to the AI.
- * 
+ *
  * @param {string} text - The text to sanitize
  * @returns {string} The sanitized text
- * 
+ *
  * @description
  * This function performs minimal sanitization, only removing control characters
  * that might break API communication. It preserves most content to maintain
@@ -82,30 +84,30 @@ function sanitizeApiText(text) {
 
 /**
  * Checks if content needs sanitization by detecting problematic characters
- * 
+ *
  * @param {string} content - The content to check
  * @returns {boolean} True if content contains characters that need sanitization
  */
 function needsSanitization(content) {
   if (!content || typeof content !== 'string') return false;
-  
+
   // Check for control characters
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(content)) return true;
-  
+
   // Check for escape sequences
   if (/\\u[0-9a-fA-F]{4}/.test(content)) return true;
-  
+
   // Check for non-printable characters
   // eslint-disable-next-line no-control-regex
   if (/[^\u0009\u000A\u000D\u0020-\u007E\u00A0-\u00FF\u0100-\uFFFF]/.test(content)) return true;
-  
+
   return false;
 }
 
 /**
  * Sanitizes content and returns information about what was changed
- * 
+ *
  * @param {string} content - The content to sanitize
  * @returns {Object} Object containing sanitized content and change information
  * @returns {string} .content - The sanitized content
@@ -116,12 +118,12 @@ function sanitizeWithInfo(content) {
   if (!content) {
     return { content: '', changed: false, removedChars: 0 };
   }
-  
+
   const original = content;
   const sanitized = sanitizeContent(content);
   const changed = original !== sanitized;
   const removedChars = original.length - sanitized.length;
-  
+
   return { content: sanitized, changed, removedChars };
 }
 
@@ -129,5 +131,5 @@ module.exports = {
   sanitizeContent,
   sanitizeApiText,
   needsSanitization,
-  sanitizeWithInfo
+  sanitizeWithInfo,
 };

@@ -1,6 +1,6 @@
 /**
  * Request Tracker Module
- * 
+ *
  * Manages request tracking to prevent duplicate processing of messages.
  * This module tracks active requests by user-channel-personality combinations
  * to ensure the same request isn't processed multiple times concurrently.
@@ -89,7 +89,7 @@ function getRequestAge(requestKey) {
 function cleanupStaleRequests(maxAgeMs = 5 * 60 * 1000) {
   const now = Date.now();
   let cleaned = 0;
-  
+
   for (const [key, timestamp] of activeRequests.entries()) {
     if (now - timestamp > maxAgeMs) {
       activeRequests.delete(key);
@@ -97,11 +97,11 @@ function cleanupStaleRequests(maxAgeMs = 5 * 60 * 1000) {
       logger.info(`[RequestTracker] Cleaned up stale request: ${key}`);
     }
   }
-  
+
   if (cleaned > 0) {
     logger.info(`[RequestTracker] Cleaned up ${cleaned} stale requests`);
   }
-  
+
   return cleaned;
 }
 

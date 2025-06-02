@@ -2,7 +2,7 @@ const logger = require('../../logger');
 
 /**
  * PersonalityRegistry - Manages in-memory storage of personalities and aliases
- * 
+ *
  * This class provides the core registry functionality for personalities,
  * maintaining both the personality data and their aliases in memory.
  */
@@ -60,7 +60,9 @@ class PersonalityRegistry {
     }
     aliasesToRemove.forEach(alias => this.aliases.delete(alias));
 
-    logger.debug(`[PersonalityRegistry] Removed personality: ${fullName} and ${aliasesToRemove.length} aliases`);
+    logger.debug(
+      `[PersonalityRegistry] Removed personality: ${fullName} and ${aliasesToRemove.length} aliases`
+    );
     return true;
   }
 
@@ -96,13 +98,15 @@ class PersonalityRegistry {
    */
   setAlias(alias, fullName) {
     if (!this.personalities.has(fullName)) {
-      logger.warn(`[PersonalityRegistry] Cannot set alias for non-existent personality: ${fullName}`);
+      logger.warn(
+        `[PersonalityRegistry] Cannot set alias for non-existent personality: ${fullName}`
+      );
       return false;
     }
 
     // Convert alias to lowercase for case-insensitive storage
     const lowerAlias = alias.toLowerCase();
-    
+
     // Check if alias already exists
     const existingTarget = this.aliases.get(lowerAlias);
     if (existingTarget) {
@@ -110,7 +114,9 @@ class PersonalityRegistry {
         logger.info(`Alias ${alias} already points to ${fullName} - no changes needed`);
         return true;
       } else {
-        logger.info(`[PersonalityRegistry] Alias ${alias} reassigned from ${existingTarget} to ${fullName}`);
+        logger.info(
+          `[PersonalityRegistry] Alias ${alias} reassigned from ${existingTarget} to ${fullName}`
+        );
       }
     }
 
@@ -201,7 +207,9 @@ class PersonalityRegistry {
       for (const [key, value] of Object.entries(personalitiesObj)) {
         // Skip entries where key doesn't match fullName (data integrity check)
         if (key !== value.fullName) {
-          logger.warn(`[PersonalityRegistry] Skipping mismatched entry: key=${key}, fullName=${value.fullName}`);
+          logger.warn(
+            `[PersonalityRegistry] Skipping mismatched entry: key=${key}, fullName=${value.fullName}`
+          );
           continue;
         }
         this.personalities.set(key, value);
@@ -215,12 +223,16 @@ class PersonalityRegistry {
         if (this.personalities.has(fullName)) {
           this.aliases.set(alias.toLowerCase(), fullName);
         } else {
-          logger.warn(`[PersonalityRegistry] Skipping alias ${alias} -> ${fullName} (personality not found)`);
+          logger.warn(
+            `[PersonalityRegistry] Skipping alias ${alias} -> ${fullName} (personality not found)`
+          );
         }
       }
     }
 
-    logger.info(`[PersonalityRegistry] Loaded ${this.personalities.size} personalities and ${this.aliases.size} aliases`);
+    logger.info(
+      `[PersonalityRegistry] Loaded ${this.personalities.size} personalities and ${this.aliases.size} aliases`
+    );
   }
 
   /**
