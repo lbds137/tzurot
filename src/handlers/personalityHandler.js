@@ -769,7 +769,14 @@ async function handlePersonalityInteraction(
     // 3. A reply to another user's message
     // Only DMs or autoresponse-enabled channels should have continuous conversations
     const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabledAtStart;
-
+    
+    logger.info(
+      `[PersonalityHandler] Recording conversation - User: ${conversationUserId}, Channel: ${message.channel.id}, ` +
+      `Personality: ${personality.fullName}, isDM: ${message.channel.isDMBased()}, ` +
+      `autoResponseEnabled: ${autoResponseEnabled}, isMentionOnly: ${isMentionOnly}, ` +
+      `triggeringMention: ${triggeringMention}`
+    );
+    
     recordConversationData(
       conversationUserId,
       message.channel.id,

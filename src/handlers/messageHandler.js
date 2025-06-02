@@ -522,7 +522,13 @@ async function handleMentions(message, client) {
 async function handleActiveConversation(message, client) {
   // Check if auto-response is enabled for this user
   const autoResponseEnabled = isAutoResponseEnabled(message.author.id);
-
+  
+  logger.info(
+    `[MessageHandler] Checking for active conversation - User: ${message.author.id}, ` +
+    `Channel: ${message.channel.id}, isDM: ${message.channel.isDMBased()}, ` +
+    `autoResponseEnabled: ${autoResponseEnabled}`
+  );
+  
   // Check for active conversation
   const activePersonalityName = getActivePersonality(
     message.author.id,
@@ -534,7 +540,7 @@ async function handleActiveConversation(message, client) {
     return false; // No active conversation
   }
 
-  logger.debug(`Found active conversation with: ${activePersonalityName}`);
+  logger.info(`[MessageHandler] Found active conversation with: ${activePersonalityName}`);
 
   // First try to get personality directly by full name
   let personality = getPersonality(activePersonalityName);
