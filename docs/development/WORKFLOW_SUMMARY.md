@@ -42,6 +42,7 @@ git push origin feat/my-feature
 git sync-develop
 
 # That's it! One command and you're synced.
+# Note: This uses rebase + force push to maintain linear history
 ```
 
 ## The Entire Workflow
