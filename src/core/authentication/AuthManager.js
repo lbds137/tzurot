@@ -21,8 +21,11 @@ class AuthManager {
     // Configuration
     // isDevelopment should be passed in via config, not checked directly
     const isDevelopment = config.isDevelopment !== undefined ? config.isDevelopment : false;
-    this.appId = config.appId || (isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID);
-    this.apiKey = config.apiKey || (isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY);
+    this.appId =
+      config.appId || (isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID);
+    this.apiKey =
+      config.apiKey ||
+      (isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY);
     this.authWebsite = config.authWebsite || process.env.SERVICE_WEBSITE;
     this.authApiEndpoint = config.authApiEndpoint || `${process.env.SERVICE_API_BASE_URL}/auth`;
     this.serviceApiBaseUrl = config.serviceApiBaseUrl || process.env.SERVICE_API_BASE_URL;
@@ -47,7 +50,7 @@ class AuthManager {
 
     // Cleanup interval handle
     this.cleanupInterval = null;
-    
+
     // Injectable timer function
     this.interval = config.interval || setInterval;
   }
@@ -66,7 +69,7 @@ class AuthManager {
       // Load persisted data
       const [tokens, verifications] = await Promise.all([
         this.authPersistence.loadUserTokens(),
-        this.authPersistence.loadNsfwVerifications()
+        this.authPersistence.loadNsfwVerifications(),
       ]);
 
       // Set loaded data
@@ -87,7 +90,7 @@ class AuthManager {
         },
         24 * 60 * 60 * 1000
       );
-      
+
       // Allow process to exit even with interval running
       if (this.cleanupInterval.unref) {
         this.cleanupInterval.unref();
@@ -139,13 +142,13 @@ class AuthManager {
 
       // Store the token
       this.userTokenManager.storeUserToken(userId, token);
-      
+
       // Persist to disk
       await this.authPersistence.saveUserTokens(this.userTokenManager.getAllTokens());
-      
+
       // Clear cached AI client for this user
       this.aiClientFactory.clearUserClient(userId);
-      
+
       return true;
     } catch (error) {
       logger.error(`[AuthManager] Error exchanging code for user ${userId}:`, error);
@@ -179,7 +182,9 @@ class AuthManager {
   async storeNsfwVerification(userId, isVerified) {
     try {
       this.nsfwVerificationManager.storeNsfwVerification(userId, isVerified);
-      await this.authPersistence.saveNsfwVerifications(this.nsfwVerificationManager.getAllVerifications());
+      await this.authPersistence.saveNsfwVerifications(
+        this.nsfwVerificationManager.getAllVerifications()
+      );
       return true;
     } catch (error) {
       logger.error(`[AuthManager] Error storing NSFW verification for user ${userId}:`, error);
@@ -194,15 +199,15 @@ class AuthManager {
    */
   async getAIClient(options = {}) {
     const { userId, isWebhook, useDefault } = options;
-    
+
     // Get user token if userId provided
     const userToken = userId ? this.userTokenManager.getUserToken(userId) : null;
-    
+
     return this.aiClientFactory.getClient({
       userId,
       userToken,
       isWebhook,
-      useDefault
+      useDefault,
     });
   }
 
@@ -273,7 +278,9 @@ class AuthManager {
     // Save any pending changes
     await Promise.all([
       this.authPersistence.saveUserTokens(this.userTokenManager.getAllTokens()),
-      this.authPersistence.saveNsfwVerifications(this.nsfwVerificationManager.getAllVerifications())
+      this.authPersistence.saveNsfwVerifications(
+        this.nsfwVerificationManager.getAllVerifications()
+      ),
     ]);
 
     logger.info(`[AuthManager] Auth system shut down`);
@@ -286,7 +293,7 @@ class AuthManager {
   async getStatistics() {
     const [fileStats, cacheStats] = await Promise.all([
       this.authPersistence.getFileStats(),
-      Promise.resolve(this.aiClientFactory.getCacheStats())
+      Promise.resolve(this.aiClientFactory.getCacheStats()),
     ]);
 
     return {
@@ -298,7 +305,7 @@ class AuthManager {
         total: Object.keys(this.nsfwVerificationManager.getAllVerifications()).length,
       },
       aiClients: cacheStats,
-      files: fileStats
+      files: fileStats,
     };
   }
 

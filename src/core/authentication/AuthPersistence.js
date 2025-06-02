@@ -39,7 +39,7 @@ class AuthPersistence {
   async loadUserTokens() {
     try {
       await this.ensureDataDir();
-      
+
       try {
         const data = await fs.readFile(this.authTokensFile, 'utf8');
         const tokens = JSON.parse(data);
@@ -83,11 +83,13 @@ class AuthPersistence {
   async loadNsfwVerifications() {
     try {
       await this.ensureDataDir();
-      
+
       try {
         const data = await fs.readFile(this.nsfwVerifiedFile, 'utf8');
         const verifications = JSON.parse(data);
-        logger.info(`[AuthPersistence] Loaded ${Object.keys(verifications).length} NSFW verification records`);
+        logger.info(
+          `[AuthPersistence] Loaded ${Object.keys(verifications).length} NSFW verification records`
+        );
         return verifications;
       } catch (readError) {
         if (readError.code === 'ENOENT') {
@@ -112,7 +114,9 @@ class AuthPersistence {
     try {
       await this.ensureDataDir();
       await fs.writeFile(this.nsfwVerifiedFile, JSON.stringify(verifications, null, 2));
-      logger.info(`[AuthPersistence] Saved ${Object.keys(verifications).length} NSFW verification records`);
+      logger.info(
+        `[AuthPersistence] Saved ${Object.keys(verifications).length} NSFW verification records`
+      );
       return true;
     } catch (error) {
       logger.error(`[AuthPersistence] Error saving NSFW verifications:`, error);
@@ -168,7 +172,7 @@ class AuthPersistence {
   async getFileStats() {
     const stats = {
       dataDir: this.dataDir,
-      files: {}
+      files: {},
     };
 
     try {
@@ -176,9 +180,10 @@ class AuthPersistence {
       stats.files.authTokens = {
         exists: true,
         size: tokenStats.size,
-        modified: tokenStats.mtime
+        modified: tokenStats.mtime,
       };
-    } catch (_error) { // eslint-disable-line no-unused-vars
+    } catch (_error) {
+      // eslint-disable-line no-unused-vars
       stats.files.authTokens = { exists: false };
     }
 
@@ -187,9 +192,10 @@ class AuthPersistence {
       stats.files.nsfwVerified = {
         exists: true,
         size: nsfwStats.size,
-        modified: nsfwStats.mtime
+        modified: nsfwStats.mtime,
       };
-    } catch (_error) { // eslint-disable-line no-unused-vars
+    } catch (_error) {
+      // eslint-disable-line no-unused-vars
       stats.files.nsfwVerified = { exists: false };
     }
 

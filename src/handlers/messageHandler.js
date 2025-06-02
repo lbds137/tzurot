@@ -13,55 +13,65 @@ const errorHandler = require('./errorHandler');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
-const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../conversationManager');
+const {
+  getActivePersonality,
+  getActivatedPersonality,
+  isAutoResponseEnabled,
+} = require('../conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../personalityManager');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
 /**
  * Check if a message contains any personality mentions (without processing them)
- * @param {Object} message - Discord message object  
+ * @param {Object} message - Discord message object
  * @returns {boolean} - Whether the message contains personality mentions
  */
 function checkForPersonalityMentions(message) {
   if (!message.content) return false;
-  
+
   // Use configured mention character (@ for production, & for development)
   const mentionChar = botConfig.mentionChar;
-  
+
   // Escape the mention character for regex safety
   const escapedMentionChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const standardMentionRegex = new RegExp(`${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+  const standardMentionRegex = new RegExp(
+    `${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`,
+    'gi'
+  );
   let match;
-  
+
   // Check for standard mentions
   while ((match = standardMentionRegex.exec(message.content)) !== null) {
     if (match[1] && match[1].trim()) {
       const cleanedName = match[1].trim().replace(/[.,!?;:)"']+$/, '');
-      
+
       // Check if this is a valid personality (directly or as an alias)
       let personality = getPersonality(cleanedName);
       if (!personality) {
         personality = getPersonalityByAlias(message.author.id, cleanedName);
       }
-      
+
       if (personality) {
         return true; // Found a valid personality mention
       }
     }
   }
-  
+
   // Check for multi-word mentions with spaces
-  const multiWordMentionRegex = new RegExp(`${escapedMentionChar}([\\w\\s-]+?)(?=[.,!?;:)"']|\\s*$|\\s+[${escapedMentionChar}]|\\s+[^\\w\\s-])`, 'gi');
+  const multiWordMentionRegex = new RegExp(
+    `${escapedMentionChar}([\\w\\s-]+?)(?=[.,!?;:)"']|\\s*$|\\s+[${escapedMentionChar}]|\\s+[^\\w\\s-])`,
+    'gi'
+  );
   let multiWordMatch;
-  
+
   while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
     if (multiWordMatch[1] && multiWordMatch[1].trim()) {
       const multiWordName = multiWordMatch[1].trim();
-      
+
       // Skip if it's the same as a standard mention we already checked
       const standardMatch = standardMentionRegex.test(`${mentionChar}${multiWordName}`);
       if (standardMatch) continue;
-      
+
       // Check if this multi-word mention is a valid personality alias
       const personality = getPersonalityByAlias(message.author.id, multiWordName);
       if (personality) {
@@ -69,7 +79,7 @@ function checkForPersonalityMentions(message) {
       }
     }
   }
-  
+
   return false; // No personality mentions found
 }
 
@@ -92,7 +102,7 @@ async function handleMessage(message, client) {
         channelId: message.channel.id,
         content: message.content,
         guildId: message.guild?.id,
-        username: message.author.username
+        username: message.author.username,
       });
     }
 
@@ -149,7 +159,6 @@ async function handleMessage(message, client) {
           logger.debug(
             `Message ${message.id} has ${message.embeds.length} embeds - DETAILED INFO: ${JSON.stringify(embedInfo, null, 2)}`
           );
-
         }
 
         logger.debug(`This is my own message with ID ${message.id} - returning immediately`);
@@ -183,7 +192,7 @@ async function handleMessage(message, client) {
 
         // Check if this is a proxy system webhook (like PluralKit)
         const isProxySystem = webhookUserTracker.isProxySystemWebhook(message);
-        
+
         if (isProxySystem) {
           // This is a proxy system webhook (PluralKit, Tupperbox, etc.)
           // We should process these messages normally as they represent real users
@@ -217,20 +226,21 @@ async function handleMessage(message, client) {
 
     // If the reference was processed successfully, return early
     if (referenceResult.processed) {
+      logger.debug(`[MessageHandler] Message processed as reply to personality`);
       return;
     }
-    
+
     // If this was a reply to a non-personality message, check if there's a mention
-    // before skipping processing. This prevents autoresponse from triggering when 
+    // before skipping processing. This prevents autoresponse from triggering when
     // replying to other users, but allows mentions to be processed.
     // EXCEPTION: Don't filter if there's an activated personality in this channel
     if (referenceResult.wasReplyToNonPersonality) {
       // Check if this channel has an activated personality
       const hasActivatedPersonality = getActivatedPersonality(message.channel.id);
-      
+
       // Check if the message contains a personality mention
       const hasMention = checkForPersonalityMentions(message);
-      
+
       // Only skip processing if there are no mentions AND no Discord links
       // AND no activated personality in this channel
       if (!hasMention && !referenceResult.containsMessageLinks && !hasActivatedPersonality) {
@@ -241,12 +251,14 @@ async function handleMessage(message, client) {
     // @mention personality triggering
     const mentionResult = await handleMentions(message, client);
     if (mentionResult) {
+      logger.debug(`[MessageHandler] Message processed as mention`);
       return; // Mention was handled
     }
 
     // Check for active conversation
     const activeConversationResult = await handleActiveConversation(message, client);
     if (activeConversationResult) {
+      logger.debug(`[MessageHandler] Message processed as active conversation`);
       return; // Active conversation was handled
     }
 
@@ -323,7 +335,10 @@ async function handleMentions(message, client) {
     // Improved regex to handle mentions at the end of messages with punctuation
     // Escape the mention character for regex safety
     const escapedMentionChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const standardMentionRegex = new RegExp(`${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+    const standardMentionRegex = new RegExp(
+      `${escapedMentionChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`,
+      'gi'
+    );
     let standardMentionMatch;
     const standardMentions = [];
 
@@ -338,7 +353,9 @@ async function handleMentions(message, client) {
 
     // Check each standard mention
     for (const mentionName of standardMentions) {
-      logger.debug(`Found standard ${mentionChar}mention: ${mentionName}, checking if it's a valid personality`);
+      logger.debug(
+        `Found standard ${mentionChar}mention: ${mentionName}, checking if it's a valid personality`
+      );
 
       // Check if this is a valid personality (directly or as an alias)
       let personality = getPersonality(mentionName);
@@ -364,7 +381,10 @@ async function handleMentions(message, client) {
       // This captures &word1 word2 word3 patterns more precisely
       // Limited to a maximum of 4 words to avoid capturing too much text
       // Updated to handle mentions at the end of messages with or without punctuation
-      const mentionWithSpacesRegex = new RegExp(`${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,4})(?:[.,!?;:)"']|\\s|$)`, 'g');
+      const mentionWithSpacesRegex = new RegExp(
+        `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,4})(?:[.,!?;:)"']|\\s|$)`,
+        'g'
+      );
       let spacedMentionMatch;
       const mentionsWithSpaces = [];
 
@@ -511,7 +531,7 @@ async function handleActiveConversation(message, client) {
   
   // Check for active conversation
   const activePersonalityName = getActivePersonality(
-    message.author.id, 
+    message.author.id,
     message.channel.id,
     message.channel.isDMBased(),
     autoResponseEnabled

@@ -33,10 +33,12 @@ const meta = {
 async function execute(message, args, context = {}) {
   // Use injected messageTracker if available, otherwise create local instance
   const { messageTracker = null } = context;
-  const tracker = messageTracker || (() => {
-    const MessageTracker = require('../utils/messageTracker');
-    return new MessageTracker();
-  })();
+  const tracker =
+    messageTracker ||
+    (() => {
+      const MessageTracker = require('../utils/messageTracker');
+      return new MessageTracker();
+    })();
   // Create direct send function
   const directSend = validator.createDirectSend(message);
 

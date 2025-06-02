@@ -208,7 +208,9 @@ function markErrorContent(content) {
 
   // Special case for combined terms
   if (content.includes('connection') && content.includes('unstable')) {
-    logger.info(`[MessageFormatter] Detected error message (unstable connection), adding special prefix`);
+    logger.info(
+      `[MessageFormatter] Detected error message (unstable connection), adding special prefix`
+    );
     return MARKERS.ERROR_PREFIX + ' ' + content;
   }
 
@@ -294,7 +296,9 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
     messageData.files = messageData.files || [];
     // Add attachments to files
     messageData.files.push(...options.attachments);
-    logger.debug(`[MessageFormatter] Added ${options.attachments.length} audio attachments to message`);
+    logger.debug(
+      `[MessageFormatter] Added ${options.attachments.length} audio attachments to message`
+    );
   }
 
   return messageData;

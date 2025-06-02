@@ -15,7 +15,7 @@ const errorBlackoutPeriods = new Map();
 
 /**
  * Create a personality-user key for blackout tracking
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
@@ -28,7 +28,7 @@ function createBlackoutKey(personalityName, context) {
 
 /**
  * Check if a personality-user combination is currently in a blackout period
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
@@ -51,7 +51,7 @@ function isInBlackoutPeriod(personalityName, context) {
 
 /**
  * Add a personality-user combination to the blackout list
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
@@ -68,7 +68,7 @@ function addToBlackoutList(personalityName, context, duration) {
 
 /**
  * Create a unique request ID for tracking API requests
- * 
+ *
  * @param {string} personalityName - The AI personality name
  * @param {string|Array} message - The message content or array of content objects for multimodal
  * @param {Object} context - The context object with user and channel information
@@ -151,9 +151,13 @@ function createRequestId(personalityName, message, context) {
   } catch (error) {
     // Log the error but continue with a safe fallback
     logger.error(`[AIRequestManager] Error creating request ID: ${error.message}`);
-    logger.error(`[AIRequestManager] Message type: ${typeof message}, Array? ${Array.isArray(message)}`);
+    logger.error(
+      `[AIRequestManager] Message type: ${typeof message}, Array? ${Array.isArray(message)}`
+    );
     if (message) {
-      logger.error(`[AIRequestManager] Message sample: ${JSON.stringify(message).substring(0, 100)}`);
+      logger.error(
+        `[AIRequestManager] Message sample: ${JSON.stringify(message).substring(0, 100)}`
+      );
     }
 
     // Use a safe fallback
@@ -165,14 +169,14 @@ function createRequestId(personalityName, message, context) {
 
 /**
  * Check if a request is already pending
- * 
+ *
  * @param {string} requestId - The unique request ID
  * @returns {Object|null} The pending request object with {timestamp, promise} or null if not pending
  */
 function getPendingRequest(requestId) {
   if (pendingRequests.has(requestId)) {
     const request = pendingRequests.get(requestId);
-    
+
     // Check if the request is still valid (within timeout period)
     if (Date.now() - request.timestamp < TIME.ONE_MINUTE) {
       return request;
@@ -187,7 +191,7 @@ function getPendingRequest(requestId) {
 
 /**
  * Store a pending request
- * 
+ *
  * @param {string} requestId - The unique request ID
  * @param {Promise} promise - The promise representing the pending request
  * @returns {void}
@@ -195,13 +199,13 @@ function getPendingRequest(requestId) {
 function storePendingRequest(requestId, promise) {
   pendingRequests.set(requestId, {
     timestamp: Date.now(),
-    promise: promise
+    promise: promise,
   });
 }
 
 /**
  * Remove a completed request
- * 
+ *
  * @param {string} requestId - The unique request ID
  * @returns {void}
  */
@@ -211,7 +215,7 @@ function removePendingRequest(requestId) {
 
 /**
  * Prepare request headers for the AI API call
- * 
+ *
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
@@ -266,19 +270,19 @@ module.exports = {
   storePendingRequest,
   removePendingRequest,
   prepareRequestHeaders,
-  
+
   // Blackout period management
   createBlackoutKey,
   isInBlackoutPeriod,
   addToBlackoutList,
-  
+
   // Utility functions
   clearPendingRequests,
   clearBlackoutPeriods,
   getPendingRequestsCount,
   getBlackoutPeriodsCount,
-  
+
   // Export internal state for testing
   pendingRequests,
-  errorBlackoutPeriods
+  errorBlackoutPeriods,
 };

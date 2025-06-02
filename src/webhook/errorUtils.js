@@ -1,6 +1,6 @@
 /**
  * Webhook Error Utilities
- * 
+ *
  * Handles error detection and marking for webhook messages
  */
 
@@ -28,15 +28,15 @@ function isErrorContent(content) {
   if (!content || typeof content !== 'string') {
     return false;
   }
-  
+
   // Use the centralized error messages from constants
   const { ERROR_MESSAGES } = require('../constants');
-  
+
   // Special case for combined terms
   if (content.includes('connection') && content.includes('unstable')) {
     return true;
   }
-  
+
   // Check against the standard error message patterns
   return ERROR_MESSAGES.some(pattern => content.includes(pattern));
 }
@@ -51,17 +51,17 @@ function markErrorContent(content) {
   if (!content) {
     return '';
   }
-  
+
   // Check if already prefixed
   if (content.startsWith('ERROR_MESSAGE_PREFIX:')) {
     return content;
   }
-  
+
   // Only add prefix to actual error content
   if (isErrorContent(content)) {
     return `ERROR_MESSAGE_PREFIX: ${content}`;
   }
-  
+
   // Return normal messages unchanged
   return content;
 }

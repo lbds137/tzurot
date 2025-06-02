@@ -15,7 +15,7 @@ const urlValidator = require('../urlValidator');
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: globalThis.setTimeout,
-  clearTimeout: globalThis.clearTimeout
+  clearTimeout: globalThis.clearTimeout,
 };
 
 /**
@@ -288,7 +288,7 @@ async function processImageUrls(content) {
 
     // Remove the entire [Image: URL] pattern or just the URL
     let modifiedContent = content;
-    
+
     // First try to remove the [Image: URL] pattern
     const imagePattern = `[Image: ${imageUrl.url}]`;
     if (content.includes(imagePattern)) {

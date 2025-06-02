@@ -14,7 +14,7 @@ const logger = require('../logger');
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  clearTimeout: id => clearTimeout(id),
 };
 
 /**
@@ -38,7 +38,9 @@ function isValidUrlFormat(url) {
     return true;
   } catch (_error) {
     // Log URL validation failure for debugging - helps track URL format issues
-    logger.warn(`[UrlValidator] Invalid URL format: ${url}. Validation error: ${_error.message || 'Unknown URL error'}`);
+    logger.warn(
+      `[UrlValidator] Invalid URL format: ${url}. Validation error: ${_error.message || 'Unknown URL error'}`
+    );
     return false;
   }
 }

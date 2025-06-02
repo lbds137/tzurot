@@ -1,6 +1,6 @@
 /**
  * Thread Handler Module
- * 
+ *
  * Handles thread-specific functionality for Discord messages.
  * This includes:
  * - Thread detection (native and forced)
@@ -23,7 +23,7 @@ const THREAD_CHANNEL_TYPES = [
   11, // ChannelType.GuildPublicThread
   12, // ChannelType.GuildPrivateThread
   15, // ChannelType.GuildForum
-  16  // ChannelType.GuildMediaForum
+  16, // ChannelType.GuildMediaForum
 ];
 
 /**
@@ -39,38 +39,40 @@ const FORUM_CHANNEL_TYPES = ['FORUM', 15, 16];
 function detectThread(channel) {
   // Native thread detection
   const isNativeThread = channel.isThread?.() || false;
-  
+
   // Force thread detection for certain channel types
   const isThreadType = THREAD_CHANNEL_TYPES.includes(channel.type);
-  
+
   // Final determination
   const isThread = isNativeThread || isThreadType;
-  
+
   // Log detailed information for debugging
   if (isThread) {
     logger.info(`[ThreadHandler] Thread detected! ID: ${channel.id}, Type: ${channel.type}`);
-    
+
     if (channel.parent) {
       logger.info(
         `[ThreadHandler] Parent channel - ID: ${channel.parent.id}, Name: ${channel.parent.name}, Type: ${channel.parent.type}`
       );
     } else if (isThreadType && !isNativeThread) {
-      logger.warn(`[ThreadHandler] Thread type detected but parent unavailable - this might cause issues!`);
+      logger.warn(
+        `[ThreadHandler] Thread type detected but parent unavailable - this might cause issues!`
+      );
     }
   }
-  
+
   // Log if detection was forced
   if (isThreadType && !isNativeThread) {
     logger.info(
       `[ThreadHandler] Thread detection was forced based on channel type (${channel.type}), native isThread() returned false`
     );
   }
-  
+
   return {
     isThread,
     isNativeThread,
     isForcedThread: isThreadType && !isNativeThread,
-    channelType: channel.type
+    channelType: channel.type,
   };
 }
 
@@ -84,12 +86,12 @@ function isForumChannel(channel) {
   if (FORUM_CHANNEL_TYPES.includes(channel.type)) {
     return true;
   }
-  
+
   // Check if parent is a forum
   if (channel.parent && FORUM_CHANNEL_TYPES.includes(channel.parent.type)) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -101,24 +103,31 @@ function isForumChannel(channel) {
  * @param {boolean} isReplyToDMFormattedMessage - Special DM reply flag
  * @returns {Object} Webhook options
  */
-function buildThreadWebhookOptions(channel, userId, threadInfo, isReplyToDMFormattedMessage = false) {
+function buildThreadWebhookOptions(
+  channel,
+  userId,
+  threadInfo,
+  isReplyToDMFormattedMessage = false
+) {
   const options = {
     userId,
     channelType: channel.type,
-    isReplyToDMFormattedMessage
+    isReplyToDMFormattedMessage,
   };
-  
+
   // Add thread-specific options
   if (threadInfo.isThread) {
     options.threadId = channel.id;
-    
+
     // Validate thread ID
     if (!options.threadId) {
-      logger.error('[ThreadHandler] Error: Thread detected but threadId is not set in webhookOptions');
+      logger.error(
+        '[ThreadHandler] Error: Thread detected but threadId is not set in webhookOptions'
+      );
       options.threadId = channel.id; // Force set as fallback
     }
   }
-  
+
   // Add forum-specific options
   if (isForumChannel(channel)) {
     options.isForum = true;
@@ -126,7 +135,7 @@ function buildThreadWebhookOptions(channel, userId, threadInfo, isReplyToDMForma
     options.forumThreadId = channel.id;
     logger.info(`[ThreadHandler] Forum channel detected - added forum-specific options`);
   }
-  
+
   logger.info(`[ThreadHandler] Built webhook options: ${JSON.stringify(options)}`);
   return options;
 }
@@ -141,9 +150,16 @@ function buildThreadWebhookOptions(channel, userId, threadInfo, isReplyToDMForma
  * @param {Object} originalMessage - Original message for context
  * @returns {Promise<Object>} Result with message IDs
  */
-async function sendThreadMessage(webhookManager, channel, content, personality, webhookOptions, originalMessage) {
+async function sendThreadMessage(
+  webhookManager,
+  channel,
+  content,
+  personality,
+  webhookOptions,
+  originalMessage
+) {
   let result;
-  
+
   try {
     // First, try specialized direct thread message function
     logger.info('[ThreadHandler] Attempting sendDirectThreadMessage');
@@ -153,17 +169,15 @@ async function sendThreadMessage(webhookManager, channel, content, personality, 
       personality,
       webhookOptions
     );
-    
+
     logger.info(
       `[ThreadHandler] Direct thread message sent successfully with ID: ${result.messageIds?.[0] || 'unknown'}`
     );
     return result;
   } catch (threadError) {
-    logger.error(
-      `[ThreadHandler] Direct thread message approach failed: ${threadError.message}`
-    );
+    logger.error(`[ThreadHandler] Direct thread message approach failed: ${threadError.message}`);
     logger.info('[ThreadHandler] Falling back to standard webhook approach');
-    
+
     // Fallback to regular webhook approach
     try {
       result = await webhookManager.sendWebhookMessage(
@@ -178,28 +192,24 @@ async function sendThreadMessage(webhookManager, channel, content, personality, 
       logger.error(
         `[ThreadHandler] Both thread delivery approaches failed! Error: ${webhookError.message}`
       );
-      
+
       // Final fallback - use the channel's send method directly
       try {
         logger.info('[ThreadHandler] Attempting last resort direct channel.send');
         const formattedContent = `**${personality.displayName || personality.fullName}:** ${content}`;
         const directMessage = await channel.send(formattedContent);
-        
+
         // Create a result object mimicking webhook result
         result = {
           message: directMessage,
           messageIds: [directMessage.id],
-          isEmergencyFallback: true
+          isEmergencyFallback: true,
         };
-        
-        logger.info(
-          `[ThreadHandler] Emergency direct send succeeded: ${directMessage.id}`
-        );
+
+        logger.info(`[ThreadHandler] Emergency direct send succeeded: ${directMessage.id}`);
         return result;
       } catch (finalError) {
-        logger.error(
-          `[ThreadHandler] ALL message delivery methods failed: ${finalError.message}`
-        );
+        logger.error(`[ThreadHandler] ALL message delivery methods failed: ${finalError.message}`);
         throw finalError; // Re-throw the error if all approaches fail
       }
     }
@@ -222,7 +232,7 @@ function getThreadInfo(channel) {
     parentType: channel.parent?.type,
     isTextBased: channel.isTextBased?.(),
     isVoiceBased: channel.isVoiceBased?.(),
-    isDMBased: channel.isDMBased?.()
+    isDMBased: channel.isDMBased?.(),
   };
 }
 
@@ -233,5 +243,5 @@ module.exports = {
   sendThreadMessage,
   getThreadInfo,
   THREAD_CHANNEL_TYPES,
-  FORUM_CHANNEL_TYPES
+  FORUM_CHANNEL_TYPES,
 };

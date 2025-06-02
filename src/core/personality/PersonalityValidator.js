@@ -2,7 +2,7 @@ const logger = require('../../logger');
 
 /**
  * PersonalityValidator - Validates personality data and operations
- * 
+ *
  * This class provides validation logic for personality-related operations,
  * ensuring data integrity and business rule compliance.
  */
@@ -34,7 +34,10 @@ class PersonalityValidator {
     }
 
     // Optional fields with type validation
-    if (personalityData.displayName !== undefined && typeof personalityData.displayName !== 'string') {
+    if (
+      personalityData.displayName !== undefined &&
+      typeof personalityData.displayName !== 'string'
+    ) {
       errors.push('displayName must be a string if provided');
     }
 
@@ -42,13 +45,16 @@ class PersonalityValidator {
       errors.push('avatarUrl must be a string if provided');
     }
 
-    if (personalityData.activatedChannels !== undefined && !Array.isArray(personalityData.activatedChannels)) {
+    if (
+      personalityData.activatedChannels !== undefined &&
+      !Array.isArray(personalityData.activatedChannels)
+    ) {
       errors.push('activatedChannels must be an array if provided');
     }
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -139,7 +145,7 @@ class PersonalityValidator {
       'null',
       'undefined',
       'true',
-      'false'
+      'false',
     ];
 
     return reservedNames.includes(name.toLowerCase());
@@ -213,17 +219,18 @@ class PersonalityValidator {
     if (process.env.BOT_OWNER_ID && process.env.BOT_OWNER_ID === userId) {
       return true;
     }
-    
+
     // For backward compatibility, also check constants.USER_CONFIG.OWNER_ID
     try {
       const constants = require('../../constants');
       if (constants.USER_CONFIG && constants.USER_CONFIG.OWNER_ID === userId) {
         return true;
       }
-    } catch (_error) { // eslint-disable-line no-unused-vars
+    } catch (_error) {
+      // eslint-disable-line no-unused-vars
       // Constants might not be available in all contexts
     }
-    
+
     return false;
   }
 
@@ -252,7 +259,7 @@ class PersonalityValidator {
       'addedAt',
       'displayName',
       'avatarUrl',
-      'activatedChannels'
+      'activatedChannels',
     ];
 
     Object.keys(sanitized).forEach(key => {

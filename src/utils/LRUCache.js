@@ -1,25 +1,25 @@
 /**
  * Least Recently Used (LRU) Cache implementation
- * 
+ *
  * TODO: Consider migrating to npm 'lru-cache' package (v11+) which provides:
  * - Async fetch with deduplication
  * - Size-based eviction
  * - Stale-while-revalidate
  * - Better performance
  * - Battle-tested edge cases
- * 
+ *
  * This implementation works well for our current needs, but lru-cache
  * would provide more features and better performance.
- * 
+ *
  * This cache automatically evicts the least recently used items when it reaches
  * its maximum size. Items are considered "used" when they are get, set, or has
  * operations are performed on them.
- * 
+ *
  * @example
  * const cache = new LRUCache({ maxSize: 100 });
  * cache.set('key', 'value');
  * const value = cache.get('key'); // Returns 'value'
- * 
+ *
  * @example With TTL (time-to-live)
  * const cache = new LRUCache({ maxSize: 100, ttl: 60000 }); // 1 minute TTL
  * cache.set('key', 'value');
@@ -35,11 +35,11 @@ class LRUCache {
    */
   constructor(options = {}) {
     const { maxSize = 1000, ttl = null, onEvict = null } = options;
-    
+
     if (!Number.isInteger(maxSize) || maxSize <= 0) {
       throw new Error('maxSize must be a positive integer');
     }
-    
+
     this.maxSize = maxSize;
     this.ttl = ttl;
     this.onEvict = onEvict;
@@ -58,7 +58,7 @@ class LRUCache {
     }
 
     const entry = this.cache.get(key);
-    
+
     // Check if expired
     if (this.ttl && Date.now() - entry.timestamp > this.ttl) {
       this.delete(key);
@@ -67,7 +67,7 @@ class LRUCache {
 
     // Update access time for LRU
     this.accessOrder.set(key, Date.now());
-    
+
     return entry.value;
   }
 
@@ -82,7 +82,7 @@ class LRUCache {
     if (this.cache.has(key)) {
       this.cache.set(key, {
         value,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
       this.accessOrder.set(key, Date.now());
       return this;
@@ -97,10 +97,10 @@ class LRUCache {
     const now = Date.now();
     this.cache.set(key, {
       value,
-      timestamp: now
+      timestamp: now,
     });
     this.accessOrder.set(key, now);
-    
+
     return this;
   }
 
@@ -115,7 +115,7 @@ class LRUCache {
     }
 
     const entry = this.cache.get(key);
-    
+
     // Check if expired
     if (this.ttl && Date.now() - entry.timestamp > this.ttl) {
       this.delete(key);
@@ -124,7 +124,7 @@ class LRUCache {
 
     // Update access time for LRU
     this.accessOrder.set(key, Date.now());
-    
+
     return true;
   }
 
@@ -141,11 +141,11 @@ class LRUCache {
     const entry = this.cache.get(key);
     this.cache.delete(key);
     this.accessOrder.delete(key);
-    
+
     if (this.onEvict) {
       this.onEvict(key, entry.value);
     }
-    
+
     return true;
   }
 
@@ -158,7 +158,7 @@ class LRUCache {
         this.onEvict(key, entry.value);
       }
     }
-    
+
     this.cache.clear();
     this.accessOrder.clear();
   }
@@ -268,7 +268,7 @@ class LRUCache {
       maxSize: this.maxSize,
       hitRate: 0, // Could be tracked with additional logic
       expiredCount,
-      ttl: this.ttl
+      ttl: this.ttl,
     };
   }
 }

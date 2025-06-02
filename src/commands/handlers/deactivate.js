@@ -46,7 +46,7 @@ async function execute(message, _args) {
   try {
     // Deactivate personality for this channel
     const wasDeactivated = deactivatePersonality(message.channel.id);
-    
+
     if (!wasDeactivated) {
       return await directSend('No active personality found in this channel.');
     }

@@ -1,9 +1,9 @@
 /**
  * Personality Module
- * 
+ *
  * This module provides personality management functionality for the Tzurot bot.
  * It follows a layered architecture with clear separation of concerns:
- * 
+ *
  * - PersonalityManager: Main facade providing the public API
  * - PersonalityRegistry: In-memory storage and retrieval
  * - PersonalityPersistence: File-based persistence layer

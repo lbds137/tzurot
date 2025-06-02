@@ -1,6 +1,6 @@
 /**
  * Webhook Thread Handler
- * 
+ *
  * Handles all thread-specific webhook operations including:
  * - Creating thread-specific webhook clients
  * - Sending messages to threads with proper webhook aesthetics
@@ -28,13 +28,13 @@ const config = require('../../config');
  * @returns {Promise<Object>} The sent message info
  */
 async function sendDirectThreadMessage(
-  channel, 
-  content, 
-  personality, 
+  channel,
+  content,
+  personality,
   options = {},
   getStandardizedUsername,
   createVirtualResult,
-  delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  delayFn = ms => new Promise(resolve => setTimeout(resolve, ms))
 ) {
   if (!channel || !channel.isThread()) {
     logger.error(
@@ -123,7 +123,7 @@ async function sendDirectThreadMessage(
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
       const chunkContent = contentChunks[i];
-      
+
       // Add a delay between chunks to prevent Discord from merging/replacing them
       // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {

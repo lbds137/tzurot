@@ -4,7 +4,7 @@ const { ErrorCategory, trackError } = require('./errorTracker');
 
 /**
  * AI Error Handler Module
- * 
+ *
  * Handles error detection, analysis, and user-friendly message generation
  * for AI service responses. This module was extracted from aiService.js
  * to improve modularity and maintainability.
@@ -76,7 +76,7 @@ function isErrorResponse(content) {
 
 /**
  * Analyzes error content and generates appropriate user-friendly messages
- * 
+ *
  * @param {string} content - The error content to analyze
  * @param {string} personalityName - The personality that generated the error
  * @param {Object} context - Request context for logging
@@ -93,7 +93,7 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
   if (typeof content === 'string') {
     // Capture a sample of the error content for logging
     errorSample = content ? content.substring(0, 500) : 'Empty content';
-    
+
     // Look for specific error patterns
     if (content.includes('NoneType') || content.includes('AttributeError')) {
       errorType = 'attribute_error';
@@ -118,16 +118,22 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
     } else if (!content || content.trim() === '') {
       errorType = 'empty_response';
       errorDetails = 'API returned empty or null content';
-    } else if (content.toLowerCase().includes('internal server error') || 
-               content.toLowerCase().includes('500')) {
+    } else if (
+      content.toLowerCase().includes('internal server error') ||
+      content.toLowerCase().includes('500')
+    ) {
       errorType = 'api_server_error';
       errorDetails = 'API service internal error';
-    } else if (content.toLowerCase().includes('rate limit') || 
-               content.toLowerCase().includes('too many requests')) {
+    } else if (
+      content.toLowerCase().includes('rate limit') ||
+      content.toLowerCase().includes('too many requests')
+    ) {
       errorType = 'rate_limit_error';
       errorDetails = 'API rate limit exceeded';
-    } else if (content.toLowerCase().includes('timeout') || 
-               content.toLowerCase().includes('timed out')) {
+    } else if (
+      content.toLowerCase().includes('timeout') ||
+      content.toLowerCase().includes('timed out')
+    ) {
       errorType = 'timeout_error';
       errorDetails = 'API request timed out';
     }
@@ -136,12 +142,14 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
     logger.error(`[AIService] Error in content from ${personalityName}: ${errorType}`);
     logger.error(`[AIService] Error details: ${errorDetails}`);
     logger.error(`[AIService] Error content sample: ${errorSample}`);
-    
+
     // Log message context for debugging
     if (context.userId) {
-      logger.error(`[AIService] Error context - User: ${context.userId}, Channel: ${context.channelId || 'DM'}`);
+      logger.error(
+        `[AIService] Error context - User: ${context.userId}, Channel: ${context.channelId || 'DM'}`
+      );
     }
-    
+
     // Track the error for pattern analysis
     const errorObj = new Error(`API content error: ${errorDetails}`);
     trackError(errorObj, {
@@ -154,9 +162,9 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
         userId: context.userId || 'unknown',
         channelId: context.channelId || 'unknown',
         contentLength: content ? content.length : 0,
-        sampleContent: errorSample.substring(0, 200)
+        sampleContent: errorSample.substring(0, 200),
       },
-      isCritical: errorType !== 'error_in_content' && errorType !== 'empty_response'
+      isCritical: errorType !== 'error_in_content' && errorType !== 'empty_response',
     });
   } else {
     logger.error(`[AIService] Non-string error from ${personalityName}`);
@@ -166,7 +174,7 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
       errorSample = JSON.stringify(content).substring(0, 200);
       logger.error(`[AIService] Non-string content sample: ${errorSample}`);
     }
-    
+
     // Track non-string response errors
     const errorObj = new Error(`Non-string API response: ${errorDetails}`);
     trackError(errorObj, {
@@ -179,17 +187,22 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
         userId: context.userId || 'unknown',
         channelId: context.channelId || 'unknown',
         contentType: typeof content,
-        sampleContent: errorSample
+        sampleContent: errorSample,
       },
-      isCritical: true
+      isCritical: true,
     });
   }
 
   // Check if this is the generic 'error_in_content' or a more specific error
   const isGenericError = errorType === 'error_in_content';
-  
+
   // Determine if this error type should show a message to users
-  const userFriendlyErrors = ['empty_response', 'rate_limit_error', 'timeout_error', 'api_server_error'];
+  const userFriendlyErrors = [
+    'empty_response',
+    'rate_limit_error',
+    'timeout_error',
+    'api_server_error',
+  ];
   const isUserFriendlyError = userFriendlyErrors.includes(errorType);
 
   // Track errors for monitoring purposes only - we no longer block any errors
@@ -210,7 +223,7 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
   // Return user-friendly error messages based on error type
   // IMPORTANT: ALL errors now show messages to users - no silent failures
   const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-  
+
   let userMessage = '';
   switch (errorType) {
     case 'empty_response':
@@ -238,16 +251,16 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
     default:
       userMessage = `I couldn't process that request due to a technical error. Please try again or contact support if this persists.`;
   }
-  
+
   // Add error reference for support purposes (avoiding filtered terms)
   userMessage += ` ||(Reference: ${errorId})||`;
-  
+
   return userMessage;
 }
 
 /**
  * Handles API errors and generates appropriate user messages
- * 
+ *
  * @param {Error} apiError - The API error object
  * @param {string} personalityName - The personality name
  * @param {Object} context - Request context
@@ -269,5 +282,5 @@ function handleApiError(apiError, personalityName, context) {
 module.exports = {
   isErrorResponse,
   analyzeErrorAndGenerateMessage,
-  handleApiError
+  handleApiError,
 };

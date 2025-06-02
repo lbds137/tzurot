@@ -1,6 +1,6 @@
 /**
  * Core API Module Exports
- * 
+ *
  * This module provides the API-related functionality for the application,
  * including profile information fetching with caching and rate limiting.
  */
@@ -12,5 +12,5 @@ const ProfileInfoClient = require('./ProfileInfoClient');
 module.exports = {
   ProfileInfoFetcher,
   ProfileInfoCache,
-  ProfileInfoClient
+  ProfileInfoClient,
 };

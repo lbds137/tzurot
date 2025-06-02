@@ -90,13 +90,13 @@ class CommandRegistry {
 module.exports = CommandRegistry;
 
 // Factory function to create instances
-module.exports.create = function() {
+module.exports.create = function () {
   return new CommandRegistry();
 };
 
 // For backward compatibility, create a lazy-loaded singleton
 let _instance = null;
-module.exports.getInstance = function() {
+module.exports.getInstance = function () {
   if (!_instance) {
     _instance = new CommandRegistry();
   }
@@ -114,9 +114,15 @@ Object.assign(module.exports, {
   getAllCommands: (...args) => registry.getAllCommands(...args),
   getFilteredCommands: (...args) => registry.getFilteredCommands(...args),
   findByPermission: (...args) => registry.findByPermission(...args),
-  
+
   // Properties
-  get commands() { return registry.commands; },
-  get aliases() { return registry.aliases; },
-  get size() { return registry.size; }
+  get commands() {
+    return registry.commands;
+  },
+  get aliases() {
+    return registry.aliases;
+  },
+  get size() {
+    return registry.size;
+  },
 });

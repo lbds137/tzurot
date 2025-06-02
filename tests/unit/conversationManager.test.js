@@ -149,20 +149,17 @@ describe('Conversation Manager', () => {
   // Test recording a conversation
   describe('recordConversation', () => {
     it('should record a conversation with a single message ID', () => {
-      // Record the conversation
-      recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName);
+      // Enable auto-response first to allow continuous conversation
+      enableAutoResponse(testUserId);
+      
+      // Record the conversation with isMentionOnly = false (continuous conversation)
+      recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName, false, false);
       
       // Verify that saveAllData is called
       expect(console.log).not.toHaveBeenCalled(); // Should be suppressed during recording
       
-      // Verify that a subsequent getActivePersonality call returns the personality
-      const personality = getActivePersonality(testUserId, testChannelId);
-      
-      // We need to enable auto-response for the user first
-      enableAutoResponse(testUserId);
-      
       // Now check if the personality is active
-      const activePersonality = getActivePersonality(testUserId, testChannelId);
+      const activePersonality = getActivePersonality(testUserId, testChannelId, false, true);
       expect(activePersonality).toBe(testPersonalityName);
     });
     
@@ -177,7 +174,7 @@ describe('Conversation Manager', () => {
       enableAutoResponse(testUserId);
       
       // Verify that the conversation is recorded
-      const activePersonality = getActivePersonality(testUserId, testChannelId);
+      const activePersonality = getActivePersonality(testUserId, testChannelId, false, true);
       expect(activePersonality).toBe(testPersonalityName);
       
       // Verify that each message ID can be used to retrieve the personality
@@ -216,17 +213,18 @@ describe('Conversation Manager', () => {
     });
     
     it('should not return an active personality if auto-response is disabled', () => {
-      // Record a conversation
-      recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName);
+      // Record a mention-only conversation (as would happen without autoresponse)
+      recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName, false, true);
       
-      // Check with auto-response disabled
+      // Check with auto-response disabled - should be null for mention-only in guild channels
       expect(isAutoResponseEnabled(testUserId)).toBe(false);
-      const activePersonality = getActivePersonality(testUserId, testChannelId);
+      const activePersonality = getActivePersonality(testUserId, testChannelId, false, false);
       expect(activePersonality).toBeNull();
       
-      // Enable auto-response and check again
+      // Enable auto-response and record a continuous conversation
       enableAutoResponse(testUserId);
-      const newActivePersonality = getActivePersonality(testUserId, testChannelId);
+      recordConversation(testUserId, testChannelId, 'new-message-id', testPersonalityName, false, false);
+      const newActivePersonality = getActivePersonality(testUserId, testChannelId, false, true);
       expect(newActivePersonality).toBe(testPersonalityName);
     });
   });
@@ -327,7 +325,7 @@ describe('Conversation Manager', () => {
       enableAutoResponse(testUserId);
       
       // Verify the conversation exists
-      expect(getActivePersonality(testUserId, testChannelId)).toBe(testPersonalityName);
+      expect(getActivePersonality(testUserId, testChannelId, false, true)).toBe(testPersonalityName);
       
       // Clear the conversation
       const result = clearConversation(testUserId, testChannelId);
@@ -336,7 +334,7 @@ describe('Conversation Manager', () => {
       expect(result).toBe(true);
       
       // Verify the conversation is cleared
-      expect(getActivePersonality(testUserId, testChannelId)).toBeNull();
+      expect(getActivePersonality(testUserId, testChannelId, false, true)).toBeNull();
       
       // Verify the message ID mapping is cleared
       expect(getPersonalityFromMessage(testMessageId)).toBeNull();
@@ -391,13 +389,13 @@ describe('Conversation Manager', () => {
         enableAutoResponse(testUserId);
         
         // Verify active personality is found
-        expect(getActivePersonality(testUserId, testChannelId)).toBe(testPersonalityName);
+        expect(getActivePersonality(testUserId, testChannelId, false, true)).toBe(testPersonalityName);
         
         // Now advance time by 31 minutes (beyond the timeout)
         Date.now = jest.fn().mockReturnValue(currentTime + thirtyMinutesInMs + 60000);
         
         // The conversation should now be considered stale
-        expect(getActivePersonality(testUserId, testChannelId)).toBeNull();
+        expect(getActivePersonality(testUserId, testChannelId, false, true)).toBeNull();
         
       } finally {
         // Restore original Date.now
@@ -424,7 +422,7 @@ describe('Conversation Manager', () => {
         Date.now = jest.fn().mockReturnValue(currentTime + 29 * 60 * 1000);
         
         // The conversation should still be active
-        expect(getActivePersonality(testUserId, testChannelId)).toBe(testPersonalityName);
+        expect(getActivePersonality(testUserId, testChannelId, false, true)).toBe(testPersonalityName);
         
       } finally {
         // Restore original Date.now
@@ -447,7 +445,7 @@ describe('Conversation Manager', () => {
       
       // Verify we can retrieve the data (indicates it was stored in memory)
       enableAutoResponse(testUserId); // Need auto-response enabled to retrieve conversation
-      expect(getActivePersonality(testUserId, testChannelId)).toBe(testPersonalityName);
+      expect(getActivePersonality(testUserId, testChannelId, false, true)).toBe(testPersonalityName);
       expect(getPersonalityFromMessage(testMessageId)).toBe(testPersonalityName);
     });
     
@@ -496,7 +494,7 @@ describe('Conversation Manager', () => {
       expect(isAutoResponseEnabled(testUserId)).toBe(true);
       
       // Verify the conversation is active even in DM
-      expect(getActivePersonality(testUserId, testChannelId, true)).toBe(testPersonalityName);
+      expect(getActivePersonality(testUserId, testChannelId, true, true)).toBe(testPersonalityName);
     });
     
     it('should use extended timeout for DM conversations', () => {
@@ -514,13 +512,13 @@ describe('Conversation Manager', () => {
         Date.now = jest.fn().mockReturnValue(currentTime + 90 * 60 * 1000);
         
         // The DM conversation should still be active (2 hour timeout)
-        expect(getActivePersonality(testUserId, testChannelId, true)).toBe(testPersonalityName);
+        expect(getActivePersonality(testUserId, testChannelId, true, true)).toBe(testPersonalityName);
         
         // Advance time by 121 minutes (beyond the 2 hour DM timeout)
         Date.now = jest.fn().mockReturnValue(currentTime + 121 * 60 * 1000);
         
         // Now the conversation should be stale
-        expect(getActivePersonality(testUserId, testChannelId, true)).toBeNull();
+        expect(getActivePersonality(testUserId, testChannelId, true, true)).toBeNull();
       } finally {
         Date.now = originalDateNow;
       }

@@ -1,6 +1,6 @@
 /**
  * Webhook Module Index
- * 
+ *
  * Exports all webhook-related functionality
  */
 
@@ -13,7 +13,7 @@ const messageUtils = require('./messageUtils');
 module.exports = {
   // Thread handling
   sendDirectThreadMessage: threadHandler.sendDirectThreadMessage,
-  
+
   // Message throttling
   createPersonalityChannelKey: messageThrottler.createPersonalityChannelKey,
   hasPersonalityPendingMessage: messageThrottler.hasPersonalityPendingMessage,
@@ -23,15 +23,15 @@ module.exports = {
   updateChannelLastMessageTime: messageThrottler.updateChannelLastMessageTime,
   clearAllPendingMessages: messageThrottler.clearAllPendingMessages,
   getThrottlerState: messageThrottler.getThrottlerState,
-  
+
   // DM handling
   sendFormattedMessageInDM: dmHandler.sendFormattedMessageInDM,
-  
+
   // Error utilities
   isErrorContent: errorUtils.isErrorContent,
   markErrorContent: errorUtils.markErrorContent,
   isErrorWebhookMessage: errorUtils.isErrorWebhookMessage,
-  
+
   // Message utilities
   getStandardizedUsername: messageUtils.getStandardizedUsername,
   generateMessageTrackingId: messageUtils.generateMessageTrackingId,
@@ -40,7 +40,7 @@ module.exports = {
   sendMessageChunk: messageUtils.sendMessageChunk,
   minimizeConsoleOutput: messageUtils.minimizeConsoleOutput,
   restoreConsoleOutput: messageUtils.restoreConsoleOutput,
-  
+
   // Constants
   MAX_ERROR_WAIT_TIME: messageThrottler.MAX_ERROR_WAIT_TIME,
   MIN_MESSAGE_DELAY: messageThrottler.MIN_MESSAGE_DELAY,

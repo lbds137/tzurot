@@ -4,7 +4,7 @@ const logger = require('../../logger');
 
 /**
  * ConversationPersistence - Handles file-based persistence for conversation data
- * 
+ *
  * This module manages saving and loading conversation data to/from the filesystem.
  */
 class ConversationPersistence {
@@ -15,7 +15,7 @@ class ConversationPersistence {
     this.CHANNEL_ACTIVATIONS_FILE = path.join(this.DATA_DIR, 'channel_activations.json');
     this.AUTO_RESPONSE_FILE = path.join(this.DATA_DIR, 'auto_response.json');
     this.MESSAGE_MAP_FILE = path.join(this.DATA_DIR, 'message_map.json');
-    
+
     // Track if save is in progress to prevent concurrent saves
     this.isSaving = false;
   }
@@ -46,20 +46,20 @@ class ConversationPersistence {
       logger.debug('[ConversationPersistence] Save already in progress, skipping');
       return;
     }
-    
+
     this.isSaving = true;
-    
+
     try {
       await this._ensureDataDir();
-      
+
       // Save all data files in parallel
       await Promise.all([
         this._saveFile(this.CONVERSATIONS_FILE, data.conversations),
         this._saveFile(this.CHANNEL_ACTIVATIONS_FILE, data.activatedChannels),
         this._saveFile(this.AUTO_RESPONSE_FILE, data.autoResponseUsers),
-        this._saveFile(this.MESSAGE_MAP_FILE, data.messageMap)
+        this._saveFile(this.MESSAGE_MAP_FILE, data.messageMap),
       ]);
-      
+
       logger.info('[ConversationPersistence] All conversation data saved successfully');
     } catch (error) {
       logger.error(`[ConversationPersistence] Error saving conversation data: ${error.message}`);
@@ -76,22 +76,22 @@ class ConversationPersistence {
   async loadAll() {
     try {
       await this._ensureDataDir();
-      
+
       // Load all data files in parallel
       const [conversations, activatedChannels, autoResponseUsers, messageMap] = await Promise.all([
         this._loadFile(this.CONVERSATIONS_FILE),
         this._loadFile(this.CHANNEL_ACTIVATIONS_FILE),
         this._loadFile(this.AUTO_RESPONSE_FILE),
-        this._loadFile(this.MESSAGE_MAP_FILE)
+        this._loadFile(this.MESSAGE_MAP_FILE),
       ]);
-      
+
       logger.info('[ConversationPersistence] All conversation data loaded successfully');
-      
+
       return {
         conversations,
         activatedChannels,
         autoResponseUsers,
-        messageMap
+        messageMap,
       };
     } catch (error) {
       logger.error(`[ConversationPersistence] Error loading conversation data: ${error.message}`);
@@ -100,7 +100,7 @@ class ConversationPersistence {
         conversations: {},
         activatedChannels: {},
         autoResponseUsers: [],
-        messageMap: {}
+        messageMap: {},
       };
     }
   }
@@ -116,7 +116,9 @@ class ConversationPersistence {
       await fs.writeFile(filePath, JSON.stringify(data, null, 2));
       logger.debug(`[ConversationPersistence] Saved data to ${path.basename(filePath)}`);
     } catch (error) {
-      logger.error(`[ConversationPersistence] Error saving to ${path.basename(filePath)}: ${error.message}`);
+      logger.error(
+        `[ConversationPersistence] Error saving to ${path.basename(filePath)}: ${error.message}`
+      );
       throw error;
     }
   }
@@ -136,10 +138,14 @@ class ConversationPersistence {
     } catch (error) {
       if (error.code === 'ENOENT') {
         // File doesn't exist, return null
-        logger.debug(`[ConversationPersistence] File ${path.basename(filePath)} does not exist yet`);
+        logger.debug(
+          `[ConversationPersistence] File ${path.basename(filePath)} does not exist yet`
+        );
         return null;
       }
-      logger.error(`[ConversationPersistence] Error loading from ${path.basename(filePath)}: ${error.message}`);
+      logger.error(
+        `[ConversationPersistence] Error loading from ${path.basename(filePath)}: ${error.message}`
+      );
       throw error;
     }
   }
@@ -153,7 +159,7 @@ class ConversationPersistence {
         fs.unlink(this.CONVERSATIONS_FILE).catch(() => {}),
         fs.unlink(this.CHANNEL_ACTIVATIONS_FILE).catch(() => {}),
         fs.unlink(this.AUTO_RESPONSE_FILE).catch(() => {}),
-        fs.unlink(this.MESSAGE_MAP_FILE).catch(() => {})
+        fs.unlink(this.MESSAGE_MAP_FILE).catch(() => {}),
       ]);
       logger.info('[ConversationPersistence] All conversation data files deleted');
     } catch (error) {

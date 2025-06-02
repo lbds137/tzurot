@@ -7,7 +7,7 @@ const MessageHistory = require('./MessageHistory');
 
 /**
  * ConversationManager - Main orchestrator for conversation management
- * 
+ *
  * This module coordinates all conversation-related functionality including
  * tracking active conversations, managing auto-responses, channel activations,
  * and persisting data.
@@ -17,17 +17,17 @@ class ConversationManager {
     // Injectable timer functions
     this.scheduler = options.scheduler || setTimeout;
     this.interval = options.interval || setInterval;
-    
+
     // Initialize sub-modules
     this.tracker = new ConversationTracker();
     this.autoResponder = new AutoResponder();
     this.channelActivation = new ChannelActivation();
     this.persistence = new ConversationPersistence();
     this.messageHistory = new MessageHistory(this.tracker);
-    
+
     // Periodic save interval
     this.saveInterval = null;
-    
+
     // Track if initialized
     this.initialized = false;
   }
@@ -39,23 +39,23 @@ class ConversationManager {
     try {
       // Load persisted data
       const data = await this.persistence.loadAll();
-      
+
       // Load data into sub-modules
       if (data.conversations) {
         this.tracker.loadFromData(data.conversations, data.messageMap);
       }
-      
+
       if (data.autoResponseUsers) {
         this.autoResponder.loadFromData(data.autoResponseUsers);
       }
-      
+
       if (data.activatedChannels) {
         this.channelActivation.loadFromData(data.activatedChannels);
       }
-      
+
       // Start periodic save
       this._startPeriodicSave();
-      
+
       this.initialized = true;
       logger.info('[ConversationManager] Initialization complete');
     } catch (error) {
@@ -73,13 +73,22 @@ class ConversationManager {
    * @param {boolean} [isDM=false] - Whether this is a DM channel
    * @param {boolean} [isMentionOnly=false] - Whether this was initiated by a mention
    */
-  recordConversation(userId, channelId, messageIds, personalityName, isDM = false, isMentionOnly = false) {
+  recordConversation(
+    userId,
+    channelId,
+    messageIds,
+    personalityName,
+    isDM = false,
+    isMentionOnly = false
+  ) {
     // For DM channels, automatically enable auto-response
     if (isDM) {
       this.autoResponder.enable(userId);
-      logger.info(`[ConversationManager] Auto-enabled auto-response for user ${userId} in DM channel`);
+      logger.info(
+        `[ConversationManager] Auto-enabled auto-response for user ${userId} in DM channel`
+      );
     }
-    
+
     // Record the conversation
     this.tracker.recordConversation({
       userId,
@@ -87,9 +96,9 @@ class ConversationManager {
       messageIds,
       personalityName,
       isDM,
-      isMentionOnly
+      isMentionOnly,
     });
-    
+
     // Save data
     this._scheduleSave();
   }
@@ -125,11 +134,11 @@ class ConversationManager {
    */
   clearConversation(userId, channelId) {
     const result = this.tracker.clearConversation(userId, channelId);
-    
+
     if (result) {
       this._scheduleSave();
     }
-    
+
     return result;
   }
 
@@ -142,11 +151,11 @@ class ConversationManager {
    */
   activatePersonality(channelId, personalityName, userId) {
     const result = this.channelActivation.activate(channelId, personalityName, userId);
-    
+
     if (result) {
       this._scheduleSave();
     }
-    
+
     return result;
   }
 
@@ -157,11 +166,11 @@ class ConversationManager {
    */
   deactivatePersonality(channelId) {
     const result = this.channelActivation.deactivate(channelId);
-    
+
     if (result) {
       this._scheduleSave();
     }
-    
+
     return result;
   }
 
@@ -200,11 +209,11 @@ class ConversationManager {
    */
   disableAutoResponse(userId) {
     const result = this.autoResponder.disable(userId);
-    
+
     if (result) {
       this._scheduleSave();
     }
-    
+
     return result;
   }
 
@@ -226,9 +235,9 @@ class ConversationManager {
         conversations: this.tracker.getAllConversations(),
         messageMap: this.tracker.getAllMessageMappings(),
         autoResponseUsers: this.autoResponder.getAllUsers(),
-        activatedChannels: this.channelActivation.getAllActivationData()
+        activatedChannels: this.channelActivation.getAllActivationData(),
       };
-      
+
       await this.persistence.saveAll(data);
     } catch (error) {
       logger.error(`[ConversationManager] Error saving data: ${error.message}`);
@@ -244,7 +253,7 @@ class ConversationManager {
     if (this.pendingSave) {
       return;
     }
-    
+
     this.pendingSave = this.scheduler(() => {
       this.pendingSave = null;
       this.saveAllData();
@@ -256,11 +265,14 @@ class ConversationManager {
    * @private
    */
   _startPeriodicSave() {
-    this.saveInterval = this.interval(() => {
-      logger.info('[ConversationManager] Running periodic data save...');
-      this.saveAllData();
-    }, 5 * 60 * 1000); // Save every 5 minutes
-    
+    this.saveInterval = this.interval(
+      () => {
+        logger.info('[ConversationManager] Running periodic data save...');
+        this.saveAllData();
+      },
+      5 * 60 * 1000
+    ); // Save every 5 minutes
+
     // Add unref if available (Node.js timers)
     if (this.saveInterval && this.saveInterval.unref) {
       this.saveInterval.unref();
@@ -276,19 +288,19 @@ class ConversationManager {
       clearInterval(this.saveInterval);
       this.saveInterval = null;
     }
-    
+
     // Clear pending save
     if (this.pendingSave) {
       clearTimeout(this.pendingSave);
       this.pendingSave = null;
     }
-    
+
     // Stop tracker cleanup
     this.tracker.stopCleanup();
-    
+
     // Final save
     await this.saveAllData();
-    
+
     this.initialized = false;
     logger.info('[ConversationManager] Shutdown complete');
   }
@@ -313,7 +325,7 @@ module.exports = {
   disableAutoResponse: (...args) => conversationManager.disableAutoResponse(...args),
   isAutoResponseEnabled: (...args) => conversationManager.isAutoResponseEnabled(...args),
   saveAllData: () => conversationManager.saveAllData(),
-  
+
   // Export the instance for advanced usage
-  _instance: conversationManager
+  _instance: conversationManager,
 };
