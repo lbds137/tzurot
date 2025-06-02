@@ -13,7 +13,7 @@ const errorHandler = require('./errorHandler');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
-const { getActivePersonality, getActivatedPersonality } = require('../conversationManager');
+const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../conversationManager');
 const { getPersonalityByAlias, getPersonality } = require('../personalityManager');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
@@ -500,8 +500,16 @@ async function handleMentions(message, client) {
  * @returns {Promise<boolean>} - Whether the active conversation was handled
  */
 async function handleActiveConversation(message, client) {
+  // Check if auto-response is enabled for this user
+  const autoResponseEnabled = isAutoResponseEnabled(message.author.id);
+  
   // Check for active conversation
-  const activePersonalityName = getActivePersonality(message.author.id, message.channel.id);
+  const activePersonalityName = getActivePersonality(
+    message.author.id, 
+    message.channel.id,
+    message.channel.isDMBased(),
+    autoResponseEnabled
+  );
   if (!activePersonalityName) {
     return false; // No active conversation
   }
