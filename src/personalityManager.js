@@ -71,7 +71,19 @@ function getPersonality(fullName) {
  * Set a personality alias (backward compatibility wrapper)
  */
 async function setPersonalityAlias(alias, fullName, skipSave = false, isDisplayName = false) {
-  // If isDisplayName is true and alias already exists, create alternate aliases
+  // Trim the alias to remove any leading/trailing spaces
+  alias = alias.trim();
+  
+  
+  // Check if the alias already exists
+  const existingPersonality = personalityManager.getPersonalityByAlias(alias.toLowerCase());
+  if (existingPersonality && existingPersonality.fullName === fullName) {
+    // Alias already points to this personality, no need to set it again
+    logger.info(`Alias ${alias} already points to ${fullName} - no changes needed`);
+    return { success: true };
+  }
+  
+  // If isDisplayName is true and alias already exists for a different personality, create alternate aliases
   if (isDisplayName && personalityManager.personalityAliases.has(alias.toLowerCase())) {
     const alternateAliases = [];
     let alternateAlias = alias;

@@ -397,11 +397,12 @@ class PersonalityManager {
       }
       
       // Set the alternate alias
-      this.registry.setAlias(alternateAlias, fullName);
+      this.registry.setAlias(alternateAlias.toLowerCase(), fullName);
       logger.info(`[PersonalityManager] Created alternate alias ${alternateAlias} for ${fullName} (${displayName} was taken)`);
     } else {
       // Alias is available, use it directly
-      this.registry.setAlias(displayName, fullName);
+      this.registry.setAlias(lowerAlias, fullName);
+      logger.info(`[PersonalityManager] Set display name alias '${lowerAlias}' for ${fullName}`);
     }
   }
 
