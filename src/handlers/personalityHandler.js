@@ -22,11 +22,17 @@ const personalityAuth = require('../utils/personalityAuth');
 const threadHandler = require('../utils/threadHandler');
 
 // Injectable timer functions for testability
+// Using the injectable pattern as documented in docs/core/TIMER_PATTERNS.md
+const globalSetTimeout = setTimeout;
+const globalClearTimeout = clearTimeout;
+const globalSetInterval = setInterval;
+const globalClearInterval = clearInterval;
+
 let timerFunctions = {
-  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id),
-  setInterval: (callback, delay, ...args) => setInterval(callback, delay, ...args),
-  clearInterval: (id) => clearInterval(id)
+  setTimeout: (callback, delay, ...args) => globalSetTimeout(callback, delay, ...args),
+  clearTimeout: (id) => globalClearTimeout(id),
+  setInterval: (callback, delay, ...args) => globalSetInterval(callback, delay, ...args),
+  clearInterval: (id) => globalClearInterval(id)
 };
 
 /**
@@ -739,6 +745,13 @@ async function handlePersonalityInteraction(
     // 3. A reply to another user's message
     // Only DMs or autoresponse-enabled channels should have continuous conversations
     const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabled;
+    
+    logger.info(
+      `[PersonalityHandler] Recording conversation - User: ${conversationUserId}, Channel: ${message.channel.id}, ` +
+      `Personality: ${personality.fullName}, isDM: ${message.channel.isDMBased()}, ` +
+      `autoResponseEnabled: ${autoResponseEnabled}, isMentionOnly: ${isMentionOnly}, ` +
+      `triggeringMention: ${triggeringMention}`
+    );
     
     recordConversationData(
       conversationUserId,
