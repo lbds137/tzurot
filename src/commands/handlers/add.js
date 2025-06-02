@@ -220,19 +220,27 @@ async function execute(message, args, context = {}) {
     
     logger.debug(`[AddCommand ${commandId}] Alias calculation: alias='${alias}', displayName='${personality.displayName}', fullName='${personality.fullName}', aliasToSet='${aliasToSet}'`);
     
+    // Track the actual alias that gets set (might be different due to collisions)
+    let actualAlias = aliasToSet;
+    
     if (aliasToSet) {
       try {
         const aliasResult = await setPersonalityAlias(aliasToSet, personality.fullName, false, !alias); // skipSave=false, isDisplayName=true if using display name
         if (aliasResult && aliasResult.success) {
-          logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
+          // If alternate aliases were created due to collision, use the first one
           if (aliasResult.alternateAliases && aliasResult.alternateAliases.length > 0) {
-            logger.info(`[AddCommand ${commandId}] Alternate aliases created due to collision: ${aliasResult.alternateAliases.join(', ')}`);
+            actualAlias = aliasResult.alternateAliases[0];
+            logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' was taken, using alternate alias '${actualAlias}' for personality ${personality.fullName}`);
+          } else {
+            logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
           }
         } else {
           logger.warn(`[AddCommand ${commandId}] Failed to set alias '${aliasToSet}' for personality ${personality.fullName}`);
+          actualAlias = null; // Clear alias if setting failed
         }
       } catch (aliasError) {
         logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`, aliasError);
+        actualAlias = null; // Clear alias if error occurred
         // Continue even if alias setting fails - the personality is already registered
       }
     }
@@ -253,7 +261,7 @@ async function execute(message, args, context = {}) {
       .setColor(0x4caf50)
       .addFields(
         { name: 'Full Name', value: personality.fullName || 'Not available', inline: true },
-        { name: 'Alias', value: aliasToSet || 'None set', inline: true }
+        { name: 'Alias', value: actualAlias || 'None set', inline: true }
       );
 
     // Add placeholder fields for display name and avatar
@@ -269,8 +277,8 @@ async function execute(message, args, context = {}) {
     }
 
     // Add footer with mention instructions
-    const mentionText = aliasToSet 
-      ? `Use ${botConfig.mentionChar}${personalityName} or ${botConfig.mentionChar}${aliasToSet} to talk to this personality`
+    const mentionText = actualAlias 
+      ? `Use ${botConfig.mentionChar}${personalityName} or ${botConfig.mentionChar}${actualAlias} to talk to this personality`
       : `Use ${botConfig.mentionChar}${personalityName} to talk to this personality`;
     
     if (message.channel.isDMBased()) {
