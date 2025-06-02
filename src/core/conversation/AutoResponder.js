@@ -2,7 +2,7 @@ const logger = require('../../logger');
 
 /**
  * AutoResponder - Manages auto-response settings for users
- * 
+ *
  * This module handles which users have auto-response enabled,
  * allowing the bot to continue conversations without requiring mentions.
  */

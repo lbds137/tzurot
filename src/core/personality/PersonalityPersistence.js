@@ -7,7 +7,7 @@ const ALIASES_FILE = 'aliases';
 
 /**
  * PersonalityPersistence - Handles file-based storage of personality data
- * 
+ *
  * This class manages the persistence layer for personalities,
  * handling loading from and saving to disk storage.
  */
@@ -19,14 +19,14 @@ class PersonalityPersistence {
   async load() {
     try {
       logger.info('[PersonalityPersistence] Loading personality data from disk');
-      
+
       // Load personalities
-      const personalities = await loadData(PERSONALITIES_FILE) || {};
+      const personalities = (await loadData(PERSONALITIES_FILE)) || {};
       const personalityCount = Object.keys(personalities).length;
       logger.info(`[PersonalityPersistence] Found ${personalityCount} personalities in storage`);
 
       // Load aliases
-      const aliases = await loadData(ALIASES_FILE) || {};
+      const aliases = (await loadData(ALIASES_FILE)) || {};
       const aliasCount = Object.keys(aliases).length;
       logger.info(`[PersonalityPersistence] Found ${aliasCount} aliases in storage`);
 
@@ -47,7 +47,7 @@ class PersonalityPersistence {
   async save(personalities, aliases) {
     try {
       logger.debug('[PersonalityPersistence] Saving personality data to disk');
-      
+
       // Save personalities
       const personalitySaved = await saveData(PERSONALITIES_FILE, personalities);
       if (!personalitySaved) {
@@ -64,8 +64,10 @@ class PersonalityPersistence {
 
       const personalityCount = Object.keys(personalities).length;
       const aliasCount = Object.keys(aliases).length;
-      logger.info(`[PersonalityPersistence] Successfully saved ${personalityCount} personalities and ${aliasCount} aliases`);
-      
+      logger.info(
+        `[PersonalityPersistence] Successfully saved ${personalityCount} personalities and ${aliasCount} aliases`
+      );
+
       return true;
     } catch (error) {
       logger.error(`[PersonalityPersistence] Error saving data: ${error.message}`);
@@ -81,16 +83,16 @@ class PersonalityPersistence {
     try {
       const personalities = await loadData(PERSONALITIES_FILE);
       const aliases = await loadData(ALIASES_FILE);
-      
+
       return {
         personalitiesExist: personalities !== null,
-        aliasesExist: aliases !== null
+        aliasesExist: aliases !== null,
       };
     } catch (error) {
       logger.error(`[PersonalityPersistence] Error checking files: ${error.message}`);
       return {
         personalitiesExist: false,
-        aliasesExist: false
+        aliasesExist: false,
       };
     }
   }
@@ -102,10 +104,10 @@ class PersonalityPersistence {
   async clear() {
     try {
       logger.warn('[PersonalityPersistence] Clearing all personality data from disk');
-      
+
       const personalitiesCleared = await saveData(PERSONALITIES_FILE, {});
       const aliasesCleared = await saveData(ALIASES_FILE, {});
-      
+
       if (personalitiesCleared && aliasesCleared) {
         logger.info('[PersonalityPersistence] Successfully cleared all personality data');
         return true;
@@ -130,12 +132,14 @@ class PersonalityPersistence {
       const backupAliasesFile = `${ALIASES_FILE}_backup_${timestamp}`;
 
       const { personalities, aliases } = await this.load();
-      
+
       const personalitiesBackup = await saveData(backupPersonalitiesFile, personalities);
       const aliasesBackup = await saveData(backupAliasesFile, aliases);
 
       if (personalitiesBackup && aliasesBackup) {
-        logger.info(`[PersonalityPersistence] Backup created: ${backupPersonalitiesFile}, ${backupAliasesFile}`);
+        logger.info(
+          `[PersonalityPersistence] Backup created: ${backupPersonalitiesFile}, ${backupAliasesFile}`
+        );
         return true;
       } else {
         logger.error('[PersonalityPersistence] Failed to create backup');

@@ -33,7 +33,7 @@ class MessageTracker {
     const {
       enableCleanupTimers = true,
       scheduler = setTimeout,
-      intervalScheduler = setInterval
+      intervalScheduler = setInterval,
     } = options;
 
     /**
@@ -83,7 +83,7 @@ class MessageTracker {
       },
       10 * 60 * 1000
     );
-    
+
     // unref() allows the process to exit even if timer is active
     if (interval && typeof interval.unref === 'function') {
       interval.unref();

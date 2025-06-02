@@ -1,6 +1,6 @@
 /**
  * PersonalityManager Facade
- * 
+ *
  * This file provides backward compatibility for the old personalityManager API
  * while delegating to the new modular implementation in core/personality/
  */
@@ -23,14 +23,14 @@ async function initPersonalityManager(deferOwnerPersonalities = true, options = 
  */
 async function registerPersonality(userIdOrFullName, fullNameOrData, dataOrFetchInfo, fetchInfo) {
   let userId, fullName, data, shouldFetchInfo;
-  
+
   // Handle old API: registerPersonality(userId, fullName, data, fetchInfo)
   if (arguments.length >= 3 && typeof fullNameOrData === 'string') {
     userId = userIdOrFullName;
     fullName = fullNameOrData;
     data = dataOrFetchInfo || {};
     shouldFetchInfo = fetchInfo !== false; // Default true unless explicitly false
-  } 
+  }
   // Handle new API: registerPersonality(fullName, userId, activatedChannels)
   else {
     fullName = userIdOrFullName;
@@ -38,7 +38,7 @@ async function registerPersonality(userIdOrFullName, fullNameOrData, dataOrFetch
     data = { activatedChannels: dataOrFetchInfo || [] };
     shouldFetchInfo = true; // Always fetch in new API
   }
-  
+
   // Ensure activatedChannels is an array
   if (data.activatedChannels) {
     if (typeof data.activatedChannels === 'string') {
@@ -47,16 +47,16 @@ async function registerPersonality(userIdOrFullName, fullNameOrData, dataOrFetch
       data.activatedChannels = [];
     }
   }
-  
+
   // Add fetchInfo flag to data
   data.fetchInfo = shouldFetchInfo;
-  
+
   const result = await personalityManager.registerPersonality(fullName, userId, data);
-  
+
   if (!result.success) {
     throw new Error(result.error);
   }
-  
+
   return personalityManager.getPersonality(fullName);
 }
 
@@ -71,15 +71,26 @@ function getPersonality(fullName) {
  * Set a personality alias (backward compatibility wrapper)
  */
 async function setPersonalityAlias(alias, fullName, skipSave = false, isDisplayName = false) {
-  // If isDisplayName is true and alias already exists, create alternate aliases
+  // Trim the alias to remove any leading/trailing spaces
+  alias = alias.trim();
+
+  // Check if the alias already exists
+  const existingPersonality = personalityManager.getPersonalityByAlias(alias.toLowerCase());
+  if (existingPersonality && existingPersonality.fullName === fullName) {
+    // Alias already points to this personality, no need to set it again
+    logger.info(`Alias ${alias} already points to ${fullName} - no changes needed`);
+    return { success: true };
+  }
+
+  // If isDisplayName is true and alias already exists for a different personality, create alternate aliases
   if (isDisplayName && personalityManager.personalityAliases.has(alias.toLowerCase())) {
     const alternateAliases = [];
     let alternateAlias = alias;
-    
+
     // Try to create a smarter alias by using parts of the full personality name
     const nameParts = fullName.split('-');
     const aliasParts = alias.split('-');
-    
+
     // If the personality name has more parts than the alias, try adding the next part
     if (nameParts.length > aliasParts.length) {
       // Find which part of the name corresponds to the alias
@@ -90,15 +101,18 @@ async function setPersonalityAlias(alias, fullName, skipSave = false, isDisplayN
           break;
         }
       }
-      
+
       // If we found a match and there's a next part, use it
       if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
         alternateAlias = `${alias}-${nameParts[matchIndex + 1]}`;
       }
     }
-    
+
     // If the smart alias is still taken or we couldn't create one, fall back to random
-    if (alternateAlias === alias || personalityManager.personalityAliases.has(alternateAlias.toLowerCase())) {
+    if (
+      alternateAlias === alias ||
+      personalityManager.personalityAliases.has(alternateAlias.toLowerCase())
+    ) {
       // Generate a random suffix with only lowercase letters to match test expectations
       const chars = 'abcdefghijklmnopqrstuvwxyz';
       let randomSuffix = '';
@@ -107,26 +121,26 @@ async function setPersonalityAlias(alias, fullName, skipSave = false, isDisplayN
       }
       alternateAlias = `${alias}-${randomSuffix}`;
     }
-    
+
     // Set the alternate alias
     const result = await personalityManager.setPersonalityAlias(alternateAlias, fullName, skipSave);
     if (!result.success) {
       logger.error(`[PersonalityManagerFacade] Failed to set alternate alias: ${result.error}`);
       return false;
     }
-    
+
     alternateAliases.push(alternateAlias);
-    
+
     // Return object format for backward compatibility
     return {
       success: true,
-      alternateAliases
+      alternateAliases,
     };
   }
-  
+
   // Normal alias setting
   const result = await personalityManager.setPersonalityAlias(alias, fullName, skipSave);
-  
+
   if (!result.success) {
     logger.error(`[PersonalityManagerFacade] Failed to set alias: ${result.error}`);
     // Return object format for tests that expect it
@@ -135,7 +149,7 @@ async function setPersonalityAlias(alias, fullName, skipSave = false, isDisplayN
     }
     return false;
   }
-  
+
   // Return object format for tests that expect it
   if (skipSave || isDisplayName) {
     return { success: true };
@@ -161,7 +175,7 @@ function getPersonalityByAlias(personalityOrAlias, alias) {
  */
 async function removePersonality(userIdOrFullName, fullNameOrUserId) {
   let fullName, requestingUserId;
-  
+
   // Handle old API: removePersonality(userId, fullName)
   if (arguments.length === 2) {
     requestingUserId = userIdOrFullName;
@@ -171,18 +185,20 @@ async function removePersonality(userIdOrFullName, fullNameOrUserId) {
     fullName = userIdOrFullName;
     requestingUserId = fullNameOrUserId || 'unknown-user';
   }
-  
+
   const result = await personalityManager.removePersonality(fullName, requestingUserId);
-  
+
   if (!result.success) {
     // Old API returned false on failure instead of throwing
-    if (result.error === 'Personality not found' || 
-        result.error === 'You can only remove personalities you added') {
+    if (
+      result.error === 'Personality not found' ||
+      result.error === 'You can only remove personalities you added'
+    ) {
       return false;
     }
     throw new Error(result.error);
   }
-  
+
   return true;
 }
 
@@ -246,5 +262,5 @@ module.exports = {
   getAllPersonalities,
   save,
   // For backward compatibility with tests
-  personalityData: { clear: clearAllData }
+  personalityData: { clear: clearAllData },
 };

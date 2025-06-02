@@ -10,11 +10,11 @@ class PluralKitMessageStore {
     this.pendingMessages = new Map();
     this.deletedMessages = new Map(); // Track deleted messages separately
     this.expirationTime = options.expirationTime || 5000; // 5 seconds - PluralKit usually processes within 1-2 seconds
-    
+
     // Injectable timer function for testability
     const intervalFn = options.interval || setInterval;
     const enableCleanup = options.enableCleanup !== undefined ? options.enableCleanup : true;
-    
+
     // Clean up expired messages every 10 seconds
     if (enableCleanup) {
       this.cleanupInterval = intervalFn(() => this.cleanup(), 10000);
@@ -33,9 +33,9 @@ class PluralKitMessageStore {
       content: messageData.content,
       timestamp: Date.now(),
       guildId: messageData.guildId,
-      username: messageData.username
+      username: messageData.username,
     });
-    
+
     // Don't log every message since we're storing all messages now
   }
 
@@ -49,7 +49,7 @@ class PluralKitMessageStore {
       // Move to deleted messages map
       this.deletedMessages.set(`${messageData.channelId}-${messageData.content}`, {
         ...messageData,
-        deletedAt: Date.now()
+        deletedAt: Date.now(),
       });
       this.pendingMessages.delete(messageId);
       logger.debug(`[PluralKitStore] Marked message ${messageId} as deleted`);
@@ -65,7 +65,7 @@ class PluralKitMessageStore {
   findDeletedMessage(content, channelId) {
     const key = `${channelId}-${content}`;
     const messageData = this.deletedMessages.get(key);
-    
+
     if (messageData) {
       const now = Date.now();
       // Check if the deletion is recent (within 5 seconds)
@@ -76,7 +76,7 @@ class PluralKitMessageStore {
         return messageData;
       }
     }
-    
+
     return null;
   }
 
@@ -107,7 +107,7 @@ class PluralKitMessageStore {
     const now = Date.now();
     let cleanedPending = 0;
     let cleanedDeleted = 0;
-    
+
     // Clean up pending messages
     for (const [messageId, data] of this.pendingMessages.entries()) {
       if (now - data.timestamp > this.expirationTime) {
@@ -115,7 +115,7 @@ class PluralKitMessageStore {
         cleanedPending++;
       }
     }
-    
+
     // Clean up deleted messages
     for (const [key, data] of this.deletedMessages.entries()) {
       if (now - data.deletedAt > this.expirationTime) {
@@ -123,9 +123,11 @@ class PluralKitMessageStore {
         cleanedDeleted++;
       }
     }
-    
+
     if (cleanedPending > 0 || cleanedDeleted > 0) {
-      logger.debug(`[PluralKitStore] Cleaned up ${cleanedPending} pending and ${cleanedDeleted} deleted messages`);
+      logger.debug(
+        `[PluralKitStore] Cleaned up ${cleanedPending} pending and ${cleanedDeleted} deleted messages`
+      );
     }
   }
 
@@ -136,7 +138,7 @@ class PluralKitMessageStore {
   size() {
     return {
       pending: this.pendingMessages.size,
-      deleted: this.deletedMessages.size
+      deleted: this.deletedMessages.size,
     };
   }
 
@@ -157,7 +159,7 @@ class PluralKitMessageStore {
 module.exports = PluralKitMessageStore;
 
 // Factory function to create instances
-module.exports.create = function(options = {}) {
+module.exports.create = function (options = {}) {
   return new PluralKitMessageStore(options);
 };
 
@@ -169,8 +171,8 @@ Object.defineProperty(module.exports, 'instance', {
     if (!_instance) {
       // Create with cleanup disabled in test environment
       const isTestEnvironment = process.env.JEST_WORKER_ID !== undefined;
-      _instance = new PluralKitMessageStore({ 
-        enableCleanup: !isTestEnvironment 
+      _instance = new PluralKitMessageStore({
+        enableCleanup: !isTestEnvironment,
       });
     }
     return _instance;
@@ -178,5 +180,5 @@ Object.defineProperty(module.exports, 'instance', {
   // Allow tests to reset the instance
   set(value) {
     _instance = value;
-  }
+  },
 });

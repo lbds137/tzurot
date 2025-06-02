@@ -27,7 +27,9 @@ class NsfwVerificationManager {
       timestamp: Date.now(),
       verifiedAt: isVerified ? Date.now() : null,
     };
-    logger.info(`[NsfwVerificationManager] Stored NSFW verification status for user ${userId}: ${isVerified}`);
+    logger.info(
+      `[NsfwVerificationManager] Stored NSFW verification status for user ${userId}: ${isVerified}`
+    );
     return true;
   }
 
@@ -64,7 +66,9 @@ class NsfwVerificationManager {
   shouldAutoVerify(channel, userId) {
     // Auto-verify in NSFW channels
     if (this.requiresNsfwVerification(channel)) {
-      logger.info(`[NsfwVerificationManager] Auto-verifying user ${userId} in NSFW channel ${channel.id}`);
+      logger.info(
+        `[NsfwVerificationManager] Auto-verifying user ${userId} in NSFW channel ${channel.id}`
+      );
       return true;
     }
     return false;
@@ -77,10 +81,11 @@ class NsfwVerificationManager {
    */
   checkProxySystem(message) {
     // Detect PluralKit proxy (webhook with [APP] suffix and pk; prefix)
-    const isPKWebhook = message.author.bot && 
-                       message.author.username.endsWith('[APP]') && 
-                       message.author.username.startsWith('pk;');
-    
+    const isPKWebhook =
+      message.author.bot &&
+      message.author.username.endsWith('[APP]') &&
+      message.author.username.startsWith('pk;');
+
     if (isPKWebhook && message.author.discriminator === '0000') {
       logger.debug(`[NsfwVerificationManager] Detected PluralKit proxy message`);
       return {
@@ -88,14 +93,14 @@ class NsfwVerificationManager {
         systemType: 'pluralkit',
         // For PluralKit, we can't determine the actual user from the webhook alone
         // The auth system should handle this case appropriately
-        userId: null
+        userId: null,
       };
     }
 
     return {
       isProxy: false,
       systemType: null,
-      userId: message.author.id
+      userId: message.author.id,
     };
   }
 
@@ -111,7 +116,7 @@ class NsfwVerificationManager {
     if (!this.requiresNsfwVerification(channel)) {
       return {
         isAllowed: true,
-        reason: 'Channel does not require NSFW verification'
+        reason: 'Channel does not require NSFW verification',
       };
     }
 
@@ -120,12 +125,14 @@ class NsfwVerificationManager {
       const proxyCheck = this.checkProxySystem(message);
       if (proxyCheck.isProxy) {
         // For proxy systems, we may need special handling
-        logger.warn(`[NsfwVerificationManager] Proxy system detected, additional verification may be needed`);
+        logger.warn(
+          `[NsfwVerificationManager] Proxy system detected, additional verification may be needed`
+        );
         return {
           isAllowed: true,
           reason: 'Proxy system detected - verification delegated to proxy handler',
           isProxy: true,
-          systemType: proxyCheck.systemType
+          systemType: proxyCheck.systemType,
         };
       }
     }
@@ -136,7 +143,7 @@ class NsfwVerificationManager {
       return {
         isAllowed: true,
         reason: 'User auto-verified in NSFW channel',
-        autoVerified: true
+        autoVerified: true,
       };
     }
 
@@ -144,14 +151,14 @@ class NsfwVerificationManager {
     if (this.isNsfwVerified(userId)) {
       return {
         isAllowed: true,
-        reason: 'User has existing NSFW verification'
+        reason: 'User has existing NSFW verification',
       };
     }
 
     // User is not verified
     return {
       isAllowed: false,
-      reason: 'User has not completed NSFW verification'
+      reason: 'User has not completed NSFW verification',
     };
   }
 

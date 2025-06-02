@@ -1,6 +1,6 @@
 /**
  * Message Deduplication Manager
- * 
+ *
  * This module handles detection and prevention of duplicate messages
  * being sent through webhooks. It uses content hashing and time-based
  * expiration to identify duplicates.
@@ -32,11 +32,13 @@ const CLEANUP_TIMEOUT = 10000;
 function hashMessage(content, username, channelId) {
   // Create a hash using multiple parts of the content to better handle chunks
   const contentLength = content ? content.length : 0;
-  
+
   // For longer messages, also include middle and end sections to differentiate chunks
   if (contentLength > 100) {
     const start = (content || '').substring(0, 30).replace(/\s+/g, '');
-    const middle = (content || '').substring(Math.floor(contentLength / 2), Math.floor(contentLength / 2) + 20).replace(/\s+/g, '');
+    const middle = (content || '')
+      .substring(Math.floor(contentLength / 2), Math.floor(contentLength / 2) + 20)
+      .replace(/\s+/g, '');
     const end = (content || '').substring(contentLength - 20).replace(/\s+/g, '');
     const hash = `${channelId}_${username}_${start}_${middle}_${end}_${contentLength}`;
     return hash;
@@ -96,14 +98,14 @@ function isDuplicateMessage(content, username, channelId) {
 function cleanupOldEntries() {
   const now = Date.now();
   let cleanedCount = 0;
-  
+
   for (const [key, timestamp] of recentMessageCache.entries()) {
     if (now - timestamp > CLEANUP_TIMEOUT) {
       recentMessageCache.delete(key);
       cleanedCount++;
     }
   }
-  
+
   if (cleanedCount > 0) {
     logger.debug(`[MessageDeduplication] Cleaned up ${cleanedCount} old cache entries`);
   }
@@ -169,5 +171,5 @@ module.exports = {
   DUPLICATE_DETECTION_TIMEOUT,
   CLEANUP_TIMEOUT,
   // Expose cache for testing only
-  _recentMessageCache: recentMessageCache
+  _recentMessageCache: recentMessageCache,
 };

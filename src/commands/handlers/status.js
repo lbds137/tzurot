@@ -101,7 +101,7 @@ async function execute(message, _args) {
     // Check if current channel has an activated personality
     const activatedChannels = getAllActivatedChannels();
     const currentChannelPersonality = activatedChannels[message.channel.id];
-    
+
     if (currentChannelPersonality) {
       embed.addFields({
         name: 'This Channel',

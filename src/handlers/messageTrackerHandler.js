@@ -7,7 +7,7 @@ const contentSimilarity = require('../utils/contentSimilarity');
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  clearTimeout: id => clearTimeout(id),
 };
 
 /**
@@ -238,11 +238,7 @@ async function delayedProcessing(message, personality, triggeringMention, client
  * @param {Function} [options.scheduler=setInterval] - Interval scheduler function
  */
 function initMessageTrackerHandler(options = {}) {
-  const {
-    enableCleanup = true,
-    cleanupInterval = 30000,
-    scheduler = setInterval
-  } = options;
+  const { enableCleanup = true, cleanupInterval = 30000, scheduler = setInterval } = options;
 
   if (enableCleanup) {
     startCleanupInterval(cleanupInterval, scheduler);
@@ -253,7 +249,7 @@ function initMessageTrackerHandler(options = {}) {
 function createMessageTrackerHandler(options) {
   // Stop any existing cleanup interval
   stopCleanupInterval();
-  
+
   // Initialize with the provided options
   return initMessageTrackerHandler(options);
 }

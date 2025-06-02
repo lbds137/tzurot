@@ -1,6 +1,6 @@
 /**
  * ProfileInfoClient - Handles API communication for profile information
- * 
+ *
  * This module is responsible for making HTTP requests to fetch profile
  * information, handling errors, timeouts, and response parsing.
  */
@@ -38,9 +38,9 @@ class ProfileInfoClient {
           'Cache-Control': 'no-cache',
           Pragma: 'no-cache',
           Referer: 'https://discord.com/',
-          ...headers
+          ...headers,
         },
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -52,19 +52,17 @@ class ProfileInfoClient {
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
-          data: null
+          data: null,
         };
       }
 
       const data = await response.json();
-      logger.debug(
-        `${this.logPrefix} Received data: ${JSON.stringify(data).substring(0, 200)}...`
-      );
+      logger.debug(`${this.logPrefix} Received data: ${JSON.stringify(data).substring(0, 200)}...`);
 
       return {
         success: true,
         status: response.status,
-        data
+        data,
       };
     } catch (error) {
       if (error.name === 'AbortError' || error.type === 'aborted') {
@@ -73,7 +71,7 @@ class ProfileInfoClient {
           success: false,
           error: 'timeout',
           message: error.message,
-          data: null
+          data: null,
         };
       }
 
@@ -82,7 +80,7 @@ class ProfileInfoClient {
         success: false,
         error: 'network',
         message: error.message,
-        data: null
+        data: null,
       };
     } finally {
       this.clearScheduler(timeoutId);

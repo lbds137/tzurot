@@ -189,7 +189,8 @@ function extractDiscordLinksFromEmbeds(embeds) {
   if (!embeds || !embeds.length) return [];
 
   const links = [];
-  const MESSAGE_LINK_REGEX = /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
+  const MESSAGE_LINK_REGEX =
+    /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/g;
 
   embeds.forEach(embed => {
     // Check description
@@ -221,7 +222,7 @@ function extractDiscordLinksFromEmbeds(embeds) {
             logger.info(`[EmbedUtils] Found Discord link in embed field name: ${match[0]}`);
           });
         }
-        
+
         // Check field value
         if (field.value) {
           const valueMatches = [...field.value.matchAll(MESSAGE_LINK_REGEX)];

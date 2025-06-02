@@ -62,7 +62,9 @@ async function handleStart(message) {
         );
       } catch (_dmError) {
         // Log DM failure for debugging - helps track DM delivery issues
-        logger.warn(`[Auth] Failed to send DM to user ${message.author.id}: ${_dmError.message || 'Unknown DM error'}`);
+        logger.warn(
+          `[Auth] Failed to send DM to user ${message.author.id}: ${_dmError.message || 'Unknown DM error'}`
+        );
         // If DM fails, let them know but with less specific info - error variable unused but required for catch syntax
         return await directSend(
           `❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.`
@@ -216,7 +218,8 @@ async function handleCleanup(message) {
   const directSend = validator.createDirectSend(message);
 
   // Check if the user is an admin or bot owner
-  const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
+  const isAdmin =
+    message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
   const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
 
   if (!isAdmin && !isBotOwner) {
@@ -282,7 +285,8 @@ async function execute(message, args) {
       `⚠️ For security, authorization codes must be submitted via DM only.`;
 
     // Check if user is admin or bot owner for additional commands
-    const isAdmin = message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
+    const isAdmin =
+      message.member && message.member.permissions.has(PermissionFlagsBits.Administrator);
     const isBotOwner = message.author.id === process.env.BOT_OWNER_ID;
 
     if (isAdmin || isBotOwner) {

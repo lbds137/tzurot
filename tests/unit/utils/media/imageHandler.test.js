@@ -241,8 +241,8 @@ describe('imageHandler', () => {
       
       const result = await imageHandler.processImageUrls(content);
       
-      // Verify the URL was removed from the content
-      expect(result.content).toBe('Check out this image: ');
+      // Verify the URL was removed from the content (trimmed)
+      expect(result.content).toBe('Check out this image:');
       expect(result.attachments).toHaveLength(1);
       expect(result.attachments[0]).toHaveProperty('name', 'image.jpg');
       expect(result.attachments[0]).toHaveProperty('contentType', 'image/jpeg');

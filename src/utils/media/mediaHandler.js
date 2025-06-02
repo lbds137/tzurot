@@ -188,10 +188,10 @@ async function detectMedia(message, messageContent, options = {}) {
       // Default prompt based on media type
       if (hasFoundAudio) {
         const userName = options.userName || 'a user';
-        
+
         // Simpler, cleaner voice message prompt
         const voicePrompt = `Voice message from ${userName}:`;
-        
+
         multimodalContent.push({
           type: 'text',
           text: voicePrompt,

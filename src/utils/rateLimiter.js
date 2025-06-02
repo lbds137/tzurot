@@ -34,7 +34,7 @@ class RateLimiter {
     this.logPrefix = options.logPrefix || '[RateLimiter]';
 
     // Injectable timer functions for testability
-    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
     this.scheduler = options.scheduler || setTimeout;
 
     // State tracking
@@ -63,7 +63,9 @@ class RateLimiter {
           resolve(result);
         } catch (_error) {
           // Log request execution failure for debugging - helps track rate limiter issues
-          logger.warn(`${this.logPrefix} Request execution failed: ${_error.message || 'Unknown execution error'}. Context: ${JSON.stringify(context)}`);
+          logger.warn(
+            `${this.logPrefix} Request execution failed: ${_error.message || 'Unknown execution error'}. Context: ${JSON.stringify(context)}`
+          );
           // Silently resolve with null in case of error - error variable unused but required for catch syntax
           // The actual error handling should happen in the requestFn
           resolve(null);

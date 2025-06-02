@@ -11,7 +11,7 @@ class MessageTracker {
       enableCleanupTimers = true,
       scheduler = setTimeout,
       interval = setInterval,
-      delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+      delay = ms => new Promise(resolve => setTimeout(resolve, ms)),
     } = options;
 
     // Track processed message IDs to prevent duplicates
@@ -31,7 +31,7 @@ class MessageTracker {
 
     // Specific tracking for add command message IDs
     this.addCommandMessageIds = new Set();
-    
+
     // Log initialization for debugging
     logger.debug('[MessageTracker] Initialized with empty tracking sets');
 
@@ -54,7 +54,7 @@ class MessageTracker {
     if (!this.enableCleanupTimers) {
       return;
     }
-    
+
     // Clean up processed messages every 10 minutes
     const processedInterval = this.interval(
       () => {
@@ -83,7 +83,7 @@ class MessageTracker {
       },
       10 * 60 * 1000
     );
-    
+
     // Allow process to exit even with interval running
     if (processedInterval.unref) {
       processedInterval.unref();
@@ -108,7 +108,7 @@ class MessageTracker {
       },
       60 * 60 * 1000
     );
-    
+
     // Allow process to exit even with interval running
     if (completedInterval.unref) {
       completedInterval.unref();
@@ -246,9 +246,13 @@ class MessageTracker {
    */
   markAddCommandCompleted(commandKey) {
     logger.info(`[MessageTracker] Marking add command as completed: ${commandKey}`);
-    logger.debug(`[MessageTracker] Current completedAddCommands size: ${this.completedAddCommands.size}`);
+    logger.debug(
+      `[MessageTracker] Current completedAddCommands size: ${this.completedAddCommands.size}`
+    );
     this.completedAddCommands.add(commandKey);
-    logger.debug(`[MessageTracker] After adding, completedAddCommands size: ${this.completedAddCommands.size}`);
+    logger.debug(
+      `[MessageTracker] After adding, completedAddCommands size: ${this.completedAddCommands.size}`
+    );
 
     // Auto-remove after a reasonable timeout (30 minutes)
     // This allows re-adding personalities that were removed
@@ -272,7 +276,9 @@ class MessageTracker {
     const isCompleted = this.completedAddCommands.has(commandKey);
     if (isCompleted) {
       logger.debug(`[MessageTracker] Command key ${commandKey} found in completedAddCommands`);
-      logger.debug(`[MessageTracker] Current completedAddCommands contents: ${Array.from(this.completedAddCommands).join(', ')}`);
+      logger.debug(
+        `[MessageTracker] Current completedAddCommands contents: ${Array.from(this.completedAddCommands).join(', ')}`
+      );
     }
     return isCompleted;
   }
@@ -312,9 +318,7 @@ class MessageTracker {
       const parts = key.split('-');
       if (parts.length >= 2 && parts[1] === personalityName) {
         this.completedAddCommands.delete(key);
-        logger.info(
-          `[MessageTracker] Cleared completed add command: ${key}`
-        );
+        logger.info(`[MessageTracker] Cleared completed add command: ${key}`);
         removedCount++;
       }
     }

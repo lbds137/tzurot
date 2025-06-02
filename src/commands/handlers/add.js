@@ -5,7 +5,11 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { registerPersonality, setPersonalityAlias, getPersonality } = require('../../personalityManager');
+const {
+  registerPersonality,
+  setPersonalityAlias,
+  getPersonality,
+} = require('../../personalityManager');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix, botConfig } = require('../../../config');
 
@@ -35,39 +39,40 @@ const processingMessages = new Set();
  */
 async function execute(message, args, context = {}) {
   // Use default timers and messageTracker if context not provided (backward compatibility)
-  const { 
-    scheduler = setTimeout, 
-    messageTracker = null 
-  } = context;
-  
+  const { scheduler = setTimeout, messageTracker = null } = context;
+
   // If no messageTracker injected, create a local instance (for backward compatibility)
-  const tracker = messageTracker || (() => {
-    const MessageTracker = require('../utils/messageTracker');
-    return new MessageTracker();
-  })();
+  const tracker =
+    messageTracker ||
+    (() => {
+      const MessageTracker = require('../utils/messageTracker');
+      return new MessageTracker();
+    })();
   logger.info(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
-  
+
   // Check if this message is already being processed
   if (processingMessages.has(message.id)) {
-    logger.warn(`[AddCommand] Message ${message.id} is already being processed - duplicate call detected!`);
+    logger.warn(
+      `[AddCommand] Message ${message.id} is already being processed - duplicate call detected!`
+    );
     return null;
   }
-  
+
   // Check if this exact message was already processed by the add command
   if (tracker.isAddCommandProcessed(message.id)) {
     logger.warn(`[AddCommand] Message ${message.id} was already processed by add command`);
     return null;
   }
-  
+
   // Mark this message as being processed
   processingMessages.add(message.id);
   tracker.markAddCommandAsProcessed(message.id);
-  
+
   // Clean up after 1 minute
   scheduler(() => {
     processingMessages.delete(message.id);
   }, 60000);
-  
+
   const directSend = validator.createDirectSend(message);
 
   // Check if the user provided the correct arguments
@@ -80,8 +85,10 @@ async function execute(message, args, context = {}) {
   // Extract the personality name and alias if provided
   const personalityName = args[0].toLowerCase();
   const alias = args[1] ? args[1].toLowerCase() : null;
-  
-  logger.info(`[AddCommand] Processing add command for personality: ${personalityName}, alias: ${alias}`);
+
+  logger.info(
+    `[AddCommand] Processing add command for personality: ${personalityName}, alias: ${alias}`
+  );
 
   try {
     // Check if we've already got a pending or recently completed addition for this user
@@ -126,10 +133,10 @@ async function execute(message, args, context = {}) {
     const existingPersonality = getPersonality(personalityName);
     if (existingPersonality) {
       logger.info(`[AddCommand] Personality ${personalityName} already exists globally`);
-      
+
       // Clear any stale tracking entries for this personality since it already exists
       tracker.clearAllCompletedAddCommandsForPersonality(personalityName);
-      
+
       return await directSend(
         `The personality "${personalityName}" already exists. If you want to use it, just mention ${botConfig.mentionChar}${personalityName} in your messages.`
       );
@@ -137,17 +144,19 @@ async function execute(message, args, context = {}) {
 
     // Check if we've already processed this exact command
     // Use a more specific key that includes the alias if provided
-    const commandKey = alias 
+    const commandKey = alias
       ? `${message.author.id}-${personalityName}-alias-${alias}`
       : `${message.author.id}-${personalityName}`;
-    
+
     // Debug logging to understand the state
     logger.debug(`[AddCommand] Checking if command was already completed:`);
     logger.debug(`[AddCommand] - Message ID: ${message.id}`);
     logger.debug(`[AddCommand] - User ID: ${message.author.id}`);
     logger.debug(`[AddCommand] - Command Key: ${commandKey}`);
-    logger.debug(`[AddCommand] - isAddCommandCompleted: ${tracker.isAddCommandCompleted(commandKey)}`);
-    
+    logger.debug(
+      `[AddCommand] - isAddCommandCompleted: ${tracker.isAddCommandCompleted(commandKey)}`
+    );
+
     // Only check if the command was already completed (not if the message was processed)
     // We already checked message processing at the top of the function
     if (tracker.isAddCommandCompleted(commandKey)) {
@@ -187,7 +196,9 @@ async function execute(message, args, context = {}) {
         description: `Added by ${message.author.tag}`,
       });
     } catch (registerError) {
-      logger.error(`[AddCommand ${commandId}] Error registering personality: ${registerError.message}`);
+      logger.error(
+        `[AddCommand ${commandId}] Error registering personality: ${registerError.message}`
+      );
       pendingAdditions.set(userKey, {
         status: 'completed',
         timestamp: Date.now(),
@@ -199,40 +210,72 @@ async function execute(message, args, context = {}) {
 
       return await directSend(`Failed to register personality: ${registerError.message}`);
     }
-    
+
     // Check if we got a valid personality back
     if (!personality || !personality.fullName) {
-      logger.error(`[AddCommand ${commandId}] Invalid personality returned from registerPersonality`);
+      logger.error(
+        `[AddCommand ${commandId}] Invalid personality returned from registerPersonality`
+      );
       pendingAdditions.set(userKey, {
         status: 'completed',
         timestamp: Date.now(),
       });
 
       tracker.markAddCommandCompleted(commandKey);
-      return await directSend('Failed to register personality: Invalid response from personality manager');
+      return await directSend(
+        'Failed to register personality: Invalid response from personality manager'
+      );
     }
     logger.info(
       `[AddCommand ${commandId}] Personality registered successfully: ${personality.fullName}`
     );
 
     // Set the alias - if one was provided, use it; otherwise use display name
-    const aliasToSet = alias || (personality.displayName && personality.displayName.toLowerCase() !== personality.fullName ? personality.displayName.toLowerCase() : null);
-    
-    logger.debug(`[AddCommand ${commandId}] Alias calculation: alias='${alias}', displayName='${personality.displayName}', fullName='${personality.fullName}', aliasToSet='${aliasToSet}'`);
-    
+    const aliasToSet =
+      alias ||
+      (personality.displayName && personality.displayName.toLowerCase() !== personality.fullName
+        ? personality.displayName.toLowerCase()
+        : null);
+
+    logger.debug(
+      `[AddCommand ${commandId}] Alias calculation: alias='${alias}', displayName='${personality.displayName}', fullName='${personality.fullName}', aliasToSet='${aliasToSet}'`
+    );
+
+    // Track the actual alias that gets set (might be different due to collisions)
+    let actualAlias = aliasToSet;
+
     if (aliasToSet) {
       try {
-        const aliasResult = await setPersonalityAlias(aliasToSet, personality.fullName, false, !alias); // skipSave=false, isDisplayName=true if using display name
+        const aliasResult = await setPersonalityAlias(
+          aliasToSet,
+          personality.fullName,
+          false,
+          !alias
+        ); // skipSave=false, isDisplayName=true if using display name
         if (aliasResult && aliasResult.success) {
-          logger.info(`[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`);
+          // If alternate aliases were created due to collision, use the first one
           if (aliasResult.alternateAliases && aliasResult.alternateAliases.length > 0) {
-            logger.info(`[AddCommand ${commandId}] Alternate aliases created due to collision: ${aliasResult.alternateAliases.join(', ')}`);
+            actualAlias = aliasResult.alternateAliases[0];
+            logger.info(
+              `[AddCommand ${commandId}] Alias '${aliasToSet}' was taken, using alternate alias '${actualAlias}' for personality ${personality.fullName}`
+            );
+          } else {
+            logger.info(
+              `[AddCommand ${commandId}] Alias '${aliasToSet}' set for personality ${personality.fullName}${!alias ? ' (from display name)' : ''}`
+            );
           }
         } else {
-          logger.warn(`[AddCommand ${commandId}] Failed to set alias '${aliasToSet}' for personality ${personality.fullName}`);
+          logger.warn(
+            `[AddCommand ${commandId}] Failed to set alias '${aliasToSet}' for personality ${personality.fullName}`
+          );
+          actualAlias = null; // Clear alias if setting failed
         }
       } catch (aliasError) {
-        logger.error(`[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`, aliasError);
+        logger.error(
+          `[AddCommand ${commandId}] Error setting alias: ${aliasError.message}`,
+          aliasError
+        );
+        actualAlias = null; // Clear alias if error occurred
         // Continue even if alias setting fails - the personality is already registered
       }
     }
@@ -253,7 +296,7 @@ async function execute(message, args, context = {}) {
       .setColor(0x4caf50)
       .addFields(
         { name: 'Full Name', value: personality.fullName || 'Not available', inline: true },
-        { name: 'Alias', value: aliasToSet || 'None set', inline: true }
+        { name: 'Alias', value: actualAlias || 'None set', inline: true }
       );
 
     // Add placeholder fields for display name and avatar
@@ -268,14 +311,18 @@ async function execute(message, args, context = {}) {
       basicEmbed.setThumbnail(personality.avatarUrl);
     }
 
-    // Add DM channel-specific note
+    // Add footer with mention instructions
+    const mentionText = actualAlias
+      ? `Use ${botConfig.mentionChar}${personalityName} or ${botConfig.mentionChar}${actualAlias} to talk to this personality`
+      : `Use ${botConfig.mentionChar}${personalityName} to talk to this personality`;
+
     if (message.channel.isDMBased()) {
       basicEmbed.setFooter({
-        text: 'This personality is now available in your DMs and all servers with the bot.',
+        text: `${mentionText}. Available in your DMs and all servers with the bot.`,
       });
     } else {
       basicEmbed.setFooter({
-        text: `Use ${botConfig.mentionChar}${personalityName} or ${aliasToSet ? `${botConfig.mentionChar}${aliasToSet}` : 'its full name'} to talk to this personality.`,
+        text: `${mentionText}.`,
       });
     }
 
@@ -309,7 +356,7 @@ async function execute(message, args, context = {}) {
     });
 
     // Mark the command as completed with a consistent command key
-    const errorCommandKey = alias 
+    const errorCommandKey = alias
       ? `${message.author.id}-${personalityName}-alias-${alias}`
       : `${message.author.id}-${personalityName}`;
     tracker.markAddCommandCompleted(errorCommandKey);

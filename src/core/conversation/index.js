@@ -1,6 +1,6 @@
 /**
  * Conversation module exports
- * 
+ *
  * This module provides conversation management functionality for the bot,
  * including tracking active conversations, managing auto-responses,
  * channel activations, and message history.

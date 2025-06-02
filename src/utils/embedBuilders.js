@@ -382,7 +382,9 @@ function createHelpEmbed(isAdmin) {
   const prefix = botPrefix;
   const embed = new EmbedBuilder()
     .setTitle(`${botConfig.name} Help`)
-    .setDescription(`${botConfig.name} allows you to interact with multiple AI personalities in Discord.`)
+    .setDescription(
+      `${botConfig.name} allows you to interact with multiple AI personalities in Discord.`
+    )
     .setColor('#5865F2')
     .addFields(
       // Authentication commands

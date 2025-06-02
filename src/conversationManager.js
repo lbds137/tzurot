@@ -1,6 +1,6 @@
 /**
  * Legacy conversationManager.js
- * 
+ *
  * This file now re-exports from the new modular conversation system
  * to maintain backward compatibility while the codebase migrates.
  */

@@ -1,6 +1,6 @@
 /**
  * Avatar Manager
- * 
+ *
  * Handles avatar URL validation, caching, and pre-loading for Discord webhooks.
  * This module ensures avatar URLs are accessible and properly formatted before use.
  */
@@ -312,14 +312,18 @@ async function warmupAvatarUrl(avatarUrl, retryCount = 1) {
     // If we've already validated the URL, we might still want to use it
     const isValid = await validateAvatarUrl(avatarUrl);
     if (isValid) {
-      logger.info(`[AvatarManager] URL is still valid despite warmup error, accepting: ${avatarUrl}`);
+      logger.info(
+        `[AvatarManager] URL is still valid despite warmup error, accepting: ${avatarUrl}`
+      );
       avatarWarmupCache.add(avatarUrl);
       return avatarUrl;
     }
 
     // If retries are allowed and we haven't exceeded them, try again
     if (retryCount > 0) {
-      logger.info(`[AvatarManager] Retrying avatar warmup for: ${avatarUrl} (${retryCount} retries left)`);
+      logger.info(
+        `[AvatarManager] Retrying avatar warmup for: ${avatarUrl} (${retryCount} retries left)`
+      );
       return warmupAvatarUrl(avatarUrl, retryCount - 1);
     }
 

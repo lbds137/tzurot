@@ -17,7 +17,6 @@ class AIClientFactory {
     this.serviceApiBaseUrl = serviceApiBaseUrl;
     this.defaultClient = null;
     this.userClients = new Map(); // Cache user-specific clients
-    
   }
 
   /**
@@ -68,7 +67,7 @@ class AIClientFactory {
 
       // Build headers based on authentication type
       const headers = {};
-      
+
       if (userToken) {
         headers['X-User-Auth'] = userToken;
         logger.debug(`[AIClientFactory] Creating client with user token for ${userId}`);
@@ -88,8 +87,10 @@ class AIClientFactory {
 
       // Cache the client for reuse
       this.userClients.set(cacheKey, client);
-      
-      logger.info(`[AIClientFactory] Created new AI client for user ${userId} (webhook: ${isWebhook})`);
+
+      logger.info(
+        `[AIClientFactory] Created new AI client for user ${userId} (webhook: ${isWebhook})`
+      );
       return client;
     } catch (error) {
       logger.error(`[AIClientFactory] Failed to create user client for ${userId}:`, error);

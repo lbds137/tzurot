@@ -31,8 +31,6 @@ async function initBot() {
   // Patch client for error filtering
   errorHandler.patchClientForErrorFiltering(client);
 
-
-
   // Set up event handlers
   client.on('ready', async () => {
     logger.info(`Logged in as ${client.user.tag}!`);
@@ -53,7 +51,9 @@ async function initBot() {
 
   // Message handling
   client.on('messageCreate', async message => {
-    logger.debug(`[Bot] Received messageCreate event for message ${message.id} from ${message.author?.tag || 'unknown'}`);
+    logger.debug(
+      `[Bot] Received messageCreate event for message ${message.id} from ${message.author?.tag || 'unknown'}`
+    );
     await messageHandler.handleMessage(message, client);
   });
 
@@ -63,7 +63,7 @@ async function initBot() {
     if (message.partial || !message.author || message.author.bot) {
       return;
     }
-    
+
     // Mark the message as deleted in our store
     pluralkitMessageStore.markAsDeleted(message.id);
   });

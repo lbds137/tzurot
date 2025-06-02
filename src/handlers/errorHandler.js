@@ -81,7 +81,6 @@ function filterWebhookMessage(message) {
   return false; // Don't block this message
 }
 
-
 /**
  * Start a periodic queue cleaner to check for and remove any error messages
  * This is an aggressive approach to catch any error messages that slip through
@@ -94,7 +93,7 @@ function startQueueCleaner(client, options = {}) {
   // Injectable timer functions for testability
   const intervalFn = options.interval || setInterval;
   const checkInterval = options.checkInterval || 7000; // Default 7 seconds
-  
+
   // Track channels we've attempted but don't have access to
   const inaccessibleChannels = new Set();
 

@@ -22,6 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - [Technical Guidelines](#technical-guidelines)
   - [Performance Guidelines](#performance-guidelines)
 - [Date Handling](#date-handling)
+- [Git Workflow and Branch Management](#git-workflow-and-branch-management)
 - [Security Guidelines](#security-guidelines)
   - [Authentication & Authorization](#authentication--authorization)
   - [Data Privacy](#data-privacy)
@@ -632,6 +633,107 @@ for (let i = 0; i < files.length; i += BATCH_SIZE) {
     - Changelog entries
     - Any timestamped content
   - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
+
+## Git Workflow and Branch Management
+
+### Core Principles
+
+1. **One Feature = One Branch**
+   - Each bug fix, feature, or refactoring should have its own dedicated branch
+   - Never reuse branches for multiple unrelated changes
+   - This keeps git history clean and makes code reviews easier
+
+2. **Branch Naming Conventions**
+   - `fix/specific-issue-description` - for bug fixes
+   - `feat/specific-feature-name` - for new features
+   - `refactor/component-name` - for refactoring existing code
+   - `test/what-youre-testing` - for test-only changes
+   - `docs/what-youre-documenting` - for documentation updates
+   - Use kebab-case for multi-word descriptions
+
+3. **Workflow Steps**
+   ```bash
+   # 1. Always start from latest develop
+   git checkout develop
+   git pull origin develop
+   
+   # 2. Create a new branch for your work
+   git checkout -b fix/specific-issue
+   
+   # 3. Make your changes and commit with clear messages
+   git add -A
+   git commit -m "fix: clear description of what was fixed"
+   
+   # 4. Push to remote
+   git push origin fix/specific-issue
+   
+   # 5. Create PR, get it reviewed and merged
+   
+   # 6. After merge, clean up
+   git checkout develop
+   git pull origin develop
+   git branch -d fix/specific-issue  # Delete local branch
+   ```
+
+4. **Rebase Strategy for Clean History**
+   ```bash
+   # Keep your branch up to date with develop
+   git fetch origin develop
+   git rebase origin/develop
+   
+   # Push with force-with-lease (safer than --force)
+   git push --force-with-lease origin your-branch
+   ```
+
+5. **Commit Message Standards**
+   - Use conventional commits: `type: description`
+   - Types: `fix:`, `feat:`, `refactor:`, `test:`, `docs:`, `chore:`
+   - Keep first line under 72 characters
+   - Add body for complex changes explaining the "why"
+
+### Anti-Patterns to Avoid
+
+1. **Branch Reuse**
+   ```bash
+   # ❌ BAD: Using same branch for multiple features
+   git checkout fix/various-issues
+   # Fix issue A, commit, push
+   # Fix unrelated issue B, commit, push
+   # Fix another unrelated issue C, commit, push
+   
+   # ✅ GOOD: Separate branches
+   git checkout -b fix/alias-collision
+   git checkout -b fix/empty-media-refs
+   git checkout -b fix/thread-conversations
+   ```
+
+2. **Long-Lived Feature Branches**
+   - Branches should be short-lived (ideally < 1 week)
+   - Long branches accumulate merge conflicts
+   - Break large features into smaller, mergeable pieces
+
+3. **Merge Commits from Develop**
+   - Prefer rebase over merge to keep history linear
+   - Exception: When preserving merge commit history is important
+
+### When to Squash Commits
+
+- Use "Squash and merge" in GitHub for PRs with many small commits
+- Keep meaningful commit history for complex features
+- Squash "WIP" or "fix typo" commits before merging
+
+### Emergency Procedures
+
+```bash
+# If you need to undo commits (before pushing)
+git reset --soft HEAD~1  # Undo last commit, keep changes
+
+# If you need to fix a bad rebase
+git rebase --abort
+
+# If you pushed something wrong
+git revert <commit-hash>  # Creates a new commit that undoes changes
+```
 
 ## Security Guidelines
 

@@ -18,7 +18,11 @@
 const { WebhookClient } = require('discord.js');
 const logger = require('./logger');
 const errorTracker = require('./utils/errorTracker');
-const { mediaHandler: _mediaHandler, processMediaForWebhook, prepareAttachmentOptions } = require('./utils/media');
+const {
+  mediaHandler: _mediaHandler,
+  processMediaForWebhook,
+  prepareAttachmentOptions,
+} = require('./utils/media');
 const webhookCache = require('./utils/webhookCache');
 const messageDeduplication = require('./utils/messageDeduplication');
 const avatarManager = require('./utils/avatarManager');
@@ -39,7 +43,7 @@ const activeWebhookMessages = new Map();
 // Discord message size limits are now handled by messageFormatter module
 
 // Injectable delay function for testability
-let delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+let delayFn = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Injectable scheduler function for testability
 let schedulerFn = setTimeout;
@@ -58,7 +62,7 @@ function setSchedulerFunction(fn) {
 const {
   // Thread handling
   sendDirectThreadMessage: _sendDirectThreadMessage,
-  
+
   // Message throttling
   createPersonalityChannelKey,
   hasPersonalityPendingMessage,
@@ -66,15 +70,15 @@ const {
   clearPendingMessage,
   calculateMessageDelay,
   updateChannelLastMessageTime,
-  
+
   // DM handling
   sendFormattedMessageInDM: _sendFormattedMessageInDM,
-  
+
   // Error utilities
   isErrorContent,
   markErrorContent,
   isErrorWebhookMessage,
-  
+
   // Message utilities
   getStandardizedUsername,
   generateMessageTrackingId: _generateMessageTrackingId,
@@ -83,7 +87,7 @@ const {
   sendMessageChunk: _sendMessageChunk,
   minimizeConsoleOutput,
   restoreConsoleOutput,
-  
+
   // Constants
   MAX_ERROR_WAIT_TIME,
   MIN_MESSAGE_DELAY,
@@ -142,13 +146,7 @@ async function sendDirectThreadMessage(channel, content, personality, options = 
  * Wrapper for sendFormattedMessageInDM that includes injected dependencies
  */
 async function sendFormattedMessageInDM(channel, content, personality, options = {}) {
-  return _sendFormattedMessageInDM(
-    channel,
-    content,
-    personality,
-    options,
-    delayFn
-  );
+  return _sendFormattedMessageInDM(channel, content, personality, options, delayFn);
 }
 
 /**
@@ -596,7 +594,7 @@ module.exports = {
   preloadPersonalityAvatar,
   sendFormattedMessageInDM,
   sendDirectThreadMessage,
-  
+
   // Testing utilities
   setDelayFunction,
   setSchedulerFunction,

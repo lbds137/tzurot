@@ -15,7 +15,7 @@ const urlValidator = require('../urlValidator');
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: globalThis.setTimeout,
-  clearTimeout: globalThis.clearTimeout
+  clearTimeout: globalThis.clearTimeout,
 };
 
 /**
@@ -286,8 +286,17 @@ async function processImageUrls(content) {
     // Create a Discord attachment
     const attachment = createDiscordAttachment(imageFile);
 
-    // Remove the original image link
-    const modifiedContent = content.replace(imageUrl.url, '');
+    // Remove the entire [Image: URL] pattern or just the URL
+    let modifiedContent = content;
+
+    // First try to remove the [Image: URL] pattern
+    const imagePattern = `[Image: ${imageUrl.url}]`;
+    if (content.includes(imagePattern)) {
+      modifiedContent = content.replace(imagePattern, '').trim();
+    } else {
+      // Fall back to just removing the URL
+      modifiedContent = content.replace(imageUrl.url, '').trim();
+    }
 
     return {
       content: modifiedContent,

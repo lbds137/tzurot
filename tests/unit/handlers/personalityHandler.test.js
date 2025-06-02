@@ -69,6 +69,18 @@ describe('Personality Handler Module', () => {
   
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    
+    // Configure personalityHandler to use fake timers and instant delays
+    personalityHandler.configureTimers({
+      setTimeout: jest.fn((fn, ms) => setTimeout(fn, ms)),
+      clearTimeout: jest.fn((id) => clearTimeout(id)),
+      setInterval: jest.fn((fn, ms) => setInterval(fn, ms)),
+      clearInterval: jest.fn((id) => clearInterval(id))
+    });
+    
+    // Configure delay to be instant for tests
+    personalityHandler.configureDelay((ms) => Promise.resolve());
     
     // Mock message object
     mockMessage = {
@@ -201,19 +213,14 @@ describe('Personality Handler Module', () => {
   });
   
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
   
-  // Helper to wait for async operations including the 500ms delay
-  const waitForAsyncOperations = () => {
-    // Use fake timers only for this operation
-    jest.useFakeTimers();
-    const promise = new Promise(resolve => {
-      setTimeout(resolve, 510);
-    });
-    jest.runAllTimers();
-    jest.useRealTimers();
-    return promise;
+  // Helper to wait for async operations
+  const waitForAsyncOperations = async () => {
+    // Since we configured instant delays, just flush promises
+    await Promise.resolve();
   };
   
   describe('trackRequest', () => {
@@ -479,8 +486,8 @@ describe('Personality Handler Module', () => {
       personalityHandler.configureTimers({
         setInterval: mockSetInterval,
         clearInterval: mockClearInterval,
-        setTimeout: global.setTimeout,
-        clearTimeout: global.clearTimeout
+        setTimeout: jest.fn((fn, ms) => setTimeout(fn, ms)),
+        clearTimeout: jest.fn((id) => clearTimeout(id))
       });
       
       const promise = personalityHandler.handlePersonalityInteraction(
@@ -589,14 +596,14 @@ describe('Personality Handler Module', () => {
       );
       
       // Verify conversation was recorded
-      // isMentionOnly is null when triggeringMention is null in the test
+      // isMentionOnly is true for guild channels without autoresponse
       expect(conversationManager.recordConversation).toHaveBeenCalledWith(
         mockMessage.author.id,
         mockMessage.channel.id,
         'webhook-message-id',
         mockPersonality.fullName,
         false,
-        null
+        true
       );
     });
     
@@ -846,7 +853,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
@@ -939,7 +946,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
@@ -1148,6 +1155,159 @@ describe('Personality Handler Module', () => {
         pluralkitMessage,
         `⚠️ **Authentication Required for PluralKit Users**\n\nTo use AI personalities through PluralKit, the original Discord user must authenticate first.\n\nPlease send \`${botPrefix} auth start\` directly (not through PluralKit) to begin setting up your account.`,
         'pluralkit_not_authenticated'
+      );
+    });
+  });
+
+  // Tests for markdown image link processing
+  describe('Markdown Image Link Processing', () => {
+    it('should convert markdown image links to media handler format', async () => {
+      // Mock AI response with markdown image link
+      getAiResponse.mockResolvedValue(
+        'Here is your generated image [https://files.example.com/image123.png](https://files.example.com/image123.png)'
+      );
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+
+      await waitForAsyncOperations();
+
+      // Verify the webhook was called with processed content
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        'Here is your generated image\n[Image: https://files.example.com/image123.png]',
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
+      );
+    });
+
+    it('should handle multiple images but only process the last one', async () => {
+      // Mock AI response with multiple markdown image links
+      getAiResponse.mockResolvedValue(
+        'First image [https://files.example.com/image1.jpg](https://files.example.com/image1.jpg) and second [https://files.example.com/image2.png](https://files.example.com/image2.png)'
+      );
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+
+      await waitForAsyncOperations();
+
+      // Verify only the last image was processed
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        'First image [https://files.example.com/image1.jpg](https://files.example.com/image1.jpg) and second\n[Image: https://files.example.com/image2.png]',
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
+      );
+    });
+
+    it('should not modify responses without markdown image links', async () => {
+      // Mock AI response without markdown image links
+      getAiResponse.mockResolvedValue('This is a regular response with no images');
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+
+      await waitForAsyncOperations();
+
+      // Verify the response was not modified
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        'This is a regular response with no images',
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
+      );
+    });
+
+    it('should not process markdown links with mismatched URLs', async () => {
+      // Mock AI response with mismatched URLs in markdown
+      getAiResponse.mockResolvedValue(
+        'Bad link [https://files.example.com/image1.png](https://files.example.com/image2.png)'
+      );
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+
+      await waitForAsyncOperations();
+
+      // Verify the response was not modified
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        'Bad link [https://files.example.com/image1.png](https://files.example.com/image2.png)',
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
+      );
+    });
+
+    it('should handle various image formats', async () => {
+      const imageFormats = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+      
+      for (const format of imageFormats) {
+        jest.clearAllMocks();
+        
+        getAiResponse.mockResolvedValue(
+          `Image in ${format} format [https://files.example.com/test.${format}](https://files.example.com/test.${format})`
+        );
+
+        await personalityHandler.handlePersonalityInteraction(
+          mockMessage,
+          mockPersonality,
+          null,
+          mockClient
+        );
+
+        await waitForAsyncOperations();
+
+        expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+          mockMessage.channel,
+          `Image in ${format} format\n[Image: https://files.example.com/test.${format}]`,
+          mockPersonality,
+          expect.any(Object),
+          mockMessage
+        );
+      }
+    });
+
+    it('should handle non-string AI responses gracefully', async () => {
+      // Mock AI response that's not a string
+      getAiResponse.mockResolvedValue({ text: 'complex response' });
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+
+      await waitForAsyncOperations();
+
+      // Verify the response was passed through unchanged
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
+        mockMessage.channel,
+        { text: 'complex response' },
+        mockPersonality,
+        expect.any(Object),
+        mockMessage
       );
     });
   });

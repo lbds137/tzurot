@@ -60,16 +60,20 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
 
     if (referencedMessage.webhookId) {
       logger.debug(`Looking up personality for message ID: ${referencedMessage.id}`);
-      
+
       // Check if this webhook belongs to the current bot instance
       // This prevents both dev and prod bots from responding to the same personality webhook
-      if (client && referencedMessage.applicationId && referencedMessage.applicationId !== client.user.id) {
+      if (
+        client &&
+        referencedMessage.applicationId &&
+        referencedMessage.applicationId !== client.user.id
+      ) {
         logger.debug(
           `Ignoring reply to webhook from different bot instance. Webhook applicationId: ${referencedMessage.applicationId}, Current bot ID: ${client.user.id}`
         );
         return { processed: false, wasReplyToNonPersonality: true };
       }
-      
+
       // Pass the webhook username as a fallback for finding personalities
       const webhookUsername = referencedMessage.author ? referencedMessage.author.username : null;
       logger.debug(`Webhook username: ${webhookUsername || 'unknown'}`);
@@ -112,7 +116,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
           // Since this is a reply, not a direct @mention, pass null for triggeringMention
           // IMPORTANT: Use message.author.id to ensure the replying user's ID is used
           // This ensures authentication context is preserved correctly
-          
+
           // Skip delay for DMs (PluralKit doesn't work in DMs)
           if (message.channel.isDMBased()) {
             // Process DM messages immediately
@@ -144,37 +148,41 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
       logger.debug(
         `Referenced message is not from a webhook: ${referencedMessage.author?.tag || 'unknown author'}`
       );
-      
+
       // This was a reply to a non-personality message
       // Check if the referenced message contains Discord message links that should be processed
       if (referencedMessage.content && typeof referencedMessage.content === 'string') {
         const hasMessageLink = MESSAGE_LINK_REGEX.test(referencedMessage.content);
         if (hasMessageLink) {
-          logger.debug(`Referenced non-personality message contains Discord link(s), will need further processing`);
+          logger.debug(
+            `Referenced non-personality message contains Discord link(s), will need further processing`
+          );
           // Return a special flag indicating this needs link processing in the messageHandler
           // Also return the referenced message content so it can be processed for links
-          return { 
-            processed: false, 
-            wasReplyToNonPersonality: true, 
+          return {
+            processed: false,
+            wasReplyToNonPersonality: true,
             containsMessageLinks: true,
             referencedMessageContent: referencedMessage.content,
-            referencedMessageAuthor: referencedMessage.author?.username || 'another user'
+            referencedMessageAuthor: referencedMessage.author?.username || 'another user',
           };
         }
       }
-      
+
       // No message links found in referenced message, but still return the content
       // for potential mention processing in messageHandler
-      return { 
-        processed: false, 
+      return {
+        processed: false,
         wasReplyToNonPersonality: true,
         referencedMessageContent: referencedMessage.content,
-        referencedMessageAuthor: referencedMessage.author?.username || 'another user'
+        referencedMessageAuthor: referencedMessage.author?.username || 'another user',
       };
     }
   } catch (error) {
     if (error.message === 'Unknown Message') {
-      logger.warn(`Referenced message ${message.reference.messageId} no longer exists (deleted or inaccessible)`);
+      logger.warn(
+        `Referenced message ${message.reference.messageId} no longer exists (deleted or inaccessible)`
+      );
     } else {
       logger.error('Error handling message reference:', error);
     }
@@ -391,12 +399,12 @@ async function processMessageLinks(
                     result.referencedMessageContent += embedText;
                     logger.debug(`[Bot] Added embed content from linked message`);
                   }
-                  
+
                   // Also extract media URLs from embeds and add them as markers
                   if (!isFromPersonality) {
                     const { extractMediaFromEmbeds } = require('../utils/embedUtils');
                     const { audioUrl, imageUrl } = extractMediaFromEmbeds(linkedMessage.embeds);
-                    
+
                     if (imageUrl && !result.referencedImageUrl) {
                       result.referencedImageUrl = imageUrl;
                       // Add the image marker to content if not already present
@@ -405,7 +413,7 @@ async function processMessageLinks(
                       }
                       logger.debug(`[Bot] Extracted image from embed: ${imageUrl}`);
                     }
-                    
+
                     if (audioUrl && !result.referencedAudioUrl) {
                       result.referencedAudioUrl = audioUrl;
                       // Add the audio marker to content if not already present
@@ -475,9 +483,7 @@ async function processMessageLinks(
                   const imageUrl = match[1];
                   if (!result.referencedImageUrl) {
                     result.referencedImageUrl = imageUrl;
-                    logger.debug(
-                      `[Bot] Found image marker in linked message content: ${imageUrl}`
-                    );
+                    logger.debug(`[Bot] Found image marker in linked message content: ${imageUrl}`);
                   }
                   // Still add to content for context
                   if (!result.referencedMessageContent.includes(`[Image: ${imageUrl}]`)) {
@@ -491,9 +497,7 @@ async function processMessageLinks(
                   const audioUrl = match[1];
                   if (!result.referencedAudioUrl) {
                     result.referencedAudioUrl = audioUrl;
-                    logger.debug(
-                      `[Bot] Found audio marker in linked message content: ${audioUrl}`
-                    );
+                    logger.debug(`[Bot] Found audio marker in linked message content: ${audioUrl}`);
                   }
                   // Still add to content for context
                   if (!result.referencedMessageContent.includes(`[Audio: ${audioUrl}]`)) {

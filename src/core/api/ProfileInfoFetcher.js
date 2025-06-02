@@ -1,6 +1,6 @@
 /**
  * ProfileInfoFetcher - Main orchestrator for fetching profile information
- * 
+ *
  * This module coordinates between the cache, client, and rate limiter
  * to efficiently fetch profile information while respecting rate limits.
  */
@@ -16,7 +16,7 @@ class ProfileInfoFetcher {
   constructor(options = {}) {
     this.cache = new ProfileInfoCache(options.cache);
     this.client = new ProfileInfoClient(options.client);
-    
+
     // If rateLimiter options are provided, create a new instance with those options
     if (options.rateLimiter && !(options.rateLimiter instanceof RateLimiter)) {
       this.rateLimiter = new RateLimiter({
@@ -26,25 +26,27 @@ class ProfileInfoFetcher {
         cooldownPeriod: 60000,
         maxRetries: 5,
         logPrefix: '[ProfileInfoFetcher]',
-        ...options.rateLimiter
+        ...options.rateLimiter,
       });
     } else {
-      this.rateLimiter = options.rateLimiter || new RateLimiter({
-        minRequestSpacing: 3000,
-        maxConcurrent: 1,
-        maxConsecutiveRateLimits: 3,
-        cooldownPeriod: 60000,
-        maxRetries: 5,
-        logPrefix: '[ProfileInfoFetcher]'
-      });
+      this.rateLimiter =
+        options.rateLimiter ||
+        new RateLimiter({
+          minRequestSpacing: 3000,
+          maxConcurrent: 1,
+          maxConsecutiveRateLimits: 3,
+          cooldownPeriod: 60000,
+          maxRetries: 5,
+          logPrefix: '[ProfileInfoFetcher]',
+        });
     }
-    
+
     this.ongoingRequests = new Map();
     this.maxRetries = options.maxRetries || this.rateLimiter.maxRetries || 5;
     this.logPrefix = '[ProfileInfoFetcher]';
-    
+
     // Allow injection of delay function for testing
-    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
   }
 
   /**
@@ -79,7 +81,7 @@ class ProfileInfoFetcher {
    * @private
    */
   async _executeRequest(profileName, userId, _requestKey) {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.rateLimiter.enqueue(async () => {
         try {
           logger.info(`${this.logPrefix} Fetching profile info for: ${profileName}`);
@@ -94,14 +96,16 @@ class ProfileInfoFetcher {
 
           // Fetch from API
           const data = await this._fetchWithRetry(profileName, userId);
-          
+
           if (data) {
             this.cache.set(profileName, data);
           }
-          
+
           resolve(data);
         } catch (error) {
-          logger.error(`${this.logPrefix} Error fetching profile info for ${profileName}: ${error.message}`);
+          logger.error(
+            `${this.logPrefix} Error fetching profile info for ${profileName}: ${error.message}`
+          );
           resolve(null);
         }
       });

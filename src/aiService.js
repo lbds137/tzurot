@@ -8,7 +8,11 @@ const aiRequestManager = require('./utils/aiRequestManager');
 const { formatApiMessages } = require('./utils/aiMessageFormatter');
 const webhookUserTracker = require('./utils/webhookUserTracker');
 const { trackError, ErrorCategory } = require('./utils/errorTracker');
-const { isErrorResponse, analyzeErrorAndGenerateMessage, handleApiError } = require('./utils/aiErrorHandler');
+const {
+  isErrorResponse,
+  analyzeErrorAndGenerateMessage,
+  handleApiError,
+} = require('./utils/aiErrorHandler');
 
 // Initialize the AI client - delegates to aiAuth module
 function initAiClient() {
@@ -24,13 +28,11 @@ function getAiClientForUser(userId, context = {}) {
 
 // Error detection and handling is now handled by aiErrorHandler module
 
-
 // Blackout key creation is now handled by aiRequestManager module
 const createBlackoutKey = aiRequestManager.createBlackoutKey;
 
 // Request header preparation is now handled by aiRequestManager module
 const prepareRequestHeaders = aiRequestManager.prepareRequestHeaders;
-
 
 // Blackout period checking is now handled by aiRequestManager module
 const isInBlackoutPeriod = aiRequestManager.isInBlackoutPeriod;
@@ -40,7 +42,6 @@ const addToBlackoutList = aiRequestManager.addToBlackoutList;
 
 // Request ID creation is now handled by aiRequestManager module
 const createRequestId = aiRequestManager.createRequestId;
-
 
 // Content sanitization function moved to utils/contentSanitizer.js
 
@@ -148,7 +149,6 @@ async function getAiResponse(personalityName, message, context = {}) {
         return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`;
       }
 
-
       // NORMAL AI CALL PATH: Make the API request
       logger.info(`[AIService] Using normal handling path for personality: ${personalityName}`);
       try {
@@ -163,7 +163,7 @@ async function getAiResponse(personalityName, message, context = {}) {
         logger.error(
           `[AIService] API error with normal personality ${personalityName}: ${apiError.message}`
         );
-        
+
         // Track the API error
         trackError(apiError, {
           category: ErrorCategory.AI_SERVICE,
@@ -174,18 +174,16 @@ async function getAiResponse(personalityName, message, context = {}) {
             channelId: context.channelId || 'unknown',
             errorMessage: apiError.message || 'Unknown error',
             errorCode: apiError.code || 'NO_CODE',
-            modelPath: modelPath || 'unknown'
+            modelPath: modelPath || 'unknown',
           },
-          isCritical: true
+          isCritical: true,
         });
-        
+
         addToBlackoutList(personalityName, context);
 
         // Return a user-friendly error message instead of blocking
-        logger.info(
-          `[AIService] Returning error message after API error for ${personalityName}`
-        );
-        
+        logger.info(`[AIService] Returning error message after API error for ${personalityName}`);
+
         // Delegate to error handler for API error messages
         return handleApiError(apiError, personalityName, context);
       }
@@ -200,14 +198,15 @@ async function getAiResponse(personalityName, message, context = {}) {
       // Log the message content for debugging
       let messagePreview = 'Unknown';
       try {
-        messagePreview = typeof message === 'string'
-          ? message.substring(0, 100) + '...'
-          : 'Complex message type: ' + JSON.stringify(message).substring(0, 200);
+        messagePreview =
+          typeof message === 'string'
+            ? message.substring(0, 100) + '...'
+            : 'Complex message type: ' + JSON.stringify(message).substring(0, 200);
         logger.error(`[AIService] Message content: ${messagePreview}`);
       } catch (logError) {
         logger.error(`[AIService] Error logging message details: ${logError.message}`);
       }
-      
+
       // Track the general error
       trackError(error, {
         category: ErrorCategory.AI_SERVICE,
@@ -218,17 +217,15 @@ async function getAiResponse(personalityName, message, context = {}) {
           channelId: context.channelId || 'unknown',
           errorType: error.name || 'Unknown',
           messagePreview,
-          hasConversationHistory: !!context.conversationHistory
+          hasConversationHistory: !!context.conversationHistory,
         },
-        isCritical: true
+        isCritical: true,
       });
 
       addToBlackoutList(personalityName, context);
 
       // Return a user-friendly error message instead of blocking
-      logger.info(
-        `[AIService] Returning error message after general error for ${personalityName}`
-      );
+      logger.info(`[AIService] Returning error message after general error for ${personalityName}`);
       return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ An unexpected error occurred. Please try again later.`;
     } finally {
       // Clean up immediately when the request completes (success or error)
@@ -336,28 +333,26 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Apply sanitization to all personality responses to be safe
   try {
     // Always perform sanitization for consistency
-      logger.debug(
-        `[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`
-      );
-
-      // Apply content sanitization
-      const sanitizedContent = sanitizeContent(content);
-      logger.debug(
-        `[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`
-      );
-
-      if (sanitizedContent.length === 0) {
-        logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
-
-        return 'I received an empty response. Please try again.';
-      }
-
-      // Replace the original content with the sanitized version
-      content = sanitizedContent;
-  } catch (sanitizeError) {
-    logger.error(
-      `[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`
+    logger.debug(
+      `[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`
     );
+
+    // Apply content sanitization
+    const sanitizedContent = sanitizeContent(content);
+    logger.debug(
+      `[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`
+    );
+
+    if (sanitizedContent.length === 0) {
+      logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
+
+      return 'I received an empty response. Please try again.';
+    }
+
+    // Replace the original content with the sanitized version
+    content = sanitizedContent;
+  } catch (sanitizeError) {
+    logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
 
     return 'I encountered an issue processing my response. Please try again.';
   }
@@ -375,19 +370,23 @@ module.exports = {
 
   // Export for testing
   handleNormalPersonality,
-  
+
   // Re-export from aiErrorHandler for backward compatibility
   isErrorResponse,
-  
+
   // Re-export from aiRequestManager for backward compatibility
   createRequestId,
   isInBlackoutPeriod,
   addToBlackoutList,
   createBlackoutKey,
   prepareRequestHeaders,
-  get pendingRequests() { return aiRequestManager.pendingRequests; },
-  get errorBlackoutPeriods() { return aiRequestManager.errorBlackoutPeriods; },
-  
+  get pendingRequests() {
+    return aiRequestManager.pendingRequests;
+  },
+  get errorBlackoutPeriods() {
+    return aiRequestManager.errorBlackoutPeriods;
+  },
+
   // Re-export from aiMessageFormatter for backward compatibility
-  formatApiMessages
+  formatApiMessages,
 };

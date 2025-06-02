@@ -72,14 +72,14 @@ function cleanupProxyWebhookCache() {
  */
 function startCleanupIntervals(options = {}) {
   const { interval = setInterval } = options;
-  
+
   // Clear any existing intervals
   stopCleanupIntervals();
-  
+
   // Start new intervals
   const userCleanupInterval = interval(cleanupOldEntries, 15 * 60 * 1000); // Every 15 minutes
   const proxyCleanupInterval = interval(cleanupProxyWebhookCache, 15 * 60 * 1000); // Every 15 minutes
-  
+
   // Add unref if available (Node.js timers)
   if (userCleanupInterval && userCleanupInterval.unref) {
     userCleanupInterval.unref();
@@ -87,7 +87,7 @@ function startCleanupIntervals(options = {}) {
   if (proxyCleanupInterval && proxyCleanupInterval.unref) {
     proxyCleanupInterval.unref();
   }
-  
+
   cleanupIntervals = [userCleanupInterval, proxyCleanupInterval];
   return cleanupIntervals;
 }
@@ -260,17 +260,22 @@ function getRealUserId(message) {
   // If we can determine this is a proxy system, try to find the original user
   if (isProxySystemWebhook(message)) {
     logger.info(`[WebhookUserTracker] Detected proxy system webhook: ${message.author?.username}`);
-    
+
     // Try to find the original user from our PluralKit message store
     // Look for a recently deleted message with the same content
-    const originalMessageData = pluralkitMessageStore.findDeletedMessage(message.content, message.channel.id);
+    const originalMessageData = pluralkitMessageStore.findDeletedMessage(
+      message.content,
+      message.channel.id
+    );
     if (originalMessageData) {
-      logger.info(`[WebhookUserTracker] Found original user ${originalMessageData.userId} for PluralKit message`);
+      logger.info(
+        `[WebhookUserTracker] Found original user ${originalMessageData.userId} for PluralKit message`
+      );
       // Cache this association for future use
       associateWebhookWithUser(message.webhookId, originalMessageData.userId);
       return originalMessageData.userId;
     }
-    
+
     // For proxy systems without an associated user, we'll return a special ID that will
     // be handled specially in verification checks
     return 'proxy-system-user';
@@ -374,7 +379,7 @@ function isAuthenticationAllowed(message) {
 /**
  * Clear a specific webhook from the known proxy webhooks cache
  * Useful for fixing incorrectly cached webhooks
- * 
+ *
  * @param {string} webhookId - The webhook ID to clear
  */
 function clearCachedWebhook(webhookId) {
@@ -396,7 +401,7 @@ function clearAllCachedWebhooks() {
 
 /**
  * Check if a proxy system message is from an authenticated user
- * 
+ *
  * @param {Object} message - The Discord message object
  * @returns {Object} Object with isAuthenticated boolean and userId
  */
@@ -407,20 +412,25 @@ function checkProxySystemAuthentication(message) {
 
   // Try to find the original user from our PluralKit message store
   // Look for a recently deleted message with the same content
-  const originalMessageData = pluralkitMessageStore.findDeletedMessage(message.content, message.channel.id);
+  const originalMessageData = pluralkitMessageStore.findDeletedMessage(
+    message.content,
+    message.channel.id
+  );
   if (originalMessageData) {
-    logger.info(`[WebhookUserTracker] Found original user ${originalMessageData.userId} for authentication check`);
+    logger.info(
+      `[WebhookUserTracker] Found original user ${originalMessageData.userId} for authentication check`
+    );
     // Cache this association for future use
     associateWebhookWithUser(message.webhookId, originalMessageData.userId);
-    
+
     // Check if this user is authenticated
     const auth = require('../auth');
     const isAuthenticated = auth.hasValidToken(originalMessageData.userId);
-    
+
     return {
       isAuthenticated,
       userId: originalMessageData.userId,
-      username: originalMessageData.username
+      username: originalMessageData.username,
     };
   }
 
@@ -431,7 +441,7 @@ function checkProxySystemAuthentication(message) {
     const isAuthenticated = auth.hasValidToken(cachedUserId);
     return {
       isAuthenticated,
-      userId: cachedUserId
+      userId: cachedUserId,
     };
   }
 

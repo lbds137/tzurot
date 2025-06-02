@@ -1,6 +1,6 @@
 /**
  * Message Throttler
- * 
+ *
  * Handles message throttling and rate limiting for webhooks:
  * - Tracks pending messages per personality/channel
  * - Prevents fast error/slow success issues
@@ -29,7 +29,7 @@ const MIN_MESSAGE_DELAY = TIME.MIN_MESSAGE_DELAY;
 // Injectable timer functions for testability
 let timerFunctions = {
   setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id)
+  clearTimeout: id => clearTimeout(id),
 };
 
 /**
@@ -59,11 +59,11 @@ function createPersonalityChannelKey(personalityName, channelId) {
 function hasPersonalityPendingMessage(personalityName, channelId) {
   const key = createPersonalityChannelKey(personalityName, channelId);
   const pending = pendingPersonalityMessages.get(key);
-  
+
   if (!pending) {
     return false;
   }
-  
+
   // Check if the pending message has expired
   const elapsed = Date.now() - pending.timestamp;
   if (elapsed > MAX_ERROR_WAIT_TIME) {
@@ -71,7 +71,7 @@ function hasPersonalityPendingMessage(personalityName, channelId) {
     pendingPersonalityMessages.delete(key);
     return false;
   }
-  
+
   return true;
 }
 
@@ -83,28 +83,30 @@ function hasPersonalityPendingMessage(personalityName, channelId) {
  */
 function registerPendingMessage(personalityName, channelId, requestId) {
   const key = createPersonalityChannelKey(personalityName, channelId);
-  
+
   // Clear any existing timeout for this key
   if (pendingTimeouts.has(key)) {
     timerFunctions.clearTimeout(pendingTimeouts.get(key));
   }
-  
+
   pendingPersonalityMessages.set(key, {
     timestamp: Date.now(),
     requestId,
   });
-  
+
   // Schedule automatic cleanup after MAX_ERROR_WAIT_TIME
   const timeoutId = timerFunctions.setTimeout(() => {
     if (pendingPersonalityMessages.has(key)) {
       pendingPersonalityMessages.delete(key);
       pendingTimeouts.delete(key);
-      logger.debug(`[MessageThrottler] Pending message for ${key} timed out after ${MAX_ERROR_WAIT_TIME}ms`);
+      logger.debug(
+        `[MessageThrottler] Pending message for ${key} timed out after ${MAX_ERROR_WAIT_TIME}ms`
+      );
     }
   }, MAX_ERROR_WAIT_TIME);
-  
+
   pendingTimeouts.set(key, timeoutId);
-  
+
   logger.debug(`[MessageThrottler] Registered pending message for ${key} with ID ${requestId}`);
 }
 
@@ -117,17 +119,17 @@ function registerPendingMessage(personalityName, channelId, requestId) {
 function clearPendingMessage(personalityName, channelId, requestId = null) {
   const key = createPersonalityChannelKey(personalityName, channelId);
   const pending = pendingPersonalityMessages.get(key);
-  
+
   // Only clear if requestId matches (or no requestId provided)
   if (pending && (!requestId || pending.requestId === requestId)) {
     pendingPersonalityMessages.delete(key);
-    
+
     // Clear the timeout if it exists
     if (pendingTimeouts.has(key)) {
       timerFunctions.clearTimeout(pendingTimeouts.get(key));
       pendingTimeouts.delete(key);
     }
-    
+
     logger.debug(`[MessageThrottler] Cleared pending message for ${key}`);
   }
 }
@@ -139,7 +141,7 @@ function clearPendingMessage(personalityName, channelId, requestId = null) {
  */
 function calculateMessageDelay(channelId) {
   const lastTime = channelLastMessageTime.get(channelId);
-  
+
   if (lastTime) {
     const elapsed = Date.now() - lastTime;
     if (elapsed < MIN_MESSAGE_DELAY) {
@@ -170,7 +172,7 @@ function clearAllPendingMessages() {
     timerFunctions.clearTimeout(timeoutId);
   }
   pendingTimeouts.clear();
-  
+
   pendingPersonalityMessages.clear();
   channelLastMessageTime.clear();
 }
