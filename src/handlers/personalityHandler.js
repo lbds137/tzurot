@@ -773,7 +773,7 @@ async function handlePersonalityInteraction(
     logger.info(
       `[PersonalityHandler] Recording conversation - User: ${conversationUserId}, Channel: ${message.channel.id}, ` +
       `Personality: ${personality.fullName}, isDM: ${message.channel.isDMBased()}, ` +
-      `autoResponseEnabled: ${autoResponseEnabled}, isMentionOnly: ${isMentionOnly}, ` +
+      `autoResponseEnabled: ${autoResponseEnabledAtStart}, isMentionOnly: ${isMentionOnly}, ` +
       `triggeringMention: ${triggeringMention}`
     );
     
