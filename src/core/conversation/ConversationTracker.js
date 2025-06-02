@@ -93,13 +93,15 @@ class ConversationTracker {
     // If this was a mention-only conversation in a guild channel, don't continue it
     if (!isDM && conversation.isMentionOnly) {
       logger.debug(`[ConversationTracker] Removing mention-only conversation for ${userId} in channel ${channelId}`);
-      this.activeConversations.delete(key);
+      this.clearConversation(userId, channelId);
       return null;
     }
     
     // For guild channels, only continue if auto-response is enabled
+    // This is a safety check in case isMentionOnly wasn't set correctly
     if (!isDM && !autoResponseEnabled) {
-      logger.debug(`[ConversationTracker] Not continuing conversation in guild channel without autoResponse`);
+      logger.debug(`[ConversationTracker] Not continuing conversation in guild channel without autoResponse - clearing conversation`);
+      this.clearConversation(userId, channelId);
       return null;
     }
     

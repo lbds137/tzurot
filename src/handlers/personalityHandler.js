@@ -22,11 +22,17 @@ const personalityAuth = require('../utils/personalityAuth');
 const threadHandler = require('../utils/threadHandler');
 
 // Injectable timer functions for testability
+// Using the injectable pattern as documented in docs/core/TIMER_PATTERNS.md
+const globalSetTimeout = setTimeout;
+const globalClearTimeout = clearTimeout;
+const globalSetInterval = setInterval;
+const globalClearInterval = clearInterval;
+
 let timerFunctions = {
-  setTimeout: (callback, delay, ...args) => setTimeout(callback, delay, ...args),
-  clearTimeout: (id) => clearTimeout(id),
-  setInterval: (callback, delay, ...args) => setInterval(callback, delay, ...args),
-  clearInterval: (id) => clearInterval(id)
+  setTimeout: (callback, delay, ...args) => globalSetTimeout(callback, delay, ...args),
+  clearTimeout: (id) => globalClearTimeout(id),
+  setInterval: (callback, delay, ...args) => globalSetInterval(callback, delay, ...args),
+  clearInterval: (id) => globalClearInterval(id)
 };
 
 /**
@@ -133,6 +139,16 @@ async function handlePersonalityInteraction(
     
     // Extract authentication results
     const { isProxySystem, isDM } = authResult;
+    
+    // CRITICAL: Check autoresponse status NOW, not later
+    // This prevents race conditions where autoresponse changes during processing
+    const conversationUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
+    const autoResponseEnabledAtStart = isAutoResponseEnabled(conversationUserId);
+    
+    logger.debug(
+      `[PersonalityHandler] Starting interaction - User: ${conversationUserId}, ` +
+      `autoResponseEnabled: ${autoResponseEnabledAtStart}, triggeringMention: ${triggeringMention}`
+    );
 
     // Flag to indicate if this message is a reply to a DM message with a personality prefix
     // This will help prevent duplicate personality prefixes in responses
@@ -725,11 +741,10 @@ async function handlePersonalityInteraction(
     requestTracker.removeRequest(requestKey);
 
     // Record this conversation with all message IDs
-    // For PluralKit messages, get the real user ID instead of the webhook author ID
-    const conversationUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
+    // We already got conversationUserId earlier in the function
     
-    // Check if autoresponse is enabled for this user
-    const autoResponseEnabled = isAutoResponseEnabled(conversationUserId);
+    // Use the autoresponse status from the START of the interaction
+    // This prevents race conditions where autoresponse changes during processing
     
     // In guild channels (not DMs), conversations should ALWAYS be marked as mention-only
     // unless autoresponse is explicitly enabled. This prevents the bot from continuing
@@ -738,7 +753,7 @@ async function handlePersonalityInteraction(
     // 2. A reply to a personality message
     // 3. A reply to another user's message
     // Only DMs or autoresponse-enabled channels should have continuous conversations
-    const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabled;
+    const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabledAtStart;
     
     recordConversationData(
       conversationUserId,

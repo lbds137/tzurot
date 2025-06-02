@@ -217,6 +217,7 @@ async function handleMessage(message, client) {
 
     // If the reference was processed successfully, return early
     if (referenceResult.processed) {
+      logger.debug(`[MessageHandler] Message processed as reply to personality`);
       return;
     }
     
@@ -241,12 +242,14 @@ async function handleMessage(message, client) {
     // @mention personality triggering
     const mentionResult = await handleMentions(message, client);
     if (mentionResult) {
+      logger.debug(`[MessageHandler] Message processed as mention`);
       return; // Mention was handled
     }
 
     // Check for active conversation
     const activeConversationResult = await handleActiveConversation(message, client);
     if (activeConversationResult) {
+      logger.debug(`[MessageHandler] Message processed as active conversation`);
       return; // Active conversation was handled
     }
 
