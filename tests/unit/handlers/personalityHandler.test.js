@@ -589,14 +589,14 @@ describe('Personality Handler Module', () => {
       );
       
       // Verify conversation was recorded
-      // isMentionOnly is null when triggeringMention is null in the test
+      // isMentionOnly is true for guild channels without autoresponse
       expect(conversationManager.recordConversation).toHaveBeenCalledWith(
         mockMessage.author.id,
         mockMessage.channel.id,
         'webhook-message-id',
         mockPersonality.fullName,
         false,
-        null
+        true
       );
     });
     
@@ -846,7 +846,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
@@ -939,7 +939,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
