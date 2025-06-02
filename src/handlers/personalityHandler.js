@@ -731,15 +731,14 @@ async function handlePersonalityInteraction(
     // Check if autoresponse is enabled for this user
     const autoResponseEnabled = isAutoResponseEnabled(conversationUserId);
     
-    // Check if this was triggered by a mention (in guild channels only)
-    // Also treat replies to other users as mention-only to prevent autoresponse loops
-    const isReplyToOtherUser = message.reference && referencedMessageAuthorId && referencedMessageAuthorId !== message.author.id;
-    
-    // If autoresponse is enabled, don't mark as mention-only (allow conversation to continue)
-    // Otherwise, mark as mention-only if it was triggered by a mention or reply to another user
-    const isMentionOnly = !message.channel.isDMBased() && 
-                          !autoResponseEnabled && 
-                          (triggeringMention !== null || isReplyToOtherUser);
+    // In guild channels (not DMs), conversations should ALWAYS be marked as mention-only
+    // unless autoresponse is explicitly enabled. This prevents the bot from continuing
+    // to respond to subsequent messages after:
+    // 1. A mention (@personality)
+    // 2. A reply to a personality message
+    // 3. A reply to another user's message
+    // Only DMs or autoresponse-enabled channels should have continuous conversations
+    const isMentionOnly = !message.channel.isDMBased() && !autoResponseEnabled;
     
     recordConversationData(
       conversationUserId,

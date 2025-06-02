@@ -69,6 +69,18 @@ describe('Personality Handler Module', () => {
   
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    
+    // Configure personalityHandler to use fake timers and instant delays
+    personalityHandler.configureTimers({
+      setTimeout: jest.fn((fn, ms) => setTimeout(fn, ms)),
+      clearTimeout: jest.fn((id) => clearTimeout(id)),
+      setInterval: jest.fn((fn, ms) => setInterval(fn, ms)),
+      clearInterval: jest.fn((id) => clearInterval(id))
+    });
+    
+    // Configure delay to be instant for tests
+    personalityHandler.configureDelay((ms) => Promise.resolve());
     
     // Mock message object
     mockMessage = {
@@ -201,19 +213,14 @@ describe('Personality Handler Module', () => {
   });
   
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
   
-  // Helper to wait for async operations including the 500ms delay
-  const waitForAsyncOperations = () => {
-    // Use fake timers only for this operation
-    jest.useFakeTimers();
-    const promise = new Promise(resolve => {
-      setTimeout(resolve, 510);
-    });
-    jest.runAllTimers();
-    jest.useRealTimers();
-    return promise;
+  // Helper to wait for async operations
+  const waitForAsyncOperations = async () => {
+    // Since we configured instant delays, just flush promises
+    await Promise.resolve();
   };
   
   describe('trackRequest', () => {
@@ -479,8 +486,8 @@ describe('Personality Handler Module', () => {
       personalityHandler.configureTimers({
         setInterval: mockSetInterval,
         clearInterval: mockClearInterval,
-        setTimeout: global.setTimeout,
-        clearTimeout: global.clearTimeout
+        setTimeout: jest.fn((fn, ms) => setTimeout(fn, ms)),
+        clearTimeout: jest.fn((id) => clearTimeout(id))
       });
       
       const promise = personalityHandler.handlePersonalityInteraction(
@@ -589,14 +596,14 @@ describe('Personality Handler Module', () => {
       );
       
       // Verify conversation was recorded
-      // isMentionOnly is null when triggeringMention is null in the test
+      // isMentionOnly is true for guild channels without autoresponse
       expect(conversationManager.recordConversation).toHaveBeenCalledWith(
         mockMessage.author.id,
         mockMessage.channel.id,
         'webhook-message-id',
         mockPersonality.fullName,
         false,
-        null
+        true
       );
     });
     
@@ -846,7 +853,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
@@ -939,7 +946,7 @@ describe('Personality Handler Module', () => {
         expect.any(String),
         'test-personality',
         false,
-        null  // isMentionOnly is null when triggeringMention is null
+        true  // isMentionOnly is true for guild channels without autoresponse
       );
     });
 
