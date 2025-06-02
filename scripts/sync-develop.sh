@@ -16,20 +16,21 @@ echo "🌿 Switching to develop branch..."
 git checkout develop
 git pull origin develop
 
-# Merge main into develop
-echo "🔀 Merging main into develop..."
-if git merge origin/main -m "chore: sync develop with main after release [skip ci]"; then
-    echo "✅ Merge successful!"
+# Rebase develop onto main
+echo "🔀 Rebasing develop onto main..."
+if git rebase origin/main; then
+    echo "✅ Rebase successful!"
     
-    # Push to origin
-    echo "📤 Pushing to origin..."
-    git push origin develop
+    # Push to origin (force needed after rebase)
+    echo "📤 Pushing to origin (with force-with-lease for safety)..."
+    git push origin develop --force-with-lease
     
     echo "✨ Develop is now synced with main!"
 else
-    echo "❌ Merge failed - there might be conflicts"
+    echo "❌ Rebase failed - there might be conflicts"
     echo "Resolve conflicts manually, then run:"
-    echo "  git push origin develop"
+    echo "  git rebase --continue  # After fixing conflicts"
+    echo "  git push origin develop --force-with-lease"
     exit 1
 fi
 
