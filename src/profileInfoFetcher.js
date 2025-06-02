@@ -119,11 +119,21 @@ function clearCache() {
   getFetcher().clearCache();
 }
 
+/**
+ * Delete a specific profile from the cache
+ * @param {string} profileName - The profile name to delete
+ * @returns {boolean} True if the profile was deleted
+ */
+function deleteFromCache(profileName) {
+  return getFetcher().deleteFromCache(profileName);
+}
+
 // Export the module
 module.exports = {
   fetchProfileInfo,
   getProfileAvatarUrl,
   getProfileDisplayName,
+  deleteFromCache,
   // For testing
   _testing: {
     clearCache,

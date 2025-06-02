@@ -84,6 +84,19 @@ class ProfileInfoCache {
   }
 
   /**
+   * Delete a specific profile from cache
+   * @param {string} profileName - The profile name to delete
+   * @returns {boolean} True if the profile was deleted, false if it didn't exist
+   */
+  delete(profileName) {
+    const deleted = this.cache.delete(profileName);
+    if (deleted) {
+      logger.debug(`${this.logPrefix} Deleted profile from cache: ${profileName}`);
+    }
+    return deleted;
+  }
+
+  /**
    * Get the current cache size
    * @returns {number} Number of cached entries
    */
