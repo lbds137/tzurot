@@ -2,6 +2,11 @@
 
 ## Current Setup
 
+### Repository Settings
+- **Merge Policy**: Rebase-only (no merge commits or squash)
+- **Linear History**: Enforced through rebase workflow
+- **CI**: Single run per PR (no duplicates)
+
 ### Branch Protection
 - **main**: ✅ Fully protected (requires PRs, reviews, status checks)
 - **develop**: ❌ No protection (allows direct pushes for maintenance)
@@ -86,3 +91,25 @@ git rev-list --left-right --count origin/develop...origin/main
    - Small documentation updates
 3. **Communicate direct pushes** - Let team know when you push directly
 4. **Test before pushing** - Run `npm test` even for direct pushes
+
+## Rebase Workflow Tips
+
+### Updating Feature Branches
+```bash
+# Before creating PR, rebase on latest develop
+git checkout feature-branch
+git fetch origin
+git rebase origin/develop
+git push --force-with-lease
+```
+
+### Why Rebase-Only?
+- **Linear History**: Easy to read and understand
+- **No Merge Commits**: Clean git log
+- **No "X behind, Y ahead"**: Branches stay in sync
+- **Cleaner Reverts**: If needed, reverting is straightforward
+
+### Common Rebase Scenarios
+1. **Conflicts during rebase**: Fix conflicts, then `git rebase --continue`
+2. **Made a mistake**: `git rebase --abort` to start over
+3. **Need to update PR**: Rebase and force-push updates the PR automatically
