@@ -117,12 +117,38 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 - `npm run test:watch` - Run tests in watch mode (useful during development)
 - Run a specific test: `npx jest tests/unit/path/to/test.js`
 
+### Git Workflow Scripts
+- `git sync-develop` - Git alias to sync develop branch with main after merging
+- `./scripts/sync-develop.sh` - Shell script version of the sync command
+
 ### Quality Enforcement Scripts
 - `node scripts/check-timer-patterns.js` - Check for non-injectable timers
 - `node scripts/check-test-antipatterns.js` - Check for test quality issues
 - `node scripts/comprehensive-test-timing-analysis.js` - Analyze test performance
 - `./scripts/check-module-size.sh` - Check for modules exceeding size limits (500 lines)
-- `node scripts/check-singleton-exports.js` - Check for singleton anti-patterns (NEW!)
+- `node scripts/check-singleton-exports.js` - Check for singleton anti-patterns
+
+### Utility Scripts
+- `./scripts/setup-pre-commit.sh` - Set up git pre-commit hooks for quality checks
+- `./scripts/setup-ssh.sh` - Configure SSH authentication for git (Steam Deck specific)
+- `./scripts/git-with-ssh.sh <command>` - Run git commands with SSH key handling
+- `./scripts/start-dev.js` - Start development server with proper environment
+- `./scripts/test-commands.sh` - Test all bot commands
+- `./scripts/test-standardized-commands.sh` - Test standardized command patterns
+
+### Database & Migration Scripts
+- `./scripts/cleanup_test_personalities.js` - Clean up test personalities from database
+- `./scripts/verify_message_tracker.js` - Verify message tracker functionality
+- `./scripts/migrate-to-consolidated-mocks.js` - Migrate tests to new mock system
+- `./scripts/generate-mock-migration-report.js` - Generate report on mock migration status
+
+### Analysis & Reporting Scripts
+- `./scripts/analyze-test-structure.js` - Analyze test file organization
+- `./scripts/identify-slow-tests.js` - Find tests that are running slowly
+- `./scripts/update-coverage-summary.js` - Update test coverage documentation
+- `./scripts/check-mock-consistency.js` - Verify mock usage consistency
+- `./scripts/check-test-timeouts.js` - Check for proper test timeout configuration
+- `./scripts/check-thread-activation.js` - Verify thread activation functionality
 
 ### Anti-Patterns That Are Now Enforced
 
@@ -635,6 +661,26 @@ for (let i = 0; i < files.length; i += BATCH_SIZE) {
   - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
 
 ## Git Workflow and Branch Management
+
+### Quick Reference - Most Used Commands
+```bash
+# After merging PR to main, sync develop:
+git sync-develop
+
+# Before committing, check quality:
+npm run quality
+
+# Run specific test file:
+npx jest tests/unit/path/to/test.js
+
+# Start development server:
+npm run dev
+```
+
+### Simplified Workflow
+1. **Feature Development**: `feature-branch → develop` (via PR)
+2. **Deploy to Production**: `develop → main` (via PR)
+3. **After Deploy**: `git sync-develop` (direct push)
 
 ### Core Principles
 
