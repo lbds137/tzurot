@@ -11,6 +11,7 @@ const {
   removePersonality,
 } = require('../../personalityManager');
 const { botPrefix } = require('../../../config');
+const { deleteFromCache } = require('../../profileInfoFetcher');
 
 /**
  * Command metadata
@@ -88,6 +89,10 @@ async function execute(message, args, context = {}) {
         `Failed to remove the personality. It may not exist or you may not have permission.`
       );
     }
+
+    // Clear the profile info cache for this personality
+    deleteFromCache(personality.fullName);
+    logger.info(`[RemoveCommand] Cleared profile cache for: ${personality.fullName}`);
 
     // Clear the completed add command tracking to allow immediate re-adding
     tracker.removeCompletedAddCommand(message.author.id, personalityName);

@@ -8,6 +8,23 @@ jest.mock('discord.js');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
+  isDevelopment: false,
+  APP_ID: 'test-app-id',
+  API_KEY: 'test-api-key'
+}));
+jest.mock('../../../../src/profileInfoFetcher', () => ({
+  fetchProfileInfo: jest.fn(),
+  getProfileAvatarUrl: jest.fn(),
+  getProfileDisplayName: jest.fn(),
+  deleteFromCache: jest.fn(),
+  _testing: {
+    clearCache: jest.fn(),
+    getCache: jest.fn(),
+    setFetchImplementation: jest.fn(),
+    getRateLimiter: jest.fn(),
+    getFetcher: jest.fn(),
+    resetFetcher: jest.fn()
+  }
 }));
 
 // Import enhanced test helpers
@@ -129,6 +146,9 @@ describe('Remove Command', () => {
   });
   
   it('should remove a personality by name', async () => {
+    // Import the mocked profileInfoFetcher after other mocks are set up
+    const profileInfoFetcher = require('../../../../src/profileInfoFetcher');
+    
     await removeCommand.execute(mockMessage, ['test-personality']);
     
     // Verify personality lookups
@@ -144,6 +164,9 @@ describe('Remove Command', () => {
       'test-personality'
     );
     
+    // Verify profile cache was invalidated
+    expect(profileInfoFetcher.deleteFromCache).toHaveBeenCalledWith('test-personality');
+    
     // Verify embed was created correctly
     expect(mockEmbed.setTitle).toHaveBeenCalledWith('Personality Removed');
     expect(mockEmbed.setDescription).toHaveBeenCalledWith(
@@ -156,6 +179,9 @@ describe('Remove Command', () => {
   });
   
   it('should remove a personality by alias', async () => {
+    // Import the mocked profileInfoFetcher after other mocks are set up
+    const profileInfoFetcher = require('../../../../src/profileInfoFetcher');
+    
     // Set up mock for alias lookup
     const mockPersonality = {
       fullName: 'full-personality-name',
@@ -180,6 +206,9 @@ describe('Remove Command', () => {
       mockMessage.author.id,
       'full-personality-name'
     );
+    
+    // Verify profile cache was invalidated with the full name
+    expect(profileInfoFetcher.deleteFromCache).toHaveBeenCalledWith('full-personality-name');
     
     // Verify embed was created correctly
     expect(mockEmbed.setTitle).toHaveBeenCalledWith('Personality Removed');

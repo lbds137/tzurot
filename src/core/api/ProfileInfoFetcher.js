@@ -190,6 +190,15 @@ class ProfileInfoFetcher {
   }
 
   /**
+   * Delete a specific profile from cache
+   * @param {string} profileName - The profile name to delete
+   * @returns {boolean} True if the profile was deleted
+   */
+  deleteFromCache(profileName) {
+    return this.cache.delete(profileName);
+  }
+
+  /**
    * Get cache instance (for testing)
    */
   getCache() {
