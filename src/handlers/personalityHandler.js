@@ -654,6 +654,28 @@ async function handlePersonalityInteraction(
     // Add a small delay before sending any webhook message
     // This helps prevent the race condition between error messages and real responses
     await delayFn(500);
+    
+    // Process markdown-style image links if present
+    // Pattern: [https://files.example.com/image.png](https://files.example.com/image.png)
+    let processedResponse = aiResponse;
+    if (typeof aiResponse === 'string') {
+      // Regex to match markdown image links at the end of the message
+      const markdownImageRegex = /\[([^\]]+\.(png|jpg|jpeg|gif|webp|bmp))\]\(\1\)$/i;
+      const match = aiResponse.match(markdownImageRegex);
+      
+      if (match) {
+        const imageUrl = match[1];
+        logger.info(`[PersonalityHandler] Detected markdown image link: ${imageUrl}`);
+        
+        // Remove the markdown link from the response
+        processedResponse = aiResponse.replace(markdownImageRegex, '').trim();
+        
+        // Add the image in the format that mediaHandler expects
+        // This will trigger the image download and reupload
+        processedResponse = `${processedResponse}\n[Image: ${imageUrl}]`;
+        logger.debug(`[PersonalityHandler] Converted to media handler format`);
+      }
+    }
 
     // Send response and record conversation
     // Pass the original message to ensure we use the correct user's auth token
@@ -683,7 +705,7 @@ async function handlePersonalityInteraction(
       result = await threadHandler.sendThreadMessage(
         webhookManager,
         message.channel,
-        aiResponse,
+        processedResponse,
         personality,
         webhookOptions,
         message
@@ -692,7 +714,7 @@ async function handlePersonalityInteraction(
       // For non-thread channels, use the standard webhook approach
       result = await webhookManager.sendWebhookMessage(
         message.channel,
-        aiResponse,
+        processedResponse,
         personality,
         webhookOptions,
         message // Pass the original message for user authentication
