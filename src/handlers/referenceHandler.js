@@ -8,7 +8,7 @@
  */
 
 const logger = require('../logger');
-const { getPersonalityFromMessage } = require('../conversationManager');
+const { getPersonalityFromMessage } = require('../core/conversation');
 const { getPersonality, getPersonalityByAlias } = require('../personalityManager');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');

@@ -8,7 +8,7 @@ const validator = require('../utils/commandValidator');
 const auth = require('../../auth');
 const { listPersonalitiesForUser } = require('../../personalityManager');
 const { isAutoResponseEnabled } = require('./autorespond');
-const { getAllActivatedChannels } = require('../../conversationManager');
+const { getAllActivatedChannels } = require('../../core/conversation');
 const { botPrefix } = require('../../../config');
 
 /**

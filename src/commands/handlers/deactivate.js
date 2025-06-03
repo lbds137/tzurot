@@ -5,7 +5,7 @@
 const { EmbedBuilder, PermissionFlagsBits: _PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { deactivatePersonality } = require('../../conversationManager');
+const { deactivatePersonality } = require('../../core/conversation');
 const { botPrefix: _botPrefix } = require('../../../config');
 
 /**
