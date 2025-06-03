@@ -5,7 +5,7 @@
 const _logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
-const conversationManager = require('../../conversationManager');
+const conversationManager = require('../../core/conversation');
 
 /**
  * Command metadata

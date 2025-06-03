@@ -8,7 +8,7 @@ const {
   getPersonality,
   listPersonalitiesForUser,
 } = require('../personalityManager');
-const { getActivePersonality } = require('../conversationManager');
+const { getActivePersonality } = require('../core/conversation');
 const auth = require('../auth');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const personalityHandler = require('./personalityHandler');
