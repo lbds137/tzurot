@@ -1,5 +1,15 @@
 # Git Workflow Summary
 
+## 🚨 CRITICAL PR RULES
+
+**NEVER create PRs directly to main!** The only exceptions are:
+1. Syncing develop → main (releases)
+2. Emergency hotfixes (with approval)
+
+**ALWAYS create feature PRs to develop!**
+
+See [PR_WORKFLOW_RULES.md](./PR_WORKFLOW_RULES.md) for details.
+
 ## Current Setup
 
 ### Repository Settings

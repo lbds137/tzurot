@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **⚠️ CRITICAL PR WORKFLOW**: **NEVER** create PRs directly to `main` branch! Always target `develop` for features, fixes, and updates. Only sync develop→main for releases. See [PR Workflow Rules](docs/development/PR_WORKFLOW_RULES.md).
+
 > **Note on Multiple CLAUDE.md Files**: This repository contains several CLAUDE.md files in different directories. This is intentional, as each file provides directory-specific context and guidance for Claude Code when working in those areas. The root CLAUDE.md (this file) provides general project guidance, while the others offer specialized instructions for specific components.
 
 ## Table of Contents
@@ -529,13 +531,36 @@ describe('ComponentName', () => {
     - Any timestamped content
   - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
 
-## Git Workflow
+## Git Workflow and Branch Management
+
+### 🚨 CRITICAL PR RULES - READ THIS FIRST!
+
+**NEVER create PRs directly to main!** The only exceptions:
+1. Syncing develop → main (releases)
+2. Emergency hotfixes (with approval)
+
+**ALWAYS create feature PRs to develop!** This includes:
+- Features (`feat/*`)
+- Fixes (`fix/*`)
+- Refactoring (`refactor/*`)
+- Documentation (`docs/*`)
+- Tests (`test/*`)
+
+**See `docs/development/PR_WORKFLOW_RULES.md` for enforcement details.**
 
 ### Quick Reference
 ```bash
-git sync-develop     # After merging PR to main
-npm run quality      # Before committing
-npm run dev          # Start development
+# Create PR to develop (NOT main!)
+gh pr create --base develop --title "feat: your feature"
+
+# After merging to main, sync develop
+git sync-develop
+
+# Before committing
+npm run quality
+
+# Start development
+npm run dev
 ```
 
 ### Branch Strategy
@@ -544,7 +569,10 @@ npm run dev          # Start development
 - **Conventional commits**: `type: description`
 - **Keep branches short-lived** (< 1 week)
 
-For detailed git workflow, see `docs/development/GIT_WORKFLOW.md`
+For detailed git workflow, see:
+- `docs/development/GIT_WORKFLOW.md` - Complete workflow guide
+- `docs/development/WORKFLOW_SUMMARY.md` - Quick reference
+- `docs/development/PR_WORKFLOW_RULES.md` - PR creation rules
 
 ## Security Guidelines
 
