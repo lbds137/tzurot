@@ -63,6 +63,7 @@ function checkForPersonalityMentions(message) {
   // Use a regex that captures up to the max alias word count but stops at natural boundaries
   // This handles mentions like "&angel dust" or even longer aliases
   const maxWords = getMaxAliasWordCount();
+  logger.info(`[checkForPersonalityMentions] Max alias word count: ${maxWords}`);
   const multiWordMentionRegex = new RegExp(
     `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
     'gi'
