@@ -60,31 +60,39 @@ function checkForPersonalityMentions(message) {
   }
 
   // Check for multi-word mentions with spaces
-  // Instead of trying to match the exact alias, we'll look for the mention character
-  // and then try different word combinations to find a valid alias
-  const mentionStartRegex = new RegExp(`${escapedMentionChar}(\\w[\\w\\s-]*)`, 'gi');
-  let mentionStartMatch;
-
-  while ((mentionStartMatch = mentionStartRegex.exec(message.content)) !== null) {
-    if (mentionStartMatch[1]) {
-      const fullText = mentionStartMatch[1];
-      logger.info(`[checkForPersonalityMentions] Found potential mention starting with: "${fullText}"`);
+  // Use a regex that captures up to 10 words but stops at natural boundaries
+  // This handles mentions like "&angel dust" or even longer aliases
+  const multiWordMentionRegex = new RegExp(
+    `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,9})`,
+    'gi'
+  );
+  logger.info(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
+  
+  let multiWordMatch;
+  while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
+    if (multiWordMatch[1] && multiWordMatch[1].trim()) {
+      const capturedText = multiWordMatch[1].trim();
+      logger.info(`[checkForPersonalityMentions] Multi-word regex captured: "${capturedText}"`);
       
-      // Split the text into words
-      const words = fullText.split(/\s+/);
+      // Remove any trailing punctuation
+      const cleanedText = capturedText.replace(/[.,!?;:)"']+$/, '');
       
-      // Try combinations from longest to shortest (max 4 words)
-      const maxWords = Math.min(4, words.length);
+      // Split into words for combination testing
+      const words = cleanedText.split(/\s+/);
+      
+      // Try combinations from longest to shortest
+      // Support up to 10-word aliases (increased from 4)
+      const maxWords = Math.min(10, words.length);
       
       for (let wordCount = maxWords; wordCount >= 1; wordCount--) {
         const potentialAlias = words.slice(0, wordCount).join(' ').trim();
         
-        // Skip single-word aliases if we already checked them
-        if (wordCount === 1 && standardMentionRegex.test(`${mentionChar}${potentialAlias}`)) {
+        // Skip single-word aliases if we already checked them in the standard mention section
+        if (wordCount === 1) {
           continue;
         }
         
-        logger.info(`[checkForPersonalityMentions] Trying potential alias: "${potentialAlias}" for user ${message.author.id}`);
+        logger.info(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}" for user ${message.author.id}`);
         const personality = getPersonalityByAlias(message.author.id, potentialAlias);
         
         if (personality) {
@@ -405,27 +413,33 @@ async function handleMentions(message, client) {
 
     // Now check for mentions with spaces - whether or not we found standard mentions
     if (message.content && message.content.includes(mentionChar)) {
-      // Use the same approach as checkForPersonalityMentions
-      // Look for the mention character and then try different word combinations
-      const mentionStartRegex = new RegExp(`${escapedMentionChar}(\\w[\\w\\s-]*)`, 'gi');
-      let mentionStartMatch;
-      const processedStarts = new Set(); // Track processed starting positions to avoid duplicates
+      // Use the same improved regex as checkForPersonalityMentions
+      // Captures up to 10 words but stops at natural boundaries
+      const multiWordMentionRegex = new RegExp(
+        `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,9})`,
+        'gi'
+      );
+      
+      let multiWordMatch;
+      const processedMentions = new Set(); // Track processed mentions to avoid duplicates
 
-      while ((mentionStartMatch = mentionStartRegex.exec(message.content)) !== null) {
-        const startIndex = mentionStartMatch.index;
-        
-        // Skip if we've already processed a mention starting at this position
-        if (processedStarts.has(startIndex)) {
-          continue;
-        }
-        processedStarts.add(startIndex);
-        
-        if (mentionStartMatch[1]) {
-          const fullText = mentionStartMatch[1];
-          logger.debug(`[handleMentions] Found potential mention starting with: "${fullText}"`);
+      while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
+        if (multiWordMatch[1] && multiWordMatch[1].trim()) {
+          const capturedText = multiWordMatch[1].trim();
           
-          // Split the text into words
-          const words = fullText.split(/\s+/);
+          // Skip if we've already processed this exact text
+          if (processedMentions.has(capturedText)) {
+            continue;
+          }
+          processedMentions.add(capturedText);
+          
+          logger.debug(`[handleMentions] Multi-word regex captured: "${capturedText}"`);
+          
+          // Remove any trailing punctuation
+          const cleanedText = capturedText.replace(/[.,!?;:)"']+$/, '');
+          
+          // Split into words for combination testing
+          const words = cleanedText.split(/\s+/);
           
           // Skip if this is just a single word (already handled by standard regex)
           if (words.length === 1) {
@@ -435,8 +449,8 @@ async function handleMentions(message, client) {
           // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
           // For example, match "&bambi prime" before "&bambi" when user types "&bambi prime hi" (in dev mode)
 
-          // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
-          const maxWords = Math.min(4, words.length);
+          // Support up to 10-word aliases (increased from 4)
+          const maxWords = Math.min(10, words.length);
 
           // Try combinations from longest to shortest (2 or more words)
           for (let wordCount = maxWords; wordCount >= 2; wordCount--) {
