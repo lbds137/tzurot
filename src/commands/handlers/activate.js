@@ -7,7 +7,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const channelUtils = require('../../utils/channelUtils');
 const { getPersonality, getPersonalityByAlias } = require('../../personalityManager');
-const { activatePersonality } = require('../../conversationManager');
+const { activatePersonality } = require('../../core/conversation');
 const { botPrefix } = require('../../../config');
 
 /**
