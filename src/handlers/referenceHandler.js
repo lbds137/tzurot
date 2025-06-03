@@ -100,13 +100,16 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
 
         // First try to get personality directly as it could be a full name
         let personality = getPersonality(personalityName);
+        logger.debug(`Direct personality lookup for "${personalityName}": ${personality ? 'found' : 'not found'}`);
 
         // If not found as direct name, try it as an alias
         if (!personality) {
+          logger.debug(`Attempting alias lookup with userId: ${message.author.id} and name: ${personalityName}`);
           personality = getPersonalityByAlias(message.author.id, personalityName);
+          logger.debug(`Alias lookup result: ${personality ? 'found' : 'not found'}`);
         }
 
-        logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
+        logger.debug(`Final personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
         if (personality) {
           // Process the message with this personality
