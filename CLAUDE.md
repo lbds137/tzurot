@@ -104,51 +104,20 @@ Tzurot is a Discord bot that uses webhooks to represent multiple AI personalitie
 
 ## Key Commands
 
-### Development Commands
-- `npm start` - Start the bot in production mode
-- `npm run dev` - Start the bot with nodemon for development (auto-restart on file changes)
-- `npm run lint` - Run ESLint to check code quality
-- `npm run lint:fix` - Fix ESLint issues automatically
-- `npm run lint:timers` - Check for problematic timer patterns
-- `npm run lint:module-size` - Check for oversized modules and multiple test files
-- `npm run format` - Run Prettier to format code
-- `npm run quality` - Run lint, format, timer checks, and module size checks
+### Essential Development Commands
+- `npm run dev` - Start with nodemon (auto-restart)
+- `npm run quality` - Run all quality checks (lint, format, timers)
 - `npm test` - Run all tests
-- `npm run test:watch` - Run tests in watch mode (useful during development)
-- Run a specific test: `npx jest tests/unit/path/to/test.js`
+- `npm run test:watch` - Run tests in watch mode
+- `npx jest tests/unit/path/to/test.js` - Run specific test
+- `git sync-develop` - Sync develop with main after merging
 
-### Git Workflow Scripts
-- `git sync-develop` - Git alias to sync develop branch with main after merging
-- `./scripts/sync-develop.sh` - Shell script version of the sync command
-
-### Quality Enforcement Scripts
-- `node scripts/check-timer-patterns.js` - Check for non-injectable timers
-- `node scripts/check-test-antipatterns.js` - Check for test quality issues
-- `node scripts/comprehensive-test-timing-analysis.js` - Analyze test performance
-- `./scripts/check-module-size.sh` - Check for modules exceeding size limits (500 lines)
-- `node scripts/check-singleton-exports.js` - Check for singleton anti-patterns
-
-### Utility Scripts
-- `./scripts/setup-pre-commit.sh` - Set up git pre-commit hooks for quality checks
-- `./scripts/setup-ssh.sh` - Configure SSH authentication for git (Steam Deck specific)
-- `./scripts/git-with-ssh.sh <command>` - Run git commands with SSH key handling
-- `./scripts/start-dev.js` - Start development server with proper environment
-- `./scripts/test-commands.sh` - Test all bot commands
-- `./scripts/test-standardized-commands.sh` - Test standardized command patterns
-
-### Database & Migration Scripts
-- `./scripts/cleanup_test_personalities.js` - Clean up test personalities from database
-- `./scripts/verify_message_tracker.js` - Verify message tracker functionality
-- `./scripts/migrate-to-consolidated-mocks.js` - Migrate tests to new mock system
-- `./scripts/generate-mock-migration-report.js` - Generate report on mock migration status
-
-### Analysis & Reporting Scripts
-- `./scripts/analyze-test-structure.js` - Analyze test file organization
-- `./scripts/identify-slow-tests.js` - Find tests that are running slowly
-- `./scripts/update-coverage-summary.js` - Update test coverage documentation
-- `./scripts/check-mock-consistency.js` - Verify mock usage consistency
-- `./scripts/check-test-timeouts.js` - Check for proper test timeout configuration
-- `./scripts/check-thread-activation.js` - Verify thread activation functionality
+### Scripts Directory
+See `./scripts/` for additional tools:
+- Quality enforcement scripts (timers, anti-patterns, module size)
+- Testing utilities (coverage, performance analysis)
+- Git workflow helpers
+- Database maintenance tools
 
 ### Anti-Patterns That Are Now Enforced
 
@@ -539,114 +508,14 @@ describe('ComponentName', () => {
 - Currently ~5% migrated to new system
 - Goal: 100% consistent mock usage across all tests
 
-### CRITICAL: Bulk Test Modification Guidelines
+### Bulk Test Modifications
 
-**⚠️ EXTREME CAUTION REQUIRED**: After experiencing catastrophic test suite failures from automated scripts, these guidelines are MANDATORY:
-
-#### Before Creating Any Bulk Modification Script
-
-1. **Test on a Small Subset First**
-   - ALWAYS test your script on 2-3 files maximum before applying broadly
-   - Manually verify the output is syntactically correct
-   - Run the modified tests to ensure they still pass
-   - Check for edge cases that your script might not handle
-
-2. **Include Syntax Validation**
-   ```javascript
-   // Example: Use a parser to validate JavaScript syntax
-   const { parse } = require('@babel/parser');
-   try {
-     parse(modifiedCode, { sourceType: 'module' });
-   } catch (error) {
-     console.error(`Syntax error in ${file}: ${error.message}`);
-     // DO NOT write invalid code to file
-   }
-   ```
-
-3. **Create Rollback Mechanisms**
-   - Use git branches for large changes: `git checkout -b bulk-test-updates`
-   - Or create backup files: `cp test.js test.js.backup`
-   - Log all changes made for easy reversal
-
-4. **Implement Incremental Processing**
-   - Process files in small batches (10-20 at a time)
-   - Allow for manual review between batches
-   - Include dry-run mode to preview changes without applying them
-
-5. **Common Pitfalls That Break Tests**
-   - Parentheses mismatches in complex expressions
-   - Missing closing braces or brackets
-   - Incorrect string escaping or quote handling
-   - Breaking mock references or imports
-   - Removing necessary semicolons or adding extras
-   - Modifying test structure without updating assertions
-
-#### Script Safety Checklist
-- [ ] Script tested on 2-3 files first
-- [ ] Syntax validation implemented
-- [ ] Rollback mechanism in place
-- [ ] Dry-run mode available
-- [ ] Edge cases considered and handled
-- [ ] Manual review of sample output completed
-- [ ] Test suite runs successfully on modified subset
-
-#### Example Safe Script Pattern
-```javascript
-// GOOD: Safe bulk modification script
-const fs = require('fs');
-const path = require('path');
-const { parse } = require('@babel/parser');
-
-const DRY_RUN = process.argv.includes('--dry-run');
-const BACKUP = process.argv.includes('--backup');
-
-function modifyTestFile(filePath) {
-  const content = fs.readFileSync(filePath, 'utf8');
-  const backup = BACKUP ? `${filePath}.backup` : null;
-  
-  if (backup) {
-    fs.writeFileSync(backup, content);
-  }
-  
-  // Make modifications
-  let modified = content;
-  // ... your modifications here ...
-  
-  // Validate syntax
-  try {
-    parse(modified, { sourceType: 'module' });
-  } catch (error) {
-    console.error(`Syntax error in ${filePath}: ${error.message}`);
-    return false;
-  }
-  
-  if (!DRY_RUN) {
-    fs.writeFileSync(filePath, modified);
-  }
-  
-  console.log(`${DRY_RUN ? '[DRY RUN] Would modify' : 'Modified'}: ${filePath}`);
-  return true;
-}
-
-// Process in small batches
-const files = getTestFiles();
-const BATCH_SIZE = 10;
-
-for (let i = 0; i < files.length; i += BATCH_SIZE) {
-  const batch = files.slice(i, i + BATCH_SIZE);
-  console.log(`Processing batch ${i / BATCH_SIZE + 1}...`);
-  
-  const results = batch.map(modifyTestFile);
-  const failures = results.filter(r => !r).length;
-  
-  if (failures > 0) {
-    console.error(`${failures} files failed. Stopping.`);
-    process.exit(1);
-  }
-}
-```
-
-**Remember**: It's better to spend 30 minutes making a script safe than 2 hours fixing broken tests!
+**⚠️ CAUTION**: Bulk test modifications require extreme care. Key requirements:
+- Test on 2-3 files first
+- Include syntax validation
+- Create rollback mechanisms
+- Process in small batches
+- See `docs/testing/BULK_MODIFICATION_SAFETY.md` for detailed guidelines
 
 ## Date Handling
 
@@ -660,126 +529,22 @@ for (let i = 0; i < files.length; i += BATCH_SIZE) {
     - Any timestamped content
   - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
 
-## Git Workflow and Branch Management
+## Git Workflow
 
-### Quick Reference - Most Used Commands
+### Quick Reference
 ```bash
-# After merging PR to main, sync develop:
-git sync-develop
-
-# Before committing, check quality:
-npm run quality
-
-# Run specific test file:
-npx jest tests/unit/path/to/test.js
-
-# Start development server:
-npm run dev
+git sync-develop     # After merging PR to main
+npm run quality      # Before committing
+npm run dev          # Start development
 ```
 
-### Simplified Workflow
-1. **Feature Development**: `feature-branch → develop` (via PR)
-2. **Deploy to Production**: `develop → main` (via PR)
-3. **After Deploy**: `git sync-develop` (direct push)
+### Branch Strategy
+- **One feature = One branch**: `fix/issue`, `feat/feature`, `refactor/component`
+- **Workflow**: `feature-branch → develop → main`
+- **Conventional commits**: `type: description`
+- **Keep branches short-lived** (< 1 week)
 
-### Core Principles
-
-1. **One Feature = One Branch**
-   - Each bug fix, feature, or refactoring should have its own dedicated branch
-   - Never reuse branches for multiple unrelated changes
-   - This keeps git history clean and makes code reviews easier
-
-2. **Branch Naming Conventions**
-   - `fix/specific-issue-description` - for bug fixes
-   - `feat/specific-feature-name` - for new features
-   - `refactor/component-name` - for refactoring existing code
-   - `test/what-youre-testing` - for test-only changes
-   - `docs/what-youre-documenting` - for documentation updates
-   - Use kebab-case for multi-word descriptions
-
-3. **Workflow Steps**
-   ```bash
-   # 1. Always start from latest develop
-   git checkout develop
-   git pull origin develop
-   
-   # 2. Create a new branch for your work
-   git checkout -b fix/specific-issue
-   
-   # 3. Make your changes and commit with clear messages
-   git add -A
-   git commit -m "fix: clear description of what was fixed"
-   
-   # 4. Push to remote
-   git push origin fix/specific-issue
-   
-   # 5. Create PR, get it reviewed and merged
-   
-   # 6. After merge, clean up
-   git checkout develop
-   git pull origin develop
-   git branch -d fix/specific-issue  # Delete local branch
-   ```
-
-4. **Rebase Strategy for Clean History**
-   ```bash
-   # Keep your branch up to date with develop
-   git fetch origin develop
-   git rebase origin/develop
-   
-   # Push with force-with-lease (safer than --force)
-   git push --force-with-lease origin your-branch
-   ```
-
-5. **Commit Message Standards**
-   - Use conventional commits: `type: description`
-   - Types: `fix:`, `feat:`, `refactor:`, `test:`, `docs:`, `chore:`
-   - Keep first line under 72 characters
-   - Add body for complex changes explaining the "why"
-
-### Anti-Patterns to Avoid
-
-1. **Branch Reuse**
-   ```bash
-   # ❌ BAD: Using same branch for multiple features
-   git checkout fix/various-issues
-   # Fix issue A, commit, push
-   # Fix unrelated issue B, commit, push
-   # Fix another unrelated issue C, commit, push
-   
-   # ✅ GOOD: Separate branches
-   git checkout -b fix/alias-collision
-   git checkout -b fix/empty-media-refs
-   git checkout -b fix/thread-conversations
-   ```
-
-2. **Long-Lived Feature Branches**
-   - Branches should be short-lived (ideally < 1 week)
-   - Long branches accumulate merge conflicts
-   - Break large features into smaller, mergeable pieces
-
-3. **Merge Commits from Develop**
-   - Prefer rebase over merge to keep history linear
-   - Exception: When preserving merge commit history is important
-
-### When to Squash Commits
-
-- Use "Squash and merge" in GitHub for PRs with many small commits
-- Keep meaningful commit history for complex features
-- Squash "WIP" or "fix typo" commits before merging
-
-### Emergency Procedures
-
-```bash
-# If you need to undo commits (before pushing)
-git reset --soft HEAD~1  # Undo last commit, keep changes
-
-# If you need to fix a bad rebase
-git rebase --abort
-
-# If you pushed something wrong
-git revert <commit-hash>  # Creates a new commit that undoes changes
-```
+For detailed git workflow, see `docs/development/GIT_WORKFLOW.md`
 
 ## Security Guidelines
 
@@ -936,44 +701,10 @@ The following operations should be discussed before executing:
 
 ## Context Window Management
 
-As engineers, we need to be pragmatic about context management. After real-world experience, I've learned that being overly conservative with context often causes more problems than it solves - leading to failed tool calls, incomplete information, and inefficient back-and-forth.
+### Key Principles
+1. **Batch Operations**: Use multi-tool capability for related searches
+2. **Read Complete Files**: When reasonable (<1000 lines)
+3. **Smart Rotation**: Summarize findings when approaching limits
+4. **Effectiveness First**: Better to gather complete info than make multiple attempts
 
-### Practical Approach to Context
-
-1. **Get Complete Information First**
-   - It's better to cast a slightly wider net initially than to make multiple narrow attempts
-   - Use reasonable search patterns that are likely to capture all relevant information
-   - If uncertain about exact names or locations, use broader patterns with appropriate filters
-   - Failed tool calls waste more context than slightly broader successful ones
-
-2. **Batch Related Operations**
-   - When investigating an issue, gather related information in parallel
-   - Use the multi-tool capability to run complementary searches simultaneously
-   - This is especially important for understanding test failures or code structure
-
-3. **Be Realistic About File Sizes**
-   - Most source files in a well-structured project are reasonable to read in full
-   - Reading a complete file often provides better context than multiple targeted reads
-   - Reserve partial file reading for genuinely large files (1000+ lines)
-
-4. **Smart Context Rotation**
-   - Keep information that's actively being used
-   - Rotate out content that hasn't been referenced in several interactions
-   - When approaching limits, summarize findings rather than keeping raw content
-   - Preserve key file paths and insights for easy re-retrieval
-
-### Anti-Patterns to Avoid
-
-- **Over-Precision**: Making grep patterns so specific they miss variations (e.g., different spacing, quotes)
-- **Sequential Discovery**: Running commands one by one when batch operations would be more efficient
-- **Premature Optimization**: Trying to minimize context usage at the cost of effectiveness
-- **Information Hoarding**: Keeping large amounts of content that's no longer actively needed
-
-### When Context Limits Approach
-
-1. **Complete Current Work**: Focus on finishing active tasks rather than starting new explorations
-2. **Document Progress**: Use the TodoWrite tool to capture current state and next steps
-3. **Summarize Findings**: Convert raw file contents into actionable insights
-4. **Prepare for Handoff**: Ensure any partial work is well-documented and in a stable state
-
-The goal is effective problem-solving, not minimal context usage. It's better to be slightly generous with initial information gathering than to waste time and context on multiple failed attempts.
+Remember: The goal is effective problem-solving, not minimal context usage.
