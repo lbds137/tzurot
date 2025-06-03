@@ -688,4 +688,5 @@ module.exports = {
   handleMentions,
   handleActiveConversation,
   handleActivatedChannel,
+  checkForPersonalityMentions, // Exported for testing
 };
