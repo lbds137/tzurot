@@ -19,8 +19,11 @@ function getMaxAliasWordCount() {
   // The personalityManager is an instance of PersonalityManager class
   // which has a registry property
   if (personalityManager && personalityManager.registry) {
-    return personalityManager.registry.maxAliasWordCount || 1;
+    const count = personalityManager.registry.maxAliasWordCount;
+    logger.debug(`[PersonalityManager] getMaxAliasWordCount returning: ${count}`);
+    return count || 1;
   }
+  logger.warn('[PersonalityManager] Registry not available, returning default: 1');
   return 1;
 }
 
