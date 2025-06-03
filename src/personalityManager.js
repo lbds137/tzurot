@@ -12,6 +12,19 @@ const logger = require('./logger');
 logger.info('[PersonalityManagerFacade] Using new modular personality implementation');
 
 /**
+ * Get the maximum word count among all aliases
+ * @returns {number} The maximum word count
+ */
+function getMaxAliasWordCount() {
+  // The personalityManager is an instance of PersonalityManager class
+  // which has a registry property
+  if (personalityManager && personalityManager.registry) {
+    return personalityManager.registry.maxAliasWordCount || 1;
+  }
+  return 1;
+}
+
+/**
  * Initialize the personality manager (backward compatibility wrapper)
  */
 async function initPersonalityManager(deferOwnerPersonalities = true, options = {}) {
@@ -261,6 +274,7 @@ module.exports = {
   seedOwnerPersonalities,
   getAllPersonalities,
   save,
+  getMaxAliasWordCount,
   // For backward compatibility with tests
   personalityData: { clear: clearAllData },
 };
