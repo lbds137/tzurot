@@ -60,28 +60,37 @@ function checkForPersonalityMentions(message) {
   }
 
   // Check for multi-word mentions with spaces
-  const multiWordMentionRegex = new RegExp(
-    `${escapedMentionChar}([\\w\\s-]+?)(?=[.,!?;:)"']|\\s*$|\\s+[${escapedMentionChar}]|\\s+[^\\w\\s-])`,
-    'gi'
-  );
-  logger.info(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
-  let multiWordMatch;
+  // Instead of trying to match the exact alias, we'll look for the mention character
+  // and then try different word combinations to find a valid alias
+  const mentionStartRegex = new RegExp(`${escapedMentionChar}(\\w[\\w\\s-]*)`, 'gi');
+  let mentionStartMatch;
 
-  while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
-    logger.info(`[checkForPersonalityMentions] Multi-word regex matched: "${multiWordMatch[0]}", captured: "${multiWordMatch[1]}"`);
-    if (multiWordMatch[1] && multiWordMatch[1].trim()) {
-      const multiWordName = multiWordMatch[1].trim();
-
-      // Skip if it's the same as a standard mention we already checked
-      const standardMatch = standardMentionRegex.test(`${mentionChar}${multiWordName}`);
-      if (standardMatch) continue;
-
-      // Check if this multi-word mention is a valid personality alias
-      logger.info(`[checkForPersonalityMentions] Checking multi-word alias: "${multiWordName}" for user ${message.author.id}`);
-      const personality = getPersonalityByAlias(message.author.id, multiWordName);
-      logger.info(`[checkForPersonalityMentions] Alias lookup result: ${personality ? 'found' : 'not found'}`);
-      if (personality) {
-        return true; // Found a valid multi-word personality mention
+  while ((mentionStartMatch = mentionStartRegex.exec(message.content)) !== null) {
+    if (mentionStartMatch[1]) {
+      const fullText = mentionStartMatch[1];
+      logger.info(`[checkForPersonalityMentions] Found potential mention starting with: "${fullText}"`);
+      
+      // Split the text into words
+      const words = fullText.split(/\s+/);
+      
+      // Try combinations from longest to shortest (max 4 words)
+      const maxWords = Math.min(4, words.length);
+      
+      for (let wordCount = maxWords; wordCount >= 1; wordCount--) {
+        const potentialAlias = words.slice(0, wordCount).join(' ').trim();
+        
+        // Skip single-word aliases if we already checked them
+        if (wordCount === 1 && standardMentionRegex.test(`${mentionChar}${potentialAlias}`)) {
+          continue;
+        }
+        
+        logger.info(`[checkForPersonalityMentions] Trying potential alias: "${potentialAlias}" for user ${message.author.id}`);
+        const personality = getPersonalityByAlias(message.author.id, potentialAlias);
+        
+        if (personality) {
+          logger.info(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
+          return true; // Found a valid personality mention
+        }
       }
     }
   }
@@ -396,93 +405,67 @@ async function handleMentions(message, client) {
 
     // Now check for mentions with spaces - whether or not we found standard mentions
     if (message.content && message.content.includes(mentionChar)) {
-      // Improved regex to match multi-word mentions
-      // This captures &word1 word2 word3 patterns more precisely
-      // Limited to a maximum of 4 words to avoid capturing too much text
-      // Updated to handle mentions at the end of messages with or without punctuation
-      const mentionWithSpacesRegex = new RegExp(
-        `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,4})(?:[.,!?;:)"']|\\s|$)`,
-        'g'
-      );
-      let spacedMentionMatch;
-      const mentionsWithSpaces = [];
+      // Use the same approach as checkForPersonalityMentions
+      // Look for the mention character and then try different word combinations
+      const mentionStartRegex = new RegExp(`${escapedMentionChar}(\\w[\\w\\s-]*)`, 'gi');
+      let mentionStartMatch;
+      const processedStarts = new Set(); // Track processed starting positions to avoid duplicates
 
-      // Find all potential mentions with spaces
-      while ((spacedMentionMatch = mentionWithSpacesRegex.exec(message.content)) !== null) {
-        if (spacedMentionMatch[1] && spacedMentionMatch[1].trim()) {
-          logger.debug(`[handleMentions] Regex matched: "${spacedMentionMatch[0]}", captured: "${spacedMentionMatch[1]}"`);
-          mentionsWithSpaces.push(spacedMentionMatch[1].trim());
-        }
-      }
-      
-      logger.debug(`[handleMentions] Found ${mentionsWithSpaces.length} potential multi-word mentions`);
-      
-      if (mentionsWithSpaces.length === 0) {
-        logger.debug(`[handleMentions] Regex pattern: ${mentionWithSpacesRegex}`);
-        logger.debug(`[handleMentions] Message content for debug: "${message.content}"`);
-      }
-
-      // Try each potential multi-word mention
-      for (const rawMentionText of mentionsWithSpaces) {
-        logger.debug(`Processing potential multi-word ${mentionChar}mention: "${rawMentionText}"`);
-
-        // Skip if this is just a single word (already handled by standard regex)
-        if (!rawMentionText.includes(' ')) {
-          logger.debug(`Skipping "${rawMentionText}" - single word, already checked`);
+      while ((mentionStartMatch = mentionStartRegex.exec(message.content)) !== null) {
+        const startIndex = mentionStartMatch.index;
+        
+        // Skip if we've already processed a mention starting at this position
+        if (processedStarts.has(startIndex)) {
           continue;
         }
-
-        // Remove any trailing punctuation that might have been captured
-        const cleanedMentionText = rawMentionText.replace(/[.,!?;:)"']+$/, '').trim();
-
-        // Split the cleaned text into words
-        const words = cleanedMentionText.split(/\s+/);
-
-        // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
-        // For example, match "&bambi prime" before "&bambi" when user types "&bambi prime hi" (in dev mode)
-
-        // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
-        const maxWords = Math.min(4, words.length);
-
-        // Create array of combinations from longest to shortest
-        const combinations = [];
-        for (let i = maxWords; i >= 2; i--) {
-          combinations.push(words.slice(0, i).join(' '));
-        }
-
-        // Remove any empty combinations (shouldn't happen, but just in case)
-        const validCombinations = combinations.filter(c => c.trim() !== '');
-
-        logger.debug(`Trying word combinations in order: ${JSON.stringify(validCombinations)}`);
-
-        // Try each combination, from longest (most specific) to shortest
-        for (const mentionText of validCombinations) {
-          logger.debug(`Trying mention combination: "${mentionText}"`);
-
-          // Try as an alias for this user, then as a global alias
-          let personality = getPersonalityByAlias(message.author.id, mentionText);
-
-          if (!personality) {
-            // If not found for this user, try as a global alias
-            personality = getPersonalityByAlias(null, mentionText);
+        processedStarts.add(startIndex);
+        
+        if (mentionStartMatch[1]) {
+          const fullText = mentionStartMatch[1];
+          logger.debug(`[handleMentions] Found potential mention starting with: "${fullText}"`);
+          
+          // Split the text into words
+          const words = fullText.split(/\s+/);
+          
+          // Skip if this is just a single word (already handled by standard regex)
+          if (words.length === 1) {
+            continue;
           }
 
-          if (personality) {
-            // Count the number of words in this match
-            const wordCount = mentionText.split(/\s+/).length;
+          // IMPROVEMENT: Try combinations from longest to shortest to prioritize the most specific match
+          // For example, match "&bambi prime" before "&bambi" when user types "&bambi prime hi" (in dev mode)
 
-            logger.info(
-              `Found multi-word ${mentionChar}mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
-            );
+          // Determine maximum number of words to try (up to 4 or the actual number of words, whichever is less)
+          const maxWords = Math.min(4, words.length);
 
-            // Add to potential matches
-            potentialMatches.push({
-              mentionText: mentionText,
-              personality: personality,
-              wordCount: wordCount,
-            });
+          // Try combinations from longest to shortest (2 or more words)
+          for (let wordCount = maxWords; wordCount >= 2; wordCount--) {
+            const mentionText = words.slice(0, wordCount).join(' ').trim();
+            
+            logger.debug(`[handleMentions] Trying mention combination: "${mentionText}"`);
 
-            // We don't break here - we want to find all possible matches and pick the longest
+            // Try as an alias for this user, then as a global alias
+            let personality = getPersonalityByAlias(message.author.id, mentionText);
+
+            if (!personality) {
+              // If not found for this user, try as a global alias
+              personality = getPersonalityByAlias(null, mentionText);
+            }
+
+            if (personality) {
+              logger.info(
+                `Found multi-word ${mentionChar}mention: "${mentionText}" -> ${personality.fullName} (${wordCount} words)`
+              );
+
+              // Add to potential matches
+              potentialMatches.push({
+                mentionText: mentionText,
+                personality: personality,
+                wordCount: wordCount,
+              });
+
+              // We don't break here - we want to find all possible matches and pick the longest
+            }
           }
         }
       }
