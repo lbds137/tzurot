@@ -10,9 +10,10 @@ This directory contains documentation related to improvements, refactoring effor
 - [COMPLETED_CODE_CLEANUP](COMPLETED_CODE_CLEANUP.md) - Documentation of completed cleanup tasks
 
 ### Refactoring & Architecture
-- [REFACTORING_SUMMARY](REFACTORING_SUMMARY.md) - Summary of the comprehensive module extraction refactoring
+- [PERSONALITY_SYSTEM_REFACTOR](PERSONALITY_SYSTEM_REFACTOR.md) - **NEW** - Clarifying user vs global personality system
+- [MODULE_REFACTORING_PLAN](MODULE_REFACTORING_PLAN.md) - Breaking up large modules
 - [MODULE_STRUCTURE_PROPOSAL](MODULE_STRUCTURE_PROPOSAL.md) - Proposed future module structure for better separation of concerns
-- [REFACTORING_PLAN](REFACTORING_PLAN.md) - Original refactoring plan and strategy
+- [AISERVICE_REFACTORING_PLAN](AISERVICE_REFACTORING_PLAN.md) - Refactoring the AI service module
 
 ### Feature Development
 - [FEATURE_IDEAS](FEATURE_IDEAS.md) - List of potential new features
