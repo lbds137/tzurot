@@ -163,6 +163,64 @@ describe('Reference Handler Module', () => {
       // The delayedProcessing mock will call the handler with the client parameter
       expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, mockPersonality, null, mockClient);
     });
+
+    it('should handle replies to personalities with space-containing aliases', async () => {
+      // Mock a personality with a space-containing alias
+      const spaceAliasPersonality = {
+        fullName: 'angel-dust-hazbin',
+        displayName: 'Angel Dust'
+      };
+      
+      // Update our mock to handle this specific case
+      getPersonalityByAlias.mockImplementation((userId, alias) => {
+        if (alias === 'angel dust' && userId === 'user-123') {
+          return spaceAliasPersonality;
+        }
+        if (alias === 'test') {
+          return mockPersonality;
+        }
+        return null;
+      });
+      
+      // Mock getPersonalityFromMessage to return the space alias
+      getPersonalityFromMessage.mockImplementation((messageId) => {
+        if (messageId === 'space-alias-msg-id') {
+          return 'angel dust';  // Return the alias name
+        }
+        return null;
+      });
+      
+      const mockReferencedMessage = {
+        id: 'space-alias-msg-id',
+        webhookId: 'webhook-id',
+        author: {
+          username: 'Angel Dust',
+          id: 'webhook-user-id',
+          bot: true
+        }
+      };
+      
+      const mockMessage = {
+        reference: { messageId: 'space-alias-msg-id' },
+        author: { 
+          tag: 'User#1234',
+          id: 'user-123'  // Important: this user ID must match for user-specific aliases
+        },
+        channel: {
+          messages: {
+            fetch: jest.fn().mockResolvedValue(mockReferencedMessage)
+          },
+          isDMBased: jest.fn().mockReturnValue(false)
+        }
+      };
+      
+      const result = await referenceHandler.handleMessageReference(mockMessage, mockHandlePersonalityInteraction, mockClient);
+      
+      expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
+      expect(getPersonality).toHaveBeenCalledWith('angel dust');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'angel dust');
+      expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, spaceAliasPersonality, null, mockClient);
+    });
     
     it('should handle referenced messages with no personality', async () => {
       const mockReferencedMessage = {
