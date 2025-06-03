@@ -90,6 +90,8 @@ function checkForPersonalityMentions(message) {
  * @returns {Promise<void>}
  */
 async function handleMessage(message, client) {
+  logger.info(`[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`);
+  
   try {
     // Ensure messageTrackerHandler is initialized (lazy initialization)
     messageTrackerHandler.ensureInitialized();
