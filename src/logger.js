@@ -18,6 +18,7 @@
 const path = require('path');
 const { createLogger, format, transports } = require('winston');
 const { combine, timestamp, printf, colorize } = format;
+const { botConfig } = require('../config');
 
 /**
  * Define log message format
@@ -43,8 +44,16 @@ const isTest = process.env.JEST_WORKER_ID !== undefined;
  *
  * File outputs include automatic rotation when files reach 5MB
  */
+// Determine log level based on environment
+const getLogLevel = () => {
+  if (isTest) return 'error';
+  if (process.env.LOG_LEVEL) return process.env.LOG_LEVEL;
+  if (botConfig.isDevelopment) return 'debug';
+  return 'info';
+};
+
 const logger = createLogger({
-  level: isTest ? 'error' : process.env.LOG_LEVEL || 'info', // Allow LOG_LEVEL override
+  level: getLogLevel(),
   format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
   transports: [
     // Console output
@@ -84,5 +93,8 @@ if (!isTest) {
     console.error('Error setting up file logging:', error);
   }
 }
+
+// Log the active log level on startup
+logger.info(`Logger initialized with level: ${logger.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`);
 
 module.exports = logger;
