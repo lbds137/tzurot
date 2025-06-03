@@ -429,6 +429,14 @@ class PersonalityManager {
   }
 
   /**
+   * Get the maximum word count among all aliases
+   * @returns {number} The maximum word count
+   */
+  getMaxAliasWordCount() {
+    return this.registry.maxAliasWordCount;
+  }
+
+  /**
    * Get the registry size
    * @returns {number} Number of registered personalities
    */
@@ -477,6 +485,7 @@ Object.assign(module.exports, {
   validatePersonalityName: (...args) => personalityManager.validatePersonalityName(...args),
   getAllPersonalities: (...args) => personalityManager.getAllPersonalities(...args),
   save: (...args) => personalityManager.save(...args),
+  getMaxAliasWordCount: (...args) => personalityManager.getMaxAliasWordCount(...args),
 
   // Properties
   get personalityAliases() {
