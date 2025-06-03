@@ -1,104 +1,106 @@
 # Module Refactoring Plan
 
+**Last Updated**: June 3, 2025
+
 ## Problem Statement
 
 We have several large modules that have grown to do too much, as evidenced by:
 - Multiple test files per module (e.g., aiService has 4 test files)
-- Files exceeding 1500 lines (webhookManager has 2800+ lines!)
+- Files exceeding 500 lines (our agreed-upon limit)
 - Mixing multiple responsibilities in single modules
 - Difficulty in understanding and maintaining the code
 
-## Modules Requiring Refactoring
+## Current Status
 
-### 1. webhookManager.js (2800+ lines) → 11 test files
+### ✅ Successfully Refactored
+- **bot.js**: Now only 79 lines (previously 1000+)
+- **aiService.js**: Now 392 lines (previously 1700+)
+- **personalityManager.js**: Now 282 lines (previously 690)
+
+### 🔴 Modules Still Requiring Refactoring
+
+### 1. personalityHandler.js (834 lines)
+**Current Responsibilities:**
+- Personality message handling
+- Webhook coordination
+- Response formatting
+- Error handling for personality interactions
+
+**Proposed Refactoring:**
+```
+src/handlers/personality/
+├── PersonalityHandler.js (200 lines) - Core orchestrator
+├── PersonalityMessageProcessor.js (200 lines) - Process incoming messages
+├── PersonalityResponseFormatter.js (150 lines) - Format responses
+├── PersonalityWebhookCoordinator.js (150 lines) - Coordinate with webhook manager
+└── PersonalityErrorHandler.js (134 lines) - Handle personality-specific errors
+```
+
+### 2. messageHandler.js (692 lines)
+**Current Responsibilities:**
+- Message routing and processing
+- Mention detection and parsing
+- Command detection
+- Channel activation checks
+- Personality lookup
+- Response coordination
+
+**Proposed Refactoring:**
+```
+src/handlers/message/
+├── MessageHandler.js (150 lines) - Core message router
+├── MentionDetector.js (150 lines) - Detect and parse mentions
+├── CommandDetector.js (100 lines) - Identify commands
+├── ChannelActivationChecker.js (100 lines) - Check channel activation
+├── PersonalityResolver.js (100 lines) - Resolve personality from mentions
+└── ResponseCoordinator.js (92 lines) - Coordinate responses
+```
+
+### 3. webhookManager.js (638 lines)
 **Current Responsibilities:**
 - Webhook creation and caching
 - Message sending via webhooks
 - Message splitting for Discord limits
 - DM channel fallback handling
-- Media processing (audio, images)
-- Username formatting
 - Avatar management
-- Rate limit handling
+- Username formatting
 
 **Proposed Refactoring:**
 ```
 src/webhook/
-├── WebhookManager.js (200 lines) - Core orchestrator
-├── WebhookCache.js (150 lines) - Webhook caching logic
-├── WebhookCreator.js (200 lines) - Webhook creation/validation
-├── MessageSender.js (300 lines) - Sending messages via webhooks
-├── MessageSplitter.js (200 lines) - Splitting long messages
-├── DirectMessageHandler.js (150 lines) - DM channel fallback
-├── MediaProcessor.js (250 lines) - Process media for webhooks
-├── UserFormatter.js (150 lines) - Username/avatar formatting
-└── RateLimitHandler.js (100 lines) - Handle rate limits
+├── WebhookManager.js (150 lines) - Core orchestrator
+├── WebhookCache.js (100 lines) - Webhook caching logic
+├── WebhookCreator.js (100 lines) - Webhook creation/validation
+├── MessageSender.js (150 lines) - Sending messages via webhooks
+├── MessageSplitter.js (100 lines) - Splitting long messages
+└── DirectMessageHandler.js (38 lines) - DM channel fallback
 ```
 
-### 2. aiService.js (1700+ lines) → 4 test files
+### 4. referenceHandler.js (539 lines)
 **Current Responsibilities:**
-- AI API communication
-- Request deduplication
-- Message formatting
-- Error detection
-- Media extraction from embeds
-- Reference message handling
-- Blackout period management
+- Message reference handling
+- Media extraction from referenced messages
+- Embed processing
+- Reference chain following
+- Error handling for references
 
 **Proposed Refactoring:**
 ```
-src/ai/
-├── AIService.js (200 lines) - Core orchestrator
-├── AIClient.js (300 lines) - API communication
-├── RequestDeduplicator.js (150 lines) - Prevent duplicate requests
-├── MessageFormatter.js (250 lines) - Format messages for AI
-├── MediaExtractor.js (200 lines) - Extract media from embeds
-├── ReferenceResolver.js (250 lines) - Handle message references
-├── ErrorDetector.js (150 lines) - Detect AI errors
-└── BlackoutManager.js (100 lines) - Manage blackout periods
+src/handlers/reference/
+├── ReferenceHandler.js (150 lines) - Core orchestrator
+├── ReferenceResolver.js (100 lines) - Resolve message references
+├── ReferenceMediaExtractor.js (100 lines) - Extract media from references
+├── ReferenceEmbedProcessor.js (100 lines) - Process embeds in references
+└── ReferenceChainResolver.js (89 lines) - Follow reference chains
 ```
 
-### 3. bot.js (1000+ lines) → 14 test files
-**Current Responsibilities:**
-- Discord event handling
-- Command processing
-- Message handling
-- Channel activation
-- Mention processing
-- Error filtering
-- DM handling
-- Reference handling
-
-**Proposed Refactoring:**
-```
-src/bot/
-├── Bot.js (200 lines) - Core Discord client
-├── EventHandler.js (150 lines) - Discord event routing
-├── CommandRouter.js (150 lines) - Route to command processor
-├── MessageRouter.js (200 lines) - Route messages to handlers
-├── ActivationManager.js (150 lines) - Channel activation
-├── MentionProcessor.js (150 lines) - Process @mentions
-└── ErrorFilter.js (100 lines) - Filter known errors
-```
-
-### 4. personalityManager.js (690 lines) → 4 test files
-**Current Responsibilities:**
-- Personality registration
-- Alias management
-- Persistence to disk
-- Seeding initial personalities
-- Validation
-
-**Proposed Refactoring:**
-```
-src/personality/
-├── PersonalityManager.js (150 lines) - Core orchestrator
-├── PersonalityRegistry.js (150 lines) - Registration logic
-├── AliasManager.js (100 lines) - Alias handling
-├── PersonalityPersistence.js (100 lines) - Save/load from disk
-├── PersonalitySeeder.js (100 lines) - Seed initial data
-└── PersonalityValidator.js (90 lines) - Validation logic
-```
+### 🟡 Files Approaching Limit (Monitor Closely)
+- **PersonalityManager.js**: 497 lines (core/personality/)
+- **embedBuilders.js**: 496 lines (utils/)
+- **aiMessageFormatter.js**: 481 lines (utils/)
+- **webhookUserTracker.js**: 466 lines (utils/)
+- **avatarManager.js**: 443 lines (utils/)
+- **auth.js**: 439 lines (src/)
 
 ## Implementation Strategy
 
