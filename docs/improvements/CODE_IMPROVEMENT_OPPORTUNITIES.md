@@ -46,9 +46,44 @@ The application relies heavily on in-memory caching and tracking via Maps and Se
 - Add size limits to all cache structures
 - Consider using a proper caching layer with LRU eviction
 
+### 4. Duplicate Mention Detection Logic
+
+The mention detection logic is duplicated between `checkForPersonalityMentions` and `handleMentions` in `src/handlers/messageHandler.js`. Both functions:
+- Parse mentions using nearly identical regex patterns
+- Check for multi-word aliases
+- Look up personalities by alias
+- Have the same word count logic
+
+**Issues:**
+- Maintenance burden - changes need to be made in two places
+- Risk of logic divergence over time
+- Violates DRY principle
+- Makes testing more complex
+
+**Example:**
+```javascript
+// In checkForPersonalityMentions
+const multiWordMentionRegex = new RegExp(
+  `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
+  'gi'
+);
+
+// In handleMentions - same regex pattern
+const multiWordMentionRegex = new RegExp(
+  `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
+  'gi'
+);
+```
+
+**Action Items:**
+- Extract common mention parsing logic into a shared utility function
+- Consider creating a `MentionParser` class that handles all mention detection
+- Ensure both functions use the same underlying logic
+- Add comprehensive tests for the shared functionality
+
 ## Medium Priority Issues
 
-### 4. Incomplete TODOs in Critical Files
+### 5. Incomplete TODOs in Critical Files
 
 Several important files have TODO comments indicating areas that need improvement:
 
