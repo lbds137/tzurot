@@ -10,7 +10,27 @@ class PersonalityRegistry {
   constructor() {
     this.personalities = new Map();
     this.aliases = new Map(); // Store aliases in lowercase for case-insensitive matching
-    this.maxAliasWordCount = 1; // Track the maximum word count across all aliases
+    this._maxAliasWordCount = null; // Track the maximum word count across all aliases
+  }
+
+  /**
+   * Get the maximum alias word count, calculating it if necessary
+   * @returns {number} The maximum word count
+   */
+  get maxAliasWordCount() {
+    // Lazy initialization - calculate on first access if not set
+    if (this._maxAliasWordCount === null) {
+      this.updateMaxWordCount();
+    }
+    return this._maxAliasWordCount || 1;
+  }
+
+  /**
+   * Set the maximum alias word count
+   * @param {number} value - The new max word count
+   */
+  set maxAliasWordCount(value) {
+    this._maxAliasWordCount = value;
   }
 
   /**
@@ -61,7 +81,7 @@ class PersonalityRegistry {
       if (targetName === fullName) {
         aliasesToRemove.push(alias);
         // Check if this alias has max word count
-        if (this.getWordCount(alias) >= this.maxAliasWordCount) {
+        if (this.getWordCount(alias) >= (this._maxAliasWordCount || 0)) {
           needsMaxUpdate = true;
         }
       }
@@ -124,7 +144,7 @@ class PersonalityRegistry {
         max = wordCount;
       }
     }
-    this.maxAliasWordCount = max;
+    this._maxAliasWordCount = max;
     logger.debug(`[PersonalityRegistry] Updated max alias word count to: ${max}`);
   }
 
@@ -163,8 +183,8 @@ class PersonalityRegistry {
     
     // Update max word count if this alias has more words
     const wordCount = this.getWordCount(alias);
-    if (wordCount > this.maxAliasWordCount) {
-      this.maxAliasWordCount = wordCount;
+    if (wordCount > (this._maxAliasWordCount || 0)) {
+      this._maxAliasWordCount = wordCount;
       logger.debug(`[PersonalityRegistry] New max alias word count: ${wordCount} (from alias: ${alias})`);
     }
     
@@ -198,7 +218,7 @@ class PersonalityRegistry {
     if (removed) {
       // Check if we removed an alias with the max word count
       const removedWordCount = this.getWordCount(alias);
-      if (removedWordCount >= this.maxAliasWordCount) {
+      if (removedWordCount >= (this._maxAliasWordCount || 0)) {
         // Recalculate max word count
         this.updateMaxWordCount();
       }
@@ -228,6 +248,7 @@ class PersonalityRegistry {
   clear() {
     this.personalities.clear();
     this.aliases.clear();
+    this._maxAliasWordCount = null; // Reset to null for lazy recalculation
     logger.info('[PersonalityRegistry] Cleared all personalities and aliases');
   }
 
@@ -295,7 +316,7 @@ class PersonalityRegistry {
     }
     
     // Set the max word count
-    this.maxAliasWordCount = maxWords;
+    this._maxAliasWordCount = maxWords;
 
     logger.info(
       `[PersonalityRegistry] Loaded ${this.personalities.size} personalities and ${this.aliases.size} aliases (max ${this.maxAliasWordCount} words)`
