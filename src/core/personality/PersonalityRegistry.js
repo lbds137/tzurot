@@ -20,7 +20,7 @@ class PersonalityRegistry {
   get maxAliasWordCount() {
     // Lazy initialization - calculate on first access if not set
     if (this._maxAliasWordCount === null) {
-      logger.info('[PersonalityRegistry] Max alias word count not initialized, calculating...');
+      logger.debug('[PersonalityRegistry] Max alias word count not initialized, calculating...');
       this.updateMaxWordCount();
     }
     const result = this._maxAliasWordCount || 1;
@@ -154,12 +154,12 @@ class PersonalityRegistry {
     }
     
     this._maxAliasWordCount = max;
-    logger.info(`[PersonalityRegistry] Updated max alias word count to: ${max}`);
+    logger.debug(`[PersonalityRegistry] Updated max alias word count to: ${max}`);
     
     if (multiWordAliases.length > 0) {
-      logger.info(`[PersonalityRegistry] Multi-word aliases found: ${multiWordAliases.join(', ')}`);
+      logger.debug(`[PersonalityRegistry] Multi-word aliases found: ${multiWordAliases.join(', ')}`);
     } else {
-      logger.info('[PersonalityRegistry] No multi-word aliases found in the system');
+      logger.debug('[PersonalityRegistry] No multi-word aliases found in the system');
     }
   }
 
