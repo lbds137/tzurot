@@ -64,9 +64,11 @@ function checkForPersonalityMentions(message) {
     `${escapedMentionChar}([\\w\\s-]+?)(?=[.,!?;:)"']|\\s*$|\\s+[${escapedMentionChar}]|\\s+[^\\w\\s-])`,
     'gi'
   );
+  logger.info(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
   let multiWordMatch;
 
   while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
+    logger.info(`[checkForPersonalityMentions] Multi-word regex matched: "${multiWordMatch[0]}", captured: "${multiWordMatch[1]}"`);
     if (multiWordMatch[1] && multiWordMatch[1].trim()) {
       const multiWordName = multiWordMatch[1].trim();
 
@@ -75,7 +77,9 @@ function checkForPersonalityMentions(message) {
       if (standardMatch) continue;
 
       // Check if this multi-word mention is a valid personality alias
+      logger.info(`[checkForPersonalityMentions] Checking multi-word alias: "${multiWordName}" for user ${message.author.id}`);
       const personality = getPersonalityByAlias(message.author.id, multiWordName);
+      logger.info(`[checkForPersonalityMentions] Alias lookup result: ${personality ? 'found' : 'not found'}`);
       if (personality) {
         return true; // Found a valid multi-word personality mention
       }
