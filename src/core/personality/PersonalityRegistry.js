@@ -23,7 +23,9 @@ class PersonalityRegistry {
       logger.info('[PersonalityRegistry] Max alias word count not initialized, calculating...');
       this.updateMaxWordCount();
     }
-    return this._maxAliasWordCount || 1;
+    const result = this._maxAliasWordCount || 1;
+    logger.debug(`[PersonalityRegistry] maxAliasWordCount getter returning: ${result} (internal value: ${this._maxAliasWordCount})`);
+    return result;
   }
 
   /**
@@ -196,9 +198,12 @@ class PersonalityRegistry {
     
     // Update max word count if this alias has more words
     const wordCount = this.getWordCount(alias);
-    if (wordCount > (this._maxAliasWordCount || 0)) {
+    const currentMax = this._maxAliasWordCount || 0;
+    logger.debug(`[PersonalityRegistry] Alias "${alias}" has ${wordCount} words, current max: ${currentMax}`);
+    
+    if (wordCount > currentMax) {
       this._maxAliasWordCount = wordCount;
-      logger.debug(`[PersonalityRegistry] New max alias word count: ${wordCount} (from alias: ${alias})`);
+      logger.info(`[PersonalityRegistry] New max alias word count: ${wordCount} (from alias: ${alias})`);
     }
     
     logger.debug(`[PersonalityRegistry] Set alias ${alias} -> ${fullName}`);
