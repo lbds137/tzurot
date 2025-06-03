@@ -103,7 +103,11 @@ jest.mock('openai', () => {
 jest.mock('../../config', () => ({
   getApiEndpoint: jest.fn().mockReturnValue('https://example.com/api'),
   getModelPath: jest.fn().mockReturnValue('mock-model-path'),
-  botPrefix: '!tz'
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
 }));
 
 // Import botPrefix from the mocked config
