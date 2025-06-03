@@ -29,7 +29,7 @@ const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance
 function checkForPersonalityMentions(message) {
   if (!message.content) return false;
 
-  logger.info(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
+  logger.debug(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
   
   // Use configured mention character (@ for production, & for development)
   const mentionChar = botConfig.mentionChar;
@@ -63,18 +63,18 @@ function checkForPersonalityMentions(message) {
   // Use a regex that captures up to the max alias word count but stops at natural boundaries
   // This handles mentions like "&angel dust" or even longer aliases
   const maxWords = getMaxAliasWordCount();
-  logger.info(`[checkForPersonalityMentions] Max alias word count: ${maxWords}`);
+  logger.debug(`[checkForPersonalityMentions] Max alias word count: ${maxWords}`);
   const multiWordMentionRegex = new RegExp(
     `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
     'gi'
   );
-  logger.info(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
+  logger.debug(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
   
   let multiWordMatch;
   while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
     if (multiWordMatch[1] && multiWordMatch[1].trim()) {
       const capturedText = multiWordMatch[1].trim();
-      logger.info(`[checkForPersonalityMentions] Multi-word regex captured: "${capturedText}"`);
+      logger.debug(`[checkForPersonalityMentions] Multi-word regex captured: "${capturedText}"`);
       
       // Remove any trailing punctuation
       const cleanedText = capturedText.replace(/[.,!?;:)"']+$/, '');
@@ -94,11 +94,11 @@ function checkForPersonalityMentions(message) {
           continue;
         }
         
-        logger.info(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}" for user ${message.author.id}`);
+        logger.debug(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}" for user ${message.author.id}`);
         const personality = getPersonalityByAlias(message.author.id, potentialAlias);
         
         if (personality) {
-          logger.info(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
+          logger.debug(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
           return true; // Found a valid personality mention
         }
       }
