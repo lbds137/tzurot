@@ -30,7 +30,7 @@ const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const { processCommand } = require('../../../src/commandLoader');
 const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../../../src/conversationManager');
-const { getPersonalityByAlias, getPersonality } = require('../../../src/personalityManager');
+const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../../../src/personalityManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 
@@ -96,6 +96,7 @@ describe('messageHandler', () => {
     isAutoResponseEnabled.mockReturnValue(undefined);
     getPersonality.mockReturnValue(mockPersonality);
     getPersonalityByAlias.mockReturnValue(null);
+    getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
   });
   
@@ -487,6 +488,9 @@ describe('messageHandler', () => {
         content: '@Test Personality Hello there'
       };
       
+      // Set max word count to allow multi-word aliases
+      getMaxAliasWordCount.mockReturnValue(2);
+      
       // Mock getPersonalityByAlias to return for multi-word alias
       getPersonalityByAlias.mockImplementation((userId, name) => {
         if (name === 'Test Personality') {
@@ -526,6 +530,9 @@ describe('messageHandler', () => {
         ...mockMessage,
         content: '@Test Personality Prime Hello there'
       };
+      
+      // Set max word count to allow 3-word aliases
+      getMaxAliasWordCount.mockReturnValue(3);
       
       // Custom personality for this test
       const testPersonalityPrime = { 

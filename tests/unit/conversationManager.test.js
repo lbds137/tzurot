@@ -1,3 +1,14 @@
+// Mock logger and config first
+jest.mock('../../src/logger');
+jest.mock('../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
+}));
+
+// Now import the module after mocks are set up
 const {
   recordConversation,
   getActivePersonality,
@@ -11,9 +22,6 @@ const {
   isAutoResponseEnabled,
   saveAllData
 } = require('../../src/conversationManager');
-
-// Mock logger
-jest.mock('../../src/logger');
 
 // Mock filesystem with a direct mock definition
 jest.mock('fs', () => {

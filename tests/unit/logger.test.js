@@ -65,6 +65,14 @@ jest.mock('winston', () => {
   };
 });
 
+jest.mock('../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
+}));
+
 // Import the mocked modules
 const fs = require('fs');
 const path = require('path');

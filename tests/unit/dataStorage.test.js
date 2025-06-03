@@ -2,6 +2,16 @@
  * Tests for dataStorage.js
  */
 
+// Mock logger and config first
+jest.mock('../../src/logger');
+jest.mock('../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
+}));
+
 // Mock fs module
 jest.mock('fs', () => {
   // Create a virtual filesystem
