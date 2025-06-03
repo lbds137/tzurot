@@ -8,6 +8,10 @@ jest.mock('discord.js');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
 }));
 
 // Mock dependencies specific to this command

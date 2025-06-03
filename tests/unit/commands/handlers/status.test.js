@@ -17,7 +17,11 @@ jest.mock('discord.js', () => ({
 
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
-  botPrefix: '!tz'
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
 }));
 
 jest.mock('../../../../src/auth', () => ({

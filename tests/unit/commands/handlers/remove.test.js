@@ -10,7 +10,11 @@ jest.mock('../../../../config', () => ({
   botPrefix: '!tz',
   isDevelopment: false,
   APP_ID: 'test-app-id',
-  API_KEY: 'test-api-key'
+  API_KEY: 'test-api-key',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
 }));
 jest.mock('../../../../src/profileInfoFetcher', () => ({
   fetchProfileInfo: jest.fn(),

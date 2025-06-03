@@ -2,7 +2,11 @@
 jest.mock('discord.js');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
-  botPrefix: '!tz'
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false,
+    mentionChar: '@'
+  }
 }));
 
 // Import the test helpers
