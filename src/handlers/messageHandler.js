@@ -323,6 +323,8 @@ async function handleCommand(message) {
  */
 async function handleMentions(message, client) {
   try {
+    logger.debug(`[handleMentions] Processing message: "${message.content}" from user ${message.author.id}`);
+    
     // IMPROVEMENT: Check for both standard mentions and multi-word mentions
     // And prioritize the longest match to handle cases like &bambi vs &bambi prime
     // Use configured mention character (@ for production, & for development)
@@ -391,8 +393,16 @@ async function handleMentions(message, client) {
       // Find all potential mentions with spaces
       while ((spacedMentionMatch = mentionWithSpacesRegex.exec(message.content)) !== null) {
         if (spacedMentionMatch[1] && spacedMentionMatch[1].trim()) {
+          logger.debug(`[handleMentions] Regex matched: "${spacedMentionMatch[0]}", captured: "${spacedMentionMatch[1]}"`);
           mentionsWithSpaces.push(spacedMentionMatch[1].trim());
         }
+      }
+      
+      logger.debug(`[handleMentions] Found ${mentionsWithSpaces.length} potential multi-word mentions`);
+      
+      if (mentionsWithSpaces.length === 0) {
+        logger.debug(`[handleMentions] Regex pattern: ${mentionWithSpacesRegex}`);
+        logger.debug(`[handleMentions] Message content for debug: "${message.content}"`);
       }
 
       // Try each potential multi-word mention
