@@ -29,7 +29,7 @@ const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance
 function checkForPersonalityMentions(message) {
   if (!message.content) return false;
 
-  logger.debug(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
+  logger.info(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
   
   // Use configured mention character (@ for production, & for development)
   const mentionChar = botConfig.mentionChar;
@@ -221,14 +221,14 @@ async function handleMessage(message, client) {
 
     // Reply-based conversation continuation
     // Use the reference handler module to process the message reference
-    logger.debug(`[MessageHandler] Processing message reference...`);
+    logger.info(`[MessageHandler] Processing message reference...`);
     const referenceResult = await referenceHandler.handleMessageReference(
       message,
       (msg, personality, mention) =>
         personalityHandler.handlePersonalityInteraction(msg, personality, mention, client),
       client
     );
-    logger.debug(`[MessageHandler] Reference result: ${JSON.stringify(referenceResult)}`);
+    logger.info(`[MessageHandler] Reference result: ${JSON.stringify(referenceResult)}`);
 
     // If the reference was processed successfully, return early
     if (referenceResult.processed) {
@@ -241,15 +241,15 @@ async function handleMessage(message, client) {
     // replying to other users, but allows mentions to be processed.
     // EXCEPTION: Don't filter if there's an activated personality in this channel
     if (referenceResult.wasReplyToNonPersonality) {
-      logger.debug(`[MessageHandler] Reply to non-personality detected, checking for mentions...`);
+      logger.info(`[MessageHandler] Reply to non-personality detected, checking for mentions...`);
       
       // Check if this channel has an activated personality
       const hasActivatedPersonality = getActivatedPersonality(message.channel.id);
-      logger.debug(`[MessageHandler] Has activated personality: ${hasActivatedPersonality}`);
+      logger.info(`[MessageHandler] Has activated personality: ${hasActivatedPersonality}`);
 
       // Check if the message contains a personality mention
       const hasMention = checkForPersonalityMentions(message);
-      logger.debug(`[MessageHandler] Has mention: ${hasMention}`);
+      logger.info(`[MessageHandler] Has mention: ${hasMention}`);
 
       // Only skip processing if there are no mentions AND no Discord links
       // AND no activated personality in this channel
