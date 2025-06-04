@@ -11,6 +11,11 @@ jest.mock('../../../../src/logger', () => ({
   warn: jest.fn()
 }));
 
+jest.mock('../../../../src/utils/webhookUserTracker', () => ({
+  findRealUserId: jest.fn(),
+  getOriginalUserId: jest.fn()
+}));
+
 describe('NsfwVerificationManager', () => {
   let manager;
   let logger;
@@ -305,51 +310,73 @@ describe('NsfwVerificationManager', () => {
   });
   
   describe('verifyAccess', () => {
-    it('should allow access in non-NSFW channels', () => {
+    it('should block non-verified users in non-NSFW channels', () => {
       const channel = { guild: { id: 'guild123' }, nsfw: false };
       const userId = 'user123';
       
       const result = manager.verifyAccess(channel, userId);
       
-      expect(result).toEqual({
-        isAllowed: true,
-        reason: 'Channel does not require NSFW verification'
-      });
+      expect(result.isAllowed).toBe(false);
+      expect(result.reason).toContain('has not completed NSFW verification');
+      expect(result.userId).toBe(userId);
     });
     
-    it('should auto-verify in NSFW channels', () => {
+    it('should auto-verify non-verified users in NSFW channels', () => {
       const channel = { guild: { id: 'guild123' }, nsfw: true, id: 'channel123' };
       const userId = 'user123';
       
       const result = manager.verifyAccess(channel, userId);
       
-      expect(result).toEqual({
-        isAllowed: true,
-        reason: 'User auto-verified in NSFW channel',
-        autoVerified: true
-      });
+      expect(result.isAllowed).toBe(true);
+      expect(result.reason).toBe('User auto-verified in NSFW channel');
+      expect(result.autoVerified).toBe(true);
       expect(manager.isNsfwVerified(userId)).toBe(true);
+      expect(logger.info).toHaveBeenCalledWith('[NsfwVerificationManager] Auto-verifying user user123 in NSFW channel channel123');
     });
     
-    it('should allow access for already verified users', () => {
-      const channel = { guild: { id: 'guild123' }, nsfw: true, id: 'channel123' };
+    it('should allow access for already verified users in NSFW channels only', () => {
+      const nsfwChannel = { guild: { id: 'guild123' }, nsfw: true, id: 'channel123' };
       const userId = 'user123';
       
       // Pre-verify the user
       manager.storeNsfwVerification(userId, true);
       
-      // Mock shouldAutoVerify to return false so it checks existing verification
-      jest.spyOn(manager, 'shouldAutoVerify').mockReturnValue(false);
+      const result = manager.verifyAccess(nsfwChannel, userId);
       
-      const result = manager.verifyAccess(channel, userId);
-      
-      expect(result).toEqual({
-        isAllowed: true,
-        reason: 'User has existing NSFW verification'
-      });
+      expect(result.isAllowed).toBe(true);
+      expect(result.reason).toBe('User is verified and channel is NSFW');
     });
     
-    it('should handle proxy messages specially', () => {
+    it('should auto-verify proxy users in NSFW channels', () => {
+      const channel = { guild: { id: 'guild123' }, nsfw: true, id: 'channel123' };
+      const userId = 'user123';
+      const message = {
+        author: {
+          bot: true,
+          username: 'pk; System[APP]',
+          discriminator: '0000',
+          id: 'webhook123'
+        }
+      };
+      
+      // Mock webhookUserTracker to return the real user
+      const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
+      webhookUserTracker.findRealUserId.mockReturnValue(userId);
+      
+      const result = manager.verifyAccess(channel, userId, message);
+      
+      // Proxy users should be auto-verified in NSFW channels
+      expect(result.isAllowed).toBe(true);
+      expect(result.reason).toBe(`Proxy user ${userId} auto-verified in NSFW channel`);
+      expect(result.autoVerified).toBe(true);
+      expect(result.isProxy).toBe(true);
+      expect(result.systemType).toBe('pluralkit');
+      // Verify user was auto-verified
+      expect(manager.isNsfwVerified(userId)).toBe(true);
+      expect(logger.info).toHaveBeenCalledWith(`[NsfwVerificationManager] Auto-verifying proxy user ${userId} in NSFW channel ${channel.id}`);
+    });
+    
+    it('should allow proxy messages from verified users in NSFW channels', () => {
       const channel = { guild: { id: 'guild123' }, nsfw: true };
       const userId = 'user123';
       const message = {
@@ -361,30 +388,21 @@ describe('NsfwVerificationManager', () => {
         }
       };
       
+      // Pre-verify the user
+      manager.storeNsfwVerification(userId, true);
+      
+      // Mock webhookUserTracker to return the real user
+      const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
+      webhookUserTracker.findRealUserId.mockReturnValue(userId);
+      
       const result = manager.verifyAccess(channel, userId, message);
       
-      expect(result).toEqual({
-        isAllowed: true,
-        reason: 'Proxy system detected - verification delegated to proxy handler',
-        isProxy: true,
-        systemType: 'pluralkit'
-      });
-      expect(logger.warn).toHaveBeenCalledWith('[NsfwVerificationManager] Proxy system detected, additional verification may be needed');
+      // Verified user should be allowed even through proxy
+      expect(result.isAllowed).toBe(true);
+      expect(result.reason).toContain('Proxy user user123 is verified and channel is NSFW');
+      expect(result.isProxy).toBe(true);
+      expect(result.systemType).toBe('pluralkit');
     });
     
-    it('should deny access for non-verified users when auto-verify is disabled', () => {
-      const channel = { guild: { id: 'guild123' }, nsfw: true };
-      const userId = 'user123';
-      
-      // Mock shouldAutoVerify to return false
-      jest.spyOn(manager, 'shouldAutoVerify').mockReturnValue(false);
-      
-      const result = manager.verifyAccess(channel, userId);
-      
-      expect(result).toEqual({
-        isAllowed: false,
-        reason: 'User has not completed NSFW verification'
-      });
-    });
   });
 });

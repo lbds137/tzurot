@@ -30,6 +30,22 @@ const webhookCache = new LRUCache({
 const activeWebhooks = new Set();
 
 /**
+ * Get webhook name based on the bot's username
+ * @returns {string} The webhook name to use
+ */
+function getWebhookName() {
+  // Use global client if available, otherwise fallback to 'Tzurot'
+  if (global.tzurotClient && global.tzurotClient.user) {
+    // Extract just the base name without discriminator
+    const botName = global.tzurotClient.user.username.split(' | ')[0];
+    logger.debug(`[WebhookCache] Using dynamic webhook name: ${botName}`);
+    return botName;
+  }
+  logger.debug('[WebhookCache] Client not available, using default webhook name: Tzurot');
+  return 'Tzurot';
+}
+
+/**
  * Get or create a webhook for a specific channel
  * @param {Object} channel - Discord.js channel object
  * @returns {Promise<WebhookClient>} The webhook client
@@ -73,26 +89,50 @@ async function getOrCreateWebhook(channel) {
       parentWebhookClient = webhookCache.get(parentChannel.id);
     } else {
       // Need to create or find a webhook for the parent channel
-      logger.info(`[WebhookCache] Getting webhooks for parent channel ${parentChannel.id}`);
-      const webhooks = await parentChannel.fetchWebhooks();
+      let webhook;
 
-      logger.info(
-        `[WebhookCache] Found ${webhooks.size} webhooks in parent channel ${parentChannel.id}`
-      );
+      try {
+        logger.info(`[WebhookCache] Getting webhooks for parent channel ${parentChannel.id}`);
+        const webhooks = await parentChannel.fetchWebhooks();
 
-      // Look for our bot's webhook
-      let webhook = webhooks.find(wh => wh.name === 'Tzurot');
-
-      // If no webhook found, create a new one
-      if (!webhook) {
         logger.info(
-          `[WebhookCache] Creating new webhook for parent channel ${parentChannel.id} (${parentChannel.name || 'unnamed'})`
+          `[WebhookCache] Found ${webhooks.size} webhooks in parent channel ${parentChannel.id}`
         );
-        webhook = await parentChannel.createWebhook({
-          name: 'Tzurot',
-          avatar: null, // Will be set when sending messages
-          reason: 'Bot webhook for personality messages',
-        });
+
+        // Look for our bot's webhook
+        const webhookName = getWebhookName();
+        webhook = webhooks.find(wh => wh.name === webhookName);
+
+        // If no webhook found, create a new one
+        if (!webhook) {
+          logger.info(
+            `[WebhookCache] Creating new webhook for parent channel ${parentChannel.id} (${parentChannel.name || 'unnamed'})`
+          );
+          webhook = await parentChannel.createWebhook({
+            name: webhookName,
+            avatar: null, // Will be set when sending messages
+            reason: 'Bot webhook for personality messages',
+          });
+        }
+      } catch (error) {
+        logger.error(
+          `[WebhookCache] Failed to fetch/create webhook for parent channel ${parentChannel.id}: ${error.message}`
+        );
+        if (error.code === 50013) {
+          throw new Error(
+            `Missing permissions to manage webhooks in parent channel ${parentChannel.name || parentChannel.id}`
+          );
+        }
+        throw error;
+      }
+
+      // Validate webhook has required properties
+      if (!webhook.id || !webhook.token) {
+        logger.error(
+          `[WebhookCache] Invalid webhook data for parent channel ${parentChannel.id}: ` +
+            `id=${webhook.id}, token=${webhook.token ? 'present' : 'missing'}`
+        );
+        throw new Error('Webhook missing required id or token');
       }
 
       // Create a webhook client
@@ -105,6 +145,16 @@ async function getOrCreateWebhook(channel) {
 
     // Now create a thread-specific webhook client using the parent webhook's credentials
     // We need to get the actual webhook data from the parent client to create a thread version
+
+    // Validate parent webhook client has required properties
+    if (!parentWebhookClient.id || !parentWebhookClient.token) {
+      logger.error(
+        `[WebhookCache] Invalid parent webhook client for thread ${channelId}: ` +
+          `id=${parentWebhookClient.id}, token=${parentWebhookClient.token ? 'present' : 'missing'}`
+      );
+      throw new Error('Parent webhook client missing required id or token');
+    }
+
     const threadWebhookClient = new WebhookClient({
       id: parentWebhookClient.id,
       token: parentWebhookClient.token,
@@ -124,20 +174,44 @@ async function getOrCreateWebhook(channel) {
     return webhookCache.get(channelId);
   }
 
-  // Get all webhooks for the channel
-  const webhooks = await channel.fetchWebhooks();
+  let webhook;
 
-  // Look for our bot's webhook
-  let webhook = webhooks.find(wh => wh.name === 'Tzurot');
+  try {
+    // Get all webhooks for the channel
+    const webhooks = await channel.fetchWebhooks();
 
-  // If no webhook found, create a new one
-  if (!webhook) {
-    logger.info(`[WebhookCache] Creating new webhook for channel ${channel.name || channelId}`);
-    webhook = await channel.createWebhook({
-      name: 'Tzurot',
-      avatar: null, // Will be set when sending messages
-      reason: 'Bot webhook for personality messages',
-    });
+    // Look for our bot's webhook
+    const webhookName = getWebhookName();
+    webhook = webhooks.find(wh => wh.name === webhookName);
+
+    // If no webhook found, create a new one
+    if (!webhook) {
+      logger.info(`[WebhookCache] Creating new webhook for channel ${channel.name || channelId}`);
+      webhook = await channel.createWebhook({
+        name: webhookName,
+        avatar: null, // Will be set when sending messages
+        reason: 'Bot webhook for personality messages',
+      });
+    }
+  } catch (error) {
+    logger.error(
+      `[WebhookCache] Failed to fetch/create webhook for channel ${channel.name || channelId}: ${error.message}`
+    );
+    if (error.code === 50013) {
+      throw new Error(
+        `Missing permissions to manage webhooks in channel ${channel.name || channelId}`
+      );
+    }
+    throw error;
+  }
+
+  // Validate webhook has required properties
+  if (!webhook.id || !webhook.token) {
+    logger.error(
+      `[WebhookCache] Invalid webhook data for channel ${channel.name || channelId}: ` +
+        `id=${webhook.id}, token=${webhook.token ? 'present' : 'missing'}`
+    );
+    throw new Error('Webhook missing required id or token');
   }
 
   // Create a webhook client

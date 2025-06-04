@@ -177,7 +177,11 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             const formattedName =
               displayName && fullName && displayName !== fullName
                 ? `${displayName} (${fullName})`
-                : displayName || fullName || 'the bot';
+                : displayName ||
+                  fullName ||
+                  content.referencedMessage.webhookName ||
+                  content.referencedMessage.author ||
+                  'the bot';
 
             // Check if the referenced personality is the same as the current personality
             const isSamePersonality = content.referencedMessage.personalityName === personalityName;

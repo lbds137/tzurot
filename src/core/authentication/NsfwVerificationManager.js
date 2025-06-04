@@ -9,6 +9,7 @@
  */
 
 const logger = require('../../logger');
+const webhookUserTracker = require('../../utils/webhookUserTracker');
 
 class NsfwVerificationManager {
   constructor() {
@@ -112,53 +113,103 @@ class NsfwVerificationManager {
    * @returns {Object} Verification result with isAllowed and reason
    */
   verifyAccess(channel, userId, message = null) {
-    // Check if NSFW verification is required for this channel
-    if (!this.requiresNsfwVerification(channel)) {
+    // DMs are always allowed
+    if (!channel.guild) {
       return {
         isAllowed: true,
-        reason: 'Channel does not require NSFW verification',
+        reason: 'DMs are always allowed',
       };
     }
 
     // Check for proxy system if message is provided
+    let effectiveUserId = userId;
+    let isProxy = false;
+    let proxySystemType = null;
+
     if (message) {
       const proxyCheck = this.checkProxySystem(message);
       if (proxyCheck.isProxy) {
-        // For proxy systems, we may need special handling
-        logger.warn(
-          `[NsfwVerificationManager] Proxy system detected, additional verification may be needed`
-        );
+        isProxy = true;
+        proxySystemType = proxyCheck.systemType;
+
+        // Try to find the real user behind the proxy
+        const realUserId = webhookUserTracker.findRealUserId(message);
+        if (realUserId && realUserId !== 'proxy-system-user') {
+          effectiveUserId = realUserId;
+          logger.info(
+            `[NsfwVerificationManager] Found real user ${realUserId} behind ${proxySystemType} proxy`
+          );
+        } else {
+          logger.warn(
+            `[NsfwVerificationManager] Could not determine real user for ${proxySystemType} proxy`
+          );
+          // If we can't determine the real user, we can't verify them
+          return {
+            isAllowed: false,
+            reason:
+              'Cannot verify proxy system user. The original user must use the bot directly for verification.',
+            isProxy: true,
+            systemType: proxySystemType,
+          };
+        }
+      }
+    }
+
+    // For guild channels, check if the effective user is NSFW verified
+    const isUserVerified = this.isNsfwVerified(effectiveUserId);
+
+    // If user is NSFW verified, they can ONLY use personalities in NSFW channels
+    if (isUserVerified) {
+      if (channel.nsfw === true) {
         return {
           isAllowed: true,
-          reason: 'Proxy system detected - verification delegated to proxy handler',
-          isProxy: true,
-          systemType: proxyCheck.systemType,
+          reason: isProxy
+            ? `Proxy user ${effectiveUserId} is verified and channel is NSFW`
+            : 'User is verified and channel is NSFW',
+          isProxy,
+          systemType: proxySystemType,
+        };
+      } else {
+        // User is verified but channel is SFW - NOT ALLOWED
+        return {
+          isAllowed: false,
+          reason: 'NSFW-verified users can only use personalities in NSFW channels or DMs',
+          isProxy,
+          systemType: proxySystemType,
         };
       }
     }
 
-    // Check if user should be auto-verified
-    if (this.shouldAutoVerify(channel, userId)) {
-      this.storeNsfwVerification(userId, true);
+    // If user is NOT verified but they're in an NSFW channel, auto-verify them
+    // This is because Discord already verified they can access NSFW content
+    if (channel.nsfw === true) {
+      // Auto-verify the user since they're already in an NSFW channel
+      // This applies to both direct users and proxy users
+      if (isProxy) {
+        logger.info(`[NsfwVerificationManager] Auto-verifying proxy user ${effectiveUserId} in NSFW channel ${channel.id}`);
+      } else {
+        logger.info(`[NsfwVerificationManager] Auto-verifying user ${effectiveUserId} in NSFW channel ${channel.id}`);
+      }
+      this.storeNsfwVerification(effectiveUserId, true);
+      
       return {
         isAllowed: true,
-        reason: 'User auto-verified in NSFW channel',
+        reason: isProxy 
+          ? `Proxy user ${effectiveUserId} auto-verified in NSFW channel`
+          : 'User auto-verified in NSFW channel',
         autoVerified: true,
+        isProxy,
+        systemType: proxySystemType,
       };
     }
 
-    // Check existing verification status
-    if (this.isNsfwVerified(userId)) {
-      return {
-        isAllowed: true,
-        reason: 'User has existing NSFW verification',
-      };
-    }
-
-    // User is not verified
+    // User is not verified and channel is not NSFW - block access
     return {
       isAllowed: false,
-      reason: 'User has not completed NSFW verification',
+      reason: `<@${effectiveUserId}> has not completed NSFW verification. Use the verify command to confirm you are 18 or older.`,
+      isProxy,
+      systemType: proxySystemType,
+      userId: effectiveUserId,
     };
   }
 

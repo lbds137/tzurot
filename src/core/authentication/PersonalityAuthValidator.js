@@ -24,7 +24,6 @@ class PersonalityAuthValidator {
    * @returns {boolean} Whether authentication is required (always true)
    */
   requiresAuth(personality) {
-     
     // All personality interactions require authentication
     return true;
   }
@@ -93,11 +92,21 @@ class PersonalityAuthValidator {
         this.nsfwVerificationManager.requiresNsfwVerification(channel);
 
       if (!nsfwCheck.isAllowed) {
-        result.errors.push(
-          'This channel requires age verification. Please use the `verify` command to confirm you are 18 or older.'
-        );
+        // Customize error message based on the reason
+        if (
+          nsfwCheck.reason &&
+          nsfwCheck.reason.includes('can only use personalities in NSFW channels')
+        ) {
+          result.errors.push(
+            'This bot contains NSFW content and can only be used in NSFW channels or DMs.'
+          );
+        } else {
+          result.errors.push(
+            'This bot requires age verification. Please use the `verify` command to confirm you are 18 or older.'
+          );
+        }
         logger.info(
-          `[PersonalityAuthValidator] User ${effectiveUserId} lacks NSFW verification for channel ${channel.id}`
+          `[PersonalityAuthValidator] User ${effectiveUserId} NSFW check failed for channel ${channel.id}: ${nsfwCheck.reason}`
         );
         return result;
       }

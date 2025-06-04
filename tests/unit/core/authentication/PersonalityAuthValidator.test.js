@@ -162,7 +162,7 @@ describe('PersonalityAuthValidator', () => {
       });
       
       expect(result.isAuthorized).toBe(false);
-      expect(result.errors).toContain('This channel requires age verification. Please use the `verify` command to confirm you are 18 or older.');
+      expect(result.errors).toContain('This bot requires age verification. Please use the `verify` command to confirm you are 18 or older.');
       expect(result.requiresNsfwVerification).toBe(true);
     });
     
