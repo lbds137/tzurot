@@ -27,6 +27,16 @@ jest.mock('../../../../config', () => ({
 
 jest.mock('../../../../src/aiService', () => ({}));
 
+jest.mock('../../../../src/utils/webhookUserTracker', () => ({
+  clearAllCachedWebhooks: jest.fn()
+}));
+
+jest.mock('../../../../src/core/authentication', () => ({
+  getNsfwVerificationManager: jest.fn().mockReturnValue({
+    clearVerification: jest.fn()
+  })
+}));
+
 // Mock utils and commandValidator
 jest.mock('../../../../src/utils', () => ({
   createDirectSend: jest.fn().mockImplementation((message) => {
@@ -103,6 +113,11 @@ describe('Debug Command', () => {
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
       expect.stringContaining('clearwebhooks')
     );
+    
+    // Should mention unverify subcommand
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('unverify')
+    );
   });
   
   // Removed problematic personalities tests
@@ -113,6 +128,52 @@ describe('Debug Command', () => {
     // Verify error message was sent
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
       expect.stringContaining('Unknown debug subcommand: `unknown`')
+    );
+  });
+  
+  it('should handle clearwebhooks subcommand', async () => {
+    const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
+    
+    const result = await debugCommand.execute(mockMessage, ['clearwebhooks']);
+    
+    // Verify webhook cache was cleared
+    expect(webhookUserTracker.clearAllCachedWebhooks).toHaveBeenCalled();
+    
+    // Verify success message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Cleared all cached webhook identifications.')
+    );
+  });
+  
+  it('should handle unverify subcommand when user is verified', async () => {
+    const { getNsfwVerificationManager } = require('../../../../src/core/authentication');
+    const mockNsfwManager = getNsfwVerificationManager();
+    mockNsfwManager.clearVerification.mockReturnValue(true);
+    
+    const result = await debugCommand.execute(mockMessage, ['unverify']);
+    
+    // Verify clearVerification was called with correct user ID
+    expect(mockNsfwManager.clearVerification).toHaveBeenCalledWith('user-123');
+    
+    // Verify success message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Your NSFW verification has been cleared. You are now unverified.')
+    );
+  });
+  
+  it('should handle unverify subcommand when user is not verified', async () => {
+    const { getNsfwVerificationManager } = require('../../../../src/core/authentication');
+    const mockNsfwManager = getNsfwVerificationManager();
+    mockNsfwManager.clearVerification.mockReturnValue(false);
+    
+    const result = await debugCommand.execute(mockMessage, ['unverify']);
+    
+    // Verify clearVerification was called
+    expect(mockNsfwManager.clearVerification).toHaveBeenCalledWith('user-123');
+    
+    // Verify info message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('❌ You were not verified, so nothing was cleared.')
     );
   });
   
