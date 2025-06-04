@@ -81,7 +81,7 @@ describe('Add Command', () => {
     });
     
     // Enhanced module mocks with proper Jest integration
-    jest.doMock('../../../../src/personalityManager', () => ({
+    jest.doMock('../../../../src/core/personality', () => ({
       registerPersonality: jest.fn().mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test Personality',
@@ -125,7 +125,7 @@ describe('Add Command', () => {
     });
     
     // Import modules after mocking
-    personalityManager = require('../../../../src/personalityManager');
+    personalityManager = require('../../../../src/core/personality');
     webhookManager = require('../../../../src/webhookManager');
     const MessageTracker = require('../../../../src/commands/utils/messageTracker');
     messageTracker = mockMessageTrackerInstance;

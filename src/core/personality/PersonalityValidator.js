@@ -227,7 +227,7 @@ class PersonalityValidator {
         return true;
       }
     } catch (_error) {
-      // eslint-disable-line no-unused-vars
+       
       // Constants might not be available in all contexts
     }
 

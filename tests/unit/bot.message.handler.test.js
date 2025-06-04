@@ -36,7 +36,7 @@ jest.mock('../../src/commandLoader', () => ({
 }));
 
 // Mock the personalityManager module
-jest.mock('../../src/personalityManager', () => ({
+jest.mock('../../src/core/personality', () => ({
   getPersonalityByAlias: jest.fn(),
   getPersonality: jest.fn(),
   registerPersonality: jest.fn()
@@ -69,7 +69,7 @@ function createMessageHandler() {
     webhookManager: require('../../src/webhookManager'),
     conversationManager: require('../../src/core/conversation'),
     commandLoader: require('../../src/commandLoader'),
-    personalityManager: require('../../src/personalityManager'),
+    personalityManager: require('../../src/core/personality'),
     config: require('../../config'),
     logger: require('../../src/logger')
   };

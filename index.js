@@ -1,8 +1,8 @@
 // Load environment variables
 require('dotenv').config();
 const { initStorage } = require('./src/dataStorage');
-const { initPersonalityManager } = require('./src/personalityManager');
-const { initConversationManager, saveAllData } = require('./src/conversationManager');
+const corePersonality = require('./src/core/personality');
+const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 const { createHealthServer } = require('./src/healthCheck');
@@ -22,7 +22,7 @@ process.on('uncaughtException', (error) => {
 });
 
 // Error handling for unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason, _promise) => {
   logger.error('Unhandled Promise Rejection:', reason);
 });
 
@@ -62,11 +62,11 @@ async function init() {
     }
     
     // Initialize basic personality manager (loads existing data)
-    await initPersonalityManager();
+    await corePersonality.initialize();
     logger.info('Personality manager initialized');
     
     // Initialize conversation manager (loads saved conversation data)
-    await initConversationManager();
+    await coreConversation.initConversationManager();
     logger.info('Conversation manager initialized');
     
     // Initialize auth system (loads saved tokens)
@@ -123,7 +123,7 @@ async function cleanup() {
   // Save all conversation data
   try {
     logger.info('Saving conversation data...');
-    await saveAllData();
+    await coreConversation.saveAllData();
   } catch (error) {
     logger.error('Error saving conversation data:', error);
   }
@@ -165,7 +165,7 @@ async function cleanup() {
  */
 async function sendDeactivationMessages() {
   // Import required modules
-  const { getAllActivatedChannels, deactivatePersonality } = require('./src/conversationManager');
+  const { getAllActivatedChannels, deactivatePersonality } = require('./src/core/conversation');
   
   // Get all channels with activated personalities
   const activatedChannels = getAllActivatedChannels();

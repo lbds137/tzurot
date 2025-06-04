@@ -1,6 +1,6 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
-jest.mock('../../../../src/personalityManager');
+jest.mock('../../../../src/core/personality');
 jest.mock('../../../../src/core/conversation', () => ({
   clearConversation: jest.fn().mockReturnValue(true),
   recordConversation: jest.fn().mockReturnValue(true),
@@ -56,7 +56,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 
 // Import mocked modules
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 const conversationManager = require('../../../../src/core/conversation');
 const aiService = require('../../../../src/aiService');
 const webhookManager = require('../../../../src/webhookManager');

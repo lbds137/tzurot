@@ -65,7 +65,7 @@ jest.mock('path', () => ({
 }));
 
 // Mock personality manager
-jest.mock('../../src/personalityManager', () => ({
+jest.mock('../../src/core/personality', () => ({
   listPersonalitiesForUser: jest.fn(() => [
     {
       fullName: 'test-personality-one',
@@ -616,7 +616,7 @@ describe('Conversation Manager', () => {
     it('should handle invalid personality data gracefully', () => {
       // Re-require modules after jest.resetModules()
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
-      const personalityManager = require('../../src/personalityManager');
+      const personalityManager = require('../../src/core/personality');
       const logger = require('../../src/logger');
       
       // Clear any previous logger calls
@@ -640,7 +640,7 @@ describe('Conversation Manager', () => {
     it('should handle errors in personality lookup', () => {
       // Re-require modules after jest.resetModules()
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
-      const personalityManager = require('../../src/personalityManager');
+      const personalityManager = require('../../src/core/personality');
       const logger = require('../../src/logger');
       
       // Clear any previous logger calls

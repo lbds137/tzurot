@@ -15,7 +15,7 @@ jest.mock('../../../../config', () => ({
 }));
 
 // Mock the personality manager
-jest.mock('../../../../src/personalityManager', () => ({
+jest.mock('../../../../src/core/personality', () => ({
   listPersonalitiesForUser: jest.fn().mockReturnValue([
     { fullName: 'personality1', displayName: 'Personality One' },
     { fullName: 'personality2', displayName: 'Personality Two' }

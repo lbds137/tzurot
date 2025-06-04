@@ -9,7 +9,7 @@ jest.mock('../../../src/handlers/errorHandler');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/commandLoader');
 jest.mock('../../../src/core/conversation');
-jest.mock('../../../src/personalityManager');
+jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
   instance: {
@@ -30,7 +30,7 @@ const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const { processCommand } = require('../../../src/commandLoader');
 const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../../../src/core/conversation');
-const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../../../src/personalityManager');
+const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../../../src/core/personality');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 

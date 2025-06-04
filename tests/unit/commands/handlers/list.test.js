@@ -15,7 +15,7 @@ jest.mock('../../../../config', () => ({
 }));
 
 // Mock personality manager
-jest.mock('../../../../src/personalityManager', () => ({
+jest.mock('../../../../src/core/personality', () => ({
   listPersonalitiesForUser: jest.fn()
 }));
 
@@ -34,7 +34,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 
 // Import mock dependencies
 const logger = require('../../../../src/logger');
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 const embedHelpers = require('../../../../src/utils/embedBuilders');
 const validator = require('../../../../src/commands/utils/commandValidator');
 

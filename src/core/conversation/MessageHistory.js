@@ -51,7 +51,7 @@ class MessageHistory {
     try {
       // Import personality manager to get list of personalities
       // This is a circular dependency, so we import it lazily
-      const { listPersonalitiesForUser } = require('../../personalityManager');
+      const { listPersonalitiesForUser } = require('../../core/personality');
       const allPersonalities = listPersonalitiesForUser();
 
       if (!allPersonalities || !Array.isArray(allPersonalities)) {

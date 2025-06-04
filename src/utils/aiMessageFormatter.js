@@ -1,6 +1,6 @@
 const logger = require('../logger');
 const { sanitizeApiText } = require('./contentSanitizer');
-const { getPersonality } = require('../personalityManager');
+const { getPersonality } = require('../core/personality');
 
 /**
  * Formats messages for API request, handling text, images, audio, and referenced messages

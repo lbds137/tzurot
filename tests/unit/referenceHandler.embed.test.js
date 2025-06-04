@@ -4,7 +4,7 @@
 
 jest.mock('../../src/logger');
 jest.mock('../../src/core/conversation');
-jest.mock('../../src/personalityManager');
+jest.mock('../../src/core/personality');
 jest.mock('../../src/utils/embedUtils');
 
 const logger = require('../../src/logger');
@@ -188,7 +188,7 @@ describe('processMessageLinks - Embed Media Extraction', () => {
     getPersonalityFromMessage.mockReturnValue('test-personality');
     
     // Mock personalityManager to return personality data
-    const personalityManager = require('../../src/personalityManager');
+    const personalityManager = require('../../src/core/personality');
     personalityManager.listPersonalitiesForUser.mockReturnValue([
       {
         fullName: 'test-personality',

@@ -23,7 +23,7 @@ jest.mock('node-fetch', () => jest.fn().mockResolvedValue({
   buffer: jest.fn().mockResolvedValue(Buffer.from('test')),
 }));
 
-jest.mock('../../../../src/personalityManager', () => ({
+jest.mock('../../../../src/core/personality', () => ({
   registerPersonality: jest.fn().mockImplementation((userId, fullName, data, fetchInfo) => {
     return Promise.resolve({
       fullName,
@@ -69,7 +69,7 @@ jest.mock('../../../../src/webhookManager', () => ({
 }));
 
 // Import the mocked modules
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 
 describe('Command Handling Simulations', () => {
   // Save original implementation
