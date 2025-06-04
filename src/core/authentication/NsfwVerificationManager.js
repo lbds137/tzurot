@@ -113,14 +113,6 @@ class NsfwVerificationManager {
    * @returns {Object} Verification result with isAllowed and reason
    */
   verifyAccess(channel, userId, message = null) {
-    // DMs are always allowed
-    if (!channel.guild) {
-      return {
-        isAllowed: true,
-        reason: 'DMs are always allowed',
-      };
-    }
-
     // Check for proxy system if message is provided
     let effectiveUserId = userId;
     let isProxy = false;
@@ -155,11 +147,24 @@ class NsfwVerificationManager {
       }
     }
 
-    // For guild channels, check if the effective user is NSFW verified
+    // Check if the effective user is NSFW verified
     const isUserVerified = this.isNsfwVerified(effectiveUserId);
 
-    // If user is NSFW verified, they can ONLY use personalities in NSFW channels
+    // If user is verified, they can use personalities in NSFW channels or DMs
     if (isUserVerified) {
+      // DMs are allowed for verified users
+      if (!channel.guild) {
+        return {
+          isAllowed: true,
+          reason: isProxy
+            ? `Proxy user ${effectiveUserId} is verified and can use DMs`
+            : 'User is verified and can use DMs',
+          isProxy,
+          systemType: proxySystemType,
+        };
+      }
+      
+      // For guild channels, only NSFW channels are allowed
       if (channel.nsfw === true) {
         return {
           isAllowed: true,
@@ -180,9 +185,9 @@ class NsfwVerificationManager {
       }
     }
 
-    // If user is NOT verified but they're in an NSFW channel, auto-verify them
-    // This is because Discord already verified they can access NSFW content
-    if (channel.nsfw === true) {
+    // User is NOT verified
+    // For guild channels with NSFW enabled, auto-verify them
+    if (channel.guild && channel.nsfw === true) {
       // Auto-verify the user since they're already in an NSFW channel
       // This applies to both direct users and proxy users
       if (isProxy) {
@@ -203,7 +208,7 @@ class NsfwVerificationManager {
       };
     }
 
-    // User is not verified and channel is not NSFW - block access
+    // User is not verified and cannot be auto-verified - block access
     return {
       isAllowed: false,
       reason: `<@${effectiveUserId}> has not completed NSFW verification. Use the verify command to confirm you are 18 or older.`,

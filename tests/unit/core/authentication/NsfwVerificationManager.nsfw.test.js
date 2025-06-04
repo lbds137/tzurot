@@ -28,7 +28,7 @@ describe('NsfwVerificationManager - NSFW Channel Enforcement', () => {
   describe('verifyAccess - Channel Type Enforcement', () => {
     const mockUserId = '123456789012345678';
     
-    it('should allow access in DMs regardless of verification status', () => {
+    it('should block access in DMs for non-verified users', () => {
       const dmChannel = {
         guild: null, // DM channel
         nsfw: false
@@ -36,8 +36,23 @@ describe('NsfwVerificationManager - NSFW Channel Enforcement', () => {
 
       const result = manager.verifyAccess(dmChannel, mockUserId);
       
+      expect(result.isAllowed).toBe(false);
+      expect(result.reason).toContain(`<@${mockUserId}> has not completed NSFW verification`);
+    });
+
+    it('should allow access in DMs for verified users', () => {
+      const dmChannel = {
+        guild: null, // DM channel
+        nsfw: false
+      };
+
+      // First verify the user
+      manager.storeNsfwVerification(mockUserId, true);
+
+      const result = manager.verifyAccess(dmChannel, mockUserId);
+      
       expect(result.isAllowed).toBe(true);
-      expect(result.reason).toBe('DMs are always allowed');
+      expect(result.reason).toBe('User is verified and can use DMs');
     });
 
     it('should block NSFW-verified users in SFW channels', () => {
