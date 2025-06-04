@@ -1,12 +1,12 @@
 // Test suite for the embedBuilders.js createPersonalityListEmbed function
 
-// Mock personalityManager with proper functionality BEFORE requiring embedBuilders
+// Mock personality module with proper functionality BEFORE requiring embedBuilders
 const mockPersonalityManager = {
   listPersonalitiesForUser: jest.fn(),
   personalityAliases: new Map()
 };
 
-jest.mock('../../src/personalityManager', () => mockPersonalityManager);
+jest.mock('../../src/core/personality', () => mockPersonalityManager);
 
 const { createMigrationHelper } = require('../utils/testEnhancements');
 

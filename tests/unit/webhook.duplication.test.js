@@ -13,7 +13,7 @@ jest.mock('../../src/logger', () => ({
 }));
 
 // Mock the personalityManager module
-jest.mock('../../src/personalityManager', () => ({
+jest.mock('../../src/core/personality', () => ({
   getPersonalityByAlias: jest.fn(),
   getPersonality: jest.fn(),
   listPersonalities: jest.fn().mockReturnValue([

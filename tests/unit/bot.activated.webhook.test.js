@@ -8,7 +8,7 @@
 
 // Mock dependencies
 jest.mock('discord.js');
-jest.mock('../../src/personalityManager');
+jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
@@ -18,7 +18,7 @@ jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
-const personalityManager = require('../../src/personalityManager');
+const personalityManager = require('../../src/core/personality');
 const conversationManager = require('../../src/core/conversation');
 const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');

@@ -58,7 +58,7 @@ jest.mock('../../../src/core/conversation', () => ({
   getPersonalityFromMessage: jest.fn(),
   isAutoResponseEnabled: jest.fn()
 }));
-jest.mock('../../../src/personalityManager', () => ({
+jest.mock('../../../src/core/personality', () => ({
   listPersonalitiesForUser: jest.fn().mockReturnValue([])
 }));
 

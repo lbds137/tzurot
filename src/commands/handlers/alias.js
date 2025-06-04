@@ -5,7 +5,7 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { getPersonality, setPersonalityAlias } = require('../../personalityManager');
+const { getPersonality, setPersonalityAlias } = require('../../core/personality');
 const { botPrefix } = require('../../../config');
 
 /**

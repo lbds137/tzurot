@@ -10,7 +10,7 @@
 
 const { EmbedBuilder } = require('discord.js');
 const { botPrefix, botConfig } = require('../../config');
-const { listPersonalitiesForUser, personalityAliases } = require('../personalityManager');
+const { listPersonalitiesForUser, personalityAliases } = require('../core/personality');
 
 /**
  * Creates an embed announcing a personality has been added

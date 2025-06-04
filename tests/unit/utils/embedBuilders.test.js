@@ -36,7 +36,7 @@ describe('embedBuilders', () => {
       listPersonalitiesForUser: jest.fn(),
       personalityAliases: new Map()
     };
-    jest.doMock('../../../src/personalityManager', () => mockPersonalityManager);
+    jest.doMock('../../../src/core/personality', () => mockPersonalityManager);
     
     // Import after mocking
     embedBuilders = require('../../../src/utils/embedBuilders');

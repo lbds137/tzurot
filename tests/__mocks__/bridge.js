@@ -31,8 +31,8 @@ function getMockEnvironment(options = {}) {
 function setupCommonMocks(mockEnv, customMocks = {}) {
   // Replace module exports with our mock objects
   if (mockEnv.modules.personalityManager) {
-    require('../../../../src/personalityManager');
-    Object.assign(require.cache[require.resolve('../../../../src/personalityManager')].exports, mockEnv.modules.personalityManager);
+    require('../../src/core/personality');
+    Object.assign(require.cache[require.resolve('../../src/core/personality')].exports, mockEnv.modules.personalityManager);
   }
   
   if (mockEnv.modules.conversationManager) {

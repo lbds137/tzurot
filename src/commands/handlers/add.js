@@ -9,7 +9,7 @@ const {
   registerPersonality,
   setPersonalityAlias,
   getPersonality,
-} = require('../../personalityManager');
+} = require('../../core/personality');
 const { preloadPersonalityAvatar } = require('../../webhookManager');
 const { botPrefix, botConfig } = require('../../../config');
 

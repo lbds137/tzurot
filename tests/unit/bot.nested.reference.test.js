@@ -4,14 +4,14 @@
 
 // Mock dependencies
 jest.mock('../../src/logger');
-jest.mock('../../src/personalityManager');
+jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/handlers/messageTrackerHandler');
 
 const logger = require('../../src/logger');
 const { handleMessageReference } = require('../../src/handlers/referenceHandler');
 const { getPersonalityFromMessage } = require('../../src/core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../../src/personalityManager');
+const { getPersonality, getPersonalityByAlias } = require('../../src/core/personality');
 const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
 
 describe('Nested Reference Handling', () => {

@@ -9,7 +9,7 @@
 
 const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../personalityManager');
+const { getPersonality, getPersonalityByAlias } = require('../core/personality');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');
 
@@ -311,7 +311,7 @@ async function processMessageLinks(
                 // Try to get the personality from webhook username or from our message map
                 try {
                   const { getPersonalityFromMessage } = require('../core/conversation');
-                  const personalityManager = require('../personalityManager');
+                  const personalityManager = require('../core/personality');
 
                   // Try to look up by message ID first
                   const personalityName = getPersonalityFromMessage(linkedMessage.id, {

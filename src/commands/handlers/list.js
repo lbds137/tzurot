@@ -4,7 +4,7 @@
  */
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { listPersonalitiesForUser } = require('../../personalityManager');
+const { listPersonalitiesForUser } = require('../../core/personality');
 const embedHelpers = require('../../utils/embedBuilders');
 const { botPrefix } = require('../../../config');
 
