@@ -20,7 +20,7 @@ jest.mock('../../src/webhookManager', () => ({
 }));
 
 // Mock the conversationManager module
-jest.mock('../../src/conversationManager', () => ({
+jest.mock('../../src/core/conversation', () => ({
   recordConversation: jest.fn(),
   getActivePersonality: jest.fn(),
   getPersonalityFromMessage: jest.fn(),
@@ -67,7 +67,7 @@ function createMessageHandler() {
   const deps = {
     aiService: require('../../src/aiService'),
     webhookManager: require('../../src/webhookManager'),
-    conversationManager: require('../../src/conversationManager'),
+    conversationManager: require('../../src/core/conversation'),
     commandLoader: require('../../src/commandLoader'),
     personalityManager: require('../../src/personalityManager'),
     config: require('../../config'),

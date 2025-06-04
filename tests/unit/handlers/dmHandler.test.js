@@ -2,7 +2,7 @@ const dmHandler = require('../../../src/handlers/dmHandler');
 const personalityHandler = require('../../../src/handlers/personalityHandler');
 const auth = require('../../../src/auth');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
-const { getActivePersonality } = require('../../../src/conversationManager');
+const { getActivePersonality } = require('../../../src/core/conversation');
 const { getPersonalityByAlias, getPersonality, listPersonalitiesForUser } = require('../../../src/personalityManager');
 const { getStandardizedUsername } = require('../../../src/webhookManager');
 
@@ -11,7 +11,7 @@ jest.mock('../../../src/logger');
 jest.mock('../../../src/handlers/personalityHandler');
 jest.mock('../../../src/auth');
 jest.mock('../../../src/utils/webhookUserTracker');
-jest.mock('../../../src/conversationManager');
+jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/webhookManager');
 

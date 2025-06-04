@@ -1,7 +1,7 @@
 // Mock dependencies before requiring the module
 jest.mock('discord.js');
 jest.mock('../../../../src/personalityManager');
-jest.mock('../../../../src/conversationManager', () => ({
+jest.mock('../../../../src/core/conversation', () => ({
   clearConversation: jest.fn().mockReturnValue(true),
   recordConversation: jest.fn().mockReturnValue(true),
   activatePersonality: jest.fn().mockReturnValue({ success: true }),
@@ -57,7 +57,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 // Import mocked modules
 const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const personalityManager = require('../../../../src/personalityManager');
-const conversationManager = require('../../../../src/conversationManager');
+const conversationManager = require('../../../../src/core/conversation');
 const aiService = require('../../../../src/aiService');
 const webhookManager = require('../../../../src/webhookManager');
 const validator = require('../../../../src/commands/utils/commandValidator');
@@ -259,7 +259,7 @@ describe('Miscellaneous Command Handlers', () => {
     
     it('should check auto-response status with "status" parameter', async () => {
       // Get fresh reference to conversationManager after module reset
-      const conversationManager = require('../../../../src/conversationManager');
+      const conversationManager = require('../../../../src/core/conversation');
       
       // Mock auto-response as enabled
       conversationManager.isAutoResponseEnabled.mockReturnValueOnce(true);

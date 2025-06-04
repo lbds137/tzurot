@@ -4,7 +4,7 @@
 
 // Mock dependencies first
 jest.mock('../../src/logger');
-jest.mock('../../src/conversationManager');
+jest.mock('../../src/core/conversation');
 jest.mock('../../src/personalityManager');
 jest.mock('../../src/utils/embedUtils');
 
@@ -380,7 +380,7 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       };
       
       // Mock getPersonalityFromMessage to return a personality
-      const { getPersonalityFromMessage } = require('../../src/conversationManager');
+      const { getPersonalityFromMessage } = require('../../src/core/conversation');
       getPersonalityFromMessage.mockReturnValue('test-personality');
       
       const result = await processMessageLinks(
