@@ -7,6 +7,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
 const webhookUserTracker = require('../../utils/webhookUserTracker');
+const { getNsfwVerificationManager } = require('../../core/authentication');
 
 /**
  * Command metadata
@@ -34,7 +35,8 @@ async function execute(message, args) {
     return await directSend(
       `You need to provide a subcommand. Usage: \`${botPrefix} debug <subcommand>\`\n\n` +
         `Available subcommands:\n` +
-        `• \`clearwebhooks\` - Clear cached webhook identifications`
+        `• \`clearwebhooks\` - Clear cached webhook identifications\n` +
+        `• \`unverify\` - Clear your NSFW verification status (for testing)`
     );
   }
 
@@ -45,6 +47,18 @@ async function execute(message, args) {
       webhookUserTracker.clearAllCachedWebhooks();
       logger.info(`[Debug] Webhook cache cleared by ${message.author.tag}`);
       return await directSend('✅ Cleared all cached webhook identifications.');
+
+    case 'unverify': {
+      const nsfwManager = getNsfwVerificationManager();
+      const cleared = nsfwManager.clearVerification(message.author.id);
+      
+      if (cleared) {
+        logger.info(`[Debug] NSFW verification cleared for ${message.author.tag}`);
+        return await directSend('✅ Your NSFW verification has been cleared. You are now unverified.');
+      } else {
+        return await directSend('❌ You were not verified, so nothing was cleared.');
+      }
+    }
 
     default:
       return await directSend(

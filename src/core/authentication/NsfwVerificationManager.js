@@ -10,6 +10,7 @@
 
 const logger = require('../../logger');
 const webhookUserTracker = require('../../utils/webhookUserTracker');
+const { botPrefix } = require('../../../config');
 
 class NsfwVerificationManager {
   constructor() {
@@ -211,7 +212,7 @@ class NsfwVerificationManager {
     // User is not verified and cannot be auto-verified - block access
     return {
       isAllowed: false,
-      reason: `<@${effectiveUserId}> has not completed NSFW verification. Use the verify command to confirm you are 18 or older.`,
+      reason: `<@${effectiveUserId}> has not completed NSFW verification. Please use \`${botPrefix} verify\` to confirm you are 18 or older.`,
       isProxy,
       systemType: proxySystemType,
       userId: effectiveUserId,

@@ -13,6 +13,10 @@ jest.mock('../../../../src/utils/webhookUserTracker', () => ({
   findRealUserId: jest.fn()
 }));
 
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz'
+}));
+
 const NsfwVerificationManager = require('../../../../src/core/authentication/NsfwVerificationManager');
 const webhookUserTracker = require('../../../../src/utils/webhookUserTracker');
 const logger = require('../../../../src/logger');
@@ -38,6 +42,7 @@ describe('NsfwVerificationManager - NSFW Channel Enforcement', () => {
       
       expect(result.isAllowed).toBe(false);
       expect(result.reason).toContain(`<@${mockUserId}> has not completed NSFW verification`);
+      expect(result.reason).toContain('`!tz verify`');
     });
 
     it('should allow access in DMs for verified users', () => {
