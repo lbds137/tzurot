@@ -129,6 +129,7 @@ async function handlePersonalityInteraction(
   client
 ) {
   let typingInterval;
+  let requestKey;
 
   try {
     // Perform complete authentication check
@@ -162,7 +163,7 @@ async function handlePersonalityInteraction(
     // For PluralKit messages, use the real user ID instead of the webhook author ID
     const trackerRealUserId = webhookUserTracker.getRealUserId(message);
 
-    const requestKey = requestTracker.trackRequest(
+    requestKey = requestTracker.trackRequest(
       trackerRealUserId || message.author.id,
       message.channel.id,
       personality.fullName
@@ -752,8 +753,7 @@ async function handlePersonalityInteraction(
       );
     }
 
-    // Clean up active request tracking
-    requestTracker.removeRequest(requestKey);
+    // Request tracking cleanup moved to finally block to ensure it always runs
 
     // Record this conversation with all message IDs
     // We already got conversationUserId earlier in the function
@@ -821,6 +821,12 @@ async function handlePersonalityInteraction(
     // Clear typing indicator if it's still active
     if (typingInterval) {
       timerFunctions.clearInterval(typingInterval);
+    }
+    
+    // CRITICAL: Always remove the request from tracking, even on error
+    // This allows users to retry after failures (e.g., 500 errors from AI service)
+    if (requestKey) {
+      requestTracker.removeRequest(requestKey);
     }
   }
 }
