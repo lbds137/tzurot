@@ -1,12 +1,12 @@
 const webhookManager = require('../../src/webhookManager');
 const aiService = require('../../src/aiService');
-const conversationManager = require('../../src/conversationManager');
+const conversationManager = require('../../src/core/conversation');
 const auth = require('../../src/auth');
 
 // Mock dependencies
 jest.mock('../../src/webhookManager');
 jest.mock('../../src/aiService');
-jest.mock('../../src/conversationManager');
+jest.mock('../../src/core/conversation');
 jest.mock('../../src/auth');
 
 describe('Webhook Reply Authentication', () => {

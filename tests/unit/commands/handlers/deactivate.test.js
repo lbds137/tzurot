@@ -35,7 +35,7 @@ describe('Deactivate Command Handler', () => {
     jest.clearAllMocks();
     
     // Setup mocks
-    jest.doMock('../../../../src/conversationManager', () => ({
+    jest.doMock('../../../../src/core/conversation', () => ({
       deactivatePersonality: jest.fn().mockReturnValue({ success: true })
     }));
     
@@ -74,7 +74,7 @@ describe('Deactivate Command Handler', () => {
     }));
     
     // Import modules after mocking
-    conversationManager = require('../../../../src/conversationManager');
+    conversationManager = require('../../../../src/core/conversation');
     validator = require('../../../../src/commands/utils/commandValidator');
     
     // Setup validator's createDirectSend mock

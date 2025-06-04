@@ -5,12 +5,12 @@
 const referenceHandler = require('../../../src/handlers/referenceHandler');
 const { parseEmbedsToText } = require('../../../src/utils/embedUtils');
 const logger = require('../../../src/logger');
-const { getPersonalityFromMessage } = require('../../../src/conversationManager');
+const { getPersonalityFromMessage } = require('../../../src/core/conversation');
 const { getPersonality, getPersonalityByAlias } = require('../../../src/personalityManager');
 
 // Mock dependencies
 jest.mock('../../../src/logger');
-jest.mock('../../../src/conversationManager');
+jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/embedUtils', () => ({
   parseEmbedsToText: jest.fn()
@@ -549,7 +549,7 @@ describe('Reference Handler Module', () => {
       };
       
       // Create a proxy to temporarily override the require statement
-      jest.doMock('../../../src/conversationManager', () => ({
+      jest.doMock('../../../src/core/conversation', () => ({
         getPersonalityFromMessage: mockPersonalityFromMessage
       }));
       
@@ -612,7 +612,7 @@ describe('Reference Handler Module', () => {
       expect(result.isReferencedMessageFromBot).toBe(true);
       
       // Reset the mocks to avoid affecting other tests
-      jest.dontMock('../../../src/conversationManager');
+      jest.dontMock('../../../src/core/conversation');
       jest.dontMock('../../../src/personalityManager');
     });
     

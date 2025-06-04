@@ -37,7 +37,7 @@ describe('Activate Command Handler', () => {
       getPersonalityByAlias: jest.fn()
     }));
     
-    jest.doMock('../../../../src/conversationManager', () => ({
+    jest.doMock('../../../../src/core/conversation', () => ({
       activatePersonality: jest.fn()
     }));
     
@@ -83,7 +83,7 @@ describe('Activate Command Handler', () => {
     
     // Import modules after mocking
     personalityManager = require('../../../../src/personalityManager');
-    conversationManager = require('../../../../src/conversationManager');
+    conversationManager = require('../../../../src/core/conversation');
     channelUtils = require('../../../../src/utils/channelUtils');
     validator = require('../../../../src/commands/utils/commandValidator');
     

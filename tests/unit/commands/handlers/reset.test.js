@@ -15,7 +15,7 @@ jest.mock('../../../../config', () => ({
 }));
 
 // Mock dependencies specific to this command
-jest.mock('../../../../src/conversationManager', () => ({
+jest.mock('../../../../src/core/conversation', () => ({
   clearConversation: jest.fn().mockReturnValue(true),
 }));
 
@@ -35,7 +35,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 // Import mock dependencies
 const logger = require('../../../../src/logger');
 const validator = require('../../../../src/commands/utils/commandValidator');
-const conversationManager = require('../../../../src/conversationManager');
+const conversationManager = require('../../../../src/core/conversation');
 const personalityManager = require('../../../../src/personalityManager');
 
 describe('Reset Command', () => {

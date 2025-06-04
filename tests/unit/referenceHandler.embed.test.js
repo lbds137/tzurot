@@ -3,7 +3,7 @@
  */
 
 jest.mock('../../src/logger');
-jest.mock('../../src/conversationManager');
+jest.mock('../../src/core/conversation');
 jest.mock('../../src/personalityManager');
 jest.mock('../../src/utils/embedUtils');
 
@@ -184,7 +184,7 @@ describe('processMessageLinks - Embed Media Extraction', () => {
     });
     
     // Mock getPersonalityFromMessage to return a personality
-    const { getPersonalityFromMessage } = require('../../src/conversationManager');
+    const { getPersonalityFromMessage } = require('../../src/core/conversation');
     getPersonalityFromMessage.mockReturnValue('test-personality');
     
     mockClient = {
