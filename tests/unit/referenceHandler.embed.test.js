@@ -187,6 +187,15 @@ describe('processMessageLinks - Embed Media Extraction', () => {
     const { getPersonalityFromMessage } = require('../../src/core/conversation');
     getPersonalityFromMessage.mockReturnValue('test-personality');
     
+    // Mock personalityManager to return personality data
+    const personalityManager = require('../../src/personalityManager');
+    personalityManager.listPersonalitiesForUser.mockReturnValue([
+      {
+        fullName: 'test-personality',
+        displayName: 'Test Personality'
+      }
+    ]);
+    
     mockClient = {
       user: { id: 'bot-user-id' },
       guilds: {

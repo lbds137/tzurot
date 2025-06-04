@@ -383,6 +383,15 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       getPersonalityFromMessage.mockReturnValue('test-personality');
       
+      // Mock personalityManager.listPersonalitiesForUser to return personality data
+      const personalityManager = require('../../src/personalityManager');
+      personalityManager.listPersonalitiesForUser.mockReturnValue([
+        {
+          fullName: 'test-personality',
+          displayName: 'Test'
+        }
+      ]);
+      
       const result = await processMessageLinks(
         mockMessage,
         'Link: https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890',
@@ -399,7 +408,7 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       expect(result.referencedAudioUrl).toBe(null);
       expect(result.referencedPersonalityInfo).toEqual({
         name: 'test-personality',
-        displayName: 'test'
+        displayName: 'Test'
       });
     });
     
