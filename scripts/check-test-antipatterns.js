@@ -326,31 +326,9 @@ const TEST_ANTI_PATTERNS = {
       severity: 'error'
     },
     {
-      pattern: /\.toBe\s*\(\s*true\s*\)[^}]*\.toBe\s*\(\s*false\s*\)/g,
-      check: (match, content, fileContent) => {
-        // Only flag if both expectations are in the same test (within same it() block)
-        // Look for the nearest 'it(' before the match
-        const beforeMatch = fileContent.substring(0, fileContent.indexOf(match));
-        const lastItIndex = beforeMatch.lastIndexOf('it(');
-        const lastItEndIndex = beforeMatch.lastIndexOf('});');
-        
-        // If the last it( is after the last }), we're inside a test
-        if (lastItIndex > lastItEndIndex) {
-          // Check if both toBe(true) and toBe(false) are in the same test
-          const testStart = lastItIndex;
-          const nextTestEnd = fileContent.indexOf('});', fileContent.indexOf(match));
-          const testContent = fileContent.substring(testStart, nextTestEnd);
-          
-          // Count occurrences of each
-          const trueCount = (testContent.match(/\.toBe\s*\(\s*true\s*\)/g) || []).length;
-          const falseCount = (testContent.match(/\.toBe\s*\(\s*false\s*\)/g) || []).length;
-          
-          // Only flag if we have both in the same test
-          return trueCount > 0 && falseCount > 0;
-        }
-        return false;
-      },
-      message: 'Conflicting boolean expectations in same test. Test is likely flaky.',
+      pattern: /expect\s*\(([^)]+)\)\.toBe\s*\(\s*true\s*\)[^}]*expect\s*\(\1\)\.toBe\s*\(\s*false\s*\)/g,
+      check: () => true,
+      message: 'Conflicting boolean expectations for the same variable. Test is likely flaky.',
       severity: 'error'
     },
     {
