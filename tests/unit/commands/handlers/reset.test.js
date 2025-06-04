@@ -108,10 +108,7 @@ describe('Reset Command', () => {
     expect(validator.createDirectSend).toHaveBeenCalledWith(mockMessage);
     
     // Verify personality lookups were called in the right order
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id, 
-      'test-personality'
-    );
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-personality');
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     
     // Verify conversation was cleared
@@ -138,10 +135,7 @@ describe('Reset Command', () => {
     await resetCommand.execute(mockMessage, ['test-alias']);
     
     // Verify alias lookup was attempted
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id, 
-      'test-alias'
-    );
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-alias');
     
     // Verify full name lookup was NOT attempted (because alias lookup succeeded)
     expect(personalityManager.getPersonality).not.toHaveBeenCalled();
@@ -166,10 +160,7 @@ describe('Reset Command', () => {
     await resetCommand.execute(mockMessage, ['nonexistent-personality']);
     
     // Verify lookups were attempted
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id, 
-      'nonexistent-personality'
-    );
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('nonexistent-personality');
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('nonexistent-personality');
     
     // Verify conversation was NOT cleared

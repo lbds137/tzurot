@@ -113,7 +113,7 @@ describe('Verify Command', () => {
     
     await verifyCommand.execute(mockMessage, []);
     
-    expect(auth.storeNsfwVerification).toHaveBeenCalledWith(true);
+    expect(auth.storeNsfwVerification).toHaveBeenCalledWith('user-123', true);
     
     helpers.verifySuccessResponse(mockDirectSend, {
       contains: 'Verification Successful'
@@ -152,7 +152,7 @@ describe('Verify Command', () => {
     
     await verifyCommand.execute(mockMessage, []);
     
-    expect(auth.storeNsfwVerification).toHaveBeenCalledWith(true);
+    expect(auth.storeNsfwVerification).toHaveBeenCalledWith('user-123', true);
     
     helpers.verifySuccessResponse(mockDirectSend, {
       contains: 'Verification Successful'

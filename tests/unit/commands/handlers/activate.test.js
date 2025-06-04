@@ -122,7 +122,7 @@ describe('Activate Command Handler', () => {
       return null;
     });
     
-    personalityManager.getPersonalityByAlias.mockImplementation((userId, alias) => {
+    personalityManager.getPersonalityByAlias.mockImplementation((alias) => {
       if (alias === 'test') return mockPersonality;
       if (alias === 'lucifer') return mockMultiWordPersonality;
       return null;
@@ -161,7 +161,7 @@ describe('Activate Command Handler', () => {
     await activateCommand.execute(mockMessage, ['test-personality']);
     
     // Expect it to check for the personality
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'test-personality');
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-personality');
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
       mockMessage.channel.id, 'test-personality', 'user-123'
@@ -185,7 +185,7 @@ describe('Activate Command Handler', () => {
     await activateCommand.execute(mockMessage, ['test']);
     
     // Check alias lookup
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'test');
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
       mockMessage.channel.id, 'test-personality', 'user-123'
     );
@@ -208,7 +208,7 @@ describe('Activate Command Handler', () => {
     await activateCommand.execute(mockMessage, ['lucifer', 'seraph', 'ha', 'lev', 'nafal']);
     
     // Check that it used the joined string
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'lucifer seraph ha lev nafal');
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('lucifer seraph ha lev nafal');
     expect(conversationManager.activatePersonality).toHaveBeenCalledWith(
       mockMessage.channel.id, 'lucifer-seraph-ha-lev-nafal', 'user-123'
     );
@@ -255,7 +255,7 @@ describe('Activate Command Handler', () => {
     await activateCommand.execute(mockMessage, ['nonexistent-personality']);
     
     // Verify that we tried to lookup the personality
-    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'nonexistent-personality');
+    expect(personalityManager.getPersonalityByAlias).toHaveBeenCalledWith('nonexistent-personality');
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('nonexistent-personality');
     
     // Verify that activatePersonality was not called
