@@ -19,12 +19,20 @@ const path = require('path');
 const logger = require('./logger');
 
 /**
+ * Get the appropriate data directory path for the current environment
+ * @returns {string} The data directory path
+ */
+function getDataDirectory() {
+  return process.env.RAILWAY_ENVIRONMENT
+    ? '/app/data' // Use Railway persistent volume when deployed
+    : path.join(__dirname, '..', 'data'); // Use local data directory in development
+}
+
+/**
  * Path to the data storage directory
  * @constant {string}
  */
-const DATA_DIR = process.env.RAILWAY_ENVIRONMENT
-  ? '/app/data' // Use Railway persistent volume when deployed
-  : path.join(__dirname, '..', 'data'); // Use local data directory in development
+const DATA_DIR = getDataDirectory();
 
 /**
  * Initialize the data storage
@@ -133,4 +141,5 @@ module.exports = {
   initStorage,
   saveData,
   loadData,
+  getDataDirectory,
 };
