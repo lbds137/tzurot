@@ -51,7 +51,7 @@ async function execute(message, args) {
     }
 
     // Set the alias
-    const result = await setPersonalityAlias(message.author.id, personalityName, alias);
+    const result = await setPersonalityAlias(alias, personalityName);
 
     if (result.error) {
       return await directSend(result.error);

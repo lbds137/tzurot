@@ -124,7 +124,7 @@ describe('Alias Command Handler', () => {
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     
     // Check that alias was set
-    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(mockMessage.author.id, 'test-personality', 'test');
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith('test', 'test-personality');
     
     // Verify that channel.send was called
     expect(mockMessage.channel.send).toHaveBeenCalled();
@@ -170,9 +170,7 @@ describe('Alias Command Handler', () => {
     await aliasCommand.execute(mockMessage, ['test-personality', 'test']);
     
     // Just verify command completes without error
-    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', 'test'
-    );
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith('test', 'test-personality');
     expect(mockMessage.channel.send).toHaveBeenCalled();
   });
   

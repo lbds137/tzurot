@@ -29,7 +29,7 @@ describe('checkForPersonalityMentions', () => {
       const result = checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'TestBot');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('TestBot');
     });
 
     it('should handle mention at end of message', () => {
@@ -50,7 +50,7 @@ describe('checkForPersonalityMentions', () => {
       const result = checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'TestBot');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('TestBot');
     });
 
     it('should return false for invalid mention', () => {
@@ -78,7 +78,7 @@ describe('checkForPersonalityMentions', () => {
       const result = checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'angel dust');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('angel dust');
     });
 
     it('should handle multi-word mention at end of message', () => {
@@ -101,7 +101,7 @@ describe('checkForPersonalityMentions', () => {
       const result = checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'angel dust');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('angel dust');
     });
 
     it('should handle three-word aliases when max is 3', () => {
@@ -115,7 +115,7 @@ describe('checkForPersonalityMentions', () => {
       const result = checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'the dark lord');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('the dark lord');
     });
 
     it('should not check beyond max word count', () => {
@@ -127,8 +127,8 @@ describe('checkForPersonalityMentions', () => {
       checkForPersonalityMentions(message);
 
       // Should only check up to 2 words
-      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('user123', 'one two three');
-      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('user123', 'one two three four');
+      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('one two three');
+      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('one two three four');
     });
   });
 
@@ -172,7 +172,7 @@ describe('checkForPersonalityMentions', () => {
 
       expect(result).toBe(true);
       // Should normalize spaces
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'angel dust');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('angel dust');
     });
 
     // Note: Testing different mention characters (@ vs &) requires complex module mocking
@@ -190,8 +190,8 @@ describe('checkForPersonalityMentions', () => {
       checkForPersonalityMentions(message);
 
       // With max 1 word, should only check single words
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'test');
-      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('user123', 'test mention');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('test');
+      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('test mention');
     });
 
     it('should generate correct regex for 5 word max', () => {
@@ -203,9 +203,9 @@ describe('checkForPersonalityMentions', () => {
       checkForPersonalityMentions(message);
 
       // Should check up to 5 words
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user123', 'one two three four five');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('one two three four five');
       // Should not check 6 words
-      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('user123', 'one two three four five six');
+      expect(getPersonalityByAlias).not.toHaveBeenCalledWith('one two three four five six');
     });
   });
 });
