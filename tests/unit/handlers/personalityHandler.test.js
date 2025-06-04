@@ -1311,4 +1311,120 @@ describe('Personality Handler Module', () => {
       );
     });
   });
+  
+  describe('Request Deduplication Error Recovery', () => {
+    it('should remove request from tracking on AI service error to allow retries', async () => {
+      // Arrange - Set up the request key
+      const mockRequestKey = 'user-123-channel-123-test-personality';
+      requestTracker.trackRequest.mockReturnValue(mockRequestKey);
+      
+      // Mock AI service to throw an error
+      getAiResponse.mockRejectedValue(new Error('500 Internal Server Error'));
+      
+      // Act - Call the handler
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Assert - Verify request was tracked
+      expect(requestTracker.trackRequest).toHaveBeenCalledWith(
+        mockMessage.author.id,
+        mockMessage.channel.id,
+        mockPersonality.fullName
+      );
+      
+      // Verify request was removed from tracking despite the error
+      expect(requestTracker.removeRequest).toHaveBeenCalledWith(mockRequestKey);
+      
+      // Verify error message was sent to user
+      expect(mockMessage.reply).toHaveBeenCalledWith(
+        'Sorry, I encountered an error while processing your message. Check logs for details.'
+      );
+    });
+    
+    it('should remove request from tracking even when error reply fails', async () => {
+      // Arrange
+      const mockRequestKey = 'user-123-channel-123-test-personality';
+      requestTracker.trackRequest.mockReturnValue(mockRequestKey);
+      
+      // Mock both AI service and reply to throw errors
+      getAiResponse.mockRejectedValue(new Error('API Error'));
+      mockMessage.reply.mockRejectedValue(new Error('Cannot send message'));
+      
+      // Act
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Assert - Verify request was still removed from tracking
+      expect(requestTracker.removeRequest).toHaveBeenCalledWith(mockRequestKey);
+    });
+    
+    it('should allow retry after error by not blocking subsequent requests', async () => {
+      // Arrange
+      const mockRequestKey = 'user-123-channel-123-test-personality';
+      
+      // First call returns key, second call also returns key (not blocked)
+      requestTracker.trackRequest
+        .mockReturnValueOnce(mockRequestKey)
+        .mockReturnValueOnce(mockRequestKey);
+      
+      // First call fails, second succeeds
+      getAiResponse
+        .mockRejectedValueOnce(new Error('500 Error'))
+        .mockResolvedValueOnce('Success response');
+      
+      // Act - First attempt (fails)
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Verify first attempt removed the request
+      expect(requestTracker.removeRequest).toHaveBeenNthCalledWith(1, mockRequestKey);
+      
+      // Act - Second attempt (succeeds)
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Assert - Verify both attempts tracked requests
+      expect(requestTracker.trackRequest).toHaveBeenCalledTimes(2);
+      
+      // Verify second attempt also cleaned up
+      expect(requestTracker.removeRequest).toHaveBeenNthCalledWith(2, mockRequestKey);
+      
+      // Verify success on second attempt
+      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledTimes(1);
+    });
+    
+    it('should not remove request if trackRequest returns null (duplicate prevention)', async () => {
+      // Arrange - trackRequest returns null to indicate duplicate
+      requestTracker.trackRequest.mockReturnValue(null);
+      
+      // Act
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        null,
+        mockClient
+      );
+      
+      // Assert - Verify no further processing occurred
+      expect(getAiResponse).not.toHaveBeenCalled();
+      expect(webhookManager.sendWebhookMessage).not.toHaveBeenCalled();
+      expect(requestTracker.removeRequest).not.toHaveBeenCalled();
+    });
+  });
 });
