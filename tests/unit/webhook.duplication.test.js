@@ -23,7 +23,7 @@ jest.mock('../../src/personalityManager', () => ({
 }));
 
 // Mock the conversationManager module
-jest.mock('../../src/conversationManager', () => ({
+jest.mock('../../src/core/conversation', () => ({
   getActivePersonality: jest.fn(),
   getActivatedPersonality: jest.fn()
 }));

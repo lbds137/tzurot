@@ -8,7 +8,7 @@ jest.mock('../../../src/handlers/dmHandler');
 jest.mock('../../../src/handlers/errorHandler');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/commandLoader');
-jest.mock('../../../src/conversationManager');
+jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/personalityManager');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
@@ -29,7 +29,7 @@ const dmHandler = require('../../../src/handlers/dmHandler');
 const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const { processCommand } = require('../../../src/commandLoader');
-const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../../../src/conversationManager');
+const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } = require('../../../src/core/conversation');
 const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../../../src/personalityManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');

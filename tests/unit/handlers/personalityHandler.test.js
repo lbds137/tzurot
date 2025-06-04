@@ -9,7 +9,7 @@ const { getAiResponse } = require('../../../src/aiService');
 const webhookManager = require('../../../src/webhookManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
-const conversationManager = require('../../../src/conversationManager');
+const conversationManager = require('../../../src/core/conversation');
 const { MARKERS } = require('../../../src/constants');
 const requestTracker = require('../../../src/utils/requestTracker');
 const personalityAuth = require('../../../src/utils/personalityAuth');
@@ -53,7 +53,7 @@ jest.mock('../../../src/auth', () => ({
 jest.mock('../../../src/utils/requestTracker');
 jest.mock('../../../src/utils/personalityAuth');
 jest.mock('../../../src/utils/threadHandler');
-jest.mock('../../../src/conversationManager', () => ({
+jest.mock('../../../src/core/conversation', () => ({
   recordConversation: jest.fn(),
   getPersonalityFromMessage: jest.fn(),
   isAutoResponseEnabled: jest.fn()
@@ -302,7 +302,7 @@ describe('Personality Handler Module', () => {
   
   describe('recordConversationData', () => {
     it('should record conversation data for array of message IDs', () => {
-      const { recordConversation } = require('../../../src/conversationManager');
+      const { recordConversation } = require('../../../src/core/conversation');
       
       const result = {
         messageIds: ['msg1', 'msg2']
@@ -316,7 +316,7 @@ describe('Personality Handler Module', () => {
     });
     
     it('should record conversation data for single message ID', () => {
-      const { recordConversation } = require('../../../src/conversationManager');
+      const { recordConversation } = require('../../../src/core/conversation');
       
       const result = {
         messageIds: 'single-message-id' // String instead of array
@@ -329,7 +329,7 @@ describe('Personality Handler Module', () => {
     });
     
     it('should handle empty message IDs array', () => {
-      const { recordConversation } = require('../../../src/conversationManager');
+      const { recordConversation } = require('../../../src/core/conversation');
       
       const result = {
         messageIds: []

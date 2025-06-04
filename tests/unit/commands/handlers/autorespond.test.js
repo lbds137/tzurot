@@ -16,7 +16,7 @@ jest.mock('../../../../config', () => ({
 
 // Mock conversationManager
 const mockAutoResponseState = new Map();
-jest.mock('../../../../src/conversationManager', () => ({
+jest.mock('../../../../src/core/conversation', () => ({
   isAutoResponseEnabled: jest.fn((userId) => mockAutoResponseState.get(userId) === true),
   enableAutoResponse: jest.fn((userId) => {
     mockAutoResponseState.set(userId, true);

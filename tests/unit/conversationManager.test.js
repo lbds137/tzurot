@@ -21,7 +21,7 @@ const {
   disableAutoResponse,
   isAutoResponseEnabled,
   saveAllData
-} = require('../../src/conversationManager');
+} = require('../../src/core/conversation');
 
 // Mock filesystem with a direct mock definition
 jest.mock('fs', () => {
@@ -538,7 +538,7 @@ describe('Conversation Manager', () => {
     it('should return all activated channels', () => {
       // Re-require to get fresh module state
       jest.resetModules();
-      const { activatePersonality, getAllActivatedChannels } = require('../../src/conversationManager');
+      const { activatePersonality, getAllActivatedChannels } = require('../../src/core/conversation');
       
       // Activate personalities in multiple channels
       activatePersonality('channel-1', 'personality-one', 'user-1');
@@ -559,7 +559,7 @@ describe('Conversation Manager', () => {
     it('should return empty object when no channels are activated', () => {
       // Re-require to get fresh module state
       jest.resetModules();
-      const { getAllActivatedChannels } = require('../../src/conversationManager');
+      const { getAllActivatedChannels } = require('../../src/core/conversation');
       
       // Get all activated channels
       const activated = getAllActivatedChannels();
@@ -580,7 +580,7 @@ describe('Conversation Manager', () => {
       fs.promises.mkdir.mockRejectedValueOnce(new Error('Permission denied'));
       
       // Re-require the module to trigger initialization
-      const { initConversationManager } = require('../../src/conversationManager');
+      const { initConversationManager } = require('../../src/core/conversation');
       
       // Initialize should not throw
       await expect(initConversationManager()).resolves.not.toThrow();
@@ -603,7 +603,7 @@ describe('Conversation Manager', () => {
       fs.promises.readFile.mockRejectedValueOnce(permissionError);
       
       // Re-require and initialize
-      const { initConversationManager } = require('../../src/conversationManager');
+      const { initConversationManager } = require('../../src/core/conversation');
       await initConversationManager();
       
       // Check that error was logged
@@ -615,7 +615,7 @@ describe('Conversation Manager', () => {
     
     it('should handle invalid personality data gracefully', () => {
       // Re-require modules after jest.resetModules()
-      const { getPersonalityFromMessage } = require('../../src/conversationManager');
+      const { getPersonalityFromMessage } = require('../../src/core/conversation');
       const personalityManager = require('../../src/personalityManager');
       const logger = require('../../src/logger');
       
@@ -639,7 +639,7 @@ describe('Conversation Manager', () => {
     
     it('should handle errors in personality lookup', () => {
       // Re-require modules after jest.resetModules()
-      const { getPersonalityFromMessage } = require('../../src/conversationManager');
+      const { getPersonalityFromMessage } = require('../../src/core/conversation');
       const personalityManager = require('../../src/personalityManager');
       const logger = require('../../src/logger');
       
@@ -687,7 +687,7 @@ describe('Conversation Manager', () => {
       fs.files.set('/mock/app/data/conversations.json', JSON.stringify(legacyData));
       
       // Now require the module
-      const conversationManager = require('../../src/conversationManager');
+      const conversationManager = require('../../src/core/conversation');
       
       // Initialize to load the legacy data
       await conversationManager.initConversationManager();
@@ -720,7 +720,7 @@ describe('Conversation Manager', () => {
       fs.files.set('/mock/app/data/conversations.json', JSON.stringify(legacyData));
       
       // Now require the module
-      const conversationManager = require('../../src/conversationManager');
+      const conversationManager = require('../../src/core/conversation');
       
       // Initialize to load the legacy data
       await conversationManager.initConversationManager();
