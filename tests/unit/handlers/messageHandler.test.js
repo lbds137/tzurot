@@ -492,7 +492,7 @@ describe('messageHandler', () => {
       getMaxAliasWordCount.mockReturnValue(2);
       
       // Mock getPersonalityByAlias to return for multi-word alias
-      getPersonalityByAlias.mockImplementation((userId, name) => {
+      getPersonalityByAlias.mockImplementation((name) => {
         if (name === 'Test Personality') {
           return mockPersonality;
         }
@@ -509,10 +509,7 @@ describe('messageHandler', () => {
       expect(result).toBe(true);
       
       // Should have tried to get personality by alias with the multi-word name
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(
-        multiWordMentionMessage.author.id,
-        'Test Personality'
-      );
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('Test Personality');
       
       // For server channels (default mock), should use delayed processing
       expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
@@ -541,7 +538,7 @@ describe('messageHandler', () => {
       };
       
       // Mock getPersonalityByAlias to return for various aliases
-      getPersonalityByAlias.mockImplementation((userId, name) => {
+      getPersonalityByAlias.mockImplementation((name) => {
         if (name === 'Test') {
           return { fullName: 'test', displayName: 'Test' };
         }
@@ -564,10 +561,7 @@ describe('messageHandler', () => {
       expect(result).toBe(true);
       
       // Should have tried different combinations
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(
-        complexMentionMessage.author.id,
-        expect.stringContaining('Test')
-      );
+      expect(getPersonalityByAlias).toHaveBeenCalledWith(expect.stringContaining('Test'));
       
       // For server channels, should use delayed processing with the longest match
       expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(

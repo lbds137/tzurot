@@ -105,7 +105,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
         // If not found as direct name, try it as an alias
         if (!personality) {
           logger.debug(`Attempting alias lookup with userId: ${message.author.id} and name: ${personalityName}`);
-          personality = getPersonalityByAlias(message.author.id, personalityName);
+          personality = getPersonalityByAlias(personalityName);
           logger.debug(`Alias lookup result: ${personality ? 'found' : 'not found'}`);
         }
 

@@ -697,7 +697,7 @@ describe('dmHandler', () => {
       expect(getPersonality).toHaveBeenCalledWith('test-personality');
       
       // Should have fallen back to alias lookup
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(null, 'test-personality');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('test-personality');
       
       // Should have called personality handler with the found personality
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
@@ -814,7 +814,7 @@ describe('dmHandler', () => {
       expect(getPersonalityByAlias).toHaveBeenCalledWith('author-123', 'TestPersonality');
       
       // Should have tried global alias
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(null, 'TestPersonality');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('TestPersonality');
       
       // Should have called personality handler
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
@@ -922,7 +922,7 @@ describe('dmHandler', () => {
       
       // Should have tried to look up the personality
       expect(getPersonality).toHaveBeenCalledWith('missing-personality');
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(null, 'missing-personality');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('missing-personality');
       
       // Should not have called personality handler
       expect(personalityHandler.handlePersonalityInteraction).not.toHaveBeenCalled();

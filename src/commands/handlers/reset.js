@@ -40,7 +40,7 @@ async function execute(message, args) {
 
   try {
     // Try to find the personality (first by alias, then by name)
-    let personality = personalityManager.getPersonalityByAlias(message.author.id, personalityInput);
+    let personality = personalityManager.getPersonalityByAlias(personalityInput);
 
     if (!personality) {
       personality = personalityManager.getPersonality(personalityInput);
