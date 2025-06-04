@@ -16,6 +16,10 @@ jest.mock('../../../../src/utils/webhookUserTracker', () => ({
   getOriginalUserId: jest.fn()
 }));
 
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz'
+}));
+
 describe('NsfwVerificationManager', () => {
   let manager;
   let logger;
@@ -318,6 +322,7 @@ describe('NsfwVerificationManager', () => {
       
       expect(result.isAllowed).toBe(false);
       expect(result.reason).toContain('has not completed NSFW verification');
+      expect(result.reason).toContain('`!tz verify`');
       expect(result.userId).toBe(userId);
     });
     
