@@ -8,6 +8,7 @@
 const AuthManager = require('./core/authentication');
 const logger = require('./logger');
 const { botConfig } = require('../config');
+const { getDataDirectory } = require('./dataStorage');
 
 // Create singleton instance
 let authManager = null;
@@ -99,6 +100,7 @@ async function initAuth() {
       serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
       ownerId: process.env.OWNER_ID,
       isDevelopment: botConfig.isDevelopment,
+      dataDir: getDataDirectory(), // Use the same data directory as dataStorage.js
     });
 
     try {
