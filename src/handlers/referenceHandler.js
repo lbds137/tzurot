@@ -310,7 +310,7 @@ async function processMessageLinks(
 
                 // Try to get the personality from webhook username or from our message map
                 try {
-                  const { getPersonalityFromMessage } = require('../conversationManager');
+                  const { getPersonalityFromMessage } = require('../core/conversation');
                   const personalityManager = require('../personalityManager');
 
                   // Try to look up by message ID first
