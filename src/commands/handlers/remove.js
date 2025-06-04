@@ -9,7 +9,7 @@ const {
   getPersonality,
   getPersonalityByAlias,
   removePersonality,
-} = require('../../personalityManager');
+} = require('../../core/personality');
 const { botPrefix } = require('../../../config');
 const { deleteFromCache } = require('../../profileInfoFetcher');
 

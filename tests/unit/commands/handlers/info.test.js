@@ -78,7 +78,7 @@ const mockInfoCommand = {
 };
 
 // Replace the real modules with our mocks
-jest.mock('../../../../src/personalityManager', () => mockPersonalityManager);
+jest.mock('../../../../src/core/personality', () => mockPersonalityManager);
 jest.mock('../../../../src/aiService', () => mockAiService);
 jest.mock('../../../../src/utils', () => mockUtils);
 jest.mock('../../../../src/commands/utils/commandValidator', () => mockValidator);
@@ -91,7 +91,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../../../src/logger');
 const config = require('../../../../config');
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 const aiService = require('../../../../src/aiService');
 const validator = require('../../../../src/commands/utils/commandValidator');
 

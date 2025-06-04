@@ -6,12 +6,12 @@ const referenceHandler = require('../../../src/handlers/referenceHandler');
 const { parseEmbedsToText } = require('../../../src/utils/embedUtils');
 const logger = require('../../../src/logger');
 const { getPersonalityFromMessage } = require('../../../src/core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../../../src/personalityManager');
+const { getPersonality, getPersonalityByAlias } = require('../../../src/core/personality');
 
 // Mock dependencies
 jest.mock('../../../src/logger');
 jest.mock('../../../src/core/conversation');
-jest.mock('../../../src/personalityManager');
+jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/embedUtils', () => ({
   parseEmbedsToText: jest.fn()
 }));
@@ -553,7 +553,7 @@ describe('Reference Handler Module', () => {
         getPersonalityFromMessage: mockPersonalityFromMessage
       }));
       
-      jest.doMock('../../../src/personalityManager', () => mockPersonalityManager);
+      jest.doMock('../../../src/core/personality', () => mockPersonalityManager);
       
       // Mock guild, channel, and linked message
       const mockGuild = {
@@ -613,7 +613,7 @@ describe('Reference Handler Module', () => {
       
       // Reset the mocks to avoid affecting other tests
       jest.dontMock('../../../src/core/conversation');
-      jest.dontMock('../../../src/personalityManager');
+      jest.dontMock('../../../src/core/personality');
     });
     
     it('should handle linked messages with embeds', async () => {

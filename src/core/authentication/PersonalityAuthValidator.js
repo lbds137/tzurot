@@ -24,7 +24,7 @@ class PersonalityAuthValidator {
    * @returns {boolean} Whether authentication is required (always true)
    */
   requiresAuth(personality) {
-    // eslint-disable-line no-unused-vars
+     
     // All personality interactions require authentication
     return true;
   }

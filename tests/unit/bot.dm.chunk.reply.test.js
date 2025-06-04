@@ -4,13 +4,13 @@
 
 const logger = require('../../src/logger');
 const webhookManager = require('../../src/webhookManager');
-const personalityManager = require('../../src/personalityManager');
+const personalityManager = require('../../src/core/personality');
 const { getAiResponse } = require('../../src/aiService');
 
 // Mock the required modules
 jest.mock('../../src/logger');
 jest.mock('../../src/webhookManager');
-jest.mock('../../src/personalityManager');
+jest.mock('../../src/core/personality');
 jest.mock('../../src/aiService');
 
 describe('Bot - DM Chunk Reply Handling', () => {

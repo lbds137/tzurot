@@ -5,7 +5,7 @@
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { clearConversation } = require('../../core/conversation');
-const personalityManager = require('../../personalityManager');
+const personalityManager = require('../../core/personality');
 
 /**
  * Command metadata

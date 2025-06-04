@@ -6,7 +6,7 @@ const { EmbedBuilder, _PermissionFlagsBits } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const channelUtils = require('../../utils/channelUtils');
-const { getPersonality, getPersonalityByAlias } = require('../../personalityManager');
+const { getPersonality, getPersonalityByAlias } = require('../../core/personality');
 const { activatePersonality } = require('../../core/conversation');
 const { botPrefix } = require('../../../config');
 

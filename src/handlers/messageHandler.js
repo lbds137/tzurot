@@ -18,7 +18,7 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../core/conversation');
-const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../personalityManager');
+const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../core/personality');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
 /**

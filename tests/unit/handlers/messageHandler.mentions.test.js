@@ -4,10 +4,10 @@
  */
 
 const { checkForPersonalityMentions } = require('../../../src/handlers/messageHandler');
-const { getPersonality, getPersonalityByAlias, getMaxAliasWordCount } = require('../../../src/personalityManager');
+const { getPersonality, getPersonalityByAlias, getMaxAliasWordCount } = require('../../../src/core/personality');
 
 // Mock dependencies
-jest.mock('../../../src/personalityManager');
+jest.mock('../../../src/core/personality');
 jest.mock('../../../src/logger');
 jest.mock('../../../config', () => ({
   botConfig: { mentionChar: '@' },

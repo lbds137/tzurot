@@ -281,7 +281,7 @@ class PersonalityManager {
           ownerId = constants.USER_CONFIG.OWNER_ID;
         }
       } catch (_error) {
-        // eslint-disable-line no-unused-vars
+         
         // Constants not available
       }
     }
@@ -302,7 +302,7 @@ class PersonalityManager {
         );
       }
     } catch (_error) {
-      // eslint-disable-line no-unused-vars
+       
       // If constants not available, use default list
       expectedPersonalities = ['assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
     }

@@ -74,7 +74,7 @@ describe('Remove Command', () => {
     });
     
     // Enhanced module mocks with proper Jest integration
-    jest.doMock('../../../../src/personalityManager', () => ({
+    jest.doMock('../../../../src/core/personality', () => ({
       getPersonality: jest.fn().mockReturnValue({
         fullName: 'test-personality',  
         displayName: 'Test Personality',
@@ -99,7 +99,7 @@ describe('Remove Command', () => {
     logger.info = jest.fn();
     
     // Import modules after mocking
-    mockPersonalityManager = require('../../../../src/personalityManager');
+    mockPersonalityManager = require('../../../../src/core/personality');
     mockValidator = require('../../../../src/commands/utils/commandValidator');
     removeCommand = require('../../../../src/commands/handlers/remove');
   });

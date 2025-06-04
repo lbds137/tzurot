@@ -2,7 +2,7 @@
 
 // Mock dependencies
 jest.mock('../../src/logger');
-jest.mock('../../src/personalityManager');
+jest.mock('../../src/core/personality');
 jest.mock('node-fetch');
 
 const { formatApiMessages } = require('../../src/aiService');

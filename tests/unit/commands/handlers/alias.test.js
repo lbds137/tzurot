@@ -35,7 +35,7 @@ describe('Alias Command Handler', () => {
     jest.clearAllMocks();
     
     // Setup mocks
-    jest.doMock('../../../../src/personalityManager', () => ({
+    jest.doMock('../../../../src/core/personality', () => ({
       getPersonality: jest.fn().mockReturnValue({
         fullName: 'test-personality',
         displayName: 'Test Personality',
@@ -81,7 +81,7 @@ describe('Alias Command Handler', () => {
     }));
     
     // Import modules after mocking
-    personalityManager = require('../../../../src/personalityManager');
+    personalityManager = require('../../../../src/core/personality');
     validator = require('../../../../src/commands/utils/commandValidator');
     
     // Setup validator's createDirectSend mock

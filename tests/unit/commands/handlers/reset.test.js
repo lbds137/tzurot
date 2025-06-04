@@ -19,7 +19,7 @@ jest.mock('../../../../src/core/conversation', () => ({
   clearConversation: jest.fn().mockReturnValue(true),
 }));
 
-jest.mock('../../../../src/personalityManager', () => ({
+jest.mock('../../../../src/core/personality', () => ({
   getPersonality: jest.fn(),
   getPersonalityByAlias: jest.fn(),
 }));
@@ -36,7 +36,7 @@ const helpers = require('../../../utils/commandTestHelpers');
 const logger = require('../../../../src/logger');
 const validator = require('../../../../src/commands/utils/commandValidator');
 const conversationManager = require('../../../../src/core/conversation');
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 
 describe('Reset Command', () => {
   let resetCommand;

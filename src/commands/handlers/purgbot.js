@@ -6,7 +6,7 @@ const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { EmbedBuilder } = require('discord.js');
 const { botPrefix } = require('../../../config');
-const _personalityManager = require('../../personalityManager');
+const _personalityManager = require('../../core/personality');
 
 /**
  * Command metadata

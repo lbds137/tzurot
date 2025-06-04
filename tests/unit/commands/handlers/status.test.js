@@ -29,7 +29,7 @@ jest.mock('../../../../src/auth', () => ({
   isNsfwVerified: jest.fn()
 }));
 
-jest.mock('../../../../src/personalityManager', () => ({
+jest.mock('../../../../src/core/personality', () => ({
   listPersonalitiesForUser: jest.fn()
 }));
 
@@ -55,7 +55,7 @@ const { botPrefix } = require('../../../../config');
 
 // Get migration helper for enhanced patterns
 const migrationHelper = createMigrationHelper('command');
-const personalityManager = require('../../../../src/personalityManager');
+const personalityManager = require('../../../../src/core/personality');
 const autorespond = require('../../../../src/commands/handlers/autorespond');
 const { EmbedBuilder } = require('discord.js');
 
