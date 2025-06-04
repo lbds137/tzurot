@@ -172,8 +172,8 @@ describe('Reference Handler Module', () => {
       };
       
       // Update our mock to handle this specific case
-      getPersonalityByAlias.mockImplementation((userId, alias) => {
-        if (alias === 'angel dust' && userId === 'user-123') {
+      getPersonalityByAlias.mockImplementation((alias) => {
+        if (alias === 'angel dust') {
           return spaceAliasPersonality;
         }
         if (alias === 'test') {
@@ -218,7 +218,7 @@ describe('Reference Handler Module', () => {
       
       expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
       expect(getPersonality).toHaveBeenCalledWith('angel dust');
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('user-123', 'angel dust');
+      expect(getPersonalityByAlias).toHaveBeenCalledWith('angel dust');
       expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(mockMessage, spaceAliasPersonality, null, mockClient);
     });
     

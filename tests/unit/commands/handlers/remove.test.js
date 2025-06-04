@@ -135,10 +135,7 @@ describe('Remove Command', () => {
     await removeCommand.execute(mockMessage, ['nonexistent-personality']);
     
     // Verify personality lookup attempts
-    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'nonexistent-personality'
-    );
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('nonexistent-personality');
     expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('nonexistent-personality');
     
     // Verify remove was NOT called
@@ -156,10 +153,7 @@ describe('Remove Command', () => {
     await removeCommand.execute(mockMessage, ['test-personality']);
     
     // Verify personality lookups
-    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'test-personality'
-    );
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-personality');
     expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     
     // Verify remove was called with correct parameters
@@ -197,10 +191,7 @@ describe('Remove Command', () => {
     await removeCommand.execute(mockMessage, ['test-alias']);
     
     // Verify alias lookup
-    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'test-alias'
-    );
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-alias');
     
     // Direct name lookup should not happen since alias lookup succeeded
     expect(mockPersonalityManager.getPersonality).not.toHaveBeenCalled();
@@ -233,10 +224,7 @@ describe('Remove Command', () => {
     await removeCommand.execute(mockMessage, ['test-personality']);
     
     // Verify personality lookups
-    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'test-personality'
-    );
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test-personality');
     expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
     
     // Verify remove was called
