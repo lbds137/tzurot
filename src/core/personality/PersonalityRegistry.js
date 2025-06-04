@@ -170,6 +170,14 @@ class PersonalityRegistry {
    * @returns {boolean} True if set successfully, false if personality doesn't exist
    */
   setAlias(alias, fullName) {
+    // Handle null or invalid alias
+    if (!alias || typeof alias !== 'string') {
+      logger.warn(
+        `[PersonalityRegistry] Invalid alias provided: ${alias}`
+      );
+      return false;
+    }
+    
     if (!this.personalities.has(fullName)) {
       logger.warn(
         `[PersonalityRegistry] Cannot set alias for non-existent personality: ${fullName}`
@@ -216,6 +224,11 @@ class PersonalityRegistry {
    * @returns {Object|null} The personality data or null if not found
    */
   getByAlias(alias) {
+    // Handle null or undefined alias
+    if (!alias) {
+      return null;
+    }
+    
     // Always do case-insensitive lookup
     const fullName = this.aliases.get(alias.toLowerCase());
     if (!fullName) {
