@@ -58,7 +58,7 @@ async function execute(message, args, context = {}) {
     let personality = null;
 
     // First check if this is an alias
-    personality = getPersonalityByAlias(message.author.id, personalityName);
+    personality = getPersonalityByAlias(personalityName);
 
     // If not found by alias, try the direct name
     if (!personality) {

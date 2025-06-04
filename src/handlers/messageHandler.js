@@ -50,7 +50,7 @@ function checkForPersonalityMentions(message) {
       // Check if this is a valid personality (directly or as an alias)
       let personality = getPersonality(cleanedName);
       if (!personality) {
-        personality = getPersonalityByAlias(message.author.id, cleanedName);
+        personality = getPersonalityByAlias(cleanedName);
       }
 
       if (personality) {
@@ -94,8 +94,8 @@ function checkForPersonalityMentions(message) {
           continue;
         }
         
-        logger.debug(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}" for user ${message.author.id}`);
-        const personality = getPersonalityByAlias(message.author.id, potentialAlias);
+        logger.debug(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`);
+        const personality = getPersonalityByAlias(potentialAlias);
         
         if (personality) {
           logger.debug(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
@@ -398,7 +398,7 @@ async function handleMentions(message, client) {
       // Check if this is a valid personality (directly or as an alias)
       let personality = getPersonality(mentionName);
       if (!personality) {
-        personality = getPersonalityByAlias(message.author.id, mentionName);
+        personality = getPersonalityByAlias(mentionName);
       }
 
       if (personality) {
@@ -461,13 +461,8 @@ async function handleMentions(message, client) {
             
             logger.debug(`[handleMentions] Trying mention combination: "${mentionText}"`);
 
-            // Try as an alias for this user, then as a global alias
-            let personality = getPersonalityByAlias(message.author.id, mentionText);
-
-            if (!personality) {
-              // If not found for this user, try as a global alias
-              personality = getPersonalityByAlias(null, mentionText);
-            }
+            // Try as an alias
+            const personality = getPersonalityByAlias(mentionText);
 
             if (personality) {
               logger.info(
@@ -574,7 +569,7 @@ async function handleActiveConversation(message, client) {
 
   // If not found as direct name, try it as an alias
   if (!personality) {
-    personality = getPersonalityByAlias(message.author.id, activePersonalityName);
+    personality = getPersonalityByAlias(activePersonalityName);
   }
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
@@ -661,7 +656,7 @@ async function handleActivatedChannel(message, client) {
 
   // If not found as direct name, try it as an alias
   if (!personality) {
-    personality = getPersonalityByAlias(message.author.id, activatedPersonalityName);
+    personality = getPersonalityByAlias(activatedPersonalityName);
   }
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);

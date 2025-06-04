@@ -116,7 +116,7 @@ async function handleDmReply(message, client) {
       // Attempt to find the personality by display name
       try {
         // First, try to get personality by alias for this specific user
-        personality = getPersonalityByAlias(message.author.id, displayName);
+        personality = getPersonalityByAlias(displayName);
 
         if (personality) {
           logger.info(
@@ -124,7 +124,7 @@ async function handleDmReply(message, client) {
           );
         } else {
           // If not found by user-specific alias, try getting by global alias
-          personality = getPersonalityByAlias(null, displayName);
+          personality = getPersonalityByAlias(displayName);
 
           if (personality) {
             logger.info(`[DmHandler] Found personality by global alias: ${personality.fullName}`);
@@ -297,7 +297,7 @@ async function handleDirectMessage(message, client) {
     // Get the personality data
     let personality = getPersonality(activePersonalityName);
     if (!personality) {
-      personality = getPersonalityByAlias(null, activePersonalityName);
+      personality = getPersonalityByAlias(activePersonalityName);
     }
 
     if (personality) {
