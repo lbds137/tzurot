@@ -77,7 +77,7 @@ async function execute(message, args, context = {}) {
     }
 
     // Remove the personality
-    const result = await removePersonality(message.author.id, personality.fullName);
+    const result = await removePersonality(personality.fullName, message.author.id);
 
     // If we get an error, return it
     if (result && result.error) {
