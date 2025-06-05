@@ -16,7 +16,7 @@ const webhookUserTracker = require('../utils/webhookUserTracker');
 const referenceHandler = require('./referenceHandler');
 const { detectMedia } = require('../utils/media');
 const { MARKERS } = require('../constants');
-const { recordConversation, isAutoResponseEnabled } = require('../core/conversation');
+const { recordConversation, isAutoResponseEnabled, getPersonalityFromMessage } = require('../core/conversation');
 const requestTracker = require('../utils/requestTracker');
 const personalityAuth = require('../utils/personalityAuth');
 const threadHandler = require('../utils/threadHandler');
@@ -191,6 +191,10 @@ async function handlePersonalityInteraction(
     let referencedWebhookName = null;
     let referencedMessageTimestamp = null; // Store the actual timestamp of the referenced message
 
+    // Determine if this is an active personality context
+    // It's active if it's NOT triggered by a mention (null triggeringMention means reply or active conversation)
+    const hasActivePersonality = !triggeringMention;
+
     // First, handle direct replies
     if (message.reference && message.reference.messageId) {
       try {
@@ -211,7 +215,6 @@ async function handlePersonalityInteraction(
 
             // Try to get the personality from webhook username or from our message map
             try {
-              const { getPersonalityFromMessage } = require('../conversationManager');
               const personalityManager = require('../core/personality');
 
               // Try to look up by message ID first
@@ -450,10 +453,6 @@ async function handlePersonalityInteraction(
         // Continue without the referenced message if there's an error
       }
     }
-
-    // Determine if this is an active personality context
-    // It's active if it's NOT triggered by a mention (null triggeringMention means reply or active conversation)
-    const hasActivePersonality = !triggeringMention;
 
     // Check if the referenced message contains Discord links that we should process
     // This handles the case where user replies to their own message containing a link

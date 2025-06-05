@@ -159,9 +159,9 @@ describe('aiRequestManager', () => {
       const requestId = 'test_request_123';
       const promise = Promise.resolve('test result');
       
-      // Store with old timestamp
+      // Store with old timestamp (older than 5 minutes)
       aiRequestManager.pendingRequests.set(requestId, {
-        timestamp: Date.now() - TIME.ONE_MINUTE - 1000,
+        timestamp: Date.now() - TIME.FIVE_MINUTES - 1000,
         promise: promise
       });
       
