@@ -147,7 +147,7 @@ describe('Add Command', () => {
     // Assert
     // Verify the registration call with description
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {
+      'test-personality', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
@@ -333,7 +333,7 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered with empty data object
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {
+      'test-personality', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
@@ -383,7 +383,7 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {
+      'test-personality', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
@@ -413,7 +413,7 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {
+      'test-personality', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
@@ -441,7 +441,7 @@ describe('Add Command', () => {
     // Assert
     // Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'test-personality', {
+      'test-personality', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
@@ -579,7 +579,7 @@ describe('Add Command', () => {
     // Assert - Core functionality
     // 1. Verify personality was registered
     expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-      mockMessage.author.id, 'vesselofazazel', {
+      'vesselofazazel', mockMessage.author.id, {
         description: 'Added by User#1234',
       }
     );
