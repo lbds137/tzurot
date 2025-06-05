@@ -15,7 +15,8 @@ jest.mock('../../../../src/logger', () => ({
 
 jest.mock('../../../../src/profileInfoFetcher', () => ({
   getProfileAvatarUrl: jest.fn(),
-  getProfileDisplayName: jest.fn()
+  getProfileDisplayName: jest.fn(),
+  getProfileErrorMessage: jest.fn()
 }));
 
 jest.mock('../../../../src/dataStorage', () => ({
@@ -34,7 +35,7 @@ jest.mock('../../../../src/constants', () => ({
 // Import after mocking external deps
 const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
 const logger = require('../../../../src/logger');
-const { getProfileAvatarUrl, getProfileDisplayName } = require('../../../../src/profileInfoFetcher');
+const { getProfileAvatarUrl, getProfileDisplayName, getProfileErrorMessage } = require('../../../../src/profileInfoFetcher');
 const { loadData, saveData } = require('../../../../src/dataStorage');
 
 describe('PersonalityManager Integration Tests', () => {
@@ -71,6 +72,7 @@ describe('PersonalityManager Integration Tests', () => {
     saveData.mockResolvedValue(true);
     getProfileAvatarUrl.mockResolvedValue('https://example.com/avatar.png');
     getProfileDisplayName.mockResolvedValue('Test Display');
+    getProfileErrorMessage.mockResolvedValue(null); // Default to no error message
   });
 
   afterEach(() => {
@@ -185,6 +187,7 @@ describe('PersonalityManager Integration Tests', () => {
     it('should fetch and set profile info', async () => {
       getProfileAvatarUrl.mockResolvedValue('https://custom.com/avatar.png');
       getProfileDisplayName.mockResolvedValue('Custom Display');
+      getProfileErrorMessage.mockResolvedValue('*sighs* Something went wrong! ||*(an error has occurred)*||');
 
       const result = await personalityManager.registerPersonality('test-personality', 'user123');
 
@@ -214,6 +217,7 @@ describe('PersonalityManager Integration Tests', () => {
     it('should handle profile fetch errors gracefully', async () => {
       getProfileAvatarUrl.mockRejectedValue(new Error('Fetch failed'));
       getProfileDisplayName.mockRejectedValue(new Error('Fetch failed'));
+      getProfileErrorMessage.mockRejectedValue(new Error('Fetch failed'));
 
       const result = await personalityManager.registerPersonality('test-personality', 'user123');
 
@@ -228,6 +232,7 @@ describe('PersonalityManager Integration Tests', () => {
     it('should set display name alias with smart collision handling', async () => {
       // Register first personality with display name "lilith"
       getProfileDisplayName.mockResolvedValue('lilith');
+      getProfileErrorMessage.mockResolvedValue(null); // Reset to default
       await personalityManager.registerPersonality('lilith-first', 'user123');
       
       // Register second personality with same display name
@@ -403,6 +408,7 @@ describe('PersonalityManager Integration Tests', () => {
       // Mock profile fetching to avoid external calls
       getProfileAvatarUrl.mockResolvedValue(null);
       getProfileDisplayName.mockResolvedValue(null);
+      getProfileErrorMessage.mockResolvedValue(null);
 
       await personalityManager.seedOwnerPersonalities({ skipDelays: true });
 

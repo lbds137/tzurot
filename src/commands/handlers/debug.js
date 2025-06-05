@@ -58,10 +58,12 @@ async function execute(message, args) {
     case 'unverify': {
       const nsfwManager = getNsfwVerificationManager();
       const cleared = nsfwManager.clearVerification(message.author.id);
-      
+
       if (cleared) {
         logger.info(`[Debug] NSFW verification cleared for ${message.author.tag}`);
-        return await directSend('✅ Your NSFW verification has been cleared. You are now unverified.');
+        return await directSend(
+          '✅ Your NSFW verification has been cleared. You are now unverified.'
+        );
       } else {
         return await directSend('❌ You were not verified, so nothing was cleared.');
       }
@@ -71,7 +73,9 @@ async function execute(message, args) {
       try {
         // Clear conversation for all personalities in current channel
         clearConversation(message.author.id, message.channel.id);
-        logger.info(`[Debug] Conversation history cleared for ${message.author.tag} in channel ${message.channel.id}`);
+        logger.info(
+          `[Debug] Conversation history cleared for ${message.author.tag} in channel ${message.channel.id}`
+        );
         return await directSend('✅ Cleared your conversation history in this channel.');
       } catch (error) {
         logger.error(`[Debug] Error clearing conversation: ${error.message}`);
@@ -84,7 +88,9 @@ async function execute(message, args) {
         // Clean up expired auth tokens
         await auth.cleanupExpiredTokens();
         logger.info(`[Debug] Authentication tokens cleaned up for ${message.author.tag}`);
-        return await directSend('✅ Cleaned up authentication tokens. You may need to re-authenticate.');
+        return await directSend(
+          '✅ Cleaned up authentication tokens. You may need to re-authenticate.'
+        );
       } catch (error) {
         logger.error(`[Debug] Error clearing auth: ${error.message}`);
         return await directSend('❌ Failed to clear authentication.');
@@ -107,16 +113,16 @@ async function execute(message, args) {
         // Gather various statistics
         const stats = {
           webhooks: {
-            tracked: 'Not available' // webhookUserTracker doesn't expose a count method
+            tracked: 'Not available', // webhookUserTracker doesn't expose a count method
           },
           messages: {
-            tracked: messageTracker.size
+            tracked: messageTracker.size,
           },
           auth: {
-            hasManager: !!auth.getAuthManager()
-          }
+            hasManager: !!auth.getAuthManager(),
+          },
         };
-        
+
         const statsText = `📊 **Debug Statistics**\n\`\`\`json\n${JSON.stringify(stats, null, 2)}\n\`\`\``;
         return await directSend(statsText);
       } catch (error) {

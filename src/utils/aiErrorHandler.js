@@ -1,6 +1,7 @@
 const logger = require('../logger');
 const { MARKERS } = require('../constants');
 const { ErrorCategory, trackError } = require('./errorTracker');
+const { getPersonality } = require('../core/personality');
 
 /**
  * AI Error Handler Module
@@ -224,7 +225,43 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
   // IMPORTANT: ALL errors now show messages to users - no silent failures
   const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
 
+  // Try to get personality-specific error message
   let userMessage = '';
+  let personality = null;
+
+  try {
+    personality = getPersonality(personalityName);
+    if (personality && personality.errorMessage) {
+      logger.info(
+        `[AIErrorHandler] Using personality-specific error message for ${personalityName}`
+      );
+      userMessage = personality.errorMessage;
+
+      // Check if the error message already has the error marker pattern
+      if (userMessage.includes('||*(an error has occurred)*||')) {
+        // Replace with reference ID
+        userMessage = userMessage.replace(
+          '||*(an error has occurred)*||',
+          `||*(an error has occurred; reference: ${errorId})*||`
+        );
+      } else if (userMessage.includes('||*') && userMessage.includes('*||')) {
+        // If there's another spoiler pattern, insert reference before the closing
+        userMessage = userMessage.replace(
+          /\|\|\*\(([^)]+)\)\*\|\|/,
+          `||*($1; reference: ${errorId})*||`
+        );
+      } else {
+        // No existing pattern, append our own
+        userMessage += ` ||*(an error has occurred; reference: ${errorId})*||`;
+      }
+
+      return userMessage;
+    }
+  } catch (err) {
+    logger.debug(`[AIErrorHandler] Could not fetch personality data: ${err.message}`);
+  }
+
+  // Fall back to default error messages
   switch (errorType) {
     case 'empty_response':
       userMessage = `Hmm, I couldn't generate a response. Could you try rephrasing your message?`;

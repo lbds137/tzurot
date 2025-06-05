@@ -164,7 +164,7 @@ class NsfwVerificationManager {
           systemType: proxySystemType,
         };
       }
-      
+
       // For guild channels, only NSFW channels are allowed
       if (channel.nsfw === true) {
         return {
@@ -192,15 +192,19 @@ class NsfwVerificationManager {
       // Auto-verify the user since they're already in an NSFW channel
       // This applies to both direct users and proxy users
       if (isProxy) {
-        logger.info(`[NsfwVerificationManager] Auto-verifying proxy user ${effectiveUserId} in NSFW channel ${channel.id}`);
+        logger.info(
+          `[NsfwVerificationManager] Auto-verifying proxy user ${effectiveUserId} in NSFW channel ${channel.id}`
+        );
       } else {
-        logger.info(`[NsfwVerificationManager] Auto-verifying user ${effectiveUserId} in NSFW channel ${channel.id}`);
+        logger.info(
+          `[NsfwVerificationManager] Auto-verifying user ${effectiveUserId} in NSFW channel ${channel.id}`
+        );
       }
       this.storeNsfwVerification(effectiveUserId, true);
-      
+
       return {
         isAllowed: true,
-        reason: isProxy 
+        reason: isProxy
           ? `Proxy user ${effectiveUserId} auto-verified in NSFW channel`
           : 'User auto-verified in NSFW channel',
         autoVerified: true,

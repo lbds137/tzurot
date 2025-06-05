@@ -24,7 +24,9 @@ class PersonalityRegistry {
       this.updateMaxWordCount();
     }
     const result = this._maxAliasWordCount || 1;
-    logger.debug(`[PersonalityRegistry] maxAliasWordCount getter returning: ${result} (internal value: ${this._maxAliasWordCount})`);
+    logger.debug(
+      `[PersonalityRegistry] maxAliasWordCount getter returning: ${result} (internal value: ${this._maxAliasWordCount})`
+    );
     return result;
   }
 
@@ -77,7 +79,7 @@ class PersonalityRegistry {
 
     // Check if any aliases being removed have the max word count
     let needsMaxUpdate = false;
-    
+
     // Remove all aliases pointing to this personality
     const aliasesToRemove = [];
     for (const [alias, targetName] of this.aliases.entries()) {
@@ -132,7 +134,10 @@ class PersonalityRegistry {
    * @returns {number} The number of words in the alias
    */
   getWordCount(alias) {
-    return alias.trim().split(/\s+/).filter(word => word.length > 0).length;
+    return alias
+      .trim()
+      .split(/\s+/)
+      .filter(word => word.length > 0).length;
   }
 
   /**
@@ -142,7 +147,7 @@ class PersonalityRegistry {
   updateMaxWordCount() {
     let max = 1;
     const multiWordAliases = [];
-    
+
     for (const alias of this.aliases.keys()) {
       const wordCount = this.getWordCount(alias);
       if (wordCount > 1) {
@@ -152,12 +157,14 @@ class PersonalityRegistry {
         max = wordCount;
       }
     }
-    
+
     this._maxAliasWordCount = max;
     logger.debug(`[PersonalityRegistry] Updated max alias word count to: ${max}`);
-    
+
     if (multiWordAliases.length > 0) {
-      logger.debug(`[PersonalityRegistry] Multi-word aliases found: ${multiWordAliases.join(', ')}`);
+      logger.debug(
+        `[PersonalityRegistry] Multi-word aliases found: ${multiWordAliases.join(', ')}`
+      );
     } else {
       logger.debug('[PersonalityRegistry] No multi-word aliases found in the system');
     }
@@ -172,12 +179,10 @@ class PersonalityRegistry {
   setAlias(alias, fullName) {
     // Handle null or invalid alias
     if (!alias || typeof alias !== 'string') {
-      logger.warn(
-        `[PersonalityRegistry] Invalid alias provided: ${alias}`
-      );
+      logger.warn(`[PersonalityRegistry] Invalid alias provided: ${alias}`);
       return false;
     }
-    
+
     if (!this.personalities.has(fullName)) {
       logger.warn(
         `[PersonalityRegistry] Cannot set alias for non-existent personality: ${fullName}`
@@ -203,17 +208,21 @@ class PersonalityRegistry {
 
     // Store in lowercase for case-insensitive matching
     this.aliases.set(lowerAlias, fullName);
-    
+
     // Update max word count if this alias has more words
     const wordCount = this.getWordCount(alias);
     const currentMax = this._maxAliasWordCount || 0;
-    logger.debug(`[PersonalityRegistry] Alias "${alias}" has ${wordCount} words, current max: ${currentMax}`);
-    
+    logger.debug(
+      `[PersonalityRegistry] Alias "${alias}" has ${wordCount} words, current max: ${currentMax}`
+    );
+
     if (wordCount > currentMax) {
       this._maxAliasWordCount = wordCount;
-      logger.info(`[PersonalityRegistry] New max alias word count: ${wordCount} (from alias: ${alias})`);
+      logger.info(
+        `[PersonalityRegistry] New max alias word count: ${wordCount} (from alias: ${alias})`
+      );
     }
-    
+
     logger.debug(`[PersonalityRegistry] Set alias ${alias} -> ${fullName}`);
     return true;
   }
@@ -228,7 +237,7 @@ class PersonalityRegistry {
     if (!alias) {
       return null;
     }
-    
+
     // Always do case-insensitive lookup
     const fullName = this.aliases.get(alias.toLowerCase());
     if (!fullName) {
@@ -245,7 +254,7 @@ class PersonalityRegistry {
   removeAlias(alias) {
     const lowerAlias = alias.toLowerCase();
     const removed = this.aliases.delete(lowerAlias);
-    
+
     if (removed) {
       // Check if we removed an alias with the max word count
       const removedWordCount = this.getWordCount(alias);
@@ -254,7 +263,7 @@ class PersonalityRegistry {
         this.updateMaxWordCount();
       }
     }
-    
+
     return removed;
   }
 
@@ -345,7 +354,7 @@ class PersonalityRegistry {
         }
       }
     }
-    
+
     // Set the max word count
     this._maxAliasWordCount = maxWords;
 

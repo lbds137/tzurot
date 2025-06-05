@@ -227,7 +227,6 @@ class PersonalityValidator {
         return true;
       }
     } catch (_error) {
-       
       // Constants might not be available in all contexts
     }
 
