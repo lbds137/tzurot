@@ -225,17 +225,15 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
   // IMPORTANT: ALL errors now show messages to users - no silent failures
   const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
 
-  // Try to get personality-specific error message
-  let userMessage = '';
+  // Try to get personality-specific error message first
   let personality = null;
-
   try {
     personality = getPersonality(personalityName);
     if (personality && personality.errorMessage) {
       logger.info(
         `[AIErrorHandler] Using personality-specific error message for ${personalityName}`
       );
-      userMessage = personality.errorMessage;
+      let userMessage = personality.errorMessage;
 
       // Check if the error message already has the error marker pattern
       if (userMessage.includes('||*(an error has occurred)*||')) {
@@ -261,7 +259,8 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
     logger.debug(`[AIErrorHandler] Could not fetch personality data: ${err.message}`);
   }
 
-  // Fall back to default error messages
+  // Fall back to default error messages if no personality error message
+  let userMessage = '';
   switch (errorType) {
     case 'empty_response':
       userMessage = `Hmm, I couldn't generate a response. Could you try rephrasing your message?`;

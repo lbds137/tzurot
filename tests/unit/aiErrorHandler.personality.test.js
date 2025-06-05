@@ -210,6 +210,28 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
+    it('should use personality message with existing error marker for empty responses', () => {
+      // This is the specific bug case - personality already has the error marker
+      getPersonality.mockReturnValue({
+        fullName: 'test-personality',
+        errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',
+      });
+
+      const result = analyzeErrorAndGenerateMessage(
+        '', // empty response
+        'test-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should use personality message and replace the marker with reference
+      expect(result).toMatch(/My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(result).not.toContain('Hmm, I couldn\'t generate a response'); // Should NOT use default
+      expect(logger.info).toHaveBeenCalledWith(
+        '[AIErrorHandler] Using personality-specific error message for test-personality'
+      );
+    });
+
     it('should use personality message for rate limit errors', () => {
       const result = analyzeErrorAndGenerateMessage(
         'Too many requests. Rate limit exceeded.',

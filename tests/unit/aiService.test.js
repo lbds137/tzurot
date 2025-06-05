@@ -47,6 +47,11 @@ jest.mock('../../src/utils/contentSanitizer', () => ({
   }))
 }));
 
+// Mock personality module for error message handling
+jest.mock('../../src/core/personality', () => ({
+  getPersonality: jest.fn().mockReturnValue(null) // No personality found, use defaults
+}));
+
 // Mock OpenAI module
 jest.mock('openai', () => {
   // Create a mock AI client
@@ -985,7 +990,8 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      expect(response).toBe('I received an empty response. Please try again.');
+      // Should use personality error handler for empty response
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
 
     it('should handle sanitization errors', async () => {
@@ -1004,7 +1010,8 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      expect(response).toBe('I encountered an issue processing my response. Please try again.');
+      // Should use personality error handler for sanitization errors
+      expect(response).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
     });
     
     it('should handle invalid response structure', async () => {
@@ -1027,7 +1034,8 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      expect(response).toBe('I received an incomplete response. Please try again.');
+      // Should use personality error handler for invalid response
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
     
     it('should handle non-string content from AI', async () => {
@@ -1053,7 +1061,8 @@ describe('AI Service', () => {
       
       const response = await getAiResponse(personalityName, message, context);
       
-      expect(response).toBe('I received an unusual response format. Please try again.');
+      // Should use personality error handler for non-string content
+      expect(response).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
     });
   });
 });

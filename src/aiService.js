@@ -320,15 +320,15 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Validate and sanitize response
   if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
     logger.error(`[AIService] Invalid response structure from ${personalityName}`);
-
-    return 'I received an incomplete response. Please try again.';
+    // Use personality error handler for empty/invalid responses
+    return analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
   }
 
   let content = response.choices[0].message.content;
   if (typeof content !== 'string') {
     logger.error(`[AIService] Non-string content from ${personalityName}: ${typeof content}`);
-
-    return 'I received an unusual response format. Please try again.';
+    // Use personality error handler for non-string content
+    return analyzeErrorAndGenerateMessage(content, personalityName, context, addToBlackoutList);
   }
 
   // Check if the content appears to be an error before sanitization
@@ -352,16 +352,16 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
     if (sanitizedContent.length === 0) {
       logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
-
-      return 'I received an empty response. Please try again.';
+      // Use personality error handler for empty content after sanitization
+      return analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
     }
 
     // Replace the original content with the sanitized version
     content = sanitizedContent;
   } catch (sanitizeError) {
     logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
-
-    return 'I encountered an issue processing my response. Please try again.';
+    // Use personality error handler for sanitization errors
+    return analyzeErrorAndGenerateMessage(sanitizeError.message, personalityName, context, addToBlackoutList);
   }
 
   logger.info(

@@ -20,6 +20,7 @@ class PersonalityManager {
     this.persistence = new PersonalityPersistence();
     this.validator = new PersonalityValidator();
     this.initialized = false;
+    this.options = options;
 
     // Injectable delay function for testability
     this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
@@ -90,6 +91,7 @@ class PersonalityManager {
         fullName,
         addedBy,
         addedAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
         ...additionalData,
       };
 
@@ -108,21 +110,8 @@ class PersonalityManager {
 
       // Fetch profile info if requested (default true unless fetchInfo is explicitly false)
       if (additionalData.fetchInfo !== false) {
-        try {
-          const [avatarUrl, displayName, errorMessage] = await Promise.all([
-            getProfileAvatarUrl(fullName),
-            getProfileDisplayName(fullName),
-            getProfileErrorMessage(fullName),
-          ]);
-
-          if (avatarUrl) sanitized.avatarUrl = avatarUrl;
-          if (displayName) sanitized.displayName = displayName;
-          if (errorMessage) sanitized.errorMessage = errorMessage;
-        } catch (profileError) {
-          logger.warn(
-            `[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`
-          );
-        }
+        const profileData = await this._fetchProfileData(fullName);
+        Object.assign(sanitized, profileData);
       }
 
       // Set default displayName if not set
@@ -158,7 +147,31 @@ class PersonalityManager {
    * @returns {Object|null} The personality data or null
    */
   getPersonality(name) {
-    return this.registry.get(name);
+    const personality = this.registry.get(name);
+    
+    if (personality) {
+      // Check if personality data is stale
+      const now = Date.now();
+      const lastUpdated = personality.lastUpdated ? new Date(personality.lastUpdated).getTime() : 0;
+      const staleDuration = this.options.staleDuration || (60 * 60 * 1000); // Default: 1 hour
+      const isStale = (now - lastUpdated) > staleDuration;
+      
+      // Refresh if missing critical fields or if data is stale
+      if (!personality.errorMessage || isStale) {
+        const message = !personality.errorMessage 
+          ? `[PersonalityManager] Personality ${name} missing errorMessage, refreshing...`
+          : `[PersonalityManager] Personality ${name} has stale data, refreshing...`;
+        logger.info(message);
+        
+        // Attempt to refresh the personality data asynchronously
+        // We don't await this to avoid blocking the current request
+        this._refreshPersonalityData(name).catch(error => {
+          logger.error(`[PersonalityManager] Failed to refresh ${name}: ${error.message}`);
+        });
+      }
+    }
+    
+    return personality;
   }
 
   /**
@@ -421,6 +434,72 @@ class PersonalityManager {
       // Alias is available, use it directly
       this.registry.setAlias(lowerAlias, fullName);
       logger.info(`[PersonalityManager] Set display name alias '${lowerAlias}' for ${fullName}`);
+    }
+  }
+
+  /**
+   * Fetch profile data from the API
+   * @private
+   * @param {string} fullName - The personality name
+   * @returns {Promise<Object>} Profile data object
+   */
+  async _fetchProfileData(fullName) {
+    try {
+      const [avatarUrl, displayName, errorMessage] = await Promise.all([
+        getProfileAvatarUrl(fullName),
+        getProfileDisplayName(fullName),
+        getProfileErrorMessage(fullName),
+      ]);
+
+      const profileData = {};
+      if (avatarUrl) profileData.avatarUrl = avatarUrl;
+      if (displayName) profileData.displayName = displayName;
+      if (errorMessage) profileData.errorMessage = errorMessage;
+      
+      return profileData;
+    } catch (profileError) {
+      logger.warn(
+        `[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`
+      );
+      return {};
+    }
+  }
+
+  /**
+   * Refresh personality data from the API
+   * @private
+   * @param {string} fullName - The personality name to refresh
+   * @returns {Promise<void>}
+   */
+  async _refreshPersonalityData(fullName) {
+    try {
+      const personality = this.registry.get(fullName);
+      if (!personality) {
+        logger.warn(`[PersonalityManager] Cannot refresh non-existent personality: ${fullName}`);
+        return;
+      }
+
+      // Fetch latest data from API using shared method
+      const profileData = await this._fetchProfileData(fullName);
+
+      // Update personality data with new fields and timestamp
+      const updated = {
+        ...personality,
+        ...profileData,
+        displayName: profileData.displayName || personality.displayName || fullName,
+        lastUpdated: new Date().toISOString(),
+      };
+
+      // Update in registry
+      this.registry.personalities.set(fullName, updated);
+
+      // Save to persistence
+      await this.save();
+
+      logger.info(`[PersonalityManager] Successfully refreshed personality data for ${fullName}`);
+    } catch (error) {
+      logger.error(`[PersonalityManager] Error refreshing ${fullName}: ${error.message}`);
+      throw error;
     }
   }
 
