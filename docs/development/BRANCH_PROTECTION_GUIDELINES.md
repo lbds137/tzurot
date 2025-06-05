@@ -15,12 +15,14 @@
 **When to push to main**: NEVER directly. Always use PRs.
 
 ### `develop` Branch (Development)
-**Status**: MINIMALLY PROTECTED ⚠️
+**Status**: MINIMALLY PROTECTED ✅
 
 - ❌ No required pull request reviews
-- ❌ No required status checks
-- ✅ Restrict who can push to team members only
-- ❌ No requirement for branches to be up to date
+- ❌ No required status checks  
+- ✅ Linear history required
+- ✅ Force pushes allowed (for emergency sync)
+- ✅ Deletions blocked (prevents accidental branch loss)
+- ❌ No restrictions on who can push
 
 **When direct pushes to develop are acceptable**:
 1. ✅ Syncing with main after releases
@@ -78,3 +80,18 @@ If you need to push directly to develop:
 - **Direct push** = Available for maintenance tasks
 
 This balance provides security where it matters most (production) while maintaining development velocity.
+
+## Verification
+
+To verify branch protection is active:
+```bash
+# Check main protection
+gh api repos/lbds137/tzurot/branches/main/protection
+
+# Check develop protection  
+gh api repos/lbds137/tzurot/branches/develop/protection
+```
+
+**Important**: Always verify protection rules are actually configured, not just documented! 
+
+**Historical Note**: In June 2025, we discovered develop branch protection was documented but not actually configured, leading to accidental branch deletion during a release merge. This has been fixed with proper deletion protection.
