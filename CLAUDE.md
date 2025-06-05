@@ -733,6 +733,25 @@ The following operations should be discussed before executing:
    - Commits are allowed but discuss significant changes first
    - Branch operations should be explicitly requested
 
+### 🚨 CRITICAL: Prohibited Operations
+
+**NEVER execute these commands as they will terminate Claude Code itself:**
+
+1. **Process Killing Commands**
+   - ❌ `killall node` - This will kill ALL Node processes including Claude Code
+   - ❌ `killall -9 node` - Force kills all Node processes
+   - ❌ `pkill node` - Pattern-based killing of Node processes
+   - ❌ `pkill -f node` - Kills all processes with "node" in the command
+   - ❌ Any blanket process killing without specific PID targeting
+
+2. **Safe Alternatives**
+   - ✅ Kill specific process by PID: `kill <PID>`
+   - ✅ Use process managers: `pm2 stop <app-name>`
+   - ✅ For development: `Ctrl+C` in the terminal where process is running
+   - ✅ Find specific process first: `ps aux | grep "npm run dev"` then `kill <PID>`
+
+**Remember: Claude Code runs on Node.js. Killing Node processes indiscriminately will terminate your own process!**
+
 ### Best Practices
 1. Always run tests after making changes: `npm test`
 2. Always run linting checks: `npm run lint`
