@@ -45,6 +45,11 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false)
 }));
 
+// Mock personality module for error message testing
+jest.mock('../../src/core/personality', () => ({
+  getPersonality: jest.fn()
+}));
+
 describe('aiService Error Handling', () => {
   let aiService;
   let mockOpenAI;
@@ -108,6 +113,10 @@ describe('aiService Error Handling', () => {
     const aiAuth = require('../../src/utils/aiAuth');
     aiAuth.getAI.mockReturnValue(mockOpenAI);
     aiAuth.getAiClientForUser.mockResolvedValue(mockOpenAI);
+    
+    // Mock getPersonality to return null by default (tests can override)
+    const { getPersonality } = require('../../src/core/personality');
+    getPersonality.mockReturnValue(null);
     
     // Import the module under test after mocking
     aiService = require('../../src/aiService');
@@ -383,8 +392,28 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return an error message
-      expect(response).toBe('I received an incomplete response. Please try again.');
+      // Should return a default error message (no personality configured)
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
+    });
+    
+    test('getAiResponse should use personality error message for empty responses', async () => {
+      // Configure personality with custom error message
+      const { getPersonality } = require('../../src/core/personality');
+      getPersonality.mockReturnValue({
+        fullName: 'test-personality',
+        errorMessage: 'My circuits are fried! ||*(an error has occurred)*||'
+      });
+      
+      // Make API return an invalid response
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: []
+      });
+      
+      // Call getAiResponse
+      const response = await aiService.getAiResponse(personalityName, message, context);
+      
+      // Should use personality error message with reference ID
+      expect(response).toMatch(/My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
     });
     
     test('getAiResponse should handle non-string responses gracefully', async () => {
@@ -402,8 +431,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return an error message
-      expect(response).toBe('I received an unusual response format. Please try again.');
+      // Should return an error message (no personality configured)
+      expect(response).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
     });
     
     test('getAiResponse should detect error content in API responses', async () => {
@@ -435,8 +464,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return an error message
-      expect(response).toBe('I received an incomplete response. Please try again.');
+      // Should return an error message (using personality error handler)
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
     
     test('getAiResponse should handle network timeouts gracefully', async () => {
@@ -464,8 +493,8 @@ describe('aiService Error Handling', () => {
       // Call getAiResponse
       const response = await aiService.getAiResponse(personalityName, message, context);
       
-      // Should return an error message
-      expect(response).toBe('I received an incomplete response. Please try again.');
+      // Should return an error message (using personality error handler)
+      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
     
     test('getAiResponse should handle response with empty string content', async () => {
