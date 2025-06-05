@@ -158,8 +158,8 @@ describe('Remove Command', () => {
     
     // Verify remove was called with correct parameters
     expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'test-personality'
+      'test-personality',
+      mockMessage.author.id
     );
     
     // Verify profile cache was invalidated
@@ -198,8 +198,8 @@ describe('Remove Command', () => {
     
     // Verify remove was called with correct parameters
     expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'full-personality-name'
+      'full-personality-name',
+      mockMessage.author.id
     );
     
     // Verify profile cache was invalidated with the full name
@@ -229,8 +229,8 @@ describe('Remove Command', () => {
     
     // Verify remove was called
     expect(mockPersonalityManager.removePersonality).toHaveBeenCalledWith(
-      mockMessage.author.id,
-      'test-personality'
+      'test-personality',
+      mockMessage.author.id
     );
     
     // Verify error message was sent
