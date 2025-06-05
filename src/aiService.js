@@ -115,6 +115,11 @@ async function getAiResponse(personalityName, message, context = {}) {
     return pendingRequest.promise;
   }
 
+  // CRITICAL: Store a placeholder immediately to prevent race conditions
+  // This must happen BEFORE creating the async work
+  const placeholderPromise = Promise.resolve();
+  aiRequestManager.storePendingRequest(requestId, placeholderPromise);
+
   // Create a promise that we'll store to prevent duplicate calls
   const responsePromise = (async () => {
     try {
@@ -236,7 +241,9 @@ async function getAiResponse(personalityName, message, context = {}) {
     }
   })();
 
-  // Store this promise in our pending requests map
+  // Update the placeholder with the actual promise
+  // This ensures any duplicate requests that arrive while we're setting up
+  // will get the real promise instead of the placeholder
   aiRequestManager.storePendingRequest(requestId, responsePromise);
 
   // Return the promise that will resolve to the API response
