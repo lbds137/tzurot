@@ -77,6 +77,18 @@ jest.mock('../../src/core/personality', () => ({
       displayName: 'Test Personality Two',
       avatarUrl: 'https://example.com/avatar2.png'
     }
+  ]),
+  getAllPersonalities: jest.fn(() => [
+    {
+      fullName: 'test-personality-one',
+      displayName: 'Test Personality One',
+      avatarUrl: 'https://example.com/avatar1.png'
+    },
+    {
+      fullName: 'test-personality-two',
+      displayName: 'Test Personality Two',
+      avatarUrl: 'https://example.com/avatar2.png'
+    }
   ])
 }));
 
@@ -623,7 +635,7 @@ describe('Conversation Manager', () => {
       logger.error.mockClear();
       
       // Mock personalityManager to return invalid data
-      personalityManager.listPersonalitiesForUser.mockReturnValueOnce(null);
+      personalityManager.getAllPersonalities.mockReturnValueOnce(null);
       
       // Try to get personality from webhook username
       const result = getPersonalityFromMessage('unknown-id', {
@@ -633,7 +645,7 @@ describe('Conversation Manager', () => {
       // Should return null and log error
       expect(result).toBeNull();
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('listPersonalitiesForUser returned invalid data')
+        expect.stringContaining('getAllPersonalities returned invalid data')
       );
     });
     
@@ -647,7 +659,7 @@ describe('Conversation Manager', () => {
       logger.error.mockClear();
       
       // Mock personalityManager to throw error
-      personalityManager.listPersonalitiesForUser.mockImplementationOnce(() => {
+      personalityManager.getAllPersonalities.mockImplementationOnce(() => {
         throw new Error('Database error');
       });
       

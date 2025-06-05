@@ -51,12 +51,12 @@ class MessageHistory {
     try {
       // Import personality manager to get list of personalities
       // This is a circular dependency, so we import it lazily
-      const { listPersonalitiesForUser } = require('../../core/personality');
-      const allPersonalities = listPersonalitiesForUser();
+      const { getAllPersonalities } = require('../../core/personality');
+      const allPersonalities = getAllPersonalities();
 
       if (!allPersonalities || !Array.isArray(allPersonalities)) {
         logger.error(
-          `[MessageHistory] listPersonalitiesForUser returned invalid data: ${JSON.stringify(allPersonalities)}`
+          `[MessageHistory] getAllPersonalities returned invalid data: ${JSON.stringify(allPersonalities)}`
         );
         return null;
       }
@@ -70,14 +70,34 @@ class MessageHistory {
         if (!str) return '';
         return String(str).toLowerCase();
       };
+      
+      // Extract the base name from webhook username (before the pipe character)
+      let webhookBaseName = webhookUsername;
+      const pipeIndex = webhookUsername.indexOf('|');
+      if (pipeIndex > 0) {
+        webhookBaseName = webhookUsername.substring(0, pipeIndex).trim();
+        logger.debug(
+          `[MessageHistory] Extracted base name from webhook: "${webhookBaseName}" (from "${webhookUsername}")`
+        );
+      }
+      const webhookBaseNameLower = safeToLowerCase(webhookBaseName);
 
       // Look for exact match first
       for (const personality of allPersonalities) {
         if (!personality) continue;
 
+        // Try exact match with full webhook username
         if (personality.displayName && personality.displayName === webhookUsername) {
           logger.debug(
             `[MessageHistory] Found personality match by display name: ${personality.fullName}`
+          );
+          return personality.fullName;
+        }
+        
+        // Try match with extracted base name (before pipe)
+        if (personality.displayName && personality.displayName === webhookBaseName) {
+          logger.debug(
+            `[MessageHistory] Found personality match by extracted base name: ${personality.fullName}`
           );
           return personality.fullName;
         }
@@ -90,10 +110,18 @@ class MessageHistory {
 
         const displayNameLower = safeToLowerCase(personality.displayName);
 
-        // Exact match (case-insensitive)
+        // Exact match with full username (case-insensitive)
         if (displayNameLower === webhookUsernameLower) {
           logger.debug(
             `[MessageHistory] Found personality match by case-insensitive display name: ${personality.fullName}`
+          );
+          return personality.fullName;
+        }
+        
+        // Match with extracted base name (case-insensitive)
+        if (displayNameLower === webhookBaseNameLower) {
+          logger.debug(
+            `[MessageHistory] Found personality match by case-insensitive base name: ${personality.fullName}`
           );
           return personality.fullName;
         }
