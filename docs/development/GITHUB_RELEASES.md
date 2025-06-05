@@ -24,9 +24,32 @@ GitHub Releases are a way to package and deliver software versions to users. The
    - **Description**: Copy from CHANGELOG.md
 5. Click "Publish release"
 
-### Method 2: GitHub CLI
+### Method 2: Release Script (Recommended)
 
-After merging the release PR to main:
+We have an automated script that handles the entire release process:
+
+```bash
+# After merging the release PR to main
+git checkout main
+git pull origin main
+
+# Create the release (script handles validation and GitHub release)
+./scripts/create-release.sh v1.0.0
+
+# Or run in dry-run mode to see what would happen
+./scripts/create-release.sh v1.0.0 --dry-run
+```
+
+The script automatically:
+- Validates you're on the main branch
+- Checks that package.json version matches
+- Extracts release notes from CHANGELOG.md
+- Creates the GitHub release with proper formatting
+- Provides helpful error messages and confirmations
+
+### Method 3: Manual GitHub CLI
+
+If you prefer manual control:
 
 ```bash
 # Create and push a tag
