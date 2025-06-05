@@ -1,7 +1,11 @@
 const PersonalityRegistry = require('./PersonalityRegistry');
 const PersonalityPersistence = require('./PersonalityPersistence');
 const PersonalityValidator = require('./PersonalityValidator');
-const { getProfileAvatarUrl, getProfileDisplayName } = require('../../profileInfoFetcher');
+const {
+  getProfileAvatarUrl,
+  getProfileDisplayName,
+  getProfileErrorMessage,
+} = require('../../profileInfoFetcher');
 const logger = require('../../logger');
 
 /**
@@ -105,13 +109,15 @@ class PersonalityManager {
       // Fetch profile info if requested (default true unless fetchInfo is explicitly false)
       if (additionalData.fetchInfo !== false) {
         try {
-          const [avatarUrl, displayName] = await Promise.all([
+          const [avatarUrl, displayName, errorMessage] = await Promise.all([
             getProfileAvatarUrl(fullName),
             getProfileDisplayName(fullName),
+            getProfileErrorMessage(fullName),
           ]);
 
           if (avatarUrl) sanitized.avatarUrl = avatarUrl;
           if (displayName) sanitized.displayName = displayName;
+          if (errorMessage) sanitized.errorMessage = errorMessage;
         } catch (profileError) {
           logger.warn(
             `[PersonalityManager] Could not fetch profile info for ${fullName}: ${profileError.message}`
@@ -281,7 +287,6 @@ class PersonalityManager {
           ownerId = constants.USER_CONFIG.OWNER_ID;
         }
       } catch (_error) {
-         
         // Constants not available
       }
     }
@@ -302,7 +307,6 @@ class PersonalityManager {
         );
       }
     } catch (_error) {
-       
       // If constants not available, use default list
       expectedPersonalities = ['assistant', 'claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
     }
