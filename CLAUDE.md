@@ -522,15 +522,56 @@ describe('ComponentName', () => {
 
 ## Date Handling
 
-- **ALWAYS use the `date` command to get the current date** when updating documentation or logs
-  - Run `date` in Bash to get the current date/time
-  - Never rely on your knowledge cutoff date or make assumptions about the current date
-  - This is especially important for:
-    - Test coverage summaries
-    - Documentation updates
-    - Changelog entries
-    - Any timestamped content
-  - Example: Before updating dates in documentation, run `date` to get: `Thu May 22 06:03:16 PM EDT 2025`
+**⚠️ CRITICAL**: Due to LLM knowledge cutoff limitations, ALWAYS verify dates and timestamps!
+
+### Required Date Checks
+
+- **ALWAYS use the `date` command to get the current date** before any date-related operations
+- **NEVER assume the current date** based on knowledge cutoff
+- **ALWAYS calculate time differences** after checking actual dates
+
+### When to Check Dates
+
+1. **Documentation Updates**:
+   - Changelog entries
+   - Test coverage summaries
+   - README updates
+   - Any timestamped documentation
+
+2. **Version Decisions**:
+   - Calculating project age
+   - Determining release timelines
+   - Evaluating "how long since" questions
+
+3. **Git Operations**:
+   - When analyzing commit dates: `git log --date=short`
+   - When creating releases
+   - When referencing PR merge dates
+
+### Example Commands
+
+```bash
+# Get current date/time
+date
+
+# Get current date in ISO format
+date -I
+
+# Check file modification time
+stat -c %y filename
+
+# Get commit dates
+git log --pretty=format:"%h %ad %s" --date=short
+```
+
+### Common Pitfalls to Avoid
+
+- ❌ "The project is 6 months old" (without checking)
+- ❌ "It's currently December 2024" (assumption)
+- ❌ "This was merged last week" (without verification)
+- ✅ Run `date` first, then make calculations
+- ✅ Use git log dates for historical context
+- ✅ Verify all temporal claims with actual timestamps
 
 ## Git Workflow and Branch Management
 
