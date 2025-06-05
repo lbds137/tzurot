@@ -95,6 +95,8 @@ if (!isTest) {
 }
 
 // Log the active log level on startup
-logger.info(`Logger initialized with level: ${logger.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`);
+logger.info(
+  `Logger initialized with level: ${logger.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`
+);
 
 module.exports = logger;

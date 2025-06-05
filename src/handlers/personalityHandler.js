@@ -822,7 +822,7 @@ async function handlePersonalityInteraction(
     if (typingInterval) {
       timerFunctions.clearInterval(typingInterval);
     }
-    
+
     // CRITICAL: Always remove the request from tracking, even on error
     // This allows users to retry after failures (e.g., 500 errors from AI service)
     if (requestKey) {

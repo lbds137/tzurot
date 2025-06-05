@@ -120,6 +120,40 @@ function clearCache() {
 }
 
 /**
+ * Get the error message for a profile
+ * @param {string} profileName - The profile's username
+ * @param {string} [userId] - Optional user ID for authentication
+ * @returns {Promise<string|null>} The error message or null if not found
+ */
+async function getProfileErrorMessage(profileName, userId = null) {
+  logger.info(`[ProfileInfoFetcher] Getting error message for: ${profileName}`);
+
+  try {
+    const profileInfo = await fetchProfileInfo(profileName, userId);
+
+    if (!profileInfo) {
+      logger.warn(`[ProfileInfoFetcher] No profile info found for error message: ${profileName}`);
+      return null;
+    }
+
+    // Check for error_message field in the response
+    if (profileInfo.error_message) {
+      logger.debug(
+        `[ProfileInfoFetcher] Found error message for ${profileName}: ${profileInfo.error_message.substring(0, 100)}...`
+      );
+      return profileInfo.error_message;
+    }
+
+    // No error message found in profile info
+    logger.debug(`[ProfileInfoFetcher] No error_message found for profile: ${profileName}`);
+    return null;
+  } catch (error) {
+    logger.error(`[ProfileInfoFetcher] Error getting error message: ${error.message}`);
+    return null;
+  }
+}
+
+/**
  * Delete a specific profile from the cache
  * @param {string} profileName - The profile name to delete
  * @returns {boolean} True if the profile was deleted
@@ -133,6 +167,7 @@ module.exports = {
   fetchProfileInfo,
   getProfileAvatarUrl,
   getProfileDisplayName,
+  getProfileErrorMessage,
   deleteFromCache,
   // For testing
   _testing: {

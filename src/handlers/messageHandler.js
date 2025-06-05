@@ -18,7 +18,11 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../core/conversation');
-const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../core/personality');
+const {
+  getPersonalityByAlias,
+  getPersonality,
+  getMaxAliasWordCount,
+} = require('../core/personality');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 
 /**
@@ -30,7 +34,7 @@ function checkForPersonalityMentions(message) {
   if (!message.content) return false;
 
   logger.debug(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
-  
+
   // Use configured mention character (@ for production, & for development)
   const mentionChar = botConfig.mentionChar;
 
@@ -69,34 +73,36 @@ function checkForPersonalityMentions(message) {
     'gi'
   );
   logger.debug(`[checkForPersonalityMentions] Multi-word regex: ${multiWordMentionRegex}`);
-  
+
   let multiWordMatch;
   while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
     if (multiWordMatch[1] && multiWordMatch[1].trim()) {
       const capturedText = multiWordMatch[1].trim();
       logger.debug(`[checkForPersonalityMentions] Multi-word regex captured: "${capturedText}"`);
-      
+
       // Remove any trailing punctuation
       const cleanedText = capturedText.replace(/[.,!?;:)"']+$/, '');
-      
+
       // Split into words for combination testing
       const words = cleanedText.split(/\s+/);
-      
+
       // Try combinations from longest to shortest
       // Support up to the current max alias word count
       const maxWordsToTry = Math.min(maxWords, words.length);
-      
+
       for (let wordCount = maxWordsToTry; wordCount >= 1; wordCount--) {
         const potentialAlias = words.slice(0, wordCount).join(' ').trim();
-        
+
         // Skip single-word aliases if we already checked them in the standard mention section
         if (wordCount === 1) {
           continue;
         }
-        
-        logger.debug(`[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`);
+
+        logger.debug(
+          `[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`
+        );
         const personality = getPersonalityByAlias(potentialAlias);
-        
+
         if (personality) {
           logger.debug(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
           return true; // Found a valid personality mention
@@ -115,8 +121,10 @@ function checkForPersonalityMentions(message) {
  * @returns {Promise<void>}
  */
 async function handleMessage(message, client) {
-  logger.info(`[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`);
-  
+  logger.info(
+    `[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`
+  );
+
   try {
     // Ensure messageTrackerHandler is initialized (lazy initialization)
     messageTrackerHandler.ensureInitialized();
@@ -265,7 +273,7 @@ async function handleMessage(message, client) {
     // EXCEPTION: Don't filter if there's an activated personality in this channel
     if (referenceResult.wasReplyToNonPersonality) {
       logger.info(`[MessageHandler] Reply to non-personality detected, checking for mentions...`);
-      
+
       // Check if this channel has an activated personality
       const hasActivatedPersonality = getActivatedPersonality(message.channel.id);
       logger.info(`[MessageHandler] Has activated personality: ${hasActivatedPersonality}`);
@@ -280,7 +288,7 @@ async function handleMessage(message, client) {
         logger.debug(`[MessageHandler] No mentions found in reply, skipping processing`);
         return;
       }
-      
+
       logger.debug(`[MessageHandler] Mention found in reply, continuing to process...`);
     }
 
@@ -359,8 +367,10 @@ async function handleCommand(message) {
  */
 async function handleMentions(message, client) {
   try {
-    logger.debug(`[handleMentions] Processing message: "${message.content}" from user ${message.author.id}`);
-    
+    logger.debug(
+      `[handleMentions] Processing message: "${message.content}" from user ${message.author.id}`
+    );
+
     // IMPROVEMENT: Check for both standard mentions and multi-word mentions
     // And prioritize the longest match to handle cases like &bambi vs &bambi prime
     // Use configured mention character (@ for production, & for development)
@@ -422,28 +432,28 @@ async function handleMentions(message, client) {
         `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
         'gi'
       );
-      
+
       let multiWordMatch;
       const processedMentions = new Set(); // Track processed mentions to avoid duplicates
 
       while ((multiWordMatch = multiWordMentionRegex.exec(message.content)) !== null) {
         if (multiWordMatch[1] && multiWordMatch[1].trim()) {
           const capturedText = multiWordMatch[1].trim();
-          
+
           // Skip if we've already processed this exact text
           if (processedMentions.has(capturedText)) {
             continue;
           }
           processedMentions.add(capturedText);
-          
+
           logger.debug(`[handleMentions] Multi-word regex captured: "${capturedText}"`);
-          
+
           // Remove any trailing punctuation
           const cleanedText = capturedText.replace(/[.,!?;:)"']+$/, '');
-          
+
           // Split into words for combination testing
           const words = cleanedText.split(/\s+/);
-          
+
           // Skip if this is just a single word (already handled by standard regex)
           if (words.length === 1) {
             continue;
@@ -458,7 +468,7 @@ async function handleMentions(message, client) {
           // Try combinations from longest to shortest (2 or more words)
           for (let wordCount = maxWordsToTry; wordCount >= 2; wordCount--) {
             const mentionText = words.slice(0, wordCount).join(' ').trim();
-            
+
             logger.debug(`[handleMentions] Trying mention combination: "${mentionText}"`);
 
             // Try as an alias

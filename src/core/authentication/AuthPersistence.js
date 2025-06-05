@@ -183,7 +183,6 @@ class AuthPersistence {
         modified: tokenStats.mtime,
       };
     } catch (_error) {
-       
       stats.files.authTokens = { exists: false };
     }
 
@@ -195,7 +194,6 @@ class AuthPersistence {
         modified: nsfwStats.mtime,
       };
     } catch (_error) {
-       
       stats.files.nsfwVerified = { exists: false };
     }
 

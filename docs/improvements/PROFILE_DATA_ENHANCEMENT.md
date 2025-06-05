@@ -237,10 +237,16 @@ const embed = new EmbedBuilder()
 
 ## Quick Wins (Can do immediately)
 
-1. **Error Messages** (2 hours)
-   - Extract error_message field
-   - Use in error handlers
-   - Immediate UX improvement
+1. **Error Messages** (2 hours) ✅ COMPLETED
+   - Extract error_message field ✅
+   - Use in error handlers ✅
+   - Immediate UX improvement ✅
+   - Implementation Notes:
+     - Added `getProfileErrorMessage()` to profileInfoFetcher
+     - Updated PersonalityManager to fetch and store errorMessage field
+     - Modified aiErrorHandler to use personality-specific messages
+     - Properly handles reference ID insertion into existing error patterns
+     - Falls back to default messages when personality has no error_message
 
 2. **Status in Info** (1 hour)
    - Extract status field
