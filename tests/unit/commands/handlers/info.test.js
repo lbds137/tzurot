@@ -49,7 +49,7 @@ const mockInfoCommand = {
     
     try {
       // Look up by alias then by name
-      let personality = mockPersonalityManager.getPersonalityByAlias(message.author.id, personalityInput);
+      let personality = mockPersonalityManager.getPersonalityByAlias(personalityInput);
       
       if (!personality) {
         personality = mockPersonalityManager.getPersonality(personalityInput);
@@ -181,7 +181,6 @@ describe('Info Command', () => {
     await infoCommand.execute(mockMessage, ['nonexistent-personality']);
     
     expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
       'nonexistent-personality'
     );
     expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('nonexistent-personality');
@@ -195,7 +194,6 @@ describe('Info Command', () => {
     await infoCommand.execute(mockMessage, ['test-personality']);
     
     expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
       'test-personality'
     );
     expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
@@ -223,7 +221,6 @@ describe('Info Command', () => {
     await infoCommand.execute(mockMessage, ['test-alias']);
     
     expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith(
-      mockMessage.author.id,
       'test-alias'
     );
     
