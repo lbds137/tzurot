@@ -178,11 +178,12 @@ function getPendingRequest(requestId) {
     const request = pendingRequests.get(requestId);
 
     // Check if the request is still valid (within timeout period)
-    if (Date.now() - request.timestamp < TIME.ONE_MINUTE) {
+    // Increased timeout to handle slow AI responses (some take 2+ minutes)
+    if (Date.now() - request.timestamp < TIME.FIVE_MINUTES) {
       return request;
     } else {
       // Timed out, clean up
-      logger.info(`[AIRequestManager] Request ${requestId} timed out, cleaning up`);
+      logger.info(`[AIRequestManager] Request ${requestId} timed out after 5 minutes, cleaning up`);
       pendingRequests.delete(requestId);
     }
   }
