@@ -800,8 +800,25 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/):
    - Commit with message: `chore: bump version to X.Y.Z and update changelog`
 3. **Create PR**: Target `main` branch (this is the ONLY time PRs to main are allowed)
 4. **After Merge**: 
-   - Create GitHub release with tag `vX.Y.Z`
+   - Create GitHub release: `./scripts/create-release.sh vX.Y.Z`
    - Run `git sync-develop` to sync develop with main
+
+### Release Script Usage
+```bash
+# After PR is merged to main
+git checkout main && git pull origin main
+
+# Create GitHub release (recommended)
+./scripts/create-release.sh v1.0.0
+
+# Or test first with dry-run
+./scripts/create-release.sh v1.0.0 --dry-run
+```
+
+The release script automatically:
+- Validates branch, version, and changelog
+- Extracts release notes from CHANGELOG.md
+- Creates GitHub release with proper tags
 
 ### When to Update Version
 - **Bug Fixes Only**: Increment PATCH (1.2.0 → 1.2.1)

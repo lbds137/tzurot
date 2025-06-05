@@ -7,6 +7,7 @@ This directory contains utility scripts for development, testing, and maintenanc
 ### Git Workflow
 - **`git sync-develop`** - Git alias to sync develop with main after any merge
 - **`./sync-develop.sh`** - Shell script version of the sync command
+- **`./create-release.sh`** - Automated GitHub release creation script
 
 ### Development
 - **`npm run dev`** - Start development server (uses start-dev.js internally)
