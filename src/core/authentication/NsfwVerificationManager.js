@@ -11,6 +11,7 @@
 const logger = require('../../logger');
 const webhookUserTracker = require('../../utils/webhookUserTracker');
 const { botPrefix } = require('../../../config');
+const channelUtils = require('../../utils/channelUtils');
 
 class NsfwVerificationManager {
   constructor() {
@@ -55,8 +56,8 @@ class NsfwVerificationManager {
       return false;
     }
 
-    // Check if channel is age-restricted (NSFW)
-    return channel.nsfw === true;
+    // Use channelUtils to properly check NSFW status (handles threads)
+    return channelUtils.isChannelNSFW(channel);
   }
 
   /**
@@ -66,7 +67,7 @@ class NsfwVerificationManager {
    * @returns {boolean} Whether the user should be auto-verified
    */
   shouldAutoVerify(channel, userId) {
-    // Auto-verify in NSFW channels
+    // Auto-verify in NSFW channels (including threads in NSFW channels)
     if (this.requiresNsfwVerification(channel)) {
       logger.info(
         `[NsfwVerificationManager] Auto-verifying user ${userId} in NSFW channel ${channel.id}`
@@ -165,8 +166,8 @@ class NsfwVerificationManager {
         };
       }
 
-      // For guild channels, only NSFW channels are allowed
-      if (channel.nsfw === true) {
+      // For guild channels, only NSFW channels are allowed (including threads in NSFW channels)
+      if (channelUtils.isChannelNSFW(channel)) {
         return {
           isAllowed: true,
           reason: isProxy
@@ -187,8 +188,8 @@ class NsfwVerificationManager {
     }
 
     // User is NOT verified
-    // For guild channels with NSFW enabled, auto-verify them
-    if (channel.guild && channel.nsfw === true) {
+    // For guild channels with NSFW enabled, auto-verify them (including threads in NSFW channels)
+    if (channel.guild && channelUtils.isChannelNSFW(channel)) {
       // Auto-verify the user since they're already in an NSFW channel
       // This applies to both direct users and proxy users
       if (isProxy) {
