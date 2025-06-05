@@ -5,6 +5,21 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-06-05
+
+### Fixed
+- **Critical**: Webhook personality detection for usernames with pipe characters - handles usernames like "Desidara | תשב" (#62)
+- **Critical**: Race condition in AI service causing duplicate API calls and message duplication (#61)
+
+### Changed
+- Improved webhook username parsing to extract base name before pipe character
+- Increased AI request timeout from 1 minute to 5 minutes for slow API responses
+- Fixed function calls from refactor (`listPersonalitiesForUser` → `getAllPersonalities`)
+
+### Added
+- Comprehensive test coverage for webhook username parsing (24 new tests)
+- Documentation for webhook personality detection patterns
+
 ## [1.0.1] - 2025-06-04
 
 ### Fixed
