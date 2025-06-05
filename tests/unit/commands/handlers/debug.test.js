@@ -37,6 +37,22 @@ jest.mock('../../../../src/core/authentication', () => ({
   })
 }));
 
+jest.mock('../../../../src/core/conversation', () => ({
+  clearConversation: jest.fn()
+}));
+
+jest.mock('../../../../src/auth', () => ({
+  cleanupExpiredTokens: jest.fn(),
+  getAuthManager: jest.fn().mockReturnValue({})
+}));
+
+jest.mock('../../../../src/messageTracker', () => ({
+  messageTracker: {
+    clear: jest.fn(),
+    size: 42
+  }
+}));
+
 // Mock utils and commandValidator
 jest.mock('../../../../src/utils', () => ({
   createDirectSend: jest.fn().mockImplementation((message) => {
@@ -109,14 +125,24 @@ describe('Debug Command', () => {
       expect.stringContaining('You need to provide a subcommand')
     );
     
-    // Should mention clearwebhooks subcommand
+    // Should mention all subcommands
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
       expect.stringContaining('clearwebhooks')
     );
-    
-    // Should mention unverify subcommand
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
       expect.stringContaining('unverify')
+    );
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('clearconversation')
+    );
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('clearauth')
+    );
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('clearmessages')
+    );
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('stats')
     );
   });
   
@@ -174,6 +200,102 @@ describe('Debug Command', () => {
     // Verify info message was sent
     expect(mockMessage.channel.send).toHaveBeenCalledWith(
       expect.stringContaining('❌ You were not verified, so nothing was cleared.')
+    );
+  });
+  
+  it('should handle clearconversation subcommand', async () => {
+    const { clearConversation } = require('../../../../src/core/conversation');
+    
+    const result = await debugCommand.execute(mockMessage, ['clearconversation']);
+    
+    // Verify clearConversation was called with correct parameters
+    expect(clearConversation).toHaveBeenCalledWith('user-123', 'channel-123');
+    
+    // Verify success message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Cleared your conversation history in this channel.')
+    );
+  });
+  
+  it('should handle clearauth subcommand', async () => {
+    const auth = require('../../../../src/auth');
+    
+    const result = await debugCommand.execute(mockMessage, ['clearauth']);
+    
+    // Verify cleanupExpiredTokens was called
+    expect(auth.cleanupExpiredTokens).toHaveBeenCalled();
+    
+    // Verify success message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Cleaned up authentication tokens.')
+    );
+  });
+  
+  it('should handle clearmessages subcommand', async () => {
+    const { messageTracker } = require('../../../../src/messageTracker');
+    
+    const result = await debugCommand.execute(mockMessage, ['clearmessages']);
+    
+    // Verify clear was called
+    expect(messageTracker.clear).toHaveBeenCalled();
+    
+    // Verify success message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('✅ Cleared message tracking history.')
+    );
+  });
+  
+  it('should handle stats subcommand', async () => {
+    const result = await debugCommand.execute(mockMessage, ['stats']);
+    
+    // Verify stats message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('📊 **Debug Statistics**')
+    );
+    
+    // Verify it contains JSON stats
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('```json')
+    );
+  });
+  
+  it('should handle errors in clearconversation', async () => {
+    const { clearConversation } = require('../../../../src/core/conversation');
+    clearConversation.mockImplementation(() => {
+      throw new Error('Test error');
+    });
+    
+    const result = await debugCommand.execute(mockMessage, ['clearconversation']);
+    
+    // Verify error message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('❌ Failed to clear conversation history.')
+    );
+  });
+  
+  it('should handle errors in clearauth', async () => {
+    const auth = require('../../../../src/auth');
+    auth.cleanupExpiredTokens.mockRejectedValue(new Error('Test error'));
+    
+    const result = await debugCommand.execute(mockMessage, ['clearauth']);
+    
+    // Verify error message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('❌ Failed to clear authentication.')
+    );
+  });
+  
+  it('should handle errors in clearmessages', async () => {
+    const { messageTracker } = require('../../../../src/messageTracker');
+    messageTracker.clear.mockImplementation(() => {
+      throw new Error('Test error');
+    });
+    
+    const result = await debugCommand.execute(mockMessage, ['clearmessages']);
+    
+    // Verify error message was sent
+    expect(mockMessage.channel.send).toHaveBeenCalledWith(
+      expect.stringContaining('❌ Failed to clear message tracking.')
     );
   });
   
