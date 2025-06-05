@@ -192,7 +192,7 @@ async function execute(message, args, context = {}) {
     // Pass an empty object for data, and let the personality manager fetch the info
     let personality;
     try {
-      personality = await registerPersonality(message.author.id, personalityName, {
+      personality = await registerPersonality(personalityName, message.author.id, {
         description: `Added by ${message.author.tag}`,
       });
     } catch (registerError) {
