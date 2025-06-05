@@ -34,6 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
 - [Context Window Management](#context-window-management)
+- [Versioning and Release Management](#versioning-and-release-management)
 
 ## Claude Personality
 
@@ -736,3 +737,52 @@ The following operations should be discussed before executing:
 4. **Effectiveness First**: Better to gather complete info than make multiple attempts
 
 Remember: The goal is effective problem-solving, not minimal context usage.
+
+## Versioning and Release Management
+
+### Version Strategy
+We follow [Semantic Versioning 2.0.0](https://semver.org/):
+- **MAJOR.MINOR.PATCH** format (e.g., 1.2.0)
+- MAJOR: Breaking changes
+- MINOR: New features (backwards compatible)
+- PATCH: Bug fixes (backwards compatible)
+
+### Version Locations
+1. **package.json** - The source of truth for current version
+2. **CHANGELOG.md** - Documents all changes for each release
+
+### Release Process
+1. **Create Release Branch**: Always create `release/vX.Y.Z` from develop
+2. **Update Version**: 
+   - Edit version in `package.json`
+   - Update `CHANGELOG.md` with all changes since last release
+   - Commit with message: `chore: bump version to X.Y.Z and update changelog`
+3. **Create PR**: Target `main` branch (this is the ONLY time PRs to main are allowed)
+4. **After Merge**: 
+   - Create GitHub release with tag `vX.Y.Z`
+   - Run `git sync-develop` to sync develop with main
+
+### When to Update Version
+- **Bug Fixes Only**: Increment PATCH (1.2.0 → 1.2.1)
+- **New Features**: Increment MINOR (1.2.0 → 1.3.0)
+- **Breaking Changes**: Increment MAJOR (1.2.0 → 2.0.0)
+
+### CHANGELOG Format
+Follow [Keep a Changelog](https://keepachangelog.com/) format:
+```markdown
+## [X.Y.Z] - YYYY-MM-DD
+
+### Added
+- New features
+
+### Changed
+- Changes in existing functionality
+
+### Fixed
+- Bug fixes
+
+### Removed
+- Removed features
+```
+
+**IMPORTANT**: Always check current version in package.json before creating releases!
