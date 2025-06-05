@@ -5,7 +5,10 @@
 // Mock dependencies first
 jest.mock('../../src/logger');
 jest.mock('../../src/core/conversation');
-jest.mock('../../src/core/personality');
+jest.mock('../../src/core/personality', () => ({
+  getAllPersonalities: jest.fn(),
+  listPersonalitiesForUser: jest.fn() // Keep for backward compatibility
+}));
 jest.mock('../../src/utils/embedUtils');
 
 // Now require the modules
@@ -383,9 +386,9 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       getPersonalityFromMessage.mockReturnValue('test-personality');
       
-      // Mock personalityManager.listPersonalitiesForUser to return personality data
+      // Mock personalityManager.getAllPersonalities to return personality data
       const personalityManager = require('../../src/core/personality');
-      personalityManager.listPersonalitiesForUser.mockReturnValue([
+      personalityManager.getAllPersonalities.mockReturnValue([
         {
           fullName: 'test-personality',
           displayName: 'Test'

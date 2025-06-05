@@ -16,7 +16,11 @@ const webhookUserTracker = require('../utils/webhookUserTracker');
 const referenceHandler = require('./referenceHandler');
 const { detectMedia } = require('../utils/media');
 const { MARKERS } = require('../constants');
-const { recordConversation, isAutoResponseEnabled, getPersonalityFromMessage } = require('../core/conversation');
+const {
+  recordConversation,
+  isAutoResponseEnabled,
+  getPersonalityFromMessage,
+} = require('../core/conversation');
 const requestTracker = require('../utils/requestTracker');
 const personalityAuth = require('../utils/personalityAuth');
 const threadHandler = require('../utils/threadHandler');
@@ -225,8 +229,8 @@ async function handlePersonalityInteraction(
               if (personalityName) {
                 // Get display name for the personality if available
                 try {
-                  // Use the listPersonalitiesForUser function which returns all personalities
-                  const allPersonalities = personalityManager.listPersonalitiesForUser();
+                  // Use the getAllPersonalities function which returns all personalities
+                  const allPersonalities = personalityManager.getAllPersonalities();
 
                   // Find the matching personality by name
                   const personalityData = allPersonalities.find(
@@ -298,7 +302,7 @@ async function handlePersonalityInteraction(
 
               // Try to find the full personality name from the display name
               const personalityManager = require('../core/personality');
-              const allPersonalities = personalityManager.listPersonalitiesForUser();
+              const allPersonalities = personalityManager.getAllPersonalities();
               const matchingPersonality = allPersonalities.find(
                 p => p.displayName && p.displayName.toLowerCase() === baseName.toLowerCase()
               );

@@ -327,8 +327,8 @@ async function processMessageLinks(
                   if (personalityName) {
                     // Get display name for the personality if available
                     try {
-                      // Use the listPersonalitiesForUser function with null to get all personalities
-                      const allPersonalities = personalityManager.listPersonalitiesForUser(null);
+                      // Use the getAllPersonalities function to get all personalities
+                      const allPersonalities = personalityManager.getAllPersonalities();
 
                       // Find the matching personality by name
                       const personalityData = allPersonalities.find(

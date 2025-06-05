@@ -226,7 +226,7 @@ async function execute(message, args, context = {}) {
         `Failed to register personality: ${registrationResult?.error || 'Invalid response from personality manager'}`
       );
     }
-    
+
     // Registration successful, now fetch the personality
     const personality = getPersonality(personalityName);
     if (!personality) {
