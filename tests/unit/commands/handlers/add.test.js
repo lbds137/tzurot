@@ -83,11 +83,7 @@ describe('Add Command', () => {
     // Enhanced module mocks with proper Jest integration
     jest.doMock('../../../../src/core/personality', () => ({
       registerPersonality: jest.fn().mockResolvedValue({
-        fullName: 'test-personality',
-        displayName: 'Test Personality',
-        avatarUrl: 'https://example.com/avatar.png',
-        createdBy: '123456789012345678',
-        createdAt: Date.now()
+        success: true
       }),
       setPersonalityAlias: jest.fn().mockResolvedValue(true),
       getPersonality: jest.fn().mockReturnValue(null), // Default to not found
@@ -141,6 +137,17 @@ describe('Add Command', () => {
   
   // Test basic functionality
   it('should handle adding a personality successfully', async () => {
+    // Arrange - mock getPersonality to return null first (not exists), then the personality after registration
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
+        fullName: 'test-personality',
+        displayName: 'Test Personality',
+        avatarUrl: 'https://example.com/avatar.png',
+        createdBy: mockMessage.author.id,
+        createdAt: Date.now()
+      });
+    
     // Act
     await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
     
@@ -186,15 +193,15 @@ describe('Add Command', () => {
   });
   
   it('should handle registration errors', async () => {
-    // Arrange - mock registerPersonality to return null (invalid response)
-    personalityManager.registerPersonality.mockReturnValueOnce(null);
+    // Arrange - mock registerPersonality to return error response
+    personalityManager.registerPersonality.mockResolvedValueOnce({ success: false, error: 'Registration failed' });
     
     // Act
     await addCommand.execute(mockMessage, ['test-personality']);
     
     // Assert
     // Verify error message was sent
-    expect(mockDirectSend).toHaveBeenCalledWith('Failed to register personality: Invalid response from personality manager');
+    expect(mockDirectSend).toHaveBeenCalledWith('Failed to register personality: Registration failed');
     
     // Verify tracking was updated in error case too
     expect(messageTracker.markAddCommandCompleted).toHaveBeenCalled();
@@ -327,6 +334,17 @@ describe('Add Command', () => {
   });
   
   it('should add alias information to the embed when provided', async () => {
+    // Arrange - mock getPersonality to return the personality after registration
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
+        fullName: 'test-personality',
+        displayName: 'Test Personality',
+        avatarUrl: 'https://example.com/avatar.png',
+        createdBy: mockMessage.author.id,
+        createdAt: Date.now()
+      });
+    
     // Act
     await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
     
@@ -370,6 +388,11 @@ describe('Add Command', () => {
   it('should automatically use display name as alias when no alias is provided', async () => {
     // Arrange - mock personality with different display name
     personalityManager.registerPersonality.mockResolvedValue({
+      success: true
+    });
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
       fullName: 'test-personality',
       displayName: 'Test Display',
       avatarUrl: 'https://example.com/avatar.png',
@@ -400,6 +423,11 @@ describe('Add Command', () => {
   it('should not set display name alias if it matches the full name', async () => {
     // Arrange - mock personality where display name matches full name
     personalityManager.registerPersonality.mockResolvedValue({
+      success: true
+    });
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
       fullName: 'test-personality',
       displayName: 'test-personality', // Same as full name
       avatarUrl: 'https://example.com/avatar.png',
@@ -428,6 +456,11 @@ describe('Add Command', () => {
   it('should prefer explicit alias over display name', async () => {
     // Arrange - mock personality with display name
     personalityManager.registerPersonality.mockResolvedValue({
+      success: true
+    });
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
       fullName: 'test-personality',
       displayName: 'Test Display',
       avatarUrl: 'https://example.com/avatar.png',
@@ -566,6 +599,11 @@ describe('Add Command', () => {
     });
     
     personalityManager.registerPersonality.mockResolvedValue({
+      success: true
+    });
+    personalityManager.getPersonality
+      .mockReturnValueOnce(null) // First call - check if exists
+      .mockReturnValueOnce({      // Second call - after registration
       fullName: 'vesselofazazel',
       displayName: 'Azazel', // This would normally become 'azazel' alias
       avatarUrl: 'https://example.com/avatar.png',

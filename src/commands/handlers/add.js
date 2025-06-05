@@ -190,9 +190,9 @@ async function execute(message, args, context = {}) {
 
     // Register personality with proper data structure
     // Pass an empty object for data, and let the personality manager fetch the info
-    let personality;
+    let registrationResult;
     try {
-      personality = await registerPersonality(personalityName, message.author.id, {
+      registrationResult = await registerPersonality(personalityName, message.author.id, {
         description: `Added by ${message.author.tag}`,
       });
     } catch (registerError) {
@@ -211,10 +211,10 @@ async function execute(message, args, context = {}) {
       return await directSend(`Failed to register personality: ${registerError.message}`);
     }
 
-    // Check if we got a valid personality back
-    if (!personality || !personality.fullName) {
+    // Check if registration was successful
+    if (!registrationResult || !registrationResult.success) {
       logger.error(
-        `[AddCommand ${commandId}] Invalid personality returned from registerPersonality`
+        `[AddCommand ${commandId}] Failed to register personality: ${registrationResult?.error || 'Unknown error'}`
       );
       pendingAdditions.set(userKey, {
         status: 'completed',
@@ -223,7 +223,24 @@ async function execute(message, args, context = {}) {
 
       tracker.markAddCommandCompleted(commandKey);
       return await directSend(
-        'Failed to register personality: Invalid response from personality manager'
+        `Failed to register personality: ${registrationResult?.error || 'Invalid response from personality manager'}`
+      );
+    }
+    
+    // Registration successful, now fetch the personality
+    const personality = getPersonality(personalityName);
+    if (!personality) {
+      logger.error(
+        `[AddCommand ${commandId}] Personality registered but could not be retrieved: ${personalityName}`
+      );
+      pendingAdditions.set(userKey, {
+        status: 'completed',
+        timestamp: Date.now(),
+      });
+
+      tracker.markAddCommandCompleted(commandKey);
+      return await directSend(
+        'Failed to retrieve personality after registration. Please try again.'
       );
     }
     logger.info(
