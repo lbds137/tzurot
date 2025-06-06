@@ -5,7 +5,7 @@ const corePersonality = require('./src/core/personality');
 const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
-const { createHealthServer } = require('./src/healthCheck');
+// Health check is now part of the modular HTTP server
 const { initAuth } = require('./src/auth');
 const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
@@ -14,10 +14,8 @@ const { releaseNotificationManager } = require('./src/core/notifications');
 
 // Track whether app has been initialized
 let isInitialized = false;
-// Health check server instance
-let healthServer = null;
-// Webhook server instance
-let webhookServer = null;
+// HTTP server instance (handles health checks, webhooks, etc.)
+let httpServer = null;
 
 // Error handling for uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -107,33 +105,22 @@ async function init() {
       // Continue without notifications - not critical for bot operation
     }
     
-    // Start health check server
+    // Start HTTP server for health checks, webhooks, and other endpoints
     try {
-      // Get Discord client from global scope to avoid circular dependencies
-      const botClient = global.tzurotClient || client;
-      if (!botClient) {
-        throw new Error('Discord client not properly initialized');
-      }
+      const { createHTTPServer } = require('./src/httpServer');
+      const httpPort = process.env.PORT || process.env.HTTP_PORT || 3000;
       
-      // Start health check server with the initialized client
-      const healthPort = process.env.HEALTH_PORT || 3000;
-      healthServer = createHealthServer(botClient, healthPort);
-      logger.info(`Health check server started on port ${healthPort}`);
-    } catch (healthError) {
-      logger.error('Failed to start health check server:', healthError);
-      // Continue initialization despite health check failure
+      // Create context with Discord client and other shared resources
+      const serverContext = {
+        discordClient: global.tzurotClient || client,
+      };
+      
+      httpServer = createHTTPServer(httpPort, serverContext);
+      logger.info(`HTTP server started on port ${httpPort}`);
+    } catch (httpError) {
+      logger.error('Failed to start HTTP server:', httpError);
+      // Continue initialization despite HTTP server failure
       // The bot can still function without it
-    }
-    
-    // Start webhook server for external integrations
-    try {
-      const { createWebhookServer } = require('./src/webhookServer');
-      const webhookPort = process.env.WEBHOOK_PORT || 3001;
-      webhookServer = createWebhookServer(webhookPort);
-      logger.info(`Webhook server started on port ${webhookPort}`);
-    } catch (webhookError) {
-      logger.error('Failed to start webhook server:', webhookError);
-      // Continue without webhook server - not critical for basic operation
     }
     
     isInitialized = true;
@@ -180,23 +167,13 @@ async function cleanup() {
     }
   }
   
-  // Close health check server if it exists
-  if (healthServer) {
+  // Close HTTP server if it exists
+  if (httpServer) {
     try {
-      logger.info('Closing health check server...');
-      healthServer.close();
+      logger.info('Closing HTTP server...');
+      httpServer.close();
     } catch (error) {
-      logger.error('Error closing health check server:', error);
-    }
-  }
-  
-  // Close webhook server if it exists
-  if (webhookServer) {
-    try {
-      logger.info('Closing webhook server...');
-      webhookServer.close();
-    } catch (error) {
-      logger.error('Error closing webhook server:', error);
+      logger.error('Error closing HTTP server:', error);
     }
   }
   
