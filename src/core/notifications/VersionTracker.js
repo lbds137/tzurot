@@ -166,6 +166,21 @@ class VersionTracker {
       patchDiff: to.patch - from.patch,
     };
   }
+
+  /**
+   * Clear the saved version file (for resetting first-run state)
+   * @returns {Promise<void>}
+   */
+  async clearSavedVersion() {
+    try {
+      await fs.unlink(this.versionFile);
+      logger.info('[VersionTracker] Cleared saved version file');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        logger.error(`[VersionTracker] Error clearing version file: ${error.message}`);
+      }
+    }
+  }
 }
 
 module.exports = VersionTracker;

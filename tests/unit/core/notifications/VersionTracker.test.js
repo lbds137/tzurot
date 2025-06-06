@@ -9,6 +9,7 @@ jest.mock('fs', () => ({
     writeFile: jest.fn(),
     mkdir: jest.fn(),
     stat: jest.fn(),
+    unlink: jest.fn(),
   },
 }));
 
@@ -332,6 +333,35 @@ describe('VersionTracker', () => {
         minorDiff: 5,
         patchDiff: 0,
       });
+    });
+  });
+
+  describe('clearSavedVersion', () => {
+    it('should delete the version file', async () => {
+      fs.unlink.mockResolvedValue();
+
+      await tracker.clearSavedVersion();
+
+      expect(fs.unlink).toHaveBeenCalledWith(expect.stringContaining('lastNotifiedVersion.json'));
+      expect(logger.info).toHaveBeenCalledWith('[VersionTracker] Cleared saved version file');
+    });
+
+    it('should handle file not found silently', async () => {
+      const error = new Error('ENOENT');
+      error.code = 'ENOENT';
+      fs.unlink.mockRejectedValue(error);
+
+      await tracker.clearSavedVersion();
+
+      expect(logger.error).not.toHaveBeenCalled();
+    });
+
+    it('should log error for other failures', async () => {
+      fs.unlink.mockRejectedValue(new Error('Permission denied'));
+
+      await tracker.clearSavedVersion();
+
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error clearing version file'));
     });
   });
 });

@@ -48,6 +48,8 @@ describe('ReleaseNotificationManager', () => {
       checkForNewVersion: jest.fn(),
       saveNotifiedVersion: jest.fn(),
       compareVersions: jest.fn(),
+      getLastNotifiedVersion: jest.fn(),
+      clearSavedVersion: jest.fn(),
     };
     
     // Mock auth manager
@@ -90,6 +92,11 @@ describe('ReleaseNotificationManager', () => {
   });
 
   describe('initialize', () => {
+    beforeEach(() => {
+      // Reset default mock implementations for this suite
+      mockVersionTracker.getLastNotifiedVersion.mockResolvedValue(null);
+    });
+
     it('should initialize with provided client', async () => {
       await manager.initialize();
 
@@ -172,6 +179,39 @@ describe('ReleaseNotificationManager', () => {
 
       expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
       expect(manager.initialized).toBe(true);
+    });
+
+    it('should clear saved version if no notifications have been sent', async () => {
+      mockVersionTracker.getLastNotifiedVersion.mockResolvedValue('1.0.0');
+      mockPreferences.hasAnyUserBeenNotified = jest.fn().mockReturnValue(false);
+      mockVersionTracker.clearSavedVersion.mockResolvedValue();
+
+      await manager.initialize(mockClient);
+
+      expect(mockVersionTracker.getLastNotifiedVersion).toHaveBeenCalled();
+      expect(mockPreferences.hasAnyUserBeenNotified).toHaveBeenCalled();
+      expect(mockVersionTracker.clearSavedVersion).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run');
+    });
+
+    it('should not clear saved version if notifications have been sent', async () => {
+      mockVersionTracker.getLastNotifiedVersion.mockResolvedValue('1.0.0');
+      mockPreferences.hasAnyUserBeenNotified = jest.fn().mockReturnValue(true);
+      mockVersionTracker.clearSavedVersion.mockResolvedValue();
+
+      await manager.initialize(mockClient);
+
+      expect(mockVersionTracker.clearSavedVersion).not.toHaveBeenCalled();
+    });
+
+    it('should not clear saved version if no version is saved', async () => {
+      mockVersionTracker.getLastNotifiedVersion.mockResolvedValue(null);
+      mockPreferences.hasAnyUserBeenNotified = jest.fn().mockReturnValue(false);
+      mockVersionTracker.clearSavedVersion.mockResolvedValue();
+
+      await manager.initialize(mockClient);
+
+      expect(mockVersionTracker.clearSavedVersion).not.toHaveBeenCalled();
     });
   });
 

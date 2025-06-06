@@ -233,6 +233,19 @@ class UserPreferencesPersistence {
 
     return stats;
   }
+
+  /**
+   * Check if any user has ever been notified
+   * @returns {boolean} True if at least one notification has been sent
+   */
+  hasAnyUserBeenNotified() {
+    for (const prefs of this.preferences.values()) {
+      if (prefs.lastNotified) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 module.exports = UserPreferencesPersistence;
