@@ -34,6 +34,28 @@ const TIMEOUT_ANTI_PATTERNS = [
     pattern: /jest\.setTimeout\s*\(\s*(\d+)\s*\)/g,
     check: (match, timeout) => parseInt(timeout) > 10000,
     message: 'Test timeout is too long. Keep test timeouts under 10 seconds.'
+  },
+  {
+    pattern: /\.registerPendingMessage\s*\(/g,
+    check: (match, _, content) => {
+      // Only flag if fake timers are NOT being used
+      return !content.includes('useFakeTimers') && !content.includes('setupFakeTimers');
+    },
+    message: 'registerPendingMessage creates real timeouts. Ensure jest.useFakeTimers() is called.'
+  },
+  {
+    pattern: /\.scheduleCleanup\s*\(/g,
+    check: (match, _, content) => {
+      return !content.includes('useFakeTimers') && !content.includes('setupFakeTimers');
+    },
+    message: 'scheduleCleanup creates real timeouts. Ensure jest.useFakeTimers() is called.'
+  },
+  {
+    pattern: /requestTracker\.schedule/g,
+    check: (match, _, content) => {
+      return !content.includes('useFakeTimers') && !content.includes('setupFakeTimers');
+    },
+    message: 'Request tracker scheduling creates real timeouts. Ensure jest.useFakeTimers() is called.'
   }
 ];
 
@@ -59,7 +81,7 @@ function checkFile(filePath) {
   for (const antiPattern of TIMEOUT_ANTI_PATTERNS) {
     let match;
     while ((match = antiPattern.pattern.exec(content)) !== null) {
-      if (antiPattern.check(match[0], match[1])) {
+      if (antiPattern.check(match[0], match[1], content)) {
         const line = content.substring(0, match.index).split('\n').length;
         issues.push({
           file: filePath,
