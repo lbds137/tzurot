@@ -756,8 +756,6 @@ describe('ReleaseNotificationManager', () => {
   describe('First-run release fetching', () => {
     beforeEach(async () => {
       await manager.initialize();
-      // Mock GitHub client to have getAllReleases method
-      mockGithubClient.getAllReleases = jest.fn();
     });
 
     it('should fetch all releases on first run and limit to 5', async () => {
@@ -769,7 +767,7 @@ describe('ReleaseNotificationManager', () => {
         changeType: 'minor',
       });
 
-      // Mock many releases
+      // Mock many releases returned by getReleasesBetween
       const allReleases = [];
       for (let i = 0; i < 10; i++) {
         allReleases.push({
@@ -778,7 +776,8 @@ describe('ReleaseNotificationManager', () => {
           html_url: `https://example.com/releases/v1.${i}.0`
         });
       }
-      mockGithubClient.getAllReleases.mockResolvedValue(allReleases);
+      // getReleasesBetween should be called with '0.0.0' as start for first run
+      mockGithubClient.getReleasesBetween.mockResolvedValue(allReleases);
       
       // Mock version comparison
       mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
@@ -797,9 +796,8 @@ describe('ReleaseNotificationManager', () => {
 
       const result = await manager.checkAndNotify();
 
-      expect(mockGithubClient.getAllReleases).toHaveBeenCalled();
-      expect(mockGithubClient.getReleasesBetween).not.toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 4 recent releases');
+      expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('0.0.0', '1.3.0');
+      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 5 recent releases');
       expect(result.notified).toBe(true);
     });
 
@@ -811,13 +809,13 @@ describe('ReleaseNotificationManager', () => {
         changeType: 'minor',
       });
 
-      const allReleases = [
-        { tag_name: 'v1.3.0', published_at: '2024-01-04T00:00:00Z' }, // Future - should exclude
+      // getReleasesBetween should already filter to only return releases up to current version
+      const filteredReleases = [
         { tag_name: 'v1.2.0', published_at: '2024-01-03T00:00:00Z' }, // Current - include
         { tag_name: 'v1.1.0', published_at: '2024-01-02T00:00:00Z' }, // Past - include
         { tag_name: 'v1.0.0', published_at: '2024-01-01T00:00:00Z' }, // Past - include
       ];
-      mockGithubClient.getAllReleases.mockResolvedValue(allReleases);
+      mockGithubClient.getReleasesBetween.mockResolvedValue(filteredReleases);
       
       mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
         const parts1 = v1.split('.').map(Number);
@@ -837,7 +835,8 @@ describe('ReleaseNotificationManager', () => {
 
       await manager.checkAndNotify();
 
-      // Check that it created embed with correct releases (should exclude v1.3.0)
+      // Check that getReleasesBetween was called correctly
+      expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('0.0.0', '1.2.0');
       expect(mockVersionTracker.compareVersions).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 3 recent releases');
     });
@@ -861,7 +860,6 @@ describe('ReleaseNotificationManager', () => {
       await manager.checkAndNotify();
 
       expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('1.1.0', '1.3.0');
-      expect(mockGithubClient.getAllReleases).not.toHaveBeenCalled();
     });
   });
 });

@@ -119,18 +119,15 @@ class ReleaseNotificationManager {
           versionInfo.currentVersion
         );
       } else {
-        // First time running, get all releases up to current version
-        // This ensures users see the full history on first notification
-        const allReleases = await this.githubClient.getAllReleases();
-        
-        // Filter releases up to and including current version
-        releases = allReleases.filter(release => {
-          const releaseVersion = release.tag_name.replace(/^v/, '');
-          return this.versionTracker.compareVersions(releaseVersion, versionInfo.currentVersion) <= 0;
-        });
+        // First time running, get releases from a reasonable starting point
+        // We'll use v0.0.0 as the starting point to get all releases up to current
+        const allReleases = await this.githubClient.getReleasesBetween(
+          '0.0.0',
+          versionInfo.currentVersion
+        );
         
         // Sort by version descending (newest first)
-        releases.sort((a, b) => {
+        releases = allReleases.sort((a, b) => {
           const versionA = a.tag_name.replace(/^v/, '');
           const versionB = b.tag_name.replace(/^v/, '');
           return this.versionTracker.compareVersions(versionB, versionA);
