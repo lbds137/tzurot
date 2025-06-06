@@ -12,6 +12,7 @@ const logger = require('../logger');
 const { splitMessage } = require('../utils/messageFormatter');
 const { isDuplicateMessage } = require('../utils/messageDeduplication');
 const { processMediaForWebhook } = require('../utils/media');
+const avatarStorage = require('../utils/avatarStorage');
 const config = require('../../config');
 
 /**
@@ -142,11 +143,26 @@ async function sendDirectThreadMessage(
       // Only include embeds in last chunk
       const embeds = isLastChunk && options.embeds ? options.embeds : [];
 
+      // Resolve avatar URL through storage system
+      let avatarUrl = null;
+      if (personality && personality.avatarUrl) {
+        try {
+          const localAvatarUrl = await avatarStorage.getLocalAvatarUrl(
+            personality.fullName,
+            personality.avatarUrl
+          );
+          avatarUrl = localAvatarUrl || personality.avatarUrl;
+        } catch (error) {
+          logger.error(`[ThreadHandler] Failed to get local avatar URL: ${error.message}`);
+          avatarUrl = personality.avatarUrl; // Fallback to original
+        }
+      }
+
       // Prepare base webhook options
       const baseOptions = {
         content: chunkContent,
         username: standardName,
-        avatarURL: personality.avatarUrl,
+        avatarURL: avatarUrl,
         threadId: channel.id,
         files,
         embeds,
