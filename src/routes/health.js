@@ -153,8 +153,27 @@ async function healthHandler(req, res) {
   }
 }
 
+/**
+ * Root path handler
+ * @param {http.IncomingMessage} req - The request object
+ * @param {http.ServerResponse} res - The response object
+ */
+async function rootHandler(req, res) {
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    status: 'ok',
+    service: 'Tzurot Discord Bot',
+    endpoints: {
+      health: '/health',
+      avatars: '/avatars',
+      webhooks: '/webhooks'
+    }
+  }));
+}
+
 module.exports = {
   routes: [
+    { method: 'GET', path: '/', handler: rootHandler },
     { method: 'GET', path: '/health', handler: healthHandler },
     { method: 'GET', path: '/health/', handler: healthHandler },
   ],

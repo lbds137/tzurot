@@ -128,9 +128,10 @@ function createHTTPServer(port = 3000, context = {}) {
     logger.error(`[HTTPServer] Server error: ${error.message}`, error);
   });
 
-  server.listen(port, () => {
-    logger.info(`[HTTPServer] Server running on port ${port}`);
+  server.listen(port, '0.0.0.0', () => {
+    logger.info(`[HTTPServer] Server running on 0.0.0.0:${port}`);
     logger.info(`[HTTPServer] Available routes: ${Array.from(routes.keys()).join(', ')}`);
+    logger.info(`[HTTPServer] Railway deployment URL expected: ${process.env.RAILWAY_STATIC_URL || 'not set'}`);
   });
 
   return server;
