@@ -67,7 +67,12 @@ async function handleRequest(req, res) {
     for (const [key, value] of routes.entries()) {
       const [method, path] = key.split(':');
       if (req.method === method && req.url.startsWith(path)) {
+        // Special case: root path should only match exactly
+        if (path === '/' && req.url !== '/') {
+          continue;
+        }
         handler = value;
+        logger.debug(`[HTTPServer] Prefix match found: ${key} for ${req.url}`);
         break;
       }
     }
