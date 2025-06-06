@@ -40,18 +40,21 @@ describe('Environment Configuration', () => {
     // Test prefix format
     expect(botConfig.prefix).toMatch(/^!/);
     
+    // In test environment, NODE_ENV is 'test'
+    expect(botConfig.environment).toBe('test');
+    
     // Test environment consistency
-    if (botConfig.isDevelopment) {
-      expect(botConfig.name).toBe('Rotzot');
-      expect(botConfig.prefix).toBe('!rtz');
-      expect(botConfig.environment).toBe('development');
-      expect(botConfig.token).toBe(process.env.DISCORD_DEV_TOKEN);
-    } else {
-      expect(botConfig.name).toBe('Tzurot');
-      expect(botConfig.prefix).toBe('!tz');
-      expect(botConfig.environment).toBe('production');
-      expect(botConfig.token).toBe(process.env.DISCORD_TOKEN);
-    }
+    // Testing both branches to avoid conditional expect
+    const expectedName = botConfig.isDevelopment ? 'Rotzot' : 'Tzurot';
+    const expectedPrefix = botConfig.isDevelopment ? '!rtz' : '!tz';
+    const expectedMentionChar = botConfig.isDevelopment ? '&' : '@';
+    
+    expect(botConfig.name).toBe(expectedName);
+    expect(botConfig.prefix).toBe(expectedPrefix);
+    expect(botConfig.mentionChar).toBe(expectedMentionChar);
+    
+    // Token should always use DISCORD_TOKEN now
+    expect(botConfig.token).toBe(process.env.DISCORD_TOKEN);
   });
   
   it('should maintain backward compatibility with botPrefix export', () => {
