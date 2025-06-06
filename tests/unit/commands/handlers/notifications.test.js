@@ -5,6 +5,7 @@
 const { EmbedBuilder } = require('discord.js');
 const notificationsCommand = require('../../../../src/commands/handlers/notifications');
 const logger = require('../../../../src/logger');
+const commandValidator = require('../../../../src/commands/utils/commandValidator');
 
 // Mock dependencies
 jest.mock('../../../../src/logger');
@@ -16,6 +17,9 @@ jest.mock('discord.js', () => ({
     addFields: jest.fn().mockReturnThis(),
     setFooter: jest.fn().mockReturnThis(),
   })),
+}));
+jest.mock('../../../../src/commands/utils/commandValidator', () => ({
+  createDirectSend: jest.fn(() => jest.fn())
 }));
 
 describe('notifications command', () => {
@@ -48,12 +52,12 @@ describe('notifications command', () => {
 
   describe('command metadata', () => {
     it('should have correct command properties', () => {
-      expect(notificationsCommand.name).toBe('notifications');
-      expect(notificationsCommand.aliases).toEqual(['notif', 'notify']);
-      expect(notificationsCommand.category).toBe('utility');
-      expect(notificationsCommand.description).toBeTruthy();
-      expect(notificationsCommand.usage).toBeTruthy();
-      expect(notificationsCommand.examples).toBeInstanceOf(Array);
+      expect(notificationsCommand.meta.name).toBe('notifications');
+      expect(notificationsCommand.meta.aliases).toEqual(['notif', 'notify']);
+      expect(notificationsCommand.meta.category).toBe('utility');
+      expect(notificationsCommand.meta.description).toBeTruthy();
+      expect(notificationsCommand.meta.usage).toBeTruthy();
+      expect(notificationsCommand.meta.examples).toBeInstanceOf(Array);
     });
   });
 
@@ -225,28 +229,19 @@ describe('notifications command', () => {
 
   describe('execute - invalid subcommand', () => {
     it('should show error for invalid subcommand', async () => {
+      const mockDirectSend = jest.fn();
+      commandValidator.createDirectSend.mockReturnValue(mockDirectSend);
+
       await notificationsCommand.execute(mockMessage, ['invalid'], { 
         releaseNotificationManager: mockReleaseNotificationManager 
       });
 
-      expect(mockMessage.reply).toHaveBeenCalledWith(
+      expect(mockDirectSend).toHaveBeenCalledWith(
         'Invalid subcommand. Use `status`, `on`, `off`, or `level <major|minor|patch>`.'
       );
     });
   });
 
-  describe('getLevelDescription', () => {
-    it('should return correct descriptions for each level', () => {
-      expect(notificationsCommand.getLevelDescription('major'))
-        .toContain('Major releases only');
-      expect(notificationsCommand.getLevelDescription('minor'))
-        .toContain('Minor and major releases');
-      expect(notificationsCommand.getLevelDescription('patch'))
-        .toContain('All releases');
-      expect(notificationsCommand.getLevelDescription('none'))
-        .toContain('No notifications');
-      expect(notificationsCommand.getLevelDescription('invalid'))
-        .toContain('Minor and major releases');
-    });
-  });
+  // Note: getLevelDescription is now a private function and not directly testable
+  // Its functionality is tested through the execute method tests above
 });

@@ -1,7 +1,11 @@
 const logger = require('../../logger');
 const { EmbedBuilder } = require('discord.js');
+const validator = require('../utils/commandValidator');
 
-module.exports = {
+/**
+ * Command metadata
+ */
+const meta = {
   name: 'notifications',
   aliases: ['notif', 'notify'],
   description: 'Manage release notification preferences',
@@ -15,37 +19,48 @@ module.exports = {
     'notifications level patch - Notify for all releases including patches',
   ],
   category: 'utility',
-  
-  async execute(message, args, { releaseNotificationManager }) {
+  permissions: [],
+};
+
+/**
+ * Execute the notifications command
+ * @param {Object} message - Discord message object
+ * @param {Array<string>} args - Command arguments
+ * @param {Object} context - Command context
+ * @returns {Promise<Object>} Command result
+ */
+async function execute(message, args, { releaseNotificationManager }) {
     const userId = message.author.id;
     const subcommand = args[0]?.toLowerCase();
 
     // If no subcommand, show status
     if (!subcommand) {
-      return this.showStatus(message, userId, releaseNotificationManager);
+      return showStatus(message, userId, releaseNotificationManager);
     }
 
     switch (subcommand) {
       case 'status':
-        return this.showStatus(message, userId, releaseNotificationManager);
+        return showStatus(message, userId, releaseNotificationManager);
         
       case 'off':
-        return this.optOut(message, userId, releaseNotificationManager);
+        return optOut(message, userId, releaseNotificationManager);
         
       case 'on':
-        return this.optIn(message, userId, releaseNotificationManager);
+        return optIn(message, userId, releaseNotificationManager);
         
       case 'level':
-        return this.setLevel(message, userId, args[1], releaseNotificationManager);
+        return setLevel(message, userId, args[1], releaseNotificationManager);
         
-      default:
-        return message.reply(
+      default: {
+        const directSend = validator.createDirectSend(message);
+        return directSend(
           'Invalid subcommand. Use `status`, `on`, `off`, or `level <major|minor|patch>`.'
         );
+      }
     }
-  },
+}
 
-  async showStatus(message, userId, manager) {
+async function showStatus(message, userId, manager) {
     try {
       const prefs = manager.preferences.getUserPreferences(userId);
       
@@ -60,7 +75,7 @@ module.exports = {
         .addFields(
           {
             name: 'Notification Level',
-            value: this.getLevelDescription(prefs.notificationLevel),
+            value: getLevelDescription(prefs.notificationLevel),
             inline: true,
           },
           {
@@ -76,9 +91,9 @@ module.exports = {
       logger.error(`[notifications] Error showing status: ${error.message}`);
       return message.reply('An error occurred while fetching your notification settings.');
     }
-  },
+}
 
-  async optOut(message, userId, manager) {
+async function optOut(message, userId, manager) {
     try {
       await manager.preferences.setOptOut(userId, true);
       
@@ -93,9 +108,9 @@ module.exports = {
       logger.error(`[notifications] Error opting out: ${error.message}`);
       return message.reply('An error occurred while updating your preferences.');
     }
-  },
+}
 
-  async optIn(message, userId, manager) {
+async function optIn(message, userId, manager) {
     try {
       await manager.preferences.setOptOut(userId, false);
       
@@ -105,7 +120,7 @@ module.exports = {
         .setDescription('You have been opted in to release notifications.')
         .addFields({
           name: 'Current Level',
-          value: this.getLevelDescription(manager.preferences.getUserPreferences(userId).notificationLevel),
+          value: getLevelDescription(manager.preferences.getUserPreferences(userId).notificationLevel),
         })
         .setFooter({ text: 'Use !tz notifications level <type> to change notification level' });
 
@@ -114,9 +129,9 @@ module.exports = {
       logger.error(`[notifications] Error opting in: ${error.message}`);
       return message.reply('An error occurred while updating your preferences.');
     }
-  },
+}
 
-  async setLevel(message, userId, level, manager) {
+async function setLevel(message, userId, level, manager) {
     if (!level) {
       return message.reply('Please specify a level: `major`, `minor`, or `patch`.');
     }
@@ -139,7 +154,7 @@ module.exports = {
         .setDescription(`Your notification level has been set to **${level}**.`)
         .addFields({
           name: 'What this means',
-          value: this.getLevelDescription(level),
+          value: getLevelDescription(level),
         })
         .setFooter({ text: 'You will receive notifications starting from the next release' });
 
@@ -148,9 +163,9 @@ module.exports = {
       logger.error(`[notifications] Error setting level: ${error.message}`);
       return message.reply('An error occurred while updating your notification level.');
     }
-  },
+}
 
-  getLevelDescription(level) {
+function getLevelDescription(level) {
     switch (level) {
       case 'major':
         return '🚀 **Major releases only** - Significant changes and new features';
@@ -163,5 +178,9 @@ module.exports = {
       default:
         return '✨ **Minor and major releases** (default)';
     }
-  },
+}
+
+module.exports = {
+  meta,
+  execute,
 };
