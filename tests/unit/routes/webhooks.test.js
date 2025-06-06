@@ -381,7 +381,8 @@ describe('Webhooks Route', () => {
       
       expect(parsedResponse.error).toBe('Internal server error');
       expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('[Webhooks] Error processing webhook:')
+        '[Webhooks] Error processing webhook:',
+        expect.any(Error)
       );
     });
 
@@ -420,15 +421,37 @@ describe('Webhooks Route', () => {
       const contextHandler = createGitHubWebhookHandler(context);
 
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
+      crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
       
-      mockRequest.headers['x-github-event'] = 'release';
-      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
-      mockRequest.body = JSON.stringify({ 
+      const payload = JSON.stringify({ 
         action: 'published',
         release: { tag_name: 'v1.2.0' }
       });
 
-      await contextHandler(mockRequest, mockResponse);
+      let dataCallback, endCallback;
+      
+      mockRequest.on.mockImplementation((event, callback) => {
+        if (event === 'data') {
+          dataCallback = callback;
+        } else if (event === 'end') {
+          endCallback = callback;
+        }
+      });
+
+      const responsePromise = new Promise((resolve) => {
+        mockResponse.end.mockImplementation((data) => {
+          resolve(JSON.parse(data));
+        });
+      });
+
+      mockRequest.headers['x-github-event'] = 'release';
+      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
+
+      contextHandler(mockRequest, mockResponse);
+      dataCallback(payload);
+      endCallback();
+
+      await responsePromise;
 
       expect(mockNotificationManager.checkAndNotify).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith('[Webhooks] Triggered notification check for release v1.2.0');
@@ -447,15 +470,40 @@ describe('Webhooks Route', () => {
       const contextHandler = createGitHubWebhookHandler(context);
 
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
+      crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
       
-      mockRequest.headers['x-github-event'] = 'release';
-      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
-      mockRequest.body = JSON.stringify({ 
+      const payload = JSON.stringify({ 
         action: 'published',
         release: { tag_name: 'v1.2.0' }
       });
 
-      await contextHandler(mockRequest, mockResponse);
+      let dataCallback, endCallback;
+      
+      mockRequest.on.mockImplementation((event, callback) => {
+        if (event === 'data') {
+          dataCallback = callback;
+        } else if (event === 'end') {
+          endCallback = callback;
+        }
+      });
+
+      const responsePromise = new Promise((resolve) => {
+        mockResponse.end.mockImplementation((data) => {
+          resolve(JSON.parse(data));
+        });
+      });
+
+      mockRequest.headers['x-github-event'] = 'release';
+      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
+
+      contextHandler(mockRequest, mockResponse);
+      dataCallback(payload);
+      endCallback();
+
+      const response = await responsePromise;
+
+      // Use fake timers to handle async operations
+      jest.runAllTimers();
 
       expect(logger.error).toHaveBeenCalledWith(
         '[Webhooks] Error processing release notification: Notification failed'
@@ -465,6 +513,7 @@ describe('Webhooks Route', () => {
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
       });
+      expect(response.status).toBe('accepted');
     });
   });
 
@@ -479,29 +528,73 @@ describe('Webhooks Route', () => {
     });
 
     it('should handle signature without sha256 prefix', async () => {
+      crypto.timingSafeEqual = jest.fn().mockReturnValue(false);
+      
+      const payload = JSON.stringify({ action: 'published' });
+      
+      let dataCallback, endCallback;
+      
+      mockRequest.on.mockImplementation((event, callback) => {
+        if (event === 'data') {
+          dataCallback = callback;
+        } else if (event === 'end') {
+          endCallback = callback;
+        }
+      });
+
+      const responsePromise = new Promise((resolve) => {
+        mockResponse.end.mockImplementation((data) => {
+          resolve(JSON.parse(data));
+        });
+      });
+
       mockRequest.headers['x-github-event'] = 'release';
       mockRequest.headers['x-hub-signature-256'] = 'mocked-signature'; // No sha256= prefix
-      mockRequest.body = JSON.stringify({ action: 'published' });
 
-      await githubHandler(mockRequest, mockResponse);
+      githubHandler(mockRequest, mockResponse);
+      dataCallback(payload);
+      endCallback();
+
+      const response = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(401, {
         'Content-Type': 'application/json',
       });
+      expect(response.error).toBe('Invalid signature');
     });
 
     it('should use timing-safe comparison for signatures', async () => {
       // This is more of a code review check - ensure we use crypto.timingSafeEqual
       const payload = JSON.stringify({ action: 'published' });
-      mockRequest.headers['x-github-event'] = 'release';
-      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
-      mockRequest.body = payload;
-
+      
       // Mock timingSafeEqual to verify it's called
       const mockTimingSafeEqual = jest.fn().mockReturnValue(true);
       crypto.timingSafeEqual = mockTimingSafeEqual;
+      
+      let dataCallback, endCallback;
+      
+      mockRequest.on.mockImplementation((event, callback) => {
+        if (event === 'data') {
+          dataCallback = callback;
+        } else if (event === 'end') {
+          endCallback = callback;
+        }
+      });
 
-      await githubHandler(mockRequest, mockResponse);
+      const responsePromise = new Promise((resolve) => {
+        mockResponse.end.mockImplementation((data) => {
+          resolve(JSON.parse(data));
+        });
+      });
+
+      mockRequest.headers['x-github-event'] = 'release';
+      mockRequest.headers['x-hub-signature-256'] = 'sha256=mocked-signature';
+
+      githubHandler(mockRequest, mockResponse);
+      dataCallback(payload);
+      endCallback();
+
+      await responsePromise;
 
       expect(mockTimingSafeEqual).toHaveBeenCalled();
     });
