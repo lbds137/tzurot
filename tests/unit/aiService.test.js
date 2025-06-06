@@ -474,19 +474,18 @@ describe('AI Service', () => {
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
       const requestId = createRequestId(personalityName, message, context);
-      const expectedId = 'test-personality_user-123_channel-456_Thisisatestmessage';
-      expect(requestId).toBe(expectedId);
+      // Now includes hash for better uniqueness
+      expect(requestId).toMatch(/^test-personality_user-123_channel-456_Thisisatestmessage_h\d+$/);
     });
     
-    it('should handle long messages by truncating to 30 characters', () => {
+    it('should handle long messages by truncating to 50 characters', () => {
       const personalityName = 'test-personality';
-      const message = 'This is a very long message that should be truncated to only 30 characters';
+      const message = 'This is a very long message that should be truncated to only 50 characters now';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
       const requestId = createRequestId(personalityName, message, context);
-      // Update the expected result based on the actual implementation (uses 30 chars)
-      const expectedId = 'test-personality_user-123_channel-456_Thisisaverylongmessageth';
-      expect(requestId).toBe(expectedId);
+      // Now truncates to 50 chars and includes hash
+      expect(requestId).toMatch(/^test-personality_user-123_channel-456_Thisisaverylongmessagethatshouldbetruncat_h\d+$/);
     });
     
     it('should handle missing context values', () => {
@@ -495,15 +494,15 @@ describe('AI Service', () => {
       
       // Missing both
       let requestId = createRequestId(personalityName, message, {});
-      expect(requestId).toBe('test-personality_anon_nochannel_Testmessage');
+      expect(requestId).toMatch(/^test-personality_anon_nochannel_Testmessage_h\d+$/);
       
       // Missing channelId
       requestId = createRequestId(personalityName, message, { userId: 'user-123' });
-      expect(requestId).toBe('test-personality_user-123_nochannel_Testmessage');
+      expect(requestId).toMatch(/^test-personality_user-123_nochannel_Testmessage_h\d+$/);
       
       // Missing userId
       requestId = createRequestId(personalityName, message, { channelId: 'channel-456' });
-      expect(requestId).toBe('test-personality_anon_channel-456_Testmessage');
+      expect(requestId).toMatch(/^test-personality_anon_channel-456_Testmessage_h\d+$/);
     });
     
     it('should handle multimodal content arrays with images', () => {
