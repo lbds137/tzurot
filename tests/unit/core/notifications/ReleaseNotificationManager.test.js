@@ -26,6 +26,7 @@ describe('ReleaseNotificationManager', () => {
   let mockVersionTracker;
   let mockPreferences;
   let mockGithubClient;
+  let mockAuthManager;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -46,6 +47,14 @@ describe('ReleaseNotificationManager', () => {
     mockVersionTracker = {
       checkForNewVersion: jest.fn(),
       saveNotifiedVersion: jest.fn(),
+      compareVersions: jest.fn(),
+    };
+    
+    // Mock auth manager
+    mockAuthManager = {
+      userTokenManager: {
+        getAllTokens: jest.fn().mockReturnValue({}),
+      },
     };
     
     // Mock preferences
@@ -56,6 +65,10 @@ describe('ReleaseNotificationManager', () => {
       setOptOut: jest.fn(),
       getUserPreferences: jest.fn(),
       getStatistics: jest.fn(),
+      preferences: {
+        get: jest.fn()
+      },
+      updateUserPreferences: jest.fn(),
     };
     
     // Mock GitHub client
@@ -99,6 +112,66 @@ describe('ReleaseNotificationManager', () => {
       manager.client = null;
 
       await expect(manager.initialize()).rejects.toThrow('Discord client is required');
+    });
+
+    it('should migrate authenticated users when authManager provided', async () => {
+      const mockTokens = {
+        'user123': { token: 'token123', createdAt: Date.now() },
+        'user456': { token: 'token456', createdAt: Date.now() },
+      };
+      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
+      
+      // user123 already has preferences, user456 doesn't
+      mockPreferences.preferences.get.mockImplementation(userId => 
+        userId === 'user123' ? { optedOut: false } : undefined
+      );
+
+      await manager.initialize(mockClient, mockAuthManager);
+
+      expect(mockAuthManager.userTokenManager.getAllTokens).toHaveBeenCalled();
+      expect(mockPreferences.updateUserPreferences).toHaveBeenCalledWith('user456', {
+        optedOut: false,
+        notificationLevel: 'minor',
+        migratedFromAuth: true
+      });
+      expect(mockPreferences.updateUserPreferences).toHaveBeenCalledTimes(1); // Only for user456
+      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] Migrated 1 authenticated users to notification system');
+    });
+
+    it('should handle error during user migration gracefully', async () => {
+      mockAuthManager.userTokenManager.getAllTokens.mockImplementation(() => {
+        throw new Error('Failed to get tokens');
+      });
+
+      await manager.initialize(mockClient, mockAuthManager);
+
+      expect(manager.initialized).toBe(true); // Should still initialize
+      expect(logger.error).toHaveBeenCalledWith('[ReleaseNotificationManager] Error migrating authenticated users: Failed to get tokens');
+    });
+
+    it('should not migrate users who already have preferences', async () => {
+      const mockTokens = {
+        'user123': { token: 'token123', createdAt: Date.now() },
+        'user456': { token: 'token456', createdAt: Date.now() },
+      };
+      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
+      
+      // Both users already have preferences
+      mockPreferences.preferences.get.mockReturnValue({ optedOut: false });
+
+      await manager.initialize(mockClient, mockAuthManager);
+
+      expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Migrated'));
+    });
+
+    it('should handle empty auth tokens gracefully', async () => {
+      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue({});
+
+      await manager.initialize(mockClient, mockAuthManager);
+
+      expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
+      expect(manager.initialized).toBe(true);
     });
   });
 
@@ -637,6 +710,118 @@ describe('ReleaseNotificationManager', () => {
 
       // Single release shouldn't have version prefix
       expect(aggregated.features).toEqual(['Feature A']);
+    });
+  });
+
+  describe('First-run release fetching', () => {
+    beforeEach(async () => {
+      await manager.initialize();
+      // Mock GitHub client to have getAllReleases method
+      mockGithubClient.getAllReleases = jest.fn();
+    });
+
+    it('should fetch all releases on first run and limit to 5', async () => {
+      // Mock first run - no lastVersion
+      mockVersionTracker.checkForNewVersion.mockResolvedValue({
+        hasNewVersion: true,
+        currentVersion: '1.3.0',
+        lastVersion: null, // First run
+        changeType: 'minor',
+      });
+
+      // Mock many releases
+      const allReleases = [];
+      for (let i = 0; i < 10; i++) {
+        allReleases.push({
+          tag_name: `v1.${i}.0`,
+          published_at: `2024-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
+          html_url: `https://example.com/releases/v1.${i}.0`
+        });
+      }
+      mockGithubClient.getAllReleases.mockResolvedValue(allReleases);
+      
+      // Mock version comparison
+      mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
+        const n1 = parseInt(v1.split('.')[1]);
+        const n2 = parseInt(v2.split('.')[1]);
+        if (n1 > n2) return 1;
+        if (n1 < n2) return -1;
+        return 0;
+      });
+
+      mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
+      mockGithubClient.parseReleaseChanges.mockReturnValue({
+        features: [], fixes: [], breaking: [], other: []
+      });
+      mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
+
+      const result = await manager.checkAndNotify();
+
+      expect(mockGithubClient.getAllReleases).toHaveBeenCalled();
+      expect(mockGithubClient.getReleasesBetween).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 4 recent releases');
+      expect(result.notified).toBe(true);
+    });
+
+    it('should filter releases to only include those up to current version', async () => {
+      mockVersionTracker.checkForNewVersion.mockResolvedValue({
+        hasNewVersion: true,
+        currentVersion: '1.2.0',
+        lastVersion: null, // First run
+        changeType: 'minor',
+      });
+
+      const allReleases = [
+        { tag_name: 'v1.3.0', published_at: '2024-01-04T00:00:00Z' }, // Future - should exclude
+        { tag_name: 'v1.2.0', published_at: '2024-01-03T00:00:00Z' }, // Current - include
+        { tag_name: 'v1.1.0', published_at: '2024-01-02T00:00:00Z' }, // Past - include
+        { tag_name: 'v1.0.0', published_at: '2024-01-01T00:00:00Z' }, // Past - include
+      ];
+      mockGithubClient.getAllReleases.mockResolvedValue(allReleases);
+      
+      mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
+        const parts1 = v1.split('.').map(Number);
+        const parts2 = v2.split('.').map(Number);
+        for (let i = 0; i < 3; i++) {
+          if (parts1[i] > parts2[i]) return 1;
+          if (parts1[i] < parts2[i]) return -1;
+        }
+        return 0;
+      });
+
+      mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
+      mockGithubClient.parseReleaseChanges.mockReturnValue({
+        features: [], fixes: [], breaking: [], other: []
+      });
+      mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
+
+      await manager.checkAndNotify();
+
+      // Check that it created embed with correct releases (should exclude v1.3.0)
+      expect(mockVersionTracker.compareVersions).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 3 recent releases');
+    });
+
+    it('should use getReleasesBetween when lastVersion exists', async () => {
+      mockVersionTracker.checkForNewVersion.mockResolvedValue({
+        hasNewVersion: true,
+        currentVersion: '1.3.0',
+        lastVersion: '1.1.0', // Not first run
+        changeType: 'minor',
+      });
+
+      const releases = [
+        { tag_name: 'v1.3.0', published_at: '2024-01-03T00:00:00Z' },
+        { tag_name: 'v1.2.0', published_at: '2024-01-02T00:00:00Z' },
+      ];
+      mockGithubClient.getReleasesBetween.mockResolvedValue(releases);
+      mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
+      mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
+
+      await manager.checkAndNotify();
+
+      expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('1.1.0', '1.3.0');
+      expect(mockGithubClient.getAllReleases).not.toHaveBeenCalled();
     });
   });
 });
