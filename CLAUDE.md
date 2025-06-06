@@ -157,11 +157,12 @@ See `./scripts/` for additional tools:
 See `docs/improvements/TIMER_INJECTION_REFACTOR.md` and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for migration guides.
 
 ### IMPORTANT: After making code changes
-- Always run `npm run quality` to check code quality, formatting, and timer patterns
+- Always run `npm run quality` to check code quality, formatting, timer patterns, and hardcoded prefixes
 - Always run `npm test` to verify that your changes don't break existing functionality
 - For test-driven development, use `npm run test:watch`
 - When running the full test suite with `npm test`, update the `docs/testing/TEST_COVERAGE_SUMMARY.md` file with the latest coverage information
 - Pre-commit hooks will automatically run quality checks on staged files
+- Check for hardcoded bot prefixes with `npm run lint:prefix` (included in quality checks)
 
 ## Architecture
 
@@ -230,6 +231,10 @@ See `docs/improvements/TIMER_INJECTION_REFACTOR.md` and `docs/improvements/SINGL
   - Absolutely avoid files larger than 1500 lines whenever possible
   - Break large files into smaller, more modular components
   - Large files make code harder to understand and also exceed token limits (25k max)
+- NEVER hardcode bot prefixes (!tz, !rtz):
+  - Import `botPrefix` from config: `const { botPrefix } = require('../config');`
+  - Use template literals: `\`Use ${botPrefix} help\``
+  - See `docs/development/PREFIX_HANDLING_GUIDE.md` for details
 
 ### Module Design Guidelines (Critical for Maintainability)
 

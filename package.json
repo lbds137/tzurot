@@ -23,9 +23,10 @@
     "lint:module-size": "./scripts/check-module-size.sh",
     "lint:test-mocks": "node scripts/check-test-mock-patterns.js",
     "lint:antipatterns": "node scripts/check-singleton-exports.js",
+    "lint:prefix": "node scripts/check-hardcoded-prefix.js",
     "format": "prettier --write \"src/**/*.js\"",
     "format:check": "prettier --check \"src/**/*.js\"",
-    "quality": "npm run lint && npm run format:check && npm run lint:timers && npm run lint:module-size && npm run lint:antipatterns",
+    "quality": "npm run lint && npm run format:check && npm run lint:timers && npm run lint:module-size && npm run lint:antipatterns && npm run lint:prefix",
     "quality:tests": "npm run lint:test-mocks"
   },
   "dependencies": {
