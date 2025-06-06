@@ -148,21 +148,21 @@ class PersonalityManager {
    */
   getPersonality(name) {
     const personality = this.registry.get(name);
-    
+
     if (personality) {
       // Check if personality data is stale
       const now = Date.now();
       const lastUpdated = personality.lastUpdated ? new Date(personality.lastUpdated).getTime() : 0;
-      const staleDuration = this.options.staleDuration || (60 * 60 * 1000); // Default: 1 hour
-      const isStale = (now - lastUpdated) > staleDuration;
-      
+      const staleDuration = this.options.staleDuration || 60 * 60 * 1000; // Default: 1 hour
+      const isStale = now - lastUpdated > staleDuration;
+
       // Refresh if missing critical fields or if data is stale
       if (!personality.errorMessage || isStale) {
-        const message = !personality.errorMessage 
+        const message = !personality.errorMessage
           ? `[PersonalityManager] Personality ${name} missing errorMessage, refreshing...`
           : `[PersonalityManager] Personality ${name} has stale data, refreshing...`;
         logger.info(message);
-        
+
         // Attempt to refresh the personality data asynchronously
         // We don't await this to avoid blocking the current request
         this._refreshPersonalityData(name).catch(error => {
@@ -170,7 +170,7 @@ class PersonalityManager {
         });
       }
     }
-    
+
     return personality;
   }
 
@@ -455,7 +455,7 @@ class PersonalityManager {
       if (avatarUrl) profileData.avatarUrl = avatarUrl;
       if (displayName) profileData.displayName = displayName;
       if (errorMessage) profileData.errorMessage = errorMessage;
-      
+
       return profileData;
     } catch (profileError) {
       logger.warn(

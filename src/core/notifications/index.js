@@ -1,6 +1,6 @@
 /**
  * Release Notification System
- * 
+ *
  * This module provides functionality for notifying authenticated users about new releases.
  * Users can opt out, set notification preferences, and receive DMs with release notes.
  */
@@ -28,12 +28,12 @@ module.exports = {
   // Main manager
   ReleaseNotificationManager,
   getInstance,
-  
+
   // Components (for testing or advanced use)
   VersionTracker,
   UserPreferencesPersistence,
   GitHubReleaseClient,
-  
+
   // Convenience exports
   get releaseNotificationManager() {
     return getInstance();
