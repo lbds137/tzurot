@@ -26,9 +26,10 @@ class ReleaseNotificationManager {
   /**
    * Initialize the notification manager
    * @param {Discord.Client} client - Discord client
+   * @param {Object} authManager - Optional AuthManager instance for migrating users
    * @returns {Promise<void>}
    */
-  async initialize(client) {
+  async initialize(client, authManager = null) {
     if (client) {
       this.client = client;
     }
@@ -40,8 +41,47 @@ class ReleaseNotificationManager {
     // Load user preferences
     await this.preferences.load();
 
+    // Migrate existing authenticated users if authManager provided
+    if (authManager) {
+      await this.migrateAuthenticatedUsers(authManager);
+    }
+
     this.initialized = true;
     logger.info('[ReleaseNotificationManager] Initialized successfully');
+  }
+
+  /**
+   * Migrate existing authenticated users to notification system
+   * @param {Object} authManager - AuthManager instance
+   * @returns {Promise<void>}
+   */
+  async migrateAuthenticatedUsers(authManager) {
+    try {
+      const allTokens = authManager.userTokenManager.getAllTokens();
+      const userIds = Object.keys(allTokens);
+      let migratedCount = 0;
+
+      for (const userId of userIds) {
+        // Check if user already has preferences
+        const existingPrefs = this.preferences.preferences.get(userId);
+        
+        if (!existingPrefs) {
+          // Add user with default opt-in preferences
+          await this.preferences.updateUserPreferences(userId, {
+            optedOut: false,
+            notificationLevel: 'minor',
+            migratedFromAuth: true
+          });
+          migratedCount++;
+        }
+      }
+
+      if (migratedCount > 0) {
+        logger.info(`[ReleaseNotificationManager] Migrated ${migratedCount} authenticated users to notification system`);
+      }
+    } catch (error) {
+      logger.error(`[ReleaseNotificationManager] Error migrating authenticated users: ${error.message}`);
+    }
   }
 
   /**
