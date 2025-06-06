@@ -43,6 +43,9 @@ function registerRoutes(routeModule) {
  * @param {http.ServerResponse} res - The response object
  */
 async function handleRequest(req, res) {
+  // Log all incoming requests for debugging Railway connectivity
+  logger.info(`[HTTPServer] Incoming request: ${req.method} ${req.url} from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+  
   const routeKey = `${req.method}:${req.url}`;
   let handler = routes.get(routeKey);
 
