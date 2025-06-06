@@ -168,9 +168,9 @@ async function setLevel(message, userId, level, manager) {
 function getLevelDescription(level) {
     switch (level) {
       case 'major':
-        return '🚀 **Major releases only** - Significant changes and new features';
+        return '🚀 **Major releases only** - Breaking changes and major new features';
       case 'minor':
-        return '✨ **Minor and major releases** - New features and significant changes (default)';
+        return '✨ **Minor and major releases** - All new features (default)';
       case 'patch':
         return '🔧 **All releases** - Including bug fixes and patches';
       case 'none':
