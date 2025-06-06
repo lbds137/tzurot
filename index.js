@@ -10,6 +10,7 @@ const { initAuth } = require('./src/auth');
 const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
 const { botConfig } = require('./config');
+const { releaseNotificationManager } = require('./src/core/notifications');
 
 // Track whether app has been initialized
 let isInitialized = false;
@@ -82,6 +83,27 @@ async function init() {
     logger.info('Bot initialized and started');
     
     // Now that the bot is started, we can do non-blocking background tasks
+    
+    // Initialize release notification manager and check for updates
+    try {
+      await releaseNotificationManager.initialize(client);
+      logger.info('Release notification manager initialized');
+      
+      // Check for new version and send notifications in the background
+      // We don't await this to avoid blocking startup
+      releaseNotificationManager.checkAndNotify()
+        .then(result => {
+          if (result.notified) {
+            logger.info(`Sent release notifications for v${result.version} to ${result.usersNotified} users`);
+          }
+        })
+        .catch(error => {
+          logger.error('Error checking for release notifications:', error);
+        });
+    } catch (notificationError) {
+      logger.error('Failed to initialize release notifications:', notificationError);
+      // Continue without notifications - not critical for bot operation
+    }
     
     // Start health check server
     try {

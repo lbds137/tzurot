@@ -8,6 +8,7 @@ const permissionsMiddleware = require('./middleware/permissions');
 const commandRegistry = require('./utils/commandRegistry');
 const MessageTracker = require('./utils/messageTracker');
 const { botPrefix } = require('../../config');
+const { releaseNotificationManager } = require('../core/notifications');
 
 // Create a shared message tracker instance
 const messageTracker = new MessageTracker();
@@ -19,6 +20,7 @@ let commandContext = {
   interval: setInterval,
   clearInterval: clearInterval,
   messageTracker: messageTracker,
+  releaseNotificationManager: releaseNotificationManager,
 };
 
 // Function to override command context for testing

@@ -179,7 +179,7 @@ const TEST_ANTI_PATTERNS = {
   // 7. File System Anti-patterns
   fileSystem: [
     {
-      pattern: /fs\.(readFile|writeFile|mkdir|rmdir|unlink)/g,
+      pattern: /fs\.(?!promises)(readFile|writeFile|mkdir|rmdir|unlink)/g,
       check: (match, content, fileContent) => {
         // Check if fs is mocked
         return !fileContent.includes("jest.mock('fs')") && 
