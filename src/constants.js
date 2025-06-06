@@ -146,7 +146,7 @@ exports.DEFAULTS = {
  * Predefined user configurations for personalities and settings
  * @typedef {Object} UserConfig
  * @property {string} OWNER_ID - Discord user ID of the bot owner (from environment variable BOT_OWNER_ID)
- * @property {string} OWNER_PERSONALITIES_LIST - Comma-separated list of personality names to add for the owner (from environment variable OWNER_PERSONALITIES)
+ * @property {string} OWNER_PERSONALITIES_LIST - Comma-separated list of personality names to add for the owner (from environment variable BOT_OWNER_PERSONALITIES)
  * @type {UserConfig}
  */
 exports.USER_CONFIG = {
@@ -155,9 +155,9 @@ exports.USER_CONFIG = {
   OWNER_ID: process.env.BOT_OWNER_ID || '123456789012345678', // Fallback ID for development
 
   // Pre-seeded personalities for the owner - loaded from environment variables
-  // Set OWNER_PERSONALITIES in your .env file as a comma-separated list
+  // Set BOT_OWNER_PERSONALITIES in your .env file as a comma-separated list
   // Example: "albert-einstein,sigmund-freud,carl-jung,marie-curie"
   // The bot will automatically detect each personality's display name and set up proper aliases
   OWNER_PERSONALITIES_LIST:
-    process.env.OWNER_PERSONALITIES || 'albert-einstein,sigmund-freud,carl-jung,marie-curie', // Default personalities for development
+    process.env.BOT_OWNER_PERSONALITIES || 'albert-einstein,sigmund-freud,carl-jung,marie-curie', // Default personalities for development
 };
