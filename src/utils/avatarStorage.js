@@ -120,7 +120,7 @@ async function downloadAvatar(url, personalityName) {
     logger.info(`[AvatarStorage] Downloading avatar for ${personalityName} from ${url}`);
     
     // Validate URL
-    if (!urlValidator.isValidUrl(url)) {
+    if (!urlValidator.isValidUrlFormat(url)) {
       throw new Error('Invalid avatar URL');
     }
     
