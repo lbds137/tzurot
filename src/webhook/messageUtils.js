@@ -239,6 +239,14 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
     // Extract personality and prepare final message data
     const { _personality, ...baseMessageData } = messageData;
     
+    // DEBUG: Log personality object to trace avatar resolution
+    logger.info(`[MessageUtils] DEBUG: _personality object: ${JSON.stringify({
+      hasPersonality: !!_personality,
+      fullName: _personality?.fullName,
+      hasAvatarUrl: !!_personality?.avatarUrl,
+      avatarUrl: _personality?.avatarUrl
+    })}`);
+    
     // Resolve avatar URL if personality is provided
     let avatarUrl = null;
     if (_personality && _personality.avatarUrl) {
