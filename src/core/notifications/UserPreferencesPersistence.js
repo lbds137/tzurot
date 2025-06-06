@@ -12,7 +12,7 @@ class UserPreferencesPersistence {
     this.preferences = new Map();
     this.saveDebounceTimer = null;
     this.saveDebounceDelay = options.saveDebounceDelay || 5000; // 5 seconds
-    
+
     // Injectable timer functions for testability
     this.scheduler = options.scheduler || setTimeout;
     this.clearScheduler = options.clearScheduler || clearTimeout;
@@ -26,11 +26,11 @@ class UserPreferencesPersistence {
     try {
       const data = JSON.parse(await fs.readFile(this.preferencesFile, 'utf8'));
       this.preferences.clear();
-      
+
       for (const [userId, prefs] of Object.entries(data)) {
         this.preferences.set(userId, prefs);
       }
-      
+
       logger.info(`[UserPreferencesPersistence] Loaded ${this.preferences.size} user preferences`);
     } catch (error) {
       if (error.code === 'ENOENT') {
@@ -78,12 +78,12 @@ class UserPreferencesPersistence {
   async _performSave() {
     try {
       await fs.mkdir(this.dataPath, { recursive: true });
-      
+
       const data = {};
       for (const [userId, prefs] of this.preferences.entries()) {
         data[userId] = prefs;
       }
-      
+
       await fs.writeFile(this.preferencesFile, JSON.stringify(data, null, 2));
       logger.info(`[UserPreferencesPersistence] Saved ${this.preferences.size} user preferences`);
     } catch (error) {
@@ -182,13 +182,13 @@ class UserPreferencesPersistence {
 
       // Get user's notification level (default to minor)
       const userLevel = prefs.notificationLevel || 'minor';
-      
+
       // Skip users with 'none' level
       if (userLevel === 'none') continue;
-      
+
       // Check if user should be notified based on their preference
       let shouldNotify = false;
-      
+
       switch (userLevel) {
         case 'major':
           // Only notify for major changes
@@ -203,7 +203,7 @@ class UserPreferencesPersistence {
           shouldNotify = true;
           break;
       }
-      
+
       if (shouldNotify) {
         users.push(userId);
       }

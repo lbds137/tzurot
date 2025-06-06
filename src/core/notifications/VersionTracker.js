@@ -89,13 +89,13 @@ class VersionTracker {
 
     if (parsed1.major > parsed2.major) return 1;
     if (parsed1.major < parsed2.major) return -1;
-    
+
     if (parsed1.minor > parsed2.minor) return 1;
     if (parsed1.minor < parsed2.minor) return -1;
-    
+
     if (parsed1.patch > parsed2.patch) return 1;
     if (parsed1.patch < parsed2.patch) return -1;
-    
+
     return 0;
   }
 
@@ -120,7 +120,7 @@ class VersionTracker {
     if (hasNewVersion) {
       const current = this.parseVersion(currentVersion);
       const last = this.parseVersion(lastVersion);
-      
+
       if (current.major > last.major) {
         changeType = 'major';
       } else if (current.minor > last.minor) {
@@ -146,7 +146,7 @@ class VersionTracker {
   getVersionDiff(fromVersion, toVersion) {
     const from = this.parseVersion(fromVersion);
     const to = this.parseVersion(toVersion);
-    
+
     return {
       from: fromVersion,
       to: toVersion,

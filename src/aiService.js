@@ -361,7 +361,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   } catch (sanitizeError) {
     logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
     // Use personality error handler for sanitization errors
-    return analyzeErrorAndGenerateMessage(sanitizeError.message, personalityName, context, addToBlackoutList);
+    return analyzeErrorAndGenerateMessage(
+      sanitizeError.message,
+      personalityName,
+      context,
+      addToBlackoutList
+    );
   }
 
   logger.info(
