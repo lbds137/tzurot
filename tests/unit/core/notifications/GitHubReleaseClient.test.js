@@ -15,6 +15,7 @@ describe('GitHubReleaseClient', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
     
     client = new GitHubReleaseClient({
       owner: 'testowner',
@@ -26,6 +27,10 @@ describe('GitHubReleaseClient', () => {
     logger.info = jest.fn();
     logger.error = jest.fn();
     logger.warn = jest.fn();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('getReleaseByTag', () => {
@@ -47,7 +52,7 @@ describe('GitHubReleaseClient', () => {
       const release = await client.getReleaseByTag('1.2.0');
 
       expect(fetch).toHaveBeenCalledWith(
-        'https://api.example.com/repos/testowner/testrepo/releases/tags/v1.2.0',
+        'https://api.github.com/repos/testowner/testrepo/releases/tags/v1.2.0',
         {
           headers: {
             'Accept': 'application/vnd.github.v3+json',
@@ -99,6 +104,11 @@ describe('GitHubReleaseClient', () => {
     });
 
     it('should refetch after cache expires', async () => {
+      // Mock Date.now() to work with fake timers
+      const dateNowSpy = jest.spyOn(Date, 'now');
+      let currentTime = 1000000;
+      dateNowSpy.mockImplementation(() => currentTime);
+
       fetch.mockResolvedValue({
         ok: true,
         json: jest.fn().mockResolvedValue(mockRelease),
@@ -108,12 +118,14 @@ describe('GitHubReleaseClient', () => {
       await client.getReleaseByTag('1.2.0');
       expect(fetch).toHaveBeenCalledTimes(1);
 
-      // Wait for cache to expire
-      jest.advanceTimersByTime(1100);
+      // Advance time to expire cache
+      currentTime += 1100;
 
       // Second call should refetch
       await client.getReleaseByTag('1.2.0');
       expect(fetch).toHaveBeenCalledTimes(2);
+
+      dateNowSpy.mockRestore();
     });
 
     it('should return null for 404 responses', async () => {
