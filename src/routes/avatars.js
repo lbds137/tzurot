@@ -65,7 +65,7 @@ function getMimeType(filename) {
  */
 function parseFilename(urlPath) {
   // Remove /avatars/ prefix
-  const match = urlPath.match(/^\/avatars\/([^\/]+)$/);
+  const match = urlPath.match(/^\/avatars\/([^/]+)$/);
   return match ? match[1] : null;
 }
 
