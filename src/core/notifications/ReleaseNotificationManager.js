@@ -46,7 +46,9 @@ class ReleaseNotificationManager {
     // This can happen if the bot was restarted before sending first notifications
     const lastVersion = await this.versionTracker.getLastNotifiedVersion();
     if (lastVersion && !this.preferences.hasAnyUserBeenNotified()) {
-      logger.info('[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run');
+      logger.info(
+        '[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run'
+      );
       await this.versionTracker.clearSavedVersion();
     }
 
@@ -73,23 +75,27 @@ class ReleaseNotificationManager {
       for (const userId of userIds) {
         // Check if user already has preferences
         const existingPrefs = this.preferences.preferences.get(userId);
-        
+
         if (!existingPrefs) {
           // Add user with default opt-in preferences
           await this.preferences.updateUserPreferences(userId, {
             optedOut: false,
             notificationLevel: 'minor',
-            migratedFromAuth: true
+            migratedFromAuth: true,
           });
           migratedCount++;
         }
       }
 
       if (migratedCount > 0) {
-        logger.info(`[ReleaseNotificationManager] Migrated ${migratedCount} authenticated users to notification system`);
+        logger.info(
+          `[ReleaseNotificationManager] Migrated ${migratedCount} authenticated users to notification system`
+        );
       }
     } catch (error) {
-      logger.error(`[ReleaseNotificationManager] Error migrating authenticated users: ${error.message}`);
+      logger.error(
+        `[ReleaseNotificationManager] Error migrating authenticated users: ${error.message}`
+      );
     }
   }
 
@@ -126,18 +132,20 @@ class ReleaseNotificationManager {
           '0.0.0',
           versionInfo.currentVersion
         );
-        
+
         // Sort by version descending (newest first)
         releases = allReleases.sort((a, b) => {
           const versionA = a.tag_name.replace(/^v/, '');
           const versionB = b.tag_name.replace(/^v/, '');
           return this.versionTracker.compareVersions(versionB, versionA);
         });
-        
+
         // Limit to last 5 releases to avoid overwhelming users
         releases = releases.slice(0, 5);
-        
-        logger.info(`[ReleaseNotificationManager] First run - including ${releases.length} recent releases`);
+
+        logger.info(
+          `[ReleaseNotificationManager] First run - including ${releases.length} recent releases`
+        );
       }
 
       if (!releases || releases.length === 0) {
@@ -273,24 +281,23 @@ class ReleaseNotificationManager {
     let footerText;
     if (hasNeverChangedSettings && !prefs.lastNotified) {
       // First notification ever
-      footerText =
-        `📌 First time receiving this? You're automatically opted in. Use ${this.botPrefix} notifications off to opt out.`;
+      footerText = `📌 First time receiving this? You're automatically opted in. Use ${this.botPrefix} notifications off to opt out.`;
     } else if (hasNeverChangedSettings && prefs.lastNotified) {
       // Second+ notification without any action taken - implied consent
-      footerText =
-        `✅ You're receiving these because you haven't opted out. Use ${this.botPrefix} notifications off to stop.`;
+      footerText = `✅ You're receiving these because you haven't opted out. Use ${this.botPrefix} notifications off to stop.`;
     } else {
       // User has interacted with settings before
       footerText = `You can change your notification preferences with ${this.botPrefix} notifications`;
     }
 
     // Determine title based on number of releases
-    const title = releases.length > 1
-      ? `🚀 Tzurot Multiple Releases (${releases.length} versions)`
-      : `🚀 Tzurot ${versionInfo.currentVersion} Released!`;
-    
+    const title =
+      releases.length > 1
+        ? `🚀 Tzurot Multiple Releases (${releases.length} versions)`
+        : `🚀 Tzurot ${versionInfo.currentVersion} Released!`;
+
     const latestRelease = releases[0]; // Most recent release
-    
+
     const embed = new Discord.EmbedBuilder()
       .setColor(this.getColorForChangeType(versionInfo.changeType))
       .setTitle(title)
@@ -306,7 +313,7 @@ class ReleaseNotificationManager {
         inline: true,
       });
     }
-    
+
     // If multiple releases, show version list
     if (releases.length > 1) {
       const versionList = releases
@@ -347,10 +354,11 @@ class ReleaseNotificationManager {
     }
 
     // Add link to full release
-    const releaseLinks = releases.length > 1
-      ? `[View latest release](${latestRelease.html_url}) | [All releases](https://github.com/${this.githubClient.owner}/${this.githubClient.repo}/releases)`
-      : `[View full release notes](${latestRelease.html_url})`;
-      
+    const releaseLinks =
+      releases.length > 1
+        ? `[View latest release](${latestRelease.html_url}) | [All releases](https://github.com/${this.githubClient.owner}/${this.githubClient.repo}/releases)`
+        : `[View full release notes](${latestRelease.html_url})`;
+
     embed.addFields({
       name: 'More Information',
       value: releaseLinks,
@@ -423,15 +431,15 @@ class ReleaseNotificationManager {
     if (releases.length === 1) {
       return this.getChangeTypeDescription(versionInfo.changeType);
     }
-    
+
     const versionCount = releases.length;
     const oldestRelease = releases[releases.length - 1];
     const newestRelease = releases[0];
     const timeSpan = Math.floor(
-      (new Date(newestRelease.published_at) - new Date(oldestRelease.published_at)) / 
-      (1000 * 60 * 60 * 24)
+      (new Date(newestRelease.published_at) - new Date(oldestRelease.published_at)) /
+        (1000 * 60 * 60 * 24)
     );
-    
+
     return `You've missed ${versionCount} releases over the past ${timeSpan} days! Here's a summary of all the changes.`;
   }
 
@@ -445,22 +453,22 @@ class ReleaseNotificationManager {
       breaking: [],
       features: [],
       fixes: [],
-      other: []
+      other: [],
     };
-    
+
     // Process each release and collect changes
     for (const release of releases) {
       const changes = this.githubClient.parseReleaseChanges(release);
-      
+
       // Add version prefix to each change
       const versionPrefix = releases.length > 1 ? `[${release.tag_name}] ` : '';
-      
+
       aggregated.breaking.push(...changes.breaking.map(c => versionPrefix + c));
       aggregated.features.push(...changes.features.map(c => versionPrefix + c));
       aggregated.fixes.push(...changes.fixes.map(c => versionPrefix + c));
       aggregated.other.push(...changes.other.map(c => versionPrefix + c));
     }
-    
+
     return aggregated;
   }
 
