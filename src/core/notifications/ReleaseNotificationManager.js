@@ -41,6 +41,14 @@ class ReleaseNotificationManager {
     // Load user preferences
     await this.preferences.load();
 
+    // Check if we've never sent any notifications but have a saved version
+    // This can happen if the bot was restarted before sending first notifications
+    const lastVersion = await this.versionTracker.getLastNotifiedVersion();
+    if (lastVersion && !this.preferences.hasAnyUserBeenNotified()) {
+      logger.info('[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run');
+      await this.versionTracker.clearSavedVersion();
+    }
+
     // Migrate existing authenticated users if authManager provided
     if (authManager) {
       await this.migrateAuthenticatedUsers(authManager);

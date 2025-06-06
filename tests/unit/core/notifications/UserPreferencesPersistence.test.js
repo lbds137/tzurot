@@ -410,4 +410,25 @@ describe('UserPreferencesPersistence', () => {
       });
     });
   });
+
+  describe('hasAnyUserBeenNotified', () => {
+    it('should return false when no users have been notified', () => {
+      persistence.preferences.set('user1', { optedOut: false });
+      persistence.preferences.set('user2', { optedOut: true });
+
+      expect(persistence.hasAnyUserBeenNotified()).toBe(false);
+    });
+
+    it('should return true when at least one user has been notified', () => {
+      persistence.preferences.set('user1', { optedOut: false });
+      persistence.preferences.set('user2', { optedOut: false, lastNotified: '1.0.0' });
+      persistence.preferences.set('user3', { optedOut: true });
+
+      expect(persistence.hasAnyUserBeenNotified()).toBe(true);
+    });
+
+    it('should return false for empty preferences', () => {
+      expect(persistence.hasAnyUserBeenNotified()).toBe(false);
+    });
+  });
 });
