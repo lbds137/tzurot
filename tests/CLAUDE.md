@@ -29,23 +29,39 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 - Specialized tests can use descriptive names like `aiService.error.test.js`
 - Keep test files in the same relative path as source files
 
-## 🚨 Mock Pattern Enforcement (NEW)
+## 🚨 Mock Pattern Enforcement (CRITICAL UPDATE)
+
+### ⚠️ CURRENT STATE WARNING
+- Only ~5% of tests use the consolidated mock system
+- This led directly to the `getAllReleases` production bug
+- **NEW RULE**: All new tests MUST verify mocked methods exist
 
 ### Required for All New Tests
-Use ONE of these approaches:
 
-1. **Migration Helper** (for gradual migration):
+1. **Use Consolidated Mocks** (preferred):
+   ```javascript
+   const { presets } = require('../../__mocks__');
+   const mockEnv = presets.commandTest();
+   const message = mockEnv.discord.createMessage();
+   ```
+
+2. **Migration Helper** (for updates):
    ```javascript
    const { createMigrationHelper } = require('../../../utils/testEnhancements');
    const migrationHelper = createMigrationHelper();
    const mockMessage = migrationHelper.bridge.createCompatibleMockMessage();
    ```
 
-2. **Direct Presets** (for new tests):
+3. **NEVER Create Ad-hoc Mocks**:
    ```javascript
-   const { presets } = require('../../__mocks__');
-   const mockEnv = presets.commandTest();
-   const message = mockEnv.discord.createMessage();
+   // ❌ THIS CAUSED THE getAllReleases BUG!
+   const mockClient = {
+     getAllReleases: jest.fn(), // Method doesn't exist!
+   };
+   
+   // ✅ USE CONSOLIDATED MOCKS OR VERIFY METHODS
+   const { modules } = require('../../__mocks__');
+   const mockClient = modules.createGitHubClient(); // Safe!
    ```
 
 ### Patterns That Will FAIL Enforcement
@@ -60,6 +76,29 @@ Use ONE of these approaches:
 - **CI/CD pipeline** - Blocks PRs with violations
 
 See `docs/testing/MOCK_PATTERN_RULES.md` for complete rules.
+
+## 🏕️ The Boy Scout Rule
+
+**When touching ANY test file, leave it better than you found it:**
+
+1. **Fix your immediate task** (required)
+2. **Migrate at least ONE other test** to consolidated mocks (expected)
+3. **Track progress** in commit messages (e.g., "Mock migration: 9/133 files")
+
+Why? We're at 5% migration. Without active improvement, we'll keep hitting bugs like `getAllReleases`.
+
+Example:
+```javascript
+// While fixing a test, also migrate another one in the same file:
+// ❌ OLD TEST (unmigrated)
+const mockManager = {
+  someMethod: jest.fn()
+};
+
+// ✅ MIGRATED TEST
+const { modules } = require('../../__mocks__');
+const mockManager = modules.createSomeManager();
+```
 
 ## Proper Test Structure (Copy This!)
 

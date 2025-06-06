@@ -42,6 +42,7 @@ if [ -n "$STAGED_FILES" ]; then
     if [ -n "$STAGED_TEST_FILES" ]; then
         run_check "Test anti-patterns check" "node scripts/check-test-antipatterns.js $STAGED_TEST_FILES"
         run_check "Test mock patterns check" "node scripts/check-test-mock-patterns.js $STAGED_TEST_FILES"
+        run_check "Mock method verification" "node scripts/verify-mock-methods.js $STAGED_TEST_FILES"
     fi
     
     # Check for timer patterns (only on staged files)
