@@ -316,9 +316,9 @@ describe('WebhookManager - Message Sending Tests', () => {
     // First chunk (index 0) should not have embed
     expect(allCalls[0][5]).not.toHaveProperty('embed');
     
-    // Middle chunk (if any) should not have embed
-    if (allCalls.length > 2) {
-      expect(allCalls[1][5]).not.toHaveProperty('embed');
+    // Middle chunks (if any) should not have embed
+    for (let i = 1; i < allCalls.length - 1; i++) {
+      expect(allCalls[i][5]).not.toHaveProperty('embed');
     }
     
     // Last chunk should have embed
