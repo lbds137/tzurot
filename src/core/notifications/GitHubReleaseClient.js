@@ -99,6 +99,11 @@ class GitHubReleaseClient {
       // Filter releases between the two versions
       const releases = [];
       let foundEnd = false;
+      let reachedStart = false;
+      
+      // Normalize versions by removing 'v' prefix
+      const normalizedFromVersion = fromVersion.replace(/^v/, '');
+      const normalizedToVersion = toVersion.replace(/^v/, '');
       
       for (const release of allReleases) {
         const tagName = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
@@ -108,19 +113,20 @@ class GitHubReleaseClient {
           continue;
         }
         
-        // Start collecting when we find the end version
-        if (tagName === toVersion || `v${tagName}` === toVersion) {
+        // Check if we reached the start version (exclusive)
+        if (tagName === normalizedFromVersion) {
+          reachedStart = true;
+          break; // Stop here, don't include the start version
+        }
+        
+        // Start collecting when we find the end version (inclusive)
+        if (tagName === normalizedToVersion) {
           foundEnd = true;
         }
         
-        // Collect releases between start and end
+        // Collect releases after finding end version
         if (foundEnd) {
           releases.push(release);
-          
-          // Stop when we reach the start version
-          if (tagName === fromVersion || `v${tagName}` === fromVersion) {
-            break;
-          }
         }
       }
       

@@ -165,22 +165,6 @@ describe('GitHubReleaseClient', () => {
   });
 
   describe('getReleasesBetween', () => {
-    it('should fetch target version release', async () => {
-      const mockRelease = {
-        tag_name: 'v1.2.0',
-        name: 'Version 1.2.0',
-      };
-
-      fetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue(mockRelease),
-      });
-
-      const releases = await client.getReleasesBetween('1.1.0', '1.2.0');
-
-      expect(releases).toEqual([mockRelease]);
-    });
-
     it('should return empty array on error', async () => {
       fetch.mockRejectedValue(new Error('API error'));
 
@@ -246,6 +230,166 @@ describe('GitHubReleaseClient', () => {
       expect(formatted).toContain('**Version 1.2.0 - Feature Update**');
       expect(formatted).not.toContain('**Release Notes:**');
       expect(formatted).not.toContain('## New Features');
+    });
+  });
+
+  describe('getReleasesBetween', () => {
+    const mockReleases = [
+      {
+        tag_name: 'v1.3.0',
+        name: 'Version 1.3.0',
+        body: '## Added\n- Feature C\n## Fixed\n- Bug 3',
+        html_url: 'https://example.com/release/v1.3.0',
+        published_at: '2024-01-03T00:00:00Z',
+        draft: false,
+        prerelease: false,
+      },
+      {
+        tag_name: 'v1.2.0',
+        name: 'Version 1.2.0',
+        body: '## Added\n- Feature B\n## Fixed\n- Bug 2',
+        html_url: 'https://example.com/release/v1.2.0',
+        published_at: '2024-01-02T00:00:00Z',
+        draft: false,
+        prerelease: false,
+      },
+      {
+        tag_name: 'v1.1.0',
+        name: 'Version 1.1.0',
+        body: '## Added\n- Feature A\n## Fixed\n- Bug 1',
+        html_url: 'https://example.com/release/v1.1.0',
+        published_at: '2024-01-01T00:00:00Z',
+        draft: false,
+        prerelease: false,
+      },
+      {
+        tag_name: 'v1.0.0',
+        name: 'Version 1.0.0',
+        body: '## Initial Release',
+        html_url: 'https://example.com/release/v1.0.0',
+        published_at: '2023-12-31T00:00:00Z',
+        draft: false,
+        prerelease: false,
+      }
+    ];
+
+    it('should fetch releases between two versions', async () => {
+      fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue(mockReleases),
+      });
+
+      const releases = await client.getReleasesBetween('1.1.0', '1.3.0');
+
+      expect(fetch).toHaveBeenCalledWith(
+        'https://api.github.com/repos/testowner/testrepo/releases?per_page=100'
+      );
+      expect(releases).toHaveLength(2);
+      expect(releases[0].tag_name).toBe('v1.3.0');
+      expect(releases[1].tag_name).toBe('v1.2.0');
+    });
+
+    it('should handle version tags with and without v prefix', async () => {
+      fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue(mockReleases),
+      });
+
+      const releases = await client.getReleasesBetween('v1.0.0', 'v1.2.0');
+
+      expect(releases).toHaveLength(2);
+      expect(releases[0].tag_name).toBe('v1.2.0');
+      expect(releases[1].tag_name).toBe('v1.1.0');
+    });
+
+    it('should skip draft and prerelease versions', async () => {
+      const releasesWithDrafts = [
+        ...mockReleases.slice(0, 2),
+        {
+          tag_name: 'v1.2.5-beta',
+          name: 'Beta Release',
+          prerelease: true,
+          draft: false,
+        },
+        {
+          tag_name: 'v1.2.4-draft',
+          name: 'Draft Release',
+          prerelease: false,
+          draft: true,
+        },
+        ...mockReleases.slice(2),
+      ];
+
+      fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue(releasesWithDrafts),
+      });
+
+      const releases = await client.getReleasesBetween('1.0.0', '1.3.0');
+
+      expect(releases).toHaveLength(3);
+      expect(releases.every(r => !r.draft && !r.prerelease)).toBe(true);
+    });
+
+    it('should handle API errors gracefully', async () => {
+      fetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      });
+
+      const releases = await client.getReleasesBetween('1.0.0', '1.2.0');
+
+      expect(releases).toEqual([]);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error fetching releases')
+      );
+    });
+
+    it('should fetch single release if end version not found in list', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue(mockReleases),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({
+            tag_name: 'v1.5.0',
+            name: 'Version 1.5.0',
+            body: 'New release',
+          }),
+        });
+
+      const releases = await client.getReleasesBetween('1.0.0', '1.5.0');
+
+      expect(releases).toHaveLength(1);
+      expect(releases[0].tag_name).toBe('v1.5.0');
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Could not find version 1.5.0')
+      );
+    });
+
+    it('should return empty array if direct fetch also fails', async () => {
+      fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue(mockReleases),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+        });
+
+      const releases = await client.getReleasesBetween('1.0.0', '1.5.0');
+
+      expect(releases).toEqual([]);
     });
   });
 
