@@ -135,8 +135,77 @@ async function githubWebhookHandler(req, res) {
   });
 }
 
+/**
+ * Create a context-aware GitHub webhook handler
+ * @param {Object} context - Context object containing dependencies
+ * @returns {Function} GitHub webhook handler function
+ */
+function createGitHubWebhookHandler(context) {
+  return async function contextAwareGithubWebhookHandler(req, res) {
+    const githubSecret = process.env.GITHUB_WEBHOOK_SECRET;
+
+    if (!githubSecret) {
+      logger.warn('[Webhooks] GITHUB_WEBHOOK_SECRET not set - rejecting webhook');
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Webhook secret not configured' }));
+      return;
+    }
+
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', async () => {
+      try {
+        const signature = req.headers['x-hub-signature-256'];
+
+        if (!verifyGitHubSignature(body, signature, githubSecret)) {
+          logger.warn('[Webhooks] Invalid GitHub webhook signature');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid signature' }));
+          return;
+        }
+
+        const payload = JSON.parse(body);
+        
+        // Handle release events
+        if (req.headers['x-github-event'] === 'release' && payload.action === 'published') {
+          const releaseName = payload.release?.name || payload.release?.tag_name;
+          logger.info(`[Webhooks] Received GitHub release webhook for: ${releaseName}`);
+          
+          if (context.notificationManager) {
+            try {
+              await context.notificationManager.checkAndNotify();
+              logger.info(`[Webhooks] Triggered notification check for release ${releaseName}`);
+            } catch (error) {
+              logger.error(`[Webhooks] Error processing release notification: ${error.message}`);
+            }
+          }
+          
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'accepted', release: releaseName }));
+          return;
+        }
+
+        // Handle other webhook events (ignore them)
+        const result = await handleGitHubRelease(payload, req.headers);
+        const statusCode = result.status === 'error' ? 500 : 200;
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (error) {
+        logger.error('[Webhooks] Error processing webhook:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal server error' }));
+      }
+    });
+  };
+}
+
 module.exports = {
   routes: [
     { method: 'POST', path: '/webhook/github', handler: githubWebhookHandler },
   ],
+  createGitHubWebhookHandler,
 };
