@@ -381,7 +381,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         const messageData = prepareMessageData(
           finalContent,
           standardizedName,
-          personality.avatarUrl,
+          personality,
           channel.isThread(),
           channel.id,
           sendOptions
@@ -447,7 +447,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             const audioMessageData = prepareMessageData(
               `[Audio: ${audioUrl}]`, // Use special format that our media handler detects
               standardizedName,
-              personality.avatarUrl,
+              personality,
               channel.isThread(),
               channel.id,
               { _originalChannel: channel }
@@ -477,7 +477,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             const imageMessageData = prepareMessageData(
               `[Image: ${imageUrl}]`, // Use special format that our media handler detects
               standardizedName,
-              personality.avatarUrl,
+              personality,
               channel.isThread(),
               channel.id,
               { _originalChannel: channel }

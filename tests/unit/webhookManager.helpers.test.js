@@ -147,30 +147,30 @@ describe('WebhookManager - Helper Functions', () => {
     test('prepareMessageData should format message data correctly', () => {
       const content = "Test message";
       const username = "TestUser";
-      const avatarUrl = "https://example.com/avatar.png";
+      const personality = { fullName: 'test-bot', avatarUrl: "https://example.com/avatar.png" };
       const isThread = true;
       const threadId = "thread-123";
       
       // Test with basic info
-      const basicData = webhookManager.prepareMessageData(content, username, avatarUrl, false, threadId);
+      const basicData = webhookManager.prepareMessageData(content, username, personality, false, threadId);
       expect(basicData.content).toBe(content);
       expect(basicData.username).toBe(username);
-      expect(basicData.avatarURL).toBe(avatarUrl);
+      expect(basicData._personality).toBe(personality); // Personality is stored internally
       expect(basicData.threadId).toBeUndefined(); // Not a thread
       
       // Test with thread
-      const threadData = webhookManager.prepareMessageData(content, username, avatarUrl, true, threadId);
+      const threadData = webhookManager.prepareMessageData(content, username, personality, true, threadId);
       expect(threadData.threadId).toBe(threadId);
       
       // Test with embed
       const embedOptions = { embed: { title: "Test Embed" } };
-      const embedData = webhookManager.prepareMessageData(content, username, avatarUrl, false, threadId, embedOptions);
+      const embedData = webhookManager.prepareMessageData(content, username, personality, false, threadId, embedOptions);
       expect(embedData.embeds).toBeDefined();
       expect(embedData.embeds[0]).toEqual(embedOptions.embed);
       
-      // Test with null avatar
+      // Test with null personality
       const nullAvatarData = webhookManager.prepareMessageData(content, username, null, false, threadId);
-      expect(nullAvatarData.avatarURL).toBeNull();
+      expect(nullAvatarData._personality).toBeNull();
     });
   });
   
@@ -183,8 +183,12 @@ describe('WebhookManager - Helper Functions', () => {
       // Call the function
       const result = await webhookManager.sendMessageChunk(webhook, messageData, 0, 1);
       
-      // Verify webhook.send was called with the message data
-      expect(webhook.send).toHaveBeenCalledWith(messageData);
+      // Verify webhook.send was called with the message data plus avatarURL
+      expect(webhook.send).toHaveBeenCalledWith({
+        content: "Test message",
+        username: "TestUser",
+        avatarURL: null  // Default when no personality is provided
+      });
       
       // Verify the result
       expect(result).toEqual({ id: 'mock-message' });
@@ -210,12 +214,17 @@ describe('WebhookManager - Helper Functions', () => {
       // Verify webhook.send was called for both attempts
       expect(webhook.send).toHaveBeenCalledTimes(2);
       
-      // First call should be with original data
-      expect(webhook.send.mock.calls[0][0]).toBe(messageData);
+      // First call should be with original data plus avatarURL
+      expect(webhook.send.mock.calls[0][0]).toEqual({
+        content: "Test message",
+        username: "TestUser",
+        avatarURL: null
+      });
       
-      // Second call should be with fallback error message
+      // Second call should be with fallback error message (no avatarURL)
       expect(webhook.send.mock.calls[1][0].content).toContain('Error');
       expect(webhook.send.mock.calls[1][0].username).toBe(messageData.username);
+      expect(webhook.send.mock.calls[1][0].avatarURL).toBeUndefined();
     });
   });
   

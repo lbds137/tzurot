@@ -10,6 +10,7 @@ jest.mock('../../../../src/profileInfoFetcher', () => ({
 }));
 
 jest.mock('../../../../src/logger');
+jest.mock('../../../../src/utils/avatarStorage');
 
 const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
 const {
@@ -18,6 +19,7 @@ const {
   getProfileErrorMessage,
 } = require('../../../../src/profileInfoFetcher');
 const logger = require('../../../../src/logger');
+const avatarStorage = require('../../../../src/utils/avatarStorage');
 
 describe('PersonalityManager - Lazy Loading', () => {
   let manager;
@@ -31,6 +33,10 @@ describe('PersonalityManager - Lazy Loading', () => {
     logger.error = jest.fn();
     logger.warn = jest.fn();
     logger.debug = jest.fn();
+    
+    // Set up avatarStorage mock
+    avatarStorage.needsUpdate = jest.fn().mockResolvedValue(false);
+    avatarStorage.getLocalAvatarUrl = jest.fn().mockResolvedValue(null);
 
     // Create new manager instance
     manager = PersonalityManager.create({
