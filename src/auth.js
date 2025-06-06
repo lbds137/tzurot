@@ -16,9 +16,8 @@ let _initPromise = null;
 let _isInitializing = false;
 
 // Export configuration from environment
-const isDevelopment = botConfig.isDevelopment;
-const APP_ID = isDevelopment ? process.env.SERVICE_DEV_APP_ID : process.env.SERVICE_APP_ID;
-const API_KEY = isDevelopment ? process.env.SERVICE_DEV_API_KEY : process.env.SERVICE_API_KEY;
+const APP_ID = process.env.SERVICE_APP_ID;
+const API_KEY = process.env.SERVICE_API_KEY;
 const TOKEN_EXPIRATION_MS = AuthManager.TOKEN_EXPIRATION_MS;
 
 // In-memory caches for backward compatibility
