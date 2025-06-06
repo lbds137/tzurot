@@ -159,7 +159,8 @@ async function healthHandler(req, res) {
  * @param {http.ServerResponse} res - The response object
  */
 async function rootHandler(req, res) {
-  logger.info(`[Health] Root endpoint accessed from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+  const clientIP = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+  logger.info(`[Health] Root endpoint accessed from ${clientIP}`);
   
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({

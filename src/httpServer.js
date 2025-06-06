@@ -44,7 +44,8 @@ function registerRoutes(routeModule) {
  */
 async function handleRequest(req, res) {
   // Log all incoming requests for debugging Railway connectivity
-  logger.info(`[HTTPServer] Incoming request: ${req.method} ${req.url} from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+  const clientIP = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+  logger.info(`[HTTPServer] Incoming request: ${req.method} ${req.url} from ${clientIP}`);
   
   const routeKey = `${req.method}:${req.url}`;
   let handler = routes.get(routeKey);
