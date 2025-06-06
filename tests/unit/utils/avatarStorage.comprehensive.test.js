@@ -52,7 +52,7 @@ describe('Avatar Storage - Comprehensive Tests', () => {
     fs.promises.writeFile.mockResolvedValue();
     fs.promises.access.mockResolvedValue();
     fs.promises.unlink.mockResolvedValue();
-    urlValidator.isValidUrl = jest.fn().mockReturnValue(true);
+    urlValidator.isValidUrlFormat = jest.fn().mockReturnValue(true);
     
     // Set up fetch response factory
     global.createMockResponse = (buffer, contentType = 'image/png') => ({
@@ -178,7 +178,7 @@ describe('Avatar Storage - Comprehensive Tests', () => {
     });
     
     it('should handle invalid URLs', async () => {
-      urlValidator.isValidUrl.mockReturnValueOnce(false);
+      urlValidator.isValidUrlFormat.mockReturnValueOnce(false);
       
       const result = await avatarStorage.getLocalAvatarUrl(
         'test-bot',
