@@ -74,12 +74,16 @@ function addToBlackoutList(personalityName, context, duration) {
  * @param {Object} context - The context object with user and channel information
  * @param {string} [context.userId] - The Discord user ID of the requester
  * @param {string} [context.channelId] - The Discord channel ID where the request originated
+ * @param {string} [context.messageId] - The Discord message ID for better deduplication
  * @returns {string} A unique request ID that can be used for deduplication
  */
 function createRequestId(personalityName, message, context) {
   let messagePrefix;
 
   try {
+    // Include message ID if available for better deduplication
+    const messageIdPrefix = context.messageId ? `msg${context.messageId}_` : '';
+
     if (!message) {
       // Handle undefined or null message
       messagePrefix = 'empty-message';
@@ -90,20 +94,38 @@ function createRequestId(personalityName, message, context) {
       const audioUrl = message.find(item => item.type === 'audio_url')?.audio_url?.url || '';
 
       // Create a prefix using text and any media URLs, adding type identifiers to distinguish them
-      messagePrefix = (
-        textContent.substring(0, 20) +
-        (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
-        (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
-      ).replace(/\s+/g, '');
+      // Use more of the text content (50 chars) and create a simple hash
+      const textHash =
+        textContent.length > 0
+          ? textContent.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+          : 0;
+
+      messagePrefix =
+        textContent.substring(0, 50).replace(/\s+/g, '') +
+        '_h' +
+        textHash +
+        (imageUrl
+          ? '_IMG-' +
+            imageUrl.substring(imageUrl.lastIndexOf('/') + 1, imageUrl.lastIndexOf('/') + 12)
+          : '') +
+        (audioUrl
+          ? '_AUD-' +
+            audioUrl.substring(audioUrl.lastIndexOf('/') + 1, audioUrl.lastIndexOf('/') + 12)
+          : '');
     } else if (typeof message === 'string') {
-      // For regular string messages, use the first 30 chars
-      messagePrefix = message.substring(0, 30).replace(/\s+/g, '');
+      // For regular string messages, use more content and add a simple hash
+      const textHash = message.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      messagePrefix = message.substring(0, 50).replace(/\s+/g, '') + '_h' + textHash;
     } else if (typeof message === 'object' && message.messageContent) {
       // Handle our special reference format
       // Process message content as before
       let contentPrefix = '';
       if (typeof message.messageContent === 'string') {
-        contentPrefix = message.messageContent.substring(0, 30).replace(/\s+/g, '');
+        const textHash = message.messageContent
+          .split('')
+          .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        contentPrefix =
+          message.messageContent.substring(0, 50).replace(/\s+/g, '') + '_h' + textHash;
       } else if (Array.isArray(message.messageContent)) {
         // Extract text from multimodal content
         const textContent = message.messageContent.find(item => item.type === 'text')?.text || '';
@@ -112,11 +134,23 @@ function createRequestId(personalityName, message, context) {
         const audioUrl =
           message.messageContent.find(item => item.type === 'audio_url')?.audio_url?.url || '';
 
-        contentPrefix = (
-          textContent.substring(0, 20) +
-          (imageUrl ? 'IMG-' + imageUrl.substring(0, 8) : '') +
-          (audioUrl ? 'AUD-' + audioUrl.substring(0, 8) : '')
-        ).replace(/\s+/g, '');
+        const textHash =
+          textContent.length > 0
+            ? textContent.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+            : 0;
+
+        contentPrefix =
+          textContent.substring(0, 40).replace(/\s+/g, '') +
+          '_h' +
+          textHash +
+          (imageUrl
+            ? '_IMG-' +
+              imageUrl.substring(imageUrl.lastIndexOf('/') + 1, imageUrl.lastIndexOf('/') + 12)
+            : '') +
+          (audioUrl
+            ? '_AUD-' +
+              audioUrl.substring(audioUrl.lastIndexOf('/') + 1, audioUrl.lastIndexOf('/') + 12)
+            : '');
       } else {
         contentPrefix = 'complex-object';
       }
@@ -125,19 +159,25 @@ function createRequestId(personalityName, message, context) {
       let referencePrefix = '';
       if (message.referencedMessage && message.referencedMessage.content) {
         const refContent = message.referencedMessage.content;
+        const refHash = refContent.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        referencePrefix = '_ref' + refHash;
 
         // Check for media in the referenced message
         if (refContent.includes('[Image:')) {
           const imageMatch = refContent.match(/\[Image: (https?:\/\/[^\s\]]+)\]/);
           if (imageMatch && imageMatch[1]) {
-            referencePrefix += 'IMG-' + imageMatch[1].substring(0, 8);
+            referencePrefix +=
+              '_IMG-' +
+              imageMatch[1].substring(imageMatch[1].lastIndexOf('/') + 1).substring(0, 10);
           }
         }
 
         if (refContent.includes('[Audio:')) {
           const audioMatch = refContent.match(/\[Audio: (https?:\/\/[^\s\]]+)\]/);
           if (audioMatch && audioMatch[1]) {
-            referencePrefix += 'AUD-' + audioMatch[1].substring(0, 8);
+            referencePrefix +=
+              '_AUD-' +
+              audioMatch[1].substring(audioMatch[1].lastIndexOf('/') + 1).substring(0, 10);
           }
         }
       }
@@ -148,6 +188,9 @@ function createRequestId(personalityName, message, context) {
       // Fallback for any other type
       messagePrefix = `type-${typeof message}`;
     }
+
+    // Add the message ID prefix for better uniqueness
+    messagePrefix = messageIdPrefix + messagePrefix;
   } catch (error) {
     // Log the error but continue with a safe fallback
     logger.error(`[AIRequestManager] Error creating request ID: ${error.message}`);
@@ -160,8 +203,8 @@ function createRequestId(personalityName, message, context) {
       );
     }
 
-    // Use a safe fallback
-    messagePrefix = `fallback-${Date.now()}`;
+    // Use a safe fallback with timestamp for uniqueness
+    messagePrefix = `fallback-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   }
 
   return `${personalityName}_${context.userId || DEFAULTS.ANONYMOUS_USER}_${context.channelId || DEFAULTS.NO_CHANNEL}_${messagePrefix}`;

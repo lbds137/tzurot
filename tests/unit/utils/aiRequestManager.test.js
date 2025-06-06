@@ -23,7 +23,8 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      expect(id).toBe('einstein_123_456_Helloworld');
+      // Now includes hash for better uniqueness
+      expect(id).toMatch(/^einstein_123_456_Helloworld_h\d+$/);
     });
 
     it('should handle empty message', () => {
@@ -51,8 +52,8 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      // Note: substring(0, 20) keeps the '?'
-      expect(id).toBe('einstein_123_456_Whatisthis?');
+      // Now includes hash
+      expect(id).toMatch(/^einstein_123_456_Whatisthis\?_h\d+$/);
     });
 
     it('should handle multimodal content with image', () => {
@@ -64,8 +65,8 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      // Text is limited to 20 chars: 'What is in this imag'
-      expect(id).toBe('einstein_123_456_WhatisinthisimagIMG-https://');
+      // Now includes hash and uses more chars
+      expect(id).toMatch(/^einstein_123_456_Whatisinthisimage\?_h\d+_IMG-image\.jpg$/);
     });
 
     it('should handle multimodal content with audio', () => {
@@ -77,7 +78,7 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      expect(id).toBe('einstein_123_456_TranscribethisAUD-https://');
+      expect(id).toMatch(/^einstein_123_456_Transcribethis_h\d+_AUD-audio\.mp3$/);
     });
 
     it('should handle reference format', () => {
@@ -91,7 +92,7 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      expect(id).toBe('einstein_123_456_Myresponse');
+      expect(id).toMatch(/^einstein_123_456_Myresponse_h\d+_ref\d+$/);
     });
 
     it('should handle reference with media', () => {
@@ -105,13 +106,12 @@ describe('aiRequestManager', () => {
         userId: '123',
         channelId: '456'
       });
-      // messageContent uses 30 chars, so includes the '?'
-      expect(id).toBe('einstein_123_456_Whataboutthis?IMG-https://');
+      expect(id).toMatch(/^einstein_123_456_Whataboutthis\?_h\d+_ref\d+_IMG-img\.jpg$/);
     });
 
     it('should use default values for missing context', () => {
       const id = aiRequestManager.createRequestId('einstein', 'Hello', {});
-      expect(id).toBe(`einstein_${DEFAULTS.ANONYMOUS_USER}_${DEFAULTS.NO_CHANNEL}_Hello`);
+      expect(id).toMatch(new RegExp(`^einstein_${DEFAULTS.ANONYMOUS_USER}_${DEFAULTS.NO_CHANNEL}_Hello_h\\d+$`));
     });
 
     it('should handle complex object gracefully', () => {

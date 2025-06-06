@@ -657,6 +657,7 @@ async function handlePersonalityInteraction(
     const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
       userId: userId,
       channelId: message.channel.id,
+      messageId: message.id, // Add message ID for better deduplication
       // Pass the original message object for webhook detection
       message: message,
       // Pass the user's formatted name for audio transcript prompts
