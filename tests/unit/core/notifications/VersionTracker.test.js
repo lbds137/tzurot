@@ -146,7 +146,7 @@ describe('VersionTracker', () => {
       });
     });
 
-    it('should save version and return no new version on first run', async () => {
+    it('should return hasNewVersion: true on first run', async () => {
       // Simulate first run - no saved version file
       const error = new Error('ENOENT');
       error.code = 'ENOENT';
@@ -166,15 +166,38 @@ describe('VersionTracker', () => {
       const result = await tracker.checkForNewVersion();
 
       expect(result).toEqual({
-        hasNewVersion: false,
+        hasNewVersion: true,
         currentVersion: '1.2.0',
         lastVersion: null,
-        changeType: null,
+        changeType: 'minor',
       });
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('lastNotifiedVersion.json'),
-        expect.stringContaining('"version": "1.2.0"')
-      );
+      expect(logger.info).toHaveBeenCalledWith('[VersionTracker] First run detected, will notify about current version 1.2.0');
+      // Should NOT save version yet - let notification manager handle that
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
+    it('should detect major version on first run for x.0.0 versions', async () => {
+      // Simulate first run with major version
+      const error = new Error('ENOENT');
+      error.code = 'ENOENT';
+      fs.readFile.mockImplementation((path) => {
+        if (path.includes('package.json')) {
+          return Promise.resolve(JSON.stringify({ version: '2.0.0' }));
+        }
+        if (path.includes('lastNotifiedVersion.json')) {
+          return Promise.reject(error);
+        }
+        return Promise.reject(new Error('Unknown file'));
+      });
+
+      const result = await tracker.checkForNewVersion();
+
+      expect(result).toEqual({
+        hasNewVersion: true,
+        currentVersion: '2.0.0',
+        lastVersion: null,
+        changeType: 'major',
+      });
     });
 
     it('should detect major version change', async () => {
