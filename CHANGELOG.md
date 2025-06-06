@@ -5,6 +5,16 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2025-06-06
+
+### Changed
+- **Environment Variable Standardization** - Simplified configuration across environments (#84)
+  - Unified variable names (removed DEV-specific variants like `DISCORD_DEV_TOKEN`)
+  - All bot-specific variables now use `BOT_` prefix for consistency
+  - Added configurable bot settings: `BOT_NAME`, `BOT_PREFIX`, `BOT_MENTION_CHAR`
+  - Updated `.env.example` with complete variable list and descriptions
+  - No user-facing changes - internal configuration improvement only
+
 ## [1.3.0] - 2025-06-06
 
 ### Added
