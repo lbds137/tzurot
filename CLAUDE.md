@@ -34,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
 - [Context Window Management](#context-window-management)
-- [Versioning and Release Management](#versioning-and-release-management)
+- [Versioning and Release Management](#versioning-and-release-management) - **See VERSIONING.md for Discord bot-specific guidance**
 
 ## Claude Personality
 
@@ -801,11 +801,13 @@ Remember: The goal is effective problem-solving, not minimal context usage.
 ## Versioning and Release Management
 
 ### Version Strategy
-We follow [Semantic Versioning 2.0.0](https://semver.org/):
+We follow [Semantic Versioning 2.0.0](https://semver.org/) with Discord bot-specific interpretations:
 - **MAJOR.MINOR.PATCH** format (e.g., 1.2.0)
-- MAJOR: Breaking changes
+- MAJOR: Breaking changes that disrupt user experience or require user action
 - MINOR: New features (backwards compatible)
 - PATCH: Bug fixes (backwards compatible)
+
+**IMPORTANT**: See `docs/development/VERSIONING.md` for detailed guidance on what constitutes each version bump type. For Discord bots, breaking changes focus on user-facing features and data persistence, NOT internal implementation details.
 
 ### Version Locations
 1. **package.json** - The source of truth for current version
