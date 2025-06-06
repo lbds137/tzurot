@@ -5,6 +5,32 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-06-05
+
+### Added
+- **Modular HTTP Server** - New lightweight HTTP server infrastructure for health checks and webhooks (#69)
+  - Health check endpoint at `/health` with comprehensive system metrics
+  - GitHub webhook endpoint at `/webhook/github` for automated release notifications
+  - Modular route registration system for easy extensibility
+  - Full CORS support and OPTIONS preflight handling
+- **Comprehensive Test Coverage** - Major improvements to HTTP server and route testing (#70)
+  - HTTP server tests: 88% coverage (new)
+  - Health route tests: 97% coverage (new)
+  - Webhook route tests: 76% coverage (was 0% functional)
+  - Overall routes coverage increased from 38% to 82%
+- **Multi-Release Notification Support** - Bot can now handle multiple rapid releases gracefully
+  - Batches multiple releases into single notification
+  - Prevents notification spam during rapid deployments
+
+### Fixed
+- **Critical**: Discord status display bug - Status 0 (READY) was incorrectly showing as DISCONNECTED in health checks
+- Webhook route tests converted from callback-style to promise-based async patterns
+- All ESLint `jest/no-done-callback` errors in webhook tests
+
+### Changed
+- Added `createGitHubWebhookHandler` export for better testability of webhook routes
+- Improved GitHubReleaseClient version filtering logic
+
 ## [1.1.0] - 2025-06-05
 
 ### Added
