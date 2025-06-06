@@ -71,7 +71,7 @@ function checkDiscordStatus(client) {
   return {
     connected: client.ws?.status === 0, // 0 = READY
     status: ['READY', 'CONNECTING', 'RECONNECTING', 'IDLE', 'NEARLY', 'DISCONNECTED'][
-      client.ws?.status || 5
+      client.ws?.status ?? 5
     ],
     ping: client.ws?.ping ? `${client.ws.ping}ms` : 'N/A',
     guilds: client.guilds?.cache?.size || 0,
