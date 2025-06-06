@@ -159,10 +159,15 @@ async function healthHandler(req, res) {
  * @param {http.ServerResponse} res - The response object
  */
 async function rootHandler(req, res) {
+  logger.info(`[Health] Root endpoint accessed from ${req.headers['x-forwarded-for'] || req.socket.remoteAddress}`);
+  
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
     status: 'ok',
     service: 'Tzurot Discord Bot',
+    version: '1.2.1',
+    environment: process.env.RAILWAY_ENVIRONMENT || 'local',
+    port: process.env.PORT || '3000',
     endpoints: {
       health: '/health',
       avatars: '/avatars',
