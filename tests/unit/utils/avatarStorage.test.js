@@ -28,11 +28,14 @@ describe('Avatar Storage - Simple Tests', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     
+    // Reset module to ensure clean state
+    jest.resetModules();
+    
     // Get mocked modules
     fetch = require('node-fetch');
     fs = require('fs');
     
-    // Get the module
+    // Get the module fresh each time
     avatarStorage = require('../../../src/utils/avatarStorage');
   });
   
@@ -89,6 +92,99 @@ describe('Avatar Storage - Simple Tests', () => {
       // Verify our mock timer was used
       expect(mockSetTimeout).toHaveBeenCalled();
       expect(mockClearTimeout).toHaveBeenCalledWith(123);
+      
+      // Reset timer functions to defaults
+      avatarStorage.setTimerFunctions({
+        setTimeout,
+        clearTimeout,
+      });
+    });
+  });
+  
+  describe('Content type handling', () => {
+    it('should accept application/octet-stream for valid image extensions', async () => {
+      // Mock URL validator
+      const urlValidator = require('../../../src/utils/urlValidator');
+      urlValidator.isValidUrlFormat = jest.fn().mockReturnValue(true);
+      
+      // Mock successful fetch with application/octet-stream
+      const mockBuffer = Buffer.from('fake-image-data');
+      fetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: jest.fn((header) => {
+            if (header === 'content-type') return 'application/octet-stream';
+            return null;
+          }),
+        },
+        buffer: jest.fn().mockResolvedValue(mockBuffer),
+      });
+      
+      // Mock fs to simulate no existing file
+      fs.promises.readFile.mockRejectedValue({ code: 'ENOENT' });
+      fs.promises.writeFile.mockResolvedValue();
+      
+      // Should succeed with .png extension in URL
+      const result = await avatarStorage.getLocalAvatarUrl(
+        'test-bot',
+        'https://files.shapes.inc/api/files/avatar_test.png'
+      );
+      
+      expect(result).toMatch(/^http.*\/avatars\/test-bot-[a-f0-9]{8}\.png$/);
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+    });
+    
+    it('should reject application/octet-stream for non-image extensions', async () => {
+      // Mock URL validator
+      const urlValidator = require('../../../src/utils/urlValidator');
+      urlValidator.isValidUrlFormat = jest.fn().mockReturnValue(true);
+      
+      // Mock fetch with application/octet-stream
+      fetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: jest.fn((header) => {
+            if (header === 'content-type') return 'application/octet-stream';
+            return null;
+          }),
+        },
+      });
+      
+      // Should fail with .txt extension
+      const result = await avatarStorage.getLocalAvatarUrl(
+        'test-bot',
+        'https://example.com/file.txt'
+      );
+      
+      expect(result).toBeNull();
+    });
+    
+    it('should handle missing content-type header', async () => {
+      // Mock URL validator
+      const urlValidator = require('../../../src/utils/urlValidator');
+      urlValidator.isValidUrlFormat = jest.fn().mockReturnValue(true);
+      
+      // Mock successful fetch with no content-type
+      const mockBuffer = Buffer.from('fake-image-data');
+      fetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: jest.fn(() => null), // No content-type header
+        },
+        buffer: jest.fn().mockResolvedValue(mockBuffer),
+      });
+      
+      // Mock fs to simulate no existing file
+      fs.promises.readFile.mockRejectedValue({ code: 'ENOENT' });
+      fs.promises.writeFile.mockResolvedValue();
+      
+      // Should succeed based on .jpg extension
+      const result = await avatarStorage.getLocalAvatarUrl(
+        'test-bot',
+        'https://example.com/avatar.jpg'
+      );
+      
+      expect(result).toMatch(/^http.*\/avatars\/test-bot-[a-f0-9]{8}\.jpg$/);
     });
   });
   
