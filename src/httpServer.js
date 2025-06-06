@@ -68,6 +68,7 @@ async function handleRequest(req, res) {
       const [method, path] = key.split(':');
       if (req.method === method && req.url.startsWith(path)) {
         handler = value;
+        logger.debug(`[HTTPServer] Prefix match found: ${key} for ${req.url}`);
         break;
       }
     }

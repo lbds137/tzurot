@@ -164,15 +164,21 @@ async function avatarHealthHandler(req, res) {
  * @param {http.ServerResponse} res - The response object
  */
 async function avatarHandler(req, res) {
-  const parsedUrl = url.parse(req.url);
-  
-  // If path is exactly /avatars or /avatars/, it's a health check
-  if (parsedUrl.pathname === '/avatars' || parsedUrl.pathname === '/avatars/') {
-    return avatarHealthHandler(req, res);
+  try {
+    const parsedUrl = url.parse(req.url);
+    
+    // If path is exactly /avatars or /avatars/, it's a health check
+    if (parsedUrl.pathname === '/avatars' || parsedUrl.pathname === '/avatars/') {
+      return avatarHealthHandler(req, res);
+    }
+    
+    // Otherwise, try to serve a file
+    return avatarFileHandler(req, res);
+  } catch (error) {
+    logger.error(`[AvatarRoute] Error in avatarHandler: ${error.message}`, error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Internal server error' }));
   }
-  
-  // Otherwise, try to serve a file
-  return avatarFileHandler(req, res);
 }
 
 // Export routes in the expected format
@@ -180,8 +186,6 @@ module.exports = {
   routes: [
     // Match any path starting with /avatars
     { method: 'GET', path: '/avatars', handler: avatarHandler },
-    { method: 'GET', path: '/avatars/', handler: avatarHandler },
-    // Need to add dynamic route support to httpServer for /avatars/:filename
   ],
   // Export for testing
   isValidFilename,
