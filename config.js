@@ -5,17 +5,17 @@ require('dotenv').config();
 // eslint-disable-next-line no-restricted-syntax -- Config file needs to check environment
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-// Environment-based bot configuration
+// Bot configuration - all values come from environment variables
 const botConfig = {
   // Bot identification
-  name: isDevelopment ? 'Rotzot' : 'Tzurot',
-  prefix: isDevelopment ? '!rtz' : '!tz',
-  mentionChar: isDevelopment ? '&' : '@',
-  token: isDevelopment ? process.env.DISCORD_DEV_TOKEN : process.env.DISCORD_TOKEN,
+  name: process.env.BOT_NAME || (isDevelopment ? 'Rotzot' : 'Tzurot'),
+  prefix: process.env.BOT_PREFIX || (isDevelopment ? '!rtz' : '!tz'),
+  mentionChar: process.env.BOT_MENTION_CHAR || (isDevelopment ? '&' : '@'),
+  token: process.env.DISCORD_TOKEN,
   
   // Environment flag
   isDevelopment,
-  environment: isDevelopment ? 'development' : 'production'
+  environment: process.env.NODE_ENV || 'production'
 };
 
 // Legacy export for backward compatibility
@@ -42,8 +42,8 @@ function getProfileInfoEndpoint(personalityName) {
 }
 
 // Public server configuration
-const publicBaseUrl = process.env.BOT_PUBLIC_BASE_URL || 
-  (isDevelopment ? 'https://tzurot-development.up.railway.app' : 'https://tzurot-production.up.railway.app');
+// This should be set in environment variables for each deployment
+const publicBaseUrl = process.env.BOT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 // Avatar configuration
 const avatarConfig = {

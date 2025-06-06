@@ -98,7 +98,7 @@ async function initAuth() {
       authWebsite: process.env.SERVICE_WEBSITE,
       authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
       serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
-      ownerId: process.env.OWNER_ID,
+      ownerId: process.env.BOT_OWNER_ID,
       isDevelopment: botConfig.isDevelopment,
       dataDir: getDataDirectory(), // Use the same data directory as dataStorage.js
     });
