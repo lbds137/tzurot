@@ -3,6 +3,7 @@
  */
 
 const NsfwVerificationManager = require('../../../../src/core/authentication/NsfwVerificationManager');
+const { botPrefix } = require('../../../../config');
 
 jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
@@ -322,7 +323,7 @@ describe('NsfwVerificationManager', () => {
       
       expect(result.isAllowed).toBe(false);
       expect(result.reason).toContain('has not completed NSFW verification');
-      expect(result.reason).toContain('`!tz verify`');
+      expect(result.reason).toContain(`\`${botPrefix} verify\``);
       expect(result.userId).toBe(userId);
     });
     
