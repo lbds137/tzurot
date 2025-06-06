@@ -79,7 +79,7 @@ describe('Avatar Storage - Simple Tests', () => {
       
       // Mock URL validator
       const urlValidator = require('../../../src/utils/urlValidator');
-      urlValidator.isValidUrl = jest.fn().mockReturnValue(true);
+      urlValidator.isValidUrlFormat = jest.fn().mockReturnValue(true);
       
       // Try to download (will fail due to immediate timeout)
       await expect(
