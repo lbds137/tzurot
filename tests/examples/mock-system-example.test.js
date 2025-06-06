@@ -101,8 +101,8 @@ describe('Consolidated Mock System Examples', () => {
         data: { message: 'Custom response' }
       });
 
-      // Test the mock
-      const response = await apiEnv.fetch('/test-endpoint');
+      // Test the mock - fetch is a MockFetch instance with a fetch method
+      const response = await apiEnv.fetch.fetch('/test-endpoint');
       const data = await response.json();
       
       expect(data.message).toBe('Custom response');
