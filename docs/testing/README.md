@@ -2,11 +2,20 @@
 
 This directory contains comprehensive documentation for testing practices, procedures, and quality assurance.
 
+## 🚨 Critical Update: Mock Verification Now Enforced
+
+Following a production bug where tests mocked `getAllReleases` (which doesn't exist), we now enforce:
+- **Pre-commit verification** of all mocked methods
+- **Boy Scout Rule**: Migrate tests to consolidated mocks when touching files
+- **Current status**: Only ~5% of tests use safe mocks
+
+See [MOCK_VERIFICATION_ENFORCEMENT.md](MOCK_VERIFICATION_ENFORCEMENT.md) for details.
+
 ## Quick Start
 
 1. **Before Writing Tests**: Read [TEST_ANTIPATTERNS_GUIDE.md](TEST_ANTIPATTERNS_GUIDE.md)
 2. **Set Up Pre-commit Hooks**: Run `./scripts/setup-pre-commit.sh`
-3. **Use Test Helpers**: See [helpers/README.md](../../tests/helpers/README.md)
+3. **Use Consolidated Mocks**: See [MOCK_VERIFICATION_GUIDE.md](MOCK_VERIFICATION_GUIDE.md)
 
 ## Anti-Pattern Prevention 🛡️
 
