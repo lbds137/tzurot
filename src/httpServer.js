@@ -49,7 +49,10 @@ async function handleRequest(req, res) {
   // Set CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Hub-Signature-256, X-GitHub-Event');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, X-Hub-Signature-256, X-GitHub-Event'
+  );
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {

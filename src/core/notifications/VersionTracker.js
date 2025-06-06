@@ -110,17 +110,19 @@ class VersionTracker {
     if (!lastVersion) {
       // First run - we should notify about the current version
       // Don't save yet - let the notification manager handle that after sending
-      logger.info(`[VersionTracker] First run detected, will notify about current version ${currentVersion}`);
-      
+      logger.info(
+        `[VersionTracker] First run detected, will notify about current version ${currentVersion}`
+      );
+
       // Determine change type based on current version
       const current = this.parseVersion(currentVersion);
       let changeType = 'minor'; // Default to minor for first notification
-      
+
       // If it's a major version (x.0.0), treat as major
       if (current.minor === 0 && current.patch === 0) {
         changeType = 'major';
       }
-      
+
       return { hasNewVersion: true, currentVersion, lastVersion: null, changeType };
     }
 
