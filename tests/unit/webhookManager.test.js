@@ -64,6 +64,9 @@ describe('WebhookManager', () => {
   const testMessageContent = 'This is a test message';
   
   beforeEach(() => {
+    // CRITICAL: Use fake timers to prevent real timeouts
+    jest.useFakeTimers();
+    
     // Mock console methods
     console.log = jest.fn();
     console.error = jest.fn();
@@ -77,6 +80,14 @@ describe('WebhookManager', () => {
   });
   
   afterEach(() => {
+    // CRITICAL: Use real timers to prevent open handles
+    jest.useRealTimers();
+    
+    // Clear all pending messages to prevent memory leaks
+    if (webhookManager && webhookManager.clearAllPendingMessages) {
+      webhookManager.clearAllPendingMessages();
+    }
+    
     // Restore console methods
     console.log = originalConsoleLog;
     console.error = originalConsoleError;
@@ -229,29 +240,17 @@ describe('WebhookManager', () => {
       const channelId = 'channel-123';
       const content = 'Test message content';
       
-      // Create a mock implementation of Date.now to simulate time passing
-      const originalDateNow = Date.now;
+      // Register a pending message
+      webhookManager.registerPendingMessage(personalityName, channelId, content, false);
       
-      try {
-        // Set up initial time
-        const currentTime = 1600000000000; // Fixed timestamp
-        Date.now = jest.fn().mockReturnValue(currentTime);
-        
-        // Register a pending message
-        webhookManager.registerPendingMessage(personalityName, channelId, content, false);
-        
-        // Should detect a pending message
-        expect(webhookManager.hasPersonalityPendingMessage(personalityName, channelId)).toBe(true);
-        
-        // Advance time beyond the timeout (MAX_ERROR_WAIT_TIME = 15000)
-        Date.now = jest.fn().mockReturnValue(currentTime + 20000);
-        
-        // Pending message should have expired
-        expect(webhookManager.hasPersonalityPendingMessage(personalityName, channelId)).toBe(false);
-      } finally {
-        // Restore original Date.now
-        Date.now = originalDateNow;
-      }
+      // Should detect a pending message
+      expect(webhookManager.hasPersonalityPendingMessage(personalityName, channelId)).toBe(true);
+      
+      // Advance fake timers beyond the timeout (MAX_ERROR_WAIT_TIME = 15000)
+      jest.advanceTimersByTime(20000);
+      
+      // Pending message should have expired
+      expect(webhookManager.hasPersonalityPendingMessage(personalityName, channelId)).toBe(false);
     });
   });
 });
