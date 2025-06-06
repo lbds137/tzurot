@@ -61,7 +61,10 @@ describe('ReleaseNotificationManager', () => {
     // Mock GitHub client
     mockGithubClient = {
       getReleaseByTag: jest.fn(),
+      getReleasesBetween: jest.fn(),
       parseReleaseChanges: jest.fn(),
+      owner: 'testowner',
+      repo: 'testrepo',
     };
     
     manager = new ReleaseNotificationManager({
@@ -128,13 +131,13 @@ describe('ReleaseNotificationManager', () => {
         lastVersion: '1.0.0',
         changeType: 'minor',
       });
-      mockGithubClient.getReleaseByTag.mockResolvedValue(null);
+      mockGithubClient.getReleasesBetween.mockResolvedValue([]);
 
       const result = await manager.checkAndNotify();
 
       expect(result).toEqual({
         notified: false,
-        reason: 'No release found on GitHub',
+        reason: 'No releases found on GitHub',
       });
     });
 
@@ -145,7 +148,7 @@ describe('ReleaseNotificationManager', () => {
         lastVersion: '1.0.0',
         changeType: 'patch',
       });
-      mockGithubClient.getReleaseByTag.mockResolvedValue({ tag_name: 'v1.0.1' });
+      mockGithubClient.getReleasesBetween.mockResolvedValue([{ tag_name: 'v1.0.1' }]);
       mockPreferences.getUsersToNotify.mockReturnValue([]);
 
       const result = await manager.checkAndNotify();
@@ -158,13 +161,13 @@ describe('ReleaseNotificationManager', () => {
     });
 
     it('should send notifications to opted-in users', async () => {
-      const mockRelease = {
+      const mockReleases = [{
         tag_name: 'v1.1.0',
         name: 'Version 1.1.0',
         body: '## Features\n- New feature',
         html_url: 'https://example.com/test/test/releases/tag/v1.1.0',
         published_at: '2024-01-01T00:00:00Z',
-      };
+      }];
 
       mockVersionTracker.checkForNewVersion.mockResolvedValue({
         hasNewVersion: true,
@@ -172,7 +175,7 @@ describe('ReleaseNotificationManager', () => {
         lastVersion: '1.0.0',
         changeType: 'minor',
       });
-      mockGithubClient.getReleaseByTag.mockResolvedValue(mockRelease);
+      mockGithubClient.getReleasesBetween.mockResolvedValue(mockReleases);
       mockGithubClient.parseReleaseChanges.mockReturnValue({
         features: ['New feature'],
         fixes: [],
@@ -208,6 +211,7 @@ describe('ReleaseNotificationManager', () => {
       expect(mockUser2.send).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
       expect(mockPreferences.recordNotification).toHaveBeenCalledTimes(2);
       expect(mockVersionTracker.saveNotifiedVersion).toHaveBeenCalledWith('1.1.0');
+      expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('1.0.0', '1.1.0');
     });
 
     it('should handle notification failures gracefully', async () => {
@@ -217,7 +221,11 @@ describe('ReleaseNotificationManager', () => {
         lastVersion: '1.0.0',
         changeType: 'minor',
       });
-      mockGithubClient.getReleaseByTag.mockResolvedValue({ tag_name: 'v1.1.0' });
+      mockGithubClient.getReleasesBetween.mockResolvedValue([{ 
+        tag_name: 'v1.1.0',
+        published_at: '2024-01-01T00:00:00Z',
+        html_url: 'https://example.com/releases/v1.1.0'
+      }]);
       mockGithubClient.parseReleaseChanges.mockReturnValue({
         features: [],
         fixes: [],
@@ -318,7 +326,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '1.1.0', changeType: 'minor' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -344,7 +352,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '1.1.0', changeType: 'minor' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -369,7 +377,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '1.1.0', changeType: 'minor' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -390,7 +398,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '1.1.0', lastVersion: '1.0.0', changeType: 'minor' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -413,7 +421,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '2.0.0', changeType: 'major' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -447,7 +455,7 @@ describe('ReleaseNotificationManager', () => {
 
       const embed = manager.createReleaseEmbed(
         { currentVersion: '1.1.0', changeType: 'minor' },
-        mockRelease,
+        [mockRelease],
         'user123'
       );
 
@@ -494,6 +502,141 @@ describe('ReleaseNotificationManager', () => {
 
       expect(stats).toEqual(mockStats);
       expect(mockPreferences.getStatistics).toHaveBeenCalled();
+    });
+  });
+
+  describe('Multi-release functionality', () => {
+    beforeEach(async () => {
+      await manager.initialize();
+    });
+
+    it('should fetch multiple releases when versions have changed', async () => {
+      mockVersionTracker.checkForNewVersion.mockResolvedValue({
+        hasNewVersion: true,
+        currentVersion: '1.3.0',
+        lastVersion: '1.0.0',
+        changeType: 'minor',
+      });
+
+      const mockReleases = [
+        { tag_name: 'v1.3.0', published_at: '2024-01-03T00:00:00Z' },
+        { tag_name: 'v1.2.0', published_at: '2024-01-02T00:00:00Z' },
+        { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
+      ];
+
+      mockGithubClient.getReleasesBetween.mockResolvedValue(mockReleases);
+      mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
+      mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
+
+      const result = await manager.checkAndNotify();
+
+      expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('1.0.0', '1.3.0');
+      expect(result.notified).toBe(true);
+    });
+
+    it('should create embed with multiple releases', () => {
+      const mockReleases = [
+        { 
+          tag_name: 'v1.3.0', 
+          published_at: '2024-01-03T00:00:00Z',
+          html_url: 'https://example.com/releases/v1.3.0'
+        },
+        { 
+          tag_name: 'v1.2.0', 
+          published_at: '2024-01-02T00:00:00Z',
+          html_url: 'https://example.com/releases/v1.2.0'
+        },
+        { 
+          tag_name: 'v1.1.0', 
+          published_at: '2024-01-01T00:00:00Z',
+          html_url: 'https://example.com/releases/v1.1.0'
+        },
+      ];
+
+      mockPreferences.getUserPreferences.mockReturnValue({});
+      mockGithubClient.parseReleaseChanges.mockReturnValue({
+        features: ['Feature A'],
+        fixes: ['Bug fix 1'],
+        breaking: [],
+        other: [],
+      });
+
+      const embed = manager.createReleaseEmbed(
+        { currentVersion: '1.3.0', lastVersion: '1.0.0', changeType: 'minor' },
+        mockReleases,
+        'user123'
+      );
+
+      const mockEmbed = EmbedBuilder.mock.results[0].value;
+      expect(mockEmbed.setTitle).toHaveBeenCalledWith(
+        '🚀 Tzurot Multiple Releases (3 versions)'
+      );
+      expect(mockEmbed.addFields).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: '📋 Included Versions',
+          value: expect.stringContaining('v1.3.0'),
+        })
+      );
+    });
+
+    it('should aggregate changes from multiple releases', () => {
+      const mockReleases = [
+        { tag_name: 'v1.2.0', published_at: '2024-01-02T00:00:00Z' },
+        { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
+      ];
+
+      mockGithubClient.parseReleaseChanges
+        .mockReturnValueOnce({
+          features: ['Feature B'],
+          fixes: ['Bug fix 2'],
+          breaking: ['Breaking change 1'],
+          other: [],
+        })
+        .mockReturnValueOnce({
+          features: ['Feature A'],
+          fixes: ['Bug fix 1'],
+          breaking: [],
+          other: [],
+        });
+
+      const aggregated = manager.aggregateReleaseChanges(mockReleases);
+
+      expect(aggregated.features).toEqual(['[v1.2.0] Feature B', '[v1.1.0] Feature A']);
+      expect(aggregated.fixes).toEqual(['[v1.2.0] Bug fix 2', '[v1.1.0] Bug fix 1']);
+      expect(aggregated.breaking).toEqual(['[v1.2.0] Breaking change 1']);
+    });
+
+    it('should generate proper description for multiple releases', () => {
+      const mockReleases = [
+        { tag_name: 'v1.3.0', published_at: '2024-01-03T00:00:00Z' },
+        { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
+      ];
+
+      const description = manager.getMultiReleaseDescription(
+        { changeType: 'minor' },
+        mockReleases
+      );
+
+      expect(description).toContain('You\'ve missed 2 releases');
+      expect(description).toContain('over the past 2 days');
+    });
+
+    it('should handle single release in multi-release flow', () => {
+      const mockReleases = [
+        { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
+      ];
+
+      mockGithubClient.parseReleaseChanges.mockReturnValue({
+        features: ['Feature A'],
+        fixes: [],
+        breaking: [],
+        other: [],
+      });
+
+      const aggregated = manager.aggregateReleaseChanges(mockReleases);
+
+      // Single release shouldn't have version prefix
+      expect(aggregated.features).toEqual(['Feature A']);
     });
   });
 });
