@@ -114,15 +114,24 @@ async function init() {
       const { createHTTPServer } = require('./src/httpServer');
       const httpPort = process.env.PORT || process.env.HTTP_PORT || 3000;
       
+      logger.info(`[Init] Starting HTTP server on port ${httpPort} (PORT env: ${process.env.PORT || 'not set'})`);
+      
       // Create context with Discord client and other shared resources
       const serverContext = {
         discordClient: global.tzurotClient || client,
       };
       
       httpServer = createHTTPServer(httpPort, serverContext);
-      logger.info(`HTTP server started on port ${httpPort}`);
+      logger.info(`[Init] HTTP server started successfully on port ${httpPort}`);
+      
+      // Log Railway-specific environment info
+      if (process.env.RAILWAY_ENVIRONMENT) {
+        logger.info(`[Init] Railway environment: ${process.env.RAILWAY_ENVIRONMENT}`);
+        logger.info(`[Init] Railway public domain: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'not set'}`);
+      }
     } catch (httpError) {
-      logger.error('Failed to start HTTP server:', httpError);
+      logger.error('[Init] Failed to start HTTP server:', httpError);
+      logger.error('[Init] HTTP server error details:', httpError.stack);
       // Continue initialization despite HTTP server failure
       // The bot can still function without it
     }
