@@ -86,7 +86,11 @@ async function init() {
     
     // Initialize release notification manager and check for updates
     try {
-      await releaseNotificationManager.initialize(client);
+      // Get authManager to migrate existing authenticated users
+      const { getAuthManager } = require('./src/auth');
+      const authManager = getAuthManager();
+      
+      await releaseNotificationManager.initialize(client, authManager);
       logger.info('Release notification manager initialized');
       
       // Check for new version and send notifications in the background
