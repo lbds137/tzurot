@@ -5,6 +5,27 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-06-06
+
+### Fixed
+- **First-run notification system** - Fixed multiple issues preventing first-time users from receiving release notifications (#72, #73, #75)
+  - Clear orphaned version files when no notifications have been sent
+  - Migrate existing authenticated users to notification system on startup
+  - Fixed `getAllReleases is not a function` error by using correct `getReleasesBetween` method
+  - Ensure first-run notifications include current version and up to 5 recent releases
+- **Mock verification system** - Added automated verification that mocked methods exist in real implementations (#74)
+  - Prevents production bugs from testing non-existent methods
+  - New pre-commit hook and npm script for mock validation
+- **Dynamic bot prefix** - Replaced all 9 remaining hardcoded bot prefixes with dynamic configuration (#76)
+  - Fixed prefixes in verify command and DM handler
+  - Updated all test files to use dynamic prefix
+  - Ensures correct prefix display in both production (!tz) and development (!rtz)
+
+### Added
+- Comprehensive test coverage for notification system edge cases
+- Mock method verification script and documentation
+- Hardcoded prefix detection script with pre-commit enforcement
+
 ## [1.2.0] - 2025-06-05
 
 ### Added
