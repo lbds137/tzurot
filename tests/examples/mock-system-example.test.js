@@ -3,7 +3,13 @@
  * This file shows how to use the new mocks effectively
  */
 
+// Mock the config module first
+jest.mock('../../config', () => ({
+  botPrefix: '!tz'
+}));
+
 const { presets, discord, api, modules } = require('../__mocks__');
+const { botPrefix } = require('../../config');
 
 describe('Consolidated Mock System Examples', () => {
   describe('Using Presets', () => {
@@ -14,11 +20,11 @@ describe('Consolidated Mock System Examples', () => {
 
       // Create a mock message
       const message = mockEnv.discord.createMessage({
-        content: '!tz help',
+        content: `${botPrefix} help`,
         author: { id: 'user-123', username: 'testuser' }
       });
 
-      expect(message.content).toBe('!tz help');
+      expect(message.content).toBe(`${botPrefix} help`);
       expect(message.author.id).toBe('user-123');
       expect(typeof message.reply).toBe('function');
     });
@@ -96,7 +102,7 @@ describe('Consolidated Mock System Examples', () => {
       });
 
       // Test the mock
-      const response = await apiEnv.fetch.fetch('/test-endpoint');
+      const response = await apiEnv.fetch('/test-endpoint');
       const data = await response.json();
       
       expect(data.message).toBe('Custom response');

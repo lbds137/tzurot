@@ -40,7 +40,7 @@ async function execute(message, _args) {
     return await directSend(
       '⚠️ **Age Verification Required**\n\n' +
         'This command must be run in a server channel marked as NSFW to verify your age.\n\n' +
-        "Please join a server, find a channel marked as NSFW, and run `!tz verify` there. This will verify that you meet Discord's age requirements for NSFW content.\n\n" +
+        `Please join a server, find a channel marked as NSFW, and run \`${_botPrefix} verify\` there. This will verify that you meet Discord's age requirements for NSFW content.\n\n` +
         'This verification is required to use AI personalities in Direct Messages.'
     );
   }

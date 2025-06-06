@@ -12,6 +12,7 @@ const { getActivePersonality } = require('../core/conversation');
 const auth = require('../auth');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const personalityHandler = require('./personalityHandler');
+const { botPrefix } = require('../../config');
 
 /**
  * Handles replies to DM-formatted bot messages
@@ -277,7 +278,7 @@ async function handleDirectMessage(message, client) {
       await message.reply(
         '⚠️ **Age Verification Required**\n\n' +
           'To use AI personalities, you need to verify your age first.\n\n' +
-          'Please run `!tz verify` in a channel marked as NSFW. ' +
+          `Please run \`${botPrefix} verify\` in a channel marked as NSFW. ` +
           "This will verify that you meet Discord's age requirements for accessing NSFW content."
       );
     } catch (error) {

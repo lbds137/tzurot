@@ -93,6 +93,19 @@ async function execute(message, args) {
             `\`${botPrefix} list\` - Show first page of personalities\n` +
             `\`${botPrefix} list 2\` - Show second page of personalities`;
           break;
+
+        case 'notifications':
+          helpContent +=
+            `\n\nSubcommands:\n` +
+            `- \`status\` - Check your notification settings (default)\n` +
+            `- \`on\` - Opt in to release notifications\n` +
+            `- \`off\` - Opt out of all release notifications\n` +
+            `- \`level <major|minor|patch>\` - Set notification level\n\n` +
+            `Notification Levels:\n` +
+            `- \`major\` - Only notify for major releases (breaking changes)\n` +
+            `- \`minor\` - Notify for minor and major releases (default)\n` +
+            `- \`patch\` - Notify for all releases including bug fixes`;
+          break;
       }
 
       // If command has aliases, show them
@@ -147,6 +160,8 @@ async function execute(message, args) {
         categories['Conversation'].push(cmd);
       } else if (['auth', 'verify'].includes(cmd.meta.name)) {
         categories['Authentication'].push(cmd);
+      } else if (['notifications'].includes(cmd.meta.name)) {
+        categories['System'].push(cmd); // Or we could create a 'Utility' category
       } else {
         categories['System'].push(cmd);
       }
