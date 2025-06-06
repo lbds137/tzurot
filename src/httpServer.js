@@ -44,7 +44,7 @@ function registerRoutes(routeModule) {
  */
 async function handleRequest(req, res) {
   const routeKey = `${req.method}:${req.url}`;
-  const handler = routes.get(routeKey);
+  let handler = routes.get(routeKey);
 
   // Set CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -59,6 +59,18 @@ async function handleRequest(req, res) {
     res.writeHead(200);
     res.end();
     return;
+  }
+
+  // If no exact match, check for prefix matches (for dynamic routes)
+  if (!handler) {
+    // Check if any route is a prefix match
+    for (const [key, value] of routes.entries()) {
+      const [method, path] = key.split(':');
+      if (req.method === method && req.url.startsWith(path)) {
+        handler = value;
+        break;
+      }
+    }
   }
 
   if (handler) {
@@ -99,6 +111,13 @@ function createHTTPServer(port = 3000, context = {}) {
     registerRoutes(webhookRoutes);
   } catch (error) {
     logger.warn('[HTTPServer] Webhook routes not found, skipping');
+  }
+
+  try {
+    const avatarRoutes = require('./routes/avatars');
+    registerRoutes(avatarRoutes);
+  } catch (error) {
+    logger.warn('[HTTPServer] Avatar routes not found, skipping');
   }
 
   // Create the server

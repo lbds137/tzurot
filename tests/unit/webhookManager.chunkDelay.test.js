@@ -71,14 +71,36 @@ jest.mock('../../src/utils/messageFormatter', () => ({
     }
     return chunks;
   }),
-  markErrorContent: jest.fn(content => content || ''),
-  prepareMessageData: jest.fn((content, username, avatarUrl, isThread, threadId, options) => ({
+  markErrorContent: jest.fn(content => content || '')
+}));
+
+// Need to reference the external mockWebhook
+const mockWebhookReference = { current: null };
+
+jest.mock('../../src/webhook', () => ({
+  prepareMessageData: jest.fn((content, username, personality, isThread, threadId, options) => ({
     content: content || '',
     username,
-    avatarURL: avatarUrl,
+    _personality: personality,
     threadId: isThread ? threadId : undefined,
     ...options
-  }))
+  })),
+  sendMessageChunk: jest.fn(async (webhook) => {
+    // Use the webhook that was passed in (which should be our mockWebhook)
+    return webhook.send();
+  }),
+  getStandardizedUsername: jest.fn().mockReturnValue('Test User'),
+  generateMessageTrackingId: jest.fn().mockReturnValue('tracking-id-123'),
+  createVirtualResult: jest.fn().mockReturnValue({ message: { id: 'virtual-id' }, messageIds: ['virtual-id'] }),
+  hasPersonalityPendingMessage: jest.fn().mockReturnValue(false),
+  registerPendingMessage: jest.fn(),
+  clearPendingMessage: jest.fn(),
+  calculateMessageDelay: jest.fn().mockReturnValue(0),
+  updateChannelLastMessageTime: jest.fn(),
+  minimizeConsoleOutput: jest.fn().mockReturnValue({}),
+  restoreConsoleOutput: jest.fn(),
+  sendDirectThreadMessage: jest.fn().mockResolvedValue({ message: { id: 'thread-message-id' } }),
+  sendFormattedMessageInDM: jest.fn().mockResolvedValue({ message: { id: 'dm-message-id' } })
 }));
 
 jest.mock('../../src/profileInfoFetcher', () => ({

@@ -41,12 +41,39 @@ function getProfileInfoEndpoint(personalityName) {
   return `${process.env.PROFILE_INFO_ENDPOINT}/${personalityName}`;
 }
 
-// This function has been removed as we now use avatar URLs directly from the API
+// Public server configuration
+const publicBaseUrl = process.env.BOT_PUBLIC_BASE_URL || 
+  (isDevelopment ? 'http://localhost:3000' : 'https://tzurot.up.railway.app');
+
+// Avatar configuration
+const avatarConfig = {
+  // Storage settings
+  maxFileSize: 10 * 1024 * 1024, // 10MB
+  allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+  downloadTimeout: 30000, // 30 seconds
+};
+
+// Function to get avatar URL for serving
+function getAvatarUrl(filename) {
+  // Ensure no double slashes
+  return `${publicBaseUrl}/avatars/${filename}`;
+}
+
+// Function to get any public endpoint URL
+function getPublicUrl(path) {
+  // Ensure path starts with / and no double slashes
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${publicBaseUrl}${normalizedPath}`;
+}
 
 module.exports = {
   getApiEndpoint,
   getModelPath,
   getProfileInfoEndpoint,
   botPrefix,
-  botConfig
+  botConfig,
+  avatarConfig,
+  publicBaseUrl,
+  getAvatarUrl,
+  getPublicUrl
 };

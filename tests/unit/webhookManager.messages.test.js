@@ -71,7 +71,7 @@ describe('WebhookManager - Message Sending Tests', () => {
           const messageData = webhookManager.prepareMessageData(
             markedContent,
             standardizedName,
-            personality?.avatarUrl,
+            personality,
             channel.isThread(),
             channel.id,
             isLastChunk ? options : {}
@@ -161,11 +161,11 @@ describe('WebhookManager - Message Sending Tests', () => {
       return [content.substring(0, 2000), content.substring(2000)];
     });
     
-    webhookManager.prepareMessageData = jest.fn().mockImplementation((content, username, avatarUrl, isThread, threadId, options = {}) => {
+    webhookManager.prepareMessageData = jest.fn().mockImplementation((content, username, personality, isThread, threadId, options = {}) => {
       const messageData = {
         content: content,
         username: username,
-        avatarURL: avatarUrl || null,
+        _personality: personality,
         threadId: isThread ? threadId : undefined,
       };
       
