@@ -54,6 +54,8 @@ The following variables are no longer used:
 - `DISCORD_DEV_TOKEN` - Use `DISCORD_TOKEN` instead
 - `OWNER_ID` - Use `BOT_OWNER_ID` instead
 - `OWNER_PERSONALITIES` - Use `BOT_OWNER_PERSONALITIES` instead
+- `SERVICE_DEV_APP_ID` - Use `SERVICE_APP_ID` instead
+- `SERVICE_DEV_API_KEY` - Use `SERVICE_API_KEY` instead
 
 ### Complete Variable List
 
