@@ -9,6 +9,7 @@ const ReleaseNotificationManager = require('./ReleaseNotificationManager');
 const VersionTracker = require('./VersionTracker');
 const UserPreferencesPersistence = require('./UserPreferencesPersistence');
 const GitHubReleaseClient = require('./GitHubReleaseClient');
+const { botPrefix } = require('../../../config');
 
 // Create singleton instance
 let _instance = null;
@@ -19,7 +20,7 @@ let _instance = null;
  */
 function getInstance() {
   if (!_instance) {
-    _instance = new ReleaseNotificationManager();
+    _instance = new ReleaseNotificationManager({ botPrefix });
   }
   return _instance;
 }
