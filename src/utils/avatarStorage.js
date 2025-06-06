@@ -143,26 +143,38 @@ async function downloadAvatar(url, personalityName) {
       }
       
       // Check content type
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.startsWith('image/')) {
+      const contentType = response.headers.get('content-type') || '';
+      
+      // For application/octet-stream or missing content-type, check URL extension
+      const isGenericBinary = contentType === 'application/octet-stream' || !contentType;
+      const urlPath = new URL(url).pathname;
+      const urlExt = path.extname(urlPath).toLowerCase();
+      
+      // If content type is generic binary, validate by URL extension
+      if (isGenericBinary) {
+        if (!config.allowedExtensions.includes(urlExt)) {
+          throw new Error(`Invalid file extension: ${urlExt}`);
+        }
+      } else if (!contentType.startsWith('image/')) {
+        // If it's not generic binary and not an image type, reject
         throw new Error(`Invalid content type: ${contentType}`);
       }
       
       // Get file extension from content type or URL
       let extension = '.png'; // default
-      if (contentType.includes('jpeg') || contentType.includes('jpg')) {
+      
+      // If generic binary, use URL extension
+      if (isGenericBinary && config.allowedExtensions.includes(urlExt)) {
+        extension = urlExt;
+      } else if (contentType.includes('jpeg') || contentType.includes('jpg')) {
         extension = '.jpg';
       } else if (contentType.includes('gif')) {
         extension = '.gif';
       } else if (contentType.includes('webp')) {
         extension = '.webp';
-      } else {
-        // Try to get from URL
-        const urlPath = new URL(url).pathname;
-        const urlExt = path.extname(urlPath).toLowerCase();
-        if (config.allowedExtensions.includes(urlExt)) {
-          extension = urlExt;
-        }
+      } else if (config.allowedExtensions.includes(urlExt)) {
+        // Fall back to URL extension if content type doesn't match known types
+        extension = urlExt;
       }
       
       // Download to buffer
