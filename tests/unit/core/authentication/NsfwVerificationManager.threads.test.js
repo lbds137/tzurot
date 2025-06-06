@@ -24,6 +24,7 @@ jest.mock('../../../../src/utils/channelUtils', () => ({
 const NsfwVerificationManager = require('../../../../src/core/authentication/NsfwVerificationManager');
 const channelUtils = require('../../../../src/utils/channelUtils');
 const logger = require('../../../../src/logger');
+const { botPrefix } = require('../../../../config');
 
 describe('NsfwVerificationManager - Thread and Forum Support', () => {
   let manager;
@@ -159,7 +160,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
 
       expect(result.isAllowed).toBe(false);
       expect(result.reason).toContain(`<@${mockUserId}> has not completed NSFW verification`);
-      expect(result.reason).toContain('`!tz verify`');
+      expect(result.reason).toContain(`\`${botPrefix} verify\``);
     });
 
     it('should allow verified users in NSFW threads', () => {

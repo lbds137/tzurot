@@ -447,7 +447,7 @@ describe('ReleaseNotificationManager', () => {
       expect(EmbedBuilder).toHaveBeenCalled();
       const mockEmbed = EmbedBuilder.mock.results[0].value;
       expect(mockEmbed.setFooter).toHaveBeenCalledWith({
-        text: `📌 First time receiving this? You're automatically opted in. Use !tz notifications off to opt out.`,
+        text: `📌 First time receiving this? You're automatically opted in. Use ${manager.botPrefix} notifications off to opt out.`,
       });
     });
 
@@ -472,7 +472,7 @@ describe('ReleaseNotificationManager', () => {
 
       const mockEmbed = EmbedBuilder.mock.results[0].value;
       expect(mockEmbed.setFooter).toHaveBeenCalledWith({
-        text: `✅ You're receiving these because you haven't opted out. Use !tz notifications off to stop.`,
+        text: `✅ You're receiving these because you haven't opted out. Use ${manager.botPrefix} notifications off to stop.`,
       });
     });
 
