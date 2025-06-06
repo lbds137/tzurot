@@ -111,9 +111,27 @@ class ReleaseNotificationManager {
           versionInfo.currentVersion
         );
       } else {
-        // First time running, just get the current release
-        const release = await this.githubClient.getReleaseByTag(versionInfo.currentVersion);
-        releases = release ? [release] : [];
+        // First time running, get all releases up to current version
+        // This ensures users see the full history on first notification
+        const allReleases = await this.githubClient.getAllReleases();
+        
+        // Filter releases up to and including current version
+        releases = allReleases.filter(release => {
+          const releaseVersion = release.tag_name.replace(/^v/, '');
+          return this.versionTracker.compareVersions(releaseVersion, versionInfo.currentVersion) <= 0;
+        });
+        
+        // Sort by version descending (newest first)
+        releases.sort((a, b) => {
+          const versionA = a.tag_name.replace(/^v/, '');
+          const versionB = b.tag_name.replace(/^v/, '');
+          return this.versionTracker.compareVersions(versionB, versionA);
+        });
+        
+        // Limit to last 5 releases to avoid overwhelming users
+        releases = releases.slice(0, 5);
+        
+        logger.info(`[ReleaseNotificationManager] First run - including ${releases.length} recent releases`);
       }
 
       if (!releases || releases.length === 0) {
