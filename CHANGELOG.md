@@ -5,6 +5,25 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-06-05
+
+### Added
+- **Release Notification System** - Bot now automatically notifies authenticated users via DM when new versions are deployed (#65)
+  - Automatic version checking on bot startup
+  - Opt-in by default with customizable preferences
+  - Notification levels: major, minor, patch
+  - Conditional messaging based on user interaction history
+  - GitHub API integration for fetching release notes
+  - New command: `!tz notifications` to manage preferences
+- Enhanced versioning documentation with Discord bot-specific guidance
+
+### Fixed
+- **Personality error messages** - Custom error messages now properly display for all error types including empty_response (#64)
+- Added lazy loading for personalities missing the errorMessage field (registered before the feature existed)
+
+### Changed
+- Updated anti-pattern checker to better handle fs.promises operations
+
 ## [1.0.2] - 2025-06-05
 
 ### Fixed
