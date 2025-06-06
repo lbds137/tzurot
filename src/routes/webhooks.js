@@ -169,12 +169,12 @@ function createGitHubWebhookHandler(context) {
         }
 
         const payload = JSON.parse(body);
-        
+
         // Handle release events
         if (req.headers['x-github-event'] === 'release' && payload.action === 'published') {
           const releaseName = payload.release?.name || payload.release?.tag_name;
           logger.info(`[Webhooks] Received GitHub release webhook for: ${releaseName}`);
-          
+
           if (context.notificationManager) {
             try {
               await context.notificationManager.checkAndNotify();
@@ -183,7 +183,7 @@ function createGitHubWebhookHandler(context) {
               logger.error(`[Webhooks] Error processing release notification: ${error.message}`);
             }
           }
-          
+
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ status: 'accepted', release: releaseName }));
           return;
@@ -204,8 +204,6 @@ function createGitHubWebhookHandler(context) {
 }
 
 module.exports = {
-  routes: [
-    { method: 'POST', path: '/webhook/github', handler: githubWebhookHandler },
-  ],
+  routes: [{ method: 'POST', path: '/webhook/github', handler: githubWebhookHandler }],
   createGitHubWebhookHandler,
 };

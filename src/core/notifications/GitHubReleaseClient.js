@@ -84,59 +84,63 @@ class GitHubReleaseClient {
    */
   async getReleasesBetween(fromVersion, toVersion) {
     try {
-      logger.info(`[GitHubReleaseClient] Fetching releases between ${fromVersion} and ${toVersion}`);
-      
+      logger.info(
+        `[GitHubReleaseClient] Fetching releases between ${fromVersion} and ${toVersion}`
+      );
+
       // Fetch all releases (GitHub returns them in reverse chronological order)
       const url = `https://api.github.com/repos/${this.owner}/${this.repo}/releases?per_page=100`;
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
       }
-      
+
       const allReleases = await response.json();
-      
+
       // Filter releases between the two versions
       const releases = [];
       let foundEnd = false;
       let reachedStart = false;
-      
+
       // Normalize versions by removing 'v' prefix
       const normalizedFromVersion = fromVersion.replace(/^v/, '');
       const normalizedToVersion = toVersion.replace(/^v/, '');
-      
+
       for (const release of allReleases) {
         const tagName = release.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
-        
+
         // Skip drafts and prereleases unless we're looking for them specifically
         if (release.draft || release.prerelease) {
           continue;
         }
-        
+
         // Check if we reached the start version (exclusive)
         if (tagName === normalizedFromVersion) {
           reachedStart = true;
           break; // Stop here, don't include the start version
         }
-        
+
         // Start collecting when we find the end version (inclusive)
         if (tagName === normalizedToVersion) {
           foundEnd = true;
         }
-        
+
         // Collect releases after finding end version
         if (foundEnd) {
           releases.push(release);
         }
       }
-      
+
       // If we didn't find the end version, just return the latest release
       if (!foundEnd) {
-        logger.warn(`[GitHubReleaseClient] Could not find version ${toVersion}, fetching it directly`);
+        logger.warn(
+          `[GitHubReleaseClient] Could not find version ${toVersion}, fetching it directly`
+        );
         const directRelease = await this.getReleaseByTag(toVersion);
         return directRelease ? [directRelease] : [];
       }
-      
+
       logger.info(`[GitHubReleaseClient] Found ${releases.length} releases between versions`);
       return releases;
     } catch (error) {

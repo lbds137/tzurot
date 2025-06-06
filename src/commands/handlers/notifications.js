@@ -125,7 +125,9 @@ async function optIn(message, userId, manager) {
           manager.preferences.getUserPreferences(userId).notificationLevel
         ),
       })
-      .setFooter({ text: `Use ${botPrefix} notifications level <type> to change notification level` });
+      .setFooter({
+        text: `Use ${botPrefix} notifications level <type> to change notification level`,
+      });
 
     return message.reply({ embeds: [embed] });
   } catch (error) {
