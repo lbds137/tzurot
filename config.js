@@ -43,7 +43,7 @@ function getProfileInfoEndpoint(personalityName) {
 
 // Public server configuration
 const publicBaseUrl = process.env.BOT_PUBLIC_BASE_URL || 
-  (isDevelopment ? 'http://localhost:3000' : 'https://tzurot.up.railway.app');
+  (isDevelopment ? 'https://tzurot-development.up.railway.app' : 'https://tzurot-production.up.railway.app');
 
 // Avatar configuration
 const avatarConfig = {
