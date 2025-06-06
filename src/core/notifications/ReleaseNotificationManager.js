@@ -14,6 +14,7 @@ class ReleaseNotificationManager {
     this.preferences = options.preferences || new UserPreferencesPersistence();
     this.githubClient = options.githubClient || new GitHubReleaseClient();
     this.initialized = false;
+    this.botPrefix = options.botPrefix || '!tz'; // Default to !tz
 
     // Notification settings
     this.maxDMsPerBatch = options.maxDMsPerBatch || 10;
@@ -273,14 +274,14 @@ class ReleaseNotificationManager {
     if (hasNeverChangedSettings && !prefs.lastNotified) {
       // First notification ever
       footerText =
-        "📌 First time receiving this? You're automatically opted in. Use !tz notifications off to opt out.";
+        `📌 First time receiving this? You're automatically opted in. Use ${this.botPrefix} notifications off to opt out.`;
     } else if (hasNeverChangedSettings && prefs.lastNotified) {
       // Second+ notification without any action taken - implied consent
       footerText =
-        "✅ You're receiving these because you haven't opted out. Use !tz notifications off to stop.";
+        `✅ You're receiving these because you haven't opted out. Use ${this.botPrefix} notifications off to stop.`;
     } else {
       // User has interacted with settings before
-      footerText = 'You can change your notification preferences with !tz notifications';
+      footerText = `You can change your notification preferences with ${this.botPrefix} notifications`;
     }
 
     // Determine title based on number of releases

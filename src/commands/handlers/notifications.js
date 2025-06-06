@@ -1,6 +1,7 @@
 const logger = require('../../logger');
 const { EmbedBuilder } = require('discord.js');
 const validator = require('../utils/commandValidator');
+const { botPrefix } = require('../../../config');
 
 /**
  * Command metadata
@@ -84,7 +85,7 @@ async function showStatus(message, userId, manager) {
           inline: true,
         }
       )
-      .setFooter({ text: 'Use !tz notifications help for more options' });
+      .setFooter({ text: `Use ${botPrefix} help notifications for more options` });
 
     return message.reply({ embeds: [embed] });
   } catch (error) {
@@ -101,7 +102,7 @@ async function optOut(message, userId, manager) {
       .setColor(0xff0000)
       .setTitle('🔕 Opted Out')
       .setDescription('You have been opted out of release notifications.')
-      .setFooter({ text: 'Use !tz notifications on to opt back in' });
+      .setFooter({ text: `Use ${botPrefix} notifications on to opt back in` });
 
     return message.reply({ embeds: [embed] });
   } catch (error) {
@@ -124,7 +125,7 @@ async function optIn(message, userId, manager) {
           manager.preferences.getUserPreferences(userId).notificationLevel
         ),
       })
-      .setFooter({ text: 'Use !tz notifications level <type> to change notification level' });
+      .setFooter({ text: `Use ${botPrefix} notifications level <type> to change notification level` });
 
     return message.reply({ embeds: [embed] });
   } catch (error) {
