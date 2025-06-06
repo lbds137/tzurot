@@ -128,6 +128,10 @@ async function init() {
       if (process.env.RAILWAY_ENVIRONMENT) {
         logger.info(`[Init] Railway environment: ${process.env.RAILWAY_ENVIRONMENT}`);
         logger.info(`[Init] Railway public domain: ${process.env.RAILWAY_PUBLIC_DOMAIN || 'not set'}`);
+        logger.info(`[Init] Railway static URL: ${process.env.RAILWAY_STATIC_URL || 'not set'}`);
+        logger.info(`[Init] Railway service URL: ${process.env.RAILWAY_SERVICE_URL || 'not set'}`);
+      } else {
+        logger.info(`[Init] Not running on Railway (RAILWAY_ENVIRONMENT not set)`);
       }
     } catch (httpError) {
       logger.error('[Init] Failed to start HTTP server:', httpError);
