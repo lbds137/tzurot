@@ -105,4 +105,4 @@
 ## Next Steps
 - Discuss preferred approach for personality storage with team
 - Create detailed technical specifications for each feature
-- Implement features in priority order
+- Implement features in priority order- **Express.js HTTP Framework Migration** - Consider migrating from custom HTTP server to Express.js for better routing, middleware support, and ecosystem

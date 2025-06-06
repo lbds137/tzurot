@@ -6,6 +6,7 @@
 
 const logger = require('../logger');
 const crypto = require('crypto');
+const avatarStorage = require('../utils/avatarStorage');
 
 /**
  * Get a standardized username for webhook display
@@ -156,7 +157,7 @@ function generateMessageTrackingId(personality, channelId) {
  * Prepare message data for sending
  * @param {string} content - Message content
  * @param {string} username - Username to display
- * @param {string} avatarUrl - Avatar URL
+ * @param {Object} personality - Personality object (or null)
  * @param {boolean} isThread - Whether this is a thread message
  * @param {string} channelId - Channel ID
  * @param {Object} additionalOptions - Additional options
@@ -165,7 +166,7 @@ function generateMessageTrackingId(personality, channelId) {
 function prepareMessageData(
   content,
   username,
-  avatarUrl,
+  personality,
   isThread,
   channelId,
   additionalOptions = {}
@@ -173,7 +174,8 @@ function prepareMessageData(
   const messageData = {
     content,
     username,
-    avatarURL: avatarUrl,
+    // We'll resolve the avatar URL later in sendMessageChunk
+    _personality: personality, // Store for later use
   };
 
   // Add thread-specific options
@@ -234,7 +236,31 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
   try {
     logger.info(`[MessageUtils] Sending chunk ${chunkIndex + 1}/${totalChunks} via webhook`);
 
-    const sentMessage = await webhook.send(messageData);
+    // Extract personality and prepare final message data
+    const { _personality, ...baseMessageData } = messageData;
+    
+    // Resolve avatar URL if personality is provided
+    let avatarUrl = null;
+    if (_personality && _personality.avatarUrl) {
+      try {
+        const localAvatarUrl = await avatarStorage.getLocalAvatarUrl(
+          _personality.fullName,
+          _personality.avatarUrl
+        );
+        avatarUrl = localAvatarUrl || _personality.avatarUrl;
+      } catch (error) {
+        logger.error(`[MessageUtils] Failed to get local avatar URL: ${error.message}`);
+        avatarUrl = _personality.avatarUrl; // Fallback to original
+      }
+    }
+    
+    // Prepare final message data with resolved avatar URL
+    const finalMessageData = {
+      ...baseMessageData,
+      avatarURL: avatarUrl,
+    };
+
+    const sentMessage = await webhook.send(finalMessageData);
 
     logger.info(`[MessageUtils] Successfully sent chunk ${chunkIndex + 1}/${totalChunks}`);
 

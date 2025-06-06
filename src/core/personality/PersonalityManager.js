@@ -7,6 +7,7 @@ const {
   getProfileErrorMessage,
 } = require('../../profileInfoFetcher');
 const logger = require('../../logger');
+const avatarStorage = require('../../utils/avatarStorage');
 
 /**
  * PersonalityManager - Main facade for personality management
@@ -482,12 +483,32 @@ class PersonalityManager {
       // Fetch latest data from API using shared method
       const profileData = await this._fetchProfileData(fullName);
 
+      // Check if avatar needs updating using checksum comparison
+      let avatarChanged = false;
+      if (profileData.avatarUrl && profileData.avatarUrl !== personality.avatarUrl) {
+        // URL changed, check if actual image changed
+        try {
+          const needsUpdate = await avatarStorage.needsUpdate(fullName, profileData.avatarUrl);
+          if (needsUpdate) {
+            logger.info(`[PersonalityManager] Avatar changed for ${fullName}, will update local storage`);
+            avatarChanged = true;
+            // Pre-download the new avatar to ensure it's cached
+            await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
+          } else {
+            logger.info(`[PersonalityManager] Avatar URL changed but image unchanged for ${fullName}`);
+          }
+        } catch (error) {
+          logger.error(`[PersonalityManager] Error checking avatar update for ${fullName}: ${error.message}`);
+        }
+      }
+
       // Update personality data with new fields and timestamp
       const updated = {
         ...personality,
         ...profileData,
         displayName: profileData.displayName || personality.displayName || fullName,
         lastUpdated: new Date().toISOString(),
+        avatarChanged, // Track if avatar actually changed
       };
 
       // Update in registry

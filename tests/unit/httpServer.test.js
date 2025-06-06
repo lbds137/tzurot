@@ -133,7 +133,7 @@ describe('HTTP Server', () => {
       expect(handler).toHaveBeenCalledWith(mockRequest, mockResponse);
     });
 
-    it('should handle exact route matching (no query param handling)', async () => {
+    it('should handle routes with query parameters via prefix matching', async () => {
       registerRoute('GET', '/test', handler);
       
       const serverHandler = server._events.request || server.listeners('request')[0];
@@ -143,8 +143,8 @@ describe('HTTP Server', () => {
       
       await serverHandler(mockRequest, mockResponse);
       
-      // Server doesn't parse query params, so /test?param=value doesn't match /test
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
+      // Server now uses prefix matching, so /test?param=value matches /test
+      expect(handler).toHaveBeenCalledWith(mockRequest, mockResponse);
     });
 
     it('should return 404 for unregistered routes', async () => {

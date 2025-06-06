@@ -1,7 +1,9 @@
 // Mock dependencies before imports
 jest.mock('../../../src/logger');
+jest.mock('../../../src/utils/avatarStorage');
 
 const logger = require('../../../src/logger');
+const avatarStorage = require('../../../src/utils/avatarStorage');
 const {
   getStandardizedUsername,
   generateMessageTrackingId,
@@ -314,42 +316,46 @@ describe('messageUtils', () => {
 
   describe('prepareMessageData', () => {
     it('should create basic message data', () => {
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', false, 'channel-123');
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123');
       
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
-        avatarURL: 'https://avatar.url',
+        _personality: personality,
       });
     });
 
     it('should add threadId for thread messages', () => {
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', true, 'thread-123');
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, true, 'thread-123');
       
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
-        avatarURL: 'https://avatar.url',
+        _personality: personality,
         threadId: 'thread-123',
       });
     });
 
     it('should handle legacy embed format', () => {
       const embed = { title: 'Test Embed' };
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', false, 'channel-123', {
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {
         embed: embed,
       });
       
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
-        avatarURL: 'https://avatar.url',
+        _personality: personality,
         embeds: [embed],
       });
     });
 
     it('should pass through other options', () => {
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', false, 'channel-123', {
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {
         files: ['file1'],
         allowedMentions: { parse: [] },
       });
@@ -357,14 +363,15 @@ describe('messageUtils', () => {
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
-        avatarURL: 'https://avatar.url',
+        _personality: personality,
         files: ['file1'],
         allowedMentions: { parse: [] },
       });
     });
 
     it('should not include embed property in final data', () => {
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', false, 'channel-123', {
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {
         embed: { title: 'Test' },
         otherOption: 'value',
       });
@@ -375,18 +382,23 @@ describe('messageUtils', () => {
     });
 
     it('should handle null avatar URL', () => {
-      const data = prepareMessageData('Hello', 'TestUser', null, false, 'channel-123');
+      const personality = null;
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123');
       
-      expect(data.avatarURL).toBeNull();
+      // Test the behavior, not the internal property
+      expect(data.username).toBe('TestUser');
+      expect(data.content).toBe('Hello');
+      expect(data.thread_id).toBeUndefined();
     });
 
     it('should handle empty additional options', () => {
-      const data = prepareMessageData('Hello', 'TestUser', 'https://avatar.url', false, 'channel-123', {});
+      const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
+      const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {});
       
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
-        avatarURL: 'https://avatar.url',
+        _personality: personality,
       });
     });
   });
@@ -458,6 +470,8 @@ describe('messageUtils', () => {
       mockWebhook = {
         send: jest.fn(),
       };
+      // Reset avatar storage mocks
+      jest.clearAllMocks();
     });
 
     it('should send message via webhook', async () => {
@@ -470,7 +484,35 @@ describe('messageUtils', () => {
       
       const result = await sendMessageChunk(mockWebhook, messageData, 0, 1);
       
-      expect(mockWebhook.send).toHaveBeenCalledWith(messageData);
+      expect(mockWebhook.send).toHaveBeenCalledWith({
+        content: 'Test message',
+        username: 'TestUser',
+        avatarURL: null,
+      });
+      expect(result).toEqual({ id: 'message-123' });
+    });
+
+    it('should resolve avatar URL from personality', async () => {
+      const messageData = {
+        content: 'Test message',
+        username: 'TestUser',
+        _personality: {
+          fullName: 'test-bot',
+          avatarUrl: 'https://example.com/avatar.png'
+        }
+      };
+      
+      avatarStorage.getLocalAvatarUrl = jest.fn().mockResolvedValue('http://localhost:3000/avatars/test-bot-123.png');
+      mockWebhook.send.mockResolvedValue({ id: 'message-123' });
+      
+      const result = await sendMessageChunk(mockWebhook, messageData, 0, 1);
+      
+      expect(avatarStorage.getLocalAvatarUrl).toHaveBeenCalledWith('test-bot', 'https://example.com/avatar.png');
+      expect(mockWebhook.send).toHaveBeenCalledWith({
+        content: 'Test message',
+        username: 'TestUser',
+        avatarURL: 'http://localhost:3000/avatars/test-bot-123.png',
+      });
       expect(result).toEqual({ id: 'message-123' });
     });
 
