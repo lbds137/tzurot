@@ -5,6 +5,40 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2025-06-06
+
+### Added
+- **Local Avatar Storage System** - Bot now downloads and serves personality avatars locally (#79)
+  - Prevents Discord from blocking external avatar URLs (shapes.inc domain)
+  - Implements lazy loading with checksum-based change detection
+  - Serves avatars via HTTP endpoint at `/avatars`
+  - Automatically migrates existing personalities on first use
+  - Full support for thread messages and webhook messages
+
+### Fixed
+- **Critical: Duplicate AI Request Prevention** - Enhanced request deduplication to prevent multiple API calls (#78)
+  - Adds Discord message ID to request tracking for better uniqueness
+  - Implements content hashing for improved deduplication
+  - Fixes issue where single Discord message could trigger 2-3 AI responses
+  - Should resolve cases where bot processes messages multiple times but only shows last response
+- **Avatar Content Type Handling** - Support for `application/octet-stream` responses
+  - Handles generic binary content types when URL has valid image extension
+  - Fixes avatar download failures from shapes.inc API
+- **HTTP Server Deployment** - Resolved Railway deployment issues
+  - Fixed port configuration mismatch (now uses PORT=3000)
+  - Added root path handler for health checks
+  - Enhanced error logging with defensive socket property access
+  - Server now properly binds to 0.0.0.0 for external access
+- **Thread Message Avatar Resolution** - Fixed missing avatar storage in thread handler
+  - Thread messages now use local avatar URLs consistently
+  - Eliminates code duplication between regular and thread message paths
+
+### Changed
+- **Timer Pattern Enforcement** - Enhanced test infrastructure
+  - Timer pattern checker now detects indirect timer usage
+  - Added test timeout detection to pre-commit hooks
+  - Prevents future CI failures from unmocked timers
+
 ## [1.2.1] - 2025-06-06
 
 ### Fixed
