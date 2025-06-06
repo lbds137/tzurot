@@ -16,6 +16,8 @@ const { releaseNotificationManager } = require('./src/core/notifications');
 let isInitialized = false;
 // Health check server instance
 let healthServer = null;
+// Webhook server instance
+let webhookServer = null;
 
 // Error handling for uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -123,6 +125,17 @@ async function init() {
       // The bot can still function without it
     }
     
+    // Start webhook server for external integrations
+    try {
+      const { createWebhookServer } = require('./src/webhookServer');
+      const webhookPort = process.env.WEBHOOK_PORT || 3001;
+      webhookServer = createWebhookServer(webhookPort);
+      logger.info(`Webhook server started on port ${webhookPort}`);
+    } catch (webhookError) {
+      logger.error('Failed to start webhook server:', webhookError);
+      // Continue without webhook server - not critical for basic operation
+    }
+    
     isInitialized = true;
     logger.info(`${botConfig.name} initialization complete`);
   } catch (error) {
@@ -174,6 +187,16 @@ async function cleanup() {
       healthServer.close();
     } catch (error) {
       logger.error('Error closing health check server:', error);
+    }
+  }
+  
+  // Close webhook server if it exists
+  if (webhookServer) {
+    try {
+      logger.info('Closing webhook server...');
+      webhookServer.close();
+    } catch (error) {
+      logger.error('Error closing webhook server:', error);
     }
   }
   

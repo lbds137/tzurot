@@ -70,7 +70,7 @@ class MessageHistory {
         if (!str) return '';
         return String(str).toLowerCase();
       };
-      
+
       // Extract the base name from webhook username (before the pipe character)
       let webhookBaseName = webhookUsername;
       const pipeIndex = webhookUsername.indexOf('|');
@@ -93,7 +93,7 @@ class MessageHistory {
           );
           return personality.fullName;
         }
-        
+
         // Try match with extracted base name (before pipe)
         if (personality.displayName && personality.displayName === webhookBaseName) {
           logger.debug(
@@ -117,7 +117,7 @@ class MessageHistory {
           );
           return personality.fullName;
         }
-        
+
         // Match with extracted base name (case-insensitive)
         if (displayNameLower === webhookBaseNameLower) {
           logger.debug(

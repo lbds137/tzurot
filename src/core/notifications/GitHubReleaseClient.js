@@ -11,15 +11,17 @@ class GitHubReleaseClient {
     this.apiBase = 'https://api.github.com';
     this.releaseCache = new Map();
     this.cacheTTL = options.cacheTTL || 3600000; // 1 hour
-    
+
     // Optional GitHub token for higher rate limits
     // Can be set via GITHUB_TOKEN env var or passed in options
     this.githubToken = options.githubToken || process.env.GITHUB_TOKEN || null;
-    
+
     if (this.githubToken) {
       logger.info('[GitHubReleaseClient] Using authenticated GitHub API access');
     } else {
-      logger.info('[GitHubReleaseClient] Using unauthenticated GitHub API access (60 req/hour limit)');
+      logger.info(
+        '[GitHubReleaseClient] Using unauthenticated GitHub API access (60 req/hour limit)'
+      );
     }
   }
 
@@ -30,7 +32,7 @@ class GitHubReleaseClient {
    */
   async getReleaseByTag(version) {
     const tag = version.startsWith('v') ? version : `v${version}`;
-    
+
     // Check cache
     const cached = this.releaseCache.get(tag);
     if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
@@ -40,17 +42,17 @@ class GitHubReleaseClient {
 
     try {
       const url = `${this.apiBase}/repos/${this.owner}/${this.repo}/releases/tags/${tag}`;
-      
+
       const headers = {
-        'Accept': 'application/vnd.github.v3+json',
+        Accept: 'application/vnd.github.v3+json',
         'User-Agent': 'Tzurot-Bot',
       };
-      
+
       // Add authorization header if token is available
       if (this.githubToken) {
         headers['Authorization'] = `token ${this.githubToken}`;
       }
-      
+
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
@@ -62,10 +64,10 @@ class GitHubReleaseClient {
       }
 
       const data = await response.json();
-      
+
       // Cache the result
       this.releaseCache.set(tag, { data, timestamp: Date.now() });
-      
+
       logger.info(`[GitHubReleaseClient] Fetched release data for ${tag}`);
       return data;
     } catch (error) {
@@ -102,36 +104,40 @@ class GitHubReleaseClient {
     if (!release) return 'No release notes available.';
 
     const parts = [];
-    
+
     // Title and version
     parts.push(`**${release.name || release.tag_name}**`);
-    
+
     // Publication date
     if (release.published_at) {
       const date = new Date(release.published_at).toLocaleDateString();
       parts.push(`Released: ${date}`);
     }
-    
+
     // Release notes
     if (includeFullNotes && release.body) {
       parts.push('');
       parts.push('**Release Notes:**');
-      
+
       // Truncate if too long for Discord
       const maxLength = 1500;
       let body = release.body;
-      
+
       if (body.length > maxLength) {
-        body = body.substring(0, maxLength) + '...\n\n[Read full release notes](' + release.html_url + ')';
+        body =
+          body.substring(0, maxLength) +
+          '...\n\n[Read full release notes](' +
+          release.html_url +
+          ')';
       }
-      
+
       parts.push(body);
     }
-    
+
     // Link to release
     parts.push('');
     parts.push(`[View on GitHub](${release.html_url})`);
-    
+
     return parts.join('\n');
   }
 
@@ -157,7 +163,7 @@ class GitHubReleaseClient {
 
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       // Detect sections
       if (trimmed.match(/^#+\s*(features?|added)/i)) {
         currentSection = 'features';
@@ -168,7 +174,7 @@ class GitHubReleaseClient {
       } else if (trimmed.match(/^#+\s*(other|misc|chore)/i)) {
         currentSection = 'other';
       }
-      
+
       // Collect bullet points
       else if (trimmed.match(/^[-*]\s+/)) {
         const content = trimmed.replace(/^[-*]\s+/, '');
