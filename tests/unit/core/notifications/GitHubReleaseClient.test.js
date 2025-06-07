@@ -499,6 +499,25 @@ Some other text that's not in a section`,
         'Another dash bullet',
       ]);
     });
+
+    it('should categorize Changed section as other, not breaking', () => {
+      const release = {
+        body: `## Changed
+- Environment Variable Standardization
+- Updated configuration
+
+## Breaking
+- Actual breaking change`,
+      };
+
+      const changes = client.parseReleaseChanges(release);
+
+      expect(changes.breaking).toEqual(['Actual breaking change']);
+      expect(changes.other).toEqual([
+        'Environment Variable Standardization',
+        'Updated configuration',
+      ]);
+    });
   });
 
   describe('clearCache', () => {
