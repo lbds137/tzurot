@@ -224,9 +224,9 @@ class GitHubReleaseClient {
         currentSection = 'features';
       } else if (trimmed.match(/^#+\s*(fixes?|fixed|bug\s*fixes?)/i)) {
         currentSection = 'fixes';
-      } else if (trimmed.match(/^#+\s*(breaking|changed)/i)) {
+      } else if (trimmed.match(/^#+\s*(breaking)/i)) {
         currentSection = 'breaking';
-      } else if (trimmed.match(/^#+\s*(other|misc|chore)/i)) {
+      } else if (trimmed.match(/^#+\s*(changed|other|misc|chore|removed)/i)) {
         currentSection = 'other';
       }
 

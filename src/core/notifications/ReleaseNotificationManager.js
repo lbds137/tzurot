@@ -353,6 +353,14 @@ class ReleaseNotificationManager {
       });
     }
 
+    if (aggregatedChanges.other.length > 0) {
+      embed.addFields({
+        name: '🔧 Other Changes',
+        value: this.formatChangesList(aggregatedChanges.other, 5),
+        inline: false,
+      });
+    }
+
     // Add link to full release
     const releaseLinks =
       releases.length > 1
