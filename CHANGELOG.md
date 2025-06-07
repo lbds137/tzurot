@@ -5,6 +5,14 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2025-06-06
+
+### Fixed
+- **Release Notification Categorization** - Fixed incorrect categorization of changelog sections
+  - "Changed" sections no longer appear as "Breaking Changes" in notifications
+  - Changed sections now correctly display under "Other Changes" with a wrench icon
+  - Prevents confusion when patch releases show breaking changes warnings
+
 ## [1.3.1] - 2025-06-06
 
 ### Changed
