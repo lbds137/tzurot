@@ -231,9 +231,8 @@ describe('GitHubReleaseClient', () => {
       expect(formatted).not.toContain('**Release Notes:**');
       expect(formatted).not.toContain('## New Features');
     });
-  });
 
-  describe('getReleasesBetween', () => {
+    // Additional getReleasesBetween tests
     const mockReleases = [
       {
         tag_name: 'v1.3.0',
