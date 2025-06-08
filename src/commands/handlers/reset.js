@@ -43,7 +43,7 @@ async function execute(message, args) {
     let personality = personalityManager.getPersonalityByAlias(personalityInput);
 
     if (!personality) {
-      personality = personalityManager.getPersonality(personalityInput);
+      personality = await personalityManager.getPersonality(personalityInput);
     }
 
     if (!personality) {

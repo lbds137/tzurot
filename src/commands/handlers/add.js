@@ -130,7 +130,7 @@ async function execute(message, args, context = {}) {
     logger.debug(`[AddCommand] Generated command ID: ${commandId}`);
 
     // Check if this personality already exists globally first
-    const existingPersonality = getPersonality(personalityName);
+    const existingPersonality = await getPersonality(personalityName);
     if (existingPersonality) {
       logger.info(`[AddCommand] Personality ${personalityName} already exists globally`);
 
@@ -228,7 +228,7 @@ async function execute(message, args, context = {}) {
     }
 
     // Registration successful, now fetch the personality
-    const personality = getPersonality(personalityName);
+    const personality = await getPersonality(personalityName);
     if (!personality) {
       logger.error(
         `[AddCommand ${commandId}] Personality registered but could not be retrieved: ${personalityName}`

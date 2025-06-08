@@ -32,14 +32,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
   });
 
   describe('Personality error messages', () => {
-    it('should use personality error message when available', () => {
+    it('should use personality error message when available', async () => {
       // Mock personality with error message
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: '*sighs dramatically* Something went wrong! ||*(an error has occurred)*||',
       });
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         'NoneType object has no attribute',
         'test-personality',
         mockContext,
@@ -53,14 +53,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
-    it('should append error marker if personality message does not have one', () => {
+    it('should append error marker if personality message does not have one', async () => {
       // Mock personality with error message without marker
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'Oops! My circuits are fried!',
       });
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         'NoneType object has no attribute',
         'test-personality',
         mockContext,
@@ -71,14 +71,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       expect(result).toMatch(/Oops! My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
     });
 
-    it('should handle personality error messages with different spoiler patterns', () => {
+    it('should handle personality error messages with different spoiler patterns', async () => {
       // Mock personality with different spoiler pattern
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'Error detected! ||*(system malfunction)*||',
       });
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         'NoneType object has no attribute',
         'test-personality',
         mockContext,
@@ -89,14 +89,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       expect(result).toMatch(/Error detected! \|\|\*\(system malfunction; reference: \w+\)\*\|\|/);
     });
 
-    it('should fall back to default messages when personality has no error message', () => {
+    it('should fall back to default messages when personality has no error message', async () => {
       // Mock personality without error message
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test',
       });
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         'NoneType object has no attribute',
         'test-personality',
         mockContext,
@@ -107,11 +107,11 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       expect(result).toMatch(/I encountered a processing error.*\|\|\(Reference: \w+\)\|\|/);
     });
 
-    it('should fall back to default messages when personality is not found', () => {
+    it('should fall back to default messages when personality is not found', async () => {
       // Mock no personality found
-      getPersonality.mockReturnValue(null);
+      getPersonality.mockResolvedValue(null);
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         '',
         'unknown-personality',
         mockContext,
@@ -122,13 +122,11 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       expect(result).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference: \w+\)\|\|/);
     });
 
-    it('should handle errors when fetching personality data', () => {
+    it('should handle errors when fetching personality data', async () => {
       // Mock error when getting personality
-      getPersonality.mockImplementation(() => {
-        throw new Error('Database error');
-      });
+      getPersonality.mockRejectedValue(new Error('Database error'));
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         'rate limit',
         'test-personality',
         mockContext,
@@ -142,19 +140,19 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
-    it('should generate unique reference IDs for each error', () => {
-      getPersonality.mockReturnValue({
+    it('should generate unique reference IDs for each error', async () => {
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'Error! ||*(an error has occurred)*||',
       });
 
-      const result1 = analyzeErrorAndGenerateMessage(
+      const result1 = await analyzeErrorAndGenerateMessage(
         'error',
         'test-personality',
         mockContext,
         mockAddToBlackoutList
       );
-      const result2 = analyzeErrorAndGenerateMessage(
+      const result2 = await analyzeErrorAndGenerateMessage(
         'error',
         'test-personality',
         mockContext,
@@ -172,14 +170,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
   describe('Error type detection with personality messages', () => {
     beforeEach(() => {
       // Set up personality with error message
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'Oops! Something broke! ||*(an error has occurred)*||',
       });
     });
 
-    it('should use personality message for attribute errors', () => {
-      const result = analyzeErrorAndGenerateMessage(
+    it('should use personality message for attribute errors', async () => {
+      const result = await analyzeErrorAndGenerateMessage(
         "AttributeError: 'NoneType' object has no attribute 'text'",
         'test-personality',
         mockContext,
@@ -194,8 +192,8 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
-    it('should use personality message for empty responses', () => {
-      const result = analyzeErrorAndGenerateMessage(
+    it('should use personality message for empty responses', async () => {
+      const result = await analyzeErrorAndGenerateMessage(
         '',
         'test-personality',
         mockContext,
@@ -210,14 +208,14 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
-    it('should use personality message with existing error marker for empty responses', () => {
+    it('should use personality message with existing error marker for empty responses', async () => {
       // This is the specific bug case - personality already has the error marker
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',
       });
 
-      const result = analyzeErrorAndGenerateMessage(
+      const result = await analyzeErrorAndGenerateMessage(
         '', // empty response
         'test-personality',
         mockContext,
@@ -232,8 +230,8 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
 
-    it('should use personality message for rate limit errors', () => {
-      const result = analyzeErrorAndGenerateMessage(
+    it('should use personality message for rate limit errors', async () => {
+      const result = await analyzeErrorAndGenerateMessage(
         'Too many requests. Rate limit exceeded.',
         'test-personality',
         mockContext,

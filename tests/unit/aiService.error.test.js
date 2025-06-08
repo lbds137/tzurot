@@ -399,7 +399,7 @@ describe('aiService Error Handling', () => {
     test('getAiResponse should use personality error message for empty responses', async () => {
       // Configure personality with custom error message
       const { getPersonality } = require('../../src/core/personality');
-      getPersonality.mockReturnValue({
+      getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         errorMessage: 'My circuits are fried! ||*(an error has occurred)*||'
       });

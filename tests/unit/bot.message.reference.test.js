@@ -16,7 +16,7 @@ describe('Message Reference Handling', () => {
     jest.clearAllMocks();
   });
   
-  it('should correctly format referenced messages for the API', () => {
+  it('should correctly format referenced messages for the API', async () => {
     // Test with text-only referenced message from another user
     const textRefMsg = {
       messageContent: "What do you think about this?",
@@ -27,7 +27,7 @@ describe('Message Reference Handling', () => {
       }
     };
     
-    const formattedTextRef = formatApiMessages(textRefMsg);
+    const formattedTextRef = await formatApiMessages(textRefMsg);
     
     // Should have one combined message
     expect(formattedTextRef).toHaveLength(1);
@@ -44,7 +44,7 @@ describe('Message Reference Handling', () => {
     expect(textItem.text).toContain('I believe AI will transform society');
   });
   
-  it('should correctly format referenced messages from bot/assistant', () => {
+  it('should correctly format referenced messages from bot/assistant', async () => {
     // Test with text-only referenced message from the bot
     const botRefMsg = {
       messageContent: "Can you elaborate on that?",
@@ -55,7 +55,7 @@ describe('Message Reference Handling', () => {
       }
     };
     
-    const formattedBotRef = formatApiMessages(botRefMsg);
+    const formattedBotRef = await formatApiMessages(botRefMsg);
     
     // Should have one combined message
     expect(formattedBotRef).toHaveLength(1);
@@ -71,7 +71,7 @@ describe('Message Reference Handling', () => {
     expect(textItem.text).toContain("The concept of emergence is fascinating in complex systems.");
   });
   
-  it('should correctly handle referenced messages with image content', () => {
+  it('should correctly handle referenced messages with image content', async () => {
     // Test with referenced message containing an image
     const imageRefMsg = {
       messageContent: "What can you tell me about this image?",
@@ -82,7 +82,7 @@ describe('Message Reference Handling', () => {
       }
     };
     
-    const formattedImageRef = formatApiMessages(imageRefMsg);
+    const formattedImageRef = await formatApiMessages(imageRefMsg);
     
     // Should have one combined message
     expect(formattedImageRef).toHaveLength(1);
@@ -107,7 +107,7 @@ describe('Message Reference Handling', () => {
     expect(imageItem).toBeDefined();
   });
   
-  it('should handle multimodal content in the user message with references', () => {
+  it('should handle multimodal content in the user message with references', async () => {
     // Test with multimodal user message and a reference
     const multimodalMsg = {
       messageContent: [
@@ -121,7 +121,7 @@ describe('Message Reference Handling', () => {
       }
     };
     
-    const formattedMultimodalRef = formatApiMessages(multimodalMsg);
+    const formattedMultimodalRef = await formatApiMessages(multimodalMsg);
     
     // Should have one combined message
     expect(formattedMultimodalRef).toHaveLength(1);
@@ -152,10 +152,10 @@ describe('Message Reference Handling', () => {
     expect(refImageItem).toBeDefined();
   });
   
-  it('should handle regular user messages without references', () => {
+  it('should handle regular user messages without references', async () => {
     // Test with regular text message
     const textMsg = "Hello, how are you?";
-    const formattedText = formatApiMessages(textMsg);
+    const formattedText = await formatApiMessages(textMsg);
     
     // Should have one message
     expect(formattedText).toHaveLength(1);
@@ -168,7 +168,7 @@ describe('Message Reference Handling', () => {
       { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
     ];
     
-    const formattedMultimodal = formatApiMessages(multimodalArray);
+    const formattedMultimodal = await formatApiMessages(multimodalArray);
     
     // Should have one message with multimodal content
     expect(formattedMultimodal).toHaveLength(1);

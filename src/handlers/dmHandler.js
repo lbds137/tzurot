@@ -134,7 +134,7 @@ async function handleDmReply(message, client) {
 
         // If still not found, try by direct personality name
         if (!personality) {
-          personality = getPersonality(displayName);
+          personality = await getPersonality(displayName);
 
           if (personality) {
             logger.info(`[DmHandler] Found personality directly by name: ${personality.fullName}`);
@@ -296,7 +296,7 @@ async function handleDirectMessage(message, client) {
     logger.info(`[DmHandler] Using sticky personality in DM: ${activePersonalityName}`);
 
     // Get the personality data
-    let personality = getPersonality(activePersonalityName);
+    let personality = await getPersonality(activePersonalityName);
     if (!personality) {
       personality = getPersonalityByAlias(activePersonalityName);
     }

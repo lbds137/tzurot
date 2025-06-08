@@ -28,9 +28,9 @@ const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance
 /**
  * Check if a message contains any personality mentions (without processing them)
  * @param {Object} message - Discord message object
- * @returns {boolean} - Whether the message contains personality mentions
+ * @returns {Promise<boolean>} - Whether the message contains personality mentions
  */
-function checkForPersonalityMentions(message) {
+async function checkForPersonalityMentions(message) {
   if (!message.content) return false;
 
   logger.debug(`[checkForPersonalityMentions] Checking message: "${message.content}"`);
@@ -52,7 +52,7 @@ function checkForPersonalityMentions(message) {
       const cleanedName = match[1].trim().replace(/[.,!?;:)"']+$/, '');
 
       // Check if this is a valid personality (directly or as an alias)
-      let personality = getPersonality(cleanedName);
+      let personality = await getPersonality(cleanedName);
       if (!personality) {
         personality = getPersonalityByAlias(cleanedName);
       }
@@ -279,7 +279,7 @@ async function handleMessage(message, client) {
       logger.info(`[MessageHandler] Has activated personality: ${hasActivatedPersonality}`);
 
       // Check if the message contains a personality mention
-      const hasMention = checkForPersonalityMentions(message);
+      const hasMention = await checkForPersonalityMentions(message);
       logger.info(`[MessageHandler] Has mention: ${hasMention}`);
 
       // Only skip processing if there are no mentions AND no Discord links
@@ -406,7 +406,7 @@ async function handleMentions(message, client) {
       );
 
       // Check if this is a valid personality (directly or as an alias)
-      let personality = getPersonality(mentionName);
+      let personality = await getPersonality(mentionName);
       if (!personality) {
         personality = getPersonalityByAlias(mentionName);
       }
@@ -575,7 +575,7 @@ async function handleActiveConversation(message, client) {
   logger.info(`[MessageHandler] Found active conversation with: ${activePersonalityName}`);
 
   // First try to get personality directly by full name
-  let personality = getPersonality(activePersonalityName);
+  let personality = await getPersonality(activePersonalityName);
 
   // If not found as direct name, try it as an alias
   if (!personality) {
@@ -662,7 +662,7 @@ async function handleActivatedChannel(message, client) {
   }
 
   // First try to get personality directly by full name
-  let personality = getPersonality(activatedPersonalityName);
+  let personality = await getPersonality(activatedPersonalityName);
 
   // If not found as direct name, try it as an alias
   if (!personality) {
