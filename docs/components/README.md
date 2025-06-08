@@ -1,16 +1,38 @@
 # Components Documentation
 
-This directory contains documentation related to components.
+> **📍 Documentation Moved**: Component documentation has been reorganized by feature area for better discoverability.
 
-## Files in this category
+## 🚀 Find Documentation in Features
 
-- [AUTHENTICATION](AUTHENTICATION.md)
-- [AUDIO_ATTACHMENT](AUDIO_ATTACHMENT.md)
-- [DEDUPLICATION](DEDUPLICATION.md)
-- [DISPLAY_NAME_ALIASES](DISPLAY_NAME_ALIASES.md)
-- [EMBED_UTILITIES](EMBED_UTILITIES.md)
-- [IMAGE_HANDLING](IMAGE_HANDLING.md)
-- [MEDIA_HANDLING_SYSTEM](MEDIA_HANDLING_SYSTEM.md)
-- [PLURALKIT_PROXY_HANDLING](PLURALKIT_PROXY_HANDLING.md)
-- [RELEASE_NOTIFICATION_SYSTEM](RELEASE_NOTIFICATION_SYSTEM.md)
-- [SPACE_ALIASES](SPACE_ALIASES.md)
+Component documentation is now organized by feature area in [`docs/features/`](../features/):
+
+### 🎵 [Media & Content Features](../features/media/)
+- Audio Attachment Processing
+- Image Handling
+- Media Handling System
+
+### 🔐 [Authentication & Security](../features/authentication/)
+- Authentication System
+- PluralKit Proxy Handling
+
+### 💬 [Messaging & Communication](../features/messaging/)
+- Message Deduplication
+- Embed Utilities
+
+### 👤 [User Experience](../features/user-experience/)
+- Display Name Aliases
+- Space-Separated Aliases
+
+### ⚙️ [System Features](../features/system/)
+- Release Notification System
+
+## 🗺️ Quick Links
+
+- **Browse All Features**: [Features Overview](../features/README.md)
+- **System Architecture**: [Core Architecture](../core/ARCHITECTURE.md)
+- **API Reference**: [API Documentation](../core/API_REFERENCE.md)
+- **Setup Guide**: [Getting Started](../core/SETUP.md)
+
+---
+
+*This reorganization groups related components together and provides better context for each feature area.*
