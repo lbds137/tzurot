@@ -8,6 +8,19 @@
  * @description Base class for immutable value objects that are defined by their attributes
  */
 class ValueObject {
+  constructor() {
+    // Freeze the object after construction to ensure immutability
+    // This must be called in subclass constructors after setting properties
+  }
+
+  /**
+   * Make the value object immutable
+   * @protected
+   */
+  freeze() {
+    Object.freeze(this);
+  }
+
   /**
    * Check equality with another value object
    * @param {ValueObject} other - Another value object to compare

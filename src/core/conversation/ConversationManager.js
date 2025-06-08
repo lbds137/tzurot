@@ -342,5 +342,7 @@ module.exports = {
   saveAllData: () => module.exports.getInstance().saveAllData(),
 
   // Export the instance getter for advanced usage
-  _instance: module.exports.getInstance(),
+  get _instance() {
+    return module.exports.getInstance();
+  },
 };

@@ -24,12 +24,13 @@ class AIModel extends ValueObject {
     
     this.name = name;
     this.path = path;
-    this.capabilities = {
+    this.capabilities = Object.freeze({
       supportsImages: capabilities.supportsImages || false,
       supportsAudio: capabilities.supportsAudio || false,
       maxTokens: capabilities.maxTokens || 4096,
       temperature: capabilities.temperature || 0.7,
-    };
+    });
+    this.freeze();
   }
 
   /**

@@ -162,8 +162,14 @@ describe('DomainEventBus', () => {
   
   describe('middleware', () => {
     it('should apply middleware before handlers', async () => {
-      const middleware = jest.fn(event => event);
-      const handler = jest.fn();
+      const calls = [];
+      const middleware = jest.fn(event => {
+        calls.push('middleware');
+        return event;
+      });
+      const handler = jest.fn(() => {
+        calls.push('handler');
+      });
       const event = new TestEvent('test-123', {});
       
       eventBus.use(middleware);
@@ -173,7 +179,7 @@ describe('DomainEventBus', () => {
       
       expect(middleware).toHaveBeenCalledWith(event);
       expect(handler).toHaveBeenCalledWith(event);
-      expect(middleware).toHaveBeenCalledBefore(handler);
+      expect(calls).toEqual(['middleware', 'handler']);
     });
     
     it('should apply multiple middleware in order', async () => {
