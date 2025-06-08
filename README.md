@@ -250,7 +250,7 @@ This project uses a feature branch workflow with protected branches:
 - All changes must be made via pull requests
 - CI checks (tests and linting) must pass
 - Feature branches are created from `develop`, not `main`
-- See our [Git Workflow Guide](docs/development/GIT_WORKFLOW.md) for detailed instructions
+- See our [Git Workflow Guide](docs/development/GIT_AND_PR_WORKFLOW.md) for detailed instructions
 
 ## 🐛 Troubleshooting
 

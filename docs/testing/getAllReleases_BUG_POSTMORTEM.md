@@ -43,8 +43,8 @@ run_check "Mock method verification" "node scripts/verify-mock-methods.js $STAGE
 ```
 
 ### 3. Documentation Updates
-- Created [MOCK_VERIFICATION_GUIDE.md](./MOCK_VERIFICATION_GUIDE.md)
-- Created [MOCK_VERIFICATION_ENFORCEMENT.md](./MOCK_VERIFICATION_ENFORCEMENT.md)
+- Updated [MOCK_SYSTEM_GUIDE.md](./MOCK_SYSTEM_GUIDE.md) with verification guidance
+- Added enforcement details to mock documentation
 - Updated testing guidelines with warnings and Boy Scout Rule
 
 ### 4. Boy Scout Rule
