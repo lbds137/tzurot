@@ -30,9 +30,10 @@ Documentation for specific features and components:
 
 ### `/testing` - Testing Documentation
 Testing guidelines and coverage information:
-- **README.md** - Testing overview
-- **BEHAVIOR_BASED_TESTING.md** - Testing philosophy
-- **TEST_ANTIPATTERNS_REFERENCE.md** - Anti-patterns to avoid
+- **README.md** - Testing overview and quick start
+- **TEST_PHILOSOPHY_AND_PATTERNS.md** - Testing philosophy, behavior-based testing, anti-patterns
+- **MOCK_SYSTEM_GUIDE.md** - Mock patterns, verification, and migration
+- **TESTING_CASE_STUDIES.md** - Bug case studies and lessons learned
 - **TIMER_PATTERNS_COMPLETE.md** - Complete guide for timer patterns, testing, and migration
 - **TEST_COVERAGE_SUMMARY.md** - Current test coverage
 - **MANUAL_TESTING_PROCEDURE.md** - Manual testing guide
@@ -53,7 +54,10 @@ Plans and proposals for future enhancements:
 
 ### `/development` - Development Guides
 Development-specific documentation:
-- **TIMER_ENFORCEMENT_GUIDE.md** - Timer pattern enforcement
+- **GIT_AND_PR_WORKFLOW.md** - Complete git workflow, PR rules, and branch management
+- **GITHUB_RELEASES.md** - Release process and automation
+- **PREFIX_HANDLING_GUIDE.md** - Handling bot prefixes correctly
+- **VERSIONING.md** - Semantic versioning guidelines
 
 ### `/archive` - Historical Documentation
 - **DEVELOPMENT_HISTORY.md** - Archive of all historical fixes and development journey
@@ -66,14 +70,14 @@ Development-specific documentation:
 3. Review the root `CLAUDE.md` for coding guidelines
 
 ### For Testing
-1. Read `tests/CLAUDE.md` for testing guidelines
-2. Check `/testing/BEHAVIOR_BASED_TESTING.md` for philosophy
-3. Avoid patterns in `/testing/TEST_ANTIPATTERNS_REFERENCE.md`
+1. Read `/testing/TEST_PHILOSOPHY_AND_PATTERNS.md` for philosophy and anti-patterns
+2. Check `/testing/MOCK_SYSTEM_GUIDE.md` for mock patterns
+3. Review `/testing/TIMER_PATTERNS_COMPLETE.md` for timer testing
 
 ### For Contributing
 1. Read `/core/CONTRIBUTING.md`
-2. Check the root `CLAUDE.md` for standards
-3. Review `/development/TIMER_ENFORCEMENT_GUIDE.md`
+2. Check `/development/GIT_AND_PR_WORKFLOW.md` for workflow
+3. Review the root `CLAUDE.md` for coding standards
 
 ### For Feature Development
 1. Check `/components` for existing features
@@ -84,7 +88,7 @@ Development-specific documentation:
 
 - **Primary guidance lives in CLAUDE.md files** (root, src/, tests/)
 - Historical fixes are archived in `/archive/DEVELOPMENT_HISTORY.md`
-- All new code must follow timer patterns in `/core/TIMER_PATTERNS.md`
+- All new code must follow timer patterns in `/testing/TIMER_PATTERNS_COMPLETE.md`
 - Test anti-patterns are automatically checked by pre-commit hooks
 
 ## 🚀 Quick Links
