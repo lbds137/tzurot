@@ -181,7 +181,7 @@ describe('Referenced Message Media Tests', () => {
     };
     
     // Test the formatApiMessages function directly
-    const formattedMessages = formatApiMessages(message);
+    const formattedMessages = await formatApiMessages(message);
     
     // Verify we get a single combined message
     expect(formattedMessages.length).toBe(1);
@@ -234,7 +234,7 @@ describe('Referenced Message Media Tests', () => {
     };
     
     // Test the formatApiMessages function directly
-    const formattedMessages = formatApiMessages(message);
+    const formattedMessages = await formatApiMessages(message);
     
     // Verify we get a single combined message
     expect(formattedMessages.length).toBe(1);
@@ -298,7 +298,7 @@ describe('Referenced Message Media Tests', () => {
     };
     
     // Test the formatApiMessages function directly
-    const formattedMessages = formatApiMessages(message);
+    const formattedMessages = await formatApiMessages(message);
     
     // Verify we get a single combined message
     expect(formattedMessages.length).toBe(1);
@@ -372,7 +372,7 @@ describe('Referenced Message Media Tests', () => {
     };
     
     // Test the formatApiMessages function directly
-    const formattedMessages = formatApiMessages(message);
+    const formattedMessages = await formatApiMessages(message);
     
     // Verify we get a single combined message
     expect(formattedMessages.length).toBe(1);
