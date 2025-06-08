@@ -161,20 +161,22 @@ async function healthHandler(req, res) {
 async function rootHandler(req, res) {
   const clientIP = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
   logger.info(`[Health] Root endpoint accessed from ${clientIP}`);
-  
+
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({
-    status: 'ok',
-    service: 'Tzurot Discord Bot',
-    version: '1.2.1',
-    environment: process.env.RAILWAY_ENVIRONMENT || 'local',
-    port: process.env.PORT || '3000',
-    endpoints: {
-      health: '/health',
-      avatars: '/avatars',
-      webhooks: '/webhooks'
-    }
-  }));
+  res.end(
+    JSON.stringify({
+      status: 'ok',
+      service: 'Tzurot Discord Bot',
+      version: '1.2.1',
+      environment: process.env.RAILWAY_ENVIRONMENT || 'local',
+      port: process.env.PORT || '3000',
+      endpoints: {
+        health: '/health',
+        avatars: '/avatars',
+        webhooks: '/webhooks',
+      },
+    })
+  );
 }
 
 module.exports = {

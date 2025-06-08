@@ -46,7 +46,7 @@ async function handleRequest(req, res) {
   // Log all incoming requests for debugging Railway connectivity
   const clientIP = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
   logger.info(`[HTTPServer] Incoming request: ${req.method} ${req.url} from ${clientIP}`);
-  
+
   const routeKey = `${req.method}:${req.url}`;
   let handler = routes.get(routeKey);
 
@@ -139,7 +139,9 @@ function createHTTPServer(port = 3000, context = {}) {
   server.listen(port, '0.0.0.0', () => {
     logger.info(`[HTTPServer] Server running on 0.0.0.0:${port}`);
     logger.info(`[HTTPServer] Available routes: ${Array.from(routes.keys()).join(', ')}`);
-    logger.info(`[HTTPServer] Railway deployment URL expected: ${process.env.RAILWAY_STATIC_URL || 'not set'}`);
+    logger.info(
+      `[HTTPServer] Railway deployment URL expected: ${process.env.RAILWAY_STATIC_URL || 'not set'}`
+    );
   });
 
   return server;

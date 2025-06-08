@@ -1,6 +1,6 @@
 /**
  * Avatar Routes
- * 
+ *
  * HTTP endpoints for serving locally stored personality avatars.
  * Provides a safe way to serve avatars without exposing external URLs.
  */
@@ -29,13 +29,13 @@ function isValidFilename(filename) {
   if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
     return false;
   }
-  
+
   // Check extension
   const ext = path.extname(filename).toLowerCase();
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
     return false;
   }
-  
+
   // Check filename pattern (personality-name-hash.ext)
   const validPattern = /^[a-z0-9-]+\.[a-z]+$/i;
   return validPattern.test(filename);
@@ -77,13 +77,13 @@ function parseFilename(urlPath) {
 async function avatarFileHandler(req, res) {
   const parsedUrl = url.parse(req.url);
   const filename = parseFilename(parsedUrl.pathname);
-  
+
   if (!filename) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
   }
-  
+
   try {
     // Validate filename
     if (!isValidFilename(filename)) {
@@ -92,21 +92,21 @@ async function avatarFileHandler(req, res) {
       res.end(JSON.stringify({ error: 'Invalid filename' }));
       return;
     }
-    
+
     // Build safe file path
     const filePath = path.join(AVATAR_IMAGES_DIR, filename);
-    
+
     // Check if file exists
     try {
       const stats = await stat(filePath);
-      
+
       if (!stats.isFile()) {
         logger.warn(`[AvatarRoute] Requested path is not a file: ${filename}`);
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Avatar not found' }));
         return;
       }
-      
+
       // Set appropriate headers
       res.writeHead(200, {
         'Content-Type': getMimeType(filename),
@@ -114,19 +114,18 @@ async function avatarFileHandler(req, res) {
         'Cache-Control': CACHE_CONTROL_HEADER,
         'X-Content-Type-Options': 'nosniff',
       });
-      
+
       // Stream the file
       const fileStream = fs.createReadStream(filePath);
       fileStream.pipe(res);
-      
-      fileStream.on('error', (error) => {
+
+      fileStream.on('error', error => {
         logger.error(`[AvatarRoute] Error streaming file ${filename}:`, error);
         if (!res.headersSent) {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Failed to stream avatar' }));
         }
       });
-      
     } catch (error) {
       if (error.code === 'ENOENT') {
         logger.info(`[AvatarRoute] Avatar not found: ${filename}`);
@@ -136,7 +135,6 @@ async function avatarFileHandler(req, res) {
       }
       throw error;
     }
-    
   } catch (error) {
     logger.error(`[AvatarRoute] Error serving avatar ${filename}:`, error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -151,11 +149,13 @@ async function avatarFileHandler(req, res) {
  */
 async function avatarHealthHandler(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({
-    status: 'ok',
-    message: 'Avatar service is running',
-    allowedExtensions: ALLOWED_EXTENSIONS,
-  }));
+  res.end(
+    JSON.stringify({
+      status: 'ok',
+      message: 'Avatar service is running',
+      allowedExtensions: ALLOWED_EXTENSIONS,
+    })
+  );
 }
 
 /**
@@ -165,12 +165,12 @@ async function avatarHealthHandler(req, res) {
  */
 async function avatarHandler(req, res) {
   const parsedUrl = url.parse(req.url);
-  
+
   // If path is exactly /avatars or /avatars/, it's a health check
   if (parsedUrl.pathname === '/avatars' || parsedUrl.pathname === '/avatars/') {
     return avatarHealthHandler(req, res);
   }
-  
+
   // Otherwise, try to serve a file
   return avatarFileHandler(req, res);
 }
