@@ -34,16 +34,6 @@ const logFormat = printf(({ level, message, timestamp }) => {
 // Use JEST_WORKER_ID to detect test environment without checking NODE_ENV
 const isTest = process.env.JEST_WORKER_ID !== undefined;
 
-/**
- * Winston logger instance
- * @type {import('winston').Logger}
- * @description
- * Configured with appropriate transports based on environment:
- * - Test environment: Only console output
- * - Production environment: Console and file outputs
- *
- * File outputs include automatic rotation when files reach 5MB
- */
 // Determine log level based on environment
 const getLogLevel = () => {
   if (isTest) return 'error';
@@ -52,51 +42,77 @@ const getLogLevel = () => {
   return 'info';
 };
 
-const logger = createLogger({
-  level: getLogLevel(),
-  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-  transports: [
-    // Console output
-    new transports.Console({
-      format: combine(colorize(), timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
-    }),
-  ],
-});
+/**
+ * Factory function to create a logger instance
+ * @param {Object} options - Logger configuration options
+ * @returns {import('winston').Logger} Winston logger instance
+ */
+function createLoggerInstance(options = {}) {
+  const logLevel = options.level || getLogLevel();
+  const enableFileLogging = options.enableFileLogging !== undefined ? options.enableFileLogging : !isTest;
+  
+  const loggerInstance = createLogger({
+    level: logLevel,
+    format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
+    transports: [
+      // Console output
+      new transports.Console({
+        format: combine(colorize(), timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
+      }),
+    ],
+  });
 
-// Only add file transports in non-test environments
-if (!isTest) {
-  // Create logs directory if it doesn't exist (only in production)
-  try {
-    // Use synchronous version since this only runs once at startup
-    if (!require('fs').existsSync(path.join(__dirname, '..', 'logs'))) {
-      require('fs').mkdirSync(path.join(__dirname, '..', 'logs'));
+  // Only add file transports if enabled
+  if (enableFileLogging) {
+    // Create logs directory if it doesn't exist
+    try {
+      // Use synchronous version since this only runs once at startup
+      if (!require('fs').existsSync(path.join(__dirname, '..', 'logs'))) {
+        require('fs').mkdirSync(path.join(__dirname, '..', 'logs'));
+      }
+
+      // Add file transports
+      loggerInstance.add(
+        new transports.File({
+          filename: path.join(__dirname, '..', 'logs', 'tzurot.log'),
+          maxsize: 5242880, // 5MB
+          maxFiles: 5,
+        })
+      );
+
+      loggerInstance.add(
+        new transports.File({
+          filename: path.join(__dirname, '..', 'logs', 'error.log'),
+          level: 'error',
+          maxsize: 5242880, // 5MB
+          maxFiles: 5,
+        })
+      );
+    } catch (error) {
+      console.error('Error setting up file logging:', error);
     }
-
-    // Add file transports
-    logger.add(
-      new transports.File({
-        filename: path.join(__dirname, '..', 'logs', 'tzurot.log'),
-        maxsize: 5242880, // 5MB
-        maxFiles: 5,
-      })
-    );
-
-    logger.add(
-      new transports.File({
-        filename: path.join(__dirname, '..', 'logs', 'error.log'),
-        level: 'error',
-        maxsize: 5242880, // 5MB
-        maxFiles: 5,
-      })
-    );
-  } catch (error) {
-    console.error('Error setting up file logging:', error);
   }
+
+  // Log the active log level on startup
+  loggerInstance.info(
+    `Logger initialized with level: ${loggerInstance.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`
+  );
+  
+  return loggerInstance;
 }
 
-// Log the active log level on startup
-logger.info(
-  `Logger initialized with level: ${logger.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`
-);
+// Lazy singleton getter for backward compatibility
+const getInstance = (() => {
+  let instance = null;
+  return () => {
+    if (!instance) {
+      instance = createLoggerInstance();
+    }
+    return instance;
+  };
+})();
 
-module.exports = logger;
+// Export factory and backward-compatible default logger
+module.exports = getInstance();
+module.exports.create = createLoggerInstance;
+module.exports.getInstance = getInstance;

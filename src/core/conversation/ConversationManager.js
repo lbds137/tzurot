@@ -306,26 +306,41 @@ class ConversationManager {
   }
 }
 
-// Create singleton instance
-const conversationManager = new ConversationManager();
-
-// Export singleton with original API for backward compatibility
+// Export class and factory functions
 module.exports = {
-  // Instance methods bound to singleton
-  initConversationManager: () => conversationManager.init(),
-  recordConversation: (...args) => conversationManager.recordConversation(...args),
-  getActivePersonality: (...args) => conversationManager.getActivePersonality(...args),
-  getPersonalityFromMessage: (...args) => conversationManager.getPersonalityFromMessage(...args),
-  clearConversation: (...args) => conversationManager.clearConversation(...args),
-  activatePersonality: (...args) => conversationManager.activatePersonality(...args),
-  deactivatePersonality: (...args) => conversationManager.deactivatePersonality(...args),
-  getActivatedPersonality: (...args) => conversationManager.getActivatedPersonality(...args),
-  getAllActivatedChannels: () => conversationManager.getAllActivatedChannels(),
-  enableAutoResponse: (...args) => conversationManager.enableAutoResponse(...args),
-  disableAutoResponse: (...args) => conversationManager.disableAutoResponse(...args),
-  isAutoResponseEnabled: (...args) => conversationManager.isAutoResponseEnabled(...args),
-  saveAllData: () => conversationManager.saveAllData(),
+  ConversationManager,
+  
+  // Factory function for creating new instances
+  create: (options = {}) => {
+    return new ConversationManager(options);
+  },
+  
+  // Lazy singleton getter for backward compatibility
+  getInstance: (() => {
+    let instance = null;
+    return () => {
+      if (!instance) {
+        instance = new ConversationManager();
+      }
+      return instance;
+    };
+  })(),
+  
+  // Legacy API for backward compatibility - delegates to singleton
+  initConversationManager: () => module.exports.getInstance().init(),
+  recordConversation: (...args) => module.exports.getInstance().recordConversation(...args),
+  getActivePersonality: (...args) => module.exports.getInstance().getActivePersonality(...args),
+  getPersonalityFromMessage: (...args) => module.exports.getInstance().getPersonalityFromMessage(...args),
+  clearConversation: (...args) => module.exports.getInstance().clearConversation(...args),
+  activatePersonality: (...args) => module.exports.getInstance().activatePersonality(...args),
+  deactivatePersonality: (...args) => module.exports.getInstance().deactivatePersonality(...args),
+  getActivatedPersonality: (...args) => module.exports.getInstance().getActivatedPersonality(...args),
+  getAllActivatedChannels: () => module.exports.getInstance().getAllActivatedChannels(),
+  enableAutoResponse: (...args) => module.exports.getInstance().enableAutoResponse(...args),
+  disableAutoResponse: (...args) => module.exports.getInstance().disableAutoResponse(...args),
+  isAutoResponseEnabled: (...args) => module.exports.getInstance().isAutoResponseEnabled(...args),
+  saveAllData: () => module.exports.getInstance().saveAllData(),
 
-  // Export the instance for advanced usage
-  _instance: conversationManager,
+  // Export the instance getter for advanced usage
+  _instance: module.exports.getInstance(),
 };
