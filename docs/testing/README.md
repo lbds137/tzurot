@@ -2,50 +2,45 @@
 
 This directory contains comprehensive documentation for testing practices, procedures, and quality assurance.
 
-## 🚨 Critical Update: Mock Verification Now Enforced
+## 📚 Core Documentation (Start Here)
 
-Following a production bug where tests mocked `getAllReleases` (which doesn't exist), we now enforce:
+### 1. [TEST_PHILOSOPHY_AND_PATTERNS.md](TEST_PHILOSOPHY_AND_PATTERNS.md)
+- **Testing philosophy**: Behavior-based testing principles
+- **Best practices**: How to write effective tests
+- **Anti-pattern reference**: Common mistakes and how to avoid them
+
+### 2. [MOCK_SYSTEM_GUIDE.md](MOCK_SYSTEM_GUIDE.md)
+- **Mock patterns**: Required vs deprecated patterns
+- **Migration guide**: How to update existing tests
+- **Verification**: Preventing non-existent method mocks
+
+### 3. [TESTING_CASE_STUDIES.md](TESTING_CASE_STUDIES.md)
+- **Real bugs**: getAllReleases, getPersonalityByAlias, timer issues
+- **Root causes**: Why tests missed these bugs
+- **Lessons learned**: How to prevent similar issues
+
+### 4. [TIMER_PATTERNS_COMPLETE.md](TIMER_PATTERNS_COMPLETE.md)
+- **Timer patterns**: Injectable timers for testability
+- **Testing with timers**: Fake timers vs real timers
+- **Migration guide**: Converting legacy timer code
+
+## 🚨 Critical Updates
+
+### Mock Verification Now Enforced
+Following the `getAllReleases` bug, we now enforce:
 - **Pre-commit verification** of all mocked methods
-- **Boy Scout Rule**: Migrate tests to consolidated mocks when touching files
+- **Boy Scout Rule**: Migrate tests when touching files
 - **Current status**: Only ~5% of tests use safe mocks
 
-See [MOCK_VERIFICATION_ENFORCEMENT.md](MOCK_VERIFICATION_ENFORCEMENT.md) for details.
+### Timer Patterns Consolidated
+All timer documentation merged into [TIMER_PATTERNS_COMPLETE.md](TIMER_PATTERNS_COMPLETE.md)
 
 ## Quick Start
 
-1. **Before Writing Tests**: Read [TEST_ANTIPATTERNS_GUIDE.md](TEST_ANTIPATTERNS_GUIDE.md)
-2. **Set Up Pre-commit Hooks**: Run `./scripts/setup-pre-commit.sh`
-3. **Use Consolidated Mocks**: See [MOCK_VERIFICATION_GUIDE.md](MOCK_VERIFICATION_GUIDE.md)
-
-## Anti-Pattern Prevention 🛡️
-
-We have automated checks to prevent common testing issues:
-
-- **[ANTIPATTERN_PREVENTION_SUMMARY.md](ANTIPATTERN_PREVENTION_SUMMARY.md)** - Overview of our anti-pattern detection system
-- **[TEST_ANTIPATTERNS_GUIDE.md](TEST_ANTIPATTERNS_GUIDE.md)** - Detailed guide with examples of bad/good patterns
-- **[PREVENTING_LONG_RUNNING_TESTS.md](PREVENTING_LONG_RUNNING_TESTS.md)** - Specific guidance for timeout issues
-- **[TIMEOUT_PREVENTION_SUMMARY.md](TIMEOUT_PREVENTION_SUMMARY.md)** - Summary of timeout prevention measures
-
-## Test Documentation
-
-### Coverage and Quality
-- **[TEST_COVERAGE_SUMMARY.md](TEST_COVERAGE_SUMMARY.md)** - Current test coverage statistics
-- **[CRITICAL_COVERAGE_GAPS.md](CRITICAL_COVERAGE_GAPS.md)** - Areas needing test coverage
-- **[TEST_FIX_SUMMARY.md](TEST_FIX_SUMMARY.md)** - History of test fixes and improvements
-
-### Testing Procedures
-- **[MANUAL_TESTING_PROCEDURE.md](MANUAL_TESTING_PROCEDURE.md)** - Manual testing guidelines
-- **[SIMULATED_TESTS_SUMMARY.md](SIMULATED_TESTS_SUMMARY.md)** - Simulated test scenarios
-- **[TEST_STANDARDIZATION.md](TEST_STANDARDIZATION.md)** - Standards for writing tests
-
-### Migration and Maintenance
-- **[TEST_MIGRATION_PLAN.md](TEST_MIGRATION_PLAN.md)** - Plan for test migration
-- **[TEST_MIGRATION_STATUS.md](TEST_MIGRATION_STATUS.md)** - Current migration status
-- **[MOCK_MIGRATION_GUIDE.md](MOCK_MIGRATION_GUIDE.md)** - Guide for updating mocks
-- **[TEST_PERSONALITIES_CLEANUP.md](TEST_PERSONALITIES_CLEANUP.md)** - Cleanup procedures
-
-### Component-Specific
-- **[COMMANDLOADER_TEST_APPROACH.md](COMMANDLOADER_TEST_APPROACH.md)** - Testing command loader
+1. **Read Philosophy First**: [TEST_PHILOSOPHY_AND_PATTERNS.md](TEST_PHILOSOPHY_AND_PATTERNS.md)
+2. **Set Up Pre-commit Hooks**: `./scripts/setup-pre-commit.sh`
+3. **Use Consolidated Mocks**: [MOCK_SYSTEM_GUIDE.md](MOCK_SYSTEM_GUIDE.md)
+4. **Check Timer Patterns**: [TIMER_PATTERNS_COMPLETE.md](TIMER_PATTERNS_COMPLETE.md)
 
 ## Running Tests
 
@@ -64,6 +59,12 @@ npm run test:watch
 
 # Check for anti-patterns
 node scripts/check-test-antipatterns.js
+
+# Verify mock methods exist
+node scripts/verify-mock-methods.js
+
+# Check timer patterns
+node scripts/check-timer-patterns.js
 ```
 
 ## Pre-commit Hooks
@@ -75,16 +76,54 @@ Install automated checks:
 
 This will check for:
 1. Test anti-patterns
-2. ESLint violations
-3. Failing tests
+2. Mock method verification
+3. Timer pattern violations
+4. ESLint violations
+5. Failing tests
 
-## Best Practices
+## Additional Documentation
 
-1. **Always use fake timers** for time-dependent tests
-2. **Mock all external dependencies** (network, file system, console)
-3. **Clean up in afterEach** (mocks, timers, listeners)
-4. **Use generic test data** (no real emails/usernames)
-5. **Keep tests isolated** (no shared state)
-6. **Write concise test descriptions** (<80 characters)
-7. **Await all async operations**
-8. **Never commit .only() or .skip()**
+### Coverage and Quality
+- [TEST_COVERAGE_SUMMARY.md](TEST_COVERAGE_SUMMARY.md) - Current test coverage statistics
+- [CRITICAL_COVERAGE_GAPS.md](CRITICAL_COVERAGE_GAPS.md) - Areas needing test coverage
+- [MOCK_MIGRATION_STATUS.json](MOCK_MIGRATION_STATUS.json) - Mock migration progress
+
+### Testing Procedures
+- [MANUAL_TESTING_PROCEDURE.md](MANUAL_TESTING_PROCEDURE.md) - Manual testing guidelines
+- [COMMANDLOADER_TEST_APPROACH.md](COMMANDLOADER_TEST_APPROACH.md) - Testing command loader
+
+### Historical References
+- [getAllReleases_BUG_POSTMORTEM.md](getAllReleases_BUG_POSTMORTEM.md) - Detailed bug analysis
+
+## Best Practices Summary
+
+### Do's ✅
+- Test behavior, not implementation
+- Use fake timers for all delays
+- Mock all external dependencies
+- Clean up in afterEach
+- Use generic test data
+- Keep tests isolated
+- Await all async operations
+- Use consolidated mock system
+
+### Don'ts ❌
+- Test private methods
+- Use real timeouts
+- Create ad-hoc mocks
+- Share state between tests
+- Use real user data
+- Commit .only() or .skip()
+- Mock non-existent methods
+- Execute code during import
+
+## The Boy Scout Rule
+
+**"Always leave the test file a little better than you found it"**
+
+When working on ANY test file:
+1. **Fix your immediate task** (required)
+2. **Migrate at least ONE other test** to consolidated mocks (encouraged)
+3. **Update mock migration progress** in commit message
+
+Example: "Mock migration progress: 7/133 files (5.3%)"
