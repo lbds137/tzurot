@@ -105,7 +105,7 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 ### Core Documentation
 - [🏗️ Architecture](docs/core/ARCHITECTURE.md) - System design and component overview
 - [🔧 Setup Guide](docs/core/SETUP.md) - Detailed development setup instructions
-- [📜 Commands](docs/core/COMMANDS.md) - Complete command reference
+- [📜 Commands](docs/core/COMMAND_SYSTEM.md) - Complete command system documentation
 - [🚀 Deployment](docs/core/DEPLOYMENT.md) - Production deployment guide
 - [🔒 Security](docs/core/SECURITY.md) - Security practices and guidelines
 
@@ -169,7 +169,7 @@ See [SETUP.md](docs/core/SETUP.md) for complete configuration details.
 - `!tz auth status` - Check auth status
 - `!tz verify` - Verify authentication
 
-See [COMMANDS.md](docs/core/COMMANDS.md) for the complete command reference.
+See [COMMAND_SYSTEM.md](docs/core/COMMAND_SYSTEM.md) for the complete command system documentation.
 
 ## 🛠️ Development
 

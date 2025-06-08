@@ -127,7 +127,7 @@ describe('personalityManager', () => {
 
 ### When to Update Docs
 
-- **New features**: Add to COMMANDS.md or relevant docs
+- **New features**: Add to COMMAND_SYSTEM.md or relevant docs
 - **API changes**: Update API_REFERENCE.md
 - **Configuration**: Update SETUP.md
 - **Bug fixes**: Update TROUBLESHOOTING.md if relevant
