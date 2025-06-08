@@ -165,7 +165,7 @@ describe('AI Service', () => {
   
   // Unit test for isErrorResponse function
   describe('isErrorResponse', () => {
-    it('should return true for high confidence error patterns', () => {
+    it('should return true for high confidence error patterns', async () => {
       const highConfidenceErrors = [
         'NoneType object has no attribute',
         'AttributeError occurred in processing',
@@ -183,7 +183,7 @@ describe('AI Service', () => {
       }
     });
     
-    it('should return true for low confidence patterns with sufficient context', () => {
+    it('should return true for low confidence patterns with sufficient context', async () => {
       const contextualErrors = [
         'Error: something went wrong with the connection',
         'Traceback (most recent call last):\n  File "app.py", line 42',
@@ -197,7 +197,7 @@ describe('AI Service', () => {
       }
     });
     
-    it('should return false for normal responses even with error-like terms', () => {
+    it('should return false for normal responses even with error-like terms', async () => {
       const normalResponses = [
         'Hello, how can I help you today?',
         'That\'s an interesting question about philosophy.',
@@ -215,7 +215,7 @@ describe('AI Service', () => {
       }
     });
     
-    it('should return true for empty or null content', () => {
+    it('should return true for empty or null content', async () => {
       expect(isErrorResponse('')).toBe(true);
       expect(isErrorResponse(null)).toBe(true);
       expect(isErrorResponse(undefined)).toBe(true);
@@ -225,7 +225,7 @@ describe('AI Service', () => {
   
   // Unit test for createBlackoutKey and blackout period functions
   describe('Blackout Period Management', () => {
-    it('should create a unique blackout key for a personality-user-channel combination', () => {
+    it('should create a unique blackout key for a personality-user-channel combination', async () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
@@ -233,7 +233,7 @@ describe('AI Service', () => {
       expect(key).toBe('test-personality_user-123_channel-456');
     });
     
-    it('should handle missing userId or channelId in context', () => {
+    it('should handle missing userId or channelId in context', async () => {
       const personalityName = 'test-personality';
       
       // Missing both
@@ -249,7 +249,7 @@ describe('AI Service', () => {
       expect(key).toBe('test-personality_anon_channel-456');
     });
     
-    it('should add a personality to the blackout list', () => {
+    it('should add a personality to the blackout list', async () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
@@ -262,7 +262,7 @@ describe('AI Service', () => {
       expect(expirationTime).toBeGreaterThan(Date.now());
     });
     
-    it('should accept a custom duration when adding to blackout list', () => {
+    it('should accept a custom duration when adding to blackout list', async () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       const customDuration = 60000; // 1 minute
@@ -277,7 +277,7 @@ describe('AI Service', () => {
       expect(expirationTime).toBeGreaterThanOrEqual(expectedMinTime);
     });
     
-    it('should detect when a personality is in a blackout period', () => {
+    it('should detect when a personality is in a blackout period', async () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       const key = createBlackoutKey(personalityName, context);
@@ -287,7 +287,7 @@ describe('AI Service', () => {
       expect(isInBlackoutPeriod(personalityName, context)).toBe(true);
     });
     
-    it('should detect when a personality is not in a blackout period', () => {
+    it('should detect when a personality is not in a blackout period', async () => {
       const personalityName = 'test-personality';
       const context = { userId: 'user-123', channelId: 'channel-456' };
       
@@ -308,16 +308,16 @@ describe('AI Service', () => {
   describe('formatApiMessages', () => {
     const { formatApiMessages } = require('../../src/aiService');
     
-    it('should format a simple string message correctly', () => {
+    it('should format a simple string message correctly', async () => {
       const message = 'Hello, how are you?';
-      const formattedMessages = formatApiMessages(message);
+      const formattedMessages = await formatApiMessages(message);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: message }
       ]);
     });
     
-    it('should handle multimodal content array with image', () => {
+    it('should handle multimodal content array with image', async () => {
       const multimodalContent = [
         {
           type: 'text',
@@ -331,14 +331,14 @@ describe('AI Service', () => {
         }
       ];
       
-      const formattedMessages = formatApiMessages(multimodalContent);
+      const formattedMessages = await formatApiMessages(multimodalContent);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: multimodalContent }
       ]);
     });
     
-    it('should handle multimodal content array with audio', () => {
+    it('should handle multimodal content array with audio', async () => {
       const multimodalContent = [
         {
           type: 'text',
@@ -352,20 +352,20 @@ describe('AI Service', () => {
         }
       ];
       
-      const formattedMessages = formatApiMessages(multimodalContent);
+      const formattedMessages = await formatApiMessages(multimodalContent);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: multimodalContent }
       ]);
     });
     
-    it('should not modify content array structure', () => {
+    it('should not modify content array structure', async () => {
       const multimodalContent = [
         { type: 'text', text: 'Text content' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.png' } }
       ];
       
-      const formattedMessages = formatApiMessages(multimodalContent);
+      const formattedMessages = await formatApiMessages(multimodalContent);
       
       // Verify that the content array structure is preserved
       expect(formattedMessages[0].content).toBe(multimodalContent);
@@ -373,13 +373,13 @@ describe('AI Service', () => {
       expect(formattedMessages[0].content[1].type).toBe('image_url');
     });
     
-    it('should preserve audio content in multimodal array', () => {
+    it('should preserve audio content in multimodal array', async () => {
       const multimodalContent = [
         { type: 'text', text: 'Transcribe this' },
         { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } }
       ];
       
-      const formattedMessages = formatApiMessages(multimodalContent);
+      const formattedMessages = await formatApiMessages(multimodalContent);
       
       // Verify that the audio content structure is preserved
       expect(formattedMessages[0].content).toBe(multimodalContent);
@@ -389,33 +389,33 @@ describe('AI Service', () => {
     });
 
     // PluralKit speaker identification tests
-    it('should add speaker identification for PluralKit messages', () => {
+    it('should add speaker identification for PluralKit messages', async () => {
       const message = 'Hello from PluralKit!';
       const personalityName = 'test-personality';
       const userName = 'Alice | Wonderland System';
       const isProxyMessage = true;
       
-      const formattedMessages = formatApiMessages(message, personalityName, userName, isProxyMessage);
+      const formattedMessages = await formatApiMessages(message, personalityName, userName, isProxyMessage);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: '[Alice | Wonderland System]: Hello from PluralKit!' }
       ]);
     });
 
-    it('should NOT add speaker identification for regular users', () => {
+    it('should NOT add speaker identification for regular users', async () => {
       const message = 'Hello from regular user!';
       const personalityName = 'test-personality';
       const userName = 'Bob (bob123)';
       const isProxyMessage = false;
       
-      const formattedMessages = formatApiMessages(message, personalityName, userName, isProxyMessage);
+      const formattedMessages = await formatApiMessages(message, personalityName, userName, isProxyMessage);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: 'Hello from regular user!' }
       ]);
     });
 
-    it('should add speaker identification to multimodal PluralKit messages', () => {
+    it('should add speaker identification to multimodal PluralKit messages', async () => {
       const multimodalContent = [
         { type: 'text', text: 'What is this?' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
@@ -424,7 +424,7 @@ describe('AI Service', () => {
       const userName = 'Charlie | Rainbow System';
       const isProxyMessage = true;
       
-      const formattedMessages = formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
+      const formattedMessages = await formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
       
       expect(formattedMessages).toEqual([
         { 
@@ -437,7 +437,7 @@ describe('AI Service', () => {
       ]);
     });
 
-    it('should NOT add speaker identification to multimodal regular user messages', () => {
+    it('should NOT add speaker identification to multimodal regular user messages', async () => {
       const multimodalContent = [
         { type: 'text', text: 'What is this?' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
@@ -446,19 +446,19 @@ describe('AI Service', () => {
       const userName = 'Dave (dave123)';
       const isProxyMessage = false;
       
-      const formattedMessages = formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
+      const formattedMessages = await formatApiMessages(multimodalContent, personalityName, userName, isProxyMessage);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: multimodalContent }
       ]);
     });
 
-    it('should handle default userName parameter correctly', () => {
+    it('should handle default userName parameter correctly', async () => {
       const message = 'Test message';
       const personalityName = 'test-personality';
       // Not passing userName, should default to 'a user'
       
-      const formattedMessages = formatApiMessages(message, personalityName);
+      const formattedMessages = await formatApiMessages(message, personalityName);
       
       expect(formattedMessages).toEqual([
         { role: 'user', content: 'Test message' }
@@ -468,7 +468,7 @@ describe('AI Service', () => {
 
   // Unit test for createRequestId function
   describe('createRequestId', () => {
-    it('should create a unique request ID for tracking API requests', () => {
+    it('should create a unique request ID for tracking API requests', async () => {
       const personalityName = 'test-personality';
       const message = 'This is a test message';
       const context = { userId: 'user-123', channelId: 'channel-456' };
@@ -478,7 +478,7 @@ describe('AI Service', () => {
       expect(requestId).toMatch(/^test-personality_user-123_channel-456_Thisisatestmessage_h\d+$/);
     });
     
-    it('should handle long messages by truncating to 50 characters', () => {
+    it('should handle long messages by truncating to 50 characters', async () => {
       const personalityName = 'test-personality';
       const message = 'This is a very long message that should be truncated to only 50 characters now';
       const context = { userId: 'user-123', channelId: 'channel-456' };
@@ -488,7 +488,7 @@ describe('AI Service', () => {
       expect(requestId).toMatch(/^test-personality_user-123_channel-456_Thisisaverylongmessagethatshouldbetruncat_h\d+$/);
     });
     
-    it('should handle missing context values', () => {
+    it('should handle missing context values', async () => {
       const personalityName = 'test-personality';
       const message = 'Test message';
       
@@ -505,7 +505,7 @@ describe('AI Service', () => {
       expect(requestId).toMatch(/^test-personality_anon_channel-456_Testmessage_h\d+$/);
     });
     
-    it('should handle multimodal content arrays with images', () => {
+    it('should handle multimodal content arrays with images', async () => {
       const personalityName = 'test-personality';
       const multimodalContent = [
         {
@@ -536,7 +536,7 @@ describe('AI Service', () => {
       expect(requestId).toBe(requestId2);
     });
     
-    it('should handle multimodal content arrays with audio', () => {
+    it('should handle multimodal content arrays with audio', async () => {
       const personalityName = 'test-personality';
       const multimodalContent = [
         {
@@ -802,7 +802,7 @@ describe('AI Service', () => {
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     });
     
-    it('should delegate initAiClient to aiAuth module', () => {
+    it('should delegate initAiClient to aiAuth module', async () => {
       const { initAiClient } = require('../../src/aiService');
       const aiAuth = require('../../src/utils/aiAuth');
       

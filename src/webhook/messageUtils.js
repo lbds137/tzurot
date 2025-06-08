@@ -238,7 +238,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
 
     // Extract personality and prepare final message data
     const { _personality, ...baseMessageData } = messageData;
-    
+
     // Resolve avatar URL if personality is provided
     let avatarUrl = null;
     if (_personality && _personality.avatarUrl) {
@@ -253,7 +253,7 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
         avatarUrl = _personality.avatarUrl; // Fallback to original
       }
     }
-    
+
     // Prepare final message data with resolved avatar URL
     const finalMessageData = {
       ...baseMessageData,

@@ -1,6 +1,6 @@
 /**
  * Avatar Storage Manager
- * 
+ *
  * Handles local storage of personality avatars with lazy loading and checksum tracking.
  * Downloads avatars from AI service on-demand and serves them locally to avoid
  * potential domain blocking issues.
@@ -50,7 +50,7 @@ async function initialize() {
   try {
     // Create directories if they don't exist
     await fs.mkdir(AVATAR_IMAGES_DIR, { recursive: true });
-    
+
     // Load metadata if it exists
     try {
       const data = await fs.readFile(METADATA_FILE, 'utf8');
@@ -64,7 +64,7 @@ async function initialize() {
         throw error;
       }
     }
-    
+
     logger.info('[AvatarStorage] Initialized avatar storage system');
   } catch (error) {
     logger.error('[AvatarStorage] Failed to initialize:', error);
@@ -77,7 +77,7 @@ async function initialize() {
  */
 async function saveMetadata() {
   if (!metadataDirty && metadataCache !== null) return;
-  
+
   try {
     await fs.writeFile(METADATA_FILE, JSON.stringify(metadataCache, null, 2));
     metadataDirty = false;
@@ -118,16 +118,16 @@ function calculateChecksum(buffer) {
 async function downloadAvatar(url, personalityName) {
   try {
     logger.info(`[AvatarStorage] Downloading avatar for ${personalityName} from ${url}`);
-    
+
     // Validate URL
     if (!urlValidator.isValidUrlFormat(url)) {
       throw new Error('Invalid avatar URL');
     }
-    
+
     // Download the image
     const controller = new AbortController();
     const timeout = setTimeoutFn(() => controller.abort(), config.downloadTimeout);
-    
+
     try {
       const response = await fetch(url, {
         signal: controller.signal,
@@ -135,21 +135,21 @@ async function downloadAvatar(url, personalityName) {
           'User-Agent': 'TzurotBot/1.0',
         },
       });
-      
+
       clearTimeoutFn(timeout);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       // Check content type
       const contentType = response.headers.get('content-type') || '';
-      
+
       // For application/octet-stream or missing content-type, check URL extension
       const isGenericBinary = contentType === 'application/octet-stream' || !contentType;
       const urlPath = new URL(url).pathname;
       const urlExt = path.extname(urlPath).toLowerCase();
-      
+
       // If content type is generic binary, validate by URL extension
       if (isGenericBinary) {
         if (!config.allowedExtensions.includes(urlExt)) {
@@ -159,10 +159,10 @@ async function downloadAvatar(url, personalityName) {
         // If it's not generic binary and not an image type, reject
         throw new Error(`Invalid content type: ${contentType}`);
       }
-      
+
       // Get file extension from content type or URL
       let extension = '.png'; // default
-      
+
       // If generic binary, use URL extension
       if (isGenericBinary && config.allowedExtensions.includes(urlExt)) {
         extension = urlExt;
@@ -176,18 +176,18 @@ async function downloadAvatar(url, personalityName) {
         // Fall back to URL extension if content type doesn't match known types
         extension = urlExt;
       }
-      
+
       // Download to buffer
       const buffer = await response.buffer();
-      
+
       // Check file size
       if (buffer.length > config.maxFileSize) {
         throw new Error(`File too large: ${buffer.length} bytes`);
       }
-      
+
       // Calculate checksum
       const checksum = calculateChecksum(buffer);
-      
+
       return { buffer, extension, checksum };
     } finally {
       clearTimeoutFn(timeout);
@@ -207,15 +207,15 @@ async function downloadAvatar(url, personalityName) {
  */
 async function getLocalAvatarUrl(personalityName, remoteUrl) {
   if (!remoteUrl) return null;
-  
+
   try {
     // Ensure initialized
     if (!metadataCache) {
       await initialize();
     }
-    
+
     const metadata = metadataCache[personalityName];
-    
+
     // Check if we already have this avatar
     if (metadata && metadata.originalUrl === remoteUrl && metadata.localFilename) {
       // Check if file exists
@@ -229,22 +229,22 @@ async function getLocalAvatarUrl(personalityName, remoteUrl) {
         logger.warn(`[AvatarStorage] Avatar file missing for ${personalityName}, re-downloading`);
       }
     }
-    
+
     // Download the avatar
     const { buffer, extension, checksum } = await downloadAvatar(remoteUrl, personalityName);
-    
+
     // Check if checksum matches existing
     if (metadata && metadata.checksum === checksum) {
       logger.info(`[AvatarStorage] Avatar unchanged for ${personalityName} (checksum match)`);
       return getAvatarUrl(metadata.localFilename);
     }
-    
+
     // Save the new avatar
     const filename = generateFilename(personalityName, extension);
     const filePath = path.join(AVATAR_IMAGES_DIR, filename);
-    
+
     await fs.writeFile(filePath, buffer);
-    
+
     // Update metadata
     metadataCache[personalityName] = {
       originalUrl: remoteUrl,
@@ -255,9 +255,9 @@ async function getLocalAvatarUrl(personalityName, remoteUrl) {
     };
     metadataDirty = true;
     await saveMetadata();
-    
+
     logger.info(`[AvatarStorage] Saved avatar for ${personalityName} as ${filename}`);
-    
+
     return getAvatarUrl(filename);
   } catch (error) {
     logger.error(`[AvatarStorage] Failed to get local avatar for ${personalityName}:`, error);
@@ -273,30 +273,33 @@ async function getLocalAvatarUrl(personalityName, remoteUrl) {
  */
 async function needsUpdate(personalityName, remoteUrl) {
   if (!remoteUrl) return false;
-  
+
   try {
     // Ensure initialized
     if (!metadataCache) {
       await initialize();
     }
-    
+
     const metadata = metadataCache[personalityName];
-    
+
     // If no metadata or URL changed, needs update
     if (!metadata || metadata.originalUrl !== remoteUrl) {
       return true;
     }
-    
+
     // Download to check checksum
     const { checksum } = await downloadAvatar(remoteUrl, personalityName);
-    
+
     // Update last checked time
     metadata.lastChecked = new Date().toISOString();
     metadataDirty = true;
-    
+
     return checksum !== metadata.checksum;
   } catch (error) {
-    logger.error(`[AvatarStorage] Failed to check if avatar needs update for ${personalityName}:`, error);
+    logger.error(
+      `[AvatarStorage] Failed to check if avatar needs update for ${personalityName}:`,
+      error
+    );
     return false;
   }
 }
@@ -319,7 +322,7 @@ async function cleanupAvatar(personalityName) {
         }
       }
     }
-    
+
     delete metadataCache[personalityName];
     metadataDirty = true;
     await saveMetadata();
