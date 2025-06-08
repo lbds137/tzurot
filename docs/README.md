@@ -2,6 +2,8 @@
 
 This directory contains the documentation for the Tzurot Discord bot project.
 
+> **🚀 Quick Navigation**: See the [Complete Documentation Index](DOCUMENTATION_INDEX.md) for fast access to any document.
+
 ## 📁 Structure
 
 ### `/core` - Core Documentation
