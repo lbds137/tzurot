@@ -1,28 +1,94 @@
 # Improvements Documentation
 
-This directory contains documentation related to improvements, refactoring efforts, and architectural proposals for the Tzurot Discord bot.
+## 🚨 ACTIVE: Domain-Driven Design Migration
 
-## Files in this category
+**Status**: FEATURE FREEZE IN EFFECT  
+**Timeline**: 11 weeks (starting immediately)  
+**Priority**: CRITICAL - System survival depends on this
 
-### Code Quality & Cleanup
-- [CODE_IMPROVEMENT_OPPORTUNITIES](CODE_IMPROVEMENT_OPPORTUNITIES.md) - Identified areas for code improvement
-- [CODE_CLEANUP_RECOMMENDATIONS](CODE_CLEANUP_RECOMMENDATIONS.md) - Specific cleanup recommendations
-- [COMPLETED_CODE_CLEANUP](COMPLETED_CODE_CLEANUP.md) - Documentation of completed cleanup tasks
+### Primary Documents
 
-### Refactoring & Architecture
-- [PERSONALITY_SYSTEM_REFACTOR](PERSONALITY_SYSTEM_REFACTOR.md) - **NEW** - Clarifying user vs global personality system
-- [MODULE_REFACTORING_PLAN](MODULE_REFACTORING_PLAN.md) - Breaking up large modules
-- [MODULE_STRUCTURE_PROPOSAL](MODULE_STRUCTURE_PROPOSAL.md) - Proposed future module structure for better separation of concerns
-- [AISERVICE_REFACTORING_PLAN](AISERVICE_REFACTORING_PLAN.md) - Refactoring the AI service module
+1. **[DDD_IMPLEMENTATION_SUMMARY.md](./DDD_IMPLEMENTATION_SUMMARY.md)** - START HERE
+   - Executive summary and action plan
+   - Links to all other documents
+   - Immediate action items
 
-### Feature Development
-- [FEATURE_IDEAS](FEATURE_IDEAS.md) - List of potential new features
-- [MULTI_USER_SCALABILITY](MULTI_USER_SCALABILITY.md) - Scalability considerations for multi-user support
+2. **[DOMAIN_DRIVEN_DESIGN_PLAN.md](./DOMAIN_DRIVEN_DESIGN_PLAN.md)**
+   - Complete architectural plan
+   - Bounded contexts defined
+   - 11-week implementation timeline
 
-### Documentation & Organization
-- [DOCUMENTATION_ORGANIZATION_PROPOSAL](DOCUMENTATION_ORGANIZATION_PROPOSAL.md) - Proposal for reorganizing documentation
+3. **[FEATURE_FREEZE_NOTICE.md](./FEATURE_FREEZE_NOTICE.md)**
+   - What's allowed and what's not
+   - Enforcement mechanisms
+   - Exception process
 
-### Legacy Improvements
-- [MESSAGE_TRACKER_CONSOLIDATION](MESSAGE_TRACKER_CONSOLIDATION.md) - Message tracking system improvements
-- [MULTIPLE_MEDIA_API_FIX](MULTIPLE_MEDIA_API_FIX.md) - Fix for multiple media handling
-- [REFERENCE_AND_MEDIA_REFACTOR](REFERENCE_AND_MEDIA_REFACTOR.md) - Reference and media handling refactor
+### Implementation Guides
+
+- **[DDD_PHASE_0_GUIDE.md](./DDD_PHASE_0_GUIDE.md)** - Week 1: Stop the bleeding
+- **[DDD_MIGRATION_CHECKLIST.md](./DDD_MIGRATION_CHECKLIST.md)** - Complete migration checklist
+- **[TECHNICAL_DEBT_INVENTORY.md](./TECHNICAL_DEBT_INVENTORY.md)** - What we're fixing and why
+
+### Reference Documents
+
+These provide context and analysis:
+- **[PERSONALITY_GETTER_ANALYSIS.md](./PERSONALITY_GETTER_ANALYSIS.md)** - The 52-file cascade problem
+- **[IMPROVEMENT_CONSOLIDATION_STATUS.md](./IMPROVEMENT_CONSOLIDATION_STATUS.md)** - How we consolidated 24 documents
+
+## Archived/Superseded Documents
+
+The following documents have been superseded by the DDD plan:
+
+### To Be Archived After Phase 0
+- `MODULE_REFACTORING_PLAN.md` - Replaced by DDD bounded contexts
+- `MODULE_STRUCTURE_PROPOSAL.md` - Incorporated into DDD plan
+- `AISERVICE_REFACTORING_PLAN.md` - Part of AI Integration context
+- `PERSONALITY_SYSTEM_REFACTOR.md` - Part of Personality context
+- `FACADE_REMOVAL_PLAN.md` - Part of Phase 4 cleanup
+
+### Bug Fixes (Move to GitHub Issues)
+- `WEBHOOK_PERSONALITY_DETECTION_FIX.md`
+- `MULTIPLE_MEDIA_API_FIX.md`
+- `OPEN_HANDLES_ISSUE.md`
+
+### Feature Enhancements (FROZEN)
+- `FEATURE_IDEAS.md`
+- `PROFILE_DATA_ENHANCEMENT.md`
+- `MULTI_USER_SCALABILITY.md`
+- `EXPRESS_MIGRATION.md`
+- `DATABASE_MIGRATION_PLAN.md`
+
+### Technical Debt (Addressed in Phase 0-1)
+- `SINGLETON_MIGRATION_GUIDE.md`
+- `TIMER_INJECTION_REFACTOR.md`
+- `ENVIRONMENT_VARIABLE_CLEANUP.md`
+
+### Analysis Documents (Keep for Reference)
+- `CODE_IMPROVEMENT_OPPORTUNITIES.md`
+- `MESSAGE_REFERENCE_IMPROVEMENTS.md`
+- `MEMORY_MANAGEMENT_PLAN.md`
+- `DOCUMENTATION_ORGANIZATION_PROPOSAL.md`
+- `REFERENCE_AND_MEDIA_REFACTOR.md`
+
+## How to Use This Documentation
+
+### If you're a developer:
+1. Read `DDD_IMPLEMENTATION_SUMMARY.md`
+2. Check `FEATURE_FREEZE_NOTICE.md` before any work
+3. Follow `DDD_PHASE_0_GUIDE.md` for this week's tasks
+
+### If you're a stakeholder:
+1. Read `DDD_IMPLEMENTATION_SUMMARY.md` 
+2. Understand why `FEATURE_FREEZE_NOTICE.md` is critical
+3. Review timeline in `DOMAIN_DRIVEN_DESIGN_PLAN.md`
+
+### If you're joining the project:
+1. Start with `TECHNICAL_DEBT_INVENTORY.md` to understand the problems
+2. Read `DOMAIN_DRIVEN_DESIGN_PLAN.md` for the solution
+3. Check current phase in `DDD_MIGRATION_CHECKLIST.md`
+
+## Remember
+
+> "We have 24 improvement documents because we kept starting fixes without finishing them. This time, we finish."
+
+The DDD migration is not another improvement proposal. It's the improvement that makes all other improvements possible.
