@@ -15,7 +15,6 @@ Essential documentation for understanding and working with the system:
 - **MESSAGE_FORMAT_SPECIFICATION.md** - Message format details
 - **COMMANDS.md** - Command reference and usage
 - **COMMAND_ARCHITECTURE.md** - Command system design
-- **TIMER_PATTERNS.md** - Timer pattern guidelines for testability
 
 ### `/components` - Feature Documentation
 Documentation for specific features and components:
@@ -34,7 +33,7 @@ Testing guidelines and coverage information:
 - **README.md** - Testing overview
 - **BEHAVIOR_BASED_TESTING.md** - Testing philosophy
 - **TEST_ANTIPATTERNS_REFERENCE.md** - Anti-patterns to avoid
-- **TIMER_TESTING_GUIDE.md** - Testing timer-based code
+- **TIMER_PATTERNS_COMPLETE.md** - Complete guide for timer patterns, testing, and migration
 - **TEST_COVERAGE_SUMMARY.md** - Current test coverage
 - **MANUAL_TESTING_PROCEDURE.md** - Manual testing guide
 - **CRITICAL_COVERAGE_GAPS.md** - Areas needing tests
