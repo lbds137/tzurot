@@ -13,8 +13,7 @@ Essential documentation for understanding and working with the system:
 - **TROUBLESHOOTING.md** - Common issues and solutions
 - **SECURITY.md** - Security guidelines and best practices
 - **MESSAGE_FORMAT_SPECIFICATION.md** - Message format details
-- **COMMANDS.md** - Command reference and usage
-- **COMMAND_ARCHITECTURE.md** - Command system design
+- **COMMAND_SYSTEM.md** - Complete command system documentation
 
 ### `/components` - Feature Documentation
 Documentation for specific features and components:
@@ -96,5 +95,5 @@ Development-specific documentation:
 - [Setup Guide](core/SETUP.md)
 - [Architecture Overview](core/ARCHITECTURE.md)
 - [Testing Guide](testing/README.md)
-- [Command Reference](core/COMMANDS.md)
+- [Command System](core/COMMAND_SYSTEM.md)
 - [Security Guidelines](core/SECURITY.md)

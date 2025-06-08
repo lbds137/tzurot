@@ -490,7 +490,7 @@ This shows:
 After successful setup:
 
 1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) to understand the codebase
-2. Review [COMMANDS.md](./COMMANDS.md) for all available commands
+2. Review [COMMAND_SYSTEM.md](./COMMAND_SYSTEM.md) for all available commands
 3. Check [CONTRIBUTING.md](./CONTRIBUTING.md) for development guidelines
 4. Explore the test suite to understand functionality
 5. Start with small changes and test thoroughly
