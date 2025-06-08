@@ -65,7 +65,7 @@ Historical analyses that informed the DDD plan:
 
 #### Technical Debt (Phase 0-1 Requirements)
 - `SINGLETON_MIGRATION_GUIDE.md` - Critical for testability
-- `TIMER_INJECTION_REFACTOR.md` - Blocks proper testing
+- `TIMER_INJECTION_REFACTOR.md` - Blocks proper testing (see `/docs/testing/TIMER_PATTERNS_COMPLETE.md`)
 - `ENVIRONMENT_VARIABLE_CLEANUP.md` - Needed for configuration
 
 #### Feature Enhancements (FROZEN)
