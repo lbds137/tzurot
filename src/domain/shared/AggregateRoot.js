@@ -63,8 +63,9 @@ class AggregateRoot {
       const handlerName = `on${event.getEventType()}`;
       if (typeof this[handlerName] === 'function') {
         this[handlerName](event);
-        this.version++;
       }
+      // Always increment version for all events in history
+      this.version++;
     });
   }
 
