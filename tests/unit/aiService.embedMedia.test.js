@@ -13,7 +13,7 @@ describe('AIService - Embed Media Extraction', () => {
     jest.clearAllMocks();
   });
 
-  test('should include embed thumbnail as image attachment when referenced', () => {
+  test('should include embed thumbnail as image attachment when referenced', async () => {
     const input = {
       messageContent: "@TestPersonality is this accurate?",
       userName: "testuser",
@@ -27,7 +27,7 @@ describe('AIService - Embed Media Extraction', () => {
       }
     };
 
-    const result = formatApiMessages(input);
+    const result = await formatApiMessages(input);
     
     expect(result).toHaveLength(1);
     expect(result[0].role).toBe('user');
@@ -47,7 +47,7 @@ describe('AIService - Embed Media Extraction', () => {
     expect(imageContent.image_url.url).toBe("https://example.com/thumbnail.jpg");
   });
 
-  test('should include embed image as image attachment when referenced', () => {
+  test('should include embed image as image attachment when referenced', async () => {
     const input = {
       messageContent: "What do you think of this?",
       userName: "testuser",
@@ -61,7 +61,7 @@ describe('AIService - Embed Media Extraction', () => {
       }
     };
 
-    const result = formatApiMessages(input);
+    const result = await formatApiMessages(input);
     
     expect(result).toHaveLength(1);
     const imageContent = result[0].content.find(item => item.type === 'image_url');
@@ -70,7 +70,7 @@ describe('AIService - Embed Media Extraction', () => {
     expect(imageContent.image_url.url).toBe("https://example.com/art.jpg");
   });
 
-  test('should prioritize audio over image from embeds', () => {
+  test('should prioritize audio over image from embeds', async () => {
     const input = {
       messageContent: "Listen to this!",
       userName: "testuser",
@@ -85,7 +85,7 @@ describe('AIService - Embed Media Extraction', () => {
       }
     };
 
-    const result = formatApiMessages(input);
+    const result = await formatApiMessages(input);
     
     expect(result).toHaveLength(1);
     const audioContent = result[0].content.find(item => item.type === 'audio_url');
@@ -97,7 +97,7 @@ describe('AIService - Embed Media Extraction', () => {
     expect(imageContent).toBeUndefined();
   });
 
-  test('should fall back to text extraction if media URLs not provided', () => {
+  test('should fall back to text extraction if media URLs not provided', async () => {
     const input = {
       messageContent: "Check this out",
       userName: "testuser",
@@ -111,7 +111,7 @@ describe('AIService - Embed Media Extraction', () => {
       }
     };
 
-    const result = formatApiMessages(input);
+    const result = await formatApiMessages(input);
     
     expect(result).toHaveLength(1);
     const imageContent = result[0].content.find(item => item.type === 'image_url');
@@ -120,7 +120,7 @@ describe('AIService - Embed Media Extraction', () => {
     expect(imageContent.image_url.url).toBe("https://example.com/oldformat.jpg");
   });
 
-  test('should clean embed references from text when media is included', () => {
+  test('should clean embed references from text when media is included', async () => {
     const input = {
       messageContent: "What's this?",
       userName: "testuser",
@@ -134,7 +134,7 @@ describe('AIService - Embed Media Extraction', () => {
       }
     };
 
-    const result = formatApiMessages(input);
+    const result = await formatApiMessages(input);
     
     const textContent = result[0].content.find(item => item.type === 'text');
     

@@ -35,7 +35,7 @@ describe('AI Service Reference Message Handling', () => {
   });
 
   describe('formatApiMessages with referenced messages', () => {
-    it('should properly format text-only referenced messages from users', () => {
+    it('should properly format text-only referenced messages from users', async () => {
       const input = {
         messageContent: "What do you think about this?",
         referencedMessage: {
@@ -45,7 +45,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -62,7 +62,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain('I believe AI has both benefits and risks');
     });
     
-    it('should properly format text-only referenced messages from the bot', () => {
+    it('should properly format text-only referenced messages from the bot', async () => {
       const input = {
         messageContent: "Please elaborate on that.",
         referencedMessage: {
@@ -72,7 +72,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -89,7 +89,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain('The concept of artificial intelligence raises profound philosophical questions');
     });
     
-    it('should handle problematic content in referenced messages', () => {
+    it('should handle problematic content in referenced messages', async () => {
       const input = {
         messageContent: "What's wrong with this message?",
         referencedMessage: {
@@ -99,7 +99,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -130,7 +130,7 @@ describe('AI Service Reference Message Handling', () => {
       // Removed as it's now tested above
     });
     
-    it('should handle image references', () => {
+    it('should handle image references', async () => {
       const input = {
         messageContent: "Tell me about this image",
         referencedMessage: {
@@ -140,7 +140,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -161,7 +161,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(imageItem.image_url.url).toBe('https://example.com/image.jpg');
     });
     
-    it('should handle audio references', () => {
+    it('should handle audio references', async () => {
       const input = {
         messageContent: "What's in this recording?",
         referencedMessage: {
@@ -171,7 +171,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -192,7 +192,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(audioItem.audio_url.url).toBe('https://example.com/audio.mp3');
     });
     
-    it('should handle references to the same personality', () => {
+    it('should handle references to the same personality', async () => {
       const input = {
         messageContent: "Tell me more about that",
         referencedMessage: {
@@ -205,7 +205,7 @@ describe('AI Service Reference Message Handling', () => {
       };
       
       // Use the same personality name in the formatApiMessages call
-      const result = formatApiMessages(input, "albert-einstein");
+      const result = await formatApiMessages(input, "albert-einstein");
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -222,7 +222,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("I am an AI assistant with many capabilities");
     });
     
-    it('should handle references to different personalities', () => {
+    it('should handle references to different personalities', async () => {
       const input = {
         messageContent: "What do you think about that?",
         referencedMessage: {
@@ -235,7 +235,7 @@ describe('AI Service Reference Message Handling', () => {
       };
       
       // Use a different personality name in the formatApiMessages call
-      const result = formatApiMessages(input, "sigmund-freud");
+      const result = await formatApiMessages(input, "sigmund-freud");
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -252,7 +252,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("Time is relative to the observer");
     });
 
-    it('should handle user self-references with first person format', () => {
+    it('should handle user self-references with first person format', async () => {
       const input = {
         messageContent: "Actually, let me clarify that point",
         referencedMessage: {
@@ -263,7 +263,7 @@ describe('AI Service Reference Message Handling', () => {
         userName: "CurrentUser"
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -281,7 +281,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).not.toContain("CurrentUser said:");
     });
 
-    it('should handle user self-references with audio (scenario 3.2)', () => {
+    it('should handle user self-references with audio (scenario 3.2)', async () => {
       const input = {
         messageContent: "Let me try this again with better context:",
         referencedMessage: {
@@ -292,7 +292,7 @@ describe('AI Service Reference Message Handling', () => {
         userName: "CurrentUser"
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -316,7 +316,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(audioContent.audio_url.url).toBe("https://example.com/my-audio.mp3");
     });
 
-    it('should handle user self-references with audio (scenario 5.2)', () => {
+    it('should handle user self-references with audio (scenario 5.2)', async () => {
       const input = {
         messageContent: "Let me add more context to this audio",
         referencedMessage: {
@@ -327,7 +327,7 @@ describe('AI Service Reference Message Handling', () => {
         userName: "CurrentUser"
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message with all content
       expect(result.length).toBe(1);
@@ -351,7 +351,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(audioContent.audio_url.url).toBe("https://example.com/my-recording.mp3");
     });
 
-    it('should handle user self-references using user IDs', () => {
+    it('should handle user self-references using user IDs', async () => {
       const input = {
         messageContent: "What did I mean by that?",
         userId: "user123", // Current user ID
@@ -364,7 +364,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message
       expect(result.length).toBe(1);
@@ -379,7 +379,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).not.toContain("JohnDoe said:");
     });
 
-    it('should not treat as self-reference when user IDs differ', () => {
+    it('should not treat as self-reference when user IDs differ', async () => {
       const input = {
         messageContent: "What does John think?",
         userId: "user456", // Current user ID
@@ -392,7 +392,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should have one combined message
       expect(result.length).toBe(1);
@@ -407,7 +407,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).not.toContain("I said:");
     });
 
-    it('should fall back to username comparison when user IDs are not available', () => {
+    it('should fall back to username comparison when user IDs are not available', async () => {
       const input = {
         messageContent: "Let me clarify",
         userName: "TestUser",
@@ -420,7 +420,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input);
+      const result = await formatApiMessages(input);
       
       // Should still detect self-reference by username
       const textContent = result[0].content.find(item => item.type === 'text');
@@ -430,7 +430,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("This needs more explanation");
     });
 
-    it('should use personalityDisplayName when displayName is not available', () => {
+    it('should use personalityDisplayName when displayName is not available', async () => {
       const input = {
         messageContent: "Can you elaborate on that?",
         referencedMessage: {
@@ -443,7 +443,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input, "sigmund-freud");
+      const result = await formatApiMessages(input, "sigmund-freud");
       
       // Should have one combined message
       expect(result.length).toBe(1);
@@ -457,7 +457,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("I believe in the power of the unconscious mind");
     });
 
-    it('should handle DM personality format references correctly', () => {
+    it('should handle DM personality format references correctly', async () => {
       const input = {
         messageContent: "Tell me more about that theory",
         referencedMessage: {
@@ -469,7 +469,7 @@ describe('AI Service Reference Message Handling', () => {
         }
       };
       
-      const result = formatApiMessages(input, "albert-einstein");
+      const result = await formatApiMessages(input, "albert-einstein");
       
       // Should have one combined message
       expect(result.length).toBe(1);
@@ -485,7 +485,7 @@ describe('AI Service Reference Message Handling', () => {
       expect(textContent.text).toContain("The theory of relativity shows us that time and space are interconnected");
     });
 
-    it('should not include reference when replying to same personality recently', () => {
+    it('should not include reference when replying to same personality recently', async () => {
       // This test verifies that the personality handler's logic for skipping
       // same-personality references is working correctly
       const input = {
@@ -502,7 +502,7 @@ describe('AI Service Reference Message Handling', () => {
       // In the actual implementation, personalityHandler.js checks if it's the same
       // personality and skips adding the reference. We can test that formatApiMessages
       // handles the case where no reference is provided (simulating the skip)
-      const resultWithoutReference = formatApiMessages("Continue that thought", "sigmund-freud");
+      const resultWithoutReference = await formatApiMessages("Continue that thought", "sigmund-freud");
       
       // Should have simple message without reference
       expect(resultWithoutReference.length).toBe(1);

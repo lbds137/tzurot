@@ -42,7 +42,7 @@ async function execute(message, args) {
 
   try {
     // Find the personality first
-    const personality = getPersonality(personalityName);
+    const personality = await getPersonality(personalityName);
 
     if (!personality) {
       return await directSend(

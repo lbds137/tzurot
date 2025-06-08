@@ -27,8 +27,8 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
   });
 
   describe('formatApiMessages with webhook references', () => {
-    it('should use webhook name when personality info is not available', () => {
-      getPersonality.mockReturnValue(null); // No personality found
+    it('should use webhook name when personality info is not available', async () => {
+      getPersonality.mockResolvedValue(null); // No personality found
       
       const content = {
         messageContent: 'Hello',
@@ -43,7 +43,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       // The content is returned as an array with text objects
       expect(result).toBeDefined();
@@ -55,8 +55,8 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
       expect(textContent).not.toContain('the bot said');
     });
 
-    it('should use author name as fallback when webhook name is not available', () => {
-      getPersonality.mockReturnValue(null);
+    it('should use author name as fallback when webhook name is not available', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Hello',
@@ -71,15 +71,15 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('AuthorName said');
       expect(textContent).not.toContain('the bot said');
     });
 
-    it('should only use "the bot" as last resort', () => {
-      getPersonality.mockReturnValue(null);
+    it('should only use "the bot" as last resort', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Hello',
@@ -94,19 +94,19 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       // Only use 'the bot' when all other options are null
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('the bot said');
     });
 
-    it('should prefer personality display name when available', () => {
+    it('should prefer personality display name when available', async () => {
       const mockPersonality = {
         fullName: 'test-personality-full',
         displayName: 'Test Display'
       };
-      getPersonality.mockReturnValue(mockPersonality);
+      getPersonality.mockResolvedValue(mockPersonality);
       
       const content = {
         messageContent: 'Hello',
@@ -121,15 +121,15 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'other-personality');
+      const result = await formatApiMessages(content, 'other-personality');
       
       // Should use personality display name when available
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('Test Display (test-personality-full) said');
     });
 
-    it('should handle proxy system webhooks with proper names', () => {
-      getPersonality.mockReturnValue(null);
+    it('should handle proxy system webhooks with proper names', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Response to proxy',
@@ -144,15 +144,15 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('ProxyMember said');
       expect(textContent).toContain('Message from proxy system');
     });
 
-    it('should handle media references with webhook names', () => {
-      getPersonality.mockReturnValue(null);
+    it('should handle media references with webhook names', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Nice image!',
@@ -168,15 +168,15 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       const textContent = result[0].content[0].text;
       expect(textContent).toContain('CustomWebhook said (with an image)');
       expect(textContent).toContain('Check this out');
     });
 
-    it('should handle self-references correctly', () => {
-      getPersonality.mockReturnValue(null);
+    it('should handle self-references correctly', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Correction',
@@ -193,7 +193,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       // Should use "I said" for self-references
       const textContent = result[0].content[0].text;
@@ -203,8 +203,8 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle missing reference data gracefully', () => {
-      getPersonality.mockReturnValue(null);
+    it('should handle missing reference data gracefully', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Hello',
@@ -220,7 +220,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       // Should still work with fallback
       expect(result).toBeDefined();
@@ -228,8 +228,8 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
       expect(textContent).toContain('the bot said');
     });
 
-    it('should handle empty webhook names', () => {
-      getPersonality.mockReturnValue(null);
+    it('should handle empty webhook names', async () => {
+      getPersonality.mockResolvedValue(null);
       
       const content = {
         messageContent: 'Hello',
@@ -244,7 +244,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
         }
       };
 
-      const result = formatApiMessages(content, 'test-personality');
+      const result = await formatApiMessages(content, 'test-personality');
       
       // Should fall back to author
       const textContent = result[0].content[0].text;

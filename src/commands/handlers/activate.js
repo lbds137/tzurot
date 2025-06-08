@@ -67,7 +67,7 @@ async function execute(message, args) {
     let personality = getPersonalityByAlias(personalityInput);
 
     if (!personality) {
-      personality = getPersonality(personalityInput);
+      personality = await getPersonality(personalityInput);
     }
 
     if (!personality) {
