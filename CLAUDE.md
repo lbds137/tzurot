@@ -154,7 +154,7 @@ See `./scripts/` for additional tools:
    // Inject timers as dependencies
    ```
 
-See `docs/improvements/TIMER_INJECTION_REFACTOR.md` and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for migration guides.
+See `docs/testing/TIMER_PATTERNS_COMPLETE.md` for timer patterns and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for singleton migration.
 
 ### IMPORTANT: After making code changes
 - Always run `npm run quality` to check code quality, formatting, timer patterns, and hardcoded prefixes

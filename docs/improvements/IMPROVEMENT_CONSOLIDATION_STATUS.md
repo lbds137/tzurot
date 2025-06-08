@@ -21,7 +21,7 @@ These documents describe problems that DDD will solve holistically:
 Must be fixed before or during DDD implementation:
 
 - **SINGLETON_MIGRATION_GUIDE.md** - Critical for testability
-- **TIMER_INJECTION_REFACTOR.md** - Blocks proper testing
+- **TIMER_INJECTION_REFACTOR.md** - Blocks proper testing (consolidated into `/docs/testing/TIMER_PATTERNS_COMPLETE.md`)
 - **ENVIRONMENT_VARIABLE_CLEANUP.md** - Needed for configuration
 
 **Action**: Incorporate into Phase 0 checklist
