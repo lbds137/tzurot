@@ -694,7 +694,6 @@ npm run dev
 - **Keep branches short-lived** (< 1 week)
 
 For detailed git workflow, see:
-- `docs/development/GIT_WORKFLOW.md` - Complete workflow guide
 - `docs/development/GIT_AND_PR_WORKFLOW.md` - Complete workflow guide
 
 ## Security Guidelines

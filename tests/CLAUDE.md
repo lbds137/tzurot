@@ -75,7 +75,7 @@ This CLAUDE.md file provides guidance for working with and creating tests for Tz
 - **npm run lint:test-mocks** - Manual check all files
 - **CI/CD pipeline** - Blocks PRs with violations
 
-See `docs/testing/MOCK_PATTERN_RULES.md` for complete rules.
+See `docs/testing/MOCK_SYSTEM_GUIDE.md` for complete rules.
 
 ## 🏕️ The Boy Scout Rule
 
