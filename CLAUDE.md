@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **⚠️ CRITICAL PR WORKFLOW**: **NEVER** create PRs directly to `main` branch! Always target `develop` for features, fixes, and updates. Only sync develop→main for releases. See [PR Workflow Rules](docs/development/PR_WORKFLOW_RULES.md).
+> **⚠️ CRITICAL PR WORKFLOW**: **NEVER** create PRs directly to `main` branch! Always target `develop` for features, fixes, and updates. Only sync develop→main for releases. See [Git and PR Workflow](docs/development/GIT_AND_PR_WORKFLOW.md).
 
 > **Note on Multiple CLAUDE.md Files**: This repository contains several CLAUDE.md files in different directories. This is intentional, as each file provides directory-specific context and guidance for Claude Code when working in those areas. The root CLAUDE.md (this file) provides general project guidance, while the others offer specialized instructions for specific components.
 
@@ -593,7 +593,7 @@ git log --pretty=format:"%h %ad %s" --date=short
 - Documentation (`docs/*`)
 - Tests (`test/*`)
 
-**See `docs/development/PR_WORKFLOW_RULES.md` for enforcement details.**
+**See `docs/development/GIT_AND_PR_WORKFLOW.md` for enforcement details.**
 
 ### Quick Reference
 ```bash
@@ -618,8 +618,7 @@ npm run dev
 
 For detailed git workflow, see:
 - `docs/development/GIT_WORKFLOW.md` - Complete workflow guide
-- `docs/development/WORKFLOW_SUMMARY.md` - Quick reference
-- `docs/development/PR_WORKFLOW_RULES.md` - PR creation rules
+- `docs/development/GIT_AND_PR_WORKFLOW.md` - Complete workflow guide
 
 ## Security Guidelines
 
