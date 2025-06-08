@@ -28,6 +28,7 @@
 - **[DDD_PHASE_0_GUIDE.md](./DDD_PHASE_0_GUIDE.md)** - Week 1: Stop the bleeding
 - **[DDD_MIGRATION_CHECKLIST.md](./DDD_MIGRATION_CHECKLIST.md)** - Complete migration checklist
 - **[TECHNICAL_DEBT_INVENTORY.md](./TECHNICAL_DEBT_INVENTORY.md)** - What we're fixing and why
+- **[BRANCH_STRATEGY.md](./BRANCH_STRATEGY.md)** - Safe deployment approach
 
 ### Reference Documents
 
@@ -35,40 +36,44 @@ These provide context and analysis:
 - **[PERSONALITY_GETTER_ANALYSIS.md](./PERSONALITY_GETTER_ANALYSIS.md)** - The 52-file cascade problem
 - **[IMPROVEMENT_CONSOLIDATION_STATUS.md](./IMPROVEMENT_CONSOLIDATION_STATUS.md)** - How we consolidated 24 documents
 
-## Archived/Superseded Documents
+## Organized Archive Structure
 
-The following documents have been superseded by the DDD plan:
-
-### To Be Archived After Phase 0
+### 📁 archive/superseded/
+Documents replaced by the DDD plan:
 - `MODULE_REFACTORING_PLAN.md` - Replaced by DDD bounded contexts
 - `MODULE_STRUCTURE_PROPOSAL.md` - Incorporated into DDD plan
 - `AISERVICE_REFACTORING_PLAN.md` - Part of AI Integration context
 - `PERSONALITY_SYSTEM_REFACTOR.md` - Part of Personality context
+- `REFERENCE_AND_MEDIA_REFACTOR.md` - Part of Conversation context
 - `FACADE_REMOVAL_PLAN.md` - Part of Phase 4 cleanup
 
-### Bug Fixes (Move to GitHub Issues)
+### 📁 archive/bug-fixes/
+Bug reports to convert to GitHub issues:
 - `WEBHOOK_PERSONALITY_DETECTION_FIX.md`
 - `MULTIPLE_MEDIA_API_FIX.md`
 - `OPEN_HANDLES_ISSUE.md`
+- `CREATE_GITHUB_ISSUES.md` - Instructions for creating issues
 
-### Feature Enhancements (FROZEN)
+### 📁 reference/analysis/
+Historical analyses that informed the DDD plan:
+- `CODE_IMPROVEMENT_OPPORTUNITIES.md`
+- `MESSAGE_REFERENCE_IMPROVEMENTS.md`
+- `MEMORY_MANAGEMENT_PLAN.md`
+- `DOCUMENTATION_ORGANIZATION_PROPOSAL.md`
+
+### Still Active (Not Archived)
+
+#### Technical Debt (Phase 0-1 Requirements)
+- `SINGLETON_MIGRATION_GUIDE.md` - Critical for testability
+- `TIMER_INJECTION_REFACTOR.md` - Blocks proper testing
+- `ENVIRONMENT_VARIABLE_CLEANUP.md` - Needed for configuration
+
+#### Feature Enhancements (FROZEN)
 - `FEATURE_IDEAS.md`
 - `PROFILE_DATA_ENHANCEMENT.md`
 - `MULTI_USER_SCALABILITY.md`
 - `EXPRESS_MIGRATION.md`
 - `DATABASE_MIGRATION_PLAN.md`
-
-### Technical Debt (Addressed in Phase 0-1)
-- `SINGLETON_MIGRATION_GUIDE.md`
-- `TIMER_INJECTION_REFACTOR.md`
-- `ENVIRONMENT_VARIABLE_CLEANUP.md`
-
-### Analysis Documents (Keep for Reference)
-- `CODE_IMPROVEMENT_OPPORTUNITIES.md`
-- `MESSAGE_REFERENCE_IMPROVEMENTS.md`
-- `MEMORY_MANAGEMENT_PLAN.md`
-- `DOCUMENTATION_ORGANIZATION_PROPOSAL.md`
-- `REFERENCE_AND_MEDIA_REFACTOR.md`
 
 ## How to Use This Documentation
 
