@@ -18,7 +18,8 @@ class AIContent extends ValueObject {
       throw new Error('AIContent must be initialized with an array');
     }
     
-    this.items = items.map(item => this.validateItem(item));
+    this.items = Object.freeze(items.map(item => this.validateItem(item)));
+    this.freeze();
   }
 
   /**

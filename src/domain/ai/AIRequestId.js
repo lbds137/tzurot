@@ -24,6 +24,7 @@ class AIRequestId extends ValueObject {
     }
     
     this.value = value;
+    this.freeze();
   }
 
   /**

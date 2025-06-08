@@ -36,6 +36,7 @@ class Conversation extends AggregateRoot {
     this.startedAt = null;
     this.lastActivityAt = null;
     this.ended = false;
+    this.endedAt = null;
   }
 
   /**
@@ -261,6 +262,7 @@ class Conversation extends AggregateRoot {
 
   onConversationEnded(event) {
     this.ended = true;
+    this.endedAt = event.payload.endedAt;
   }
 
   // Serialization
@@ -274,6 +276,7 @@ class Conversation extends AggregateRoot {
       startedAt: this.startedAt,
       lastActivityAt: this.lastActivityAt,
       ended: this.ended,
+      endedAt: this.endedAt,
       version: this.version,
     };
   }
