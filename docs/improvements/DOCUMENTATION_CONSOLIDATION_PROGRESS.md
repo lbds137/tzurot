@@ -55,21 +55,20 @@
    - `docs/core/COMMAND_ARCHITECTURE.md`
    - Content from `src/commands/CLAUDE.md`
 
-2. **Feature Documentation**
-   - Merge `GITHUB_WEBHOOK_NOTIFICATIONS.md` + `RELEASE_NOTIFICATIONS.md`
+2. **Authentication Documentation**
    - Consolidate authentication-related docs
 
 #### Medium Priority
-3. **Architecture Documentation**
+1. **Architecture Documentation**
    - Update `ARCHITECTURE.md` to reference DDD plan
    - Add transition notes
 
-4. **Setup/Contributing Docs**
+2. **Setup/Contributing Docs**
    - Possible overlap between `SETUP.md` and `CONTRIBUTING.md`
    - Check for duplication with root README
 
 #### Low Priority
-5. **Component Documentation**
+1. **Component Documentation**
    - Review `/components` folder for related features
    - Consider grouping by feature area
 
