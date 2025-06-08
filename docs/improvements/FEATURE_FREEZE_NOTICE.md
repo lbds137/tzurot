@@ -1,7 +1,7 @@
 # 🚨 FEATURE FREEZE IN EFFECT 🚨
 
-**Effective Date**: Immediately  
-**Estimated Duration**: 11 weeks  
+**Effective Date**: June 8, 2025  
+**Estimated Duration**: 11 weeks (until ~August 24, 2025)  
 **Reason**: Critical architectural refactoring to prevent system collapse
 
 ## Why Feature Freeze?
