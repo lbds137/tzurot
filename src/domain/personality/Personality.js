@@ -142,7 +142,8 @@ class Personality extends AggregateRoot {
    * @returns {boolean} True if profile needs refresh
    */
   needsProfileRefresh(staleThresholdMs = 60 * 60 * 1000) {
-    if (!this.profile || !this.updatedAt) {
+    // Need refresh if no profile or profile is empty (no displayName)
+    if (!this.profile || !this.profile.displayName || !this.updatedAt) {
       return true;
     }
     
@@ -153,6 +154,7 @@ class Personality extends AggregateRoot {
   }
 
   // Event handlers
+  // eslint-disable-next-line no-unused-vars
   onPersonalityCreated(event) {
     this.personalityId = PersonalityId.fromString(event.payload.personalityId);
     this.ownerId = UserId.fromString(event.payload.ownerId);
@@ -162,11 +164,13 @@ class Personality extends AggregateRoot {
     this.removed = false;
   }
 
+  // eslint-disable-next-line no-unused-vars
   onPersonalityProfileUpdated(event) {
     this.profile = PersonalityProfile.fromJSON(event.payload.profile);
     this.updatedAt = event.payload.updatedAt;
   }
 
+  // eslint-disable-next-line no-unused-vars
   onPersonalityRemoved(event) {
     this.removed = true;
     this.updatedAt = event.payload.removedAt;
