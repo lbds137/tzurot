@@ -11,10 +11,17 @@ jest.mock('../../../src/utils/errorTracker', () => ({
   },
   trackError: jest.fn()
 }));
+jest.mock('../../../src/core/personality', () => ({
+  getPersonality: jest.fn()
+}));
+
+const { getPersonality } = require('../../../src/core/personality');
 
 describe('AI Error Handler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock getPersonality to return null by default (no custom error message)
+    getPersonality.mockResolvedValue(null);
   });
 
   describe('isErrorResponse', () => {
@@ -78,8 +85,8 @@ describe('AI Error Handler', () => {
     });
 
     describe('specific error types', () => {
-      it('should handle ValueError content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle ValueError content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'ValueError: invalid literal for int()',
           'test-personality',
           mockContext,
@@ -91,8 +98,8 @@ describe('AI Error Handler', () => {
         expect(mockAddToBlackoutList).toHaveBeenCalledWith('test-personality', mockContext, 5 * 60 * 1000);
       });
 
-      it('should handle KeyError content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle KeyError content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           "KeyError: 'missing_key'",
           'test-personality',
           mockContext,
@@ -103,8 +110,8 @@ describe('AI Error Handler', () => {
         expect(logger.error).toHaveBeenCalledWith('[AIService] Error in content from test-personality: key_error');
       });
 
-      it('should handle IndexError content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle IndexError content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'IndexError: list index out of range',
           'test-personality',
           mockContext,
@@ -115,8 +122,8 @@ describe('AI Error Handler', () => {
         expect(logger.error).toHaveBeenCalledWith('[AIService] Error in content from test-personality: index_error');
       });
 
-      it('should handle API server error (500)', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle API server error (500)', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'Internal Server Error 500',
           'test-personality',
           mockContext,
@@ -128,8 +135,8 @@ describe('AI Error Handler', () => {
         expect(mockAddToBlackoutList).toHaveBeenCalledWith('test-personality', mockContext, 30 * 1000);
       });
 
-      it('should handle rate limit error', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle rate limit error', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'Error: Rate limit exceeded. Too many requests.',
           'test-personality',
           mockContext,
@@ -141,8 +148,8 @@ describe('AI Error Handler', () => {
         expect(mockAddToBlackoutList).toHaveBeenCalledWith('test-personality', mockContext, 30 * 1000);
       });
 
-      it('should handle timeout error', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle timeout error', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'Request timeout: Operation timed out after 30 seconds',
           'test-personality',
           mockContext,
@@ -154,8 +161,8 @@ describe('AI Error Handler', () => {
         expect(mockAddToBlackoutList).toHaveBeenCalledWith('test-personality', mockContext, 30 * 1000);
       });
 
-      it('should handle exception with traceback', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle exception with traceback', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'Traceback (most recent call last):\n  File "test.py", line 10\nNameError: name not defined',
           'test-personality',
           mockContext,
@@ -167,8 +174,8 @@ describe('AI Error Handler', () => {
         expect(logger.error).toHaveBeenCalledWith('[AIService] Error details: File "test.py", line 10');
       });
 
-      it('should handle generic error', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle generic error', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           'Some weird error that does not match any pattern',
           'test-personality',
           mockContext,
@@ -182,8 +189,8 @@ describe('AI Error Handler', () => {
     });
 
     describe('non-string content', () => {
-      it('should handle object content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle object content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           { error: 'Some error object' },
           'test-personality',
           mockContext,
@@ -195,8 +202,8 @@ describe('AI Error Handler', () => {
         expect(logger.error).toHaveBeenCalledWith('[AIService] Non-string content sample: {"error":"Some error object"}');
       });
 
-      it('should handle null content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle null content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           null,
           'test-personality',
           mockContext,
@@ -207,8 +214,8 @@ describe('AI Error Handler', () => {
         expect(logger.error).toHaveBeenCalledWith('[AIService] Non-string error from test-personality');
       });
 
-      it('should handle undefined content', () => {
-        const result = analyzeErrorAndGenerateMessage(
+      it('should handle undefined content', async () => {
+        const result = await analyzeErrorAndGenerateMessage(
           undefined,
           'test-personality',
           mockContext,
@@ -221,9 +228,9 @@ describe('AI Error Handler', () => {
     });
 
     describe('context handling', () => {
-      it('should handle missing userId in context', () => {
+      it('should handle missing userId in context', async () => {
         const contextWithoutUser = { channelId: 'test-channel' };
-        const result = analyzeErrorAndGenerateMessage(
+        const result = await analyzeErrorAndGenerateMessage(
           'TypeError: Something went wrong',
           'test-personality',
           contextWithoutUser,

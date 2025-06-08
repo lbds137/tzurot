@@ -13,9 +13,14 @@ const { getPersonality } = require('../core/personality');
  * @param {string} personalityName - The name of the personality to use in media prompts
  * @param {string} [userName] - The user's formatted name (displayName + username)
  * @param {boolean} [isProxyMessage] - Whether this is a proxy system message (PluralKit, etc)
- * @returns {Array} Formatted messages array for API request
+ * @returns {Promise<Array>} Formatted messages array for API request
  */
-function formatApiMessages(content, personalityName, userName = 'a user', isProxyMessage = false) {
+async function formatApiMessages(
+  content,
+  personalityName,
+  userName = 'a user',
+  isProxyMessage = false
+) {
   try {
     // Check if the content is an object with a special reference format
     if (
@@ -161,7 +166,7 @@ function formatApiMessages(content, personalityName, userName = 'a user', isProx
             let displayName;
 
             // Try to get the personality from the personality manager
-            const personalityObject = fullName ? getPersonality(fullName) : null;
+            const personalityObject = fullName ? await getPersonality(fullName) : null;
             if (personalityObject && personalityObject.displayName) {
               // Use display name from personality manager if available
               displayName = personalityObject.displayName;

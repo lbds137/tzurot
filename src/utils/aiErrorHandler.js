@@ -82,9 +82,14 @@ function isErrorResponse(content) {
  * @param {string} personalityName - The personality that generated the error
  * @param {Object} context - Request context for logging
  * @param {Function} addToBlackoutList - Function to add to blackout tracking
- * @returns {string} - User-friendly error message
+ * @returns {Promise<string>} - User-friendly error message
  */
-function analyzeErrorAndGenerateMessage(content, personalityName, context, addToBlackoutList) {
+async function analyzeErrorAndGenerateMessage(
+  content,
+  personalityName,
+  context,
+  addToBlackoutList
+) {
   // Analyze error content to provide more detailed information
   let errorType = 'error_in_content';
   let errorDetails = 'Unknown error format';
@@ -228,7 +233,7 @@ function analyzeErrorAndGenerateMessage(content, personalityName, context, addTo
   // Try to get personality-specific error message first
   let personality = null;
   try {
-    personality = getPersonality(personalityName);
+    personality = await getPersonality(personalityName);
     if (personality && personality.errorMessage) {
       logger.info(
         `[AIErrorHandler] Using personality-specific error message for ${personalityName}`

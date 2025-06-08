@@ -99,7 +99,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
         logger.debug(`Found personality name: ${personalityName}, looking up personality details`);
 
         // First try to get personality directly as it could be a full name
-        let personality = getPersonality(personalityName);
+        let personality = await getPersonality(personalityName);
         logger.debug(
           `Direct personality lookup for "${personalityName}": ${personality ? 'found' : 'not found'}`
         );

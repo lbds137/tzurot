@@ -62,7 +62,7 @@ async function execute(message, args, context = {}) {
 
     // If not found by alias, try the direct name
     if (!personality) {
-      personality = getPersonality(personalityName);
+      personality = await getPersonality(personalityName);
     }
 
     if (!personality) {

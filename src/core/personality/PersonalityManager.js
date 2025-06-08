@@ -145,12 +145,14 @@ class PersonalityManager {
   /**
    * Get a personality by name
    * @param {string} name - The personality name
-   * @returns {Object|null} The personality data or null
+   * @param {Object} options - Options for getting personality
+   * @param {boolean} options.skipRefresh - Skip refreshing missing data
+   * @returns {Promise<Object|null>} The personality data or null
    */
-  getPersonality(name) {
+  async getPersonality(name, options = {}) {
     const personality = this.registry.get(name);
 
-    if (personality) {
+    if (personality && !options.skipRefresh) {
       // Check if personality data is stale
       const now = Date.now();
       const lastUpdated = personality.lastUpdated ? new Date(personality.lastUpdated).getTime() : 0;
@@ -164,11 +166,24 @@ class PersonalityManager {
           : `[PersonalityManager] Personality ${name} has stale data, refreshing...`;
         logger.info(message);
 
-        // Attempt to refresh the personality data asynchronously
-        // We don't await this to avoid blocking the current request
-        this._refreshPersonalityData(name).catch(error => {
-          logger.error(`[PersonalityManager] Failed to refresh ${name}: ${error.message}`);
-        });
+        // For missing errorMessage, wait for refresh to complete
+        // This ensures error handling always has access to custom error messages
+        if (!personality.errorMessage) {
+          try {
+            await this._refreshPersonalityData(name);
+            // Return the updated personality from registry
+            return this.registry.get(name);
+          } catch (error) {
+            logger.error(`[PersonalityManager] Failed to refresh ${name}: ${error.message}`);
+            // Return personality as-is if refresh fails
+            return personality;
+          }
+        } else {
+          // For stale data, refresh asynchronously to avoid blocking
+          this._refreshPersonalityData(name).catch(error => {
+            logger.error(`[PersonalityManager] Failed to refresh ${name}: ${error.message}`);
+          });
+        }
       }
     }
 
@@ -490,15 +505,21 @@ class PersonalityManager {
         try {
           const needsUpdate = await avatarStorage.needsUpdate(fullName, profileData.avatarUrl);
           if (needsUpdate) {
-            logger.info(`[PersonalityManager] Avatar changed for ${fullName}, will update local storage`);
+            logger.info(
+              `[PersonalityManager] Avatar changed for ${fullName}, will update local storage`
+            );
             avatarChanged = true;
             // Pre-download the new avatar to ensure it's cached
             await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
           } else {
-            logger.info(`[PersonalityManager] Avatar URL changed but image unchanged for ${fullName}`);
+            logger.info(
+              `[PersonalityManager] Avatar URL changed but image unchanged for ${fullName}`
+            );
           }
         } catch (error) {
-          logger.error(`[PersonalityManager] Error checking avatar update for ${fullName}: ${error.message}`);
+          logger.error(
+            `[PersonalityManager] Error checking avatar update for ${fullName}: ${error.message}`
+          );
         }
       }
 
@@ -578,7 +599,7 @@ Object.assign(module.exports, {
   initialize: (...args) => personalityManager.initialize(...args),
   registerPersonality: (...args) => personalityManager.registerPersonality(...args),
   removePersonality: (...args) => personalityManager.removePersonality(...args),
-  getPersonality: (...args) => personalityManager.getPersonality(...args),
+  getPersonality: async (...args) => personalityManager.getPersonality(...args),
   getPersonalityByAlias: (...args) => personalityManager.getPersonalityByAlias(...args),
   setPersonalityAlias: (...args) => personalityManager.setPersonalityAlias(...args),
   removePersonalityAlias: (...args) => personalityManager.removePersonalityAlias(...args),

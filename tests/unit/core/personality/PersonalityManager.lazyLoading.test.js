@@ -75,9 +75,10 @@ describe('PersonalityManager - Lazy Loading', () => {
       getProfileErrorMessage.mockResolvedValue('New error message!');
 
       // Get the personality - should trigger refresh due to staleness
-      const personality = manager.getPersonality('test-personality');
+      const personality = await manager.getPersonality('test-personality');
 
-      // Should return the old data immediately
+      // For stale data (not missing errorMessage), getPersonality returns immediately
+      // but triggers async refresh
       expect(personality).toEqual(oldPersonalityData);
       expect(logger.info).toHaveBeenCalledWith(
         '[PersonalityManager] Personality test-personality has stale data, refreshing...'
@@ -87,7 +88,7 @@ describe('PersonalityManager - Lazy Loading', () => {
       await jest.runAllTimersAsync();
 
       // Check that data was refreshed
-      const updated = manager.getPersonality('test-personality');
+      const updated = await manager.getPersonality('test-personality');
       expect(updated.errorMessage).toBe('New error message!');
       expect(updated.displayName).toBe('Updated Test');
       expect(new Date(updated.lastUpdated).getTime()).toBeGreaterThan(
@@ -114,7 +115,7 @@ describe('PersonalityManager - Lazy Loading', () => {
       getProfileErrorMessage.mockResolvedValue('Updated error message!');
 
       // Get the personality - should trigger refresh due to missing lastUpdated
-      const personality = manager.getPersonality('test-personality');
+      const personality = await manager.getPersonality('test-personality');
 
       // Should return the old data immediately
       expect(personality).toEqual(oldPersonalityData);
@@ -126,7 +127,7 @@ describe('PersonalityManager - Lazy Loading', () => {
       await jest.runAllTimersAsync();
 
       // Check that data was refreshed and lastUpdated was added
-      const updated = manager.getPersonality('test-personality');
+      const updated = await manager.getPersonality('test-personality');
       expect(updated.lastUpdated).toBeDefined();
       expect(updated.errorMessage).toBe('Updated error message!');
     });
@@ -149,28 +150,23 @@ describe('PersonalityManager - Lazy Loading', () => {
       getProfileDisplayName.mockResolvedValue('Test Personality');
       getProfileErrorMessage.mockResolvedValue('Oops! Something went wrong! ||*(an error has occurred)*||');
 
-      // Get the personality - should trigger lazy loading
-      const personality = manager.getPersonality('test-personality');
+      // Get the personality - when errorMessage is missing, it waits for refresh
+      const personality = await manager.getPersonality('test-personality');
 
-      // Should return the old data immediately
-      expect(personality).toEqual(oldPersonalityData);
+      // Should have refreshed data (not old data) since we wait for errorMessage
+      expect(personality.errorMessage).toBe('Oops! Something went wrong! ||*(an error has occurred)*||');
+      expect(personality.avatarUrl).toBe('https://example.com/new-avatar.png');
+      expect(personality.displayName).toBe('Test Personality');
+      expect(personality.lastUpdated).toBeDefined();
+      
       expect(logger.info).toHaveBeenCalledWith(
         '[PersonalityManager] Personality test-personality missing errorMessage, refreshing...'
       );
-
-      // Wait for async refresh to complete
-      await jest.runAllTimersAsync();
 
       // Check that API calls were made
       expect(getProfileAvatarUrl).toHaveBeenCalledWith('test-personality');
       expect(getProfileDisplayName).toHaveBeenCalledWith('test-personality');
       expect(getProfileErrorMessage).toHaveBeenCalledWith('test-personality');
-
-      // Get personality again - should have updated data
-      const updatedPersonality = manager.getPersonality('test-personality');
-      expect(updatedPersonality.errorMessage).toBe('Oops! Something went wrong! ||*(an error has occurred)*||');
-      expect(updatedPersonality.avatarUrl).toBe('https://example.com/new-avatar.png');
-      expect(updatedPersonality.displayName).toBe('Test Personality');
     });
 
     it('should not refresh if errorMessage already exists and data is fresh', async () => {
@@ -187,7 +183,7 @@ describe('PersonalityManager - Lazy Loading', () => {
       manager.registry.personalities.set('test-personality', personalityData);
 
       // Get the personality
-      const personality = manager.getPersonality('test-personality');
+      const personality = await manager.getPersonality('test-personality');
 
       // Should return the data without refreshing
       expect(personality).toEqual(personalityData);
@@ -217,10 +213,15 @@ describe('PersonalityManager - Lazy Loading', () => {
       getProfileDisplayName.mockRejectedValue(new Error('API Error'));
 
       // Get the personality
-      const personality = manager.getPersonality('test-personality');
+      const personality = await manager.getPersonality('test-personality');
 
-      // Should return the old data
-      expect(personality).toEqual(oldPersonalityData);
+      // When errorMessage is missing and refresh fails, it still returns the personality
+      // but with updated metadata (lastUpdated and avatarChanged)
+      expect(personality.fullName).toBe('test-personality');
+      expect(personality.addedBy).toBe('123456789012345678');
+      expect(personality.displayName).toBe('Test');
+      expect(personality.lastUpdated).toBeDefined(); // Refresh adds timestamp even on failure
+      expect(personality.avatarChanged).toBe(false); // Default value added
 
       // Wait for async refresh to complete
       await jest.runAllTimersAsync();
@@ -231,7 +232,7 @@ describe('PersonalityManager - Lazy Loading', () => {
       );
 
       // Personality should have been updated with lastUpdated timestamp
-      const updated = manager.getPersonality('test-personality');
+      const updated = await manager.getPersonality('test-personality');
       expect(updated.lastUpdated).toBeDefined();
       expect(updated.fullName).toBe('test-personality');
     });
@@ -254,13 +255,13 @@ describe('PersonalityManager - Lazy Loading', () => {
       getProfileErrorMessage.mockResolvedValue('New error message!');
 
       // Trigger refresh
-      manager.getPersonality('test-personality');
+      await manager.getPersonality('test-personality');
 
       // Wait for refresh
       await jest.runAllTimersAsync();
 
       // Check updated data
-      const updated = manager.getPersonality('test-personality');
+      const updated = await manager.getPersonality('test-personality');
       expect(updated.avatarUrl).toBe('https://example.com/new.png');
       expect(updated.displayName).toBe('New Name');
       expect(updated.errorMessage).toBe('New error message!');
