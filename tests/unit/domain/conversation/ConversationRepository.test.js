@@ -1,16 +1,27 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * ConversationRepository Interface Test
+ * - Tests repository interface contract
+ * - Includes mock implementation example
+ * - Pure domain test with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { ConversationRepository } = require('../../../../src/domain/conversation/ConversationRepository');
 const { Conversation } = require('../../../../src/domain/conversation/Conversation');
 const { ConversationId } = require('../../../../src/domain/conversation/ConversationId');
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
+const { Message } = require('../../../../src/domain/conversation/Message');
 
 describe('ConversationRepository', () => {
   let repository;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     repository = new ConversationRepository();
   });
   
@@ -174,17 +185,14 @@ describe('ConversationRepository', () => {
       const conversationId = new ConversationId('123456789012345678', '987654321098765432');
       const personalityId = new PersonalityId('test-personality');
       
-      const { Message } = require('../../../../src/domain/conversation/Message');
-      
       const initialMessage = new Message({
         id: 'msg-initial',
         content: 'Hello',
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       
       const conversation = Conversation.start(conversationId, initialMessage, personalityId);
       
@@ -195,9 +203,8 @@ describe('ConversationRepository', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       conversation.addMessage(secondMessage);
       
       // Test save

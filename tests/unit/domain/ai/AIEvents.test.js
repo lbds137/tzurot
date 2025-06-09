@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AI Events Test
+ * - Pure domain test with no external dependencies
+ * - Tests AI domain events
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const {
   AIRequestCreated,
   AIRequestSent,
@@ -10,11 +19,15 @@ const {
   AIRequestRetried,
   AIRequestRateLimited,
   AIContentSanitized,
-  AIErrorDetected,
+  AIErrorDetected
 } = require('../../../../src/domain/ai/AIEvents');
 
 describe('AI Events', () => {
   const aggregateId = 'air_123_test';
+  
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
   
   describe('AIRequestCreated', () => {
     it('should create event with payload', () => {
@@ -25,7 +38,7 @@ describe('AI Events', () => {
         content: [{ type: 'text', text: 'Hello' }],
         referencedContent: null,
         model: { name: 'default', path: 'claude-3-opus' },
-        createdAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new AIRequestCreated(aggregateId, payload);
@@ -43,7 +56,7 @@ describe('AI Events', () => {
         content: [{ type: 'text', text: 'Hello' }],
         referencedContent: null,
         model: { name: 'default', path: 'claude-3-opus' },
-        createdAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new AIRequestCreated(aggregateId, payload);
@@ -74,7 +87,7 @@ describe('AI Events', () => {
     it('should create event with payload', () => {
       const payload = {
         sentAt: '2024-01-01T00:00:01.000Z',
-        attempt: 1,
+        attempt: 1
       };
       
       const event = new AIRequestSent(aggregateId, payload);
@@ -102,7 +115,7 @@ describe('AI Events', () => {
     it('should create event with payload', () => {
       const payload = {
         response: [{ type: 'text', text: 'AI response' }],
-        completedAt: '2024-01-01T00:00:02.000Z',
+        completedAt: '2024-01-01T00:00:02.000Z'
       };
       
       const event = new AIResponseReceived(aggregateId, payload);
@@ -132,9 +145,9 @@ describe('AI Events', () => {
         error: {
           message: 'API error',
           code: 'API_ERROR',
-          canRetry: true,
+          canRetry: true
         },
-        failedAt: '2024-01-01T00:00:02.000Z',
+        failedAt: '2024-01-01T00:00:02.000Z'
       };
       
       const event = new AIRequestFailed(aggregateId, payload);
@@ -162,7 +175,7 @@ describe('AI Events', () => {
     it('should create event with payload', () => {
       const payload = {
         retryAt: '2024-01-01T00:00:05.000Z',
-        attempt: 2,
+        attempt: 2
       };
       
       const event = new AIRequestRetried(aggregateId, payload);
@@ -191,7 +204,7 @@ describe('AI Events', () => {
     it('should create event with payload', () => {
       const payload = {
         rateLimitedAt: '2024-01-01T00:00:02.000Z',
-        retryAfter: 60000,
+        retryAfter: 60000
       };
       
       const event = new AIRequestRateLimited(aggregateId, payload);
@@ -221,7 +234,7 @@ describe('AI Events', () => {
       const payload = {
         originalLength: 1000,
         sanitizedLength: 950,
-        sanitizedAt: '2024-01-01T00:00:03.000Z',
+        sanitizedAt: '2024-01-01T00:00:03.000Z'
       };
       
       const event = new AIContentSanitized(aggregateId, payload);
@@ -250,7 +263,7 @@ describe('AI Events', () => {
     it('should create event with payload', () => {
       const payload = {
         errorType: 'RATE_LIMIT',
-        detectedAt: '2024-01-01T00:00:04.000Z',
+        detectedAt: '2024-01-01T00:00:04.000Z'
       };
       
       const event = new AIErrorDetected(aggregateId, payload);
@@ -283,7 +296,7 @@ describe('AI Events', () => {
         content: [{ type: 'text', text: 'Hello' }],
         referencedContent: null,
         model: { name: 'default', path: 'claude-3-opus' },
-        createdAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new AIRequestCreated(aggregateId, payload);
@@ -293,7 +306,7 @@ describe('AI Events', () => {
         eventId: event.eventId,
         aggregateId: aggregateId,
         eventType: 'AIRequestCreated',
-        payload: payload,
+        payload: payload
       });
       expect(json.occurredAt).toBeDefined();
     });
@@ -308,7 +321,7 @@ describe('AI Events', () => {
         content: [{ type: 'text', text: 'Hello' }],
         referencedContent: null,
         model: { name: 'default', path: 'claude-3-opus' },
-        createdAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z'
       };
       
       const originalEvent = new AIRequestCreated(aggregateId, payload);

@@ -1,10 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * UserId Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests Discord ID validation logic
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { UserId } = require('../../../../src/domain/personality/UserId');
 
 describe('UserId', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // No console mocking needed for pure domain tests
+  });
+  
   describe('constructor', () => {
     it('should create valid UserId with Discord snowflake', () => {
       const id = new UserId('123456789012345678');

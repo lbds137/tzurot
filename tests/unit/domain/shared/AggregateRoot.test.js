@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AggregateRoot Base Class Test
+ * - Pure domain test with no external dependencies
+ * - Tests aggregate root base functionality
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { AggregateRoot } = require('../../../../src/domain/shared/AggregateRoot');
 const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
 
@@ -46,6 +55,10 @@ class TestAggregate extends AggregateRoot {
 }
 
 describe('AggregateRoot', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('constructor', () => {
     it('should require an ID', () => {
       expect(() => new AggregateRoot()).toThrow('Aggregate root must have an ID');
@@ -131,7 +144,7 @@ describe('AggregateRoot', () => {
     it('should rebuild aggregate from event history', () => {
       const events = [
         new TestCreatedEvent('test-123', { name: 'Historical' }),
-        new TestUpdatedEvent('test-123', { value: 99 }),
+        new TestUpdatedEvent('test-123', { value: 99 })
       ];
       
       const aggregate = new TestAggregate('test-123');
@@ -155,7 +168,7 @@ describe('AggregateRoot', () => {
       const events = [
         new TestCreatedEvent('test-123', { name: 'Test' }),
         new UnhandledEvent('test-123', {}),
-        new TestUpdatedEvent('test-123', { value: 42 }),
+        new TestUpdatedEvent('test-123', { value: 42 })
       ];
       
       const aggregate = new TestAggregate('test-123');

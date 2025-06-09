@@ -1,11 +1,21 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * NsfwStatus Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests NSFW verification status handling
+ * - Uses fake timers for time-based testing
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { NsfwStatus } = require('../../../../src/domain/authentication/NsfwStatus');
 
 describe('NsfwStatus', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
   });
@@ -187,7 +197,7 @@ describe('NsfwStatus', () => {
       
       expect(json).toEqual({
         verified: true,
-        verifiedAt: verifiedAt.toISOString(),
+        verifiedAt: verifiedAt.toISOString()
       });
     });
     
@@ -198,7 +208,7 @@ describe('NsfwStatus', () => {
       
       expect(json).toEqual({
         verified: false,
-        verifiedAt: null,
+        verifiedAt: null
       });
     });
   });
@@ -207,7 +217,7 @@ describe('NsfwStatus', () => {
     it('should deserialize verified status', () => {
       const json = {
         verified: true,
-        verifiedAt: '2024-01-01T00:00:00.000Z',
+        verifiedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const status = NsfwStatus.fromJSON(json);
@@ -220,7 +230,7 @@ describe('NsfwStatus', () => {
     it('should deserialize unverified status', () => {
       const json = {
         verified: false,
-        verifiedAt: null,
+        verifiedAt: null
       };
       
       const status = NsfwStatus.fromJSON(json);
@@ -232,7 +242,7 @@ describe('NsfwStatus', () => {
     it('should handle date string conversion', () => {
       const json = {
         verified: true,
-        verifiedAt: '2024-01-01T00:00:00.000Z',
+        verifiedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const status = NsfwStatus.fromJSON(json);

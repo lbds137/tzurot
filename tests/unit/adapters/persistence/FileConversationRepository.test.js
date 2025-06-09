@@ -1,3 +1,13 @@
+/**
+ * @jest-environment node
+ * @testType adapter
+ * 
+ * FileConversationRepository Test
+ * - Tests file-based conversation repository adapter
+ * - Mocks external dependencies (fs, logger)
+ * - Domain models are NOT mocked
+ */
+
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn(),
@@ -7,6 +17,8 @@ jest.mock('fs', () => ({
   }
 }));
 jest.mock('../../../../src/logger');
+
+const { dddPresets } = require('../../../__mocks__/ddd');
 
 const fs = require('fs').promises;
 const path = require('path');

@@ -1,10 +1,23 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AuthContext Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests authentication context for different channel types
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { AuthContext } = require('../../../../src/domain/authentication/AuthContext');
 
 describe('AuthContext', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('constructor', () => {
     it('should create context with all properties', () => {
       const context = new AuthContext({
@@ -12,7 +25,7 @@ describe('AuthContext', () => {
         channelId: '123456789012345678',
         isNsfwChannel: true,
         isProxyMessage: true,
-        requestedPersonalityId: 'claude-3-opus',
+        requestedPersonalityId: 'claude-3-opus'
       });
       
       expect(context.channelType).toBe('GUILD');
@@ -25,7 +38,7 @@ describe('AuthContext', () => {
     it('should default optional properties', () => {
       const context = new AuthContext({
         channelType: 'DM',
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       });
       
       expect(context.isNsfwChannel).toBe(false);
@@ -38,7 +51,7 @@ describe('AuthContext', () => {
         channelType: 'GUILD',
         channelId: '123456789012345678',
         isNsfwChannel: 'truthy',
-        isProxyMessage: 1,
+        isProxyMessage: 1
       });
       
       expect(context.isNsfwChannel).toBe(true);
@@ -50,33 +63,33 @@ describe('AuthContext', () => {
     it('should require valid channel type', () => {
       expect(() => new AuthContext({
         channelType: 'INVALID',
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       })).toThrow('Invalid channel type');
       
       expect(() => new AuthContext({
         channelType: null,
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       })).toThrow('Invalid channel type');
       
       expect(() => new AuthContext({
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       })).toThrow('Invalid channel type');
     });
     
     it('should accept valid channel types', () => {
       const dmContext = new AuthContext({
         channelType: 'DM',
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       });
       
       const guildContext = new AuthContext({
         channelType: 'GUILD',
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       });
       
       const threadContext = new AuthContext({
         channelType: 'THREAD',
-        channelId: '123456789012345678',
+        channelId: '123456789012345678'
       });
       
       expect(dmContext.channelType).toBe('DM');
@@ -87,23 +100,23 @@ describe('AuthContext', () => {
     it('should require channel ID', () => {
       expect(() => new AuthContext({
         channelType: 'GUILD',
-        channelId: null,
+        channelId: null
       })).toThrow('Channel ID required');
       
       expect(() => new AuthContext({
         channelType: 'GUILD',
-        channelId: '',
+        channelId: ''
       })).toThrow('Channel ID required');
       
       expect(() => new AuthContext({
-        channelType: 'GUILD',
+        channelType: 'GUILD'
       })).toThrow('Channel ID required');
     });
     
     it('should require channel ID to be string', () => {
       expect(() => new AuthContext({
         channelType: 'GUILD',
-        channelId: 123456789012345678,
+        channelId: 123456789012345678
       })).toThrow('Channel ID required');
     });
   });
@@ -227,7 +240,7 @@ describe('AuthContext', () => {
         channelId: '123456789012345678',
         isNsfwChannel: true,
         isProxyMessage: false,
-        requestedPersonalityId: 'claude-3-opus',
+        requestedPersonalityId: 'claude-3-opus'
       });
       
       const json = context.toJSON();
@@ -237,7 +250,7 @@ describe('AuthContext', () => {
         channelId: '123456789012345678',
         isNsfwChannel: true,
         isProxyMessage: false,
-        requestedPersonalityId: 'claude-3-opus',
+        requestedPersonalityId: 'claude-3-opus'
       });
     });
   });

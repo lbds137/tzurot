@@ -1,13 +1,23 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * TokenService Interface Test
+ * - Tests service interface contract
+ * - Includes mock implementation example
+ * - Pure domain test with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain service under test - NOT mocked!
 const { TokenService } = require('../../../../src/domain/authentication/TokenService');
 
 describe('TokenService', () => {
   let service;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     service = new TokenService();
   });
   

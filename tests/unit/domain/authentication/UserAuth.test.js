@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * UserAuth Aggregate Test
+ * - Pure domain test with no external dependencies
+ * - Tests user authentication aggregate
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { UserAuth } = require('../../../../src/domain/authentication/UserAuth');
 const { UserId } = require('../../../../src/domain/personality/UserId');
 const { Token } = require('../../../../src/domain/authentication/Token');
@@ -14,7 +23,7 @@ const {
   UserNsfwVerified,
   UserNsfwVerificationCleared,
   UserBlacklisted,
-  UserUnblacklisted,
+  UserUnblacklisted
 } = require('../../../../src/domain/authentication/AuthenticationEvents');
 
 describe('UserAuth', () => {
@@ -22,6 +31,7 @@ describe('UserAuth', () => {
   let token;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
     
@@ -72,7 +82,7 @@ describe('UserAuth', () => {
       expect(events[0]).toBeInstanceOf(UserAuthenticated);
       expect(events[0].payload).toMatchObject({
         userId: userId.toString(),
-        token: token.toJSON(),
+        token: token.toJSON()
       });
     });
     
@@ -111,7 +121,7 @@ describe('UserAuth', () => {
       expect(events[0]).toBeInstanceOf(UserTokenRefreshed);
       expect(events[0].payload).toMatchObject({
         oldToken: token.toJSON(),
-        newToken: newToken.toJSON(),
+        newToken: newToken.toJSON()
       });
     });
     
@@ -234,7 +244,7 @@ describe('UserAuth', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(UserNsfwVerificationCleared);
       expect(events[0].payload).toMatchObject({
-        reason: 'Policy violation',
+        reason: 'Policy violation'
       });
     });
     
@@ -274,7 +284,7 @@ describe('UserAuth', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(UserBlacklisted);
       expect(events[0].payload).toMatchObject({
-        reason: 'Abuse detected',
+        reason: 'Abuse detected'
       });
     });
     
@@ -420,16 +430,16 @@ describe('UserAuth', () => {
         new UserAuthenticated(userId.toString(), {
           userId: userId.toString(),
           token: token.toJSON(),
-          authenticatedAt: '2024-01-01T00:00:00.000Z',
+          authenticatedAt: '2024-01-01T00:00:00.000Z'
         }),
         new UserNsfwVerified(userId.toString(), {
-          verifiedAt: '2024-01-01T00:05:00.000Z',
+          verifiedAt: '2024-01-01T00:05:00.000Z'
         }),
         new UserTokenRefreshed(userId.toString(), {
           oldToken: token.toJSON(),
           newToken: Token.createWithLifetime('refreshed-token', 3600000).toJSON(),
-          refreshedAt: '2024-01-01T00:30:00.000Z',
-        }),
+          refreshedAt: '2024-01-01T00:30:00.000Z'
+        })
       ];
       
       const userAuth = new UserAuth(userId);
@@ -456,7 +466,7 @@ describe('UserAuth', () => {
         blacklisted: false,
         blacklistReason: null,
         authenticationCount: 1,
-        version: 2,
+        version: 2
       });
       expect(json.nsfwStatus).toBeDefined();
       expect(json.lastAuthenticatedAt).toBeDefined();

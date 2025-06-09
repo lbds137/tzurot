@@ -1,11 +1,24 @@
 /**
  * @jest-environment node
+ * @testType index
+ * 
+ * Authentication Domain Index Test
+ * - Tests exports of the authentication domain module
+ * - Verifies API surface and basic functionality
+ * - Imports related domain objects for integration tests
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Module under test - NOT mocked!
 const authDomain = require('../../../../src/domain/authentication/index');
 const { UserId } = require('../../../../src/domain/personality/UserId');
 
 describe('Authentication Domain Index', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('exports', () => {
     it('should export all aggregates', () => {
       expect(authDomain.UserAuth).toBeDefined();

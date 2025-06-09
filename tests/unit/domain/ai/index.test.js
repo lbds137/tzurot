@@ -1,10 +1,23 @@
 /**
  * @jest-environment node
+ * @testType index
+ * 
+ * AI Domain Index Test
+ * - Tests exports of the AI domain module
+ * - Verifies API surface and basic functionality
+ * - Pure tests with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Module under test - NOT mocked!
 const aiDomain = require('../../../../src/domain/ai/index');
 
 describe('AI Domain Index', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('exports', () => {
     it('should export all aggregates', () => {
       expect(aiDomain.AIRequest).toBeDefined();

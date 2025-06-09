@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * ValueObject Base Class Test
+ * - Pure domain test with no external dependencies
+ * - Tests base value object functionality and immutability
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { ValueObject } = require('../../../../src/domain/shared/ValueObject');
 
 // Test implementation of ValueObject
@@ -43,6 +52,10 @@ class ComplexConstructorValue extends ValueObject {
 }
 
 describe('ValueObject', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('equals', () => {
     it('should return true for equal value objects', () => {
       const value1 = new TestValue('test');

@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AIRequest Aggregate Test
+ * - Pure domain test with no external dependencies
+ * - Tests AI request aggregate with event sourcing
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { AIRequest } = require('../../../../src/domain/ai/AIRequest');
 const { AIRequestId } = require('../../../../src/domain/ai/AIRequestId');
 const { AIContent } = require('../../../../src/domain/ai/AIContent');
@@ -14,7 +23,7 @@ const {
   AIResponseReceived,
   AIRequestFailed,
   AIRequestRetried,
-  AIRequestRateLimited,
+  AIRequestRateLimited
 } = require('../../../../src/domain/ai/AIEvents');
 
 describe('AIRequest', () => {
@@ -25,6 +34,7 @@ describe('AIRequest', () => {
   let model;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
     
@@ -67,7 +77,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       
       expect(request).toBeInstanceOf(AIRequest);
@@ -85,7 +95,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       
       const events = request.getUncommittedEvents();
@@ -96,7 +106,7 @@ describe('AIRequest', () => {
         userId: userId.toString(),
         personalityId: personalityId.toString(),
         content: content.toJSON(),
-        model: model.toJSON(),
+        model: model.toJSON()
       });
     });
     
@@ -108,7 +118,7 @@ describe('AIRequest', () => {
         personalityId,
         content,
         referencedContent,
-        model,
+        model
       });
       
       expect(request.referencedContent).toEqual(referencedContent);
@@ -118,7 +128,7 @@ describe('AIRequest', () => {
       const request = AIRequest.create({
         userId,
         personalityId,
-        content,
+        content
       });
       
       expect(request.model).toBeDefined();
@@ -130,7 +140,7 @@ describe('AIRequest', () => {
         userId: 'invalid',
         personalityId,
         content,
-        model,
+        model
       })).toThrow('Invalid UserId');
     });
     
@@ -139,7 +149,7 @@ describe('AIRequest', () => {
         userId,
         personalityId: 'invalid',
         content,
-        model,
+        model
       })).toThrow('Invalid PersonalityId');
     });
     
@@ -148,7 +158,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content: 'invalid',
-        model,
+        model
       })).toThrow('Invalid AIContent');
     });
     
@@ -157,26 +167,26 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model: 'invalid',
+        model: 'invalid'
       })).toThrow('Invalid AIModel');
     });
     
     it('should validate content compatibility with model', () => {
       const audioContent = new AIContent([
         { type: 'text', text: 'Check this audio' },
-        { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } },
+        { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } }
       ]);
       
       const textOnlyModel = new AIModel('text-only', 'gpt-3.5', {
         supportsImages: false,
-        supportsAudio: false,
+        supportsAudio: false
       });
       
       expect(() => AIRequest.create({
         userId,
         personalityId,
         content: audioContent,
-        model: textOnlyModel,
+        model: textOnlyModel
       })).toThrow('Content not compatible with model capabilities');
     });
   });
@@ -189,7 +199,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markEventsAsCommitted();
     });
@@ -211,7 +221,7 @@ describe('AIRequest', () => {
       expect(events[0]).toBeInstanceOf(AIRequestSent);
       expect(events[0].payload).toMatchObject({
         sentAt: '2024-01-01T00:00:00.000Z',
-        attempt: 1,
+        attempt: 1
       });
     });
     
@@ -250,7 +260,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markSent();
       request.markEventsAsCommitted();
@@ -277,7 +287,7 @@ describe('AIRequest', () => {
       expect(events[0]).toBeInstanceOf(AIResponseReceived);
       expect(events[0].payload).toMatchObject({
         response: responseContent.toJSON(),
-        completedAt: '2024-01-01T00:00:00.000Z',
+        completedAt: '2024-01-01T00:00:00.000Z'
       });
     });
     
@@ -290,7 +300,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       
       expect(() => pendingRequest.recordResponse(AIContent.fromText('Response')))
@@ -306,7 +316,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markSent();
       request.markEventsAsCommitted();
@@ -322,7 +332,7 @@ describe('AIRequest', () => {
       expect(request.error).toMatchObject({
         message: 'API error',
         code: 'API_ERROR',
-        canRetry: true,
+        canRetry: true
       });
     });
     
@@ -338,7 +348,7 @@ describe('AIRequest', () => {
       expect(events[0].payload.error).toMatchObject({
         message: 'API error',
         code: 'UNKNOWN',
-        canRetry: true,
+        canRetry: true
       });
     });
     
@@ -373,7 +383,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markSent();
       request.recordFailure(new Error('Temporary error'));
@@ -395,7 +405,7 @@ describe('AIRequest', () => {
       expect(events[0]).toBeInstanceOf(AIRequestRetried);
       expect(events[0].payload).toMatchObject({
         retryAt: '2024-01-01T00:00:05.000Z',
-        attempt: 1,
+        attempt: 1
       });
     });
     
@@ -404,7 +414,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       sentRequest.markSent();
       
@@ -434,7 +444,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markEventsAsCommitted();
     });
@@ -454,7 +464,7 @@ describe('AIRequest', () => {
       expect(events[0]).toBeInstanceOf(AIRequestRateLimited);
       expect(events[0].payload).toMatchObject({
         rateLimitedAt: '2024-01-01T00:00:00.000Z',
-        retryAfter: 60000,
+        retryAfter: 60000
       });
     });
   });
@@ -467,7 +477,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
     });
     
@@ -517,7 +527,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
     });
     
@@ -553,16 +563,16 @@ describe('AIRequest', () => {
           content: content.toJSON(),
           referencedContent: null,
           model: model.toJSON(),
-          createdAt: '2024-01-01T00:00:00.000Z',
+          createdAt: '2024-01-01T00:00:00.000Z'
         }),
         new AIRequestSent(requestId.toString(), {
           sentAt: '2024-01-01T00:00:01.000Z',
-          attempt: 1,
+          attempt: 1
         }),
         new AIResponseReceived(requestId.toString(), {
           response: AIContent.fromText('AI response').toJSON(),
-          completedAt: '2024-01-01T00:00:02.000Z',
-        }),
+          completedAt: '2024-01-01T00:00:02.000Z'
+        })
       ];
       
       const request = new AIRequest(requestId);
@@ -581,7 +591,7 @@ describe('AIRequest', () => {
         userId,
         personalityId,
         content,
-        model,
+        model
       });
       request.markSent();
       request.recordResponse(AIContent.fromText('Response'));
@@ -595,7 +605,7 @@ describe('AIRequest', () => {
         model: model.toJSON(),
         status: 'completed',
         attempts: 1,
-        version: 3,
+        version: 3
       });
       expect(json.createdAt).toBeDefined();
       expect(json.sentAt).toBeDefined();

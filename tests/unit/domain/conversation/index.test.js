@@ -1,12 +1,25 @@
 /**
  * @jest-environment node
+ * @testType index
+ * 
+ * Conversation Domain Index Test
+ * - Tests exports of the conversation domain module
+ * - Verifies API surface and basic functionality
+ * - Imports related domain objects for integration tests
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Module under test - NOT mocked!
 const conversationDomain = require('../../../../src/domain/conversation/index');
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
 const { UserId } = require('../../../../src/domain/personality/UserId');
 
 describe('Conversation Domain Index', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('exports', () => {
     it('should export all aggregates', () => {
       expect(conversationDomain.Conversation).toBeDefined();

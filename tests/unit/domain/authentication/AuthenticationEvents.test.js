@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Authentication Events Test
+ * - Pure domain test with no external dependencies
+ * - Tests authentication domain events
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const {
   UserAuthenticated,
   UserTokenExpired,
@@ -11,12 +20,13 @@ const {
   UserBlacklisted,
   UserUnblacklisted,
   AuthenticationDenied,
-  ProxyAuthenticationAttempted,
+  ProxyAuthenticationAttempted
 } = require('../../../../src/domain/authentication/AuthenticationEvents');
 const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
 
 describe('AuthenticationEvents', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
   });
@@ -31,9 +41,9 @@ describe('AuthenticationEvents', () => {
         userId: '123456789012345678',
         token: {
           value: 'test-token',
-          expiresAt: '2024-01-01T01:00:00.000Z',
+          expiresAt: '2024-01-01T01:00:00.000Z'
         },
-        authenticatedAt: '2024-01-01T00:00:00.000Z',
+        authenticatedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserAuthenticated('123456789012345678', payload);
@@ -49,12 +59,12 @@ describe('AuthenticationEvents', () => {
         .toThrow('UserAuthenticated requires userId, token, and authenticatedAt');
       
       expect(() => new UserAuthenticated('123456789012345678', {
-        userId: '123456789012345678',
+        userId: '123456789012345678'
       })).toThrow('UserAuthenticated requires userId, token, and authenticatedAt');
       
       expect(() => new UserAuthenticated('123456789012345678', {
         userId: '123456789012345678',
-        token: {},
+        token: {}
       })).toThrow('UserAuthenticated requires userId, token, and authenticatedAt');
     });
   });
@@ -62,7 +72,7 @@ describe('AuthenticationEvents', () => {
   describe('UserTokenExpired', () => {
     it('should create event with required fields', () => {
       const payload = {
-        expiredAt: '2024-01-01T00:00:00.000Z',
+        expiredAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserTokenExpired('123456789012345678', payload);
@@ -84,13 +94,13 @@ describe('AuthenticationEvents', () => {
       const payload = {
         oldToken: {
           value: 'old-token',
-          expiresAt: '2024-01-01T00:30:00.000Z',
+          expiresAt: '2024-01-01T00:30:00.000Z'
         },
         newToken: {
           value: 'new-token',
-          expiresAt: '2024-01-01T01:30:00.000Z',
+          expiresAt: '2024-01-01T01:30:00.000Z'
         },
-        refreshedAt: '2024-01-01T00:00:00.000Z',
+        refreshedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserTokenRefreshed('123456789012345678', payload);
@@ -106,7 +116,7 @@ describe('AuthenticationEvents', () => {
         .toThrow('UserTokenRefreshed requires newToken and refreshedAt');
       
       expect(() => new UserTokenRefreshed('123456789012345678', {
-        newToken: {},
+        newToken: {}
       })).toThrow('UserTokenRefreshed requires newToken and refreshedAt');
     });
     
@@ -115,9 +125,9 @@ describe('AuthenticationEvents', () => {
         oldToken: null,
         newToken: {
           value: 'new-token',
-          expiresAt: '2024-01-01T01:00:00.000Z',
+          expiresAt: '2024-01-01T01:00:00.000Z'
         },
-        refreshedAt: '2024-01-01T00:00:00.000Z',
+        refreshedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserTokenRefreshed('123456789012345678', payload);
@@ -129,7 +139,7 @@ describe('AuthenticationEvents', () => {
   describe('UserNsfwVerified', () => {
     it('should create event with required fields', () => {
       const payload = {
-        verifiedAt: '2024-01-01T00:00:00.000Z',
+        verifiedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserNsfwVerified('123456789012345678', payload);
@@ -150,7 +160,7 @@ describe('AuthenticationEvents', () => {
     it('should create event with required fields', () => {
       const payload = {
         reason: 'Policy violation',
-        clearedAt: '2024-01-01T00:00:00.000Z',
+        clearedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserNsfwVerificationCleared('123456789012345678', payload);
@@ -166,7 +176,7 @@ describe('AuthenticationEvents', () => {
         .toThrow('UserNsfwVerificationCleared requires reason and clearedAt');
       
       expect(() => new UserNsfwVerificationCleared('123456789012345678', {
-        reason: 'Test',
+        reason: 'Test'
       })).toThrow('UserNsfwVerificationCleared requires reason and clearedAt');
     });
   });
@@ -175,7 +185,7 @@ describe('AuthenticationEvents', () => {
     it('should create event with required fields', () => {
       const payload = {
         reason: 'Abuse detected',
-        blacklistedAt: '2024-01-01T00:00:00.000Z',
+        blacklistedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserBlacklisted('123456789012345678', payload);
@@ -191,7 +201,7 @@ describe('AuthenticationEvents', () => {
         .toThrow('UserBlacklisted requires reason and blacklistedAt');
       
       expect(() => new UserBlacklisted('123456789012345678', {
-        reason: 'Test',
+        reason: 'Test'
       })).toThrow('UserBlacklisted requires reason and blacklistedAt');
     });
   });
@@ -199,7 +209,7 @@ describe('AuthenticationEvents', () => {
   describe('UserUnblacklisted', () => {
     it('should create event with required fields', () => {
       const payload = {
-        unblacklistedAt: '2024-01-01T00:00:00.000Z',
+        unblacklistedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new UserUnblacklisted('123456789012345678', payload);
@@ -225,9 +235,9 @@ describe('AuthenticationEvents', () => {
           channelId: '123456789012345678',
           isNsfwChannel: false,
           isProxyMessage: false,
-          requestedPersonalityId: null,
+          requestedPersonalityId: null
         },
-        deniedAt: '2024-01-01T00:00:00.000Z',
+        deniedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new AuthenticationDenied('123456789012345678', payload);
@@ -243,12 +253,12 @@ describe('AuthenticationEvents', () => {
         .toThrow('AuthenticationDenied requires reason, context, and deniedAt');
       
       expect(() => new AuthenticationDenied('123456789012345678', {
-        reason: 'Test',
+        reason: 'Test'
       })).toThrow('AuthenticationDenied requires reason, context, and deniedAt');
       
       expect(() => new AuthenticationDenied('123456789012345678', {
         reason: 'Test',
-        context: {},
+        context: {}
       })).toThrow('AuthenticationDenied requires reason, context, and deniedAt');
     });
   });
@@ -257,7 +267,7 @@ describe('AuthenticationEvents', () => {
     it('should create event with required fields', () => {
       const payload = {
         userId: '123456789012345678',
-        attemptedAt: '2024-01-01T00:00:00.000Z',
+        attemptedAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = new ProxyAuthenticationAttempted('123456789012345678', payload);
@@ -273,7 +283,7 @@ describe('AuthenticationEvents', () => {
         .toThrow('ProxyAuthenticationAttempted requires userId and attemptedAt');
       
       expect(() => new ProxyAuthenticationAttempted('123456789012345678', {
-        userId: '123456789012345678',
+        userId: '123456789012345678'
       })).toThrow('ProxyAuthenticationAttempted requires userId and attemptedAt');
     });
   });
@@ -284,9 +294,9 @@ describe('AuthenticationEvents', () => {
         userId: '123456789012345678',
         token: {
           value: 'test-token',
-          expiresAt: '2024-01-01T01:00:00.000Z',
+          expiresAt: '2024-01-01T01:00:00.000Z'
         },
-        authenticatedAt: '2024-01-01T00:00:00.000Z',
+        authenticatedAt: '2024-01-01T00:00:00.000Z'
       };
       
       // Create deep copy of payload
@@ -305,7 +315,7 @@ describe('AuthenticationEvents', () => {
   describe('Event metadata', () => {
     it('should include standard DomainEvent metadata', () => {
       const event = new UserTokenExpired('123456789012345678', {
-        expiredAt: '2024-01-01T00:00:00.000Z',
+        expiredAt: '2024-01-01T00:00:00.000Z'
       });
       
       expect(event.eventId).toBeDefined();

@@ -1,4 +1,16 @@
+/**
+ * @jest-environment node
+ * @testType adapter
+ * 
+ * DiscordWebhookAdapter Test
+ * - Tests adapter for Discord webhook operations
+ * - Mocks external dependencies (logger)
+ * - Domain models are NOT mocked
+ */
+
 jest.mock('../../../../src/logger');
+
+const { dddPresets } = require('../../../__mocks__/ddd');
 
 const { DiscordWebhookAdapter } = require('../../../../src/adapters/discord/DiscordWebhookAdapter');
 const { PersonalityId } = require('../../../../src/domain/personality');

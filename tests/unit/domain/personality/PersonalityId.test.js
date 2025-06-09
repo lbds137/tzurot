@@ -1,10 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * PersonalityId Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests business rules and validation logic
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
 
 describe('PersonalityId', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // No console mocking needed for pure domain tests
+  });
+  
   describe('constructor', () => {
     it('should create valid PersonalityId', () => {
       const id = new PersonalityId('claude-3-opus');
