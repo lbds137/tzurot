@@ -484,20 +484,88 @@ const TEST_ANTI_PATTERNS = {
   // 17. Module Import Anti-patterns
   imports: [
     {
-      pattern: /require\s*\(\s*['"`]\.\.\/\.\.\/\.\.\/src/g,
-      check: (match, content, fileContent) => {
-        return !fileContent.includes('jest.mock');
+      pattern: /(?:const|let|var)\s+\w+\s*=\s*require\s*\(\s*['"`](\.\.\/\.\.\/\.\.\/src[^'"]+)['"`]\s*\)/g,
+      check: (match, modulePath, fileContent) => {
+        // Extract the test file name and the module being tested
+        const testFileName = fileContent.match(/describe\s*\(\s*['"`]([^'"]+)['"`]/)?.[1] || '';
+        const moduleBaseName = modulePath.split('/').pop().replace(/\.(js|ts)$/, '');
+        
+        // If this is the module under test, it SHOULD NOT be mocked
+        if (testFileName.toLowerCase().includes(moduleBaseName.toLowerCase()) ||
+            moduleBaseName.toLowerCase().includes(testFileName.toLowerCase())) {
+          return false; // Don't flag - this is the module being tested
+        }
+        
+        // Check if this specific module is mocked
+        const mockPattern = new RegExp(`jest\\.mock\\s*\\(\\s*['"\`]${modulePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
+        const hasMock = mockPattern.test(fileContent);
+        
+        // List of heavy modules that SHOULD be mocked when not under test
+        const heavyModules = [
+          'webhookManager', 'aiService', 'personalityManager', 
+          'conversationManager', 'auth', 'profileInfoFetcher',
+          'personalityHandler', 'messageHandler', 'dataStorage',
+          'bot', 'httpServer', 'webhookServer'
+        ];
+        const isHeavyModule = heavyModules.some(mod => modulePath.includes(mod));
+        
+        // List of utility modules that are usually OK to import without mocking
+        const lightUtilities = [
+          'constants', 'utils', 'contentSimilarity', 'urlValidator',
+          'embedUtils', 'channelUtils', 'messageFormatter'
+        ];
+        const isLightUtility = lightUtilities.some(util => modulePath.includes(util));
+        
+        // Don't flag light utilities unless they're in the heavy modules list
+        if (isLightUtility && !isHeavyModule) {
+          return false;
+        }
+        
+        // Flag if:
+        // 1. It's a heavy module and not mocked
+        // 2. Mock comes after require (wrong order)
+        if (isHeavyModule && !hasMock) {
+          return true;
+        }
+        
+        if (hasMock) {
+          const mockIndex = fileContent.search(mockPattern);
+          const requireIndex = fileContent.indexOf(match);
+          return mockIndex > requireIndex;
+        }
+        
+        // For other modules, only warn (not error)
+        return false;
       },
-      message: 'Importing real src modules without mocking. Tests will be slow.',
+      message: 'Importing heavy module without mocking. This will slow down tests. Mock external dependencies.',
       severity: 'error'
     },
     {
-      pattern: /import\s+.*\s+from\s+['"`]\.\.\/\.\.\/\.\.\/src.*['"`]/g,
-      check: (match, content, fileContent) => {
-        const modulePath = match.match(/from\s+['"`]([^'"]+)['"`]/)[1];
-        return !fileContent.includes(`jest.mock('${modulePath}')`);
+      pattern: /import\s+.*\s+from\s+['"`](\.\.\/\.\.\/\.\.\/src[^'"]+)['"`]/g,
+      check: (match, modulePath, fileContent) => {
+        // Similar logic for ES6 imports
+        const testFileName = fileContent.match(/describe\s*\(\s*['"`]([^'"]+)['"`]/)?.[1] || '';
+        const moduleBaseName = modulePath.split('/').pop().replace(/\.(js|ts)$/, '');
+        
+        if (testFileName.toLowerCase().includes(moduleBaseName.toLowerCase()) ||
+            moduleBaseName.toLowerCase().includes(testFileName.toLowerCase())) {
+          return false;
+        }
+        
+        const heavyModules = [
+          'webhookManager', 'aiService', 'personalityManager', 
+          'conversationManager', 'auth', 'profileInfoFetcher'
+        ];
+        const isHeavyModule = heavyModules.some(mod => modulePath.includes(mod));
+        
+        if (isHeavyModule) {
+          const mockPattern = new RegExp(`jest\\.mock\\s*\\(\\s*['"\`]${modulePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\`]`);
+          return !mockPattern.test(fileContent);
+        }
+        
+        return false;
       },
-      message: 'ES6 import from src without mocking. Use jest.mock().',
+      message: 'ES6 import of heavy module without mocking. Mock external dependencies.',
       severity: 'error'
     }
   ]
