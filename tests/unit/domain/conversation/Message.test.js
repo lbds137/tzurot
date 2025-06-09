@@ -23,6 +23,7 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: new Date(),
         isFromPersonality: true,
+        channelId: 'channel-123'
       });
       
       expect(message.id).toBe('msg-123');
@@ -31,6 +32,7 @@ describe('Message', () => {
       expect(message.personalityId).toBe('claude-3-opus');
       expect(message.timestamp).toEqual(new Date());
       expect(message.isFromPersonality).toBe(true);
+      expect(message.channelId).toBe('channel-123');
     });
     
     it('should create user message without personalityId', () => {
@@ -40,6 +42,7 @@ describe('Message', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
+        channelId: 'channel-123'
       });
       
       expect(message.personalityId).toBeNull();
@@ -52,9 +55,27 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       expect(message.isFromPersonality).toBe(false);
+    });
+
+    it('should default optional properties', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123'
+      });
+      
+      expect(message.guildId).toBeNull();
+      expect(message.attachments).toEqual([]);
+      expect(message.reference).toBeNull();
+      expect(message.mentions).toBeNull();
+      expect(message.isForwarded).toBe(false);
+      expect(message.forwardedContent).toBeNull();
     });
   });
   
@@ -64,6 +85,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires valid id');
       
       expect(() => new Message({
@@ -71,6 +93,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires valid id');
       
       expect(() => new Message({
@@ -78,6 +101,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires valid id');
     });
     
@@ -87,6 +111,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires valid id');
     });
     
@@ -95,6 +120,7 @@ describe('Message', () => {
         id: 'msg-123',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires content');
       
       expect(() => new Message({
@@ -102,6 +128,7 @@ describe('Message', () => {
         content: '',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires content');
       
       expect(() => new Message({
@@ -109,6 +136,7 @@ describe('Message', () => {
         content: null,
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires content');
     });
     
@@ -118,6 +146,7 @@ describe('Message', () => {
         content: 123,
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires content');
     });
     
@@ -126,6 +155,7 @@ describe('Message', () => {
         id: 'msg-123',
         content: 'Hello!',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires authorId');
       
       expect(() => new Message({
@@ -133,6 +163,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '',
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires authorId');
       
       expect(() => new Message({
@@ -140,6 +171,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: null,
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires authorId');
     });
     
@@ -149,6 +181,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: 123456789012345678,
         timestamp: new Date(),
+        channelId: 'channel-123'
       })).toThrow('Message requires authorId');
     });
     
@@ -157,6 +190,7 @@ describe('Message', () => {
         id: 'msg-123',
         content: 'Hello!',
         authorId: '123456789012345678',
+        channelId: 'channel-123'
       })).toThrow('Message requires valid timestamp');
       
       expect(() => new Message({
@@ -164,6 +198,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: null,
+        channelId: 'channel-123'
       })).toThrow('Message requires valid timestamp');
     });
     
@@ -173,6 +208,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: '2024-01-01',
+        channelId: 'channel-123'
       })).toThrow('Message requires valid timestamp');
       
       expect(() => new Message({
@@ -180,7 +216,43 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: Date.now(),
+        channelId: 'channel-123'
       })).toThrow('Message requires valid timestamp');
+    });
+
+    it('should require channelId', () => {
+      expect(() => new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date()
+      })).toThrow('Message requires channelId');
+      
+      expect(() => new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: ''
+      })).toThrow('Message requires channelId');
+      
+      expect(() => new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: null
+      })).toThrow('Message requires channelId');
+    });
+
+    it('should require channelId to be string', () => {
+      expect(() => new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 123
+      })).toThrow('Message requires channelId');
     });
   });
   
@@ -192,6 +264,7 @@ describe('Message', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
+        channelId: 'channel-123'
       });
       
       expect(message.isFromUser()).toBe(true);
@@ -205,9 +278,201 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: new Date(),
         isFromPersonality: true,
+        channelId: 'channel-123'
       });
       
       expect(message.isFromUser()).toBe(false);
+    });
+  });
+
+  describe('isDM', () => {
+    it('should return true for DM messages', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'dm-123'
+      });
+      
+      expect(message.isDM()).toBe(true);
+    });
+    
+    it('should return false for guild messages', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        guildId: 'guild-123'
+      });
+      
+      expect(message.isDM()).toBe(false);
+    });
+  });
+
+  describe('isReply', () => {
+    it('should return true for reply messages', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        reference: { messageId: 'ref-123', type: 0 }
+      });
+      
+      expect(message.isReply()).toBe(true);
+    });
+    
+    it('should return false for forwarded messages', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        reference: { messageId: 'ref-123', type: 1 },
+        isForwarded: true
+      });
+      
+      expect(message.isReply()).toBe(false);
+    });
+
+    it('should return false for messages without reference', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123'
+      });
+      
+      expect(message.isReply()).toBe(false);
+    });
+  });
+
+  describe('hasAttachments', () => {
+    it('should return true when message has attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Check this out!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        attachments: [{ id: 'att-1', url: 'https://example.com/image.png' }]
+      });
+      
+      expect(message.hasAttachments()).toBe(true);
+    });
+    
+    it('should return false when message has no attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123'
+      });
+      
+      expect(message.hasAttachments()).toBe(false);
+    });
+  });
+
+  describe('hasImages', () => {
+    it('should return true when message has image attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Check this image!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        attachments: [
+          { id: 'att-1', url: 'https://example.com/image.png', contentType: 'image/png' }
+        ]
+      });
+      
+      expect(message.hasImages()).toBe(true);
+    });
+    
+    it('should return false when message has non-image attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Check this file!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        attachments: [
+          { id: 'att-1', url: 'https://example.com/doc.pdf', contentType: 'application/pdf' }
+        ]
+      });
+      
+      expect(message.hasImages()).toBe(false);
+    });
+  });
+
+  describe('hasAudio', () => {
+    it('should return true when message has audio attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Listen to this!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        attachments: [
+          { id: 'att-1', url: 'https://example.com/audio.mp3', contentType: 'audio/mpeg' }
+        ]
+      });
+      
+      expect(message.hasAudio()).toBe(true);
+    });
+    
+    it('should return false when message has non-audio attachments', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Check this!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        attachments: [
+          { id: 'att-1', url: 'https://example.com/image.png', contentType: 'image/png' }
+        ]
+      });
+      
+      expect(message.hasAudio()).toBe(false);
+    });
+  });
+
+  describe('getMentionedUsers', () => {
+    it('should return mentioned user IDs', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello @user1 and @user2!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123',
+        mentions: {
+          users: [
+            { id: 'user1', username: 'user1' },
+            { id: 'user2', username: 'user2' }
+          ]
+        }
+      });
+      
+      expect(message.getMentionedUsers()).toEqual(['user1', 'user2']);
+    });
+    
+    it('should return empty array when no mentions', () => {
+      const message = new Message({
+        id: 'msg-123',
+        content: 'Hello!',
+        authorId: '123456789012345678',
+        timestamp: new Date(),
+        channelId: 'channel-123'
+      });
+      
+      expect(message.getMentionedUsers()).toEqual([]);
     });
   });
   
@@ -218,6 +483,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       // Advance time by 5 seconds
@@ -232,6 +498,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       // Advance time by 1 hour
@@ -248,6 +515,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       expect(message.isExpired(60000)).toBe(false);
@@ -259,6 +527,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       // Advance time beyond timeout
@@ -273,6 +542,7 @@ describe('Message', () => {
         content: 'Hello!',
         authorId: '123456789012345678',
         timestamp: new Date(),
+        channelId: 'channel-123'
       });
       
       // Advance time to exactly timeout
@@ -297,6 +567,13 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: timestamp,
         isFromPersonality: false,
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        attachments: [{ id: 'att-1', url: 'https://example.com/image.png' }],
+        reference: { messageId: 'ref-123' },
+        mentions: { users: [{ id: 'user1' }] },
+        isForwarded: false,
+        forwardedContent: null
       });
       
       const json = message.toJSON();
@@ -308,6 +585,13 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: timestamp.toISOString(),
         isFromPersonality: false,
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        attachments: [{ id: 'att-1', url: 'https://example.com/image.png' }],
+        reference: { messageId: 'ref-123' },
+        mentions: { users: [{ id: 'user1' }] },
+        isForwarded: false,
+        forwardedContent: null
       });
     });
     
@@ -319,6 +603,7 @@ describe('Message', () => {
         authorId: '123456789012345678',
         timestamp: timestamp,
         isFromPersonality: false,
+        channelId: 'channel-123'
       });
       
       const json = message.toJSON();
@@ -337,6 +622,13 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: timestamp.toISOString(),
         isFromPersonality: false,
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        attachments: [{ id: 'att-1' }],
+        reference: { messageId: 'ref-123' },
+        mentions: { users: [{ id: 'user1' }] },
+        isForwarded: false,
+        forwardedContent: null
       };
       
       const message = Message.fromJSON(json);
@@ -348,6 +640,8 @@ describe('Message', () => {
       expect(message.personalityId).toBe('claude-3-opus');
       expect(message.timestamp).toEqual(timestamp);
       expect(message.isFromPersonality).toBe(false);
+      expect(message.channelId).toBe('channel-123');
+      expect(message.guildId).toBe('guild-123');
     });
     
     it('should handle timestamp string conversion', () => {
@@ -357,6 +651,7 @@ describe('Message', () => {
         authorId: '123456789012345678',
         timestamp: '2024-01-01T00:00:00.000Z',
         isFromPersonality: false,
+        channelId: 'channel-123'
       };
       
       const message = Message.fromJSON(json);
@@ -375,6 +670,7 @@ describe('Message', () => {
         personalityId: 'claude-3-opus',
         timestamp: new Date(),
         isFromPersonality: false,
+        channelId: 'channel-123'
       });
       
       const json = message.toJSON();
