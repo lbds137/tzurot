@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * ChannelActivation Test
+ * - Pure domain test with no external dependencies
+ * - Tests channel activation aggregate
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { ChannelActivation } = require('../../../../src/domain/conversation/ChannelActivation');
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
 const { UserId } = require('../../../../src/domain/personality/UserId');
@@ -12,6 +21,7 @@ describe('ChannelActivation', () => {
   let validUserId;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
     
@@ -122,7 +132,7 @@ describe('ChannelActivation', () => {
         personalityId: 'test-personality',
         activatedBy: '987654321098765432',
         activatedAt: '2024-01-01T00:00:00.000Z',
-        active: true,
+        active: true
       });
     });
 

@@ -1,11 +1,22 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Token Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests token creation, expiration, and lifecycle
+ * - Uses fake timers for time-based testing
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { Token } = require('../../../../src/domain/authentication/Token');
 
 describe('Token', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
   });
@@ -204,7 +215,7 @@ describe('Token', () => {
       
       expect(json).toEqual({
         value: 'test-token-value',
-        expiresAt: '2024-01-01T01:00:00.000Z',
+        expiresAt: '2024-01-01T01:00:00.000Z'
       });
     });
   });
@@ -213,7 +224,7 @@ describe('Token', () => {
     it('should deserialize from JSON', () => {
       const json = {
         value: 'test-token-value',
-        expiresAt: '2024-01-01T01:00:00.000Z',
+        expiresAt: '2024-01-01T01:00:00.000Z'
       };
       
       const token = Token.fromJSON(json);
@@ -226,7 +237,7 @@ describe('Token', () => {
     it('should handle date string conversion', () => {
       const json = {
         value: 'test-token',
-        expiresAt: '2024-01-01T01:00:00.000Z',
+        expiresAt: '2024-01-01T01:00:00.000Z'
       };
       
       const token = Token.fromJSON(json);

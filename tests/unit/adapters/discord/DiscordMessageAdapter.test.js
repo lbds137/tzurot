@@ -1,4 +1,16 @@
+/**
+ * @jest-environment node
+ * @testType adapter
+ * 
+ * DiscordMessageAdapter Test
+ * - Tests adapter for converting Discord messages to domain messages
+ * - Mocks external dependencies (logger)
+ * - Domain models are NOT mocked
+ */
+
 jest.mock('../../../../src/logger');
+
+const { dddPresets } = require('../../../__mocks__/ddd');
 
 const { DiscordMessageAdapter } = require('../../../../src/adapters/discord/DiscordMessageAdapter');
 const { Message, ConversationId } = require('../../../../src/domain/conversation');

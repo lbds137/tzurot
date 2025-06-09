@@ -1,10 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Alias Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests business rules and validation logic
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { Alias } = require('../../../../src/domain/personality/Alias');
 
 describe('Alias', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // No console mocking needed for pure domain tests
+  });
+  
   describe('constructor', () => {
     it('should create valid alias', () => {
       const alias = new Alias('Claude');
@@ -107,7 +121,7 @@ describe('Alias', () => {
       
       expect(alias.toJSON()).toEqual({
         value: 'claude-3',
-        original: 'Claude-3',
+        original: 'Claude-3'
       });
     });
     
@@ -116,7 +130,7 @@ describe('Alias', () => {
       
       expect(alias.toJSON()).toEqual({
         value: 'claude',
-        original: 'claude',
+        original: 'claude'
       });
     });
   });
@@ -179,7 +193,7 @@ describe('Alias', () => {
         'gpt-4',
         'claude_3_opus',
         'my assistant',
-        'test bot',
+        'test bot'
       ];
       
       aliases.forEach(aliasStr => {

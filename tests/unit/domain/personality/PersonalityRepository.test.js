@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * PersonalityRepository Interface Test
+ * - Tests repository interface contract
+ * - Includes mock implementation example
+ * - Pure domain test with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { PersonalityRepository } = require('../../../../src/domain/personality/PersonalityRepository');
 const { Personality } = require('../../../../src/domain/personality/Personality');
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
@@ -12,6 +21,7 @@ describe('PersonalityRepository', () => {
   let repository;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     repository = new PersonalityRepository();
   });
   

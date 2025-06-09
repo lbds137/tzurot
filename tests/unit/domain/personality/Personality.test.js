@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Personality Aggregate Test
+ * - Pure domain test with no external dependencies
+ * - Tests personality aggregate with event sourcing
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { Personality } = require('../../../../src/domain/personality/Personality');
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
 const { PersonalityProfile } = require('../../../../src/domain/personality/PersonalityProfile');
@@ -9,7 +18,7 @@ const { UserId } = require('../../../../src/domain/personality/UserId');
 const {
   PersonalityCreated,
   PersonalityProfileUpdated,
-  PersonalityRemoved,
+  PersonalityRemoved
 } = require('../../../../src/domain/personality/PersonalityEvents');
 
 describe('Personality', () => {
@@ -17,6 +26,7 @@ describe('Personality', () => {
   let ownerId;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     personalityId = new PersonalityId('claude-3-opus');
     ownerId = new UserId('123456789');
   });
@@ -58,7 +68,7 @@ describe('Personality', () => {
       expect(events[0]).toBeInstanceOf(PersonalityCreated);
       expect(events[0].payload).toMatchObject({
         personalityId: 'claude-3-opus',
-        ownerId: '123456789',
+        ownerId: '123456789'
       });
     });
     
@@ -83,7 +93,7 @@ describe('Personality', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude 3 Opus',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Custom error message',
+        errorMessage: 'Custom error message'
       });
       
       personality.updateProfile(profile);
@@ -93,7 +103,7 @@ describe('Personality', () => {
     
     it('should emit PersonalityProfileUpdated event', () => {
       const profile = new PersonalityProfile({
-        displayName: 'Claude 3 Opus',
+        displayName: 'Claude 3 Opus'
       });
       
       personality.updateProfile(profile);
@@ -106,7 +116,7 @@ describe('Personality', () => {
     
     it('should not emit event if profile unchanged', () => {
       const profile = new PersonalityProfile({
-        displayName: 'Test',
+        displayName: 'Test'
       });
       
       personality.updateProfile(profile);
@@ -202,7 +212,7 @@ describe('Personality', () => {
     
     it('should return display name from profile', () => {
       const profile = new PersonalityProfile({
-        displayName: 'Claude 3 Opus',
+        displayName: 'Claude 3 Opus'
       });
       personality.updateProfile(profile);
       
@@ -276,16 +286,16 @@ describe('Personality', () => {
         new PersonalityCreated('claude-3-opus', {
           personalityId: 'claude-3-opus',
           ownerId: '123456789',
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         }),
         new PersonalityProfileUpdated('claude-3-opus', {
           profile: {
             displayName: 'Claude 3 Opus',
             avatarUrl: 'https://example.com/avatar.png',
-            errorMessage: 'Error',
+            errorMessage: 'Error'
           },
-          updatedAt: new Date().toISOString(),
-        }),
+          updatedAt: new Date().toISOString()
+        })
       ];
       
       const personality = new Personality(personalityId);
@@ -303,7 +313,7 @@ describe('Personality', () => {
     it('should serialize personality to JSON', () => {
       const personality = Personality.create(personalityId, ownerId);
       const profile = new PersonalityProfile({
-        displayName: 'Claude 3 Opus',
+        displayName: 'Claude 3 Opus'
       });
       personality.updateProfile(profile);
       
@@ -316,10 +326,10 @@ describe('Personality', () => {
         profile: {
           displayName: 'Claude 3 Opus',
           avatarUrl: null,
-          errorMessage: null,
+          errorMessage: null
         },
         removed: false,
-        version: 2,
+        version: 2
       });
       expect(json.createdAt).toBeDefined();
       expect(json.updatedAt).toBeDefined();

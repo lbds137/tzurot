@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Conversation Aggregate Test
+ * - Pure domain test with no external dependencies
+ * - Tests conversation aggregate with event sourcing
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { Conversation } = require('../../../../src/domain/conversation/Conversation');
 const { ConversationId } = require('../../../../src/domain/conversation/ConversationId');
 const { ConversationSettings } = require('../../../../src/domain/conversation/ConversationSettings');
@@ -12,7 +21,7 @@ const {
   MessageAdded,
   PersonalityAssigned,
   ConversationSettingsUpdated,
-  ConversationEnded,
+  ConversationEnded
 } = require('../../../../src/domain/conversation/ConversationEvents');
 
 describe('Conversation', () => {
@@ -21,6 +30,7 @@ describe('Conversation', () => {
   let message;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
     conversationId = new ConversationId('123456789012345678', 'general');
@@ -78,7 +88,7 @@ describe('Conversation', () => {
       expect(events[0]).toBeInstanceOf(ConversationStarted);
       expect(events[0].payload).toMatchObject({
         conversationId: conversationId.toJSON(),
-        personalityId: personalityId.toString(),
+        personalityId: personalityId.toString()
       });
     });
     
@@ -125,9 +135,8 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       
       conversation.addMessage(newMessage);
       
@@ -143,9 +152,8 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       
       conversation.addMessage(newMessage);
       const events = conversation.getUncommittedEvents();
@@ -167,9 +175,8 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       
       expect(() => conversation.addMessage(newMessage)).toThrow('Cannot add message to ended conversation');
     });
@@ -184,9 +191,8 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       
       expect(() => conversation.addMessage(newMessage)).toThrow('Conversation has timed out');
       expect(conversation.ended).toBe(true);
@@ -219,7 +225,7 @@ describe('Conversation', () => {
       expect(events[0]).toBeInstanceOf(PersonalityAssigned);
       expect(events[0].payload).toMatchObject({
         personalityId: 'gpt-4',
-        previousPersonalityId: 'claude-3-opus',
+        previousPersonalityId: 'claude-3-opus'
       });
     });
     
@@ -254,7 +260,7 @@ describe('Conversation', () => {
         autoResponseEnabled: false,
         autoResponseDelay: 2000,
         timeoutMs: 600000,
-        isDM: false,
+        isDM: false
       });
       
       conversation.updateSettings(newSettings);
@@ -267,7 +273,7 @@ describe('Conversation', () => {
         autoResponseEnabled: false,
         autoResponseDelay: 2000,
         timeoutMs: 600000,
-        isDM: false,
+        isDM: false
       });
       
       conversation.updateSettings(newSettings);
@@ -372,7 +378,7 @@ describe('Conversation', () => {
       const settings = new ConversationSettings({
         autoResponseEnabled: true,
         autoResponseDelay: 1000,
-        timeoutMs: 300000,
+        timeoutMs: 300000
       });
       conversation.updateSettings(settings);
       conversation.markEventsAsCommitted();
@@ -393,7 +399,7 @@ describe('Conversation', () => {
         autoResponseEnabled: false,
         autoResponseDelay: 1000,
         timeoutMs: 300000,
-        isDM: false,
+        isDM: false
       });
       conversation.updateSettings(settings);
       
@@ -410,9 +416,8 @@ describe('Conversation', () => {
         personalityId: personalityId.toString(),
         timestamp: new Date(),
         isFromPersonality: true,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       conversation.addMessage(personalityMessage);
       
       jest.advanceTimersByTime(conversation.settings.autoResponseDelay);
@@ -437,9 +442,8 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      
-      channelId: 'test-channel-123'
-    });
+        channelId: 'test-channel-123'
+      });
       conversation.addMessage(secondMessage);
       
       expect(conversation.getLastMessage()).toEqual(secondMessage);
@@ -492,7 +496,7 @@ describe('Conversation', () => {
           initialMessage: message.toJSON(),
           personalityId: 'claude-3-opus',
           startedAt: new Date().toISOString(),
-          settings: ConversationSettings.createDefault().toJSON(),
+          settings: ConversationSettings.createDefault().toJSON()
         }),
         new MessageAdded('123456789012345678:general', {
           message: new Message({
@@ -501,16 +505,15 @@ describe('Conversation', () => {
             authorId: '123456789012345678',
             timestamp: new Date(),
             isFromPersonality: false,
-          
-      channelId: 'test-channel-123'
-    }).toJSON(),
-          addedAt: new Date().toISOString(),
+            channelId: 'test-channel-123'
+          }).toJSON(),
+          addedAt: new Date().toISOString()
         }),
         new PersonalityAssigned('123456789012345678:general', {
           personalityId: 'gpt-4',
           previousPersonalityId: 'claude-3-opus',
-          assignedAt: new Date().toISOString(),
-        }),
+          assignedAt: new Date().toISOString()
+        })
       ];
       
       const conversation = new Conversation(conversationId);
@@ -535,7 +538,7 @@ describe('Conversation', () => {
         messages: [message.toJSON()],
         activePersonalityId: personalityId.toString(),
         ended: false,
-        version: 1,
+        version: 1
       });
       expect(json.startedAt).toBeDefined();
       expect(json.lastActivityAt).toBeDefined();

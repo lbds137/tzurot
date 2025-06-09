@@ -1,11 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AIModel Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests AI model configuration and capabilities
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { AIModel } = require('../../../../src/domain/ai/AIModel');
 const { AIContent } = require('../../../../src/domain/ai/AIContent');
 
 describe('AIModel', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('constructor', () => {
     it('should create model with name and path', () => {
       const model = new AIModel('gpt-4', 'gpt-4-1106-preview');
@@ -21,7 +34,7 @@ describe('AIModel', () => {
         supportsImages: false,
         supportsAudio: false,
         maxTokens: 4096,
-        temperature: 0.7,
+        temperature: 0.7
       });
     });
     
@@ -30,14 +43,14 @@ describe('AIModel', () => {
         supportsImages: true,
         supportsAudio: true,
         maxTokens: 8192,
-        temperature: 0.9,
+        temperature: 0.9
       });
       
       expect(model.capabilities).toEqual({
         supportsImages: true,
         supportsAudio: true,
         maxTokens: 8192,
-        temperature: 0.9,
+        temperature: 0.9
       });
     });
     
@@ -60,7 +73,7 @@ describe('AIModel', () => {
     beforeEach(() => {
       model = new AIModel('test', 'test-path', {
         supportsImages: true,
-        supportsAudio: false,
+        supportsAudio: false
       });
     });
     
@@ -88,12 +101,12 @@ describe('AIModel', () => {
     beforeEach(() => {
       textModel = new AIModel('text-only', 'gpt-3.5', {
         supportsImages: false,
-        supportsAudio: false,
+        supportsAudio: false
       });
       
       multimodalModel = new AIModel('multimodal', 'claude-3', {
         supportsImages: true,
-        supportsAudio: true,
+        supportsAudio: true
       });
     });
     
@@ -144,13 +157,13 @@ describe('AIModel', () => {
     it('should return model parameters', () => {
       const model = new AIModel('test', 'test-path', {
         maxTokens: 2048,
-        temperature: 0.5,
+        temperature: 0.5
       });
       
       expect(model.getParameters()).toEqual({
         model: 'test-path',
         max_tokens: 2048,
-        temperature: 0.5,
+        temperature: 0.5
       });
     });
   });
@@ -161,7 +174,7 @@ describe('AIModel', () => {
         supportsImages: true,
         supportsAudio: false,
         maxTokens: 2048,
-        temperature: 0.5,
+        temperature: 0.5
       });
       
       expect(model.toJSON()).toEqual({
@@ -171,8 +184,8 @@ describe('AIModel', () => {
           supportsImages: true,
           supportsAudio: false,
           maxTokens: 2048,
-          temperature: 0.5,
-        },
+          temperature: 0.5
+        }
       });
     });
   });
@@ -187,7 +200,7 @@ describe('AIModel', () => {
         supportsImages: true,
         supportsAudio: true,
         maxTokens: 4096,
-        temperature: 0.7,
+        temperature: 0.7
       });
     });
   });

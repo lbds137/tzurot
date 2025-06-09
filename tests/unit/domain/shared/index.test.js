@@ -1,10 +1,23 @@
 /**
  * @jest-environment node
+ * @testType index
+ * 
+ * Shared Domain Index Test
+ * - Tests exports of the shared domain module
+ * - Verifies API surface and basic functionality
+ * - Pure tests with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Module under test - NOT mocked!
 const sharedDomain = require('../../../../src/domain/shared/index');
 
 describe('Shared Domain Index', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('exports', () => {
     it('should export all base classes', () => {
       expect(sharedDomain.AggregateRoot).toBeDefined();

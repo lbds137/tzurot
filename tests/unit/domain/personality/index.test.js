@@ -1,10 +1,23 @@
 /**
  * @jest-environment node
+ * @testType index
+ * 
+ * Personality Domain Index Test
+ * - Tests exports of the personality domain module
+ * - Verifies API surface and basic functionality
+ * - Pure tests with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Module under test - NOT mocked!
 const personalityDomain = require('../../../../src/domain/personality/index');
 
 describe('Personality Domain Index', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('exports', () => {
     it('should export all aggregates', () => {
       expect(personalityDomain.Personality).toBeDefined();

@@ -1,16 +1,25 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * DomainEventBus Test
+ * - Tests event bus infrastructure
+ * - Minimal mocking (only logger)
+ * - Tests event subscription and publishing patterns
  */
 
-const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
-const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
+const { dddPresets } = require('../../../__mocks__/ddd');
 
 // Mock logger
 jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
   debug: jest.fn(),
-  error: jest.fn(),
+  error: jest.fn()
 }));
+
+// Domain models under test - NOT mocked!
+const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
+const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
 
 // Test event
 class TestEvent extends DomainEvent {
@@ -232,7 +241,7 @@ describe('DomainEventBus', () => {
         expect.objectContaining({
           payload: expect.objectContaining({
             original: true,
-            transformed: true,
+            transformed: true
           })
         })
       );

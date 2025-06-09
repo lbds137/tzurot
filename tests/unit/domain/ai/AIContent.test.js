@@ -1,10 +1,23 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AIContent Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests AI content handling (text, images, audio)
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { AIContent } = require('../../../../src/domain/ai/AIContent');
 
 describe('AIContent', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('constructor', () => {
     it('should initialize with empty array', () => {
       const content = new AIContent();
