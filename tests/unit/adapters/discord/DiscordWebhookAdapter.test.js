@@ -10,6 +10,15 @@ describe('DiscordWebhookAdapter', () => {
   let mockWebhook;
   let mockChannel;
   
+  // Helper to create a mock Discord Collection
+  const createMockCollection = (items = []) => ({
+    find: jest.fn((predicate) => items.find(predicate)),
+    size: items.length,
+    first: jest.fn(() => items[0]),
+    has: jest.fn((id) => items.some(item => item.id === id)),
+    get: jest.fn((id) => items.find(item => item.id === id)),
+  });
+  
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation();
@@ -33,9 +42,7 @@ describe('DiscordWebhookAdapter', () => {
     mockChannel = {
       id: 'channel-123',
       type: 0, // GUILD_TEXT
-      fetchWebhooks: jest.fn().mockResolvedValue(new Map([
-        [mockWebhook.id, mockWebhook]
-      ])),
+      fetchWebhooks: jest.fn().mockResolvedValue(createMockCollection([mockWebhook])),
       createWebhook: jest.fn().mockResolvedValue(mockWebhook),
     };
     
@@ -107,7 +114,7 @@ describe('DiscordWebhookAdapter', () => {
     });
     
     it('should create webhook if none exists', async () => {
-      mockChannel.fetchWebhooks.mockResolvedValue(new Map());
+      mockChannel.fetchWebhooks.mockResolvedValue(createMockCollection([]));
       
       await adapter.sendMessage(defaultParams);
       
@@ -183,9 +190,11 @@ describe('DiscordWebhookAdapter', () => {
       
       await adapter.sendMessage(params);
       
+      // The string after removing special chars is "Test Personality with quotes and backticks" (43 chars)
+      // Which gets truncated to 29 chars + "..."
       expect(mockWebhook.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          username: 'Test Personality with  and backticks',
+          username: 'Test Personality with quotes ...',
         })
       );
     });
@@ -243,7 +252,7 @@ describe('DiscordWebhookAdapter', () => {
     });
     
     it('should throw error if no webhook found', async () => {
-      mockChannel.fetchWebhooks.mockResolvedValue(new Map());
+      mockChannel.fetchWebhooks.mockResolvedValue(createMockCollection([]));
       
       await expect(adapter.editMessage({
         messageId: 'message-123',
@@ -287,7 +296,7 @@ describe('DiscordWebhookAdapter', () => {
     });
     
     it('should throw error if no webhook found', async () => {
-      mockChannel.fetchWebhooks.mockResolvedValue(new Map());
+      mockChannel.fetchWebhooks.mockResolvedValue(createMockCollection([]));
       
       await expect(adapter.deleteMessage({
         messageId: 'message-123',
@@ -383,10 +392,10 @@ describe('DiscordWebhookAdapter', () => {
       const otherWebhook = { ...mockWebhook, name: 'Other', id: 'webhook-456' };
       const wrongOwner = { ...mockWebhook, owner: { id: 'other-bot' }, id: 'webhook-789' };
       
-      mockChannel.fetchWebhooks.mockResolvedValue(new Map([
-        [otherWebhook.id, otherWebhook],
-        [wrongOwner.id, wrongOwner],
-        [mockWebhook.id, mockWebhook],
+      mockChannel.fetchWebhooks.mockResolvedValue(createMockCollection([
+        otherWebhook,
+        wrongOwner,
+        mockWebhook,
       ]));
       
       const webhook = await adapter._getOrCreateWebhook('channel-123');
