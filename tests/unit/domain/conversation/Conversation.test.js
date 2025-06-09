@@ -31,6 +31,7 @@ describe('Conversation', () => {
       authorId: '123456789012345678',
       timestamp: new Date(),
       isFromPersonality: false,
+      channelId: 'general'
     });
   });
   
@@ -124,7 +125,9 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       
       conversation.addMessage(newMessage);
       
@@ -140,7 +143,9 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       
       conversation.addMessage(newMessage);
       const events = conversation.getUncommittedEvents();
@@ -162,7 +167,9 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       
       expect(() => conversation.addMessage(newMessage)).toThrow('Cannot add message to ended conversation');
     });
@@ -177,7 +184,9 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       
       expect(() => conversation.addMessage(newMessage)).toThrow('Conversation has timed out');
       expect(conversation.ended).toBe(true);
@@ -401,7 +410,9 @@ describe('Conversation', () => {
         personalityId: personalityId.toString(),
         timestamp: new Date(),
         isFromPersonality: true,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       conversation.addMessage(personalityMessage);
       
       jest.advanceTimersByTime(conversation.settings.autoResponseDelay);
@@ -426,7 +437,9 @@ describe('Conversation', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       conversation.addMessage(secondMessage);
       
       expect(conversation.getLastMessage()).toEqual(secondMessage);
@@ -452,6 +465,7 @@ describe('Conversation', () => {
             authorId: '123456789012345678',
             timestamp: new Date(),
             isFromPersonality: false,
+            channelId: 'test-channel-123'
           })
         );
       }
@@ -487,7 +501,9 @@ describe('Conversation', () => {
             authorId: '123456789012345678',
             timestamp: new Date(),
             isFromPersonality: false,
-          }).toJSON(),
+          
+      channelId: 'test-channel-123'
+    }).toJSON(),
           addedAt: new Date().toISOString(),
         }),
         new PersonalityAssigned('123456789012345678:general', {
