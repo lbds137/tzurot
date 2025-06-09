@@ -182,7 +182,9 @@ describe('ConversationRepository', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       
       const conversation = Conversation.start(conversationId, initialMessage, personalityId);
       
@@ -193,7 +195,9 @@ describe('ConversationRepository', () => {
         authorId: '123456789012345678',
         timestamp: new Date(),
         isFromPersonality: false,
-      });
+      
+      channelId: 'test-channel-123'
+    });
       conversation.addMessage(secondMessage);
       
       // Test save

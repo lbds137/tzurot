@@ -64,7 +64,8 @@ describe('Conversation Domain Index', () => {
         content: 'Hello',
         authorId: '123456789012345678',
         timestamp: new Date(),
-        isFromPersonality: false
+        isFromPersonality: false,
+        channelId: '987654321098765432'
       });
       
       const conversation = conversationDomain.Conversation.start(conversationId, initialMessage, personalityId);
@@ -96,7 +97,8 @@ describe('Conversation Domain Index', () => {
         content: 'Hello',
         authorId: '123456789012345678',
         timestamp: new Date(),
-        isFromPersonality: false
+        isFromPersonality: false,
+        channelId: '987654321098765432'
       });
       
       const event = new conversationDomain.ConversationStarted(conversationId.toString(), {
