@@ -45,9 +45,9 @@ module.exports = [
     }
   },
   {
-    files: ['tests/unit/domain/**/*.test.js', 'tests/unit/adapters/**/*.test.js'],
+    files: ['tests/unit/domain/**/*.test.js', 'tests/unit/adapters/**/*.test.js', 'tests/__mocks__/**/*.js', 'tests/examples/**/*.test.js'],
     rules: {
-      // Allow DDD tests to import from __mocks__ directory for consolidated mock system
+      // Allow DDD tests and mock infrastructure to import from __mocks__ directory for consolidated mock system
       'jest/no-mocks-import': 'off'
     }
   },
