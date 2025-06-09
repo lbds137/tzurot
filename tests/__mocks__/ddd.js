@@ -174,8 +174,8 @@ function createMockTimers() {
     setTimeout: jest.fn().mockImplementation((callback, delay) => {
       const id = Math.random();
       // For testing, execute immediately unless using fake timers
-      if (jest.isMockFunction(global.setTimeout)) {
-        return global.setTimeout(callback, delay);
+      if (jest.isMockFunction(setTimeout)) {
+        return setTimeout(callback, delay);
       }
       setImmediate(callback);
       return id;
@@ -185,8 +185,8 @@ function createMockTimers() {
     
     setInterval: jest.fn().mockImplementation((callback, interval) => {
       const id = Math.random();
-      if (jest.isMockFunction(global.setInterval)) {
-        return global.setInterval(callback, interval);
+      if (jest.isMockFunction(setInterval)) {
+        return setInterval(callback, interval);
       }
       return id;
     }),
