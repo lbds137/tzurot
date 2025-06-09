@@ -82,10 +82,9 @@ const TIMER_PATTERNS = [
     message: 'Direct setInterval usage. Use injectable timer instead.',
     severity: 'error',
     filter: (content, match, index) => {
-      const before = content.substring(Math.max(0, index - 50), index);
-      
-      // Skip if it's prefixed with allowed patterns
-      if (/(?:this\.|this\._|options\.|context\.|timerFunctions\.|global\.)setInterval\s*$/.test(before)) return false;
+      // Skip if it's prefixed with allowed patterns - include the method name in the check
+      const beforeWithMethod = content.substring(Math.max(0, index - 50), index + 12);
+      if (/(?:this\.|this\._|options\.|context\.|timerFunctions\.|global\.)setInterval/.test(beforeWithMethod)) return false;
       
       // Skip if it's part of an injectable definition
       if (isInjectableDefinition(content, index)) return false;
