@@ -45,6 +45,13 @@ module.exports = [
     }
   },
   {
+    files: ['tests/unit/domain/**/*.test.js', 'tests/unit/adapters/**/*.test.js'],
+    rules: {
+      // Allow DDD tests to import from __mocks__ directory for consolidated mock system
+      'jest/no-mocks-import': 'off'
+    }
+  },
+  {
     ignores: ['node_modules/**', 'coverage/**']
   },
   prettier
