@@ -1,7 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { AuthenticationRepository } = require('../../domain/authentication');
-const { UserAuth, Token, NsfwStatus } = require('../../domain/authentication');
+const { UserAuth, Token } = require('../../domain/authentication');
 const { UserId } = require('../../domain/personality');
 const logger = require('../../logger');
 
@@ -20,16 +20,23 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    * @param {string} options.dataPath - Path to data directory
    * @param {string} options.filename - Filename for auth data
    * @param {number} options.tokenCleanupInterval - Interval for token cleanup (ms)
+   * @param {Function} options.setInterval - Injectable timer function for testing
+   * @param {Function} options.clearInterval - Injectable timer function for testing
    */
   constructor({ 
     dataPath = './data', 
     filename = 'authentication.json',
-    tokenCleanupInterval = 60 * 60 * 1000 // 1 hour
+    tokenCleanupInterval = 60 * 60 * 1000, // 1 hour
+    setInterval,
+    clearInterval
   } = {}) {
     super();
     this.dataPath = dataPath;
     this.filePath = path.join(dataPath, filename);
     this.tokenCleanupInterval = tokenCleanupInterval;
+    // Injectable timers for testing
+    this._setInterval = setInterval || require('timers').setInterval;
+    this._clearInterval = clearInterval || require('timers').clearInterval;
     this._cache = null; // In-memory cache
     this._initialized = false;
     this._cleanupTimer = null;
@@ -423,10 +430,10 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   _startCleanupTimer() {
     if (this._cleanupTimer) {
-      clearInterval(this._cleanupTimer);
+      this._clearInterval(this._cleanupTimer);
     }
     
-    this._cleanupTimer = setInterval(async () => {
+    this._cleanupTimer = this._setInterval(async () => { // eslint-disable-line timer-patterns
       try {
         await this._cleanupExpiredTokens();
       } catch (error) {
@@ -440,7 +447,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async shutdown() {
     if (this._cleanupTimer) {
-      clearInterval(this._cleanupTimer);
+      this._clearInterval(this._cleanupTimer);
       this._cleanupTimer = null;
     }
     logger.info('[FileAuthenticationRepository] Shutdown complete');

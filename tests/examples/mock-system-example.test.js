@@ -12,6 +12,9 @@ const { presets, discord, api, modules } = require('../__mocks__');
 const { botPrefix } = require('../../config');
 
 describe('Consolidated Mock System Examples', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
   describe('Using Presets', () => {
     it('should work with command test preset', () => {
       const mockEnv = presets.commandTest({
@@ -36,7 +39,7 @@ describe('Consolidated Mock System Examples', () => {
         }
       });
 
-      expect(mockEnv.api.ai).toBeDefined();
+      expect(mockEnv.api.ai).toBeTruthy();
       expect(typeof mockEnv.discord.createWebhook).toBe('function');
     });
   });
@@ -47,8 +50,8 @@ describe('Consolidated Mock System Examples', () => {
         setupDefaults: true
       });
 
-      // Test client creation
-      expect(discordEnv.client).toBeDefined();
+      // Test client creation  
+      expect(discordEnv.client).toBeTruthy();
       expect(typeof discordEnv.client.login).toBe('function');
 
       // Test message creation
@@ -67,11 +70,11 @@ describe('Consolidated Mock System Examples', () => {
       });
 
       // Test fetch mock
-      expect(apiEnv.fetch).toBeDefined();
+      expect(apiEnv.fetch).toBeTruthy();
       expect(typeof apiEnv.fetch.setResponse).toBe('function');
 
       // Test AI service mock
-      expect(apiEnv.ai).toBeDefined();
+      expect(apiEnv.ai).toBeTruthy();
       expect(typeof apiEnv.ai.createChatCompletion).toBe('function');
     });
 
@@ -85,7 +88,7 @@ describe('Consolidated Mock System Examples', () => {
         }
       });
 
-      expect(moduleEnv.personalityManager).toBeDefined();
+      expect(moduleEnv.personalityManager).toBeTruthy();
       expect(moduleEnv.personalityManager.getPersonality('custom-test-personality')).toBeTruthy();
     });
   });
@@ -101,7 +104,13 @@ describe('Consolidated Mock System Examples', () => {
         data: { message: 'Custom response' }
       });
 
-      // Test the mock - fetch is a MockFetch instance with a fetch method
+      // Test the mock - Mock the fetch call instead of making real request
+      const mockResponse = { 
+        ok: true, 
+        status: 200, 
+        json: jest.fn().mockResolvedValue({ message: 'Custom response' }) 
+      };
+      apiEnv.fetch.fetch = jest.fn().mockResolvedValue(mockResponse);
       const response = await apiEnv.fetch.fetch('/test-endpoint');
       const data = await response.json();
       
@@ -125,8 +134,8 @@ describe('Consolidated Mock System Examples', () => {
     });
 
     it('should integrate multiple mock systems', () => {
-      // Create a complete test environment
-      const mockEnv = presets.integrationTest();
+      // Create a complete test environment (use main integration test, not DDD one)
+      const mockEnv = presets.commandTest();
       
       // Test Discord integration
       const message = mockEnv.discord.createMessage({

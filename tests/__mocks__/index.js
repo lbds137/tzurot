@@ -8,6 +8,7 @@
 const discordMocks = require('../__mocks__/discord');
 const apiMocks = require('../__mocks__/api');
 const moduleMocks = require('../__mocks__/modules');
+const dddMocks = require('../__mocks__/ddd');
 
 /**
  * Create a complete mock environment for tests
@@ -73,9 +74,13 @@ const presets = {
 
 module.exports = {
   createTestEnvironment,
-  presets,
+  presets: {
+    ...presets,
+    ...dddMocks.presets  // Include DDD presets
+  },
   // Re-export individual mock utilities for fine-grained control
   discord: discordMocks,
   api: apiMocks,
-  modules: moduleMocks
+  modules: moduleMocks,
+  ddd: dddMocks
 };
