@@ -433,7 +433,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
       this._clearInterval(this._cleanupTimer);
     }
     
-    this._cleanupTimer = this._setInterval(async () => { // eslint-disable-line timer-patterns
+    this._cleanupTimer = this._setInterval(async () => {
       try {
         await this._cleanupExpiredTokens();
       } catch (error) {
