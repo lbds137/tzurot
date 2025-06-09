@@ -323,6 +323,11 @@ class HttpAIServiceAdapter extends AIService {
       content = apiResponse.text || apiResponse.response || apiResponse.message;
       metadata = apiResponse.metadata || {};
     }
+    // Content field format (common in simple APIs)
+    else if (apiResponse.content && typeof apiResponse.content === 'string') {
+      content = apiResponse.content;
+      metadata = apiResponse.metadata || {};
+    }
     // Direct string response
     else if (typeof apiResponse === 'string') {
       content = apiResponse;
