@@ -10,9 +10,10 @@ describe('ConversationTracker', () => {
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
+    jest.useFakeTimers();
     
-    // Create a new tracker instance
-    tracker = new ConversationTracker();
+    // Create a new tracker instance with disabled cleanup
+    tracker = new ConversationTracker({ enableCleanup: false });
     
     // Save original Date.now
     originalDateNow = Date.now;
@@ -21,6 +22,9 @@ describe('ConversationTracker', () => {
   afterEach(() => {
     // Clean up
     tracker.stopCleanup();
+    
+    // Restore timers
+    jest.useRealTimers();
     
     // Restore Date.now
     Date.now = originalDateNow;
@@ -413,15 +417,21 @@ describe('ConversationTracker', () => {
   
   describe('stopCleanup', () => {
     it('should stop the cleanup interval', () => {
+      // Create a new tracker with cleanup enabled
+      const trackerWithCleanup = new ConversationTracker({ enableCleanup: true });
+      
       // Spy on clearInterval
       const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
       
+      // Verify interval was created
+      expect(trackerWithCleanup.cleanupInterval).toBeDefined();
+      
       // Stop cleanup
-      tracker.stopCleanup();
+      trackerWithCleanup.stopCleanup();
       
       // Verify interval was cleared
       expect(clearIntervalSpy).toHaveBeenCalled();
-      expect(tracker.cleanupInterval).toBeNull();
+      expect(trackerWithCleanup.cleanupInterval).toBeNull();
       
       // Cleanup
       clearIntervalSpy.mockRestore();

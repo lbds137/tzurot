@@ -35,6 +35,21 @@ jest.mock('discord.js', () => {
   };
 });
 
+// Mock profileInfoFetcher to prevent interval creation
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getFetcher: jest.fn().mockReturnValue({
+    fetchProfileInfo: jest.fn().mockResolvedValue({
+      avatarUrl: 'https://example.com/avatar.png',
+      displayName: 'Test User'
+    })
+  }),
+  getProfileAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
+  deleteFromCache: jest.fn()
+}));
+
+// Mock logger
+jest.mock('../../src/logger');
+
 // Import module after mocking dependencies
 let webhookManager;
 
