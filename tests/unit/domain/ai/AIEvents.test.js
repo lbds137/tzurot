@@ -9,6 +9,8 @@ const {
   AIRequestFailed,
   AIRequestRetried,
   AIRequestRateLimited,
+  AIContentSanitized,
+  AIErrorDetected,
 } = require('../../../../src/domain/ai/AIEvents');
 
 describe('AI Events', () => {
@@ -50,6 +52,22 @@ describe('AI Events', () => {
       expect(event.occurredAt).toBeDefined();
       expect(event.eventType).toBe('AIRequestCreated');
     });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { userId: '123', personalityId: 'test', content: [], model: {}, createdAt: '2024' }, // missing requestId
+        { requestId: 'test', personalityId: 'test', content: [], model: {}, createdAt: '2024' }, // missing userId
+        { requestId: 'test', userId: '123', content: [], model: {}, createdAt: '2024' }, // missing personalityId
+        { requestId: 'test', userId: '123', personalityId: 'test', model: {}, createdAt: '2024' }, // missing content
+        { requestId: 'test', userId: '123', personalityId: 'test', content: [], createdAt: '2024' }, // missing model
+        { requestId: 'test', userId: '123', personalityId: 'test', content: [], model: {} }, // missing createdAt
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIRequestCreated(aggregateId, payload))
+          .toThrow('AIRequestCreated requires complete request data');
+      });
+    });
   });
   
   describe('AIRequestSent', () => {
@@ -65,6 +83,19 @@ describe('AI Events', () => {
       expect(event.eventType).toBe('AIRequestSent');
       expect(event.payload).toEqual(payload);
     });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { attempt: 1 }, // missing sentAt
+        { sentAt: '2024-01-01T00:00:01.000Z' }, // missing attempt
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIRequestSent(aggregateId, payload))
+          .toThrow('AIRequestSent requires sentAt and attempt');
+      });
+    });
   });
   
   describe('AIResponseReceived', () => {
@@ -79,6 +110,19 @@ describe('AI Events', () => {
       expect(event.aggregateId).toBe(aggregateId);
       expect(event.eventType).toBe('AIResponseReceived');
       expect(event.payload).toEqual(payload);
+    });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { completedAt: '2024-01-01T00:00:02.000Z' }, // missing response
+        { response: [{ type: 'text', text: 'AI response' }] }, // missing completedAt
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIResponseReceived(aggregateId, payload))
+          .toThrow('AIResponseReceived requires response and completedAt');
+      });
     });
   });
   
@@ -99,6 +143,19 @@ describe('AI Events', () => {
       expect(event.eventType).toBe('AIRequestFailed');
       expect(event.payload).toEqual(payload);
     });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { failedAt: '2024-01-01T00:00:02.000Z' }, // missing error
+        { error: { message: 'API error', code: 'API_ERROR', canRetry: true } }, // missing failedAt
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIRequestFailed(aggregateId, payload))
+          .toThrow('AIRequestFailed requires error and failedAt');
+      });
+    });
   });
   
   describe('AIRequestRetried', () => {
@@ -114,6 +171,20 @@ describe('AI Events', () => {
       expect(event.eventType).toBe('AIRequestRetried');
       expect(event.payload).toEqual(payload);
     });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { attempt: 2 }, // missing retryAt
+        { retryAt: '2024-01-01T00:00:05.000Z' }, // missing attempt
+        { retryAt: '2024-01-01T00:00:05.000Z', attempt: undefined }, // attempt is undefined
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIRequestRetried(aggregateId, payload))
+          .toThrow('AIRequestRetried requires retryAt and attempt');
+      });
+    });
   });
   
   describe('AIRequestRateLimited', () => {
@@ -128,6 +199,78 @@ describe('AI Events', () => {
       expect(event.aggregateId).toBe(aggregateId);
       expect(event.eventType).toBe('AIRequestRateLimited');
       expect(event.payload).toEqual(payload);
+    });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { retryAfter: 60000 }, // missing rateLimitedAt
+        { rateLimitedAt: '2024-01-01T00:00:02.000Z' }, // missing retryAfter
+        { rateLimitedAt: '2024-01-01T00:00:02.000Z', retryAfter: undefined }, // retryAfter is undefined
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIRequestRateLimited(aggregateId, payload))
+          .toThrow('AIRequestRateLimited requires rateLimitedAt and retryAfter');
+      });
+    });
+  });
+  
+  describe('AIContentSanitized', () => {
+    it('should create event with payload', () => {
+      const payload = {
+        originalLength: 1000,
+        sanitizedLength: 950,
+        sanitizedAt: '2024-01-01T00:00:03.000Z',
+      };
+      
+      const event = new AIContentSanitized(aggregateId, payload);
+      
+      expect(event.aggregateId).toBe(aggregateId);
+      expect(event.eventType).toBe('AIContentSanitized');
+      expect(event.payload).toEqual(payload);
+    });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { sanitizedLength: 950, sanitizedAt: '2024-01-01T00:00:03.000Z' }, // missing originalLength
+        { originalLength: 1000, sanitizedAt: '2024-01-01T00:00:03.000Z' }, // missing sanitizedLength
+        { originalLength: 1000, sanitizedLength: 950 }, // missing sanitizedAt
+        {}, // missing all
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIContentSanitized(aggregateId, payload))
+          .toThrow('AIContentSanitized requires length data and sanitizedAt');
+      });
+    });
+  });
+  
+  describe('AIErrorDetected', () => {
+    it('should create event with payload', () => {
+      const payload = {
+        errorType: 'RATE_LIMIT',
+        detectedAt: '2024-01-01T00:00:04.000Z',
+      };
+      
+      const event = new AIErrorDetected(aggregateId, payload);
+      
+      expect(event.aggregateId).toBe(aggregateId);
+      expect(event.eventType).toBe('AIErrorDetected');
+      expect(event.payload).toEqual(payload);
+    });
+    
+    it('should throw error when missing required fields', () => {
+      const invalidPayloads = [
+        { detectedAt: '2024-01-01T00:00:04.000Z' }, // missing errorType
+        { errorType: 'RATE_LIMIT' }, // missing detectedAt
+        {}, // missing both
+      ];
+      
+      invalidPayloads.forEach(payload => {
+        expect(() => new AIErrorDetected(aggregateId, payload))
+          .toThrow('AIErrorDetected requires errorType and detectedAt');
+      });
     });
   });
   
