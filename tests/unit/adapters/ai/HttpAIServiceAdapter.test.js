@@ -166,13 +166,14 @@ describe('HttpAIServiceAdapter', () => {
       expect(result).toBeInstanceOf(AIContent);
       expect(result.getText()).toBe('Hello from AI!');
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/generate',
+        'https://api.example.com/v1/chat/completions',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
             'X-API-Key': 'test-key'
-          })
+          }),
+          body: expect.stringContaining('"Hello AI"')
         })
       );
     });
@@ -242,7 +243,8 @@ describe('HttpAIServiceAdapter', () => {
         maxRetries: 2,
         healthy: true,
         requestCount: 5,
-        errorCount: 2
+        errorCount: 2,
+        errorRate: 0.4  // 2/5
       });
     });
   });
@@ -253,7 +255,7 @@ describe('HttpAIServiceAdapter', () => {
       error.response = { status: 401 };
       
       const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('Authentication required');
+      expect(transformed.message).toBe('AI service authentication failed');
     });
 
     it('should transform 429 errors', () => {
@@ -261,15 +263,15 @@ describe('HttpAIServiceAdapter', () => {
       error.response = { status: 429 };
       
       const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('Rate limit exceeded');
+      expect(transformed.message).toBe('AI service rate limit exceeded');
     });
 
     it('should transform timeout errors', () => {
-      const error = new Error('Timeout');
-      error.code = 'ECONNABORTED';
+      const error = new Error('Request timed out');
+      error.name = 'AbortError';
       
       const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('AI service request timeout');
+      expect(transformed.message).toBe('AI service request timed out');
     });
 
     it('should return original error if cannot transform', () => {
