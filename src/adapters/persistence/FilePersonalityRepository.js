@@ -1,0 +1,350 @@
+const fs = require('fs').promises;
+const path = require('path');
+const { Personality, PersonalityId, PersonalityProfile, Alias, UserId } = require('../../domain/personality');
+const { PersonalityRepository } = require('../../domain/personality');
+const logger = require('../../logger');
+
+/**
+ * FilePersonalityRepository - File-based implementation of PersonalityRepository
+ * 
+ * This adapter implements persistence for personalities using the file system.
+ * In production, this would likely be replaced with a database adapter.
+ */
+class FilePersonalityRepository extends PersonalityRepository {
+  /**
+   * @param {Object} options
+   * @param {string} options.dataPath - Path to data directory
+   * @param {string} options.filename - Filename for personalities data
+   */
+  constructor({ dataPath = './data', filename = 'personalities.json' } = {}) {
+    super();
+    this.dataPath = dataPath;
+    this.filePath = path.join(dataPath, filename);
+    this._cache = null; // In-memory cache
+    this._initialized = false;
+  }
+
+  /**
+   * Initialize the repository
+   * @returns {Promise<void>}
+   */
+  async initialize() {
+    if (this._initialized) return;
+
+    try {
+      // Ensure data directory exists
+      await fs.mkdir(this.dataPath, { recursive: true });
+      
+      // Load existing data or create new file
+      try {
+        const data = await fs.readFile(this.filePath, 'utf8');
+        this._cache = JSON.parse(data);
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          // File doesn't exist, create it
+          this._cache = { personalities: {}, aliases: {} };
+          await this._persist();
+        } else {
+          throw error;
+        }
+      }
+      
+      this._initialized = true;
+      logger.info('[FilePersonalityRepository] Initialized successfully');
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to initialize:', error);
+      throw new Error(`Failed to initialize repository: ${error.message}`);
+    }
+  }
+
+  /**
+   * Save a personality
+   * @param {Personality} personality - Personality to save
+   * @returns {Promise<void>}
+   */
+  async save(personality) {
+    await this._ensureInitialized();
+    
+    try {
+      const data = personality.toJSON();
+      
+      // Store personality data
+      this._cache.personalities[personality.personalityId.value] = {
+        ...data,
+        // Ensure proper serialization of nested objects
+        profile: data.profile,
+        aliases: personality.aliases ? personality.aliases.map(a => a.toJSON ? a.toJSON() : a) : [],
+        savedAt: new Date().toISOString(),
+      };
+      
+      // Update alias mappings
+      if (personality.aliases && Array.isArray(personality.aliases)) {
+        personality.aliases.forEach(alias => {
+          this._cache.aliases[alias.value] = personality.personalityId.value;
+        });
+      }
+      
+      await this._persist();
+      
+      logger.info(`[FilePersonalityRepository] Saved personality: ${personality.personalityId.value}`);
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to save personality:', error);
+      throw new Error(`Failed to save personality: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find a personality by ID
+   * @param {PersonalityId} personalityId - ID to search for
+   * @returns {Promise<Personality|null>}
+   */
+  async findById(personalityId) {
+    await this._ensureInitialized();
+    
+    try {
+      const data = this._cache.personalities[personalityId.value];
+      if (!data) {
+        return null;
+      }
+      
+      return this._hydrate(data);
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find by ID:', error);
+      throw new Error(`Failed to find personality: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find personalities by owner
+   * @param {UserId} ownerId - Owner ID
+   * @returns {Promise<Personality[]>}
+   */
+  async findByOwner(ownerId) {
+    await this._ensureInitialized();
+    
+    try {
+      const personalities = [];
+      
+      for (const data of Object.values(this._cache.personalities)) {
+        if (data.ownerId === ownerId.value) {
+          personalities.push(await this._hydrate(data));
+        }
+      }
+      
+      return personalities;
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find by owner:', error);
+      throw new Error(`Failed to find personalities by owner: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find personality by alias
+   * @param {string} alias - Alias to search for
+   * @returns {Promise<Personality|null>}
+   */
+  async findByAlias(alias) {
+    await this._ensureInitialized();
+    
+    try {
+      // Normalize alias for case-insensitive search
+      const normalizedAlias = alias.toLowerCase();
+      
+      // Check alias mappings
+      const personalityId = Object.entries(this._cache.aliases)
+        .find(([key]) => key.toLowerCase() === normalizedAlias)?.[1];
+      
+      if (!personalityId) {
+        return null;
+      }
+      
+      const data = this._cache.personalities[personalityId];
+      if (!data) {
+        // Alias points to non-existent personality, clean up
+        delete this._cache.aliases[alias];
+        await this._persist();
+        return null;
+      }
+      
+      return this._hydrate(data);
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find by alias:', error);
+      throw new Error(`Failed to find personality by alias: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get all personalities
+   * @returns {Promise<Personality[]>}
+   */
+  async findAll() {
+    await this._ensureInitialized();
+    
+    try {
+      const personalities = [];
+      
+      for (const data of Object.values(this._cache.personalities)) {
+        personalities.push(await this._hydrate(data));
+      }
+      
+      return personalities;
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find all:', error);
+      throw new Error(`Failed to find all personalities: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete a personality
+   * @param {PersonalityId} personalityId - ID to delete
+   * @returns {Promise<void>}
+   */
+  async delete(personalityId) {
+    await this._ensureInitialized();
+    
+    try {
+      const data = this._cache.personalities[personalityId.value];
+      if (!data) {
+        return; // Already deleted
+      }
+      
+      // Remove personality
+      delete this._cache.personalities[personalityId.value];
+      
+      // Remove all aliases pointing to this personality
+      Object.entries(this._cache.aliases).forEach(([alias, id]) => {
+        if (id === personalityId.value) {
+          delete this._cache.aliases[alias];
+        }
+      });
+      
+      await this._persist();
+      
+      logger.info(`[FilePersonalityRepository] Deleted personality: ${personalityId.value}`);
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to delete:', error);
+      throw new Error(`Failed to delete personality: ${error.message}`);
+    }
+  }
+
+  /**
+   * Check if a personality exists
+   * @param {PersonalityId} personalityId - ID to check
+   * @returns {Promise<boolean>}
+   */
+  async exists(personalityId) {
+    await this._ensureInitialized();
+    return !!this._cache.personalities[personalityId.value];
+  }
+
+  /**
+   * Hydrate a personality from stored data
+   * @private
+   */
+  _hydrate(data) {
+    // Create personality using static factory method
+    const personality = Personality.create(
+      new PersonalityId(data.id || data.personalityId),
+      new UserId(data.ownerId)
+    );
+    
+    // Set profile
+    if (data.profile) {
+      const profile = new PersonalityProfile({
+        displayName: data.profile.displayName,
+        avatarUrl: data.profile.avatarUrl,
+        bio: data.profile.bio,
+        systemPrompt: data.profile.systemPrompt,
+        temperature: data.profile.temperature,
+        maxTokens: data.profile.maxTokens,
+      });
+      personality.updateProfile(profile);
+    }
+    
+    // Add aliases
+    if (data.aliases && Array.isArray(data.aliases)) {
+      // Since Personality doesn't have addAlias method yet, we'll set aliases directly
+      personality.aliases = data.aliases.map(aliasData => {
+        if (typeof aliasData === 'string') {
+          return new Alias(aliasData);
+        }
+        return new Alias(aliasData.value || aliasData.original);
+      });
+    }
+    
+    // Mark as hydrated from persistence
+    personality.markEventsAsCommitted();
+    
+    return personality;
+  }
+
+  /**
+   * Persist cache to file
+   * @private
+   */
+  async _persist() {
+    try {
+      const data = JSON.stringify(this._cache, null, 2);
+      
+      // Write to temp file first for atomic operation
+      const tempPath = `${this.filePath}.tmp`;
+      await fs.writeFile(tempPath, data, 'utf8');
+      
+      // Rename to actual file
+      await fs.rename(tempPath, this.filePath);
+      
+      logger.debug('[FilePersonalityRepository] Data persisted successfully');
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to persist data:', error);
+      throw new Error(`Failed to persist data: ${error.message}`);
+    }
+  }
+
+  /**
+   * Ensure repository is initialized
+   * @private
+   */
+  async _ensureInitialized() {
+    if (!this._initialized) {
+      await this.initialize();
+    }
+  }
+
+  /**
+   * Create backup of data file
+   * @returns {Promise<string>} Backup file path
+   */
+  async createBackup() {
+    await this._ensureInitialized();
+    
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(this.dataPath, `personalities-backup-${timestamp}.json`);
+      
+      const data = JSON.stringify(this._cache, null, 2);
+      await fs.writeFile(backupPath, data, 'utf8');
+      
+      logger.info(`[FilePersonalityRepository] Created backup at: ${backupPath}`);
+      return backupPath;
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to create backup:', error);
+      throw new Error(`Failed to create backup: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get repository statistics
+   * @returns {Promise<Object>}
+   */
+  async getStats() {
+    await this._ensureInitialized();
+    
+    return {
+      totalPersonalities: Object.keys(this._cache.personalities).length,
+      totalAliases: Object.keys(this._cache.aliases).length,
+      owners: [...new Set(Object.values(this._cache.personalities).map(p => p.ownerId))].length,
+    };
+  }
+}
+
+module.exports = { FilePersonalityRepository };
