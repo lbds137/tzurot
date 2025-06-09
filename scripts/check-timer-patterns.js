@@ -20,8 +20,21 @@ function isInsideDefaultParam(content, matchIndex) {
 // Helper to check if code is defining an injectable function
 function isInjectableDefinition(content, matchIndex) {
   // Check if this is part of a scheduler/delay/timer function definition
-  const before = content.substring(Math.max(0, matchIndex - 50), matchIndex);
-  return /(?:scheduler|delay|timer|interval)(?:Fn)?\s*(?:=|\|\|)\s*/.test(before);
+  const before = content.substring(Math.max(0, matchIndex - 100), matchIndex);
+  
+  // Check various injectable patterns
+  return (
+    // Property assignment: this._setInterval = 
+    /this\._?\w*(setTimeout|setInterval|timer|scheduler|delay)\s*=\s*$/.test(before) ||
+    // Options pattern: setInterval = global.setInterval
+    /\w+(setTimeout|setInterval)\s*=\s*(global\.|options\.)?\w*$/.test(before) ||
+    // Default parameter: delay = (ms) => ...
+    /(?:scheduler|delay|timer|interval)(?:Fn)?\s*(?:=|\|\|)\s*(?:\([^)]*\)\s*=>)?\s*$/.test(before) ||
+    // Constructor option: setInterval: options.setInterval ||
+    /\w+:\s*(?:options\.|props\.|config\.)?\w*\s*\|\|\s*$/.test(before) ||
+    // Default value pattern: options.setTimeout || 
+    /(?:options\.|props\.|config\.)\w*(setTimeout|setInterval)\s*\|\|\s*$/.test(before)
+  );
 }
 
 // Patterns to look for
@@ -35,35 +48,54 @@ const TIMER_PATTERNS = [
   },
   {
     name: 'Direct setTimeout usage',
-    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!timerFunctions\.)(?<!schedulerFn|delayFn|timer|scheduler|delay)\s*setTimeout\s*\(/g,
+    pattern: /setTimeout\s*\(/g,
     message: 'Direct setTimeout usage. Use injectable timer instead.',
     severity: 'error',
     filter: (content, match, index) => {
+      const before = content.substring(Math.max(0, index - 50), index);
+      
+      // Skip if it's prefixed with allowed patterns
+      if (/(?:this\.|this\._|options\.|context\.|timerFunctions\.|global\.)setTimeout\s*$/.test(before)) return false;
+      
       // Skip if it's inside a default parameter
       if (isInsideDefaultParam(content, index)) return false;
+      
       // Skip if it's part of an injectable definition
       if (isInjectableDefinition(content, index)) return false;
+      
       // Skip if it's in a comment
       const lineStart = content.lastIndexOf('\n', index) + 1;
       const lineEnd = content.indexOf('\n', index);
       const line = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
       if (line.trim().startsWith('//') || line.trim().startsWith('*')) return false;
+      
+      // Skip if it's inside timerFunctions object definition
+      const longerBefore = content.substring(Math.max(0, index - 200), index);
+      if (/timerFunctions\s*=\s*\{[\s\S]*$/.test(longerBefore)) return false;
+      
       return true;
     }
   },
   {
     name: 'Direct setInterval usage',
-    pattern: /(?<!this\.)(?<!options\.)(?<!context\.)(?<!timerFunctions\.)(?<!intervalFn|timer|scheduler|interval)\s*setInterval\s*\(/g,
+    pattern: /setInterval\s*\(/g,
     message: 'Direct setInterval usage. Use injectable timer instead.',
     severity: 'error',
     filter: (content, match, index) => {
+      const before = content.substring(Math.max(0, index - 50), index);
+      
+      // Skip if it's prefixed with allowed patterns
+      if (/(?:this\.|this\._|options\.|context\.|timerFunctions\.|global\.)setInterval\s*$/.test(before)) return false;
+      
       // Skip if it's part of an injectable definition
       if (isInjectableDefinition(content, index)) return false;
+      
       // Skip if it's in a comment
       const lineStart = content.lastIndexOf('\n', index) + 1;
       const lineEnd = content.indexOf('\n', index);
       const line = content.substring(lineStart, lineEnd === -1 ? content.length : lineEnd);
       if (line.trim().startsWith('//') || line.trim().startsWith('*')) return false;
+      
       return true;
     }
   },
@@ -82,11 +114,14 @@ const TIMER_PATTERNS = [
     pattern: /^(?!.*(?:function|const|let|var|class|return|timerFunctions\.)).*(?:setTimeout|setInterval)\s*\(/gm,
     message: 'Timer at module scope. Consider making it injectable.',
     severity: 'warning',
-    filter: (content, match, _index) => {
+    filter: (content, match, index) => {
       // Skip if it's in a comment
       if (match.trim().startsWith('//') || match.trim().startsWith('*')) return false;
       // Skip if it's already using injectable pattern
       if (match.includes('timerFunctions.')) return false;
+      // Skip if it's inside an object literal for injectable timers
+      const before = content.substring(Math.max(0, index - 200), index);
+      if (/timerFunctions\s*=\s*\{[\s\S]*$/.test(before)) return false;
       return true;
     }
   }
@@ -142,6 +177,7 @@ function checkFile(filePath) {
 function main() {
   const args = process.argv.slice(2);
   const checkStagedOnly = args.includes('--staged');
+  const specificFiles = args.filter(arg => arg.endsWith('.js'));
   
   console.log('🔍 Checking for timer patterns that might be difficult to test...\n');
 
@@ -152,7 +188,11 @@ function main() {
 
   let files = [];
   
-  if (checkStagedOnly) {
+  if (specificFiles.length > 0) {
+    // Check specific files passed as arguments
+    files = specificFiles.filter(file => fs.existsSync(file));
+    console.log(`Checking ${files.length} specific files...\n`);
+  } else if (checkStagedOnly) {
     // Get staged files from git
     const { execSync } = require('child_process');
     try {

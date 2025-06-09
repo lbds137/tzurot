@@ -36,7 +36,32 @@ run_check() {
 # Only check staged files for linting
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(js|jsx)$' || true)
 
+# Check for newly added files
+NEW_FILES=$(git diff --cached --name-only --diff-filter=A | grep -E '\.(js|jsx)$' || true)
+
 if [ -n "$STAGED_FILES" ]; then
+    # Special checks for NEW files
+    if [ -n "$NEW_FILES" ]; then
+        echo -e "\n${YELLOW}📝 Detected new files:${NC}"
+        echo "$NEW_FILES"
+        echo -e "${YELLOW}Applying strict checks for new code...${NC}"
+        
+        # Check each new file for required patterns
+        for file in $NEW_FILES; do
+            # Skip test files for some checks
+            if [[ ! "$file" =~ \.test\.js$ ]]; then
+                # Check for injectable timers in new files
+                if grep -E "(setTimeout|setInterval)\s*\(" "$file" > /dev/null; then
+                    if ! grep -E "(constructor.*options|inject|timer|delay|scheduler)" "$file" > /dev/null; then
+                        echo -e "${RED}❌ New file $file uses timers but doesn't appear to make them injectable${NC}"
+                        echo -e "${YELLOW}   See docs/development/NEW_CODE_CHECKLIST.md for required patterns${NC}"
+                        FAILED=1
+                        FAILURE_MESSAGES+=("Non-injectable timers in new file: $file")
+                    fi
+                fi
+            fi
+        done
+    fi
     # Check for test anti-patterns (only on staged test files)
     STAGED_TEST_FILES=$(echo "$STAGED_FILES" | grep -E '\.test\.js$' || true)
     if [ -n "$STAGED_TEST_FILES" ]; then
@@ -44,6 +69,7 @@ if [ -n "$STAGED_FILES" ]; then
         run_check "Test mock patterns check" "node scripts/check-test-mock-patterns.js $STAGED_TEST_FILES"
         run_check "Mock method verification" "node scripts/verify-mock-methods.js $STAGED_TEST_FILES"
         run_check "Test timeout patterns check" "node scripts/check-test-timeouts.js $STAGED_TEST_FILES"
+        run_check "Test mocking boundaries check" "node scripts/check-test-mocking-patterns.js $STAGED_TEST_FILES"
     fi
     
     # Check for timer patterns (only on staged files)
