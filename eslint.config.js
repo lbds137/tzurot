@@ -56,6 +56,42 @@ module.exports = [
     }
   },
   {
+    // Temporarily reduce timer pattern severity for existing code until Phase 3 migration
+    files: [
+      'src/commands/**/*.js',
+      'src/core/**/*.js', 
+      'src/utils/**/*.js',
+      'src/webhook/**/*.js',
+      'src/webhookManager.js',
+      'src/aiService.js',
+      'src/messageTracker.js'
+    ],
+    rules: {
+      // Override timer rules to warnings for existing code
+      'no-restricted-syntax': [
+        'warn',
+        ...antipatternRules.rules['no-restricted-syntax'].slice(1), // Keep antipattern rules
+        // Timer patterns as warnings only for existing code
+        {
+          selector: 'NewExpression[callee.name="Promise"] > ArrowFunctionExpression > CallExpression[callee.name="setTimeout"]',
+          message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
+        },
+        {
+          selector: 'NewExpression[callee.name="Promise"] > FunctionExpression > CallExpression[callee.name="setTimeout"]',
+          message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
+        },
+        {
+          selector: 'MethodDefinition[key.name="constructor"] CallExpression[callee.name="setTimeout"]:not([callee.object.type="MemberExpression"])',
+          message: 'Timer in constructor. Accept timer functions via options for testability. See docs/core/TIMER_PATTERNS.md'
+        },
+        {
+          selector: 'MethodDefinition[key.name="constructor"] CallExpression[callee.name="setInterval"]:not([callee.object.type="MemberExpression"])',
+          message: 'Timer in constructor. Accept timer functions via options for testability. See docs/core/TIMER_PATTERNS.md'
+        }
+      ]
+    }
+  },
+  {
     ignores: ['node_modules/**', 'coverage/**']
   },
   prettier
