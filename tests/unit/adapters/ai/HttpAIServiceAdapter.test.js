@@ -126,7 +126,7 @@ describe('HttpAIServiceAdapter', () => {
     });
   });
 
-  describe('generateContent', () => {
+  describe('sendRequest', () => {
     let mockRequest;
     
     beforeEach(() => {
@@ -161,7 +161,7 @@ describe('HttpAIServiceAdapter', () => {
       
       mockFetch.mockResolvedValue(mockResponse);
       
-      const result = await adapter.generateContent(mockRequest);
+      const result = await adapter.sendRequest(mockRequest);
       
       expect(result).toBeInstanceOf(AIContent);
       expect(result.getText()).toBe('Hello from AI!');
@@ -178,11 +178,11 @@ describe('HttpAIServiceAdapter', () => {
     });
 
     it('should validate AIRequest input', async () => {
-      await expect(adapter.generateContent('not-a-request'))
-        .rejects.toThrow('Invalid AIRequest object');
+      await expect(adapter.sendRequest('not-a-request'))
+        .rejects.toThrow('Request must be an instance of AIRequest');
       
-      await expect(adapter.generateContent(null))
-        .rejects.toThrow('Invalid AIRequest object');
+      await expect(adapter.sendRequest(null))
+        .rejects.toThrow('Request must be an instance of AIRequest');
     });
 
     it('should handle network errors with retry', async () => {
@@ -194,7 +194,7 @@ describe('HttpAIServiceAdapter', () => {
           json: async () => ({ content: 'Success after retry' })
         });
       
-      const resultPromise = adapter.generateContent(mockRequest);
+      const resultPromise = adapter.sendRequest(mockRequest);
       
       // Advance timers to trigger retry
       await jest.advanceTimersByTimeAsync(100);
@@ -219,9 +219,8 @@ describe('HttpAIServiceAdapter', () => {
         text: async () => 'Invalid request format'
       });
       
-      await expect(async () => {
-        await adapter.generateContent(mockRequest);
-      }).rejects.toThrow();
+      await expect(adapter.sendRequest(mockRequest))
+        .rejects.toThrow('Invalid request to AI service');
       
       // Should only call once (no retry)
       expect(mockFetch).toHaveBeenCalledTimes(1);
