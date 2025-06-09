@@ -2,8 +2,7 @@ const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServ
 const { 
   AIRequest,
   AIContent,
-  AIModel,
-  AIRequestId
+  AIModel
 } = require('../../../../src/domain/ai');
 const { PersonalityId } = require('../../../../src/domain/personality');
 const { UserId } = require('../../../../src/domain/personality');
@@ -30,12 +29,13 @@ describe('HttpAIServiceAdapter', () => {
     
     // Create adapter with test config
     adapter = new HttpAIServiceAdapter({
-      baseUrl: 'https://test-ai-service.com',
+      baseUrl: 'https://api.example.com',
       headers: { 'X-API-Key': 'test-key' },
       timeout: 5000,
       maxRetries: 2,
       retryDelay: 100,
-      fetch: mockFetch
+      fetch: mockFetch,
+      delay: (_ms) => Promise.resolve() // Instant delay for tests
     });
     
     // Mock logger methods
@@ -52,18 +52,32 @@ describe('HttpAIServiceAdapter', () => {
 
   describe('constructor', () => {
     it('should initialize with provided config', () => {
-      expect(adapter.baseUrl).toBe('https://test-ai-service.com');
+      expect(adapter.baseUrl).toBe('https://api.example.com');
       expect(adapter.headers).toEqual({ 'X-API-Key': 'test-key' });
       expect(adapter.timeout).toBe(5000);
       expect(adapter.maxRetries).toBe(2);
       expect(adapter.retryDelay).toBe(100);
     });
 
-    it('should use defaults when config not provided', () => {
+    it('should throw error when no base URL provided', () => {
+      // Ensure no environment variable
+      delete process.env.AI_SERVICE_URL;
+      
+      expect(() => new HttpAIServiceAdapter()).toThrow('AI service base URL is required');
+    });
+    
+    it('should use environment variable for base URL', () => {
+      // Set environment variable for test
+      process.env.AI_SERVICE_URL = 'https://default.example.com';
+      
       const defaultAdapter = new HttpAIServiceAdapter();
+      expect(defaultAdapter.baseUrl).toBe('https://default.example.com');
       expect(defaultAdapter.timeout).toBe(30000);
       expect(defaultAdapter.maxRetries).toBe(3);
       expect(defaultAdapter.retryDelay).toBe(1000);
+      
+      // Clean up
+      delete process.env.AI_SERVICE_URL;
     });
   });
 
@@ -79,7 +93,7 @@ describe('HttpAIServiceAdapter', () => {
       
       expect(result).toBe(true);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://test-ai-service.com/health',
+        'https://api.example.com/health',
         expect.objectContaining({
           method: 'GET',
           headers: { 'X-API-Key': 'test-key' }
@@ -152,7 +166,7 @@ describe('HttpAIServiceAdapter', () => {
       expect(result).toBeInstanceOf(AIContent);
       expect(result.getText()).toBe('Hello from AI!');
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://test-ai-service.com/generate',
+        'https://api.example.com/generate',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
@@ -224,7 +238,7 @@ describe('HttpAIServiceAdapter', () => {
       const stats = adapter.getStats();
       
       expect(stats).toEqual({
-        baseUrl: 'https://test-ai-service.com',
+        baseUrl: 'https://api.example.com',
         timeout: 5000,
         maxRetries: 2,
         healthy: true,
