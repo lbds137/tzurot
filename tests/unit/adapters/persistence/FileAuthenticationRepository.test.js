@@ -714,16 +714,34 @@ describe('FileAuthenticationRepository', () => {
     });
     
     it('should be called periodically by timer', async () => {
-      await repository.initialize();
+      // Mock setInterval to capture the callback
+      let intervalCallback;
+      const mockSetInterval = jest.fn((callback, interval) => {
+        intervalCallback = callback;
+        return 123; // Return a fake timer ID
+      });
+      
+      // Create repository with mocked timer
+      repository = new FileAuthenticationRepository({
+        dataPath: './test-data',
+        filename: 'test-auth.json',
+        tokenCleanupInterval: 1000,
+        setInterval: mockSetInterval,
+      });
       
       // Spy on cleanup method
       const cleanupSpy = jest.spyOn(repository, '_cleanupExpiredTokens');
       
-      // Advance timer
-      jest.advanceTimersByTime(1000);
+      await repository.initialize();
       
-      // Wait for async cleanup to complete
-      await Promise.resolve();
+      // Verify setInterval was called
+      expect(mockSetInterval).toHaveBeenCalledWith(expect.any(Function), 1000);
+      
+      // Clear the spy calls from initialization
+      cleanupSpy.mockClear();
+      
+      // Call the interval callback directly
+      await intervalCallback();
       
       expect(cleanupSpy).toHaveBeenCalledTimes(1);
     });
