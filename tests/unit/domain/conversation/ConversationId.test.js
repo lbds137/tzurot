@@ -1,10 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * ConversationId Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests conversation ID creation and validation
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { ConversationId } = require('../../../../src/domain/conversation/ConversationId');
 
 describe('ConversationId', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // No console mocking needed for pure domain tests
+  });
+  
   describe('constructor', () => {
     it('should create ConversationId with valid userId and channelId', () => {
       const userId = '123456789012345678';
@@ -94,7 +108,7 @@ describe('ConversationId', () => {
       
       expect(json).toEqual({
         userId: '123456789012345678',
-        channelId: 'general',
+        channelId: 'general'
       });
     });
   });

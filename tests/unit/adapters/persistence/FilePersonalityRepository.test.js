@@ -1,16 +1,39 @@
+/**
+ * @jest-environment node
+ * @testType adapter
+ * 
+ * FilePersonalityRepository Adapter Test
+ * - Tests file system persistence adapter for personalities
+ * - Mocks external dependencies (fs, logger)
+ * - Domain models are NOT mocked (real integration)
+ */
+
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Mock external dependencies first
 jest.mock('fs', () => ({
   promises: {
     mkdir: jest.fn(),
     readFile: jest.fn(),
     writeFile: jest.fn(),
-    rename: jest.fn(),
+    rename: jest.fn()
   }
 }));
-jest.mock('../../../../src/logger');
+
+jest.mock('../../../../src/logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn()
+}));
 
 const fs = require('fs').promises;
 const path = require('path');
+
+// Adapter under test - NOT mocked!
 const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
+
+// Domain models - NOT mocked! We want real domain logic
 const { 
   Personality, 
   PersonalityId, 
@@ -40,24 +63,25 @@ describe('FilePersonalityRepository', () => {
             bio: 'Test bio',
             systemPrompt: 'Test prompt',
             temperature: 0.7,
-            maxTokens: 1000,
+            maxTokens: 1000
           },
           aliases: ['test', 'testy'],
-          savedAt: '2024-01-01T00:00:00.000Z',
-        },
+          savedAt: '2024-01-01T00:00:00.000Z'
+        }
       },
       aliases: {
         'test': 'test-personality',
-        'testy': 'test-personality',
-      },
+        'testy': 'test-personality'
+      }
     };
     
-    // Mock fs methods
+    // Mock fs methods with test data
     fs.mkdir.mockResolvedValue();
     fs.readFile.mockResolvedValue(JSON.stringify(mockFileData));
     fs.writeFile.mockResolvedValue();
     fs.rename.mockResolvedValue();
     
+    // Create repository with injectable dependencies
     repository = new FilePersonalityRepository({
       dataPath: './test-data',
       filename: 'test-personalities.json',
@@ -122,6 +146,7 @@ describe('FilePersonalityRepository', () => {
     it('should save a personality', async () => {
       await repository.initialize();
       
+      // Create real domain objects
       const personality = Personality.create(
         new PersonalityId('new-personality'),
         new UserId('456789012345678901')
@@ -142,10 +167,12 @@ describe('FilePersonalityRepository', () => {
       
       await repository.save(personality);
       
+      // Verify cache updated
       expect(repository._cache.personalities['new-personality']).toBeDefined();
       expect(repository._cache.personalities['new-personality'].profile.displayName).toBe('New Personality');
       expect(repository._cache.aliases['newbie']).toBe('new-personality');
       
+      // Verify file written
       expect(fs.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('.tmp'),
         expect.stringContaining('new-personality'),
@@ -157,6 +184,7 @@ describe('FilePersonalityRepository', () => {
     it('should update existing personality', async () => {
       await repository.initialize();
       
+      // Fetch and update real domain object
       const existingPersonality = await repository.findById(new PersonalityId('test-personality'));
       existingPersonality.updateProfile(new PersonalityProfile({
         displayName: 'Updated Name',
@@ -201,6 +229,7 @@ describe('FilePersonalityRepository', () => {
       
       const result = await repository.findById(new PersonalityId('test-personality'));
       
+      // Verify returns real domain object
       expect(result).toBeInstanceOf(Personality);
       expect(result.personalityId.value).toBe('test-personality');
       expect(result.ownerId.value).toBe('123456789012345678');
@@ -243,6 +272,7 @@ describe('FilePersonalityRepository', () => {
       
       const results = await repository.findByOwner(new UserId('123456789012345678'));
       
+      // Verify returns real domain objects
       expect(results).toHaveLength(2);
       expect(results[0]).toBeInstanceOf(Personality);
       expect(results[1]).toBeInstanceOf(Personality);

@@ -1,24 +1,37 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Personality Events Test
+ * - Pure domain test with no external dependencies
+ * - Tests personality domain events
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const {
   PersonalityCreated,
   PersonalityProfileUpdated,
   PersonalityRemoved,
   PersonalityAliasAdded,
-  PersonalityAliasRemoved,
+  PersonalityAliasRemoved
 } = require('../../../../src/domain/personality/PersonalityEvents');
 const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
 
 describe('PersonalityEvents', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+  
   describe('PersonalityCreated', () => {
     it('should create event with valid payload', () => {
       const aggregateId = 'claude-3-opus';
       const payload = {
         personalityId: 'claude-3-opus',
         ownerId: '123456789012345678',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       };
       
       const event = new PersonalityCreated(aggregateId, payload);
@@ -33,7 +46,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing personalityId', () => {
       const payload = {
         ownerId: '123456789012345678',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityCreated('id', payload))
@@ -43,7 +56,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing ownerId', () => {
       const payload = {
         personalityId: 'claude-3-opus',
-        createdAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityCreated('id', payload))
@@ -53,7 +66,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing createdAt', () => {
       const payload = {
         personalityId: 'claude-3-opus',
-        ownerId: '123456789012345678',
+        ownerId: '123456789012345678'
       };
       
       expect(() => new PersonalityCreated('id', payload))
@@ -64,7 +77,7 @@ describe('PersonalityEvents', () => {
       const event = new PersonalityCreated('claude-3-opus', {
         personalityId: 'claude-3-opus',
         ownerId: '123456789012345678',
-        createdAt: '2024-01-01T00:00:00.000Z',
+        createdAt: '2024-01-01T00:00:00.000Z'
       });
       
       const json = event.toJSON();
@@ -75,8 +88,8 @@ describe('PersonalityEvents', () => {
         payload: {
           personalityId: 'claude-3-opus',
           ownerId: '123456789012345678',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
+          createdAt: '2024-01-01T00:00:00.000Z'
+        }
       });
       expect(json.eventId).toBeDefined();
       expect(json.occurredAt).toBeDefined();
@@ -90,9 +103,9 @@ describe('PersonalityEvents', () => {
         profile: {
           displayName: 'Claude 3 Opus',
           avatarUrl: 'https://example.com/avatar.png',
-          errorMessage: 'Custom error',
+          errorMessage: 'Custom error'
         },
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       
       const event = new PersonalityProfileUpdated(aggregateId, payload);
@@ -105,7 +118,7 @@ describe('PersonalityEvents', () => {
     
     it('should reject missing profile', () => {
       const payload = {
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityProfileUpdated('id', payload))
@@ -114,7 +127,7 @@ describe('PersonalityEvents', () => {
     
     it('should reject missing updatedAt', () => {
       const payload = {
-        profile: { displayName: 'Test' },
+        profile: { displayName: 'Test' }
       };
       
       expect(() => new PersonalityProfileUpdated('id', payload))
@@ -124,7 +137,7 @@ describe('PersonalityEvents', () => {
     it('should accept empty profile object', () => {
       const payload = {
         profile: {},
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityProfileUpdated('id', payload)).not.toThrow();
@@ -136,7 +149,7 @@ describe('PersonalityEvents', () => {
       const aggregateId = 'claude-3-opus';
       const payload = {
         removedBy: '123456789012345678',
-        removedAt: new Date().toISOString(),
+        removedAt: new Date().toISOString()
       };
       
       const event = new PersonalityRemoved(aggregateId, payload);
@@ -149,7 +162,7 @@ describe('PersonalityEvents', () => {
     
     it('should reject missing removedBy', () => {
       const payload = {
-        removedAt: new Date().toISOString(),
+        removedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityRemoved('id', payload))
@@ -158,7 +171,7 @@ describe('PersonalityEvents', () => {
     
     it('should reject missing removedAt', () => {
       const payload = {
-        removedBy: '123456789012345678',
+        removedBy: '123456789012345678'
       };
       
       expect(() => new PersonalityRemoved('id', payload))
@@ -172,7 +185,7 @@ describe('PersonalityEvents', () => {
       const payload = {
         alias: 'claude',
         addedBy: '123456789012345678',
-        addedAt: new Date().toISOString(),
+        addedAt: new Date().toISOString()
       };
       
       const event = new PersonalityAliasAdded(aggregateId, payload);
@@ -186,7 +199,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing alias', () => {
       const payload = {
         addedBy: '123456789012345678',
-        addedAt: new Date().toISOString(),
+        addedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityAliasAdded('id', payload))
@@ -196,7 +209,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing addedBy', () => {
       const payload = {
         alias: 'claude',
-        addedAt: new Date().toISOString(),
+        addedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityAliasAdded('id', payload))
@@ -206,7 +219,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing addedAt', () => {
       const payload = {
         alias: 'claude',
-        addedBy: '123456789012345678',
+        addedBy: '123456789012345678'
       };
       
       expect(() => new PersonalityAliasAdded('id', payload))
@@ -217,7 +230,7 @@ describe('PersonalityEvents', () => {
       const payload = {
         alias: { value: 'claude', original: 'Claude' },
         addedBy: '123456789012345678',
-        addedAt: new Date().toISOString(),
+        addedAt: new Date().toISOString()
       };
       
       const event = new PersonalityAliasAdded('id', payload);
@@ -231,7 +244,7 @@ describe('PersonalityEvents', () => {
       const payload = {
         alias: 'claude',
         removedBy: '123456789012345678',
-        removedAt: new Date().toISOString(),
+        removedAt: new Date().toISOString()
       };
       
       const event = new PersonalityAliasRemoved(aggregateId, payload);
@@ -245,7 +258,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing alias', () => {
       const payload = {
         removedBy: '123456789012345678',
-        removedAt: new Date().toISOString(),
+        removedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityAliasRemoved('id', payload))
@@ -255,7 +268,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing removedBy', () => {
       const payload = {
         alias: 'claude',
-        removedAt: new Date().toISOString(),
+        removedAt: new Date().toISOString()
       };
       
       expect(() => new PersonalityAliasRemoved('id', payload))
@@ -265,7 +278,7 @@ describe('PersonalityEvents', () => {
     it('should reject missing removedAt', () => {
       const payload = {
         alias: 'claude',
-        removedBy: '123456789012345678',
+        removedBy: '123456789012345678'
       };
       
       expect(() => new PersonalityAliasRemoved('id', payload))
@@ -279,26 +292,26 @@ describe('PersonalityEvents', () => {
         new PersonalityCreated('id', {
           personalityId: 'test',
           ownerId: '123',
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         }),
         new PersonalityProfileUpdated('id', {
           profile: {},
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         }),
         new PersonalityRemoved('id', {
           removedBy: '123',
-          removedAt: new Date().toISOString(),
+          removedAt: new Date().toISOString()
         }),
         new PersonalityAliasAdded('id', {
           alias: 'test',
           addedBy: '123',
-          addedAt: new Date().toISOString(),
+          addedAt: new Date().toISOString()
         }),
         new PersonalityAliasRemoved('id', {
           alias: 'test',
           removedBy: '123',
-          removedAt: new Date().toISOString(),
-        }),
+          removedAt: new Date().toISOString()
+        })
       ];
       
       events.forEach(event => {
@@ -314,26 +327,26 @@ describe('PersonalityEvents', () => {
         PersonalityCreated: new PersonalityCreated('id', {
           personalityId: 'test',
           ownerId: '123',
-          createdAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
         }),
         PersonalityProfileUpdated: new PersonalityProfileUpdated('id', {
           profile: {},
-          updatedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         }),
         PersonalityRemoved: new PersonalityRemoved('id', {
           removedBy: '123',
-          removedAt: new Date().toISOString(),
+          removedAt: new Date().toISOString()
         }),
         PersonalityAliasAdded: new PersonalityAliasAdded('id', {
           alias: 'test',
           addedBy: '123',
-          addedAt: new Date().toISOString(),
+          addedAt: new Date().toISOString()
         }),
         PersonalityAliasRemoved: new PersonalityAliasRemoved('id', {
           alias: 'test',
           removedBy: '123',
-          removedAt: new Date().toISOString(),
-        }),
+          removedAt: new Date().toISOString()
+        })
       };
       
       Object.entries(eventTypes).forEach(([expectedType, event]) => {

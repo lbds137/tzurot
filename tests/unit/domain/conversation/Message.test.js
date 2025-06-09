@@ -1,11 +1,21 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * Message Entity Test
+ * - Pure domain test with no external dependencies
+ * - Tests conversation message entity
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { Message } = require('../../../../src/domain/conversation/Message');
 
 describe('Message', () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
   });

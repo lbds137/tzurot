@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * DomainEvent Base Class Test
+ * - Pure domain test with no external dependencies
+ * - Tests base event functionality and serialization
+ * - Uses fake timers for controlled time testing
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { DomainEvent } = require('../../../../src/domain/shared/DomainEvent');
 
 // Test event implementation
@@ -12,6 +21,15 @@ class TestEvent extends DomainEvent {
 }
 
 describe('DomainEvent', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.useFakeTimers();
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+  
   describe('constructor', () => {
     it('should create event with required properties', () => {
       const aggregateId = 'test-123';
@@ -74,7 +92,7 @@ describe('DomainEvent', () => {
         eventType: 'TestEvent',
         aggregateId: aggregateId,
         payload: payload,
-        occurredAt: event.occurredAt.toISOString(),
+        occurredAt: event.occurredAt.toISOString()
       });
     });
     
@@ -82,7 +100,7 @@ describe('DomainEvent', () => {
       const payload = {
         nested: { deep: { value: 'test' } },
         array: [1, 2, 3],
-        date: new Date('2024-01-01'),
+        date: new Date('2024-01-01')
       };
       const event = new TestEvent('test-123', payload);
       
@@ -112,7 +130,7 @@ describe('DomainEvent', () => {
         eventType: 'TestEvent',
         aggregateId: 'test-123',
         payload: { data: 'test' },
-        occurredAt: '2024-01-01T00:00:00.000Z',
+        occurredAt: '2024-01-01T00:00:00.000Z'
       };
       
       const event = TestEvent.fromJSON(json);
@@ -123,13 +141,13 @@ describe('DomainEvent', () => {
   });
   
   describe('event ordering', () => {
-    it('should maintain chronological order', async () => {
+    it('should maintain chronological order', () => {
       const events = [];
       
-      // Create events with small delays to ensure different timestamps
+      // Create events with controlled time advances
       for (let i = 0; i < 3; i++) {
         events.push(new TestEvent(`test-${i}`, { index: i }));
-        await new Promise(resolve => setTimeout(resolve, 10));
+        jest.advanceTimersByTime(10);
       }
       
       // Events should be in chronological order

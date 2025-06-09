@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AIRequestRepository Interface Test
+ * - Tests repository interface contract
+ * - Includes mock implementation example
+ * - Pure domain test with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { AIRequestRepository } = require('../../../../src/domain/ai/AIRequestRepository');
 const { AIRequest } = require('../../../../src/domain/ai/AIRequest');
 const { AIRequestId } = require('../../../../src/domain/ai/AIRequestId');
@@ -14,6 +23,7 @@ describe('AIRequestRepository', () => {
   let repository;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     repository = new AIRequestRepository();
   });
   
@@ -169,7 +179,7 @@ describe('AIRequestRepository', () => {
           completed: requests.filter(r => r.status === 'completed').length,
           failed: requests.filter(r => r.status === 'failed').length,
           pending: requests.filter(r => r.status === 'pending').length,
-          averageResponseTime: this._calculateAverageResponseTime(requests),
+          averageResponseTime: this._calculateAverageResponseTime(requests)
         };
       }
       
@@ -216,7 +226,7 @@ describe('AIRequestRepository', () => {
         userId,
         personalityId,
         content: AIContent.fromText('Test request'),
-        model: AIModel.createDefault(),
+        model: AIModel.createDefault()
       });
       
       // Test save
@@ -251,7 +261,7 @@ describe('AIRequestRepository', () => {
         completed: 1,
         failed: 0,
         pending: 0,
-        averageResponseTime: 1000,
+        averageResponseTime: 1000
       });
       
       // Test cleanup
@@ -271,7 +281,7 @@ describe('AIRequestRepository', () => {
         userId: new UserId('123456789012345678'),
         personalityId: new PersonalityId('test-personality'),
         content: AIContent.fromText('Test'),
-        model: AIModel.createDefault(),
+        model: AIModel.createDefault()
       });
       
       // No retryable initially

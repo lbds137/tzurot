@@ -1,10 +1,24 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * PersonalityProfile Value Object Test
+ * - Pure domain test with no external dependencies
+ * - Tests profile creation, updates, and validation
+ * - No mocking needed (testing the actual implementation)
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain model under test - NOT mocked!
 const { PersonalityProfile } = require('../../../../src/domain/personality/PersonalityProfile');
 
 describe('PersonalityProfile', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // No console mocking needed for pure domain tests
+  });
+  
   describe('constructor', () => {
     it('should create empty profile', () => {
       const profile = new PersonalityProfile({});
@@ -18,7 +32,7 @@ describe('PersonalityProfile', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude 3 Opus',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Custom error message',
+        errorMessage: 'Custom error message'
       });
       
       expect(profile.displayName).toBe('Claude 3 Opus');
@@ -28,7 +42,7 @@ describe('PersonalityProfile', () => {
     
     it('should create profile with partial fields', () => {
       const profile = new PersonalityProfile({
-        displayName: 'Claude',
+        displayName: 'Claude'
       });
       
       expect(profile.displayName).toBe('Claude');
@@ -38,19 +52,19 @@ describe('PersonalityProfile', () => {
     
     it('should validate display name type', () => {
       expect(() => new PersonalityProfile({
-        displayName: 123,
+        displayName: 123
       })).toThrow('Display name must be a string');
     });
     
     it('should validate avatar URL type', () => {
       expect(() => new PersonalityProfile({
-        avatarUrl: true,
+        avatarUrl: true
       })).toThrow('Avatar URL must be a string');
     });
     
     it('should validate error message type', () => {
       expect(() => new PersonalityProfile({
-        errorMessage: {},
+        errorMessage: {}
       })).toThrow('Error message must be a string');
     });
   });
@@ -59,7 +73,7 @@ describe('PersonalityProfile', () => {
     it('should create new profile with updated display name', () => {
       const original = new PersonalityProfile({
         displayName: 'Original',
-        avatarUrl: 'https://example.com/avatar.png',
+        avatarUrl: 'https://example.com/avatar.png'
       });
       
       const updated = original.withDisplayName('Updated');
@@ -74,7 +88,7 @@ describe('PersonalityProfile', () => {
       const original = new PersonalityProfile({
         displayName: 'Test',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error',
+        errorMessage: 'Error'
       });
       
       const updated = original.withDisplayName('New Name');
@@ -88,7 +102,7 @@ describe('PersonalityProfile', () => {
     it('should create new profile with updated avatar URL', () => {
       const original = new PersonalityProfile({
         displayName: 'Claude',
-        avatarUrl: 'https://old.com/avatar.png',
+        avatarUrl: 'https://old.com/avatar.png'
       });
       
       const updated = original.withAvatarUrl('https://new.com/avatar.png');
@@ -104,7 +118,7 @@ describe('PersonalityProfile', () => {
     it('should create new profile with updated error message', () => {
       const original = new PersonalityProfile({
         displayName: 'Claude',
-        errorMessage: 'Old error',
+        errorMessage: 'Old error'
       });
       
       const updated = original.withErrorMessage('New error');
@@ -121,7 +135,7 @@ describe('PersonalityProfile', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       });
       
       expect(profile.isComplete()).toBe(true);
@@ -130,7 +144,7 @@ describe('PersonalityProfile', () => {
     it('should return false when missing display name', () => {
       const profile = new PersonalityProfile({
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       });
       
       expect(profile.isComplete()).toBe(false);
@@ -139,7 +153,7 @@ describe('PersonalityProfile', () => {
     it('should return false when missing avatar URL', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       });
       
       expect(profile.isComplete()).toBe(false);
@@ -148,7 +162,7 @@ describe('PersonalityProfile', () => {
     it('should return false when missing error message', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude',
-        avatarUrl: 'https://example.com/avatar.png',
+        avatarUrl: 'https://example.com/avatar.png'
       });
       
       expect(profile.isComplete()).toBe(false);
@@ -166,25 +180,25 @@ describe('PersonalityProfile', () => {
       const profile = new PersonalityProfile({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       });
       
       expect(profile.toJSON()).toEqual({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       });
     });
     
     it('should serialize null fields', () => {
       const profile = new PersonalityProfile({
-        displayName: 'Claude',
+        displayName: 'Claude'
       });
       
       expect(profile.toJSON()).toEqual({
         displayName: 'Claude',
         avatarUrl: null,
-        errorMessage: null,
+        errorMessage: null
       });
     });
   });
@@ -205,7 +219,7 @@ describe('PersonalityProfile', () => {
       const data = {
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message',
+        errorMessage: 'Error message'
       };
       
       const profile = PersonalityProfile.fromJSON(data);
@@ -236,7 +250,7 @@ describe('PersonalityProfile', () => {
     
     it('should handle partial data', () => {
       const profile = PersonalityProfile.fromJSON({
-        displayName: 'Claude',
+        displayName: 'Claude'
       });
       
       expect(profile.displayName).toBe('Claude');
@@ -250,13 +264,13 @@ describe('PersonalityProfile', () => {
       const profile1 = new PersonalityProfile({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error',
+        errorMessage: 'Error'
       });
       
       const profile2 = new PersonalityProfile({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error',
+        errorMessage: 'Error'
       });
       
       expect(profile1.equals(profile2)).toBe(true);

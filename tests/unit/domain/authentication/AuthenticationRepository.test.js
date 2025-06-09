@@ -1,7 +1,16 @@
 /**
  * @jest-environment node
+ * @testType domain
+ * 
+ * AuthenticationRepository Interface Test
+ * - Tests repository interface contract
+ * - Includes mock implementation example
+ * - Pure domain test with no external dependencies
  */
 
+const { dddPresets } = require('../../../__mocks__/ddd');
+
+// Domain models under test - NOT mocked!
 const { AuthenticationRepository } = require('../../../../src/domain/authentication/AuthenticationRepository');
 const { UserAuth } = require('../../../../src/domain/authentication/UserAuth');
 const { UserId } = require('../../../../src/domain/personality/UserId');
@@ -12,6 +21,7 @@ describe('AuthenticationRepository', () => {
   let repository;
   
   beforeEach(() => {
+    jest.clearAllMocks();
     repository = new AuthenticationRepository();
   });
   
