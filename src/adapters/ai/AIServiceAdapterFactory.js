@@ -76,53 +76,10 @@ class AIServiceAdapterFactory {
       retryDelay: options.retryDelay || 1000,
       
       // OpenAI-specific request transformation
-      transformRequest: (request) => {
-        const messages = request.messages.map(msg => ({
-          role: msg.isFromUser ? 'user' : 'assistant',
-          content: msg.content
-        }));
-        
-        // Add system message with personality
-        if (request.context.personalityName) {
-          messages.unshift({
-            role: 'system',
-            content: `You are ${request.context.personalityName}.`
-          });
-        }
-        
-        return {
-          endpoint: options.endpoint || '/v1/chat/completions',
-          payload: {
-            model: request.model.name || options.defaultModel || 'gpt-3.5-turbo',
-            messages,
-            temperature: request.model.temperature,
-            max_tokens: request.model.maxTokens,
-            top_p: request.model.topP,
-            user: request.context.userId,
-            ...request.model.additionalParameters
-          }
-        };
-      },
+      transformRequest: this._createOpenAIRequestTransform(options),
       
       // OpenAI-specific response transformation
-      transformResponse: async (apiResponse) => {
-        if (!apiResponse.choices || !apiResponse.choices[0]) {
-          throw new Error('Invalid OpenAI response format');
-        }
-        
-        const choice = apiResponse.choices[0];
-        const content = choice.message?.content || '';
-        
-        return new AIContent({
-          text: content,
-          metadata: {
-            finishReason: choice.finish_reason,
-            usage: apiResponse.usage,
-            model: apiResponse.model,
-            id: apiResponse.id
-          }
-        });
-      },
+      transformResponse: this._createOpenAIResponseTransform(),
       
       ...options
     });
@@ -148,57 +105,10 @@ class AIServiceAdapterFactory {
       retryDelay: options.retryDelay || 1000,
       
       // Anthropic-specific request transformation
-      transformRequest: (request) => {
-        const messages = request.messages.map(msg => ({
-          role: msg.isFromUser ? 'user' : 'assistant',
-          content: msg.content
-        }));
-        
-        // Build system prompt with personality
-        let system = '';
-        if (request.context.personalityName) {
-          system = `You are ${request.context.personalityName}.`;
-        }
-        if (request.context.systemPrompt) {
-          system = system ? `${system}\n\n${request.context.systemPrompt}` : request.context.systemPrompt;
-        }
-        
-        return {
-          endpoint: options.endpoint || '/v1/messages',
-          payload: {
-            model: request.model.name || options.defaultModel || 'claude-3-sonnet-20240229',
-            messages,
-            system,
-            temperature: request.model.temperature,
-            max_tokens: request.model.maxTokens || 1000,
-            metadata: {
-              user_id: request.context.userId
-            },
-            ...request.model.additionalParameters
-          }
-        };
-      },
+      transformRequest: this._createAnthropicRequestTransform(options),
       
       // Anthropic-specific response transformation
-      transformResponse: async (apiResponse) => {
-        if (!apiResponse.content || !Array.isArray(apiResponse.content)) {
-          throw new Error('Invalid Anthropic response format');
-        }
-        
-        // Extract text from content blocks
-        const textBlocks = apiResponse.content.filter(block => block.type === 'text');
-        const text = textBlocks.map(block => block.text).join('\n');
-        
-        return new AIContent({
-          text: text,
-          metadata: {
-            id: apiResponse.id,
-            model: apiResponse.model,
-            stopReason: apiResponse.stop_reason,
-            usage: apiResponse.usage
-          }
-        });
-      },
+      transformResponse: this._createAnthropicResponseTransform(),
       
       ...options
     });
@@ -224,6 +134,132 @@ class AIServiceAdapterFactory {
     };
     
     return this.create({ provider, baseUrl, apiKey, options });
+  }
+  
+  /**
+   * Create OpenAI request transformation function
+   * @private
+   */
+  static _createOpenAIRequestTransform(options) {
+    return (request) => {
+      const requestData = request.toJSON();
+      const messages = [];
+      
+      // Add system message with personality
+      if (requestData.personalityId) {
+        messages.push({
+          role: 'system',
+          content: `You are personality ${requestData.personalityId}.`
+        });
+      }
+      
+      // Convert content to messages
+      if (requestData.content && requestData.content.length > 0) {
+        const userContent = requestData.content
+          .filter(item => item.type === 'text')
+          .map(item => item.text)
+          .join('\n');
+        
+        if (userContent) {
+          messages.push({ role: 'user', content: userContent });
+        }
+      }
+      
+      return {
+        endpoint: options.endpoint || '/v1/chat/completions',
+        payload: {
+          model: requestData.model.path || options.defaultModel || 'gpt-3.5-turbo',
+          messages,
+          temperature: requestData.model.capabilities.temperature,
+          max_tokens: requestData.model.capabilities.maxTokens,
+          user: requestData.userId
+        }
+      };
+    };
+  }
+  
+  /**
+   * Create OpenAI response transformation function
+   * @private
+   */
+  static _createOpenAIResponseTransform() {
+    return async (apiResponse) => {
+      if (!apiResponse.choices || !apiResponse.choices[0]) {
+        throw new Error('Invalid OpenAI response format');
+      }
+      
+      const choice = apiResponse.choices[0];
+      const content = choice.message?.content || '';
+      
+      // Return AIContent with array of items
+      return new AIContent([
+        { type: 'text', text: content }
+      ]);
+    };
+  }
+  
+  /**
+   * Create Anthropic request transformation function
+   * @private
+   */
+  static _createAnthropicRequestTransform(options) {
+    return (request) => {
+      const requestData = request.toJSON();
+      const messages = [];
+      let system = '';
+      
+      // Build system prompt with personality
+      if (requestData.personalityId) {
+        system = `You are personality ${requestData.personalityId}.`;
+      }
+      
+      // Convert content to messages
+      if (requestData.content && requestData.content.length > 0) {
+        const userContent = requestData.content
+          .filter(item => item.type === 'text')
+          .map(item => item.text)
+          .join('\n');
+        
+        if (userContent) {
+          messages.push({ role: 'user', content: userContent });
+        }
+      }
+      
+      return {
+        endpoint: options.endpoint || '/v1/messages',
+        payload: {
+          model: requestData.model.path || options.defaultModel || 'claude-3-sonnet-20240229',
+          messages,
+          system,
+          temperature: requestData.model.capabilities.temperature,
+          max_tokens: requestData.model.capabilities.maxTokens || 1000,
+          metadata: {
+            user_id: requestData.userId
+          }
+        }
+      };
+    };
+  }
+  
+  /**
+   * Create Anthropic response transformation function
+   * @private
+   */
+  static _createAnthropicResponseTransform() {
+    return async (apiResponse) => {
+      if (!apiResponse.content || !Array.isArray(apiResponse.content)) {
+        throw new Error('Invalid Anthropic response format');
+      }
+      
+      // Extract text from content blocks
+      const textBlocks = apiResponse.content.filter(block => block.type === 'text');
+      const text = textBlocks.map(block => block.text).join('\n');
+      
+      // Return AIContent with array of items
+      return new AIContent([
+        { type: 'text', text: text }
+      ]);
+    };
   }
 }
 

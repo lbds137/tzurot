@@ -1,40 +1,43 @@
 const { AIService } = require('../../domain/ai');
 const { 
   AIRequest,
-  AIContent,
-  AIModel,
-  AIRequestId
+  AIContent
 } = require('../../domain/ai');
 const logger = require('../../logger');
 const nodeFetch = require('node-fetch');
 
 /**
- * HttpAIServiceAdapter - HTTP-based implementation of AIService
+ * HTTP-based implementation of AIService
+ * Uses HTTP/REST API to communicate with AI providers
  * 
- * This adapter provides a generic HTTP interface to external AI services.
- * It transforms domain requests into HTTP API calls and converts responses
- * back to domain models. The adapter is provider-agnostic and can work
- * with any HTTP-based AI API by configuration.
+ * Features:
+ * - Configurable base URL and headers
+ * - Automatic retry with exponential backoff
+ * - Request/Response transformation hooks
+ * - Health check support
+ * - Request statistics
  * 
  * @implements {AIService}
  */
 class HttpAIServiceAdapter extends AIService {
   /**
-   * @param {Object} config
-   * @param {string} config.baseUrl - Base URL of the AI service
-   * @param {Object} config.headers - Default headers for requests
-   * @param {number} config.timeout - Request timeout in ms
-   * @param {number} config.maxRetries - Maximum retry attempts
-   * @param {number} config.retryDelay - Initial retry delay in ms
-   * @param {Function} config.transformRequest - Transform domain request to API format
-   * @param {Function} config.transformResponse - Transform API response to domain format
+   * @param {Object} config - Adapter configuration
+   * @param {string} [config.baseUrl] - Base URL for the AI service
+   * @param {Object} [config.headers] - Default headers to include
+   * @param {number} [config.timeout] - Request timeout in milliseconds
+   * @param {number} [config.maxRetries] - Maximum retry attempts
+   * @param {number} [config.retryDelay] - Initial retry delay in milliseconds
+   * @param {Function} [config.transformRequest] - Request transformation function
+   * @param {Function} [config.transformResponse] - Response transformation function
+   * @param {Function} [config.fetch] - HTTP client function (for testing)
+   * @param {Function} [config.delay] - Delay function (for testing)
    */
   constructor(config = {}) {
     super();
     
     this.baseUrl = config.baseUrl || process.env.AI_SERVICE_URL;
     this.headers = config.headers || {};
-    this.timeout = config.timeout || 30000; // 30 seconds
+    this.timeout = config.timeout || 30000;
     this.maxRetries = config.maxRetries || 3;
     this.retryDelay = config.retryDelay || 1000;
     
@@ -45,53 +48,57 @@ class HttpAIServiceAdapter extends AIService {
     // HTTP client function (injectable for testing)
     this.fetch = config.fetch || nodeFetch;
     
+    // Injectable delay function for testing
+    this.delay = config.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    
     // Request statistics
     this._requestCount = 0;
     this._errorCount = 0;
-    this._lastHealthCheck = false;
+    this._lastHealthCheck = null;
+    
+    // Validate configuration
+    if (!this.baseUrl) {
+      throw new Error('AI service base URL is required');
+    }
   }
 
   /**
    * Send a request to the AI service
-   * @param {AIRequest} request - Domain request object
-   * @returns {Promise<AIContent>} AI-generated content
+   * @param {AIRequest} request - The request to send
+   * @returns {Promise<AIContent>} The AI response
+   * @throws {Error} If the request fails
    */
-  async generateContent(request) {
+  async sendRequest(request) {
     if (!(request instanceof AIRequest)) {
-      throw new Error('Invalid AIRequest object');
+      throw new Error('Request must be an instance of AIRequest');
     }
     
-    const requestId = request.requestId.toString();
-    logger.debug(`[HttpAIServiceAdapter] Processing request: ${requestId}`);
+    const requestId = request.id.value;
     
     try {
+      logger.info(`[HttpAIServiceAdapter] Sending request ${requestId}`);
+      this._requestCount++;
+      
       // Transform domain request to API format
-      const apiRequest = await this.transformRequest(request);
+      const { endpoint, payload, headers = {} } = await this.transformRequest(request);
       
-      // Default headers
-      const headers = { ...this.headers };
-      
-      // Make HTTP request with retries
-      const response = await this._makeRequestWithRetry(
-        apiRequest.endpoint || '/generate',
-        apiRequest.payload,
-        headers,
-        requestId
-      );
+      // Make HTTP request with retry
+      const apiResponse = await this._makeRequestWithRetry(endpoint, payload, headers, requestId);
       
       // Transform API response to domain format
-      const content = await this.transformResponse(response.data, request);
+      const content = await this.transformResponse(apiResponse);
       
       if (!(content instanceof AIContent)) {
-        throw new Error('Response transformation did not produce valid AIContent');
+        throw new Error('Transform response must return an AIContent instance');
       }
       
-      logger.info(`[HttpAIServiceAdapter] Successfully processed request: ${requestId}`);
+      logger.info(`[HttpAIServiceAdapter] Request ${requestId} completed successfully`);
       return content;
       
     } catch (error) {
-      logger.error(`[HttpAIServiceAdapter] Failed to process request ${requestId}:`, error);
-      throw this._transformError(error, requestId);
+      this._errorCount++;
+      logger.error(`[HttpAIServiceAdapter] Request ${requestId} failed:`, error);
+      throw this._transformError(error);
     }
   }
 
@@ -102,16 +109,23 @@ class HttpAIServiceAdapter extends AIService {
   async checkHealth() {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
       
-      const response = await this.fetch(`${this.baseUrl}/health`, {
+      // Create a promise that rejects after timeout
+      const timeoutPromise = this.delay(5000).then(() => {
+        controller.abort();
+        throw new Error('Health check timed out');
+      });
+      
+      const fetchPromise = this.fetch(`${this.baseUrl}/health`, {
         method: 'GET',
         headers: this.headers,
         signal: controller.signal
       });
       
-      clearTimeout(timeout);
-      this._lastHealthCheck = response.status === 200;
+      // Race between fetch and timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
+      
+      this._lastHealthCheck = response && response.status === 200;
       return this._lastHealthCheck;
     } catch (error) {
       logger.warn('[HttpAIServiceAdapter] Health check failed:', error.message);
@@ -133,10 +147,15 @@ class HttpAIServiceAdapter extends AIService {
         
         // Create timeout controller
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), this.timeout);
+        
+        // Create a promise that rejects after timeout
+        const timeoutPromise = this.delay(this.timeout).then(() => {
+          controller.abort();
+          throw new Error(`Request timed out after ${this.timeout}ms`);
+        });
         
         // Make request
-        const response = await this.fetch(`${this.baseUrl}${endpoint}`, {
+        const fetchPromise = this.fetch(`${this.baseUrl}${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -147,7 +166,8 @@ class HttpAIServiceAdapter extends AIService {
           signal: controller.signal
         });
         
-        clearTimeout(timeout);
+        // Race between fetch and timeout
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
         
         // Check response status
         if (!response.ok) {
@@ -161,7 +181,9 @@ class HttpAIServiceAdapter extends AIService {
           // Try to parse JSON error
           try {
             error.response.data = JSON.parse(error.response.data);
-          } catch {} // Ignore parse errors
+          } catch (_parseError) {
+            // Ignore parse errors, keep original string
+          }
           
           throw error;
         }
@@ -174,30 +196,26 @@ class HttpAIServiceAdapter extends AIService {
           throw new Error('Empty response from AI service');
         }
         
-        this._requestCount++;
-        return { data, status: response.status };
+        return data;
         
       } catch (error) {
-        this._errorCount++;
         lastError = error;
-        
-        // Handle abort errors
-        if (error.name === 'AbortError') {
-          lastError = new Error('Request timeout');
-          lastError.code = 'ECONNABORTED';
-        }
         
         // Don't retry on client errors (4xx)
         if (error.response && error.response.status >= 400 && error.response.status < 500) {
           throw error;
         }
         
-        // Check if we should retry
-        if (attempt < this.maxRetries) {
-          const delay = this.retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-          logger.warn(`[HttpAIServiceAdapter] Request ${requestId} failed, retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+        // Don't retry on last attempt
+        if (attempt === this.maxRetries) {
+          throw error;
         }
+        
+        // Calculate exponential backoff
+        const delay = this.retryDelay * Math.pow(2, attempt - 1);
+        logger.warn(`[HttpAIServiceAdapter] Request ${requestId} attempt ${attempt} failed, retrying in ${delay}ms...`);
+        
+        await this.delay(delay);
       }
     }
     
@@ -206,188 +224,193 @@ class HttpAIServiceAdapter extends AIService {
 
   /**
    * Default request transformation
+   * Override this or provide transformRequest in config for provider-specific formats
    * @private
    */
   _defaultRequestTransform(request) {
-    // Extract data from domain model
+    // Extract data from domain objects
     const requestData = request.toJSON();
     
-    // Transform content items to messages format
+    // Build messages array (common format)
     const messages = [];
     
-    // Add user message from content
+    // Add personality as system message if present
+    if (requestData.personalityId) {
+      messages.push({
+        role: 'system',
+        content: `You are personality ${requestData.personalityId}.`
+      });
+    }
+    
+    // Convert content items to messages
     if (requestData.content && requestData.content.length > 0) {
-      const userMessage = {
-        role: 'user',
-        content: []
-      };
-      
-      // Process each content item
       for (const item of requestData.content) {
         if (item.type === 'text') {
-          userMessage.content.push({
-            type: 'text',
-            text: item.text
+          messages.push({
+            role: 'user',
+            content: item.text
           });
-        } else if (item.type === 'image_url') {
-          userMessage.content.push({
-            type: 'image',
-            url: item.image_url.url
+        } else if (item.type === 'image') {
+          // Handle image content
+          messages.push({
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: item.url } }
+            ]
           });
-        } else if (item.type === 'audio_url') {
-          userMessage.content.push({
-            type: 'audio',
-            url: item.audio_url.url
-          });
+        } else if (item.type === 'audio') {
+          // Handle audio content - provider specific
+          logger.warn('[HttpAIServiceAdapter] Audio content not supported in default transform');
         }
       }
-      
-      messages.push(userMessage);
     }
     
-    // Add referenced content if present
-    if (requestData.referencedContent && requestData.referencedContent.length > 0) {
-      const assistantMessage = {
-        role: 'assistant',
-        content: []
-      };
-      
-      for (const item of requestData.referencedContent) {
-        if (item.type === 'text') {
-          assistantMessage.content.push({
-            type: 'text',
-            text: item.text
-          });
-        }
-      }
-      
-      messages.push(assistantMessage);
-    }
-    
-    // Default transformation for a generic AI API
+    // Build generic request format
     return {
-      endpoint: '/generate',
+      endpoint: '/v1/chat/completions', // Common endpoint
       payload: {
-        model: requestData.model.path,
-        messages: messages,
-        parameters: {
-          temperature: requestData.model.capabilities.temperature,
-          maxTokens: requestData.model.capabilities.maxTokens,
-        },
-        context: {
-          personality: requestData.personalityId,
-          user: requestData.userId,
-          requestId: requestData.requestId
+        model: requestData.model.path || 'default-model',
+        messages,
+        temperature: requestData.model.capabilities.temperature,
+        max_tokens: requestData.model.capabilities.maxTokens,
+        user: requestData.userId,
+        metadata: {
+          requestId: requestData.id,
+          conversationId: requestData.conversationId
         }
-      }
+      },
+      headers: {}
     };
   }
 
   /**
    * Default response transformation
+   * Override this or provide transformResponse in config for provider-specific formats
    * @private
    */
-  async _defaultResponseTransform(apiResponse, originalRequest) {
-    // Handle various response formats
-    let text = '';
-    const contentItems = [];
+  async _defaultResponseTransform(apiResponse) {
+    // Handle common response formats
+    let content = '';
+    let metadata = {};
     
-    if (typeof apiResponse === 'string') {
-      text = apiResponse;
-    } else if (apiResponse.content) {
-      text = apiResponse.content;
-    } else if (apiResponse.message) {
-      text = apiResponse.message;
-    } else if (apiResponse.text) {
-      text = apiResponse.text;
-    } else if (apiResponse.choices && apiResponse.choices[0]) {
-      // OpenAI-style response
+    // OpenAI-style format
+    if (apiResponse.choices && Array.isArray(apiResponse.choices)) {
       const choice = apiResponse.choices[0];
-      text = choice.message?.content || choice.text || '';
+      content = choice.message?.content || choice.text || '';
+      metadata = {
+        finishReason: choice.finish_reason,
+        usage: apiResponse.usage,
+        model: apiResponse.model
+      };
+    }
+    // Anthropic-style format
+    else if (apiResponse.content && Array.isArray(apiResponse.content)) {
+      const textBlocks = apiResponse.content.filter(block => block.type === 'text');
+      content = textBlocks.map(block => block.text).join('\n');
+      metadata = {
+        id: apiResponse.id,
+        model: apiResponse.model,
+        stopReason: apiResponse.stop_reason,
+        usage: apiResponse.usage
+      };
+    }
+    // Simple format
+    else if (apiResponse.text || apiResponse.response || apiResponse.message) {
+      content = apiResponse.text || apiResponse.response || apiResponse.message;
+      metadata = apiResponse.metadata || {};
+    }
+    // Direct string response
+    else if (typeof apiResponse === 'string') {
+      content = apiResponse;
+    }
+    else {
+      throw new Error('Unsupported response format');
     }
     
-    // Add text content
-    if (text) {
-      contentItems.push({
-        type: 'text',
-        text: text.trim()
-      });
-    }
-    
-    // Extract media if present
-    if (apiResponse.media || apiResponse.attachments) {
-      const media = apiResponse.media || apiResponse.attachments;
-      if (Array.isArray(media) && media.length > 0) {
-        for (const item of media) {
-          if (item.type === 'image' && item.url) {
-            contentItems.push({
-              type: 'image_url',
-              image_url: { url: item.url }
-            });
-          } else if (item.type === 'audio' && item.url) {
-            contentItems.push({
-              type: 'audio_url',
-              audio_url: { url: item.url }
-            });
-          }
-        }
-      }
-    }
-    
-    // Create AIContent from items array
-    return new AIContent(contentItems);
+    // Create AIContent with items array
+    return new AIContent([
+      { type: 'text', text: content }
+    ]);
   }
 
   /**
-   * Transform errors to domain-friendly format
+   * Transform errors to domain-specific exceptions
    * @private
    */
   _transformError(error) {
+    // Network errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      const err = new Error('AI service is unavailable');
+      err.code = 'SERVICE_UNAVAILABLE';
+      err.original = error;
+      return err;
+    }
+    
+    // Timeout errors
+    if (error.name === 'AbortError' || error.message.includes('timed out')) {
+      const err = new Error('AI service request timed out');
+      err.code = 'REQUEST_TIMEOUT';
+      err.original = error;
+      return err;
+    }
+    
+    // HTTP errors
     if (error.response) {
-      // API returned an error response
       const status = error.response.status;
       const data = error.response.data;
       
-      if (status === 401) {
-        return new Error('Authentication required');
-      } else if (status === 403) {
-        return new Error('Access forbidden');
-      } else if (status === 429) {
-        return new Error('Rate limit exceeded');
-      } else if (status >= 500) {
-        return new Error('AI service temporarily unavailable');
+      // Rate limiting
+      if (status === 429) {
+        const err = new Error('AI service rate limit exceeded');
+        err.code = 'RATE_LIMIT_EXCEEDED';
+        err.retryAfter = data?.retry_after;
+        err.original = error;
+        return err;
       }
       
-      // Try to extract error message from response
-      const message = data?.error?.message || data?.message || data?.error || 'AI service error';
-      return new Error(message);
+      // Authentication
+      if (status === 401 || status === 403) {
+        const err = new Error('AI service authentication failed');
+        err.code = 'AUTH_FAILED';
+        err.original = error;
+        return err;
+      }
+      
+      // Bad request
+      if (status === 400) {
+        const err = new Error(data?.error?.message || 'Invalid request to AI service');
+        err.code = 'INVALID_REQUEST';
+        err.details = data?.error;
+        err.original = error;
+        return err;
+      }
+      
+      // Server errors
+      if (status >= 500) {
+        const err = new Error('AI service internal error');
+        err.code = 'INTERNAL_ERROR';
+        err.original = error;
+        return err;
+      }
     }
     
-    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-      return new Error('AI service request timeout');
-    }
-    
-    if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-      return new Error('AI service unreachable');
-    }
-    
-    // Return original error if we can't transform it
+    // Default
     return error;
   }
 
-
   /**
    * Get adapter statistics
-   * @returns {Object} Adapter statistics
+   * @returns {Object} Statistics about the adapter
    */
   getStats() {
     return {
       baseUrl: this.baseUrl,
       timeout: this.timeout,
       maxRetries: this.maxRetries,
-      healthy: this._lastHealthCheck || false,
-      requestCount: this._requestCount || 0,
-      errorCount: this._errorCount || 0,
+      healthy: this._lastHealthCheck,
+      requestCount: this._requestCount,
+      errorCount: this._errorCount,
+      errorRate: this._requestCount > 0 ? this._errorCount / this._requestCount : 0
     };
   }
 }
