@@ -6,6 +6,10 @@ const {
 const logger = require('../../logger');
 const nodeFetch = require('node-fetch');
 
+// Default delay function for timer operations
+// eslint-disable-next-line no-restricted-syntax
+const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
  * HTTP-based implementation of AIService
  * Uses HTTP/REST API to communicate with AI providers
@@ -49,7 +53,7 @@ class HttpAIServiceAdapter extends AIService {
     this.fetch = config.fetch || nodeFetch;
     
     // Injectable delay function for testing
-    this.delay = config.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = config.delay || defaultDelay;
     
     // Request statistics
     this._requestCount = 0;
