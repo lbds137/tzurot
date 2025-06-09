@@ -9,10 +9,36 @@ class TestValue extends ValueObject {
   constructor(value) {
     super();
     this.value = value;
+    this.freeze(); // Test the immutability
   }
   
   toJSON() {
     return { value: this.value };
+  }
+}
+
+// Test implementation without custom toJSON
+class DefaultToJSONValue extends ValueObject {
+  constructor(name, age) {
+    super();
+    this.name = name;
+    this.age = age;
+    this.freeze();
+  }
+}
+
+// Test implementation with complex constructor
+class ComplexConstructorValue extends ValueObject {
+  constructor({ name, age, email }) {
+    super();
+    this.name = name;
+    this.age = age;
+    this.email = email;
+    this.freeze();
+  }
+  
+  toJSON() {
+    return { name: this.name, age: this.age, email: this.email };
   }
 }
 
@@ -122,6 +148,7 @@ describe('ValueObject', () => {
           super();
           this.value = value;
           this.validate();
+          this.freeze();
         }
         
         validate() {
@@ -137,6 +164,101 @@ describe('ValueObject', () => {
       
       expect(() => new ValidatedValue(5)).not.toThrow();
       expect(() => new ValidatedValue(-5)).toThrow('Value must be positive');
+    });
+    
+    it('should not throw in default implementation', () => {
+      const testValue = new TestValue('test');
+      
+      expect(() => testValue.validate()).not.toThrow();
+    });
+  });
+
+  describe('freeze', () => {
+    it('should make object immutable', () => {
+      const testValue = new TestValue('original');
+      
+      // Should be frozen
+      expect(Object.isFrozen(testValue)).toBe(true);
+    });
+    
+    it('should prevent property modification', () => {
+      const testValue = new TestValue('original');
+      
+      // Attempting to modify should fail silently or throw in strict mode
+      const originalValue = testValue.value;
+      try {
+        testValue.value = 'modified';
+      } catch (error) {
+        // In strict mode, this might throw
+      }
+      
+      expect(testValue.value).toBe(originalValue);
+    });
+    
+    it('should prevent property addition', () => {
+      const testValue = new TestValue('test');
+      
+      try {
+        testValue.newProperty = 'new';
+      } catch (error) {
+        // In strict mode, this might throw
+      }
+      
+      expect(testValue.newProperty).toBeUndefined();
+    });
+  });
+
+  describe('default toJSON', () => {
+    it('should use default implementation when not overridden', () => {
+      const value = new DefaultToJSONValue('John', 25);
+      
+      const json = value.toJSON();
+      
+      expect(json).toEqual({
+        name: 'John',
+        age: 25
+      });
+    });
+    
+    it('should exclude undefined values', () => {
+      const value = new DefaultToJSONValue('John', undefined);
+      
+      const json = value.toJSON();
+      
+      expect(json).toEqual({
+        name: 'John'
+      });
+      expect(json).not.toHaveProperty('age');
+    });
+  });
+
+  describe('default copyWith', () => {
+    it('should work with simple constructors', () => {
+      const original = new ComplexConstructorValue({ 
+        name: 'John', 
+        age: 25, 
+        email: 'john@example.com' 
+      });
+      
+      const updated = original.copyWith({ age: 26 });
+      
+      expect(updated.name).toBe('John');
+      expect(updated.age).toBe(26);
+      expect(updated.email).toBe('john@example.com');
+      expect(updated).not.toBe(original); // Different instance
+    });
+    
+    it('should preserve original object', () => {
+      const original = new ComplexConstructorValue({ 
+        name: 'John', 
+        age: 25, 
+        email: 'john@example.com' 
+      });
+      const originalAge = original.age;
+      
+      original.copyWith({ age: 26 });
+      
+      expect(original.age).toBe(originalAge); // Original unchanged
     });
   });
 });

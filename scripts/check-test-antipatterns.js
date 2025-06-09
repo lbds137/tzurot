@@ -413,8 +413,40 @@ const TEST_ANTI_PATTERNS = {
     },
     {
       pattern: /expect\s*\(\s*\(\s*\)\s*=>/g,
-      check: () => true,
-      message: 'Testing function directly. Test what the function does instead.',
+      check: (match, _, fileContent) => {
+        // Get the full line to check context
+        const lines = fileContent.split('\n');
+        const matchIndex = fileContent.indexOf(match);
+        const lineIndex = fileContent.substring(0, matchIndex).split('\n').length - 1;
+        const currentLine = lines[lineIndex] || '';
+        const nextLine = lines[lineIndex + 1] || '';
+        
+        // Allow these legitimate patterns:
+        // 1. Constructor validation: expect(() => new SomeClass(invalid)).toThrow()
+        // 2. Function error testing: expect(() => someFunc(invalid)).toThrow()
+        // 3. Static method validation: expect(() => Class.method(invalid)).toThrow()
+        
+        const legitimatePatterns = [
+          /expect\s*\(\s*\(\s*\)\s*=>\s*new\s+\w+/,          // Constructor validation
+          /expect\s*\(\s*\(\s*\)\s*=>\s*\w+\.\w+\(/,        // Static method calls
+          /expect\s*\(\s*\(\s*\)\s*=>\s*\w+\(/,             // Function calls
+        ];
+        
+        // Check if it's followed by .toThrow() or similar error expectations
+        const hasErrorAssertion = 
+          currentLine.includes('.toThrow') ||
+          nextLine.includes('.toThrow') ||
+          currentLine.includes('.rejects') ||
+          nextLine.includes('.rejects');
+        
+        // If it matches legitimate patterns AND has error assertion, allow it
+        const isLegitimate = legitimatePatterns.some(pattern => 
+          pattern.test(currentLine) && hasErrorAssertion
+        );
+        
+        return !isLegitimate; // Only flag if NOT legitimate
+      },
+      message: 'Testing function directly. Test what the function does instead. (Note: Constructor validation with .toThrow() is OK)',
       severity: 'warning'
     }
   ],
