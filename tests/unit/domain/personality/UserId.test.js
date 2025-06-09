@@ -45,7 +45,7 @@ describe('UserId', () => {
     });
     
     it('should reject non-string values', () => {
-      expect(() => new UserId(123456789012345678)).toThrow('UserId must be a non-empty string');
+      expect(() => new UserId(123456789012345)).toThrow('UserId must be a non-empty string');
       expect(() => new UserId({})).toThrow('UserId must be a non-empty string');
       expect(() => new UserId([])).toThrow('UserId must be a non-empty string');
     });

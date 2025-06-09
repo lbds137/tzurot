@@ -189,7 +189,7 @@ describe('Message', () => {
       expect(() => new Message({
         id: 'msg-123',
         content: 'Hello!',
-        authorId: 123456789012345678,
+        authorId: 123456789012345,
         timestamp: new Date(),
         channelId: 'channel-123'
       })).toThrow('Message requires authorId');

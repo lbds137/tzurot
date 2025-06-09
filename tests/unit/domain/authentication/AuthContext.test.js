@@ -116,7 +116,7 @@ describe('AuthContext', () => {
     it('should require channel ID to be string', () => {
       expect(() => new AuthContext({
         channelType: 'GUILD',
-        channelId: 123456789012345678
+        channelId: 123456789012345
       })).toThrow('Channel ID required');
     });
   });
