@@ -24,6 +24,18 @@ jest.mock('../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
+// Mock profileInfoFetcher to prevent interval creation
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getFetcher: jest.fn().mockReturnValue({
+    fetchProfileInfo: jest.fn().mockResolvedValue({
+      avatarUrl: 'https://example.com/avatar.png',
+      displayName: 'Test User'
+    })
+  }),
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null), // Return null to simulate no avatar found
+  deleteFromCache: jest.fn()
+}));
+
 // Constants
 const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
 
