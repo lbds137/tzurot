@@ -4,6 +4,7 @@ const prettier = require('eslint-config-prettier');
 const globals = require('globals');
 const moduleSizeRules = require('./.eslintrc.module-size.js');
 const antipatternRules = require('./.eslintrc.antipatterns.js');
+const timerPatternRules = require('./.eslintrc.timer-patterns.js');
 
 module.exports = [
   js.configs.recommended,
@@ -22,7 +23,8 @@ module.exports = [
       'no-var': 'warn',
       'prefer-const': 'warn',
       ...moduleSizeRules.rules,
-      ...antipatternRules.rules
+      ...antipatternRules.rules,
+      ...timerPatternRules.rules
     }
   },
   {
@@ -41,7 +43,9 @@ module.exports = [
       'jest/no-disabled-tests': 'warn',
       'jest/no-focused-tests': 'error',
       // Relax some rules for test files
-      'no-undef': 'off'
+      'no-undef': 'off',
+      // Override timer pattern rules for tests
+      ...timerPatternRules.overrides[0].rules
     }
   },
   {
