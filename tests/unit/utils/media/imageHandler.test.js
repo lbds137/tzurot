@@ -47,6 +47,9 @@ describe('imageHandler', () => {
     };
     
   beforeEach(() => {
+    // Use fake timers to prevent open handles
+    jest.useFakeTimers();
+    
     // Reset all mocks
     jest.clearAllMocks();
     nodeFetch.mockReset(); // Explicitly reset nodeFetch to clear any mockResolvedValueOnce calls
@@ -54,6 +57,12 @@ describe('imageHandler', () => {
     // Default mock implementations
     urlValidator.isValidUrlFormat.mockReturnValue(true);
     urlValidator.isTrustedDomain.mockReturnValue(false);
+    
+    // Configure imageHandler to use fake timers
+    imageHandler.configureTimers({
+      setTimeout: jest.fn(),
+      clearTimeout: jest.fn()
+    });
     
     // Set default successful response
     nodeFetch.mockImplementation(() => Promise.resolve(createMockResponse()));
@@ -66,6 +75,10 @@ describe('imageHandler', () => {
         host: 'example.com'
       };
     });
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('hasImageExtension', () => {

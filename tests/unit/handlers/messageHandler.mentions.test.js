@@ -17,7 +17,12 @@ jest.mock('../../../config', () => ({
 describe('checkForPersonalityMentions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   describe('single word mentions', () => {

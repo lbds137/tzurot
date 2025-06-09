@@ -36,11 +36,13 @@ describe('Add Command', () => {
   let webhookManager;
   let messageTracker;
   let validator;
+  let mockContext;
   
   beforeEach(() => {
     // Reset modules and mocks between tests
     jest.resetModules();
     jest.clearAllMocks();
+    jest.useFakeTimers();
     
     // Create migration helper with enhanced patterns
     migrationHelper = createMigrationHelper();
@@ -127,6 +129,19 @@ describe('Add Command', () => {
     messageTracker = mockMessageTrackerInstance;
     validator = require('../../../../src/commands/utils/commandValidator');
     addCommand = require('../../../../src/commands/handlers/add');
+    
+    // Create mock context to inject dependencies
+    mockContext = {
+      scheduler: jest.fn((callback, delay) => {
+        // Use Jest's fake timers instead of real setTimeout
+        return setTimeout(callback, delay);
+      }),
+      messageTracker
+    };
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
   });
   
   // Test command metadata using enhanced assertions
@@ -149,7 +164,7 @@ describe('Add Command', () => {
       });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
+    await addCommand.execute(mockMessage, ['test-personality', 'test-alias'], mockContext);
     
     // Assert
     // Verify the registration call with description
@@ -180,7 +195,7 @@ describe('Add Command', () => {
   // Test error cases
   it('should handle missing personality name', async () => {
     // Act
-    await addCommand.execute(mockMessage, []);
+    await addCommand.execute(mockMessage, [], mockContext);
     
     // Assert
     // Verify no registration attempt was made
@@ -197,7 +212,7 @@ describe('Add Command', () => {
     personalityManager.registerPersonality.mockResolvedValueOnce({ success: false, error: 'Registration failed' });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']);
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Verify error message was sent
@@ -214,7 +229,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']);
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Logger errors are verified in the implementation, not in the test
@@ -231,7 +246,7 @@ describe('Add Command', () => {
     messageTracker.isAddCommandProcessed.mockReturnValueOnce(true);
     
     // Act
-    const result = await addCommand.execute(mockMessage, ['test-personality']);
+    const result = await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Verify no registration attempt was made
@@ -258,7 +273,7 @@ describe('Add Command', () => {
     messageTracker.isAddCommandCompleted.mockReturnValue(true);  // But command was completed before
     
     // Act
-    const result = await addCommand.execute(mockMessage, ['test-personality']);
+    const result = await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Verify early return and no processing
@@ -273,7 +288,7 @@ describe('Add Command', () => {
     messageTracker.hasFirstEmbed.mockReturnValueOnce(true);
     
     // Act
-    const result = await addCommand.execute(mockMessage, ['test-personality']);
+    const result = await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Verify no new embed was generated
@@ -302,7 +317,7 @@ describe('Add Command', () => {
     validator.createDirectSend.mockReturnValueOnce(dmDirectSend);
     
     // Act
-    await addCommand.execute(dmMockMessage, ['test-personality']);
+    await addCommand.execute(dmMockMessage, ['test-personality'], mockContext);
     
     // Assert using enhanced assertions
     migrationHelper.enhanced.assert.assertFunctionCalled(
@@ -323,7 +338,7 @@ describe('Add Command', () => {
     );
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']);
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     // Logger debug messages are verified in the implementation, not in the test
@@ -346,7 +361,7 @@ describe('Add Command', () => {
       });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality', 'test-alias']);
+    await addCommand.execute(mockMessage, ['test-personality', 'test-alias'], mockContext);
     
     // Assert
     // Verify personality was registered with empty data object
@@ -374,7 +389,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    const result = await addCommand.execute(mockMessage, ['test-personality']);
+    const result = await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert
     expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
@@ -401,7 +416,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']); // No alias provided
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext); // No alias provided
     
     // Assert
     // Verify personality was registered
@@ -436,7 +451,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']); // No alias provided
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext); // No alias provided
     
     // Assert
     // Verify personality was registered
@@ -469,7 +484,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    await addCommand.execute(mockMessage, ['test-personality', 'custom-alias']); // Explicit alias provided
+    await addCommand.execute(mockMessage, ['test-personality', 'custom-alias'], mockContext); // Explicit alias provided
     
     // Assert
     // Verify personality was registered
@@ -566,7 +581,7 @@ describe('Add Command', () => {
   // mock setup in this test file, we'll keep them simple and just verify the command works
   it('should include @mention instructions in footer for server channels', async () => {
     // Act
-    await addCommand.execute(mockMessage, ['test-personality']);
+    await addCommand.execute(mockMessage, ['test-personality'], mockContext);
     
     // Assert - verify the command succeeded and sent a message
     expect(personalityManager.registerPersonality).toHaveBeenCalled();
@@ -583,7 +598,7 @@ describe('Add Command', () => {
     validator.createDirectSend.mockReturnValueOnce(dmDirectSend);
     
     // Act
-    await addCommand.execute(dmMockMessage, ['test-personality']);
+    await addCommand.execute(dmMockMessage, ['test-personality'], mockContext);
     
     // Assert - verify the command succeeded and sent a message
     expect(personalityManager.registerPersonality).toHaveBeenCalled();
@@ -612,7 +627,7 @@ describe('Add Command', () => {
     });
     
     // Act
-    await addCommand.execute(mockMessage, ['vesselofazazel']);
+    await addCommand.execute(mockMessage, ['vesselofazazel'], mockContext);
     
     // Assert - Core functionality
     // 1. Verify personality was registered

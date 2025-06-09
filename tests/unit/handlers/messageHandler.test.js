@@ -48,6 +48,7 @@ describe('messageHandler', () => {
   
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
     
     // Configure messageTrackerHandler to disable cleanup for tests
     messageTrackerHandler.createMessageTrackerHandler({ enableCleanup: false });
@@ -105,6 +106,10 @@ describe('messageHandler', () => {
     getPersonalityByAlias.mockReturnValue(null);
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
+  });
+  
+  afterEach(() => {
+    jest.useRealTimers();
   });
   
   describe('handleMessage', () => {
