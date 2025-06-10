@@ -167,14 +167,14 @@ src/
 ```
 src/
 ├── adapters/            # NEW - Bridge old to new
-│   ├── discord/
-│   │   ├── DiscordMessageAdapter.js
-│   │   └── DiscordWebhookAdapter.js
+│   ├── discord/        # CRITICAL: Prevents Discord.js from leaking into domain
+│   │   ├── DiscordMessageAdapter.js      # Maps Discord messages to domain objects
+│   │   └── DiscordWebhookAdapter.js      # Abstracts webhook complexity from domain
 │   ├── persistence/
-│   │   ├── FilePersonalityRepository.js
+│   │   ├── FilePersonalityRepository.js   # Implements domain repository interface
 │   │   └── MemoryConversationRepository.js
 │   └── ai/
-│       ├── AnthropicAdapter.js
+│       ├── AIServiceAdapter.js            # Anti-corruption layer for AI service
 │       └── ResponseAdapter.js
 ```
 
@@ -286,7 +286,7 @@ class PersonalityRepository {
 #### Anti-Corruption Layer
 ```javascript
 // Shields domain from external changes
-class AnthropicAPIAdapter {
+class AIServiceAdapter {
   async sendRequest(domainRequest) {
     // Convert domain object to API format
     const apiRequest = this.transformRequest(domainRequest);
