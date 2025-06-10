@@ -41,6 +41,7 @@ const {
   Alias, 
   UserId 
 } = require('../../../../src/domain/personality');
+const { AIModel } = require('../../../../src/domain/ai');
 
 describe('FilePersonalityRepository', () => {
   let repository;
@@ -106,8 +107,10 @@ describe('FilePersonalityRepository', () => {
         path.join('./test-data', 'test-personalities.json'),
         'utf8'
       );
-      expect(repository._cache).toEqual(mockFileData);
-      expect(repository._initialized).toBe(true);
+      // Verify behavior - findById should work after initialization
+      const personality = await repository.findById(new PersonalityId('test-personality'));
+      expect(personality).not.toBeNull();
+      expect(personality.personalityId.value).toBe('test-personality');
     });
     
     it('should create new file if it does not exist', async () => {
@@ -121,7 +124,9 @@ describe('FilePersonalityRepository', () => {
         'utf8'
       );
       expect(fs.rename).toHaveBeenCalled();
-      expect(repository._cache).toEqual({ personalities: {}, aliases: {} });
+      // Verify behavior - should return empty results
+      const personalities = await repository.findAll();
+      expect(personalities).toEqual([]);
     });
     
     it('should throw error for other file read errors', async () => {
@@ -147,30 +152,32 @@ describe('FilePersonalityRepository', () => {
       await repository.initialize();
       
       // Create real domain objects
+      const profile = new PersonalityProfile(
+        'New Personality',
+        'You are a helpful assistant named New Personality',
+        '/default',
+        1500
+      );
+      const model = AIModel.createDefault();
       const personality = Personality.create(
         new PersonalityId('new-personality'),
-        new UserId('456789012345678901')
+        new UserId('456789012345678901'),
+        profile,
+        model
       );
       
-      const profile = new PersonalityProfile({
-        displayName: 'New Personality',
-        avatarUrl: 'https://example.com/new.png',
-        bio: 'New bio',
-        systemPrompt: 'New prompt',
-        temperature: 0.8,
-        maxTokens: 1500,
-      });
-      personality.updateProfile(profile);
-      
-      // For now, we'll set aliases directly since the domain model doesn't have addAlias yet
-      personality.aliases = [new Alias('newbie')];
+      // Add alias using the domain method
+      personality.addAlias(new Alias('newbie'));
       
       await repository.save(personality);
       
-      // Verify cache updated
-      expect(repository._cache.personalities['new-personality']).toBeDefined();
-      expect(repository._cache.personalities['new-personality'].profile.displayName).toBe('New Personality');
-      expect(repository._cache.aliases['newbie']).toBe('new-personality');
+      // Verify behavior - personality can be retrieved
+      const saved = await repository.findById(new PersonalityId('new-personality'));
+      expect(saved).not.toBeNull();
+      expect(saved.profile.displayName).toBe('New Personality');
+      const byAlias = await repository.findByAlias('newbie');
+      expect(byAlias).not.toBeNull();
+      expect(byAlias.personalityId.value).toBe('new-personality');
       
       // Verify file written
       expect(fs.writeFile).toHaveBeenCalledWith(
@@ -186,23 +193,33 @@ describe('FilePersonalityRepository', () => {
       
       // Fetch and update real domain object
       const existingPersonality = await repository.findById(new PersonalityId('test-personality'));
-      existingPersonality.updateProfile(new PersonalityProfile({
-        displayName: 'Updated Name',
-        avatarUrl: 'https://example.com/updated.png',
-      }));
+      existingPersonality.updateProfile({
+        prompt: 'Updated prompt for test personality'
+      });
       
       await repository.save(existingPersonality);
       
-      expect(repository._cache.personalities['test-personality'].profile.displayName).toBe('Updated Name');
+      // Verify behavior - updated personality can be retrieved
+      const updated = await repository.findById(new PersonalityId('test-personality'));
+      expect(updated.profile.prompt).toContain('Updated prompt');
     });
     
     it('should handle save errors', async () => {
       await repository.initialize();
       fs.writeFile.mockRejectedValue(new Error('Disk full'));
       
+      const profile = new PersonalityProfile(
+        'new-personality',
+        'You are a helpful assistant',
+        '/default',
+        1000
+      );
+      const model = AIModel.createDefault();
       const personality = Personality.create(
         new PersonalityId('new-personality'),
-        new UserId('456789012345678901')
+        new UserId('456789012345678901'),
+        profile,
+        model
       );
       
       await expect(repository.save(personality)).rejects.toThrow(
@@ -211,15 +228,26 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should initialize if not already initialized', async () => {
+      const profile = new PersonalityProfile(
+        'new-personality',
+        'You are a helpful assistant',
+        '/default',
+        1000
+      );
+      const model = AIModel.createDefault();
       const personality = Personality.create(
         new PersonalityId('new-personality'),
-        new UserId('456789012345678901')
+        new UserId('456789012345678901'),
+        profile,
+        model
       );
       
       await repository.save(personality);
       
       expect(fs.mkdir).toHaveBeenCalled();
-      expect(repository._initialized).toBe(true);
+      // Verify behavior - personality was saved
+      const saved = await repository.findById(new PersonalityId('new-personality'));
+      expect(saved).not.toBeNull();
     });
   });
   
@@ -246,8 +274,20 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should handle errors during hydration', async () => {
+      // Mock corrupt file data
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'test-personality': mockFileData.personalities['test-personality'],
+          'bad-data': { invalid: 'data' }
+        },
+        aliases: mockFileData.aliases
+      }));
+      // Reinitialize to load corrupt data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
       await repository.initialize();
-      repository._cache.personalities['bad-data'] = { invalid: 'data' };
       
       await expect(repository.findById(new PersonalityId('bad-data'))).rejects.toThrow(
         'Failed to find personality'
@@ -259,16 +299,16 @@ describe('FilePersonalityRepository', () => {
     it('should find all personalities by owner', async () => {
       await repository.initialize();
       
-      // Add another personality for the same owner
-      repository._cache.personalities['test-personality-2'] = {
-        id: 'test-personality-2',
-        ownerId: '123456789012345678',
-        profile: {
-          displayName: 'Test 2',
-          avatarUrl: 'https://example.com/test2.png',
-        },
-        aliases: [],
-      };
+      // Add another personality for the same owner using proper save method
+      const profile2 = new PersonalityProfile('Test 2', 'You are Test 2', '/default', 1000);
+      const model2 = AIModel.createDefault();
+      const personality2 = Personality.create(
+        new PersonalityId('test-personality-2'),
+        new UserId('123456789012345678'),
+        profile2,
+        model2
+      );
+      await repository.save(personality2);
       
       const results = await repository.findByOwner(new UserId('123456789012345678'));
       
@@ -288,11 +328,20 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should handle errors during hydration', async () => {
+      // Mock corrupt file data
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'test-personality': mockFileData.personalities['test-personality'],
+          'bad-data': { ownerId: '123456789012345678', invalid: 'data' }
+        },
+        aliases: mockFileData.aliases
+      }));
+      // Reinitialize to load corrupt data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
       await repository.initialize();
-      repository._cache.personalities['bad-data'] = {
-        ownerId: '123456789012345678',
-        invalid: 'data',
-      };
       
       await expect(repository.findByOwner(new UserId('123456789012345678'))).rejects.toThrow(
         'Failed to find personalities by owner'
@@ -328,20 +377,46 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should clean up orphaned alias and return null', async () => {
+      // Mock file with orphaned alias
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: mockFileData.personalities,
+        aliases: {
+          ...mockFileData.aliases,
+          'orphan': 'non-existent-personality'
+        }
+      }));
+      // Reinitialize to load data with orphan
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
       await repository.initialize();
-      repository._cache.aliases['orphan'] = 'non-existent-personality';
       
       const result = await repository.findByAlias('orphan');
       
       expect(result).toBeNull();
-      expect(repository._cache.aliases['orphan']).toBeUndefined();
+      // Verify behavior - orphan cleaned up in subsequent finds
+      const againResult = await repository.findByAlias('orphan');
+      expect(againResult).toBeNull();
       expect(fs.writeFile).toHaveBeenCalled();
     });
     
     it('should handle errors during hydration', async () => {
+      // Mock corrupt file data with bad alias
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'bad-data': { invalid: 'data' }
+        },
+        aliases: {
+          'bad': 'bad-data'
+        }
+      }));
+      // Reinitialize to load corrupt data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
       await repository.initialize();
-      repository._cache.aliases['bad'] = 'bad-data';
-      repository._cache.personalities['bad-data'] = { invalid: 'data' };
       
       await expect(repository.findByAlias('bad')).rejects.toThrow(
         'Failed to find personality by alias'
@@ -353,19 +428,24 @@ describe('FilePersonalityRepository', () => {
     it('should return all personalities', async () => {
       await repository.initialize();
       
-      // Add more personalities
-      repository._cache.personalities['test-2'] = {
-        id: 'test-2',
-        ownerId: '456789012345678901',
-        profile: { displayName: 'Test 2' },
-        aliases: [],
-      };
-      repository._cache.personalities['test-3'] = {
-        id: 'test-3',
-        ownerId: '789012345678901234',
-        profile: { displayName: 'Test 3' },
-        aliases: [],
-      };
+      // Add more personalities using proper save method
+      const profile2 = new PersonalityProfile('Test 2', 'You are Test 2', '/default', 1000);
+      const personality2 = Personality.create(
+        new PersonalityId('test-2'),
+        new UserId('456789012345678901'),
+        profile2,
+        AIModel.createDefault()
+      );
+      await repository.save(personality2);
+      
+      const profile3 = new PersonalityProfile('Test 3', 'You are Test 3', '/default', 1000);
+      const personality3 = Personality.create(
+        new PersonalityId('test-3'),
+        new UserId('789012345678901234'),
+        profile3,
+        AIModel.createDefault()
+      );
+      await repository.save(personality3);
       
       const results = await repository.findAll();
       
@@ -392,8 +472,20 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should handle errors during hydration', async () => {
+      // Mock corrupt file data
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'test-personality': mockFileData.personalities['test-personality'],
+          'bad-data': { invalid: 'data' }
+        },
+        aliases: mockFileData.aliases
+      }));
+      // Reinitialize to load corrupt data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
       await repository.initialize();
-      repository._cache.personalities['bad-data'] = { invalid: 'data' };
       
       await expect(repository.findAll()).rejects.toThrow(
         'Failed to find all personalities'
@@ -407,9 +499,13 @@ describe('FilePersonalityRepository', () => {
       
       await repository.delete(new PersonalityId('test-personality'));
       
-      expect(repository._cache.personalities['test-personality']).toBeUndefined();
-      expect(repository._cache.aliases['test']).toBeUndefined();
-      expect(repository._cache.aliases['testy']).toBeUndefined();
+      // Verify behavior - personality and aliases no longer found
+      const personality = await repository.findById(new PersonalityId('test-personality'));
+      expect(personality).toBeNull();
+      const byAlias1 = await repository.findByAlias('test');
+      expect(byAlias1).toBeNull();
+      const byAlias2 = await repository.findByAlias('testy');
+      expect(byAlias2).toBeNull();
       expect(fs.writeFile).toHaveBeenCalled();
     });
     
@@ -479,20 +575,25 @@ describe('FilePersonalityRepository', () => {
     it('should return repository statistics', async () => {
       await repository.initialize();
       
-      // Add more data
-      repository._cache.personalities['test-2'] = {
-        id: 'test-2',
-        ownerId: '123456789012345678',
-        profile: { displayName: 'Test 2' },
-        aliases: [],
-      };
-      repository._cache.personalities['test-3'] = {
-        id: 'test-3',
-        ownerId: '456789012345678901',
-        profile: { displayName: 'Test 3' },
-        aliases: [],
-      };
-      repository._cache.aliases['test2'] = 'test-2';
+      // Add more data using proper save method
+      const profile2 = new PersonalityProfile('Test 2', 'You are Test 2', '/default', 1000);
+      const personality2 = Personality.create(
+        new PersonalityId('test-2'),
+        new UserId('123456789012345678'),
+        profile2,
+        AIModel.createDefault()
+      );
+      personality2.addAlias(new Alias('test2'));
+      await repository.save(personality2);
+      
+      const profile3 = new PersonalityProfile('Test 3', 'You are Test 3', '/default', 1000);
+      const personality3 = Personality.create(
+        new PersonalityId('test-3'),
+        new UserId('456789012345678901'),
+        profile3,
+        AIModel.createDefault()
+      );
+      await repository.save(personality3);
       
       const stats = await repository.getStats();
       
@@ -519,33 +620,47 @@ describe('FilePersonalityRepository', () => {
     });
   });
   
-  describe('_hydrate', () => {
+  describe('hydration behavior', () => {
     it('should handle aliases as strings', async () => {
-      await repository.initialize();
+      // Test by saving and retrieving
+      const profile = new PersonalityProfile('test-id', 'You are test-id', '/default', 1000);
+      const personality = Personality.create(
+        new PersonalityId('test-id'),
+        new UserId('123456789012345678'),
+        profile,
+        AIModel.createDefault()
+      );
+      personality.addAlias(new Alias('alias1'));
+      personality.addAlias(new Alias('alias2'));
+      await repository.save(personality);
       
-      const data = {
-        id: 'test-id',
-        ownerId: '123456789012345678',
-        aliases: ['alias1', 'alias2'],
-      };
+      const retrieved = await repository.findById(new PersonalityId('test-id'));
       
-      const personality = repository._hydrate(data);
-      
-      expect(personality.aliases).toHaveLength(2);
-      expect(personality.aliases[0].value).toBe('alias1');
-      expect(personality.aliases[1].value).toBe('alias2');
+      expect(retrieved.aliases).toHaveLength(2);
+      expect(retrieved.aliases[0].value).toBe('alias1');
+      expect(retrieved.aliases[1].value).toBe('alias2');
     });
     
     it('should handle aliases as objects', async () => {
-      await repository.initialize();
-      
+      // Test by mocking file data with object aliases
       const data = {
         id: 'test-id',
         ownerId: '123456789012345678',
         aliases: [{ value: 'alias1' }, { value: 'alias2' }],
       };
-      
-      const personality = repository._hydrate(data);
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'test-id': data
+        },
+        aliases: {}
+      }));
+      // Reinitialize to load data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      const personality = await repository.findById(new PersonalityId('test-id'));
       
       expect(personality.aliases).toHaveLength(2);
       expect(personality.aliases[0].value).toBe('alias1');
@@ -553,47 +668,71 @@ describe('FilePersonalityRepository', () => {
     });
     
     it('should handle missing profile', async () => {
-      await repository.initialize();
-      
+      // Test by mocking minimal file data
       const data = {
         id: 'test-id',
         ownerId: '123456789012345678',
         aliases: [],
       };
+      fs.readFile.mockResolvedValueOnce(JSON.stringify({
+        personalities: {
+          'test-id': data
+        },
+        aliases: {}
+      }));
+      // Reinitialize to load data
+      repository = new FilePersonalityRepository({
+        dataPath: './test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      const personality = await repository.findById(new PersonalityId('test-id'));
       
-      const personality = repository._hydrate(data);
-      
-      // When created, personality gets an empty profile by default
+      // When created, personality gets a default profile
       expect(personality.profile).not.toBeNull();
-      // Check if displayName is null or empty string (depends on createEmpty implementation)
-      expect([null, ''].includes(personality.profile.displayName)).toBe(true);
+      // Check that the profile has default values
+      expect(personality.profile.name).toBe('test-id');
+      expect(personality.profile.prompt).toBe('You are test-id');
+      expect(personality.profile.modelPath).toBe('/default');
+      expect(personality.profile.maxWordCount).toBe(1000);
     });
     
     it('should mark events as committed', async () => {
-      await repository.initialize();
+      // Test by saving minimal personality
+      const profile = new PersonalityProfile('test-id', 'You are test-id', '/default', 1000);
+      const personality = Personality.create(
+        new PersonalityId('test-id'),
+        new UserId('123456789012345678'),
+        profile,
+        AIModel.createDefault()
+      );
+      await repository.save(personality);
       
-      const data = {
-        id: 'test-id',
-        ownerId: '123456789012345678',
-        aliases: [],
-      };
+      const retrieved = await repository.findById(new PersonalityId('test-id'));
       
-      const personality = repository._hydrate(data);
-      
-      expect(personality.getUncommittedEvents()).toHaveLength(0);
+      expect(retrieved.getUncommittedEvents()).toHaveLength(0);
     });
   });
   
-  describe('_persist', () => {
+  describe('persistence behavior', () => {
     it('should write to temp file then rename', async () => {
       await repository.initialize();
-      repository._cache.personalities['new'] = { id: 'new' };
-      
-      await repository._persist();
+      // Add personality to trigger persist
+      const profile = new PersonalityProfile('New', 'You are New', '/default', 1000);
+      const personality = Personality.create(
+        new PersonalityId('new'),
+        new UserId('123456789012345678'),
+        profile,
+        AIModel.createDefault()
+      );
+      await repository.save(personality);
       
       const expectedPath = path.join('./test-data', 'test-personalities.json');
       const tempPath = expectedPath + '.tmp';
       
+      // Save operation should trigger persist
+      const persistedPersonality = await repository.findById(new PersonalityId('new'));
+      expect(persistedPersonality).not.toBeNull();
       expect(fs.writeFile).toHaveBeenCalledWith(
         tempPath,
         expect.any(String),
@@ -605,7 +744,15 @@ describe('FilePersonalityRepository', () => {
     it('should format JSON with indentation', async () => {
       await repository.initialize();
       
-      await repository._persist();
+      // Any save triggers persist
+      const profile = new PersonalityProfile('New', 'You are New', '/default', 1000);
+      const personality = Personality.create(
+        new PersonalityId('new-2'),
+        new UserId('123456789012345678'),
+        profile,
+        AIModel.createDefault()
+      );
+      await repository.save(personality);
       
       const writtenData = fs.writeFile.mock.calls[0][1];
       expect(writtenData).toContain('  '); // Check for indentation
@@ -616,9 +763,15 @@ describe('FilePersonalityRepository', () => {
       await repository.initialize();
       fs.writeFile.mockRejectedValue(new Error('EACCES'));
       
-      await expect(repository._persist()).rejects.toThrow(
-        'Failed to persist data: EACCES'
+      // Try to save to trigger persist
+      const profile = new PersonalityProfile('New', 'You are New', '/default', 1000);
+      const personality = Personality.create(
+        new PersonalityId('new'),
+        new UserId('123456789012345678'),
+        profile,
+        AIModel.createDefault()
       );
+      await expect(repository.save(personality)).rejects.toThrow('Failed to save personality');
     });
   });
 });

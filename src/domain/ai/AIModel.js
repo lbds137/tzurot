@@ -110,6 +110,15 @@ class AIModel extends ValueObject {
       }
     );
   }
+
+  /**
+   * Create AIModel from JSON
+   * @param {Object} json - JSON representation
+   * @returns {AIModel} New AIModel instance
+   */
+  static fromJSON(json) {
+    return new AIModel(json.name, json.path, json.capabilities);
+  }
 }
 
 module.exports = { AIModel };

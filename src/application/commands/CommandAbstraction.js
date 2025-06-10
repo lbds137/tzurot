@@ -1,0 +1,359 @@
+/**
+ * Platform-agnostic command abstraction layer
+ * Supports both Discord slash commands and text-based commands
+ * @module application/commands/CommandAbstraction
+ */
+
+const logger = require('../../logger');
+
+/**
+ * Represents a platform-agnostic command
+ */
+class Command {
+  constructor({
+    name,
+    description,
+    category = 'general',
+    aliases = [],
+    permissions = ['USER'],
+    options = [],
+    execute
+  }) {
+    this.name = name;
+    this.description = description;
+    this.category = category;
+    this.aliases = aliases;
+    this.permissions = permissions;
+    this.options = options;
+    this.execute = execute;
+    
+    // Validate required fields
+    if (!name || typeof name !== 'string') {
+      throw new Error('Command name is required and must be a string');
+    }
+    if (!description || typeof description !== 'string') {
+      throw new Error('Command description is required and must be a string');
+    }
+    if (typeof execute !== 'function') {
+      throw new Error('Command execute function is required');
+    }
+  }
+
+  /**
+   * Convert to Discord slash command format
+   */
+  toDiscordSlashCommand() {
+    return {
+      name: this.name,
+      description: this.description,
+      options: this.options.map(opt => this._convertOptionToDiscord(opt))
+    };
+  }
+
+  /**
+   * Convert to text command format (for legacy Discord and Revolt)
+   */
+  toTextCommand() {
+    return {
+      name: this.name,
+      description: this.description,
+      usage: this._generateUsage(),
+      aliases: this.aliases,
+      permissions: this.permissions,
+      execute: this.execute
+    };
+  }
+
+  /**
+   * Generate usage string from options
+   */
+  _generateUsage() {
+    const parts = [`!tz ${this.name}`];
+    
+    for (const option of this.options) {
+      if (option.required) {
+        parts.push(`<${option.name}>`);
+      } else {
+        parts.push(`[${option.name}]`);
+      }
+    }
+    
+    return parts.join(' ');
+  }
+
+  /**
+   * Convert option to Discord format
+   */
+  _convertOptionToDiscord(option) {
+    const discordOption = {
+      name: option.name,
+      description: option.description,
+      type: this._getDiscordOptionType(option.type),
+      required: option.required || false
+    };
+
+    if (option.choices && option.choices.length > 0) {
+      discordOption.choices = option.choices.map(choice => ({
+        name: choice.label || choice.value,
+        value: choice.value
+      }));
+    }
+
+    return discordOption;
+  }
+
+  /**
+   * Map option types to Discord types
+   */
+  _getDiscordOptionType(type) {
+    const typeMap = {
+      'string': 3,  // STRING
+      'integer': 4, // INTEGER
+      'boolean': 5, // BOOLEAN
+      'user': 6,    // USER
+      'channel': 7, // CHANNEL
+      'role': 8,    // ROLE
+      'number': 10  // NUMBER
+    };
+    
+    return typeMap[type] || 3; // Default to STRING
+  }
+}
+
+/**
+ * Represents a command option
+ */
+class CommandOption {
+  constructor({
+    name,
+    description,
+    type = 'string',
+    required = false,
+    choices = []
+  }) {
+    this.name = name;
+    this.description = description;
+    this.type = type;
+    this.required = required;
+    this.choices = choices;
+  }
+}
+
+/**
+ * Platform-agnostic command context
+ */
+class CommandContext {
+  constructor({
+    platform,      // 'discord' or 'revolt'
+    isSlashCommand = false,
+    message,       // Original message object
+    interaction,   // Discord interaction (for slash commands)
+    author,        // User who invoked the command
+    channel,       // Channel where command was invoked
+    guild,         // Guild/Server (if applicable)
+    args = [],     // Parsed arguments
+    options = {},  // Named options (for slash commands)
+    reply,         // Reply function
+    dependencies = {} // Injected dependencies
+  }) {
+    this.platform = platform;
+    this.isSlashCommand = isSlashCommand;
+    this.message = message;
+    this.interaction = interaction;
+    this.author = author;
+    this.channel = channel;
+    this.guild = guild;
+    this.args = args;
+    this.options = options;
+    this.reply = reply;
+    this.dependencies = dependencies;
+  }
+
+  /**
+   * Get argument value by position or name
+   */
+  getArgument(nameOrIndex) {
+    if (this.isSlashCommand) {
+      return this.options[nameOrIndex];
+    } else {
+      if (typeof nameOrIndex === 'number') {
+        return this.args[nameOrIndex];
+      }
+      // For text commands, we can't get by name unless we parse
+      return null;
+    }
+  }
+
+  /**
+   * Reply to the command
+   */
+  async respond(content, options = {}) {
+    if (this.reply) {
+      return await this.reply(content, options);
+    }
+    
+    // Fallback for different platforms
+    if (this.platform === 'discord' && this.isSlashCommand && this.interaction) {
+      if (this.interaction.deferred) {
+        return await this.interaction.editReply(content);
+      } else {
+        return await this.interaction.reply(content);
+      }
+    } else if (this.message && this.message.reply) {
+      return await this.message.reply(content);
+    } else if (this.channel && this.channel.send) {
+      return await this.channel.send(content);
+    }
+    
+    throw new Error('No valid reply method available');
+  }
+
+  /**
+   * Get user ID in platform-agnostic way
+   */
+  getUserId() {
+    return this.author?.id || this.author?.userId || null;
+  }
+
+  /**
+   * Get channel ID in platform-agnostic way
+   */
+  getChannelId() {
+    return this.channel?.id || this.channel?.channelId || null;
+  }
+
+  /**
+   * Get guild ID in platform-agnostic way
+   */
+  getGuildId() {
+    return this.guild?.id || this.guild?.guildId || null;
+  }
+
+  /**
+   * Check if command was used in DM
+   */
+  isDM() {
+    if (this.platform === 'discord') {
+      return !this.guild;
+    } else if (this.platform === 'revolt') {
+      return this.channel?.channel_type === 'DirectMessage';
+    }
+    return false;
+  }
+}
+
+/**
+ * Command registry that manages commands for all platforms
+ */
+class CommandRegistry {
+  constructor() {
+    this.commands = new Map();
+    this.aliases = new Map();
+  }
+
+  /**
+   * Register a command
+   */
+  register(command) {
+    if (!(command instanceof Command)) {
+      throw new Error('Must register a Command instance');
+    }
+
+    // Register main command
+    this.commands.set(command.name, command);
+    
+    // Register aliases
+    for (const alias of command.aliases) {
+      this.aliases.set(alias, command.name);
+    }
+
+    logger.info(`[CommandRegistry] Registered command: ${command.name}`);
+  }
+
+  /**
+   * Get command by name or alias
+   */
+  get(nameOrAlias) {
+    // Direct lookup
+    if (this.commands.has(nameOrAlias)) {
+      return this.commands.get(nameOrAlias);
+    }
+    
+    // Alias lookup
+    const commandName = this.aliases.get(nameOrAlias);
+    if (commandName) {
+      return this.commands.get(commandName);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get all commands
+   */
+  getAll() {
+    return Array.from(this.commands.values());
+  }
+
+  /**
+   * Get commands by category
+   */
+  getByCategory(category) {
+    return this.getAll().filter(cmd => cmd.category === category);
+  }
+
+  /**
+   * Export as Discord slash commands
+   */
+  toDiscordSlashCommands() {
+    return this.getAll().map(cmd => cmd.toDiscordSlashCommand());
+  }
+
+  /**
+   * Export as text commands
+   */
+  toTextCommands() {
+    const textCommands = {};
+    for (const cmd of this.getAll()) {
+      textCommands[cmd.name] = cmd.toTextCommand();
+    }
+    return textCommands;
+  }
+
+  /**
+   * Clear all commands
+   */
+  clear() {
+    this.commands.clear();
+    this.aliases.clear();
+  }
+}
+
+// Create singleton instance
+let registryInstance = null;
+
+/**
+ * Get the command registry singleton
+ */
+function getCommandRegistry() {
+  if (!registryInstance) {
+    registryInstance = new CommandRegistry();
+  }
+  return registryInstance;
+}
+
+/**
+ * Reset the registry (for testing)
+ */
+function resetRegistry() {
+  registryInstance = null;
+}
+
+module.exports = {
+  Command,
+  CommandOption,
+  CommandContext,
+  CommandRegistry,
+  getCommandRegistry,
+  resetRegistry
+};

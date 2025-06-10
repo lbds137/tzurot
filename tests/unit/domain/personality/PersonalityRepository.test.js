@@ -16,6 +16,7 @@ const { Personality } = require('../../../../src/domain/personality/Personality'
 const { PersonalityId } = require('../../../../src/domain/personality/PersonalityId');
 const { UserId } = require('../../../../src/domain/personality/UserId');
 const { PersonalityProfile } = require('../../../../src/domain/personality/PersonalityProfile');
+const { AIModel } = require('../../../../src/domain/ai/AIModel');
 
 describe('PersonalityRepository', () => {
   let repository;
@@ -150,13 +151,14 @@ describe('PersonalityRepository', () => {
       const mockRepo = new MockPersonalityRepository();
       const personalityId = new PersonalityId('test-personality');
       const ownerId = new UserId('123456789012345678');
-      const personality = Personality.create(personalityId, ownerId);
-      const profile = new PersonalityProfile({
-        name: 'Test Bot',
-        avatar: 'https://example.com/avatar.png',
-        description: 'A test personality for the repository test',
-      });
-      personality.updateProfile(profile);
+      const profile = new PersonalityProfile(
+        'test-personality',
+        'You are a test bot',
+        '/default',
+        1000
+      );
+      const model = AIModel.createDefault();
+      const personality = Personality.create(personalityId, ownerId, profile, model);
       
       // Test save
       await mockRepo.save(personality);
