@@ -30,6 +30,9 @@ describe('Command System', () => {
     // Reset modules
     jest.resetModules();
     
+    // Use fake timers to prevent open handles
+    jest.useFakeTimers();
+    
     // Create mock author
     mockAuthor = {
       id: 'user-123',
@@ -72,9 +75,40 @@ describe('Command System', () => {
     }));
 
 
-    // Import the command system
+    // Mock the MessageTracker to use fake timers
+    const MessageTracker = require('../../src/commands/utils/messageTracker');
+    jest.spyOn(MessageTracker.prototype, '_setupCleanupIntervals').mockImplementation(function() {
+      // Use fake timers for intervals
+      if (!this.enableCleanupTimers) {
+        return;
+      }
+      
+      // Create intervals with jest's fake timers
+      const processedInterval = jest.fn();
+      const completedInterval = jest.fn();
+      
+      // Store references for cleanup if needed
+      this._processedInterval = processedInterval;
+      this._completedInterval = completedInterval;
+    });
+    
+    // Import the command system after mocking MessageTracker
     commandSystem = require('../../src/commands/index');
     commandRegistry = commandSystem.registry;
+    
+    // Set command context with fake timers
+    commandSystem.setCommandContext({
+      scheduler: jest.fn((fn, delay) => setTimeout(fn, delay)),
+      clearScheduler: jest.fn(clearTimeout),
+      interval: jest.fn(setInterval),
+      clearInterval: jest.fn(clearInterval),
+      messageTracker: new MessageTracker({
+        enableCleanupTimers: true,
+        scheduler: jest.fn((fn, delay) => setTimeout(fn, delay)),
+        interval: jest.fn(setInterval),
+        delay: jest.fn(ms => Promise.resolve())
+      })
+    });
 
     // Create a test command module
     const testCommand = {
@@ -90,6 +124,11 @@ describe('Command System', () => {
 
     // Register the test command
     commandRegistry.register(testCommand);
+  });
+  
+  afterEach(() => {
+    // Restore real timers
+    jest.useRealTimers();
   });
 
   describe('Command Registry', () => {
