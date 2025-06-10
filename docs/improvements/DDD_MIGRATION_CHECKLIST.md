@@ -146,24 +146,77 @@
 
 ### Week 5: Personality System Migration
 
-#### Preparation
-- [ ] Create feature flag for personality routing
-- [ ] Set up parallel operation mode
-- [ ] Implement comparison testing
+#### Preparation ✅
+- [✓] Create feature flag for personality routing
+  - [✓] FeatureFlags service with environment variable support
+  - [✓] Supports read/write/dual-write modes
+  - [✓] 100% test coverage
+- [✓] Set up parallel operation mode
+  - [✓] PersonalityRouter routes between legacy and new systems
+  - [✓] Full backward compatibility maintained
+- [✓] Implement comparison testing
+  - [✓] ComparisonTester validates new vs legacy behavior
+  - [✓] Batch testing and performance metrics
+  - [✓] 93.54% test coverage
+
+#### Application Layer Infrastructure ✅
+- [✓] Create PersonalityApplicationService
+  - [✓] Orchestrates domain models, repositories, and services
+  - [✓] Handles all personality use cases
+  - [✓] 100% test coverage
+- [✓] Enhance domain model for full functionality
+  - [✓] Personality supports aliases and AI models
+  - [✓] Added PersonalityConfiguration value object
+  - [✓] Updated all tests (40+) for new structure
+
+#### Command System Migration Infrastructure ✅
+- [✓] Design platform-agnostic command abstraction
+  - [✓] CommandAbstraction for platform-independent commands
+  - [✓] CommandAdapter for Discord and Revolt platforms
+  - [✓] CommandIntegration for wiring everything together
+  - [✓] 97.51% overall coverage
+- [✓] Support both text and slash commands
+  - [✓] Future-proof for Revolt.chat (no slash commands)
+  - [✓] Gradual migration path from text to slash
 
 #### Migration Steps
 - [ ] Route personality reads through new system
   - [ ] Monitor for discrepancies
   - [ ] Log performance metrics
 - [ ] Route personality writes through new system
-  - [ ] Dual-write to legacy for rollback
-  - [ ] Verify data consistency
+  - [✓] Dual-write pattern implemented in PersonalityRouter
+  - [ ] Verify data consistency in production
 - [ ] Migrate personality commands one by one:
-  - [ ] `/add` command
+  - [✓] `/add` command (AddCommand implemented with new system)
   - [ ] `/remove` command
   - [ ] `/info` command
   - [ ] `/reset` command
   - [ ] `/alias` command
+  - [ ] `/list` command
+
+#### Integration Tasks
+- [ ] Wire CommandIntegration to bot.js
+  - [ ] Replace legacy command processor gradually
+  - [ ] Add integration tests for end-to-end flow
+  - [ ] Ensure backward compatibility
+- [ ] Implement Discord slash command registration
+  - [ ] Create registration script
+  - [ ] Handle guild-specific vs global commands
+  - [ ] Test in development server first
+
+#### Additional Application Services (Week 6 prep)
+- [ ] Create ConversationApplicationService
+  - [ ] Handle conversation management use cases
+  - [ ] Manage history and auto-respond features
+  - [ ] Integrate with domain events
+- [ ] Create AuthenticationApplicationService
+  - [ ] Centralize user auth operations
+  - [ ] Handle tokens and NSFW verification
+  - [ ] Integrate with PersonalityApplicationService
+- [ ] Create AIApplicationService
+  - [ ] Orchestrate AI interactions
+  - [ ] Handle multimodal content
+  - [ ] Integrate with conversation context
 
 #### Validation
 - [ ] All personality tests passing
