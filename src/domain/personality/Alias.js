@@ -41,6 +41,14 @@ class Alias extends ValueObject {
     return this.originalValue;
   }
 
+  /**
+   * Get name property for compatibility
+   * @returns {string} The alias value
+   */
+  get name() {
+    return this.originalValue;
+  }
+
   toJSON() {
     return {
       value: this.value,
@@ -57,6 +65,19 @@ class Alias extends ValueObject {
 
   static fromString(value) {
     return new Alias(value);
+  }
+
+  /**
+   * Create Alias from JSON
+   * @param {Object} json - JSON representation
+   * @returns {Alias} New Alias instance
+   */
+  static fromJSON(json) {
+    // Handle both simple string and object formats
+    if (typeof json === 'string') {
+      return new Alias(json);
+    }
+    return new Alias(json.original || json.value);
   }
 }
 

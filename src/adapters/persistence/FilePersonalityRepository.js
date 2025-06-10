@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { Personality, PersonalityId, PersonalityProfile, Alias, UserId } = require('../../domain/personality');
 const { PersonalityRepository } = require('../../domain/personality');
+const { AIModel } = require('../../domain/ai');
 const logger = require('../../logger');
 
 /**
@@ -242,33 +243,65 @@ class FilePersonalityRepository extends PersonalityRepository {
    * @private
    */
   _hydrate(data) {
+    // Create profile from stored data
+    let profile;
+    if (data.profile) {
+      // Check if it's the new format (with name, prompt, etc) or old format (displayName, etc)
+      if (data.profile.name || data.profile.prompt) {
+        // New format
+        profile = new PersonalityProfile(
+          data.profile.name || data.id || data.personalityId,
+          data.profile.prompt || `You are ${data.profile.name || data.id}`,
+          data.profile.modelPath || '/default',
+          data.profile.maxWordCount || 1000
+        );
+      } else {
+        // Legacy format - convert to new format
+        profile = new PersonalityProfile(
+          data.profile.displayName || data.id || data.personalityId,
+          data.profile.systemPrompt || `You are ${data.profile.displayName || data.id}`,
+          '/default',
+          data.profile.maxTokens || 1000
+        );
+      }
+    } else {
+      // No profile data - create default
+      profile = new PersonalityProfile(
+        data.id || data.personalityId,
+        `You are ${data.id || data.personalityId}`,
+        '/default',
+        1000
+      );
+    }
+    
+    // Create model from stored data or use default
+    let model;
+    if (data.model) {
+      model = new AIModel(
+        data.model.name || 'default',
+        data.model.endpoint || '/default',
+        data.model.capabilities || {}
+      );
+    } else {
+      model = AIModel.createDefault();
+    }
+    
     // Create personality using static factory method
     const personality = Personality.create(
       new PersonalityId(data.id || data.personalityId),
-      new UserId(data.ownerId)
+      new UserId(data.ownerId),
+      profile,
+      model
     );
-    
-    // Set profile
-    if (data.profile) {
-      const profile = new PersonalityProfile({
-        displayName: data.profile.displayName,
-        avatarUrl: data.profile.avatarUrl,
-        bio: data.profile.bio,
-        systemPrompt: data.profile.systemPrompt,
-        temperature: data.profile.temperature,
-        maxTokens: data.profile.maxTokens,
-      });
-      personality.updateProfile(profile);
-    }
     
     // Add aliases
     if (data.aliases && Array.isArray(data.aliases)) {
-      // Since Personality doesn't have addAlias method yet, we'll set aliases directly
-      personality.aliases = data.aliases.map(aliasData => {
+      data.aliases.forEach(aliasData => {
         if (typeof aliasData === 'string') {
-          return new Alias(aliasData);
+          personality.addAlias(new Alias(aliasData));
+        } else {
+          personality.addAlias(new Alias(aliasData.value || aliasData.original));
         }
-        return new Alias(aliasData.value || aliasData.original);
       });
     }
     

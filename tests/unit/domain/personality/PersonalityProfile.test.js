@@ -186,7 +186,11 @@ describe('PersonalityProfile', () => {
       expect(profile.toJSON()).toEqual({
         displayName: 'Claude',
         avatarUrl: 'https://example.com/avatar.png',
-        errorMessage: 'Error message'
+        errorMessage: 'Error message',
+        name: 'Claude',
+        prompt: null,
+        modelPath: null,
+        maxWordCount: null
       });
     });
     
@@ -198,7 +202,11 @@ describe('PersonalityProfile', () => {
       expect(profile.toJSON()).toEqual({
         displayName: 'Claude',
         avatarUrl: null,
-        errorMessage: null
+        errorMessage: null,
+        name: 'Claude',
+        prompt: null,
+        modelPath: null,
+        maxWordCount: null
       });
     });
   });

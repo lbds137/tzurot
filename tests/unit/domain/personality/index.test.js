@@ -12,6 +12,7 @@ const { dddPresets } = require('../../../__mocks__/ddd');
 
 // Module under test - NOT mocked!
 const personalityDomain = require('../../../../src/domain/personality/index');
+const { AIModel } = require('../../../../src/domain/ai/AIModel');
 
 describe('Personality Domain Index', () => {
   beforeEach(() => {
@@ -65,13 +66,15 @@ describe('Personality Domain Index', () => {
     it('should allow creating personalities', () => {
       const personalityId = new personalityDomain.PersonalityId('test-personality');
       const userId = new personalityDomain.UserId('123456789012345678');
-      const profile = new personalityDomain.PersonalityProfile({
-        displayName: 'Test Personality',
-        avatarUrl: null,
-        errorMessage: null
-      });
+      const profile = new personalityDomain.PersonalityProfile(
+        'test-personality',
+        'You are a test personality',
+        '/default',
+        1000
+      );
+      const model = AIModel.createDefault();
       
-      const personality = personalityDomain.Personality.create(personalityId, userId, profile);
+      const personality = personalityDomain.Personality.create(personalityId, userId, profile, model);
       
       expect(personality).toBeInstanceOf(personalityDomain.Personality);
     });
@@ -129,6 +132,7 @@ describe('Personality Domain Index', () => {
         'Personality',
         'PersonalityId',
         'PersonalityProfile',
+        'PersonalityConfiguration',
         'UserId',
         'Alias',
         'PersonalityRepository',

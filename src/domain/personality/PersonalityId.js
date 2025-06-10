@@ -48,6 +48,17 @@ class PersonalityId extends ValueObject {
   static fromString(value) {
     return new PersonalityId(value);
   }
+  
+  /**
+   * Generate a new PersonalityId
+   * @returns {PersonalityId}
+   */
+  static generate() {
+    // Generate a unique ID using timestamp and random component
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 9);
+    return new PersonalityId(`personality-${timestamp}-${random}`);
+  }
 }
 
 module.exports = { PersonalityId };

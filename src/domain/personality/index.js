@@ -6,6 +6,7 @@
 const { Personality } = require('./Personality');
 const { PersonalityId } = require('./PersonalityId');
 const { PersonalityProfile } = require('./PersonalityProfile');
+const { PersonalityConfiguration } = require('./PersonalityConfiguration');
 const { PersonalityRepository } = require('./PersonalityRepository');
 const { UserId } = require('./UserId');
 const { Alias } = require('./Alias');
@@ -24,6 +25,7 @@ module.exports = {
   // Value Objects
   PersonalityId,
   PersonalityProfile,
+  PersonalityConfiguration,
   UserId,
   Alias,
   
