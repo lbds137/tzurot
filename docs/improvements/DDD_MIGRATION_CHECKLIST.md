@@ -100,15 +100,25 @@
 
 ### Week 3: Discord & Persistence Adapters
 
-#### Discord Adapters
+#### Discord Adapters (Critical for Clean Architecture)
 - [ ] Implement `DiscordMessageAdapter`
-  - [ ] Map Discord.js messages to domain objects
-  - [ ] Handle message events
-  - [ ] Emit domain events
+  - [ ] Map Discord.js messages to domain Message objects
+  - [ ] Handle message events and convert to domain events
+  - [ ] Emit domain events (MessageReceived, MessageEdited, etc.)
+  - [ ] Abstract Discord-specific concepts (guilds, channels) from domain
+  - [ ] Handle Discord's complex message types (embeds, attachments, replies)
+  - [ ] Provide clean interface for domain to send responses
 - [ ] Implement `DiscordWebhookAdapter`
-  - [ ] Wrap webhook operations
-  - [ ] Handle failures gracefully
+  - [ ] Wrap webhook operations with domain-friendly interface
+  - [ ] Handle failures gracefully with domain-appropriate errors
+  - [ ] Abstract webhook caching logic from domain
+  - [ ] Manage Discord's rate limits transparently
+  - [ ] Convert domain personalities to Discord webhook format
+  - [ ] Handle message splitting for Discord's 2000 char limit
 - [ ] Write integration tests
+  - [ ] Test mapping of all Discord message types
+  - [ ] Test error handling and rate limit scenarios
+  - [ ] Verify domain remains isolated from Discord changes
 
 #### Persistence Adapters
 - [ ] Implement `FilePersonalityRepository`
@@ -123,11 +133,16 @@
 ### Week 4: AI & Event Adapters
 
 #### AI Adapters
-- [ ] Implement `AnthropicAdapter`
-  - [ ] Transform domain requests
-  - [ ] Handle API responses
-  - [ ] Implement retry logic
+- [ ] Implement `AIServiceAdapter`
+  - [ ] Transform domain requests to API format
+  - [ ] Handle API responses and convert to domain objects
+  - [ ] Implement retry logic with exponential backoff
+  - [ ] Abstract API-specific authentication methods
+  - [ ] Handle multimodal content (text, images, audio)
 - [ ] Connect to Anti-Corruption Layer
+  - [ ] Shield domain from API format changes
+  - [ ] Translate API errors to domain errors
+  - [ ] Provide consistent interface regardless of AI provider
 - [ ] Write integration tests
 
 #### Event Infrastructure
