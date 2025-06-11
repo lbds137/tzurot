@@ -204,35 +204,11 @@ See `./scripts/` for additional tools:
 
 **These patterns will FAIL pre-commit hooks and CI:**
 
-1. **Singleton Exports**
-   ```javascript
-   // ❌ FORBIDDEN
-   const instance = new MyClass();
-   module.exports = instance;
-   
-   // ✅ CORRECT
-   module.exports = { MyClass, create: (deps) => new MyClass(deps) };
-   ```
+1. **Singleton Exports** - No direct instance exports; use factory functions
+2. **NODE_ENV Checks in Source** - Use dependency injection instead
+3. **Timer Existence Checks** - Inject timers as dependencies
 
-2. **NODE_ENV Checks in Source**
-   ```javascript
-   // ❌ FORBIDDEN
-   if (process.env.NODE_ENV === 'test') { /* ... */ }
-   
-   // ✅ CORRECT
-   // Use dependency injection instead
-   ```
-
-3. **Timer Existence Checks**
-   ```javascript
-   // ❌ FORBIDDEN
-   typeof setTimeout !== 'undefined' ? setTimeout : () => {}
-   
-   // ✅ CORRECT
-   // Inject timers as dependencies
-   ```
-
-See `docs/testing/TIMER_PATTERNS_COMPLETE.md` for timer patterns and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for singleton migration.
+See `docs/testing/TIMER_PATTERNS_COMPLETE.md` and `docs/improvements/SINGLETON_MIGRATION_GUIDE.md` for migration guides.
 
 ### IMPORTANT: After making code changes
 - Always run `npm run quality` to check code quality, formatting, timer patterns, and hardcoded prefixes
@@ -330,30 +306,6 @@ See `docs/testing/TIMER_PATTERNS_COMPLETE.md` for timer patterns and `docs/impro
 3. **Dependency Injection** - Make external dependencies (timers, APIs, etc.) injectable
 4. **Composability** - Small modules that work together are better than large monoliths
 
-#### Example: Refactoring a Large Module
-```javascript
-// ❌ BAD: webhookManager.js doing everything (2000+ lines)
-class WebhookManager {
-  createWebhook() { /* webhook creation */ }
-  cacheWebhook() { /* caching logic */ }
-  sendMessage() { /* message sending */ }
-  splitMessage() { /* message splitting */ }
-  handleMedia() { /* media processing */ }
-  formatUsername() { /* username formatting */ }
-  // ... dozens more methods
-}
-
-// ✅ GOOD: Separate focused modules
-// webhookCreator.js (200 lines)
-class WebhookCreator { /* only webhook creation */ }
-
-// webhookCache.js (150 lines)
-class WebhookCache { /* only caching logic */ }
-
-// messageSender.js (200 lines)
-class MessageSender { /* only sending logic */ }
-```
-
 #### Enforcement
 - Run `npm run lint:module-size` to check for oversized modules
 - Pre-commit hooks will fail if modules exceed 500 lines
@@ -361,35 +313,11 @@ class MessageSender { /* only sending logic */ }
 
 ### Timer Patterns (Critical for Test Performance)
 
-**IMPORTANT**: Non-injectable timers are the #1 cause of slow tests. Always follow these patterns:
+**IMPORTANT**: Non-injectable timers are the #1 cause of slow tests. Always make delays injectable as dependencies.
 
-#### ❌ Don't: Inline Timer Delays
-```javascript
-// BAD - Blocks fake timer testing
-async function retryOperation() {
-  await new Promise(resolve => setTimeout(resolve, 5000));
-}
-```
-
-#### ✅ Do: Make Delays Injectable
-```javascript
-// GOOD - Testable design
-class MyService {
-  constructor(options = {}) {
-    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
-  }
-  
-  async retryOperation() {
-    await this.delay(5000); // Now testable!
-  }
-}
-```
-
-#### Enforcement Tools
-- Run `npm run lint:timers` before committing (included in `npm run quality`)
-- Pre-commit hook automatically checks for timer violations
-- See `.eslintrc.timer-patterns.js` for ESLint rules
-- Fix existing violations with patterns from this section
+- Run `npm run lint:timers` to check for violations
+- Pre-commit hooks enforce timer patterns
+- See `docs/testing/TIMER_PATTERNS_COMPLETE.md` for examples and migration guide
 
 ### ESLint Practices
 
@@ -422,26 +350,6 @@ class MyService {
 
 **CRITICAL: Always test behavior, not implementation details. Focus on WHAT the code does, not HOW it does it.**
 
-#### Quick Examples
-
-**❌ Bad (Testing Implementation):**
-```javascript
-// Testing internal methods and implementation details
-expect(handler._parsePersonalityName).toHaveBeenCalled();
-expect(tracker._cleanupInterval).toBeDefined();
-jest.advanceTimersByTime(600000); // Testing exact timer values
-expect(mock.mock.calls[0][1]).toBe('internal'); // Inspecting mock internals
-```
-
-**✅ Good (Testing Behavior):**
-```javascript
-// Testing observable outcomes
-expect(message.channel.messages.fetch).toHaveBeenCalledWith({ limit: 10 });
-expect(tracker.processedMessages.size).toBe(0); // After cleanup
-expect(result).toContain('Error occurred'); // User-visible outcome
-expect(mockFunction).toHaveBeenCalledWith(expect.objectContaining({ id: '123' }));
-```
-
 ### Key Testing Principles
 
 1. **Test Public APIs** - Focus on methods other code uses
@@ -452,156 +360,38 @@ expect(mockFunction).toHaveBeenCalledWith(expect.objectContaining({ id: '123' })
 
 ### Critical Anti-patterns to Avoid
 
-Our automated test anti-pattern checker (`npm run test:antipatterns`) catches these issues:
+Run `npm run test:antipatterns` to check for:
+- Real delays in tests (use fake timers)
+- Testing private methods or implementation details
+- Unmocked dependencies from src/
+- Non-deterministic tests
 
-#### 1. **Timing Issues** (Most Common Problem!)
-```javascript
-// ❌ BAD - Real delays in tests
-await new Promise(resolve => setTimeout(resolve, 5000));
-
-// ✅ GOOD - Use fake timers
-jest.useFakeTimers();
-jest.advanceTimersByTime(5000);
-```
-
-#### 2. **Implementation Testing**
-```javascript
-// ❌ BAD - Testing private methods/internals
-expect(obj._privateMethod).toHaveBeenCalled();
-expect(spy).toHaveBeenCalledTimes(7); // Brittle!
-
-// ✅ GOOD - Test outcomes
-expect(result.status).toBe('completed');
-```
-
-#### 3. **Unmocked Dependencies**
-```javascript
-// ❌ BAD - Importing real modules
-const realModule = require('../../../src/heavyModule');
-
-// ✅ GOOD - Mock all src imports
-jest.mock('../../../src/heavyModule');
-```
-
-#### 4. **Flaky Tests**
-```javascript
-// ❌ BAD - Non-deterministic
-expect(Date.now()).toBeGreaterThan(before);
-
-// ✅ GOOD - Mock non-deterministic values
-jest.spyOn(Date, 'now').mockReturnValue(1234567890);
-```
-
-### Test Structure Best Practices
-
-```javascript
-describe('ComponentName', () => {
-  // Mock setup
-  let mockDependency;
-  
-  beforeEach(() => {
-    // Reset mocks and state
-    jest.clearAllMocks();
-    jest.resetModules();
-    
-    // Mock timers by default
-    jest.useFakeTimers();
-    
-    // Mock console to keep output clean
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-    
-    // Initialize mocks
-    mockDependency = createMockDependency();
-  });
-  
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-  
-  describe('methodName', () => {
-    it('should handle success case', async () => {
-      // Arrange
-      const input = createTestInput();
-      
-      // Act
-      const result = await component.method(input);
-      
-      // Assert - test outcomes, not implementation
-      expect(result).toEqual(expectedOutput);
-      expect(mockDependency.visibleMethod).toHaveBeenCalledWith(
-        expect.objectContaining({ key: 'value' })
-      );
-    });
-    
-    it('should handle error case', async () => {
-      // Arrange
-      mockDependency.method.mockRejectedValue(new Error('Test error'));
-      
-      // Act & Assert
-      await expect(component.method(input)).rejects.toThrow('User-friendly error');
-    });
-  });
-});
-```
+For detailed examples and patterns, see `docs/testing/TEST_PHILOSOPHY_AND_PATTERNS.md`.
 
 ### Technical Guidelines
 
-- Jest is used as the testing framework
-- Keep test files parallel to the implementation (same directory structure)
-- Use Jest's mocking system to replace external dependencies
-- Use `beforeEach` to reset state between tests
-- Mock console methods to keep test output clean
-- Use the existing mock implementations in `tests/__mocks__/`
-- Global mocks are loaded from `tests/setup-global-mocks.js`
-- NEVER alter real functionality solely to make a test pass
-- NEVER skip tests as a solution to fixing failures
-- NEVER add environment checks in implementation files for testing
-- Run `npm run test:antipatterns` to check for common issues
-- If you run the full test suite (`npm test`), update `docs/testing/TEST_COVERAGE_SUMMARY.md`
+- Jest is the testing framework
+- Keep test files parallel to implementation
+- Mock all external dependencies
+- Use fake timers for time-based operations
+- Mock console to keep output clean
+- NEVER alter real functionality to make tests pass
+- NEVER skip tests to fix failures
+- NEVER add environment checks for testing
 
-### Performance Guidelines
+### Performance Requirements
 
-- Tests should run in < 30 seconds total
-- Individual test files should run in < 5 seconds
-- Use fake timers for all time-based operations
-- Mock all file system and network operations
-- Use the consolidated mock system in `tests/__mocks__/`
+- Total test suite: < 30 seconds
+- Individual test files: < 5 seconds
+- Always use fake timers and mock I/O operations
 
 ### Mock Pattern Enforcement
 
-**IMPORTANT**: We have strict enforcement for test mock patterns to prevent inconsistency issues:
+We enforce consistent mock patterns. New tests must use:
+- `createMigrationHelper()` from `tests/utils/testEnhancements.js`
+- Or `presets.commandTest()` from `tests/__mocks__/`
 
-#### Required Patterns for New Tests
-- Use `createMigrationHelper()` from `tests/utils/testEnhancements.js` for gradual migration
-- Or use `presets.commandTest()` from `tests/__mocks__/` for fully migrated tests
-- Command tests MUST use one of these approaches
-
-#### Deprecated Patterns (Will Fail Checks)
-- ❌ `jest.doMock()` - Use standard `jest.mock()` with migration helper
-- ❌ `helpers.createMockMessage()` - Use `migrationHelper.bridge.createCompatibleMockMessage()`
-- ❌ Legacy mock imports (`mockFactories`, `discordMocks`, `apiMocks`)
-- ❌ `jest.resetModules()` - Breaks helper imports, use `jest.clearAllMocks()` instead
-
-#### Enforcement Mechanisms
-- **Pre-commit hook** - Checks staged test files for violations
-- **npm run lint:test-mocks** - Check all test files
-- **npm run quality:tests** - Part of quality checks
-- See `docs/testing/MOCK_PATTERN_RULES.md` for complete rules
-
-#### Migration Status
-- Run `node scripts/generate-mock-migration-report.js` to see progress
-- Currently ~5% migrated to new system
-- Goal: 100% consistent mock usage across all tests
-
-### Bulk Test Modifications
-
-**⚠️ CAUTION**: Bulk test modifications require extreme care. Key requirements:
-- Test on 2-3 files first
-- Include syntax validation
-- Create rollback mechanisms
-- Process in small batches
-- See `docs/testing/BULK_MODIFICATION_SAFETY.md` for detailed guidelines
+Pre-commit hooks will fail on deprecated patterns. See `docs/testing/MOCK_PATTERN_RULES.md` for details.
 
 ## Date Handling
 
@@ -909,13 +699,8 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
 - Validate security considerations for sensitive operations
 
 #### 2. **Effective Prompting**
-```javascript
-// ❌ BAD: Vague questions
-"How do I make this better?"
-
-// ✅ GOOD: Specific, contextual questions
-"Review this webhook deduplication logic for potential race conditions and suggest improvements for high-concurrency scenarios"
-```
+- Ask specific, contextual questions rather than vague ones
+- Include constraints and requirements for better suggestions
 
 #### 3. **Code Review Workflow**
 - After implementing significant features, use `gemini_code_review` for fresh perspective
@@ -949,33 +734,9 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
 
 ### MCP Integration Examples
 
-#### Example 1: Architecture Review
-```javascript
-// When refactoring webhookManager.js (2800+ lines)
-mcp__gemini-collab__gemini_brainstorm({
-  topic: "Strategies to refactor a 2800-line webhook manager into smaller, focused modules",
-  constraints: "Must maintain backward compatibility, preserve all deduplication logic, support injectable dependencies for testing"
-})
-```
-
-#### Example 2: Security Review
-```javascript
-// For authentication changes
-mcp__gemini-collab__gemini_code_review({
-  code: authenticationCode,
-  focus: "security",
-  language: "javascript"
-})
-```
-
-#### Example 3: Test Coverage
-```javascript
-// For complex error handling
-mcp__gemini-collab__gemini_test_cases({
-  code_or_feature: "Webhook creation with rate limiting and exponential backoff",
-  test_type: "edge cases"
-})
-```
+- **Architecture Review**: Use `gemini_brainstorm` for refactoring strategies on large modules
+- **Security Review**: Use `gemini_code_review` with focus on security for auth changes
+- **Test Coverage**: Use `gemini_test_cases` for edge cases in complex error handling
 
 ### Model Configuration Notes
 - Currently using Gemini 1.5 Flash through MCP
