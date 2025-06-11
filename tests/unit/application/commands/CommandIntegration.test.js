@@ -252,8 +252,8 @@ describe('CommandIntegration', () => {
       await integration.initialize();
       
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(1);
-      expect(commands[0].name).toBe('add');
+      expect(commands).toHaveLength(3);
+      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info']);
     });
   });
 

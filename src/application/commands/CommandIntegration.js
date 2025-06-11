@@ -9,6 +9,8 @@ const { CommandAdapterFactory } = require('./CommandAdapter');
 const { getFeatureFlags } = require('../services/FeatureFlags');
 const { getPersonalityRouter } = require('../routers/PersonalityRouter');
 const { createAddCommand } = require('./personality/AddCommand');
+const { createRemoveCommand } = require('./personality/RemoveCommand');
+const { createInfoCommand } = require('./personality/InfoCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -61,10 +63,10 @@ class CommandIntegration {
 
     // Register personality commands
     this.registry.register(createAddCommand());
+    this.registry.register(createRemoveCommand());
+    this.registry.register(createInfoCommand());
     
     // TODO: Register more commands as they are migrated
-    // this.registry.register(createRemoveCommand());
-    // this.registry.register(createInfoCommand());
     // this.registry.register(createResetCommand());
     // this.registry.register(createAliasCommand());
     // this.registry.register(createListCommand());
