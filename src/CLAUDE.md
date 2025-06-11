@@ -218,3 +218,63 @@ When modifying any component:
 2. **Use injectable timers** - See timer patterns in root CLAUDE.md
 3. **Test error cases** - Every try/catch needs a test
 4. **Maintain coverage** - Don't reduce test coverage
+
+## MCP Integration for Source Code
+
+### When to Use MCP for Source Code Review
+
+**High-Value Scenarios:**
+1. **Large Module Refactoring** - Breaking down files >1000 lines
+   ```javascript
+   mcp__gemini-collab__gemini_brainstorm({
+     topic: "Refactor webhookManager.js (2800 lines) into focused modules",
+     constraints: "Maintain backward compatibility, preserve all webhook caching and deduplication"
+   })
+   ```
+
+2. **Security-Critical Code** - Authentication, token handling, data validation
+   ```javascript
+   mcp__gemini-collab__gemini_code_review({
+     code: authenticationCode,
+     focus: "security",
+     language: "javascript"
+   })
+   ```
+
+3. **Complex Error Handling** - Multi-layer retry logic, rate limiting
+   ```javascript
+   mcp__gemini-collab__gemini_test_cases({
+     code_or_feature: "Rate limiter with exponential backoff and blackout periods",
+     test_type: "edge cases"
+   })
+   ```
+
+4. **Performance Optimization** - Caching strategies, deduplication logic
+   ```javascript
+   mcp__gemini-collab__gemini_explain({
+     topic: "Optimal caching strategy for webhook objects with LRU eviction",
+     level: "expert"
+   })
+   ```
+
+### Component-Specific MCP Usage
+
+**AI Service (`aiService.js`)**
+- Review multimodal content handling for edge cases
+- Validate deduplication logic for race conditions
+- Check token security in request headers
+
+**Webhook Manager (`webhookManager.js`)**
+- Brainstorm module splitting strategies
+- Review message splitting algorithm for Discord limits
+- Validate rate limit handling implementation
+
+**Personality System**
+- Review alias resolution logic for conflicts
+- Validate ownership checks for security
+- Test persistence layer for data integrity
+
+**Command System**
+- Review middleware chain for proper error propagation
+- Validate permission checks across all commands
+- Test command routing with feature flags
