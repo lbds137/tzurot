@@ -979,9 +979,17 @@ mcp__gemini-collab__gemini_test_cases({
 
 ### Model Configuration Notes
 - Currently using Gemini 1.5 Flash through MCP
-- To upgrade models, configuration changes needed in MCP server
+- Recommended upgrade to dual-model configuration:
+  - **Primary**: Gemini 2.5 Pro Preview (experimental, best quality)
+  - **Fallback**: Gemini 2.0 Pro (stable, excellent for coding)
 - Model availability varies - check Google AI documentation
 - Performance/cost tradeoffs between model versions
+
+### Dual-Model Strategy Benefits
+1. **Best Quality First**: Try cutting-edge 2.5 models for superior results
+2. **Automatic Fallback**: Switch to stable 2.0 Pro if issues occur
+3. **Zero Downtime**: Seamless experience even during model updates
+4. **Optimal Results**: Get the best available response every time
 
 ## Versioning and Release Management
 
