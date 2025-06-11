@@ -2,6 +2,42 @@
 
 This CLAUDE.md file provides guidance for working with and creating tests for Tzurot.
 
+## MCP Integration for Testing
+
+### High-Value MCP Usage for Tests
+
+1. **Edge Case Discovery**
+   ```javascript
+   mcp__gemini-collab__gemini_test_cases({
+     code_or_feature: "Message deduplication with race conditions",
+     test_type: "edge cases"
+   })
+   ```
+
+2. **Test Coverage Gaps**
+   ```javascript
+   mcp__gemini-collab__gemini_brainstorm({
+     topic: "Test scenarios for webhook rate limiting with concurrent requests",
+     constraints: "Must use fake timers, test observable behavior only"
+   })
+   ```
+
+3. **Mock Verification**
+   ```javascript
+   mcp__gemini-collab__gemini_code_review({
+     code: testCode,
+     focus: "Mock usage and test isolation",
+     language: "javascript"
+   })
+   ```
+
+### When to Consult MCP for Tests
+- Complex async flows with multiple promises
+- Race condition testing strategies
+- Security-sensitive test scenarios
+- Performance test design
+- Mock isolation verification
+
 ## 🚨 CRITICAL: Test Philosophy
 
 **Always test BEHAVIOR, not IMPLEMENTATION. If you're testing private methods, mock internals, or exact call counts, you're doing it wrong.**

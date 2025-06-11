@@ -34,6 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Claude Code Tool Usage Guidelines](#claude-code-tool-usage-guidelines)
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
 - [Context Window Management](#context-window-management)
+- [MCP (Model Context Protocol) Integration](#mcp-model-context-protocol-integration)
 - [Versioning and Release Management](#versioning-and-release-management) - **See VERSIONING.md for Discord bot-specific guidance**
 
 ## Claude Personality
@@ -789,11 +790,19 @@ The following tools are generally safe to use without explicit permission:
    - `WebSearch` - Search the web for information (always approved)
    - `WebFetch` - Fetch content from specific URLs (always approved)
 
-4. **Node Package Operations**
+4. **MCP (Model Context Protocol) Tools**
+   - `mcp__gemini-collab__ask_gemini` - Ask Gemini general questions or for help (always approved)
+   - `mcp__gemini-collab__gemini_code_review` - Get code review from Gemini (always approved)
+   - `mcp__gemini-collab__gemini_brainstorm` - Brainstorm ideas with Gemini (always approved)
+   - `mcp__gemini-collab__gemini_test_cases` - Generate test cases with Gemini (always approved)
+   - `mcp__gemini-collab__gemini_explain` - Get explanations from Gemini (always approved)
+   - `mcp__gemini-collab__server_info` - Check MCP server status (always approved)
+
+5. **Node Package Operations**
    - `npm list` - List installed packages
    - `npm audit` - Check for vulnerabilities
 
-5. **Test-specific Commands**
+6. **Test-specific Commands**
    - `npx jest tests/unit/path/to/test.js` - Run specific tests
 
 ### Tools Requiring Approval
@@ -877,6 +886,102 @@ The following operations should be discussed before executing:
 4. **Effectiveness First**: Better to gather complete info than make multiple attempts
 
 Remember: The goal is effective problem-solving, not minimal context usage.
+
+## MCP (Model Context Protocol) Integration
+
+### Overview
+MCP tools provide access to external AI capabilities through the Gemini collaboration server. These tools enhance our development workflow by providing additional perspectives on code quality, architecture decisions, and test coverage.
+
+### Available MCP Tools
+1. **`mcp__gemini-collab__ask_gemini`** - General questions and problem-solving assistance
+2. **`mcp__gemini-collab__gemini_code_review`** - Code quality and improvement suggestions
+3. **`mcp__gemini-collab__gemini_brainstorm`** - Architecture and design ideation
+4. **`mcp__gemini-collab__gemini_test_cases`** - Test scenario generation
+5. **`mcp__gemini-collab__gemini_explain`** - Technical concept explanations
+6. **`mcp__gemini-collab__server_info`** - Connection status verification
+
+### Best Practices for MCP Usage
+
+#### 1. **Strategic Integration**
+- Use Gemini for second opinions on complex architectural decisions
+- Leverage for brainstorming when stuck on implementation approaches
+- Get alternative perspectives on test coverage gaps
+- Validate security considerations for sensitive operations
+
+#### 2. **Effective Prompting**
+```javascript
+// ❌ BAD: Vague questions
+"How do I make this better?"
+
+// ✅ GOOD: Specific, contextual questions
+"Review this webhook deduplication logic for potential race conditions and suggest improvements for high-concurrency scenarios"
+```
+
+#### 3. **Code Review Workflow**
+- After implementing significant features, use `gemini_code_review` for fresh perspective
+- Focus reviews on specific concerns: security, performance, maintainability
+- Cross-reference Gemini suggestions with project conventions
+
+#### 4. **Test Case Generation**
+- Use `gemini_test_cases` to identify edge cases you might have missed
+- Particularly valuable for security-sensitive code and error handling paths
+- Always adapt generated tests to match project's testing patterns
+
+#### 5. **Architecture Brainstorming**
+- When facing design decisions, use `gemini_brainstorm` for alternatives
+- Provide constraints and requirements for more relevant suggestions
+- Evaluate suggestions against project's DDD migration goals
+
+### When to Use MCP Tools
+
+**Highly Recommended:**
+- Complex refactoring decisions (e.g., breaking down large modules)
+- Security-critical code reviews (authentication, data handling)
+- Test coverage for edge cases and error scenarios
+- Understanding unfamiliar patterns or libraries
+- Validating architectural decisions against best practices
+
+**Use With Caution:**
+- Don't rely solely on MCP for critical decisions
+- Always validate suggestions against project requirements
+- Remember MCP doesn't have full project context
+- Cross-check generated code with existing patterns
+
+### MCP Integration Examples
+
+#### Example 1: Architecture Review
+```javascript
+// When refactoring webhookManager.js (2800+ lines)
+mcp__gemini-collab__gemini_brainstorm({
+  topic: "Strategies to refactor a 2800-line webhook manager into smaller, focused modules",
+  constraints: "Must maintain backward compatibility, preserve all deduplication logic, support injectable dependencies for testing"
+})
+```
+
+#### Example 2: Security Review
+```javascript
+// For authentication changes
+mcp__gemini-collab__gemini_code_review({
+  code: authenticationCode,
+  focus: "security",
+  language: "javascript"
+})
+```
+
+#### Example 3: Test Coverage
+```javascript
+// For complex error handling
+mcp__gemini-collab__gemini_test_cases({
+  code_or_feature: "Webhook creation with rate limiting and exponential backoff",
+  test_type: "edge cases"
+})
+```
+
+### Model Configuration Notes
+- Currently using Gemini 1.5 Flash through MCP
+- To upgrade models, configuration changes needed in MCP server
+- Model availability varies - check Google AI documentation
+- Performance/cost tradeoffs between model versions
 
 ## Versioning and Release Management
 
