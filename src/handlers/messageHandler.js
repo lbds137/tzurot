@@ -24,6 +24,8 @@ const {
   getMaxAliasWordCount,
 } = require('../core/personality');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
+const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
+const { getFeatureFlags } = require('../application/services/FeatureFlags');
 
 /**
  * Check if a message contains any personality mentions (without processing them)
@@ -349,12 +351,34 @@ async function handleCommand(message) {
   );
 
   try {
-    // Process the command
-    const result = await processCommand(message, command, args);
-    logger.debug(`processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
-    return true; // Command was handled
+    // Check if we should use the new command integration system
+    const featureFlags = getFeatureFlags();
+    const useNewCommandSystem = featureFlags.isEnabled('ddd.commands.integration');
+    
+    if (useNewCommandSystem) {
+      // Use the new command integration adapter
+      const adapter = getCommandIntegrationAdapter();
+      const result = await adapter.processCommand(message, command, args);
+      
+      logger.debug(
+        `CommandIntegrationAdapter completed with result: ${result?.success ? 'success' : 'failure'}`
+      );
+      
+      // Handle error responses from adapter
+      if (!result.success && result.error) {
+        await message.reply(`❌ ${result.error}`);
+      }
+      
+      return true; // Command was handled
+    } else {
+      // Use legacy command processor
+      const result = await processCommand(message, command, args);
+      logger.debug(`processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
+      return true; // Command was handled
+    }
   } catch (error) {
-    logger.error(`Error in processCommand:`, error);
+    logger.error(`Error in command processing:`, error);
+    await message.reply('❌ An error occurred while processing your command. Please try again.');
     return false; // Command had an error
   }
 }

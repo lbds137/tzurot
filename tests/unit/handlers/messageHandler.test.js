@@ -76,7 +76,8 @@ describe('messageHandler', () => {
         isDMBased: () => false,
         send: jest.fn().mockResolvedValue(undefined)
       },
-      reference: null
+      reference: null,
+      reply: jest.fn().mockResolvedValue(undefined)
     };
     
     // Mock personality
