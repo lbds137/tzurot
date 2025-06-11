@@ -2,42 +2,50 @@
 
 ## Recommended Dual-Model Configuration
 - **Primary (Experimental)**: Gemini 2.5 Pro Preview (`gemini-2.5-pro-preview-06-05`)
-- **Fallback (Stable)**: Gemini 2.0 Pro (`gemini-2.0-pro`)
+- **Fallback (Stable)**: Gemini 1.5 Pro (`gemini-1.5-pro`) or Gemini 2.0 Flash (`gemini-2.0-flash`)
 - **Current**: Gemini 1.5 Flash (`gemini-1.5-flash`)
 
 ## Available Gemini Models (June 2025)
 
 ### Stable Production Models
 
-#### 🎯 Gemini 2.0 Pro
-- **Model Code**: `gemini-2.0-pro`
+#### 🎯 Gemini 1.5 Pro
+- **Model Code**: `gemini-1.5-pro`
 - **Status**: Stable production model
-- **Best For**: Complex coding tasks and prompts
+- **Best For**: Complex reasoning tasks requiring more intelligence
 - **Capabilities**:
-  - 2 million token context window
-  - Excellent coding performance
-  - Google Search and code execution tools
-  - Multimodal support
+  - Multimodal support (audio, images, videos, text)
+  - Strong performance for complex tasks
+  - Well-tested and reliable
 
 #### ⚡ Gemini 2.0 Flash
 - **Model Code**: `gemini-2.0-flash`
 - **Status**: Stable production model
-- **Best For**: Balanced performance and cost
+- **Best For**: Next generation features, speed, thinking, and realtime streaming
 - **Capabilities**:
-  - Multimodal support (text, images, video, audio)
-  - Native image generation capabilities
-  - Good for most development tasks
+  - Multimodal support (audio, images, videos, text)
+  - Enhanced speed and performance
+  - Good balance for most development tasks
 
 #### 💨 Gemini 2.0 Flash-Lite
 - **Model Code**: `gemini-2.0-flash-lite`
 - **Status**: Stable production model
-- **Best For**: High-volume, cost-sensitive tasks
+- **Best For**: Cost efficiency and low latency
 - **Capabilities**:
   - Most cost-efficient option
-  - Optimized for low latency
+  - Optimized for high-volume tasks
   - Good for simple queries
 
-### Experimental/Preview Models (2.5 Family)
+#### 🚀 Gemini 1.5 Flash
+- **Model Code**: `gemini-1.5-flash`
+- **Status**: Stable production model
+- **Best For**: Fast and versatile performance across diverse tasks
+- **Capabilities**:
+  - Currently used in your MCP server
+  - Good general-purpose model
+  - Reliable and well-tested
+
+### Experimental/Preview Models
 
 #### 🌟 Gemini 2.5 Pro Preview
 - **Model Code**: `gemini-2.5-pro-preview-06-05`
@@ -71,7 +79,7 @@
 ```bash
 # In your .env file
 GEMINI_MODEL_PRIMARY=gemini-2.5-pro-preview-06-05
-GEMINI_MODEL_FALLBACK=gemini-2.0-flash
+GEMINI_MODEL_FALLBACK=gemini-1.5-pro  # or gemini-2.0-flash
 GEMINI_MODEL_TIMEOUT=10000  # 10 seconds before fallback
 ```
 
@@ -86,7 +94,7 @@ GEMINI_MODEL_TIMEOUT=10000  # 10 seconds before fallback
         "retries": 1
       },
       "fallback": {
-        "name": "gemini-2.0-flash",
+        "name": "gemini-1.5-pro",
         "timeout": 15000,
         "retries": 2
       }
@@ -107,7 +115,7 @@ class GeminiService {
     });
     
     this.fallbackModel = genAI.getGenerativeModel({ 
-      model: process.env.GEMINI_MODEL_FALLBACK || "gemini-2.0-flash"
+      model: process.env.GEMINI_MODEL_FALLBACK || "gemini-1.5-pro"
     });
   }
 
@@ -148,24 +156,50 @@ class GeminiService {
 }
 ```
 
-## Recommended Models by Use Case
+## Recommended Configurations
 
-### For Code Review & Architecture (Best Quality)
-**Use**: `gemini-2.5-pro-preview-06-05`
-- Superior reasoning capabilities
-- Better understanding of complex code patterns
-- More nuanced architectural suggestions
+### 🎯 Best Overall (Quality + Reliability)
+```bash
+GEMINI_MODEL_PRIMARY=gemini-2.5-pro-preview-06-05
+GEMINI_MODEL_FALLBACK=gemini-1.5-pro
+```
+- Primary: Cutting-edge 2.5 Pro for best results
+- Fallback: Stable 1.5 Pro for complex reasoning
 
-### For Quick Iterations & Brainstorming (Best Speed)
-**Use**: `gemini-2.5-flash-preview-05-20`
-- Faster response times
-- Still capable of complex reasoning
-- More cost-effective for frequent use
+### ⚡ Best Performance (Speed + Cost)
+```bash
+GEMINI_MODEL_PRIMARY=gemini-2.5-flash-preview-05-20
+GEMINI_MODEL_FALLBACK=gemini-2.0-flash
+```
+- Primary: Fast 2.5 Flash with thinking capabilities
+- Fallback: Next-gen 2.0 Flash for speed
 
-### For Production Stability
-**Use**: `gemini-2.0-flash`
-- Stable release (not experimental)
-- Good balance of capabilities
+### 💰 Most Cost-Effective
+```bash
+GEMINI_MODEL_PRIMARY=gemini-2.0-flash
+GEMINI_MODEL_FALLBACK=gemini-2.0-flash-lite
+```
+- Primary: Balanced 2.0 Flash
+- Fallback: Ultra-efficient Flash-Lite
+
+## Model Selection Guide
+
+### For Code Review & Architecture
+**Primary**: `gemini-2.5-pro-preview-06-05`
+- Enhanced thinking and reasoning
+- Multimodal understanding
+- Advanced coding capabilities
+
+### For Quick Iterations
+**Primary**: `gemini-2.5-flash-preview-05-20`
+- Adaptive thinking
+- Cost efficiency
+- Fast response times
+
+### For Stable Production Use
+**Use**: `gemini-1.5-pro` or `gemini-2.0-flash`
+- No experimental models
+- Proven reliability
 - Predictable behavior
 
 ## Important Notes
