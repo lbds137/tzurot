@@ -24,7 +24,10 @@ class PersonalityManager {
     this.options = options;
 
     // Injectable delay function for testability
-    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || (ms => {
+      const timer = globalThis.setTimeout || setTimeout;
+      return new Promise(resolve => timer(resolve, ms));
+    });
   }
 
   /**

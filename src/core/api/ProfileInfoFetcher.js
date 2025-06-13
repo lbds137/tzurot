@@ -46,7 +46,10 @@ class ProfileInfoFetcher {
     this.logPrefix = '[ProfileInfoFetcher]';
 
     // Allow injection of delay function for testing
-    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.delay = options.delay || (ms => {
+      const timer = globalThis.setTimeout || setTimeout;
+      return new Promise(resolve => timer(resolve, ms));
+    });
   }
 
   /**
