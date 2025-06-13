@@ -49,8 +49,9 @@ const getLogLevel = () => {
  */
 function createLoggerInstance(options = {}) {
   const logLevel = options.level || getLogLevel();
-  const enableFileLogging = options.enableFileLogging !== undefined ? options.enableFileLogging : !isTest;
-  
+  const enableFileLogging =
+    options.enableFileLogging !== undefined ? options.enableFileLogging : !isTest;
+
   const loggerInstance = createLogger({
     level: logLevel,
     format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), logFormat),
@@ -97,7 +98,7 @@ function createLoggerInstance(options = {}) {
   loggerInstance.info(
     `Logger initialized with level: ${loggerInstance.level} (${botConfig.isDevelopment ? 'development' : 'production'} mode)`
   );
-  
+
   return loggerInstance;
 }
 

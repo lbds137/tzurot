@@ -19,15 +19,15 @@ class AuthContext extends ValueObject {
     requestedPersonalityId = null,
   }) {
     super();
-    
+
     if (!channelType || !['DM', 'GUILD', 'THREAD'].includes(channelType)) {
       throw new Error('Invalid channel type');
     }
-    
+
     if (!channelId || typeof channelId !== 'string') {
       throw new Error('Channel ID required');
     }
-    
+
     this.channelType = channelType;
     this.channelId = channelId;
     this.isNsfwChannel = !!isNsfwChannel;

@@ -18,12 +18,12 @@ class ConversationSettings extends ValueObject {
     timeoutMs = 600000, // 10 minutes default
   } = {}) {
     super();
-    
+
     this.autoResponseEnabled = autoResponseEnabled;
     this.autoResponseDelay = autoResponseDelay;
     this.mentionOnly = mentionOnly;
     this.timeoutMs = timeoutMs;
-    
+
     this.validate();
   }
 
@@ -31,15 +31,15 @@ class ConversationSettings extends ValueObject {
     if (typeof this.autoResponseEnabled !== 'boolean') {
       throw new Error('autoResponseEnabled must be boolean');
     }
-    
+
     if (typeof this.autoResponseDelay !== 'number' || this.autoResponseDelay < 0) {
       throw new Error('autoResponseDelay must be non-negative number');
     }
-    
+
     if (typeof this.mentionOnly !== 'boolean') {
       throw new Error('mentionOnly must be boolean');
     }
-    
+
     if (typeof this.timeoutMs !== 'number' || this.timeoutMs < 0) {
       throw new Error('timeoutMs must be non-negative number');
     }

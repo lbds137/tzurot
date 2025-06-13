@@ -13,19 +13,19 @@ const { ValueObject } = require('../shared/ValueObject');
 class Token extends ValueObject {
   constructor(value, expiresAt) {
     super();
-    
+
     if (!value || typeof value !== 'string') {
       throw new Error('Token value must be a non-empty string');
     }
-    
+
     if (!expiresAt || !(expiresAt instanceof Date)) {
       throw new Error('Token requires valid expiration date');
     }
-    
+
     if (expiresAt.getTime() <= Date.now()) {
       throw new Error('Token expiration must be in the future');
     }
-    
+
     this.value = value;
     this.expiresAt = expiresAt;
   }

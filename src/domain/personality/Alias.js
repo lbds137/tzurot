@@ -13,21 +13,21 @@ const { ValueObject } = require('../shared/ValueObject');
 class Alias extends ValueObject {
   constructor(value) {
     super();
-    
+
     if (!value || typeof value !== 'string') {
       throw new Error('Alias must be a non-empty string');
     }
-    
+
     const trimmed = value.trim();
-    
+
     if (trimmed.length < 1 || trimmed.length > 50) {
       throw new Error('Alias must be between 1 and 50 characters');
     }
-    
+
     if (trimmed !== value) {
       throw new Error('Alias cannot have leading or trailing spaces');
     }
-    
+
     // Store in lowercase for case-insensitive matching
     this.value = trimmed.toLowerCase();
     this.originalValue = trimmed;

@@ -22,17 +22,17 @@ module.exports = {
   // Aggregates
   Conversation,
   ChannelActivation,
-  
+
   // Entities
   Message,
-  
+
   // Value Objects
   ConversationId,
   ConversationSettings,
-  
+
   // Repository
   ConversationRepository,
-  
+
   // Events
   ConversationStarted,
   MessageAdded,

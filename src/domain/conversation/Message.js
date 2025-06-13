@@ -21,28 +21,28 @@ class Message {
     reference = null,
     mentions = null,
     isForwarded = false,
-    forwardedContent = null
+    forwardedContent = null,
   }) {
     if (!id || typeof id !== 'string') {
       throw new Error('Message requires valid id');
     }
-    
+
     if (!content || typeof content !== 'string') {
       throw new Error('Message requires content');
     }
-    
+
     if (!authorId || typeof authorId !== 'string') {
       throw new Error('Message requires authorId');
     }
-    
+
     if (!timestamp || !(timestamp instanceof Date)) {
       throw new Error('Message requires valid timestamp');
     }
-    
+
     if (!channelId || typeof channelId !== 'string') {
       throw new Error('Message requires channelId');
     }
-    
+
     this.id = id;
     this.content = content;
     this.authorId = authorId;
@@ -112,9 +112,7 @@ class Message {
    * @returns {boolean} True if has images
    */
   hasImages() {
-    return this.attachments.some(att => 
-      att.contentType && att.contentType.startsWith('image/')
-    );
+    return this.attachments.some(att => att.contentType && att.contentType.startsWith('image/'));
   }
 
   /**
@@ -122,9 +120,7 @@ class Message {
    * @returns {boolean} True if has audio
    */
   hasAudio() {
-    return this.attachments.some(att => 
-      att.contentType && att.contentType.startsWith('audio/')
-    );
+    return this.attachments.some(att => att.contentType && att.contentType.startsWith('audio/'));
   }
 
   /**
@@ -149,7 +145,7 @@ class Message {
       reference: this.reference,
       mentions: this.mentions,
       isForwarded: this.isForwarded,
-      forwardedContent: this.forwardedContent
+      forwardedContent: this.forwardedContent,
     };
   }
 

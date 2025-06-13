@@ -17,9 +17,9 @@ class ChannelActivation extends AggregateRoot {
     if (!channelId || typeof channelId !== 'string') {
       throw new Error('ChannelActivation requires valid channelId');
     }
-    
+
     super(channelId);
-    
+
     this.channelId = channelId;
     this.personalityId = personalityId;
     this.activatedBy = activatedBy;
@@ -39,11 +39,11 @@ class ChannelActivation extends AggregateRoot {
     if (!(personalityId instanceof PersonalityId)) {
       throw new Error('Invalid PersonalityId');
     }
-    
+
     if (!(activatedBy instanceof UserId)) {
       throw new Error('Invalid UserId');
     }
-    
+
     return new ChannelActivation(channelId, personalityId, activatedBy);
   }
 
@@ -54,7 +54,7 @@ class ChannelActivation extends AggregateRoot {
     if (!this.active) {
       throw new Error('Channel already deactivated');
     }
-    
+
     this.active = false;
     this.version++;
   }

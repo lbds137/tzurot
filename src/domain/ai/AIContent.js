@@ -13,11 +13,11 @@ const { ValueObject } = require('../shared/ValueObject');
 class AIContent extends ValueObject {
   constructor(items = []) {
     super();
-    
+
     if (!Array.isArray(items)) {
       throw new Error('AIContent must be initialized with an array');
     }
-    
+
     this.items = Object.freeze(items.map(item => this.validateItem(item)));
     this.freeze();
   }
@@ -32,31 +32,31 @@ class AIContent extends ValueObject {
     if (!item || typeof item !== 'object') {
       throw new Error('Content item must be an object');
     }
-    
+
     const validTypes = ['text', 'image_url', 'audio_url'];
     if (!validTypes.includes(item.type)) {
       throw new Error(`Invalid content type: ${item.type}`);
     }
-    
+
     switch (item.type) {
       case 'text':
         if (!item.text || typeof item.text !== 'string') {
           throw new Error('Text content must have text property');
         }
         return { type: 'text', text: item.text };
-        
+
       case 'image_url':
         if (!item.image_url?.url) {
           throw new Error('Image content must have image_url.url');
         }
         return { type: 'image_url', image_url: { url: item.image_url.url } };
-        
+
       case 'audio_url':
         if (!item.audio_url?.url) {
           throw new Error('Audio content must have audio_url.url');
         }
         return { type: 'audio_url', audio_url: { url: item.audio_url.url } };
-        
+
       default:
         throw new Error(`Unsupported content type: ${item.type}`);
     }
@@ -72,7 +72,7 @@ class AIContent extends ValueObject {
     if (!text || typeof text !== 'string') {
       throw new Error('Text must be a non-empty string');
     }
-    
+
     return new AIContent([{ type: 'text', text }]);
   }
 

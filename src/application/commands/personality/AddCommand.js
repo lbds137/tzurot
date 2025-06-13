@@ -21,40 +21,40 @@ function createAddCommand() {
         name: 'name',
         description: 'The name of the personality',
         type: 'string',
-        required: true
+        required: true,
       }),
       new CommandOption({
         name: 'prompt',
         description: 'The personality prompt (optional)',
         type: 'string',
-        required: false
+        required: false,
       }),
       new CommandOption({
         name: 'model',
         description: 'The AI model path (optional)',
         type: 'string',
-        required: false
+        required: false,
       }),
       new CommandOption({
         name: 'maxwords',
         description: 'Maximum word count for responses (optional)',
         type: 'integer',
-        required: false
-      })
+        required: false,
+      }),
     ],
-    execute: async (context) => {
+    execute: async context => {
       try {
         // Extract dependencies
         const personalityService = context.dependencies.personalityApplicationService;
         const featureFlags = context.dependencies.featureFlags;
-        
+
         if (!personalityService) {
           throw new Error('PersonalityApplicationService not available');
         }
 
         // Get arguments based on command type
         let name, prompt, modelPath, maxWordCount;
-        
+
         if (context.isSlashCommand) {
           // Slash command - options are named
           name = context.options.name;
@@ -66,19 +66,21 @@ function createAddCommand() {
           if (context.args.length < 1) {
             return await context.respond(
               'Usage: `!tz add <name> [prompt]`\n' +
-              'Example: `!tz add Claude "You are Claude, a helpful AI assistant"`'
+                'Example: `!tz add Claude "You are Claude, a helpful AI assistant"`'
             );
           }
-          
+
           name = context.args[0];
-          
+
           // Everything after the name is the prompt
           if (context.args.length > 1) {
             prompt = context.args.slice(1).join(' ');
-            
+
             // Remove quotes if present
-            if ((prompt.startsWith('"') && prompt.endsWith('"')) ||
-                (prompt.startsWith("'") && prompt.endsWith("'"))) {
+            if (
+              (prompt.startsWith('"') && prompt.endsWith('"')) ||
+              (prompt.startsWith("'") && prompt.endsWith("'"))
+            ) {
               prompt = prompt.slice(1, -1);
             }
           }
@@ -95,8 +97,10 @@ function createAddCommand() {
 
         // Check if using new system
         const useNewSystem = featureFlags?.isEnabled('ddd.personality.write');
-        
-        logger.info(`[AddCommand] Creating personality "${name}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`);
+
+        logger.info(
+          `[AddCommand] Creating personality "${name}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
+        );
 
         // Create the personality
         const command = {
@@ -105,15 +109,15 @@ function createAddCommand() {
           prompt: prompt || `You are ${name}`,
           modelPath: modelPath || '/default',
           maxWordCount: maxWordCount || 1000,
-          aliases: []
+          aliases: [],
         };
 
         try {
           const result = await personalityService.registerPersonality(command);
-          
+
           if (result.success) {
             logger.info(`[AddCommand] Successfully created personality "${name}"`);
-            
+
             let response = `✅ Successfully created personality **${name}**`;
             if (prompt) {
               response += `\nPrompt: "${prompt}"`;
@@ -121,7 +125,7 @@ function createAddCommand() {
             if (useNewSystem) {
               response += '\n*(Using new DDD system)*';
             }
-            
+
             return await context.respond(response);
           } else {
             throw new Error(result.error || 'Failed to create personality');
@@ -131,28 +135,28 @@ function createAddCommand() {
           if (error.message.includes('already exists')) {
             return await context.respond(
               `A personality named **${name}** already exists. ` +
-              `Please choose a different name or use \`remove\` first.`
+                `Please choose a different name or use \`remove\` first.`
             );
           }
-          
+
           if (error.message.includes('Authentication failed')) {
             return await context.respond(
               '❌ Authentication failed. Please make sure you have authenticated with the bot first.\n' +
-              'Use `!tz auth` to authenticate.'
+                'Use `!tz auth` to authenticate.'
             );
           }
-          
+
           throw error; // Re-throw other errors
         }
       } catch (error) {
         logger.error('[AddCommand] Error:', error);
-        
+
         return await context.respond(
           '❌ An error occurred while creating the personality. ' +
-          'Please try again later or contact support if the issue persists.'
+            'Please try again later or contact support if the issue persists.'
         );
       }
-    }
+    },
   });
 }
 

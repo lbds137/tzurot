@@ -28,9 +28,9 @@ class AIRequest extends AggregateRoot {
     if (!(id instanceof AIRequestId)) {
       throw new Error('AIRequest must be created with AIRequestId');
     }
-    
+
     super(id.toString());
-    
+
     this.requestId = id;
     this.userId = null;
     this.personalityId = null;
@@ -62,29 +62,28 @@ class AIRequest extends AggregateRoot {
     if (!(userId instanceof UserId)) {
       throw new Error('Invalid UserId');
     }
-    
+
     if (!(personalityId instanceof PersonalityId)) {
       throw new Error('Invalid PersonalityId');
     }
-    
+
     if (!(content instanceof AIContent)) {
       throw new Error('Invalid AIContent');
     }
-    
+
     if (!(model instanceof AIModel)) {
       throw new Error('Invalid AIModel');
     }
-    
+
     // Validate content compatibility with model
     if (!model.isCompatibleWith(content)) {
       throw new Error('Content not compatible with model capabilities');
     }
-    
+
     const request = new AIRequest(AIRequestId.create());
-    
-    request.applyEvent(new AIRequestCreated(
-      request.id,
-      {
+
+    request.applyEvent(
+      new AIRequestCreated(request.id, {
         requestId: request.id,
         userId: userId.toString(),
         personalityId: personalityId.toString(),
@@ -92,9 +91,9 @@ class AIRequest extends AggregateRoot {
         referencedContent: referencedContent ? referencedContent.toJSON() : null,
         model: model.toJSON(),
         createdAt: new Date().toISOString(),
-      }
-    ));
-    
+      })
+    );
+
     return request;
   }
 
@@ -105,14 +104,13 @@ class AIRequest extends AggregateRoot {
     if (this.status !== 'pending' && this.status !== 'retrying') {
       throw new Error('Can only send pending or retrying requests');
     }
-    
-    this.applyEvent(new AIRequestSent(
-      this.id,
-      {
+
+    this.applyEvent(
+      new AIRequestSent(this.id, {
         sentAt: new Date().toISOString(),
         attempt: this.attempts + 1,
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -123,18 +121,17 @@ class AIRequest extends AggregateRoot {
     if (this.status !== 'sent') {
       throw new Error('Can only record response for sent requests');
     }
-    
+
     if (!(responseContent instanceof AIContent)) {
       throw new Error('Invalid response content');
     }
-    
-    this.applyEvent(new AIResponseReceived(
-      this.id,
-      {
+
+    this.applyEvent(
+      new AIResponseReceived(this.id, {
         response: responseContent.toJSON(),
         completedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -146,18 +143,17 @@ class AIRequest extends AggregateRoot {
     if (this.status === 'completed' || this.status === 'failed') {
       throw new Error('Cannot fail completed or failed request');
     }
-    
-    this.applyEvent(new AIRequestFailed(
-      this.id,
-      {
+
+    this.applyEvent(
+      new AIRequestFailed(this.id, {
         error: {
           message: error.message,
           code: error.code || 'UNKNOWN',
           canRetry,
         },
         failedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -168,18 +164,17 @@ class AIRequest extends AggregateRoot {
     if (this.status !== 'failed') {
       throw new Error('Can only retry failed requests');
     }
-    
+
     if (this.attempts >= 3) {
       throw new Error('Maximum retry attempts exceeded');
     }
-    
-    this.applyEvent(new AIRequestRetried(
-      this.id,
-      {
+
+    this.applyEvent(
+      new AIRequestRetried(this.id, {
         retryAt: new Date(Date.now() + delayMs).toISOString(),
         attempt: this.attempts,
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -187,13 +182,12 @@ class AIRequest extends AggregateRoot {
    * @param {number} retryAfterMs - Time to wait before retry
    */
   recordRateLimit(retryAfterMs) {
-    this.applyEvent(new AIRequestRateLimited(
-      this.id,
-      {
+    this.applyEvent(
+      new AIRequestRateLimited(this.id, {
         rateLimitedAt: new Date().toISOString(),
         retryAfter: retryAfterMs,
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -201,9 +195,7 @@ class AIRequest extends AggregateRoot {
    * @returns {boolean} True if can retry
    */
   canRetry() {
-    return this.status === 'failed' && 
-           this.attempts < 3 && 
-           this.error?.canRetry !== false;
+    return this.status === 'failed' && this.attempts < 3 && this.error?.canRetry !== false;
   }
 
   /**
@@ -214,7 +206,7 @@ class AIRequest extends AggregateRoot {
     if (!this.sentAt || !this.completedAt) {
       return null;
     }
-    
+
     return new Date(this.completedAt).getTime() - new Date(this.sentAt).getTime();
   }
 
@@ -224,7 +216,7 @@ class AIRequest extends AggregateRoot {
     this.userId = UserId.fromString(event.payload.userId);
     this.personalityId = PersonalityId.fromString(event.payload.personalityId);
     this.content = new AIContent(event.payload.content);
-    this.referencedContent = event.payload.referencedContent 
+    this.referencedContent = event.payload.referencedContent
       ? new AIContent(event.payload.referencedContent)
       : null;
     this.model = new AIModel(

@@ -41,10 +41,10 @@ class CommandIntegrationAdapter {
   async _doInitialize(applicationServices) {
     try {
       logger.info('[CommandIntegrationAdapter] Initializing...');
-      
+
       // Initialize the new command system
       await this.commandIntegration.initialize(applicationServices);
-      
+
       this.initialized = true;
       logger.info('[CommandIntegrationAdapter] Successfully initialized');
     } catch (error) {
@@ -69,10 +69,10 @@ class CommandIntegrationAdapter {
 
       // Check if this command exists in the new system
       const hasNewCommand = this.commandIntegration.hasCommand(commandName);
-      
+
       // Check feature flags for this command
       const useNewSystem = this.shouldUseNewSystem(commandName, hasNewCommand);
-      
+
       logger.info(
         `[CommandIntegrationAdapter] Processing command "${commandName}" using ${useNewSystem ? 'new' : 'legacy'} system`
       );
@@ -86,11 +86,11 @@ class CommandIntegrationAdapter {
       }
     } catch (error) {
       logger.error('[CommandIntegrationAdapter] Error processing command:', error);
-      
+
       // Return error response instead of throwing
       return {
         success: false,
-        error: error.message || 'An error occurred processing the command'
+        error: error.message || 'An error occurred processing the command',
       };
     }
   }
@@ -132,7 +132,7 @@ class CommandIntegrationAdapter {
     try {
       // Log for monitoring
       logger.info(`[CommandIntegrationAdapter] Routing to new system: ${commandName}`);
-      
+
       // Use the Discord text command handler
       const result = await this.commandIntegration.handleDiscordTextCommand(
         message,
@@ -142,17 +142,17 @@ class CommandIntegrationAdapter {
 
       return {
         success: true,
-        result
+        result,
       };
     } catch (error) {
       logger.error('[CommandIntegrationAdapter] New system error:', error);
-      
+
       // Optionally fall back to legacy on error
       if (this.featureFlags.isEnabled('ddd.commands.fallbackOnError')) {
         logger.warn('[CommandIntegrationAdapter] Falling back to legacy system due to error');
         return await this.processLegacyCommand(message, commandName, args);
       }
-      
+
       throw error;
     }
   }
@@ -162,13 +162,13 @@ class CommandIntegrationAdapter {
    */
   async processLegacyCommand(message, commandName, args) {
     logger.info(`[CommandIntegrationAdapter] Routing to legacy system: ${commandName}`);
-    
+
     // Call legacy processor with correct arguments
     const result = await processLegacyCommand(message, commandName, args);
-    
+
     return {
       success: true,
-      result
+      result,
     };
   }
 
@@ -193,12 +193,12 @@ class CommandIntegrationAdapter {
    */
   getCommandList() {
     const commands = [];
-    
+
     // Get legacy commands (if still enabled)
     if (!this.featureFlags.isEnabled('ddd.commands.hideGacy')) {
       // TODO: Get from legacy system
     }
-    
+
     // Get new commands
     if (this.initialized) {
       const newCommands = this.commandIntegration.getAllCommands();
@@ -208,12 +208,12 @@ class CommandIntegrationAdapter {
             name: cmd.name,
             description: cmd.description,
             aliases: cmd.aliases,
-            isNew: true // Mark as new for help display
+            isNew: true, // Mark as new for help display
           });
         }
       });
     }
-    
+
     return commands;
   }
 
@@ -259,5 +259,5 @@ function resetCommandIntegrationAdapter() {
 module.exports = {
   CommandIntegrationAdapter,
   getCommandIntegrationAdapter,
-  resetCommandIntegrationAdapter
+  resetCommandIntegrationAdapter,
 };

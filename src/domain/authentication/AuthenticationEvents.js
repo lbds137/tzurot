@@ -13,7 +13,7 @@ const { DomainEvent } = require('../shared/DomainEvent');
 class UserAuthenticated extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.userId || !payload.token || !payload.authenticatedAt) {
       throw new Error('UserAuthenticated requires userId, token, and authenticatedAt');
     }
@@ -28,7 +28,7 @@ class UserAuthenticated extends DomainEvent {
 class UserTokenExpired extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.expiredAt) {
       throw new Error('UserTokenExpired requires expiredAt');
     }
@@ -43,7 +43,7 @@ class UserTokenExpired extends DomainEvent {
 class UserTokenRefreshed extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.newToken || !payload.refreshedAt) {
       throw new Error('UserTokenRefreshed requires newToken and refreshedAt');
     }
@@ -58,7 +58,7 @@ class UserTokenRefreshed extends DomainEvent {
 class UserNsfwVerified extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.verifiedAt) {
       throw new Error('UserNsfwVerified requires verifiedAt');
     }
@@ -73,7 +73,7 @@ class UserNsfwVerified extends DomainEvent {
 class UserNsfwVerificationCleared extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.reason || !payload.clearedAt) {
       throw new Error('UserNsfwVerificationCleared requires reason and clearedAt');
     }
@@ -88,7 +88,7 @@ class UserNsfwVerificationCleared extends DomainEvent {
 class UserBlacklisted extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.reason || !payload.blacklistedAt) {
       throw new Error('UserBlacklisted requires reason and blacklistedAt');
     }
@@ -103,7 +103,7 @@ class UserBlacklisted extends DomainEvent {
 class UserUnblacklisted extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.unblacklistedAt) {
       throw new Error('UserUnblacklisted requires unblacklistedAt');
     }
@@ -118,7 +118,7 @@ class UserUnblacklisted extends DomainEvent {
 class AuthenticationDenied extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.reason || !payload.context || !payload.deniedAt) {
       throw new Error('AuthenticationDenied requires reason, context, and deniedAt');
     }
@@ -133,7 +133,7 @@ class AuthenticationDenied extends DomainEvent {
 class ProxyAuthenticationAttempted extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.userId || !payload.attemptedAt) {
       throw new Error('ProxyAuthenticationAttempted requires userId and attemptedAt');
     }

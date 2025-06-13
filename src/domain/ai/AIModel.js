@@ -13,15 +13,15 @@ const { ValueObject } = require('../shared/ValueObject');
 class AIModel extends ValueObject {
   constructor(name, path, capabilities = {}) {
     super();
-    
+
     if (!name || typeof name !== 'string') {
       throw new Error('Model name required');
     }
-    
+
     if (!path || typeof path !== 'string') {
       throw new Error('Model path required');
     }
-    
+
     this.name = name;
     this.path = path;
     this.capabilities = Object.freeze({
@@ -60,7 +60,7 @@ class AIModel extends ValueObject {
     if (!content || !content.items) {
       return true;
     }
-    
+
     for (const item of content.items) {
       if (item.type === 'image_url' && !this.capabilities.supportsImages) {
         return false;
@@ -69,7 +69,7 @@ class AIModel extends ValueObject {
         return false;
       }
     }
-    
+
     return true;
   }
 
@@ -99,16 +99,12 @@ class AIModel extends ValueObject {
    * @returns {AIModel} Default model
    */
   static createDefault() {
-    return new AIModel(
-      'default',
-      'claude-3-opus-20240229',
-      {
-        supportsImages: true,
-        supportsAudio: true,
-        maxTokens: 4096,
-        temperature: 0.7,
-      }
-    );
+    return new AIModel('default', 'claude-3-opus-20240229', {
+      supportsImages: true,
+      supportsAudio: true,
+      maxTokens: 4096,
+      temperature: 0.7,
+    });
   }
 
   /**

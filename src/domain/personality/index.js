@@ -21,17 +21,17 @@ const {
 module.exports = {
   // Aggregate
   Personality,
-  
+
   // Value Objects
   PersonalityId,
   PersonalityProfile,
   PersonalityConfiguration,
   UserId,
   Alias,
-  
+
   // Repository
   PersonalityRepository,
-  
+
   // Events
   PersonalityCreated,
   PersonalityProfileUpdated,

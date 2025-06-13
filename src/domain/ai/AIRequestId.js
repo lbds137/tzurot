@@ -13,16 +13,16 @@ const { ValueObject } = require('../shared/ValueObject');
 class AIRequestId extends ValueObject {
   constructor(value) {
     super();
-    
+
     if (!value) {
       // Generate new ID if not provided
       value = this.generateId();
     }
-    
+
     if (typeof value !== 'string') {
       throw new Error('AIRequestId must be a string');
     }
-    
+
     this.value = value;
     this.freeze();
   }

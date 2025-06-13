@@ -13,9 +13,15 @@ const { DomainEvent } = require('../shared/DomainEvent');
 class AIRequestCreated extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
-    if (!payload.requestId || !payload.userId || !payload.personalityId || 
-        !payload.content || !payload.model || !payload.createdAt) {
+
+    if (
+      !payload.requestId ||
+      !payload.userId ||
+      !payload.personalityId ||
+      !payload.content ||
+      !payload.model ||
+      !payload.createdAt
+    ) {
       throw new Error('AIRequestCreated requires complete request data');
     }
   }
@@ -29,7 +35,7 @@ class AIRequestCreated extends DomainEvent {
 class AIRequestSent extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.sentAt || !payload.attempt) {
       throw new Error('AIRequestSent requires sentAt and attempt');
     }
@@ -44,7 +50,7 @@ class AIRequestSent extends DomainEvent {
 class AIResponseReceived extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.response || !payload.completedAt) {
       throw new Error('AIResponseReceived requires response and completedAt');
     }
@@ -59,7 +65,7 @@ class AIResponseReceived extends DomainEvent {
 class AIRequestFailed extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.error || !payload.failedAt) {
       throw new Error('AIRequestFailed requires error and failedAt');
     }
@@ -74,7 +80,7 @@ class AIRequestFailed extends DomainEvent {
 class AIRequestRetried extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.retryAt || payload.attempt === undefined) {
       throw new Error('AIRequestRetried requires retryAt and attempt');
     }
@@ -89,7 +95,7 @@ class AIRequestRetried extends DomainEvent {
 class AIRequestRateLimited extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.rateLimitedAt || payload.retryAfter === undefined) {
       throw new Error('AIRequestRateLimited requires rateLimitedAt and retryAfter');
     }
@@ -104,7 +110,7 @@ class AIRequestRateLimited extends DomainEvent {
 class AIContentSanitized extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.originalLength || !payload.sanitizedLength || !payload.sanitizedAt) {
       throw new Error('AIContentSanitized requires length data and sanitizedAt');
     }
@@ -119,7 +125,7 @@ class AIContentSanitized extends DomainEvent {
 class AIErrorDetected extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.errorType || !payload.detectedAt) {
       throw new Error('AIErrorDetected requires errorType and detectedAt');
     }

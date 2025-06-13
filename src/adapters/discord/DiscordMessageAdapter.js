@@ -4,7 +4,7 @@ const logger = require('../../logger');
 
 /**
  * DiscordMessageAdapter - Maps between Discord.js messages and domain objects
- * 
+ *
  * This adapter serves as a bridge between the Discord.js library and our domain model,
  * ensuring that the domain remains free of infrastructure concerns.
  */
@@ -23,7 +23,7 @@ class DiscordMessageAdapter {
       const reference = this.extractReferences(discordMessage);
       const mentions = this.extractMentions(discordMessage);
       const isForwarded = this.isForwardedMessage(discordMessage);
-      
+
       // Extract forwarded content if this is a forwarded message
       let forwardedContent = null;
       if (isForwarded && discordMessage.messageSnapshots) {
@@ -31,10 +31,10 @@ class DiscordMessageAdapter {
           messageId: snapshot.message.id,
           authorUsername: snapshot.message.author.username,
           content: snapshot.message.content,
-          timestamp: snapshot.message.timestamp
+          timestamp: snapshot.message.timestamp,
         }));
       }
-      
+
       return new Message({
         id: discordMessage.id,
         authorId: discordMessage.author.id,
@@ -48,7 +48,7 @@ class DiscordMessageAdapter {
         reference,
         mentions,
         isForwarded,
-        forwardedContent
+        forwardedContent,
       });
     } catch (error) {
       logger.error('Failed to map Discord message to domain:', error);
@@ -72,7 +72,7 @@ class DiscordMessageAdapter {
       attachments: this.extractAttachments(discordMessage),
       references: this.extractReferences(discordMessage),
       isFromWebhook: !!discordMessage.webhookId,
-      mentions: this.extractMentions(discordMessage)
+      mentions: this.extractMentions(discordMessage),
     };
   }
 
@@ -93,26 +93,28 @@ class DiscordMessageAdapter {
    */
   static extractContent(discordMessage) {
     let content = discordMessage.content || '';
-    
+
     // Include embed content if present
     if (discordMessage.embeds && discordMessage.embeds.length > 0) {
-      const embedTexts = discordMessage.embeds.map(embed => {
-        const parts = [];
-        if (embed.title) parts.push(embed.title);
-        if (embed.description) parts.push(embed.description);
-        if (embed.fields) {
-          embed.fields.forEach(field => {
-            parts.push(`${field.name}: ${field.value}`);
-          });
-        }
-        return parts.join('\n');
-      }).filter(text => text);
-      
+      const embedTexts = discordMessage.embeds
+        .map(embed => {
+          const parts = [];
+          if (embed.title) parts.push(embed.title);
+          if (embed.description) parts.push(embed.description);
+          if (embed.fields) {
+            embed.fields.forEach(field => {
+              parts.push(`${field.name}: ${field.value}`);
+            });
+          }
+          return parts.join('\n');
+        })
+        .filter(text => text);
+
       if (embedTexts.length > 0) {
         content = content ? `${content}\n\n${embedTexts.join('\n\n')}` : embedTexts.join('\n\n');
       }
     }
-    
+
     // Include forwarded message content if this is a forwarded message
     if (discordMessage.messageSnapshots && discordMessage.messageSnapshots.length > 0) {
       const forwardedTexts = discordMessage.messageSnapshots.map(snapshot => {
@@ -120,13 +122,13 @@ class DiscordMessageAdapter {
         const header = `[Forwarded from ${msg.author.username}]`;
         return `${header}\n${msg.content || '[No content]'}`;
       });
-      
+
       if (forwardedTexts.length > 0) {
         const forwardedSection = `\n\n--- Forwarded Messages ---\n${forwardedTexts.join('\n\n')}`;
         content = content ? `${content}${forwardedSection}` : forwardedSection.trim();
       }
     }
-    
+
     return content;
   }
 
@@ -136,7 +138,7 @@ class DiscordMessageAdapter {
    */
   static extractAttachments(discordMessage) {
     const attachments = [];
-    
+
     if (discordMessage.attachments && discordMessage.attachments.size > 0) {
       discordMessage.attachments.forEach(attachment => {
         attachments.push({
@@ -148,11 +150,11 @@ class DiscordMessageAdapter {
           contentType: attachment.contentType,
           width: attachment.width,
           height: attachment.height,
-          ephemeral: attachment.ephemeral || false
+          ephemeral: attachment.ephemeral || false,
         });
       });
     }
-    
+
     return attachments;
   }
 
@@ -162,19 +164,19 @@ class DiscordMessageAdapter {
    */
   static extractReferences(discordMessage) {
     const references = {};
-    
+
     if (discordMessage.reference) {
       references.messageId = discordMessage.reference.messageId;
       references.channelId = discordMessage.reference.channelId;
       references.guildId = discordMessage.reference.guildId;
-      
+
       // Check if this is a forwarded message (type 1) vs a reply (type 0)
       if (discordMessage.reference.type !== undefined) {
         references.type = discordMessage.reference.type;
         references.isForwarded = discordMessage.reference.type === 1;
       }
     }
-    
+
     // Check for stickers
     if (discordMessage.stickers && discordMessage.stickers.size > 0) {
       references.stickers = [];
@@ -182,11 +184,11 @@ class DiscordMessageAdapter {
         references.stickers.push({
           id: sticker.id,
           name: sticker.name,
-          format: sticker.format
+          format: sticker.format,
         });
       });
     }
-    
+
     // Extract forwarded message snapshots if available
     if (discordMessage.messageSnapshots && discordMessage.messageSnapshots.length > 0) {
       references.forwardedSnapshots = discordMessage.messageSnapshots.map(snapshot => ({
@@ -197,10 +199,10 @@ class DiscordMessageAdapter {
         authorId: snapshot.message.author.id,
         authorUsername: snapshot.message.author.username,
         timestamp: snapshot.message.timestamp,
-        attachments: snapshot.message.attachments || []
+        attachments: snapshot.message.attachments || [],
       }));
     }
-    
+
     return Object.keys(references).length > 0 ? references : null;
   }
 
@@ -210,26 +212,26 @@ class DiscordMessageAdapter {
    */
   static extractMentions(discordMessage) {
     const mentions = {};
-    
+
     if (discordMessage.mentions.users && discordMessage.mentions.users.size > 0) {
       mentions.users = Array.from(discordMessage.mentions.users.values()).map(user => ({
         id: user.id,
         username: user.username,
-        tag: user.tag
+        tag: user.tag,
       }));
     }
-    
+
     if (discordMessage.mentions.roles && discordMessage.mentions.roles.size > 0) {
       mentions.roles = Array.from(discordMessage.mentions.roles.values()).map(role => ({
         id: role.id,
-        name: role.name
+        name: role.name,
       }));
     }
-    
+
     if (discordMessage.mentions.everyone) {
       mentions.everyone = true;
     }
-    
+
     return Object.keys(mentions).length > 0 ? mentions : null;
   }
 
@@ -239,8 +241,10 @@ class DiscordMessageAdapter {
    * @returns {boolean} True if the message is forwarded
    */
   static isForwardedMessage(discordMessage) {
-    return !!(discordMessage.reference?.type === 1 || 
-           (discordMessage.messageSnapshots && discordMessage.messageSnapshots.length > 0));
+    return !!(
+      discordMessage.reference?.type === 1 ||
+      (discordMessage.messageSnapshots && discordMessage.messageSnapshots.length > 0)
+    );
   }
 
   /**
@@ -251,7 +255,7 @@ class DiscordMessageAdapter {
   static extractAIContext(discordMessage) {
     const isForwarded = this.isForwardedMessage(discordMessage);
     const isReply = !!discordMessage.reference && !isForwarded;
-    
+
     return {
       isDM: !discordMessage.guild,
       isReply,
@@ -264,7 +268,7 @@ class DiscordMessageAdapter {
       messageType: discordMessage.type,
       isPinned: discordMessage.pinned,
       isSystemMessage: discordMessage.system,
-      forwardedMessageCount: discordMessage.messageSnapshots?.length || 0
+      forwardedMessageCount: discordMessage.messageSnapshots?.length || 0,
     };
   }
 
@@ -279,25 +283,24 @@ class DiscordMessageAdapter {
     if (discordMessage.author.bot && !options.allowWebhooks) {
       return false;
     }
-    
+
     // Skip system messages
     if (discordMessage.system) {
       return false;
     }
-    
+
     // Skip empty messages without attachments
     if (!discordMessage.content && discordMessage.attachments.size === 0) {
       return false;
     }
-    
+
     // Apply any custom filters
     if (options.filter && typeof options.filter === 'function') {
       return options.filter(discordMessage);
     }
-    
+
     return true;
   }
-
 }
 
 module.exports = { DiscordMessageAdapter };

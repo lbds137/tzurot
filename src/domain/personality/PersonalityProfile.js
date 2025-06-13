@@ -13,7 +13,7 @@ const { ValueObject } = require('../shared/ValueObject');
 class PersonalityProfile extends ValueObject {
   constructor(nameOrConfig, prompt, modelPath, maxWordCount) {
     super();
-    
+
     // Support both object-based and parameter-based construction
     if (typeof nameOrConfig === 'object' && nameOrConfig !== null) {
       // Legacy object-based construction
@@ -36,7 +36,7 @@ class PersonalityProfile extends ValueObject {
       this.avatarUrl = null;
       this.errorMessage = null;
     }
-    
+
     this.validate();
   }
 
@@ -44,27 +44,27 @@ class PersonalityProfile extends ValueObject {
     if (this.displayName && typeof this.displayName !== 'string') {
       throw new Error('Display name must be a string');
     }
-    
+
     if (this.avatarUrl && typeof this.avatarUrl !== 'string') {
       throw new Error('Avatar URL must be a string');
     }
-    
+
     if (this.errorMessage && typeof this.errorMessage !== 'string') {
       throw new Error('Error message must be a string');
     }
-    
+
     if (this.name && typeof this.name !== 'string') {
       throw new Error('Name must be a string');
     }
-    
+
     if (this.prompt && typeof this.prompt !== 'string') {
       throw new Error('Prompt must be a string');
     }
-    
+
     if (this.modelPath && typeof this.modelPath !== 'string') {
       throw new Error('Model path must be a string');
     }
-    
+
     if (this.maxWordCount && typeof this.maxWordCount !== 'number') {
       throw new Error('Max word count must be a number');
     }
@@ -116,12 +116,12 @@ class PersonalityProfile extends ValueObject {
 
   static fromJSON(data) {
     if (!data) return new PersonalityProfile({});
-    
+
     // If it has name/prompt/modelPath, it's the new format
     if (data.name && data.prompt && data.modelPath) {
       return new PersonalityProfile(data.name, data.prompt, data.modelPath, data.maxWordCount);
     }
-    
+
     // Otherwise it's the legacy format
     return new PersonalityProfile(data);
   }

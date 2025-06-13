@@ -354,26 +354,28 @@ async function handleCommand(message) {
     // Check if we should use the new command integration system
     const featureFlags = getFeatureFlags();
     const useNewCommandSystem = featureFlags.isEnabled('ddd.commands.integration');
-    
+
     if (useNewCommandSystem) {
       // Use the new command integration adapter
       const adapter = getCommandIntegrationAdapter();
       const result = await adapter.processCommand(message, command, args);
-      
+
       logger.debug(
         `CommandIntegrationAdapter completed with result: ${result?.success ? 'success' : 'failure'}`
       );
-      
+
       // Handle error responses from adapter
       if (!result.success && result.error) {
         await message.reply(`❌ ${result.error}`);
       }
-      
+
       return true; // Command was handled
     } else {
       // Use legacy command processor
       const result = await processCommand(message, command, args);
-      logger.debug(`processCommand completed with result: ${result ? 'success' : 'null/undefined'}`);
+      logger.debug(
+        `processCommand completed with result: ${result ? 'success' : 'null/undefined'}`
+      );
       return true; // Command was handled
     }
   } catch (error) {

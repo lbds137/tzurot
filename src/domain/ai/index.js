@@ -23,18 +23,18 @@ const {
 module.exports = {
   // Aggregates
   AIRequest,
-  
+
   // Value Objects
   AIRequestId,
   AIContent,
   AIModel,
-  
+
   // Services
   AIService,
-  
+
   // Repositories
   AIRequestRepository,
-  
+
   // Events
   AIRequestCreated,
   AIRequestSent,

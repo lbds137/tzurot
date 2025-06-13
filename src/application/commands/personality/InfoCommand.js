@@ -21,22 +21,22 @@ function createInfoCommand() {
         name: 'name',
         description: 'The name or alias of the personality',
         type: 'string',
-        required: true
-      })
+        required: true,
+      }),
     ],
-    execute: async (context) => {
+    execute: async context => {
       try {
         // Extract dependencies
         const personalityService = context.dependencies.personalityApplicationService;
         const featureFlags = context.dependencies.featureFlags;
-        
+
         if (!personalityService) {
           throw new Error('PersonalityApplicationService not available');
         }
 
         // Get personality name from arguments
         let personalityNameOrAlias;
-        
+
         if (context.isSlashCommand) {
           // Slash command - options are named
           personalityNameOrAlias = context.options.name;
@@ -47,7 +47,7 @@ function createInfoCommand() {
               'You need to provide a personality name or alias. Usage: `!tz info <name>`'
             );
           }
-          
+
           personalityNameOrAlias = context.args[0].toLowerCase();
         }
 
@@ -58,7 +58,7 @@ function createInfoCommand() {
 
         // Check if using new system
         const useNewSystem = featureFlags?.isEnabled('ddd.personality.read');
-        
+
         logger.info(
           `[InfoCommand] Getting info for "${personalityNameOrAlias}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
         );
@@ -66,87 +66,86 @@ function createInfoCommand() {
         try {
           // Get the personality
           const personality = await personalityService.getPersonality(personalityNameOrAlias);
-          
+
           if (!personality) {
             return await context.respond(
               `Personality "${personalityNameOrAlias}" not found. Please check the name or alias and try again.`
             );
           }
-          
+
           // Create embed fields
           const fields = [
             { name: 'Full Name', value: personality.fullName, inline: true },
-            { name: 'Display Name', value: personality.displayName || 'Not set', inline: true }
+            { name: 'Display Name', value: personality.displayName || 'Not set', inline: true },
           ];
-          
+
           // Add user's aliases (in new system, aliases are global not per-user)
           if (personality.aliases && personality.aliases.length > 0) {
-            fields.push({ 
-              name: 'Aliases', 
-              value: personality.aliases.join(', '), 
-              inline: true 
+            fields.push({
+              name: 'Aliases',
+              value: personality.aliases.join(', '),
+              inline: true,
             });
           } else {
-            fields.push({ 
-              name: 'Aliases', 
-              value: 'None set', 
-              inline: true 
+            fields.push({
+              name: 'Aliases',
+              value: 'None set',
+              inline: true,
             });
           }
-          
+
           // Add owner information if available
           if (personality.owner) {
             fields.push({
               name: 'Created By',
               value: `<@${personality.owner}>`,
-              inline: true
+              inline: true,
             });
           }
-          
+
           // Add status field
           fields.push({
             name: 'Status',
             value: '✅ This personality is working normally.',
-            inline: false
+            inline: false,
           });
-          
+
           // Add system indicator if using new system
           if (useNewSystem) {
             fields.push({
               name: 'System',
               value: '🆕 Using new DDD system',
-              inline: false
+              inline: false,
             });
           }
-          
+
           // Create the response
           const embedData = {
             title: 'Personality Info',
             description: `Information for **${personality.displayName || personality.fullName}**`,
             color: 0x2196f3,
-            fields: fields
+            fields: fields,
           };
-          
+
           // Add avatar if available
           if (personality.avatarUrl) {
             embedData.thumbnail = { url: personality.avatarUrl };
           }
-          
+
           return await context.respond({ embeds: [embedData] });
-          
         } catch (error) {
           logger.error('[InfoCommand] Error getting personality info:', error);
           throw error;
         }
       } catch (error) {
         logger.error('[InfoCommand] Error:', error);
-        
+
         return await context.respond(
           '❌ An error occurred while getting personality info. ' +
-          'Please try again later or contact support if the issue persists.'
+            'Please try again later or contact support if the issue persists.'
         );
       }
-    }
+    },
   });
 }
 
