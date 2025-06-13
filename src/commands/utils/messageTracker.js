@@ -9,9 +9,12 @@ class MessageTracker {
   constructor(options = {}) {
     const {
       enableCleanupTimers = true,
-      scheduler = setTimeout,
-      interval = setInterval,
-      delay = ms => new Promise(resolve => setTimeout(resolve, ms)),
+      scheduler = globalThis.setTimeout || setTimeout,
+      interval = globalThis.setInterval || setInterval,
+      delay = ms => {
+        const timer = globalThis.setTimeout || setTimeout;
+        return new Promise(resolve => timer(resolve, ms));
+      },
     } = options;
 
     // Track processed message IDs to prevent duplicates

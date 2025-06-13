@@ -43,10 +43,14 @@ const activeWebhookMessages = new Map();
 // Discord message size limits are now handled by messageFormatter module
 
 // Injectable delay function for testability
-let delayFn = ms => new Promise(resolve => setTimeout(resolve, ms));
+let delayFn = ms => {
+  // Use global timer - can be overridden for testing
+  const timer = globalThis.setTimeout || setTimeout;
+  return new Promise(resolve => timer(resolve, ms));
+};
 
 // Injectable scheduler function for testability
-let schedulerFn = setTimeout;
+let schedulerFn = globalThis.setTimeout || setTimeout;
 
 // Function to override the delay for testing
 function setDelayFunction(fn) {
