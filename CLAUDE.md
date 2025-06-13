@@ -581,11 +581,13 @@ The following tools are generally safe to use without explicit permission:
    - `WebFetch` - Fetch content from specific URLs (always approved)
 
 4. **MCP (Model Context Protocol) Tools**
+   - `mcp__ide__getDiagnostics` - Get diagnostic info for file URIs (always approved)
    - `mcp__gemini-collab__ask_gemini` - Ask Gemini general questions or for help (always approved)
    - `mcp__gemini-collab__gemini_code_review` - Get code review from Gemini (always approved)
    - `mcp__gemini-collab__gemini_brainstorm` - Brainstorm ideas with Gemini (always approved)
    - `mcp__gemini-collab__gemini_test_cases` - Generate test cases with Gemini (always approved)
    - `mcp__gemini-collab__gemini_explain` - Get explanations from Gemini (always approved)
+   - `mcp__gemini-collab__synthesize_perspectives` - Synthesize multiple viewpoints into coherent summary (always approved)
    - `mcp__gemini-collab__server_info` - Check MCP server status (always approved)
 
 5. **Node Package Operations**
@@ -683,12 +685,14 @@ Remember: The goal is effective problem-solving, not minimal context usage.
 MCP tools provide access to external AI capabilities through the Gemini collaboration server. These tools enhance our development workflow by providing additional perspectives on code quality, architecture decisions, and test coverage.
 
 ### Available MCP Tools
-1. **`mcp__gemini-collab__ask_gemini`** - General questions and problem-solving assistance
-2. **`mcp__gemini-collab__gemini_code_review`** - Code quality and improvement suggestions
-3. **`mcp__gemini-collab__gemini_brainstorm`** - Architecture and design ideation
-4. **`mcp__gemini-collab__gemini_test_cases`** - Test scenario generation
-5. **`mcp__gemini-collab__gemini_explain`** - Technical concept explanations
-6. **`mcp__gemini-collab__server_info`** - Connection status verification
+1. **`mcp__ide__getDiagnostics`** - Get diagnostic information for file URIs
+2. **`mcp__gemini-collab__ask_gemini`** - General questions and problem-solving assistance
+3. **`mcp__gemini-collab__gemini_code_review`** - Code quality and improvement suggestions
+4. **`mcp__gemini-collab__gemini_brainstorm`** - Architecture and design ideation
+5. **`mcp__gemini-collab__gemini_test_cases`** - Test scenario generation
+6. **`mcp__gemini-collab__gemini_explain`** - Technical concept explanations
+7. **`mcp__gemini-collab__synthesize_perspectives`** - Synthesize multiple viewpoints into coherent summary
+8. **`mcp__gemini-collab__server_info`** - Connection status verification
 
 ### Best Practices for MCP Usage
 
