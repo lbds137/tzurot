@@ -1,26 +1,27 @@
 const { AIService } = require('../../domain/ai');
-const { 
-  AIRequest,
-  AIContent
-} = require('../../domain/ai');
+const { AIRequest, AIContent } = require('../../domain/ai');
 const logger = require('../../logger');
 const nodeFetch = require('node-fetch');
 
 // Default delay function for timer operations
-// eslint-disable-next-line no-restricted-syntax
-const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// Uses global setTimeout - can be overridden via config.delay for testing
+const defaultDelay = ms => {
+  // In production, use the actual setTimeout from global scope
+  const timer = globalThis.setTimeout || setTimeout;
+  return new Promise(resolve => timer(resolve, ms));
+};
 
 /**
  * HTTP-based implementation of AIService
  * Uses HTTP/REST API to communicate with AI providers
- * 
+ *
  * Features:
  * - Configurable base URL and headers
  * - Automatic retry with exponential backoff
  * - Request/Response transformation hooks
  * - Health check support
  * - Request statistics
- * 
+ *
  * @implements {AIService}
  */
 class HttpAIServiceAdapter extends AIService {
@@ -38,28 +39,28 @@ class HttpAIServiceAdapter extends AIService {
    */
   constructor(config = {}) {
     super();
-    
+
     this.baseUrl = config.baseUrl || process.env.AI_SERVICE_URL;
     this.headers = config.headers || {};
     this.timeout = config.timeout || 30000;
     this.maxRetries = config.maxRetries || 3;
     this.retryDelay = config.retryDelay || 1000;
-    
+
     // Transformation functions for Anti-Corruption Layer
     this.transformRequest = config.transformRequest || this._defaultRequestTransform;
     this.transformResponse = config.transformResponse || this._defaultResponseTransform;
-    
+
     // HTTP client function (injectable for testing)
     this.fetch = config.fetch || nodeFetch;
-    
+
     // Injectable delay function for testing
     this.delay = config.delay || defaultDelay;
-    
+
     // Request statistics
     this._requestCount = 0;
     this._errorCount = 0;
     this._lastHealthCheck = null;
-    
+
     // Validate configuration
     if (!this.baseUrl) {
       throw new Error('AI service base URL is required');
@@ -76,29 +77,28 @@ class HttpAIServiceAdapter extends AIService {
     if (!(request instanceof AIRequest)) {
       throw new Error('Request must be an instance of AIRequest');
     }
-    
+
     const requestId = request.id.value;
-    
+
     try {
       logger.info(`[HttpAIServiceAdapter] Sending request ${requestId}`);
       this._requestCount++;
-      
+
       // Transform domain request to API format
       const { endpoint, payload, headers = {} } = await this.transformRequest(request);
-      
+
       // Make HTTP request with retry
       const apiResponse = await this._makeRequestWithRetry(endpoint, payload, headers, requestId);
-      
+
       // Transform API response to domain format
       const content = await this.transformResponse(apiResponse);
-      
+
       if (!(content instanceof AIContent)) {
         throw new Error('Transform response must return an AIContent instance');
       }
-      
+
       logger.info(`[HttpAIServiceAdapter] Request ${requestId} completed successfully`);
       return content;
-      
     } catch (error) {
       this._errorCount++;
       logger.error(`[HttpAIServiceAdapter] Request ${requestId} failed:`, error);
@@ -113,22 +113,22 @@ class HttpAIServiceAdapter extends AIService {
   async checkHealth() {
     try {
       const controller = new AbortController();
-      
+
       // Create a promise that rejects after timeout
       const timeoutPromise = this.delay(5000).then(() => {
         controller.abort();
         throw new Error('Health check timed out');
       });
-      
+
       const fetchPromise = this.fetch(`${this.baseUrl}/health`, {
         method: 'GET',
         headers: this.headers,
-        signal: controller.signal
+        signal: controller.signal,
       });
-      
+
       // Race between fetch and timeout
       const response = await Promise.race([fetchPromise, timeoutPromise]);
-      
+
       this._lastHealthCheck = response && response.status === 200;
       return this._lastHealthCheck;
     } catch (error) {
@@ -144,85 +144,88 @@ class HttpAIServiceAdapter extends AIService {
    */
   async _makeRequestWithRetry(endpoint, payload, headers, requestId) {
     let lastError;
-    
+
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        logger.debug(`[HttpAIServiceAdapter] Attempt ${attempt}/${this.maxRetries} for request ${requestId}`);
-        
+        logger.debug(
+          `[HttpAIServiceAdapter] Attempt ${attempt}/${this.maxRetries} for request ${requestId}`
+        );
+
         // Create timeout controller
         const controller = new AbortController();
-        
+
         // Create a promise that rejects after timeout
         const timeoutPromise = this.delay(this.timeout).then(() => {
           controller.abort();
           throw new Error(`Request timed out after ${this.timeout}ms`);
         });
-        
+
         // Make request
         const fetchPromise = this.fetch(`${this.baseUrl}${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...this.headers,
-            ...headers
+            ...headers,
           },
           body: JSON.stringify(payload),
-          signal: controller.signal
+          signal: controller.signal,
         });
-        
+
         // Race between fetch and timeout
         const response = await Promise.race([fetchPromise, timeoutPromise]);
-        
+
         // Check response status
         if (!response.ok) {
           const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
           error.response = {
             status: response.status,
             statusText: response.statusText,
-            data: await response.text()
+            data: await response.text(),
           };
-          
+
           // Try to parse JSON error
           try {
             error.response.data = JSON.parse(error.response.data);
           } catch (_parseError) {
             // Ignore parse errors, keep original string
           }
-          
+
           throw error;
         }
-        
+
         // Parse response
         const data = await response.json();
-        
+
         // Validate response
         if (!data) {
           throw new Error('Empty response from AI service');
         }
-        
+
         return data;
-        
       } catch (error) {
         lastError = error;
-        
+
         // Don't retry on client errors (4xx)
         if (error.response && error.response.status >= 400 && error.response.status < 500) {
           throw error;
         }
-        
+
         // Don't retry on last attempt
         if (attempt === this.maxRetries) {
           throw error;
         }
-        
+
         // Calculate exponential backoff
         const delay = this.retryDelay * Math.pow(2, attempt - 1);
-        logger.warn(`[HttpAIServiceAdapter] Request ${requestId} attempt ${attempt} failed, retrying in ${delay}ms...`);
-        
+        logger.warn(
+          `[HttpAIServiceAdapter] Request ${requestId} attempt ${attempt} failed, retrying in ${delay}ms...`
+        );
+
         await this.delay(delay);
       }
     }
-    
+
     throw lastError;
   }
 
@@ -234,33 +237,31 @@ class HttpAIServiceAdapter extends AIService {
   _defaultRequestTransform(request) {
     // Extract data from domain objects
     const requestData = request.toJSON();
-    
+
     // Build messages array (common format)
     const messages = [];
-    
+
     // Add personality as system message if present
     if (requestData.personalityId) {
       messages.push({
         role: 'system',
-        content: `You are personality ${requestData.personalityId}.`
+        content: `You are personality ${requestData.personalityId}.`,
       });
     }
-    
+
     // Convert content items to messages
     if (requestData.content && requestData.content.length > 0) {
       for (const item of requestData.content) {
         if (item.type === 'text') {
           messages.push({
             role: 'user',
-            content: item.text
+            content: item.text,
           });
         } else if (item.type === 'image') {
           // Handle image content
           messages.push({
             role: 'user',
-            content: [
-              { type: 'image_url', image_url: { url: item.url } }
-            ]
+            content: [{ type: 'image_url', image_url: { url: item.url } }],
           });
         } else if (item.type === 'audio') {
           // Handle audio content - provider specific
@@ -268,7 +269,7 @@ class HttpAIServiceAdapter extends AIService {
         }
       }
     }
-    
+
     // Build generic request format
     return {
       endpoint: '/v1/chat/completions', // Common endpoint
@@ -280,10 +281,10 @@ class HttpAIServiceAdapter extends AIService {
         user: requestData.userId,
         metadata: {
           requestId: requestData.id,
-          conversationId: requestData.conversationId
-        }
+          conversationId: requestData.conversationId,
+        },
       },
-      headers: {}
+      headers: {},
     };
   }
 
@@ -296,7 +297,7 @@ class HttpAIServiceAdapter extends AIService {
     // Handle common response formats
     let content = '';
     let metadata = {};
-    
+
     // OpenAI-style format
     if (apiResponse.choices && Array.isArray(apiResponse.choices)) {
       const choice = apiResponse.choices[0];
@@ -304,7 +305,7 @@ class HttpAIServiceAdapter extends AIService {
       metadata = {
         finishReason: choice.finish_reason,
         usage: apiResponse.usage,
-        model: apiResponse.model
+        model: apiResponse.model,
       };
     }
     // Anthropic-style format
@@ -315,7 +316,7 @@ class HttpAIServiceAdapter extends AIService {
         id: apiResponse.id,
         model: apiResponse.model,
         stopReason: apiResponse.stop_reason,
-        usage: apiResponse.usage
+        usage: apiResponse.usage,
       };
     }
     // Simple format
@@ -331,15 +332,12 @@ class HttpAIServiceAdapter extends AIService {
     // Direct string response
     else if (typeof apiResponse === 'string') {
       content = apiResponse;
-    }
-    else {
+    } else {
       throw new Error('Unsupported response format');
     }
-    
+
     // Create AIContent with items array
-    return new AIContent([
-      { type: 'text', text: content }
-    ]);
+    return new AIContent([{ type: 'text', text: content }]);
   }
 
   /**
@@ -354,7 +352,7 @@ class HttpAIServiceAdapter extends AIService {
       err.original = error;
       return err;
     }
-    
+
     // Timeout errors
     if (error.name === 'AbortError' || error.message.includes('timed out')) {
       const err = new Error('AI service request timed out');
@@ -362,12 +360,12 @@ class HttpAIServiceAdapter extends AIService {
       err.original = error;
       return err;
     }
-    
+
     // HTTP errors
     if (error.response) {
       const status = error.response.status;
       const data = error.response.data;
-      
+
       // Rate limiting
       if (status === 429) {
         const err = new Error('AI service rate limit exceeded');
@@ -376,7 +374,7 @@ class HttpAIServiceAdapter extends AIService {
         err.original = error;
         return err;
       }
-      
+
       // Authentication
       if (status === 401 || status === 403) {
         const err = new Error('AI service authentication failed');
@@ -384,7 +382,7 @@ class HttpAIServiceAdapter extends AIService {
         err.original = error;
         return err;
       }
-      
+
       // Bad request
       if (status === 400) {
         const err = new Error(data?.error?.message || 'Invalid request to AI service');
@@ -393,7 +391,7 @@ class HttpAIServiceAdapter extends AIService {
         err.original = error;
         return err;
       }
-      
+
       // Server errors
       if (status >= 500) {
         const err = new Error('AI service internal error');
@@ -402,7 +400,7 @@ class HttpAIServiceAdapter extends AIService {
         return err;
       }
     }
-    
+
     // Default
     return error;
   }
@@ -419,7 +417,7 @@ class HttpAIServiceAdapter extends AIService {
       healthy: this._lastHealthCheck,
       requestCount: this._requestCount,
       errorCount: this._errorCount,
-      errorRate: this._requestCount > 0 ? this._errorCount / this._requestCount : 0
+      errorRate: this._requestCount > 0 ? this._errorCount / this._requestCount : 0,
     };
   }
 }
