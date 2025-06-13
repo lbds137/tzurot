@@ -10,6 +10,8 @@ describe('RemoveCommand', () => {
   let mockContext;
   let mockPersonalityService;
   let mockFeatureFlags;
+  let mockProfileInfoCache;
+  let mockMessageTracker;
   let migrationHelper;
 
   beforeEach(() => {
@@ -20,7 +22,23 @@ describe('RemoveCommand', () => {
     
     // Mock personality service
     mockPersonalityService = {
-      removePersonality: jest.fn().mockResolvedValue({ success: true })
+      getPersonality: jest.fn().mockResolvedValue({
+        profile: {
+          name: 'testpersonality',
+          displayName: 'Test Personality'
+        }
+      }),
+      removePersonality: jest.fn().mockResolvedValue(undefined)
+    };
+    
+    // Mock profile info cache
+    mockProfileInfoCache = {
+      deleteFromCache: jest.fn()
+    };
+    
+    // Mock message tracker
+    mockMessageTracker = {
+      removeCompletedAddCommand: jest.fn()
     };
     
     // Mock feature flags
@@ -37,7 +55,10 @@ describe('RemoveCommand', () => {
       respond: jest.fn().mockResolvedValue(),
       dependencies: {
         personalityApplicationService: mockPersonalityService,
-        featureFlags: mockFeatureFlags
+        featureFlags: mockFeatureFlags,
+        profileInfoCache: mockProfileInfoCache,
+        messageTracker: mockMessageTracker,
+        botPrefix: '!tz'
       }
     };
   });
@@ -67,14 +88,18 @@ describe('RemoveCommand', () => {
     it('should remove personality successfully', async () => {
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith(
-        'testpersonality',
-        '123456789'
-      );
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('testpersonality');
+      expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
+        personalityName: 'testpersonality',
+        requesterId: '123456789'
+      });
+      
+      expect(mockProfileInfoCache.deleteFromCache).toHaveBeenCalledWith('testpersonality');
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'testpersonality');
       
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('✅ **testpersonality** has been removed'),
+          content: expect.stringContaining('✅ **Test Personality** has been removed'),
           embeds: expect.arrayContaining([
             expect.objectContaining({
               title: 'Personality Removed',
@@ -110,34 +135,32 @@ describe('RemoveCommand', () => {
 
     it('should handle slash command format', async () => {
       mockContext.isSlashCommand = true;
-      mockContext.options = { name: 'slashpersonality' };
+      mockContext.options = { name: 'SlashPersonality' }; // Test case normalization
       
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith(
-        'slashpersonality',
-        '123456789'
-      );
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('slashpersonality'); // Should be normalized
+      expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
+        personalityName: 'testpersonality',
+        requesterId: '123456789'
+      });
     });
 
     it('should handle personality not found error', async () => {
-      mockPersonalityService.removePersonality.mockResolvedValue({
-        success: false,
-        message: 'Personality not found'
-      });
+      mockPersonalityService.getPersonality.mockResolvedValue(null);
       
       await command.execute(mockContext);
       
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('not found')
       );
+      expect(mockPersonalityService.removePersonality).not.toHaveBeenCalled();
     });
 
     it('should handle permission error', async () => {
-      mockPersonalityService.removePersonality.mockResolvedValue({
-        success: false,
-        message: 'Only the owner can remove a personality'
-      });
+      mockPersonalityService.removePersonality.mockRejectedValue(
+        new Error('Only the owner can remove a personality')
+      );
       
       await command.execute(mockContext);
       
@@ -147,15 +170,17 @@ describe('RemoveCommand', () => {
     });
 
     it('should handle authentication error', async () => {
-      mockPersonalityService.removePersonality.mockResolvedValue({
-        success: false,
-        message: 'Authentication failed'
-      });
+      mockPersonalityService.removePersonality.mockRejectedValue(
+        new Error('Authentication failed')
+      );
       
       await command.execute(mockContext);
       
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('Authentication failed')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('!tz auth')
       );
     });
 
@@ -179,6 +204,29 @@ describe('RemoveCommand', () => {
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('An error occurred')
       );
+    });
+
+    it('should clear cache for both alias and actual name when different', async () => {
+      // Mock finding personality by alias where the actual name is different
+      mockContext.args = ['testalias'];
+      mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'actualpersonality',
+          displayName: 'Actual Personality'
+        }
+      });
+      
+      await command.execute(mockContext);
+      
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('testalias');
+      expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
+        personalityName: 'actualpersonality',
+        requesterId: '123456789'
+      });
+      
+      // Should clear cache for both alias and actual name
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'testalias');
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'actualpersonality');
     });
   });
 });
