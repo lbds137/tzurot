@@ -17,6 +17,8 @@ class ConversationManager {
     // Injectable timer functions
     this.scheduler = options.scheduler || setTimeout;
     this.interval = options.interval || setInterval;
+    this.clearScheduler = options.clearScheduler || clearTimeout;
+    this.clearInterval = options.clearInterval || clearInterval;
 
     // Initialize sub-modules
     this.tracker = new ConversationTracker();
@@ -285,13 +287,13 @@ class ConversationManager {
   async shutdown() {
     // Stop periodic save
     if (this.saveInterval) {
-      clearInterval(this.saveInterval);
+      this.clearInterval(this.saveInterval);
       this.saveInterval = null;
     }
 
     // Clear pending save
     if (this.pendingSave) {
-      clearTimeout(this.pendingSave);
+      this.clearScheduler(this.pendingSave);
       this.pendingSave = null;
     }
 
@@ -309,12 +311,12 @@ class ConversationManager {
 // Export class and factory functions
 module.exports = {
   ConversationManager,
-  
+
   // Factory function for creating new instances
   create: (options = {}) => {
     return new ConversationManager(options);
   },
-  
+
   // Lazy singleton getter for backward compatibility
   getInstance: (() => {
     let instance = null;
@@ -325,16 +327,18 @@ module.exports = {
       return instance;
     };
   })(),
-  
+
   // Legacy API for backward compatibility - delegates to singleton
   initConversationManager: () => module.exports.getInstance().init(),
   recordConversation: (...args) => module.exports.getInstance().recordConversation(...args),
   getActivePersonality: (...args) => module.exports.getInstance().getActivePersonality(...args),
-  getPersonalityFromMessage: (...args) => module.exports.getInstance().getPersonalityFromMessage(...args),
+  getPersonalityFromMessage: (...args) =>
+    module.exports.getInstance().getPersonalityFromMessage(...args),
   clearConversation: (...args) => module.exports.getInstance().clearConversation(...args),
   activatePersonality: (...args) => module.exports.getInstance().activatePersonality(...args),
   deactivatePersonality: (...args) => module.exports.getInstance().deactivatePersonality(...args),
-  getActivatedPersonality: (...args) => module.exports.getInstance().getActivatedPersonality(...args),
+  getActivatedPersonality: (...args) =>
+    module.exports.getInstance().getActivatedPersonality(...args),
   getAllActivatedChannels: () => module.exports.getInstance().getAllActivatedChannels(),
   enableAutoResponse: (...args) => module.exports.getInstance().enableAutoResponse(...args),
   disableAutoResponse: (...args) => module.exports.getInstance().disableAutoResponse(...args),
