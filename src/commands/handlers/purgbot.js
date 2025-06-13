@@ -130,8 +130,13 @@ function filterMessagesByCategory(messages, message, category) {
  */
 async function execute(message, args, context = {}) {
   // Use default timers if context not provided (backward compatibility)
-  const { scheduler = setTimeout, delay = ms => new Promise(resolve => setTimeout(resolve, ms)) } =
-    context;
+  const { 
+    scheduler = globalThis.setTimeout || setTimeout, 
+    delay = ms => {
+      const timer = globalThis.setTimeout || setTimeout;
+      return new Promise(resolve => timer(resolve, ms));
+    }
+  } = context;
   const directSend = validator.createDirectSend(message);
 
   // This command is only available in DMs for security
