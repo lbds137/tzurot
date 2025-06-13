@@ -5,6 +5,7 @@ const errorHandler = require('./handlers/errorHandler');
 const messageHandler = require('./handlers/messageHandler');
 const pluralkitMessageStore = require('./utils/pluralkitMessageStore').instance;
 const { botConfig } = require('../config');
+const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
 
 // Initialize the bot with necessary intents and partials
 const client = new Client({
@@ -24,6 +25,16 @@ async function initBot() {
   logger.info(`🤖 Starting ${botConfig.name} in ${botConfig.environment.toUpperCase()} mode`);
   logger.info(`📝 Using prefix: ${botConfig.prefix}`);
   logger.info(`🌍 Environment: ${botConfig.environment}`);
+
+  // Initialize DDD application layer
+  try {
+    const appBootstrap = getApplicationBootstrap();
+    await appBootstrap.initialize();
+    logger.info('✅ DDD application layer initialized');
+  } catch (error) {
+    logger.error('Failed to initialize DDD application layer:', error);
+    // Continue with legacy system if DDD fails to initialize
+  }
 
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
