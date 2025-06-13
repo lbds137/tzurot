@@ -1,16 +1,21 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { Conversation, ConversationId, Message, ConversationSettings } = require('../../domain/conversation');
+const {
+  Conversation,
+  ConversationId,
+  Message,
+  ConversationSettings,
+} = require('../../domain/conversation');
 const { ConversationRepository } = require('../../domain/conversation');
 const { PersonalityId } = require('../../domain/personality');
 const logger = require('../../logger');
 
 /**
  * FileConversationRepository - File-based implementation of ConversationRepository
- * 
+ *
  * This adapter implements persistence for conversations using the file system.
  * In production, this would likely be replaced with a database adapter.
- * 
+ *
  * Note: This implementation stores only metadata, not full message history,
  * as conversations are typically short-lived in the bot's context.
  */
@@ -21,10 +26,10 @@ class FileConversationRepository extends ConversationRepository {
    * @param {string} options.filename - Filename for conversations data
    * @param {number} options.maxConversations - Maximum conversations to keep in memory
    */
-  constructor({ 
-    dataPath = './data', 
+  constructor({
+    dataPath = './data',
     filename = 'conversations.json',
-    maxConversations = 1000 
+    maxConversations = 1000,
   } = {}) {
     super();
     this.dataPath = dataPath;
@@ -44,7 +49,7 @@ class FileConversationRepository extends ConversationRepository {
     try {
       // Ensure data directory exists
       await fs.mkdir(this.dataPath, { recursive: true });
-      
+
       // Load existing data or create new file
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
@@ -58,10 +63,10 @@ class FileConversationRepository extends ConversationRepository {
           throw error;
         }
       }
-      
+
       // Clean up old conversations on startup
       await this._cleanupOldConversations();
-      
+
       this._initialized = true;
       logger.info('[FileConversationRepository] Initialized successfully');
     } catch (error) {
@@ -77,10 +82,10 @@ class FileConversationRepository extends ConversationRepository {
    */
   async save(conversation) {
     await this._ensureInitialized();
-    
+
     try {
       const data = conversation.toJSON();
-      
+
       // Store conversation metadata only (not full message history)
       this._cache.conversations[conversation.id] = {
         id: conversation.id,
@@ -95,12 +100,12 @@ class FileConversationRepository extends ConversationRepository {
         endedReason: data.ended ? 'manual' : null,
         savedAt: new Date().toISOString(),
       };
-      
+
       // Enforce max conversations limit
       await this._enforceMaxConversations();
-      
+
       await this._persist();
-      
+
       logger.info(`[FileConversationRepository] Saved conversation: ${conversation.id}`);
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to save conversation:', error);
@@ -115,13 +120,13 @@ class FileConversationRepository extends ConversationRepository {
    */
   async findById(conversationId) {
     await this._ensureInitialized();
-    
+
     try {
       const data = this._cache.conversations[conversationId.toString()];
       if (!data) {
         return null;
       }
-      
+
       return this._hydrate(data);
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to find by ID:', error);
@@ -136,12 +141,12 @@ class FileConversationRepository extends ConversationRepository {
    */
   async findActiveByUser(userId) {
     await this._ensureInitialized();
-    
+
     try {
       const conversations = [];
       const now = Date.now();
       const activeThreshold = 30 * 60 * 1000; // 30 minutes
-      
+
       for (const data of Object.values(this._cache.conversations)) {
         if (data.userId === userId && !data.endedAt) {
           const lastActivity = new Date(data.updatedAt || data.startedAt).getTime();
@@ -150,7 +155,7 @@ class FileConversationRepository extends ConversationRepository {
           }
         }
       }
-      
+
       return conversations;
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to find active by user:', error);
@@ -165,15 +170,15 @@ class FileConversationRepository extends ConversationRepository {
    */
   async findActiveByChannel(channelId) {
     await this._ensureInitialized();
-    
+
     try {
       const now = Date.now();
       const activeThreshold = 30 * 60 * 1000; // 30 minutes
-      
+
       // Look for most recent active conversation in channel
       let mostRecent = null;
       let mostRecentTime = 0;
-      
+
       for (const data of Object.values(this._cache.conversations)) {
         if (data.channelId === channelId && !data.endedAt) {
           const lastActivity = new Date(data.updatedAt || data.startedAt).getTime();
@@ -183,7 +188,7 @@ class FileConversationRepository extends ConversationRepository {
           }
         }
       }
-      
+
       return mostRecent ? this._hydrate(mostRecent) : null;
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to find active by channel:', error);
@@ -198,12 +203,14 @@ class FileConversationRepository extends ConversationRepository {
    */
   async delete(conversationId) {
     await this._ensureInitialized();
-    
+
     try {
       delete this._cache.conversations[conversationId.toString()];
       await this._persist();
-      
-      logger.info(`[FileConversationRepository] Deleted conversation: ${conversationId.toString()}`);
+
+      logger.info(
+        `[FileConversationRepository] Deleted conversation: ${conversationId.toString()}`
+      );
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to delete:', error);
       throw new Error(`Failed to delete conversation: ${error.message}`);
@@ -217,16 +224,16 @@ class FileConversationRepository extends ConversationRepository {
    */
   async countByPersonality(personalityId) {
     await this._ensureInitialized();
-    
+
     try {
       let count = 0;
-      
+
       for (const data of Object.values(this._cache.conversations)) {
         if (data.personalityId === personalityId.value) {
           count++;
         }
       }
-      
+
       return count;
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to count by personality:', error);
@@ -241,7 +248,7 @@ class FileConversationRepository extends ConversationRepository {
   _hydrate(data) {
     // Create conversation ID
     const conversationId = new ConversationId(data.userId, data.channelId);
-    
+
     // Create initial message
     const initialMessage = new Message({
       id: data.messages[0].id,
@@ -251,14 +258,14 @@ class FileConversationRepository extends ConversationRepository {
       isFromPersonality: data.messages[0].isFromPersonality,
       channelId: data.channelId,
     });
-    
+
     // Start conversation
     const conversation = Conversation.start(
       conversationId,
       initialMessage,
       new PersonalityId(data.personalityId)
     );
-    
+
     // Add remaining messages
     for (let i = 1; i < data.messages.length; i++) {
       const msgData = data.messages[i];
@@ -272,21 +279,21 @@ class FileConversationRepository extends ConversationRepository {
       });
       conversation.addMessage(message);
     }
-    
+
     // Update settings if different from defaults
     if (data.settings) {
       const settings = new ConversationSettings(data.settings);
       conversation.updateSettings(settings);
     }
-    
+
     // End conversation if ended
     if (data.endedAt) {
       conversation.end(data.endedReason || 'timeout');
     }
-    
+
     // Mark as hydrated from persistence
     conversation.markEventsAsCommitted();
-    
+
     return conversation;
   }
 
@@ -297,14 +304,14 @@ class FileConversationRepository extends ConversationRepository {
   async _persist() {
     try {
       const data = JSON.stringify(this._cache, null, 2);
-      
+
       // Write to temp file first for atomic operation
       const tempPath = `${this.filePath}.tmp`;
       await fs.writeFile(tempPath, data, 'utf8');
-      
+
       // Rename to actual file
       await fs.rename(tempPath, this.filePath);
-      
+
       logger.debug('[FileConversationRepository] Data persisted successfully');
     } catch (error) {
       logger.error('[FileConversationRepository] Failed to persist data:', error);
@@ -330,7 +337,7 @@ class FileConversationRepository extends ConversationRepository {
     const now = Date.now();
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
     let cleanedCount = 0;
-    
+
     for (const [id, data] of Object.entries(this._cache.conversations)) {
       const age = now - new Date(data.savedAt || data.startedAt).getTime();
       if (age > maxAge || data.endedAt) {
@@ -338,7 +345,7 @@ class FileConversationRepository extends ConversationRepository {
         cleanedCount++;
       }
     }
-    
+
     if (cleanedCount > 0) {
       logger.info(`[FileConversationRepository] Cleaned up ${cleanedCount} old conversations`);
       await this._persist();
@@ -351,7 +358,7 @@ class FileConversationRepository extends ConversationRepository {
    */
   async _enforceMaxConversations() {
     const conversations = Object.entries(this._cache.conversations);
-    
+
     if (conversations.length > this.maxConversations) {
       // Sort by last activity (oldest first)
       conversations.sort((a, b) => {
@@ -359,13 +366,13 @@ class FileConversationRepository extends ConversationRepository {
         const bTime = new Date(b[1].updatedAt || b[1].startedAt).getTime();
         return aTime - bTime;
       });
-      
+
       // Remove oldest conversations
       const toRemove = conversations.length - this.maxConversations;
       for (let i = 0; i < toRemove; i++) {
         delete this._cache.conversations[conversations[i][0]];
       }
-      
+
       logger.info(`[FileConversationRepository] Removed ${toRemove} oldest conversations`);
     }
   }
@@ -376,20 +383,19 @@ class FileConversationRepository extends ConversationRepository {
    */
   async getStats() {
     await this._ensureInitialized();
-    
-    const activeCount = Object.values(this._cache.conversations)
-      .filter(c => !c.endedAt).length;
-    
+
+    const activeCount = Object.values(this._cache.conversations).filter(c => !c.endedAt).length;
+
     const personalities = new Set();
     const users = new Set();
     const channels = new Set();
-    
+
     for (const conv of Object.values(this._cache.conversations)) {
       personalities.add(conv.personalityId);
       users.add(conv.userId);
       channels.add(conv.channelId);
     }
-    
+
     return {
       totalConversations: Object.keys(this._cache.conversations).length,
       activeConversations: activeCount,

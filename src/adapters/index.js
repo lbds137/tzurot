@@ -1,7 +1,7 @@
 /**
  * Main Adapter exports
  * @module adapters
- * 
+ *
  * This module exports all adapter implementations organized by type.
  * Adapters implement the Anti-Corruption Layer pattern, translating
  * between our domain model and external systems.

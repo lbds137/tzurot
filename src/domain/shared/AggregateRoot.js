@@ -28,13 +28,13 @@ class AggregateRoot {
     if (!(event instanceof DomainEvent)) {
       throw new Error('Event must be instance of DomainEvent');
     }
-    
+
     // Apply the event using convention-based method naming
     const handlerName = `on${event.getEventType()}`;
     if (typeof this[handlerName] === 'function') {
       this[handlerName](event);
     }
-    
+
     this.uncommittedEvents.push(event);
     this.version++;
   }

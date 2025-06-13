@@ -17,7 +17,7 @@ class Command {
     aliases = [],
     permissions = ['USER'],
     options = [],
-    execute
+    execute,
   }) {
     this.name = name;
     this.description = description;
@@ -26,7 +26,7 @@ class Command {
     this.permissions = permissions;
     this.options = options;
     this.execute = execute;
-    
+
     // Validate required fields
     if (!name || typeof name !== 'string') {
       throw new Error('Command name is required and must be a string');
@@ -46,7 +46,7 @@ class Command {
     return {
       name: this.name,
       description: this.description,
-      options: this.options.map(opt => this._convertOptionToDiscord(opt))
+      options: this.options.map(opt => this._convertOptionToDiscord(opt)),
     };
   }
 
@@ -60,7 +60,7 @@ class Command {
       usage: this._generateUsage(),
       aliases: this.aliases,
       permissions: this.permissions,
-      execute: this.execute
+      execute: this.execute,
     };
   }
 
@@ -69,7 +69,7 @@ class Command {
    */
   _generateUsage() {
     const parts = [`!tz ${this.name}`];
-    
+
     for (const option of this.options) {
       if (option.required) {
         parts.push(`<${option.name}>`);
@@ -77,7 +77,7 @@ class Command {
         parts.push(`[${option.name}]`);
       }
     }
-    
+
     return parts.join(' ');
   }
 
@@ -89,13 +89,13 @@ class Command {
       name: option.name,
       description: option.description,
       type: this._getDiscordOptionType(option.type),
-      required: option.required || false
+      required: option.required || false,
     };
 
     if (option.choices && option.choices.length > 0) {
       discordOption.choices = option.choices.map(choice => ({
         name: choice.label || choice.value,
-        value: choice.value
+        value: choice.value,
       }));
     }
 
@@ -107,15 +107,15 @@ class Command {
    */
   _getDiscordOptionType(type) {
     const typeMap = {
-      'string': 3,  // STRING
-      'integer': 4, // INTEGER
-      'boolean': 5, // BOOLEAN
-      'user': 6,    // USER
-      'channel': 7, // CHANNEL
-      'role': 8,    // ROLE
-      'number': 10  // NUMBER
+      string: 3, // STRING
+      integer: 4, // INTEGER
+      boolean: 5, // BOOLEAN
+      user: 6, // USER
+      channel: 7, // CHANNEL
+      role: 8, // ROLE
+      number: 10, // NUMBER
     };
-    
+
     return typeMap[type] || 3; // Default to STRING
   }
 }
@@ -124,13 +124,7 @@ class Command {
  * Represents a command option
  */
 class CommandOption {
-  constructor({
-    name,
-    description,
-    type = 'string',
-    required = false,
-    choices = []
-  }) {
+  constructor({ name, description, type = 'string', required = false, choices = [] }) {
     this.name = name;
     this.description = description;
     this.type = type;
@@ -144,17 +138,17 @@ class CommandOption {
  */
 class CommandContext {
   constructor({
-    platform,      // 'discord' or 'revolt'
+    platform, // 'discord' or 'revolt'
     isSlashCommand = false,
-    message,       // Original message object
-    interaction,   // Discord interaction (for slash commands)
-    author,        // User who invoked the command
-    channel,       // Channel where command was invoked
-    guild,         // Guild/Server (if applicable)
-    args = [],     // Parsed arguments
-    options = {},  // Named options (for slash commands)
-    reply,         // Reply function
-    dependencies = {} // Injected dependencies
+    message, // Original message object
+    interaction, // Discord interaction (for slash commands)
+    author, // User who invoked the command
+    channel, // Channel where command was invoked
+    guild, // Guild/Server (if applicable)
+    args = [], // Parsed arguments
+    options = {}, // Named options (for slash commands)
+    reply, // Reply function
+    dependencies = {}, // Injected dependencies
   }) {
     this.platform = platform;
     this.isSlashCommand = isSlashCommand;
@@ -191,7 +185,7 @@ class CommandContext {
     if (this.reply) {
       return await this.reply(content, options);
     }
-    
+
     // Fallback for different platforms
     if (this.platform === 'discord' && this.isSlashCommand && this.interaction) {
       if (this.interaction.deferred) {
@@ -204,7 +198,7 @@ class CommandContext {
     } else if (this.channel && this.channel.send) {
       return await this.channel.send(content);
     }
-    
+
     throw new Error('No valid reply method available');
   }
 
@@ -261,7 +255,7 @@ class CommandRegistry {
 
     // Register main command
     this.commands.set(command.name, command);
-    
+
     // Register aliases
     for (const alias of command.aliases) {
       this.aliases.set(alias, command.name);
@@ -278,13 +272,13 @@ class CommandRegistry {
     if (this.commands.has(nameOrAlias)) {
       return this.commands.get(nameOrAlias);
     }
-    
+
     // Alias lookup
     const commandName = this.aliases.get(nameOrAlias);
     if (commandName) {
       return this.commands.get(commandName);
     }
-    
+
     return null;
   }
 
@@ -355,5 +349,5 @@ module.exports = {
   CommandContext,
   CommandRegistry,
   getCommandRegistry,
-  resetRegistry
+  resetRegistry,
 };

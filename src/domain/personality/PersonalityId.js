@@ -13,27 +13,27 @@ const { ValueObject } = require('../shared/ValueObject');
 class PersonalityId extends ValueObject {
   constructor(value) {
     super();
-    
+
     if (!value || typeof value !== 'string') {
       throw new Error('PersonalityId must be a non-empty string');
     }
-    
+
     const trimmed = value.trim();
     if (trimmed.length < 2 || trimmed.length > 100) {
       throw new Error('PersonalityId must be between 2 and 100 characters');
     }
-    
+
     // Validate format: alphanumeric, spaces, hyphens, underscores, periods
     if (!/^[a-zA-Z0-9\s\-_.]+$/.test(trimmed)) {
       throw new Error('PersonalityId contains invalid characters');
     }
-    
+
     // Check reserved names
     const reserved = ['system', 'bot', 'admin', 'owner', 'moderator', 'mod', 'help'];
     if (reserved.includes(trimmed.toLowerCase())) {
       throw new Error(`"${trimmed}" is a reserved personality name`);
     }
-    
+
     this.value = trimmed;
   }
 
@@ -48,7 +48,7 @@ class PersonalityId extends ValueObject {
   static fromString(value) {
     return new PersonalityId(value);
   }
-  
+
   /**
    * Generate a new PersonalityId
    * @returns {PersonalityId}

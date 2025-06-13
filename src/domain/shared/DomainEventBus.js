@@ -57,7 +57,9 @@ class DomainEventBus {
     }
 
     const eventType = event.getEventType();
-    logger.info(`[DomainEventBus] Publishing event: ${eventType} for aggregate ${event.aggregateId}`);
+    logger.info(
+      `[DomainEventBus] Publishing event: ${eventType} for aggregate ${event.aggregateId}`
+    );
 
     // Apply middlewares
     let processedEvent = event;
@@ -72,7 +74,7 @@ class DomainEventBus {
     // Get handlers for this event type
     const handlers = this.handlers.get(eventType) || new Set();
     const wildcardHandlers = this.handlers.get('*') || new Set();
-    
+
     const allHandlers = [...handlers, ...wildcardHandlers];
 
     if (allHandlers.length === 0) {
@@ -82,7 +84,7 @@ class DomainEventBus {
 
     // Execute handlers
     const results = await Promise.allSettled(
-      allHandlers.map(handler => 
+      allHandlers.map(handler =>
         Promise.resolve(handler(processedEvent)).catch(error => {
           logger.error(`[DomainEventBus] Handler error for ${eventType}: ${error.message}`);
           throw error;

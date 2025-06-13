@@ -4,7 +4,7 @@ const logger = require('../../logger');
 
 /**
  * DiscordWebhookAdapter - Manages Discord webhooks for personality messages
- * 
+ *
  * This adapter encapsulates Discord webhook operations and provides a clean
  * interface for the domain layer to send messages as personalities.
  */
@@ -30,10 +30,17 @@ class DiscordWebhookAdapter {
    * @param {Object} params.reference - Optional message reference for replies
    * @returns {Promise<Object>} Sent message data
    */
-  async sendMessage({ channelId, personalityId, personalityProfile, content, attachments = [], reference = null }) {
+  async sendMessage({
+    channelId,
+    personalityId,
+    personalityProfile,
+    content,
+    attachments = [],
+    reference = null,
+  }) {
     try {
       const webhook = await this._getOrCreateWebhook(channelId);
-      
+
       const messageOptions = {
         content: this._formatContent(content),
         username: this._formatUsername(personalityProfile.displayName),
@@ -59,7 +66,7 @@ class DiscordWebhookAdapter {
       }
 
       const sentMessage = await webhook.send(messageOptions);
-      
+
       return {
         id: sentMessage.id,
         channelId: sentMessage.channel_id,
@@ -125,14 +132,15 @@ class DiscordWebhookAdapter {
   async supportsWebhooks(channelId) {
     try {
       const channel = await this.discord.channels.fetch(channelId);
-      
+
       // Webhooks are supported in guild text channels and voice channels
       // Not supported in DMs, threads, or other channel types
-      return channel && (
-        channel.type === 0 || // GUILD_TEXT
-        channel.type === 2 || // GUILD_VOICE (can have text)
-        channel.type === 5 || // GUILD_NEWS
-        channel.type === 13   // GUILD_STAGE_VOICE
+      return (
+        channel &&
+        (channel.type === 0 || // GUILD_TEXT
+          channel.type === 2 || // GUILD_VOICE (can have text)
+          channel.type === 5 || // GUILD_NEWS
+          channel.type === 13) // GUILD_STAGE_VOICE
       );
     } catch (error) {
       logger.error('[DiscordWebhookAdapter] Failed to check webhook support:', error);
@@ -172,7 +180,7 @@ class DiscordWebhookAdapter {
 
       // Cache it
       this.webhookCache.set(channelId, webhook);
-      
+
       return webhook;
     } catch (error) {
       logger.error('[DiscordWebhookAdapter] Failed to get/create webhook:', error);
@@ -198,12 +206,14 @@ class DiscordWebhookAdapter {
       }
 
       const webhooks = await channel.fetchWebhooks();
-      const webhook = webhooks.find(w => w.name === 'Tzurot' && w.owner?.id === this.discord.user.id);
-      
+      const webhook = webhooks.find(
+        w => w.name === 'Tzurot' && w.owner?.id === this.discord.user.id
+      );
+
       if (webhook) {
         this.webhookCache.set(channelId, webhook);
       }
-      
+
       return webhook;
     } catch (error) {
       logger.error('[DiscordWebhookAdapter] Failed to get webhook:', error);
@@ -231,18 +241,18 @@ class DiscordWebhookAdapter {
     // Discord webhook usernames have a 32 character limit
     // and certain characters are not allowed
     let username = displayName.trim();
-    
+
     // Remove or replace problematic characters
     username = username
       .replace(/[`'"]/g, '') // Remove quotes
-      .replace(/[@#]/g, '')  // Remove mentions
+      .replace(/[@#]/g, '') // Remove mentions
       .trim();
-    
+
     // Truncate if too long
     if (username.length > 32) {
       username = username.substring(0, 29) + '...';
     }
-    
+
     // Fallback if empty
     return username || 'Personality';
   }

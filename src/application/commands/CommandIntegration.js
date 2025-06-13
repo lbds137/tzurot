@@ -36,8 +36,9 @@ class CommandIntegration {
       // Store application services
       this.applicationServices = {
         featureFlags: applicationServices.featureFlags || getFeatureFlags(),
-        personalityApplicationService: applicationServices.personalityApplicationService || getPersonalityRouter(),
-        ...applicationServices
+        personalityApplicationService:
+          applicationServices.personalityApplicationService || getPersonalityRouter(),
+        ...applicationServices,
       };
 
       // Register all commands
@@ -65,7 +66,7 @@ class CommandIntegration {
     this.registry.register(createAddCommand());
     this.registry.register(createRemoveCommand());
     this.registry.register(createInfoCommand());
-    
+
     // TODO: Register more commands as they are migrated
     // this.registry.register(createResetCommand());
     // this.registry.register(createAliasCommand());
@@ -82,14 +83,14 @@ class CommandIntegration {
     // Create Discord adapter
     const discordAdapter = CommandAdapterFactory.create('discord', {
       commandRegistry: this.registry,
-      applicationServices: this.applicationServices
+      applicationServices: this.applicationServices,
     });
     this.adapters.set('discord', discordAdapter);
 
     // Create Revolt adapter
     const revoltAdapter = CommandAdapterFactory.create('revolt', {
       commandRegistry: this.registry,
-      applicationServices: this.applicationServices
+      applicationServices: this.applicationServices,
     });
     this.adapters.set('revolt', revoltAdapter);
   }
@@ -101,12 +102,12 @@ class CommandIntegration {
     if (!this.initialized) {
       throw new Error('CommandIntegration not initialized');
     }
-    
+
     const adapter = this.adapters.get(platform.toLowerCase());
     if (!adapter) {
       throw new Error(`No adapter found for platform: ${platform}`);
     }
-    
+
     return adapter;
   }
 
@@ -193,5 +194,5 @@ function resetCommandIntegration() {
 module.exports = {
   CommandIntegration,
   getCommandIntegration,
-  resetCommandIntegration
+  resetCommandIntegration,
 };

@@ -24,18 +24,18 @@ const {
 module.exports = {
   // Aggregates
   UserAuth,
-  
+
   // Value Objects
   Token,
   NsfwStatus,
   AuthContext,
-  
+
   // Repositories
   AuthenticationRepository,
-  
+
   // Services
   TokenService,
-  
+
   // Events
   UserAuthenticated,
   UserTokenExpired,

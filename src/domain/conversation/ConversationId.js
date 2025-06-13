@@ -13,15 +13,15 @@ const { ValueObject } = require('../shared/ValueObject');
 class ConversationId extends ValueObject {
   constructor(userId, channelId) {
     super();
-    
+
     if (!userId || typeof userId !== 'string') {
       throw new Error('ConversationId requires valid userId');
     }
-    
+
     if (!channelId || typeof channelId !== 'string') {
       throw new Error('ConversationId requires valid channelId');
     }
-    
+
     this.userId = userId;
     this.channelId = channelId;
   }
@@ -66,12 +66,12 @@ class ConversationId extends ValueObject {
     if (!value || typeof value !== 'string') {
       throw new Error('Invalid conversation ID string');
     }
-    
+
     const [userId, channelId] = value.split(':');
     if (!userId || !channelId) {
       throw new Error('Invalid conversation ID format');
     }
-    
+
     return new ConversationId(userId, channelId);
   }
 }

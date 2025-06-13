@@ -36,7 +36,7 @@ class DiscordCommandAdapter {
         guild: message.guild,
         args: args,
         reply: (content, options) => message.reply(content),
-        dependencies: this.applicationServices
+        dependencies: this.applicationServices,
       });
 
       // Execute the command
@@ -54,11 +54,11 @@ class DiscordCommandAdapter {
     try {
       const commandName = interaction.commandName;
       const command = this.commandRegistry.get(commandName);
-      
+
       if (!command) {
         return await interaction.reply({
           content: 'Unknown command',
-          ephemeral: true
+          ephemeral: true,
         });
       }
 
@@ -84,21 +84,24 @@ class DiscordCommandAdapter {
             return await interaction.reply({ content, ...opts });
           }
         },
-        dependencies: this.applicationServices
+        dependencies: this.applicationServices,
       });
 
       // Execute the command
       return await command.execute(context);
     } catch (error) {
-      logger.error(`[DiscordCommandAdapter] Error handling slash command ${interaction.commandName}:`, error);
-      
+      logger.error(
+        `[DiscordCommandAdapter] Error handling slash command ${interaction.commandName}:`,
+        error
+      );
+
       const errorMessage = 'An error occurred while executing the command';
       if (interaction.deferred || interaction.replied) {
         return await interaction.editReply(errorMessage);
       } else {
         return await interaction.reply({
           content: errorMessage,
-          ephemeral: true
+          ephemeral: true,
         });
       }
     }
@@ -110,18 +113,22 @@ class DiscordCommandAdapter {
   async registerSlashCommands(client, guildId = null) {
     try {
       const slashCommands = this.commandRegistry.toDiscordSlashCommands();
-      
+
       if (guildId) {
         // Register to specific guild (faster for development)
         const guild = await client.guilds.fetch(guildId);
         await guild.commands.set(slashCommands);
-        logger.info(`[DiscordCommandAdapter] Registered ${slashCommands.length} slash commands to guild ${guildId}`);
+        logger.info(
+          `[DiscordCommandAdapter] Registered ${slashCommands.length} slash commands to guild ${guildId}`
+        );
       } else {
         // Register globally (takes up to 1 hour to propagate)
         await client.application.commands.set(slashCommands);
-        logger.info(`[DiscordCommandAdapter] Registered ${slashCommands.length} slash commands globally`);
+        logger.info(
+          `[DiscordCommandAdapter] Registered ${slashCommands.length} slash commands globally`
+        );
       }
-      
+
       return slashCommands;
     } catch (error) {
       logger.error('[DiscordCommandAdapter] Error registering slash commands:', error);
@@ -134,9 +141,7 @@ class DiscordCommandAdapter {
    */
   createHelpEmbed() {
     const { EmbedBuilder } = require('discord.js');
-    const embed = new EmbedBuilder()
-      .setTitle('Available Commands')
-      .setColor(0x00AE86);
+    const embed = new EmbedBuilder().setTitle('Available Commands').setColor(0x00ae86);
 
     // Group commands by category
     const categories = new Map();
@@ -149,19 +154,17 @@ class DiscordCommandAdapter {
 
     // Add fields for each category
     for (const [category, commands] of categories) {
-      const commandList = commands
-        .map(cmd => `**${cmd.name}** - ${cmd.description}`)
-        .join('\n');
-      
+      const commandList = commands.map(cmd => `**${cmd.name}** - ${cmd.description}`).join('\n');
+
       embed.addFields({
         name: category.charAt(0).toUpperCase() + category.slice(1),
         value: commandList || 'No commands',
-        inline: false
+        inline: false,
       });
     }
 
     embed.setFooter({
-      text: `Use ${botPrefix} <command> for text commands or /<command> for slash commands`
+      text: `Use ${botPrefix} <command> for text commands or /<command> for slash commands`,
     });
 
     return embed;
@@ -196,8 +199,8 @@ class RevoltCommandAdapter {
         channel: message.channel,
         guild: message.server, // Revolt uses 'server' instead of 'guild'
         args: args,
-        reply: (content) => message.reply(content),
-        dependencies: this.applicationServices
+        reply: content => message.reply(content),
+        dependencies: this.applicationServices,
       });
 
       // Execute the command
@@ -213,7 +216,7 @@ class RevoltCommandAdapter {
    */
   createHelpMessage() {
     const lines = ['**Available Commands**\n'];
-    
+
     // Group commands by category
     const categories = new Map();
     for (const command of this.commandRegistry.getAll()) {
@@ -255,5 +258,5 @@ class CommandAdapterFactory {
 module.exports = {
   DiscordCommandAdapter,
   RevoltCommandAdapter,
-  CommandAdapterFactory
+  CommandAdapterFactory,
 };

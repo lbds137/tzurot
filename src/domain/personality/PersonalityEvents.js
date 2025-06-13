@@ -13,7 +13,7 @@ const { DomainEvent } = require('../shared/DomainEvent');
 class PersonalityCreated extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.personalityId || !payload.ownerId || !payload.createdAt) {
       throw new Error('PersonalityCreated requires personalityId, ownerId, and createdAt');
     }
@@ -28,7 +28,7 @@ class PersonalityCreated extends DomainEvent {
 class PersonalityProfileUpdated extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.profile || !payload.updatedAt) {
       throw new Error('PersonalityProfileUpdated requires profile and updatedAt');
     }
@@ -43,7 +43,7 @@ class PersonalityProfileUpdated extends DomainEvent {
 class PersonalityRemoved extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.removedBy || !payload.removedAt) {
       throw new Error('PersonalityRemoved requires removedBy and removedAt');
     }
@@ -58,7 +58,7 @@ class PersonalityRemoved extends DomainEvent {
 class PersonalityAliasAdded extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.alias || !payload.addedBy || !payload.addedAt) {
       throw new Error('PersonalityAliasAdded requires alias, addedBy, and addedAt');
     }
@@ -73,7 +73,7 @@ class PersonalityAliasAdded extends DomainEvent {
 class PersonalityAliasRemoved extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
-    
+
     if (!payload.alias || !payload.removedBy || !payload.removedAt) {
       throw new Error('PersonalityAliasRemoved requires alias, removedBy, and removedAt');
     }

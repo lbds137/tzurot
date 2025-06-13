@@ -13,10 +13,10 @@ const { ValueObject } = require('../shared/ValueObject');
 class NsfwStatus extends ValueObject {
   constructor(verified = false, verifiedAt = null) {
     super();
-    
+
     this.verified = !!verified;
     this.verifiedAt = verifiedAt;
-    
+
     this.validate();
   }
 
@@ -24,11 +24,11 @@ class NsfwStatus extends ValueObject {
     if (this.verified && !this.verifiedAt) {
       throw new Error('Verified status requires verification date');
     }
-    
+
     if (this.verifiedAt && !(this.verifiedAt instanceof Date)) {
       throw new Error('VerifiedAt must be a Date');
     }
-    
+
     if (!this.verified && this.verifiedAt) {
       throw new Error('Cannot have verification date without being verified');
     }
@@ -61,7 +61,7 @@ class NsfwStatus extends ValueObject {
     if (!this.verified || !this.verifiedAt) {
       return true;
     }
-    
+
     const age = currentTime.getTime() - this.verifiedAt.getTime();
     return age > maxAgeMs;
   }
@@ -74,10 +74,7 @@ class NsfwStatus extends ValueObject {
   }
 
   static fromJSON(data) {
-    return new NsfwStatus(
-      data.verified,
-      data.verifiedAt ? new Date(data.verifiedAt) : null
-    );
+    return new NsfwStatus(data.verified, data.verifiedAt ? new Date(data.verifiedAt) : null);
   }
 
   static createUnverified() {

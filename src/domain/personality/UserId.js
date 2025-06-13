@@ -13,16 +13,16 @@ const { ValueObject } = require('../shared/ValueObject');
 class UserId extends ValueObject {
   constructor(value) {
     super();
-    
+
     if (!value || typeof value !== 'string') {
       throw new Error('UserId must be a non-empty string');
     }
-    
+
     // Discord IDs are snowflakes (numeric strings)
     if (!/^\d+$/.test(value)) {
       throw new Error('UserId must be a valid Discord ID');
     }
-    
+
     this.value = value;
   }
 

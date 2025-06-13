@@ -16,29 +16,37 @@ class FeatureFlags {
       'ddd.authentication.write': false,
       'ddd.ai.read': false,
       'ddd.ai.write': false,
-      
+
+      // DDD Event system flags
+      'ddd.events.enabled': false,
+      'ddd.events.logging': true,
+      'ddd.events.cache-invalidation': true,
+
       // Command system flags
+      'ddd.commands.enabled': false,
+      'ddd.commands.personality': false,
+      'ddd.commands.fallbackOnError': true,
       'commands.slash.enabled': false,
       'commands.text.enabled': true,
       'commands.platform-agnostic': false,
-      
+
       // Feature flags for new capabilities
       'features.comparison-testing': false,
       'features.performance-logging': false,
-      
+
       // Override all flags from config
-      ...config
+      ...config,
     };
-    
+
     // Initialize flags from defaults
     Object.entries(this.defaultFlags).forEach(([key, value]) => {
       this.flags.set(key, value);
     });
-    
+
     // Load from environment variables (FEATURE_FLAG_PREFIX_KEY format)
     this._loadFromEnvironment();
   }
-  
+
   /**
    * Check if a feature is enabled
    * @param {string} flagName - The feature flag name
@@ -51,7 +59,16 @@ class FeatureFlags {
     }
     return this.flags.get(flagName);
   }
-  
+
+  /**
+   * Check if a feature flag exists
+   * @param {string} flagName - The feature flag name
+   * @returns {boolean}
+   */
+  hasFlag(flagName) {
+    return this.flags.has(flagName);
+  }
+
   /**
    * Enable a feature
    * @param {string} flagName - The feature flag name
@@ -62,7 +79,7 @@ class FeatureFlags {
     }
     this.flags.set(flagName, true);
   }
-  
+
   /**
    * Disable a feature
    * @param {string} flagName - The feature flag name
@@ -73,7 +90,7 @@ class FeatureFlags {
     }
     this.flags.set(flagName, false);
   }
-  
+
   /**
    * Toggle a feature
    * @param {string} flagName - The feature flag name
@@ -84,7 +101,7 @@ class FeatureFlags {
     }
     this.flags.set(flagName, !this.flags.get(flagName));
   }
-  
+
   /**
    * Get all feature flags and their states
    * @returns {Object}
@@ -96,7 +113,7 @@ class FeatureFlags {
     });
     return result;
   }
-  
+
   /**
    * Get flags by prefix (e.g., 'ddd.personality')
    * @param {string} prefix - The prefix to filter by
@@ -111,7 +128,7 @@ class FeatureFlags {
     });
     return result;
   }
-  
+
   /**
    * Set multiple flags at once
    * @param {Object} flags - Object with flag names as keys and boolean values
@@ -127,7 +144,7 @@ class FeatureFlags {
       this.flags.set(key, value);
     });
   }
-  
+
   /**
    * Reset all flags to defaults
    */
@@ -136,7 +153,7 @@ class FeatureFlags {
       this.flags.set(key, value);
     });
   }
-  
+
   /**
    * Load feature flags from environment variables
    * Format: FEATURE_FLAG_DDD_PERSONALITY_READ=true
@@ -145,11 +162,8 @@ class FeatureFlags {
     const prefix = 'FEATURE_FLAG_';
     Object.keys(process.env).forEach(key => {
       if (key.startsWith(prefix)) {
-        const flagName = key
-          .substring(prefix.length)
-          .toLowerCase()
-          .replace(/_/g, '.');
-        
+        const flagName = key.substring(prefix.length).toLowerCase().replace(/_/g, '.');
+
         if (this.flags.has(flagName)) {
           const value = process.env[key].toLowerCase() === 'true';
           this.flags.set(flagName, value);
@@ -157,14 +171,14 @@ class FeatureFlags {
       }
     });
   }
-  
+
   /**
    * Create a scoped feature flag checker
    * @param {string} scope - The scope prefix (e.g., 'ddd.personality')
    * @returns {Function}
    */
   createScopedChecker(scope) {
-    return (feature) => this.isEnabled(`${scope}.${feature}`);
+    return feature => this.isEnabled(`${scope}.${feature}`);
   }
 }
 
@@ -193,5 +207,5 @@ function resetFeatureFlags() {
 module.exports = {
   FeatureFlags,
   getFeatureFlags,
-  resetFeatureFlags
+  resetFeatureFlags,
 };

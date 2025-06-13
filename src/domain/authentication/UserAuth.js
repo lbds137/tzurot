@@ -27,9 +27,9 @@ class UserAuth extends AggregateRoot {
     if (!(userId instanceof UserId)) {
       throw new Error('UserAuth must be created with UserId');
     }
-    
+
     super(userId.toString());
-    
+
     this.userId = userId;
     this.token = null;
     this.nsfwStatus = NsfwStatus.createUnverified();
@@ -50,22 +50,21 @@ class UserAuth extends AggregateRoot {
     if (!(userId instanceof UserId)) {
       throw new Error('Invalid UserId');
     }
-    
+
     if (!(token instanceof Token)) {
       throw new Error('Invalid Token');
     }
-    
+
     const userAuth = new UserAuth(userId);
-    
-    userAuth.applyEvent(new UserAuthenticated(
-      userId.toString(),
-      {
+
+    userAuth.applyEvent(
+      new UserAuthenticated(userId.toString(), {
         userId: userId.toString(),
         token: token.toJSON(),
         authenticatedAt: new Date().toISOString(),
-      }
-    ));
-    
+      })
+    );
+
     return userAuth;
   }
 
@@ -77,23 +76,22 @@ class UserAuth extends AggregateRoot {
     if (this.blacklisted) {
       throw new Error('Cannot refresh token for blacklisted user');
     }
-    
+
     if (!(newToken instanceof Token)) {
       throw new Error('Invalid Token');
     }
-    
+
     if (newToken.isExpired()) {
       throw new Error('Cannot refresh with expired token');
     }
-    
-    this.applyEvent(new UserTokenRefreshed(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserTokenRefreshed(this.id, {
         oldToken: this.token ? this.token.toJSON() : null,
         newToken: newToken.toJSON(),
         refreshedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -103,13 +101,12 @@ class UserAuth extends AggregateRoot {
     if (!this.token) {
       throw new Error('No token to expire');
     }
-    
-    this.applyEvent(new UserTokenExpired(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserTokenExpired(this.id, {
         expiredAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -120,17 +117,16 @@ class UserAuth extends AggregateRoot {
     if (this.blacklisted) {
       throw new Error('Cannot verify NSFW for blacklisted user');
     }
-    
+
     if (this.nsfwStatus.verified) {
       return; // Already verified
     }
-    
-    this.applyEvent(new UserNsfwVerified(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserNsfwVerified(this.id, {
         verifiedAt: verifiedAt.toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -141,14 +137,13 @@ class UserAuth extends AggregateRoot {
     if (!this.nsfwStatus.verified) {
       return; // Already unverified
     }
-    
-    this.applyEvent(new UserNsfwVerificationCleared(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserNsfwVerificationCleared(this.id, {
         reason,
         clearedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -159,18 +154,17 @@ class UserAuth extends AggregateRoot {
     if (this.blacklisted) {
       throw new Error('User already blacklisted');
     }
-    
+
     if (!reason || typeof reason !== 'string') {
       throw new Error('Blacklist reason required');
     }
-    
-    this.applyEvent(new UserBlacklisted(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserBlacklisted(this.id, {
         reason,
         blacklistedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -180,13 +174,12 @@ class UserAuth extends AggregateRoot {
     if (!this.blacklisted) {
       throw new Error('User not blacklisted');
     }
-    
-    this.applyEvent(new UserUnblacklisted(
-      this.id,
-      {
+
+    this.applyEvent(
+      new UserUnblacklisted(this.id, {
         unblacklistedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -195,11 +188,7 @@ class UserAuth extends AggregateRoot {
    * @returns {boolean} True if authenticated
    */
   isAuthenticated(currentTime = new Date()) {
-    return !!(
-      this.token && 
-      !this.token.isExpired(currentTime) && 
-      !this.blacklisted
-    );
+    return !!(this.token && !this.token.isExpired(currentTime) && !this.blacklisted);
   }
 
   /**
@@ -211,11 +200,11 @@ class UserAuth extends AggregateRoot {
     if (!this.isAuthenticated()) {
       return false;
     }
-    
+
     if (!context.requiresNsfwVerification()) {
       return true; // DMs don't require verification
     }
-    
+
     return this.nsfwStatus.verified && !this.nsfwStatus.isStale();
   }
 
@@ -227,7 +216,7 @@ class UserAuth extends AggregateRoot {
     if (this.blacklisted) {
       return 0;
     }
-    
+
     // Could be enhanced with premium tiers, etc.
     return 20; // Default rate limit
   }

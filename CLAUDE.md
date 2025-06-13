@@ -692,6 +692,8 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
 
 ### Best Practices for MCP Usage
 
+**💚 Liberal MCP Usage Encouraged!** The user has explicitly stated they're happy to foot the bill for MCP usage. Use it freely whenever it can help improve code quality, catch edge cases, or provide alternative perspectives. Don't hesitate to leverage Gemini's capabilities throughout the development process.
+
 #### 1. **Strategic Integration**
 - Use Gemini for second opinions on complex architectural decisions
 - Leverage for brainstorming when stuck on implementation approaches
@@ -738,19 +740,19 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
 - **Security Review**: Use `gemini_code_review` with focus on security for auth changes
 - **Test Coverage**: Use `gemini_test_cases` for edge cases in complex error handling
 
-### Model Configuration Notes
-- Currently using Gemini 1.5 Flash through MCP
-- Recommended upgrade to dual-model configuration:
-  - **Primary**: Gemini 2.5 Pro Preview (experimental, best quality)
-  - **Fallback**: Gemini 1.5 Pro (stable, complex reasoning) or 2.0 Flash (stable, fast)
-- Model availability varies - check Google AI documentation
-- Performance/cost tradeoffs between model versions
+### Model Configuration (Current as of v2.0.0)
+- **Active Configuration**: Dual-model setup with automatic fallback
+  - **Primary**: Gemini 2.5 Pro Preview (gemini-2.5-pro-preview-06-05) - experimental, best quality
+  - **Fallback**: Gemini 1.5 Pro - stable, complex reasoning
+- **Server Version**: v2.0.0 (Updated: 2025-06-10)
+- **Timeout**: 10.0 seconds per request
+- Model availability and performance may vary - check Google AI documentation for latest updates
 
-### Dual-Model Strategy Benefits
-1. **Best Quality First**: Try cutting-edge 2.5 models for superior results
-2. **Automatic Fallback**: Switch to stable 1.5 Pro or 2.0 Flash if issues occur
-3. **Zero Downtime**: Seamless experience even during model updates
-4. **Optimal Results**: Get the best available response every time
+### Dual-Model Strategy Benefits (Now Active!)
+1. **Best Quality First**: Automatically tries cutting-edge 2.5 Pro Preview for superior results
+2. **Automatic Fallback**: Seamlessly switches to stable 1.5 Pro if primary model has issues
+3. **Zero Downtime**: Continuous availability even during model updates or outages
+4. **Optimal Results**: Always get the best available response without manual intervention
 
 ## Versioning and Release Management
 

@@ -7,12 +7,12 @@ const { AggregateRoot } = require('../shared/AggregateRoot');
 const { PersonalityId } = require('./PersonalityId');
 const { PersonalityProfile } = require('./PersonalityProfile');
 const { UserId } = require('./UserId');
-const { 
+const {
   PersonalityCreated,
   PersonalityProfileUpdated,
   PersonalityRemoved,
   PersonalityAliasAdded,
-  PersonalityAliasRemoved
+  PersonalityAliasRemoved,
 } = require('./PersonalityEvents');
 const { Alias } = require('./Alias');
 const { AIModel } = require('../ai/AIModel');
@@ -27,9 +27,9 @@ class Personality extends AggregateRoot {
     if (!(id instanceof PersonalityId)) {
       throw new Error('Personality must be created with PersonalityId');
     }
-    
+
     super(id.toString());
-    
+
     this.personalityId = id;
     this.ownerId = null;
     this.profile = null;
@@ -54,32 +54,31 @@ class Personality extends AggregateRoot {
     if (!(personalityId instanceof PersonalityId)) {
       throw new Error('Invalid PersonalityId');
     }
-    
+
     if (!(ownerId instanceof UserId)) {
       throw new Error('Invalid UserId');
     }
-    
+
     if (!(profile instanceof PersonalityProfile)) {
       throw new Error('Invalid PersonalityProfile');
     }
-    
+
     if (!(model instanceof AIModel)) {
       throw new Error('Invalid AIModel');
     }
-    
+
     const personality = new Personality(personalityId);
-    
-    personality.applyEvent(new PersonalityCreated(
-      personalityId.toString(),
-      {
+
+    personality.applyEvent(
+      new PersonalityCreated(personalityId.toString(), {
         personalityId: personalityId.toString(),
         ownerId: ownerId.toString(),
         profile: profile.toJSON(),
         model: model.toJSON(),
         createdAt: new Date().toISOString(),
-      }
-    ));
-    
+      })
+    );
+
     return personality;
   }
 
@@ -95,7 +94,7 @@ class Personality extends AggregateRoot {
     if (this.removed) {
       throw new Error('Cannot update removed personality');
     }
-    
+
     // Create updated profile
     const currentProfile = this.profile || {};
     const updatedProfile = new PersonalityProfile(
@@ -104,19 +103,18 @@ class Personality extends AggregateRoot {
       updates.modelPath !== undefined ? updates.modelPath : currentProfile.modelPath,
       updates.maxWordCount !== undefined ? updates.maxWordCount : currentProfile.maxWordCount
     );
-    
+
     // Update model if provided
     const updatedModel = updates.model || this.model;
-    
+
     // Apply event
-    this.applyEvent(new PersonalityProfileUpdated(
-      this.id,
-      {
+    this.applyEvent(
+      new PersonalityProfileUpdated(this.id, {
         profile: updatedProfile.toJSON(),
         model: updatedModel ? updatedModel.toJSON() : null,
         updatedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -126,14 +124,13 @@ class Personality extends AggregateRoot {
     if (this.removed) {
       throw new Error('Personality already removed');
     }
-    
-    this.applyEvent(new PersonalityRemoved(
-      this.id,
-      {
+
+    this.applyEvent(
+      new PersonalityRemoved(this.id, {
         removedBy: this.ownerId.toString(),
         removedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -144,24 +141,23 @@ class Personality extends AggregateRoot {
     if (this.removed) {
       throw new Error('Cannot add alias to removed personality');
     }
-    
+
     if (!(alias instanceof Alias)) {
       throw new Error('Invalid Alias');
     }
-    
+
     // Check if alias already exists
     if (this.aliases.some(a => a.equals(alias))) {
       throw new Error(`Alias "${alias.name}" already exists`);
     }
-    
-    this.applyEvent(new PersonalityAliasAdded(
-      this.id,
-      {
+
+    this.applyEvent(
+      new PersonalityAliasAdded(this.id, {
         alias: alias.toJSON(),
         addedBy: this.ownerId.toString(),
         addedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -172,24 +168,23 @@ class Personality extends AggregateRoot {
     if (this.removed) {
       throw new Error('Cannot remove alias from removed personality');
     }
-    
+
     if (!(alias instanceof Alias)) {
       throw new Error('Invalid Alias');
     }
-    
+
     // Check if alias exists
     if (!this.aliases.some(a => a.equals(alias))) {
       throw new Error(`Alias "${alias.name}" not found`);
     }
-    
-    this.applyEvent(new PersonalityAliasRemoved(
-      this.id,
-      {
+
+    this.applyEvent(
+      new PersonalityAliasRemoved(this.id, {
         alias: alias.toJSON(),
         removedBy: this.ownerId.toString(),
         removedAt: new Date().toISOString(),
-      }
-    ));
+      })
+    );
   }
 
   /**
@@ -230,30 +225,30 @@ class Personality extends AggregateRoot {
     if (!this.profile || !this.profile.displayName || !this.updatedAt) {
       return true;
     }
-    
+
     const lastUpdate = new Date(this.updatedAt).getTime();
     const now = Date.now();
-    
-    return (now - lastUpdate) > staleThresholdMs;
+
+    return now - lastUpdate > staleThresholdMs;
   }
 
   // Event handlers
-  onPersonalityCreated(event) { // eslint-disable-line no-unused-vars
+  onPersonalityCreated(event) {
+    // eslint-disable-line no-unused-vars
     this.personalityId = PersonalityId.fromString(event.payload.personalityId);
     this.ownerId = UserId.fromString(event.payload.ownerId);
-    this.profile = event.payload.profile 
-      ? PersonalityProfile.fromJSON(event.payload.profile) 
+    this.profile = event.payload.profile
+      ? PersonalityProfile.fromJSON(event.payload.profile)
       : PersonalityProfile.createEmpty();
-    this.model = event.payload.model 
-      ? AIModel.fromJSON(event.payload.model)
-      : null;
+    this.model = event.payload.model ? AIModel.fromJSON(event.payload.model) : null;
     this.aliases = [];
     this.createdAt = event.payload.createdAt;
     this.updatedAt = event.payload.createdAt;
     this.removed = false;
   }
 
-  onPersonalityProfileUpdated(event) { // eslint-disable-line no-unused-vars
+  onPersonalityProfileUpdated(event) {
+    // eslint-disable-line no-unused-vars
     this.profile = PersonalityProfile.fromJSON(event.payload.profile);
     if (event.payload.model) {
       this.model = AIModel.fromJSON(event.payload.model);
@@ -261,18 +256,21 @@ class Personality extends AggregateRoot {
     this.updatedAt = event.payload.updatedAt;
   }
 
-  onPersonalityRemoved(event) { // eslint-disable-line no-unused-vars
+  onPersonalityRemoved(event) {
+    // eslint-disable-line no-unused-vars
     this.removed = true;
     this.updatedAt = event.payload.removedAt;
   }
 
-  onPersonalityAliasAdded(event) { // eslint-disable-line no-unused-vars
+  onPersonalityAliasAdded(event) {
+    // eslint-disable-line no-unused-vars
     const alias = Alias.fromJSON(event.payload.alias);
     this.aliases.push(alias);
     this.updatedAt = event.payload.addedAt;
   }
 
-  onPersonalityAliasRemoved(event) { // eslint-disable-line no-unused-vars
+  onPersonalityAliasRemoved(event) {
+    // eslint-disable-line no-unused-vars
     const alias = Alias.fromJSON(event.payload.alias);
     this.aliases = this.aliases.filter(a => !a.equals(alias));
     this.updatedAt = event.payload.removedAt;

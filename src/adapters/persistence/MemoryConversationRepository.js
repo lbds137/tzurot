@@ -4,7 +4,7 @@ const logger = require('../../logger');
 
 /**
  * MemoryConversationRepository - In-memory implementation of ConversationRepository
- * 
+ *
  * This adapter provides fast, in-memory storage for active conversations.
  * It's suitable for ephemeral conversation tracking where persistence isn't required.
  * For production use, conversations should be persisted to disk periodically.
@@ -19,7 +19,7 @@ class MemoryConversationRepository extends ConversationRepository {
     super();
     this.maxConversations = options.maxConversations || 1000;
     this.ttlMs = options.ttlMs || 24 * 60 * 60 * 1000; // 24 hours default
-    
+
     // Storage maps
     this._conversations = new Map(); // conversationId -> conversation
     this._messageIndex = new Map(); // messageId -> conversationId
@@ -38,22 +38,22 @@ class MemoryConversationRepository extends ConversationRepository {
       const conversationId = conversation.id.toString();
       const userId = conversation.conversationId.userId;
       const personalityId = conversation.activePersonalityId?.toString();
-      
+
       // Update main storage
       this._conversations.set(conversationId, conversation);
       this._lastAccess.set(conversationId, Date.now());
-      
+
       // Update message index
       conversation.messages.forEach(message => {
         this._messageIndex.set(message.id, conversationId);
       });
-      
+
       // Update user index
       if (!this._userIndex.has(userId)) {
         this._userIndex.set(userId, new Set());
       }
       this._userIndex.get(userId).add(conversationId);
-      
+
       // Update personality index
       if (personalityId) {
         if (!this._personalityIndex.has(personalityId)) {
@@ -61,10 +61,10 @@ class MemoryConversationRepository extends ConversationRepository {
         }
         this._personalityIndex.get(personalityId).add(conversationId);
       }
-      
+
       // Cleanup if over limit
       await this._enforceLimit();
-      
+
       logger.debug(`[MemoryConversationRepository] Saved conversation: ${conversationId}`);
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to save conversation:', error);
@@ -81,15 +81,15 @@ class MemoryConversationRepository extends ConversationRepository {
     try {
       const id = conversationId.toString();
       const conversation = this._conversations.get(id);
-      
+
       if (conversation) {
         // Update last access time
         this._lastAccess.set(id, Date.now());
-        
+
         // Return a copy to maintain immutability
         return this._cloneConversation(conversation);
       }
-      
+
       return null;
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to find by ID:', error);
@@ -108,10 +108,10 @@ class MemoryConversationRepository extends ConversationRepository {
       if (!conversationIds) {
         return [];
       }
-      
+
       const activeConversations = [];
       const now = Date.now();
-      
+
       for (const conversationId of conversationIds) {
         const conversation = this._conversations.get(conversationId);
         if (conversation && !conversation.ended) {
@@ -122,7 +122,7 @@ class MemoryConversationRepository extends ConversationRepository {
           }
         }
       }
-      
+
       return activeConversations;
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to find by user:', error);
@@ -141,14 +141,14 @@ class MemoryConversationRepository extends ConversationRepository {
       if (!conversationId) {
         return null;
       }
-      
+
       const conversation = this._conversations.get(conversationId);
       if (conversation) {
         // Update last access time
         this._lastAccess.set(conversationId, Date.now());
         return this._cloneConversation(conversation);
       }
-      
+
       return null;
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to find by message ID:', error);
@@ -168,7 +168,7 @@ class MemoryConversationRepository extends ConversationRepository {
       if (!conversationIds) {
         return [];
       }
-      
+
       const conversations = [];
       for (const conversationId of conversationIds) {
         const conversation = this._conversations.get(conversationId);
@@ -176,7 +176,7 @@ class MemoryConversationRepository extends ConversationRepository {
           conversations.push(this._cloneConversation(conversation));
         }
       }
-      
+
       return conversations;
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to find by personality:', error);
@@ -193,20 +193,20 @@ class MemoryConversationRepository extends ConversationRepository {
     try {
       const id = conversationId.toString();
       const conversation = this._conversations.get(id);
-      
+
       if (!conversation) {
         return; // Already deleted
       }
-      
+
       // Remove from main storage
       this._conversations.delete(id);
       this._lastAccess.delete(id);
-      
+
       // Remove from message index
       conversation.messages.forEach(message => {
         this._messageIndex.delete(message.id);
       });
-      
+
       // Remove from user index
       const userConversations = this._userIndex.get(conversation.conversationId.userId);
       if (userConversations) {
@@ -215,10 +215,12 @@ class MemoryConversationRepository extends ConversationRepository {
           this._userIndex.delete(conversation.conversationId.userId);
         }
       }
-      
+
       // Remove from personality index
       if (conversation.activePersonalityId) {
-        const personalityConversations = this._personalityIndex.get(conversation.activePersonalityId.toString());
+        const personalityConversations = this._personalityIndex.get(
+          conversation.activePersonalityId.toString()
+        );
         if (personalityConversations) {
           personalityConversations.delete(id);
           if (personalityConversations.size === 0) {
@@ -226,7 +228,7 @@ class MemoryConversationRepository extends ConversationRepository {
           }
         }
       }
-      
+
       logger.debug(`[MemoryConversationRepository] Deleted conversation: ${id}`);
     } catch (error) {
       logger.error('[MemoryConversationRepository] Failed to delete conversation:', error);
@@ -244,31 +246,32 @@ class MemoryConversationRepository extends ConversationRepository {
       const expiryTime = expiryDate.getTime();
       let deletedCount = 0;
       const toDelete = new Set();
-      
+
       for (const [conversationId, conversation] of this._conversations) {
         let shouldDelete = false;
-        
+
         // Check if conversation is ended and expired
         if (conversation.ended && conversation.endedAt) {
-          const endedTime = typeof conversation.endedAt === 'string' 
-            ? new Date(conversation.endedAt).getTime()
-            : conversation.endedAt.getTime();
+          const endedTime =
+            typeof conversation.endedAt === 'string'
+              ? new Date(conversation.endedAt).getTime()
+              : conversation.endedAt.getTime();
           if (endedTime < expiryTime) {
             shouldDelete = true;
           }
         }
-        
+
         // Also check TTL for inactive conversations
         const lastAccess = this._lastAccess.get(conversationId) || 0;
         if (Date.now() - lastAccess > this.ttlMs) {
           shouldDelete = true;
         }
-        
+
         if (shouldDelete) {
           toDelete.add(conversationId);
         }
       }
-      
+
       // Delete the conversations
       for (const conversationId of toDelete) {
         const conversation = this._conversations.get(conversationId);
@@ -277,11 +280,16 @@ class MemoryConversationRepository extends ConversationRepository {
           deletedCount++;
         }
       }
-      
-      logger.info(`[MemoryConversationRepository] Cleaned up ${deletedCount} expired conversations`);
+
+      logger.info(
+        `[MemoryConversationRepository] Cleaned up ${deletedCount} expired conversations`
+      );
       return deletedCount;
     } catch (error) {
-      logger.error('[MemoryConversationRepository] Failed to cleanup expired conversations:', error);
+      logger.error(
+        '[MemoryConversationRepository] Failed to cleanup expired conversations:',
+        error
+      );
       throw new Error(`Failed to cleanup expired conversations: ${error.message}`);
     }
   }
@@ -321,11 +329,12 @@ class MemoryConversationRepository extends ConversationRepository {
     if (this._conversations.size <= this.maxConversations) {
       return;
     }
-    
+
     // Find oldest conversations by last access time
-    const conversationsByAccess = Array.from(this._lastAccess.entries())
-      .sort((a, b) => a[1] - b[1]); // Sort by access time, oldest first
-    
+    const conversationsByAccess = Array.from(this._lastAccess.entries()).sort(
+      (a, b) => a[1] - b[1]
+    ); // Sort by access time, oldest first
+
     // Delete oldest conversations until under limit
     const toDelete = this._conversations.size - this.maxConversations;
     for (let i = 0; i < toDelete && i < conversationsByAccess.length; i++) {
@@ -356,7 +365,7 @@ class MemoryConversationRepository extends ConversationRepository {
     const conversationSize = this._conversations.size * 1024;
     const messageSize = this._messageIndex.size * 100;
     const indexOverhead = (this._userIndex.size + this._personalityIndex.size) * 64;
-    
+
     return conversationSize + messageSize + indexOverhead;
   }
 }
