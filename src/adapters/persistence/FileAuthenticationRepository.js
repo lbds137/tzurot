@@ -7,10 +7,10 @@ const logger = require('../../logger');
 
 /**
  * FileAuthenticationRepository - File-based implementation of AuthenticationRepository
- * 
+ *
  * This adapter implements persistence for user authentication using the file system.
  * In production, this would likely be replaced with a secure database adapter.
- * 
+ *
  * Note: This implementation stores sensitive tokens - in production, these would
  * be encrypted at rest.
  */
@@ -23,12 +23,12 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    * @param {Function} options.setInterval - Injectable timer function for testing
    * @param {Function} options.clearInterval - Injectable timer function for testing
    */
-  constructor({ 
-    dataPath = './data', 
+  constructor({
+    dataPath = './data',
     filename = 'authentication.json',
     tokenCleanupInterval = 60 * 60 * 1000, // 1 hour
     setInterval,
-    clearInterval
+    clearInterval,
   } = {}) {
     super();
     this.dataPath = dataPath;
@@ -52,7 +52,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     try {
       // Ensure data directory exists
       await fs.mkdir(this.dataPath, { recursive: true });
-      
+
       // Load existing data or create new file
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
@@ -66,13 +66,13 @@ class FileAuthenticationRepository extends AuthenticationRepository {
           throw error;
         }
       }
-      
+
       // Clean up expired tokens on startup
       await this._cleanupExpiredTokens();
-      
+
       // Start periodic cleanup
       this._startCleanupTimer();
-      
+
       this._initialized = true;
       logger.info('[FileAuthenticationRepository] Initialized successfully');
     } catch (error) {
@@ -88,30 +88,32 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async save(userAuth) {
     await this._ensureInitialized();
-    
+
     try {
       const data = userAuth.toJSON();
-      
+
       // Store user auth - maintaining backward compatibility with existing data
       // that may have multiple tokens per user
       const existingData = this._cache.userAuth[userAuth.userId.toString()];
       const existingTokens = existingData ? existingData.tokens : [];
-      
+
       // If this user already has tokens for other personalities, preserve them
-      const otherTokens = existingTokens.filter(t => 
-        userAuth.token && t.personalityId !== userAuth.token.personalityId
+      const otherTokens = existingTokens.filter(
+        t => userAuth.token && t.personalityId !== userAuth.token.personalityId
       );
-      
+
       // Add current token if exists
-      const currentTokens = userAuth.token ? [...otherTokens, userAuth.token.toJSON()] : otherTokens;
-      
+      const currentTokens = userAuth.token
+        ? [...otherTokens, userAuth.token.toJSON()]
+        : otherTokens;
+
       this._cache.userAuth[userAuth.userId.toString()] = {
         ...data,
         userId: userAuth.userId.toString(),
         tokens: currentTokens,
         savedAt: new Date().toISOString(),
       };
-      
+
       // Store token separately for efficient lookup
       if (userAuth.token) {
         // The Token object doesn't have personalityId, we need to extract from auth context
@@ -124,9 +126,9 @@ class FileAuthenticationRepository extends AuthenticationRepository {
           revokedAt: null,
         };
       }
-      
+
       await this._persist();
-      
+
       logger.info(`[FileAuthenticationRepository] Saved user auth: ${userAuth.userId.toString()}`);
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to save user auth:', error);
@@ -141,13 +143,13 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async findByUserId(userId) {
     await this._ensureInitialized();
-    
+
     try {
       const data = this._cache.userAuth[userId];
       if (!data) {
         return null;
       }
-      
+
       return this._hydrate(data);
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to find by user ID:', error);
@@ -162,13 +164,13 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async findByToken(token) {
     await this._ensureInitialized();
-    
+
     try {
       const tokenData = this._cache.tokens[token];
       if (!tokenData) {
         return null;
       }
-      
+
       // Get the user auth
       const userAuthData = this._cache.userAuth[tokenData.userId];
       if (!userAuthData) {
@@ -177,7 +179,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         await this._persist();
         return null;
       }
-      
+
       return this._hydrate(userAuthData);
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to find by token:', error);
@@ -192,21 +194,21 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async findByPersonalityId(personalityId) {
     await this._ensureInitialized();
-    
+
     try {
       const results = [];
-      
+
       for (const data of Object.values(this._cache.userAuth)) {
         // Check if user has any tokens for this personality
         const hasPersonalityToken = data.tokens.some(
           t => t.personalityId === personalityId && !t.revokedAt
         );
-        
+
         if (hasPersonalityToken) {
           results.push(await this._hydrate(data));
         }
       }
-      
+
       return results;
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to find by personality:', error);
@@ -221,18 +223,18 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async delete(userId) {
     await this._ensureInitialized();
-    
+
     try {
       const userAuth = this._cache.userAuth[userId];
       if (userAuth) {
         // Remove all associated tokens
-        for (const token of (userAuth.tokens || [])) {
+        for (const token of userAuth.tokens || []) {
           delete this._cache.tokens[token.value];
         }
-        
+
         // Remove user auth
         delete this._cache.userAuth[userId];
-        
+
         await this._persist();
         logger.info(`[FileAuthenticationRepository] Deleted user auth: ${userId}`);
       }
@@ -258,11 +260,11 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async countActiveUsers() {
     await this._ensureInitialized();
-    
+
     try {
       let count = 0;
       const now = Date.now();
-      
+
       for (const userAuth of Object.values(this._cache.userAuth)) {
         // Check if user has any valid (non-expired, non-revoked) tokens
         const hasValidToken = userAuth.tokens.some(token => {
@@ -270,12 +272,12 @@ class FileAuthenticationRepository extends AuthenticationRepository {
           if (!token.expiresAt) return true;
           return new Date(token.expiresAt).getTime() > now;
         });
-        
+
         if (hasValidToken) {
           count++;
         }
       }
-      
+
       return count;
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to count active users:', error);
@@ -291,27 +293,27 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     // Since UserAuth requires authentication with a token, we need to handle this differently
     // We'll create a UserAuth instance for each token stored (backward compatibility)
     // For now, return the UserAuth with the most recent valid token
-    
+
     const userId = new UserId(data.userId);
-    
+
     // Find the most recent valid token
     let latestToken = null;
     let latestTime = 0;
-    
+
     for (const tokenData of data.tokens || []) {
       // Skip revoked tokens
       if (tokenData.revokedAt) continue;
-      
+
       // Skip expired tokens
       if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < Date.now()) continue;
-      
+
       const tokenTime = new Date(tokenData.createdAt).getTime();
       if (tokenTime > latestTime) {
         latestTime = tokenTime;
         latestToken = tokenData;
       }
     }
-    
+
     // If no valid token, create UserAuth without authentication
     // We need to handle this edge case
     let userAuth;
@@ -325,21 +327,24 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
         token = new Token(latestToken.value, farFuture);
       }
-      
+
       userAuth = UserAuth.authenticate(userId, token);
     } else {
       // Create unauthenticated user - we'll need to handle this
       // For now, create with a dummy constructor call
       userAuth = new UserAuth(userId);
     }
-    
+
     // Set NSFW status if different from default
     // Handle both string format (legacy) and object format (from toJSON)
     if (data.nsfwStatus) {
-      const nsfwStatus = typeof data.nsfwStatus === 'string' 
-        ? data.nsfwStatus 
-        : (data.nsfwStatus.verified ? 'verified' : 'unverified');
-        
+      const nsfwStatus =
+        typeof data.nsfwStatus === 'string'
+          ? data.nsfwStatus
+          : data.nsfwStatus.verified
+            ? 'verified'
+            : 'unverified';
+
       if (nsfwStatus === 'verified') {
         userAuth.verifyNsfw();
       } else if (nsfwStatus === 'blocked') {
@@ -352,13 +357,13 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         }
       }
     }
-    
+
     // Store reference to all tokens for backward compatibility queries
     userAuth._allTokens = data.tokens || [];
-    
+
     // Mark as hydrated from persistence
     userAuth.markEventsAsCommitted();
-    
+
     return userAuth;
   }
 
@@ -369,14 +374,14 @@ class FileAuthenticationRepository extends AuthenticationRepository {
   async _persist() {
     try {
       const data = JSON.stringify(this._cache, null, 2);
-      
+
       // Write to temp file first for atomic operation
       const tempPath = `${this.filePath}.tmp`;
       await fs.writeFile(tempPath, data, 'utf8');
-      
+
       // Rename to actual file
       await fs.rename(tempPath, this.filePath);
-      
+
       logger.debug('[FileAuthenticationRepository] Data persisted successfully');
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to persist data:', error);
@@ -401,7 +406,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
   async _cleanupExpiredTokens() {
     const now = Date.now();
     let cleanedCount = 0;
-    
+
     // Clean up expired tokens from token index
     for (const [tokenValue, tokenData] of Object.entries(this._cache.tokens)) {
       if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < now) {
@@ -409,7 +414,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         cleanedCount++;
       }
     }
-    
+
     // Clean up expired tokens from user auth
     for (const userAuth of Object.values(this._cache.userAuth)) {
       userAuth.tokens = userAuth.tokens.filter(token => {
@@ -417,7 +422,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         return new Date(token.expiresAt).getTime() >= now;
       });
     }
-    
+
     if (cleanedCount > 0) {
       logger.info(`[FileAuthenticationRepository] Cleaned up ${cleanedCount} expired tokens`);
       await this._persist();
@@ -432,8 +437,9 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     if (this._cleanupTimer) {
       this._clearInterval(this._cleanupTimer);
     }
-    
-    this._cleanupTimer = this._setInterval(async () => { // eslint-disable-line no-restricted-syntax
+
+    this._cleanupTimer = this._setInterval(async () => {
+       
       try {
         await this._cleanupExpiredTokens();
       } catch (error) {
@@ -459,18 +465,18 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async getStats() {
     await this._ensureInitialized();
-    
+
     const totalUsers = Object.keys(this._cache.userAuth).length;
     const totalTokens = Object.keys(this._cache.tokens).length;
-    
+
     let activeTokens = 0;
     let expiredTokens = 0;
     let revokedTokens = 0;
     let verifiedUsers = 0;
     let blockedUsers = 0;
-    
+
     const now = Date.now();
-    
+
     for (const tokenData of Object.values(this._cache.tokens)) {
       if (tokenData.revokedAt) {
         revokedTokens++;
@@ -480,7 +486,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         activeTokens++;
       }
     }
-    
+
     for (const userAuth of Object.values(this._cache.userAuth)) {
       if (userAuth.nsfwStatus === 'verified') {
         verifiedUsers++;
@@ -488,7 +494,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         blockedUsers++;
       }
     }
-    
+
     return {
       totalUsers,
       totalTokens,
