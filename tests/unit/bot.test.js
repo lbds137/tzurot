@@ -97,6 +97,14 @@ jest.mock('../../src/utils/pluralkitMessageStore', () => ({
   }
 }));
 
+jest.mock('../../src/logger', () => ({
+  info: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  warning: jest.fn() // Just in case
+}));
+
 describe('Bot Core Functionality', () => {
   let bot;
   let mockClient;
