@@ -1,13 +1,19 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { Personality, PersonalityId, PersonalityProfile, Alias, UserId } = require('../../domain/personality');
+const {
+  Personality,
+  PersonalityId,
+  PersonalityProfile,
+  Alias,
+  UserId,
+} = require('../../domain/personality');
 const { PersonalityRepository } = require('../../domain/personality');
 const { AIModel } = require('../../domain/ai');
 const logger = require('../../logger');
 
 /**
  * FilePersonalityRepository - File-based implementation of PersonalityRepository
- * 
+ *
  * This adapter implements persistence for personalities using the file system.
  * In production, this would likely be replaced with a database adapter.
  */
@@ -35,11 +41,55 @@ class FilePersonalityRepository extends PersonalityRepository {
     try {
       // Ensure data directory exists
       await fs.mkdir(this.dataPath, { recursive: true });
-      
+
       // Load existing data or create new file
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
-        this._cache = JSON.parse(data);
+        const parsedData = JSON.parse(data);
+
+        // Check if this is the old format (direct personality objects)
+        if (!parsedData.personalities && !parsedData.aliases) {
+          // Migrate from old format
+          logger.info('[FilePersonalityRepository] Migrating from old format');
+          this._cache = {
+            personalities: {},
+            aliases: {},
+          };
+
+          // Convert old format personalities
+          for (const [key, value] of Object.entries(parsedData)) {
+            // Skip if it's not a personality object
+            if (!value || typeof value !== 'object') continue;
+
+            // Create a personality-like structure
+            const personalityId = key;
+            this._cache.personalities[personalityId] = {
+              id: personalityId,
+              personalityId: personalityId,
+              ownerId: value.addedBy || 'unknown',
+              profile: {
+                name: value.fullName || key,
+                displayName: value.displayName || value.fullName || key,
+                prompt: `You are ${value.displayName || value.fullName || key}`,
+                maxWordCount: 1000,
+              },
+              model: {
+                name: 'default',
+                endpoint: '/default',
+                capabilities: {},
+              },
+              aliases: [],
+              savedAt: value.lastUpdated || new Date().toISOString(),
+            };
+          }
+
+          // Save migrated data
+          await this._persist();
+          logger.info('[FilePersonalityRepository] Migration complete');
+        } else {
+          // New format
+          this._cache = parsedData;
+        }
       } catch (error) {
         if (error.code === 'ENOENT') {
           // File doesn't exist, create it
@@ -49,7 +99,7 @@ class FilePersonalityRepository extends PersonalityRepository {
           throw error;
         }
       }
-      
+
       this._initialized = true;
       logger.info('[FilePersonalityRepository] Initialized successfully');
     } catch (error) {
@@ -65,29 +115,33 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async save(personality) {
     await this._ensureInitialized();
-    
+
     try {
       const data = personality.toJSON();
-      
+
       // Store personality data
       this._cache.personalities[personality.personalityId.value] = {
         ...data,
         // Ensure proper serialization of nested objects
         profile: data.profile,
-        aliases: personality.aliases ? personality.aliases.map(a => a.toJSON ? a.toJSON() : a) : [],
+        aliases: personality.aliases
+          ? personality.aliases.map(a => (a.toJSON ? a.toJSON() : a))
+          : [],
         savedAt: new Date().toISOString(),
       };
-      
+
       // Update alias mappings
       if (personality.aliases && Array.isArray(personality.aliases)) {
         personality.aliases.forEach(alias => {
           this._cache.aliases[alias.value] = personality.personalityId.value;
         });
       }
-      
+
       await this._persist();
-      
-      logger.info(`[FilePersonalityRepository] Saved personality: ${personality.personalityId.value}`);
+
+      logger.info(
+        `[FilePersonalityRepository] Saved personality: ${personality.personalityId.value}`
+      );
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to save personality:', error);
       throw new Error(`Failed to save personality: ${error.message}`);
@@ -101,13 +155,13 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async findById(personalityId) {
     await this._ensureInitialized();
-    
+
     try {
       const data = this._cache.personalities[personalityId.value];
-      if (!data) {
+      if (!data || data.removed) {
         return null;
       }
-      
+
       return this._hydrate(data);
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to find by ID:', error);
@@ -122,20 +176,71 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async findByOwner(ownerId) {
     await this._ensureInitialized();
-    
+
     try {
       const personalities = [];
-      
+
       for (const data of Object.values(this._cache.personalities)) {
+        // Skip removed personalities
+        if (data.removed) {
+          continue;
+        }
+
         if (data.ownerId === ownerId.value) {
           personalities.push(await this._hydrate(data));
         }
       }
-      
+
       return personalities;
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to find by owner:', error);
       throw new Error(`Failed to find personalities by owner: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find personality by name
+   * @param {string} name - Name to search for
+   * @returns {Promise<Personality|null>}
+   */
+  async findByName(name) {
+    await this._ensureInitialized();
+
+    try {
+      // Ensure cache structure exists
+      if (!this._cache || !this._cache.personalities) {
+        return null;
+      }
+
+      // Search through all personalities for matching name
+      for (const data of Object.values(this._cache.personalities)) {
+        // Skip removed personalities
+        if (data.removed) {
+          continue;
+        }
+
+        // Check if profile name matches (case-insensitive)
+        if (
+          data.profile &&
+          (data.profile.name?.toLowerCase() === name.toLowerCase() ||
+            data.profile.displayName?.toLowerCase() === name.toLowerCase())
+        ) {
+          return this._hydrate(data);
+        }
+
+        // Also check personality ID as fallback
+        if (
+          data.id?.toLowerCase() === name.toLowerCase() ||
+          data.personalityId?.toLowerCase() === name.toLowerCase()
+        ) {
+          return this._hydrate(data);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find by name:', error);
+      throw new Error(`Failed to find personality by name: ${error.message}`);
     }
   }
 
@@ -146,27 +251,28 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async findByAlias(alias) {
     await this._ensureInitialized();
-    
+
     try {
       // Normalize alias for case-insensitive search
       const normalizedAlias = alias.toLowerCase();
-      
+
       // Check alias mappings
-      const personalityId = Object.entries(this._cache.aliases)
-        .find(([key]) => key.toLowerCase() === normalizedAlias)?.[1];
-      
+      const personalityId = Object.entries(this._cache.aliases).find(
+        ([key]) => key.toLowerCase() === normalizedAlias
+      )?.[1];
+
       if (!personalityId) {
         return null;
       }
-      
+
       const data = this._cache.personalities[personalityId];
-      if (!data) {
-        // Alias points to non-existent personality, clean up
+      if (!data || data.removed) {
+        // Alias points to non-existent or removed personality, clean up
         delete this._cache.aliases[alias];
         await this._persist();
         return null;
       }
-      
+
       return this._hydrate(data);
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to find by alias:', error);
@@ -180,14 +286,17 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async findAll() {
     await this._ensureInitialized();
-    
+
     try {
       const personalities = [];
-      
+
       for (const data of Object.values(this._cache.personalities)) {
-        personalities.push(await this._hydrate(data));
+        // Skip removed personalities
+        if (!data.removed) {
+          personalities.push(await this._hydrate(data));
+        }
       }
-      
+
       return personalities;
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to find all:', error);
@@ -202,25 +311,25 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async delete(personalityId) {
     await this._ensureInitialized();
-    
+
     try {
       const data = this._cache.personalities[personalityId.value];
       if (!data) {
         return; // Already deleted
       }
-      
+
       // Remove personality
       delete this._cache.personalities[personalityId.value];
-      
+
       // Remove all aliases pointing to this personality
       Object.entries(this._cache.aliases).forEach(([alias, id]) => {
         if (id === personalityId.value) {
           delete this._cache.aliases[alias];
         }
       });
-      
+
       await this._persist();
-      
+
       logger.info(`[FilePersonalityRepository] Deleted personality: ${personalityId.value}`);
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to delete:', error);
@@ -273,7 +382,7 @@ class FilePersonalityRepository extends PersonalityRepository {
         1000
       );
     }
-    
+
     // Create model from stored data or use default
     let model;
     if (data.model) {
@@ -285,7 +394,7 @@ class FilePersonalityRepository extends PersonalityRepository {
     } else {
       model = AIModel.createDefault();
     }
-    
+
     // Create personality using static factory method
     const personality = Personality.create(
       new PersonalityId(data.id || data.personalityId),
@@ -293,7 +402,7 @@ class FilePersonalityRepository extends PersonalityRepository {
       profile,
       model
     );
-    
+
     // Add aliases
     if (data.aliases && Array.isArray(data.aliases)) {
       data.aliases.forEach(aliasData => {
@@ -304,10 +413,10 @@ class FilePersonalityRepository extends PersonalityRepository {
         }
       });
     }
-    
+
     // Mark as hydrated from persistence
     personality.markEventsAsCommitted();
-    
+
     return personality;
   }
 
@@ -318,14 +427,14 @@ class FilePersonalityRepository extends PersonalityRepository {
   async _persist() {
     try {
       const data = JSON.stringify(this._cache, null, 2);
-      
+
       // Write to temp file first for atomic operation
       const tempPath = `${this.filePath}.tmp`;
       await fs.writeFile(tempPath, data, 'utf8');
-      
+
       // Rename to actual file
       await fs.rename(tempPath, this.filePath);
-      
+
       logger.debug('[FilePersonalityRepository] Data persisted successfully');
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to persist data:', error);
@@ -349,14 +458,14 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async createBackup() {
     await this._ensureInitialized();
-    
+
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupPath = path.join(this.dataPath, `personalities-backup-${timestamp}.json`);
-      
+
       const data = JSON.stringify(this._cache, null, 2);
       await fs.writeFile(backupPath, data, 'utf8');
-      
+
       logger.info(`[FilePersonalityRepository] Created backup at: ${backupPath}`);
       return backupPath;
     } catch (error) {
@@ -371,7 +480,7 @@ class FilePersonalityRepository extends PersonalityRepository {
    */
   async getStats() {
     await this._ensureInitialized();
-    
+
     return {
       totalPersonalities: Object.keys(this._cache.personalities).length,
       totalAliases: Object.keys(this._cache.aliases).length,
