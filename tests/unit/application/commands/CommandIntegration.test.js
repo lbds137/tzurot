@@ -252,8 +252,8 @@ describe('CommandIntegration', () => {
       await integration.initialize();
       
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(11);
-      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info', 'alias', 'list', 'reset', 'activate', 'deactivate', 'autorespond', 'auth', 'verify']);
+      expect(commands).toHaveLength(12);
+      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info', 'alias', 'list', 'reset', 'activate', 'deactivate', 'autorespond', 'auth', 'verify', 'ping']);
     });
   });
 
