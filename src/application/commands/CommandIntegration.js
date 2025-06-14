@@ -20,6 +20,7 @@ const { createAutorespondCommand } = require('./conversation/AutorespondCommand'
 const { createAuthCommand } = require('./authentication/AuthCommand');
 const { createVerifyCommand } = require('./authentication/VerifyCommand');
 const { createPingCommand } = require('./utility/PingCommand');
+const { createStatusCommand } = require('./utility/StatusCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -90,9 +91,9 @@ class CommandIntegration {
 
     // Register utility commands
     this.registry.register(createPingCommand());
+    this.registry.register(createStatusCommand());
 
     // TODO: Register more commands as they are migrated
-    // this.registry.register(createStatusCommand());
     // this.registry.register(createNotificationsCommand());
     // this.registry.register(createDebugCommand());
     // this.registry.register(createPurgbotCommand());

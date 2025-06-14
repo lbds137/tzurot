@@ -1,0 +1,349 @@
+/**
+ * Tests for StatusCommand
+ */
+
+const { createStatusCommand, formatUptime } = require('../../../../../src/application/commands/utility/StatusCommand');
+const { createMigrationHelper } = require('../../../../utils/testEnhancements');
+const logger = require('../../../../../src/logger');
+
+// Mock logger
+jest.mock('../../../../../src/logger');
+
+describe('StatusCommand', () => {
+  let statusCommand;
+  let mockContext;
+  let mockAuth;
+  let mockPersonalityRegistry;
+  let mockConversationManager;
+  let mockProcessUtils;
+  let migrationHelper;
+
+  beforeEach(() => {
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    migrationHelper = createMigrationHelper();
+
+    // Mock dependencies
+    mockAuth = {
+      hasValidToken: jest.fn().mockReturnValue(false),
+      isNsfwVerified: jest.fn().mockReturnValue(false),
+    };
+
+    mockPersonalityRegistry = {
+      listPersonalitiesForUser: jest.fn().mockReturnValue([]),
+    };
+
+    mockConversationManager = {
+      isAutoResponseEnabled: jest.fn().mockReturnValue(false),
+      getAllActivatedChannels: jest.fn().mockReturnValue({}),
+    };
+
+    mockProcessUtils = {
+      uptime: jest.fn().mockReturnValue(3661), // 1 hour, 1 minute, 1 second
+    };
+
+    // Create command with mocked dependencies
+    statusCommand = createStatusCommand({
+      auth: mockAuth,
+      personalityRegistry: mockPersonalityRegistry,
+      conversationManager: mockConversationManager,
+      processUtils: mockProcessUtils,
+    });
+
+    // Mock context
+    mockContext = {
+      userId: 'user123',
+      channelId: 'channel123',
+      guildId: 'guild123',
+      commandPrefix: '!tz ',
+      isDM: false,
+      args: [],
+      options: {},
+      respond: jest.fn().mockResolvedValue(undefined),
+      respondWithEmbed: jest.fn().mockResolvedValue(undefined),
+      getPing: jest.fn().mockReturnValue(42),
+      getGuildCount: jest.fn().mockReturnValue(5),
+      getBotName: jest.fn().mockReturnValue('TestBot'),
+    };
+  });
+
+  describe('metadata', () => {
+    it('should have correct command metadata', () => {
+      expect(statusCommand.name).toBe('status');
+      expect(statusCommand.description).toBe('Show bot status information');
+      expect(statusCommand.category).toBe('Utility');
+      expect(statusCommand.aliases).toEqual([]);
+      expect(statusCommand.options).toEqual([]);
+    });
+  });
+
+  describe('formatUptime', () => {
+    it('should format seconds correctly', () => {
+      expect(formatUptime(45)).toBe('45 seconds');
+      expect(formatUptime(1)).toBe('1 second');
+    });
+
+    it('should format minutes correctly', () => {
+      expect(formatUptime(60)).toBe('1 minute');
+      expect(formatUptime(120)).toBe('2 minutes');
+      expect(formatUptime(65)).toBe('1 minute, 5 seconds');
+    });
+
+    it('should format hours correctly', () => {
+      expect(formatUptime(3600)).toBe('1 hour');
+      expect(formatUptime(7200)).toBe('2 hours');
+      expect(formatUptime(3665)).toBe('1 hour, 1 minute, 5 seconds');
+    });
+
+    it('should format days correctly', () => {
+      expect(formatUptime(86400)).toBe('1 day');
+      expect(formatUptime(172800)).toBe('2 days');
+      expect(formatUptime(90061)).toBe('1 day, 1 hour, 1 minute, 1 second');
+    });
+
+    it('should handle zero uptime', () => {
+      expect(formatUptime(0)).toBe('');
+    });
+  });
+
+  describe('execute with embed support', () => {
+    it('should show basic status for unauthenticated user', async () => {
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Bot Status',
+          description: 'Current status and information for TestBot.',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
+            { name: 'Uptime', value: '1 hour, 1 minute, 1 second', inline: true },
+            { name: 'Ping', value: '42ms', inline: true },
+            { name: 'Authenticated', value: '❌ No', inline: true },
+            { name: 'Age Verified', value: '❌ No', inline: true },
+            { name: 'Guild Count', value: '5 servers', inline: true },
+            { name: 'Auto-Response', value: '❌ Disabled', inline: true },
+          ]),
+          footer: {
+            text: 'Use "!tz help" for available commands.',
+          },
+        })
+      );
+    });
+
+    it('should show additional info for authenticated user', async () => {
+      mockAuth.hasValidToken.mockReturnValue(true);
+      mockAuth.isNsfwVerified.mockReturnValue(true);
+      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(['p1', 'p2', 'p3']);
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'Authenticated', value: '✅ Yes', inline: true },
+            { name: 'Age Verified', value: '✅ Yes', inline: true },
+            { name: 'Your Personalities', value: '3 personalities', inline: true },
+          ]),
+        })
+      );
+    });
+
+    it('should show active channel personality', async () => {
+      mockConversationManager.getAllActivatedChannels.mockReturnValue({
+        channel123: 'TestPersonality',
+        channel456: 'OtherPersonality',
+      });
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'This Channel', value: '🤖 **TestPersonality** is active', inline: false },
+          ]),
+        })
+      );
+    });
+
+    it('should show activated channels count for authenticated users', async () => {
+      mockAuth.hasValidToken.mockReturnValue(true);
+      mockConversationManager.getAllActivatedChannels.mockReturnValue({
+        channel123: 'TestPersonality',
+        channel456: 'OtherPersonality',
+        channel789: 'ThirdPersonality',
+      });
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'Activated Channels', value: '3 channels have active personalities', inline: true },
+          ]),
+        })
+      );
+    });
+
+    it('should handle auto-response enabled', async () => {
+      mockConversationManager.isAutoResponseEnabled.mockReturnValue(true);
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'Auto-Response', value: '✅ Enabled', inline: true },
+          ]),
+        })
+      );
+    });
+
+    it('should handle missing personality list', async () => {
+      mockAuth.hasValidToken.mockReturnValue(true);
+      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(null);
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'Your Personalities', value: 'None added yet', inline: true },
+          ]),
+        })
+      );
+    });
+
+    it('should handle single activated channel', async () => {
+      mockAuth.hasValidToken.mockReturnValue(true);
+      mockConversationManager.getAllActivatedChannels.mockReturnValue({
+        channel123: 'TestPersonality',
+      });
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            { name: 'Activated Channels', value: '1 channel has active personalities', inline: true },
+          ]),
+        })
+      );
+    });
+  });
+
+  describe('execute without embed support', () => {
+    beforeEach(() => {
+      delete mockContext.respondWithEmbed;
+    });
+
+    it('should fall back to text response', async () => {
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**Bot Status**')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Uptime: 1 hour, 1 minute, 1 second')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Ping: 42ms')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Authenticated: No')
+      );
+    });
+
+    it('should show authenticated info in text response', async () => {
+      mockAuth.hasValidToken.mockReturnValue(true);
+      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(['p1', 'p2']);
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Your Personalities: 2')
+      );
+    });
+
+    it('should show channel activation in text response', async () => {
+      mockConversationManager.getAllActivatedChannels.mockReturnValue({
+        channel123: 'TestPersonality',
+      });
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('This Channel: **TestPersonality** is active')
+      );
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle errors gracefully', async () => {
+      mockAuth.hasValidToken.mockImplementation(() => {
+        throw new Error('Auth error');
+      });
+
+      await statusCommand.execute(mockContext);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[StatusCommand] Execution failed:',
+        expect.any(Error)
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        'An error occurred while getting bot status.'
+      );
+    });
+
+    it('should handle missing methods gracefully', async () => {
+      delete mockContext.getPing;
+      delete mockContext.getGuildCount;
+      delete mockContext.getBotName;
+
+      await statusCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Current status and information for the bot.',
+          fields: expect.arrayContaining([
+            { name: 'Ping', value: 'N/A', inline: true },
+            { name: 'Guild Count', value: 'N/A servers', inline: true },
+          ]),
+        })
+      );
+    });
+
+    it('should handle missing conversation manager methods', async () => {
+      const limitedConversationManager = {};
+      
+      const command = createStatusCommand({
+        auth: mockAuth,
+        personalityRegistry: mockPersonalityRegistry,
+        conversationManager: limitedConversationManager,
+        processUtils: mockProcessUtils,
+      });
+
+      await command.execute(mockContext);
+
+      // Should not throw, should use default values
+      expect(mockContext.respondWithEmbed).toHaveBeenCalled();
+    });
+  });
+
+  describe('factory function', () => {
+    it('should create command with default dependencies', () => {
+      const command = createStatusCommand();
+      
+      expect(command).toBeDefined();
+      expect(command.name).toBe('status');
+    });
+
+    it('should create command with custom dependencies', () => {
+      const customAuth = { hasValidToken: jest.fn() };
+      const command = createStatusCommand({ auth: customAuth });
+      
+      expect(command).toBeDefined();
+      expect(command.name).toBe('status');
+    });
+  });
+});
