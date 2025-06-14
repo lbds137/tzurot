@@ -68,7 +68,7 @@ describe('HttpAIServiceAdapter', () => {
     
     it('should use environment variable for base URL', () => {
       // Set environment variable for test
-      process.env.AI_SERVICE_URL = 'https://default.example.com';
+      process.env.SERVICE_API_BASE_URL = 'https://default.example.com';
       
       const defaultAdapter = new HttpAIServiceAdapter();
       expect(defaultAdapter.baseUrl).toBe('https://default.example.com');
@@ -77,7 +77,7 @@ describe('HttpAIServiceAdapter', () => {
       expect(defaultAdapter.retryDelay).toBe(1000);
       
       // Clean up
-      delete process.env.AI_SERVICE_URL;
+      delete process.env.SERVICE_API_BASE_URL;
     });
   });
 

@@ -40,7 +40,7 @@ class HttpAIServiceAdapter extends AIService {
   constructor(config = {}) {
     super();
 
-    this.baseUrl = config.baseUrl || process.env.AI_SERVICE_URL;
+    this.baseUrl = config.baseUrl || process.env.SERVICE_API_BASE_URL;
     this.headers = config.headers || {};
     this.timeout = config.timeout || 30000;
     this.maxRetries = config.maxRetries || 3;
