@@ -24,8 +24,9 @@ class PersonalityRouter {
     this.comparisonTester = options.comparisonTester || getComparisonTester();
     this.logger = options.logger || logger;
 
-    // Initialize new DDD system components
-    this._initializeDDDSystem();
+    // PersonalityService will be injected by ApplicationBootstrap
+    // Only initialize in tests if needed
+    this.personalityService = null;
 
     // Track routing statistics
     this.routingStats = {
@@ -39,7 +40,7 @@ class PersonalityRouter {
   }
 
   /**
-   * Initialize DDD system components
+   * Initialize DDD system components (for testing only)
    */
   _initializeDDDSystem() {
     if (!this.personalityService) {
@@ -63,6 +64,8 @@ class PersonalityRouter {
       const aiService = isMocked
         ? {}
         : new HttpAIServiceAdapter({
+            baseUrl: process.env.SERVICE_API_BASE_URL || 'http://localhost:8080',
+            apiKey: process.env.SERVICE_API_KEY || 'test-key',
             logger: this.logger,
           });
 
@@ -74,6 +77,25 @@ class PersonalityRouter {
         authenticationRepository: authRepository,
         eventBus: eventBus,
       });
+    }
+  }
+
+  /**
+   * Ensure personalityService is initialized
+   * @private
+   */
+  _ensurePersonalityService() {
+    if (!this.personalityService) {
+      // In production, personalityService should be injected by ApplicationBootstrap
+      // This is only for tests that don't use ApplicationBootstrap
+      this._initializeDDDSystem();
+
+      // If still not initialized, throw an error
+      if (!this.personalityService) {
+        throw new Error(
+          'PersonalityService not initialized. ApplicationBootstrap must be initialized first.'
+        );
+      }
     }
   }
 
@@ -339,6 +361,7 @@ class PersonalityRouter {
   // New DDD system wrappers
 
   async _newGetPersonality(nameOrAlias) {
+    this._ensurePersonalityService();
     try {
       // Try to get by name first
       const byName = await this.personalityService.getPersonalityByName(nameOrAlias);
@@ -360,6 +383,7 @@ class PersonalityRouter {
   }
 
   async _newGetAllPersonalities() {
+    this._ensurePersonalityService();
     try {
       const personalities = await this.personalityService.listAllPersonalities();
       return personalities.map(p => this._convertDDDToLegacyFormat(p));
@@ -370,6 +394,7 @@ class PersonalityRouter {
   }
 
   async _newRegisterPersonality(name, ownerId, options) {
+    this._ensurePersonalityService();
     // Map legacy options to DDD command format
     const command = {
       name,
@@ -389,6 +414,7 @@ class PersonalityRouter {
   }
 
   async _newRemovePersonality(name, userId) {
+    this._ensurePersonalityService();
     try {
       await this.personalityService.removePersonality({
         personalityName: name,
@@ -407,6 +433,7 @@ class PersonalityRouter {
   }
 
   async _newAddAlias(personalityName, alias, userId) {
+    this._ensurePersonalityService();
     try {
       await this.personalityService.addAlias({
         personalityName,
