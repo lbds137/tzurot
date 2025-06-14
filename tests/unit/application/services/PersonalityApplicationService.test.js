@@ -56,7 +56,7 @@ describe('PersonalityApplicationService', () => {
     mockPersonalityRepository = {
       findByName: jest.fn(),
       findByAlias: jest.fn(),
-      findByOwnerId: jest.fn(),
+      findByOwner: jest.fn(),
       findAll: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),
@@ -530,12 +530,14 @@ describe('PersonalityApplicationService', () => {
         )
       ];
       
-      mockPersonalityRepository.findByOwnerId.mockResolvedValue(personalities);
+      mockPersonalityRepository.findByOwner.mockResolvedValue(personalities);
       
       const result = await service.listPersonalitiesByOwner(ownerId);
       
       expect(result).toEqual(personalities);
-      expect(mockPersonalityRepository.findByOwnerId).toHaveBeenCalledWith(ownerId);
+      expect(mockPersonalityRepository.findByOwner).toHaveBeenCalledWith(expect.objectContaining({
+        value: ownerId
+      }));
     });
   });
   
