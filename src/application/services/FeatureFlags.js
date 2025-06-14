@@ -172,6 +172,19 @@ class FeatureFlags {
           const value = process.env[key].toLowerCase() === 'true';
           this.flags.set(flagName, value);
         }
+
+        // Special handling for flags with hyphens (like dual-write)
+        // Try converting DUAL_WRITE to dual-write
+        const hyphenatedFlagName = key
+          .substring(prefix.length)
+          .toLowerCase()
+          .replace(/_/g, '.')
+          .replace(/\.dual\.write$/, '.dual-write'); // Special case for dual-write
+
+        if (this.flags.has(hyphenatedFlagName)) {
+          const value = process.env[key].toLowerCase() === 'true';
+          this.flags.set(hyphenatedFlagName, value);
+        }
       }
     });
   }

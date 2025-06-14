@@ -23,10 +23,12 @@ class FilePersonalityRepository extends PersonalityRepository {
    * @param {string} options.dataPath - Path to data directory
    * @param {string} options.filename - Filename for personalities data
    */
-  constructor({ dataPath = './data', filename = 'personalities.json' } = {}) {
+  constructor({ dataPath = './data', filename = 'ddd-personalities.json' } = {}) {
     super();
     this.dataPath = dataPath;
     this.filePath = path.join(dataPath, filename);
+    this.legacyPersonalitiesPath = path.join(dataPath, 'personalities.json');
+    this.legacyAliasesPath = path.join(dataPath, 'aliases.json');
     this._cache = null; // In-memory cache
     this._initialized = false;
   }
@@ -46,55 +48,13 @@ class FilePersonalityRepository extends PersonalityRepository {
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
         const parsedData = JSON.parse(data);
-
-        // Check if this is the old format (direct personality objects)
-        if (!parsedData.personalities && !parsedData.aliases) {
-          // Migrate from old format
-          logger.info('[FilePersonalityRepository] Migrating from old format');
-          this._cache = {
-            personalities: {},
-            aliases: {},
-          };
-
-          // Convert old format personalities
-          for (const [key, value] of Object.entries(parsedData)) {
-            // Skip if it's not a personality object
-            if (!value || typeof value !== 'object') continue;
-
-            // Create a personality-like structure
-            const personalityId = key;
-            this._cache.personalities[personalityId] = {
-              id: personalityId,
-              personalityId: personalityId,
-              ownerId: value.addedBy || 'unknown',
-              profile: {
-                name: value.fullName || key,
-                displayName: value.displayName || value.fullName || key,
-                prompt: `You are ${value.displayName || value.fullName || key}`,
-                maxWordCount: 1000,
-              },
-              model: {
-                name: 'default',
-                endpoint: '/default',
-                capabilities: {},
-              },
-              aliases: [],
-              savedAt: value.lastUpdated || new Date().toISOString(),
-            };
-          }
-
-          // Save migrated data
-          await this._persist();
-          logger.info('[FilePersonalityRepository] Migration complete');
-        } else {
-          // New format
-          this._cache = parsedData;
-        }
+        this._cache = parsedData;
+        logger.info('[FilePersonalityRepository] Loaded from DDD file');
       } catch (error) {
         if (error.code === 'ENOENT') {
-          // File doesn't exist, create it
-          this._cache = { personalities: {}, aliases: {} };
-          await this._persist();
+          // DDD file doesn't exist, try to load from legacy files
+          logger.info('[FilePersonalityRepository] DDD file not found, loading from legacy files');
+          await this._loadFromLegacyFiles();
         } else {
           throw error;
         }
@@ -435,10 +395,158 @@ class FilePersonalityRepository extends PersonalityRepository {
       // Rename to actual file
       await fs.rename(tempPath, this.filePath);
 
+      // Also persist in legacy format for compatibility
+      await this._persistLegacyFormat();
+
       logger.debug('[FilePersonalityRepository] Data persisted successfully');
     } catch (error) {
       logger.error('[FilePersonalityRepository] Failed to persist data:', error);
       throw new Error(`Failed to persist data: ${error.message}`);
+    }
+  }
+
+  /**
+   * Load data from legacy files
+   * @private
+   */
+  async _loadFromLegacyFiles() {
+    try {
+      this._cache = {
+        personalities: {},
+        aliases: {},
+      };
+
+      // Try to load legacy personalities
+      try {
+        const legacyData = await fs.readFile(this.legacyPersonalitiesPath, 'utf8');
+        const legacyPersonalities = JSON.parse(legacyData);
+
+        // Check if it's already in new format (nested structure)
+        if (legacyPersonalities.personalities && legacyPersonalities.aliases) {
+          // It's actually the new format in the legacy file
+          this._cache = legacyPersonalities;
+        } else {
+          // Convert from legacy format
+          for (const [key, value] of Object.entries(legacyPersonalities)) {
+            // Skip if it's not a personality object
+            if (!value || typeof value !== 'object') continue;
+
+            // Create a personality-like structure
+            const personalityId = key;
+            this._cache.personalities[personalityId] = {
+              id: personalityId,
+              personalityId: personalityId,
+              ownerId: value.addedBy || 'unknown',
+              profile: {
+                name: value.fullName || key,
+                displayName: value.displayName || value.fullName || key,
+                prompt: `You are ${value.displayName || value.fullName || key}`,
+                maxWordCount: 1000,
+              },
+              model: {
+                name: 'default',
+                endpoint: '/default',
+                capabilities: {},
+              },
+              aliases: [],
+              savedAt: value.lastUpdated || new Date().toISOString(),
+            };
+          }
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          logger.warn('[FilePersonalityRepository] Error loading legacy personalities:', error);
+        }
+      }
+
+      // Try to load legacy aliases
+      try {
+        const aliasData = await fs.readFile(this.legacyAliasesPath, 'utf8');
+        const legacyAliases = JSON.parse(aliasData);
+
+        // Merge aliases into cache
+        Object.assign(this._cache.aliases, legacyAliases);
+
+        // Also add aliases to personality objects
+        for (const [alias, personalityId] of Object.entries(legacyAliases)) {
+          if (this._cache.personalities[personalityId]) {
+            if (!this._cache.personalities[personalityId].aliases) {
+              this._cache.personalities[personalityId].aliases = [];
+            }
+            this._cache.personalities[personalityId].aliases.push({
+              value: alias,
+              alias: alias,
+            });
+          }
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          logger.warn('[FilePersonalityRepository] Error loading legacy aliases:', error);
+        }
+      }
+
+      // Save in new format
+      await this._persist();
+      logger.info('[FilePersonalityRepository] Migrated from legacy files');
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to load from legacy files:', error);
+      // Initialize with empty data
+      this._cache = { personalities: {}, aliases: {} };
+      await this._persist();
+    }
+  }
+
+  /**
+   * Persist data in legacy format for compatibility with old personality manager
+   * @private
+   */
+  async _persistLegacyFormat() {
+    try {
+      // Convert to legacy format
+      const legacyPersonalities = {};
+      const legacyAliases = {};
+
+      for (const [id, personality] of Object.entries(this._cache.personalities)) {
+        // Skip removed personalities
+        if (personality.removed) continue;
+
+        // Convert to legacy format
+        legacyPersonalities[id] = {
+          fullName: personality.profile.name || id,
+          displayName: personality.profile.displayName || personality.profile.name || id,
+          addedBy: personality.ownerId,
+          addedAt: personality.savedAt || new Date().toISOString(),
+          lastUpdated: personality.savedAt || new Date().toISOString(),
+        };
+
+        // Add aliases to legacy format
+        if (personality.aliases && Array.isArray(personality.aliases)) {
+          personality.aliases.forEach(alias => {
+            const aliasValue = typeof alias === 'string' ? alias : alias.value || alias.alias;
+            if (aliasValue) {
+              legacyAliases[aliasValue] = id;
+            }
+          });
+        }
+      }
+
+      // Also include aliases from cache
+      Object.assign(legacyAliases, this._cache.aliases);
+
+      // Write legacy format files (only if we're not already using them)
+      if (this.filePath !== this.legacyPersonalitiesPath) {
+        await fs.writeFile(
+          this.legacyPersonalitiesPath,
+          JSON.stringify(legacyPersonalities, null, 2),
+          'utf8'
+        );
+        await fs.writeFile(this.legacyAliasesPath, JSON.stringify(legacyAliases, null, 2), 'utf8');
+      }
+
+      logger.debug('[FilePersonalityRepository] Legacy format data persisted');
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to persist legacy format:', error);
+      // Don't throw - legacy format is for compatibility only
     }
   }
 

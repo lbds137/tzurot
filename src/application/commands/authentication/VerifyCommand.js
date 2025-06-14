@@ -18,9 +18,7 @@ function createVerifyCommand(dependencies = {}) {
     category: 'Authentication',
     aliases: ['nsfw'],
     options: [], // No options needed
-    examples: [
-      { command: 'verify', description: 'Verify your age for DM access' }
-    ],
+    examples: [{ command: 'verify', description: 'Verify your age for DM access' }],
     execute: createExecutor(dependencies),
   });
 }
@@ -127,7 +125,8 @@ function createExecutor(dependencies) {
       } catch (error) {
         logger.error('[VerifyCommand] Error checking NSFW channels:', error);
         return await context.respond(
-          '❌ **Verification Error**\n\n' + `An error occurred during verification: ${error.message}`
+          '❌ **Verification Error**\n\n' +
+            `An error occurred during verification: ${error.message}`
         );
       }
     } catch (error) {
@@ -154,9 +153,11 @@ async function findAccessibleNsfwChannels(context, channelUtils) {
 
   // Iterate through guild channels
   for (const [channelId, channel] of guild.channels.cache) {
-    if (channel.isTextBased() && 
-        channelUtils.isChannelNSFW(channel) &&
-        channel.permissionsFor(member).has('ViewChannel')) {
+    if (
+      channel.isTextBased() &&
+      channelUtils.isChannelNSFW(channel) &&
+      channel.permissionsFor(member).has('ViewChannel')
+    ) {
       nsfwChannelIds.push(channelId);
     }
   }

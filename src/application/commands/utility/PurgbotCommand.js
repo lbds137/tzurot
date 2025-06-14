@@ -1,6 +1,6 @@
 /**
  * Purgbot Command - Purge bot messages from DM channels
- * 
+ *
  * Allows users to clean up bot messages from their DM conversations,
  * with options to remove system messages only or all bot messages.
  */
@@ -89,10 +89,11 @@ function filterMessagesByCategory(messages, botId, commandMessageId, category) {
 function createExecutor(dependencies = {}) {
   // Default timer functions if not injected
   const {
-    delayFn = (ms) => new Promise(resolve => {
-      const timer = globalThis.setTimeout || (() => {});
-      timer(resolve, ms);
-    }),
+    delayFn = ms =>
+      new Promise(resolve => {
+        const timer = globalThis.setTimeout || (() => {});
+        timer(resolve, ms);
+      }),
     scheduleFn = globalThis.setTimeout || (() => {}),
   } = dependencies;
 
@@ -100,7 +101,9 @@ function createExecutor(dependencies = {}) {
     try {
       // This command is only available in DMs for security
       if (!context.isDM) {
-        await context.respond('⚠️ This command can only be used in DM channels for security reasons.');
+        await context.respond(
+          '⚠️ This command can only be used in DM channels for security reasons.'
+        );
         return;
       }
 
@@ -111,9 +114,9 @@ function createExecutor(dependencies = {}) {
       if (!['system', 'all'].includes(category)) {
         await context.respond(
           `❌ Invalid category: \`${category}\`\n\n` +
-          `Available categories:\n` +
-          `- \`system\` - System messages and bot responses (default)\n` +
-          `- \`all\` - All bot messages including personalities`
+            `Available categories:\n` +
+            `- \`system\` - System messages and bot responses (default)\n` +
+            `- \`all\` - All bot messages including personalities`
         );
         return;
       }
@@ -136,7 +139,7 @@ async function handleDiscordPurge(context, category, dependencies = {}) {
     // Get Discord-specific objects
     const channel = context.rawMessage?.channel;
     const botId = context.rawMessage?.client?.user?.id;
-    
+
     if (!channel || !botId) {
       await context.respond('Unable to access channel information.');
       return;
@@ -226,11 +229,11 @@ async function handleDiscordPurge(context, category, dependencies = {}) {
       }, 10000);
     } else {
       // Text-only update
-      const resultMessage = 
+      const resultMessage =
         `✅ Cleanup complete!\n` +
         `Deleted: ${deletedCount} messages\n` +
         `Failed: ${failedCount} messages`;
-      
+
       if (statusMessage) {
         await statusMessage.edit(resultMessage);
       } else {

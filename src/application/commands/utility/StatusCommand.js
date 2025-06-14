@@ -1,6 +1,6 @@
 /**
  * Status Command - Show bot status information
- * 
+ *
  * Displays comprehensive bot status including uptime, ping,
  * authentication status, and personality information.
  */
@@ -92,8 +92,16 @@ function createExecutor(dependencies = {}) {
           fields: [
             { name: 'Uptime', value: statusInfo.uptime, inline: true },
             { name: 'Ping', value: statusInfo.ping, inline: true },
-            { name: 'Authenticated', value: statusInfo.authenticated ? '✅ Yes' : '❌ No', inline: true },
-            { name: 'Age Verified', value: statusInfo.ageVerified ? '✅ Yes' : '❌ No', inline: true },
+            {
+              name: 'Authenticated',
+              value: statusInfo.authenticated ? '✅ Yes' : '❌ No',
+              inline: true,
+            },
+            {
+              name: 'Age Verified',
+              value: statusInfo.ageVerified ? '✅ Yes' : '❌ No',
+              inline: true,
+            },
             { name: 'Guild Count', value: `${statusInfo.guildCount} servers`, inline: true },
           ],
         };
