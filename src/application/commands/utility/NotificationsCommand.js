@@ -1,6 +1,6 @@
 /**
  * Notifications Command - Manage release notification preferences
- * 
+ *
  * Allows users to configure their preferences for receiving bot update
  * notifications, including opt-in/out and notification level settings.
  */

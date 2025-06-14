@@ -261,7 +261,7 @@ class CommandContext {
     if (this.platform === 'discord') {
       // For Discord, wrap the embed properly
       const options = { embeds: [embed] };
-      
+
       if (this.isSlashCommand && this.interaction) {
         if (this.interaction.deferred || this.interaction.replied) {
           return await this.interaction.editReply(options);
@@ -302,25 +302,25 @@ class CommandContext {
    */
   _embedToText(embed) {
     let text = '';
-    
+
     if (embed.title) {
       text += `**${embed.title}**\n`;
     }
-    
+
     if (embed.description) {
       text += `${embed.description}\n`;
     }
-    
+
     if (embed.fields) {
       for (const field of embed.fields) {
         text += `\n**${field.name}**\n${field.value}\n`;
       }
     }
-    
+
     if (embed.footer?.text) {
       text += `\n_${embed.footer.text}_`;
     }
-    
+
     return text.trim();
   }
 }

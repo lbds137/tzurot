@@ -1,6 +1,6 @@
 /**
  * Debug Command - Advanced debugging tools for administrators
- * 
+ *
  * Provides various debugging utilities for clearing caches, resetting states,
  * and gathering system statistics. Admin-only command for troubleshooting.
  */
@@ -122,9 +122,7 @@ async function clearAuth(context, authManager) {
     // Clean up expired auth tokens
     await authManager.cleanupExpiredTokens();
     logger.info(`[Debug] Authentication tokens cleaned up for ${context.userTag}`);
-    await context.respond(
-      '✅ Cleaned up authentication tokens. You may need to re-authenticate.'
-    );
+    await context.respond('✅ Cleaned up authentication tokens. You may need to re-authenticate.');
   } catch (error) {
     logger.error(`[Debug] Error clearing auth: ${error.message}`);
     await context.respond('❌ Failed to clear authentication.');
@@ -201,10 +199,10 @@ function createDebugCommand(dependencies = {}) {
     ],
     execute: createExecutor(dependencies),
   });
-  
+
   // Add adminOnly property for backward compatibility
   command.adminOnly = true;
-  
+
   return command;
 }
 

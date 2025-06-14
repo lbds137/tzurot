@@ -134,7 +134,15 @@ class CommandIntegrationAdapter {
     }
 
     // Check utility category flag
-    const utilityCommands = ['ping', 'status', 'debug', 'purgbot', 'volumetest', 'notifications', 'help'];
+    const utilityCommands = [
+      'ping',
+      'status',
+      'debug',
+      'purgbot',
+      'volumetest',
+      'notifications',
+      'help',
+    ];
     if (utilityCommands.includes(commandName)) {
       return this.featureFlags.isEnabled('ddd.commands.utility');
     }

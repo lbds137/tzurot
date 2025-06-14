@@ -1,6 +1,6 @@
 /**
  * Help Command - Display help information for all commands
- * 
+ *
  * Shows available commands grouped by category with detailed information
  * for specific commands when requested. Automatically filters admin-only
  * commands based on user permissions.
@@ -45,7 +45,7 @@ function createExecutor(dependencies = {}) {
  */
 async function showCommandHelp(context, commandName, commandRegistry, botPrefix) {
   const command = commandRegistry.get(commandName.toLowerCase());
-  
+
   if (!command) {
     await context.respond(
       `Unknown command: \`${commandName}\`. Use \`${botPrefix}help\` to see available commands.`
@@ -61,7 +61,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
 
   // Build detailed help for the command
   let helpContent = `**${botPrefix}${command.name}`;
-  
+
   // Add command parameters to usage
   if (command.options && command.options.length > 0) {
     for (const option of command.options) {
@@ -72,7 +72,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
       }
     }
   }
-  
+
   helpContent += `**\n${command.description}`;
 
   // Add aliases if any
@@ -164,7 +164,7 @@ This will add the personality "lilith-tzel-shani" with an optional alias "lilith
 async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
   // Get all commands
   const allCommands = commandRegistry.getAll();
-  
+
   // Filter commands based on user permissions
   const availableCommands = allCommands.filter(cmd => {
     if (cmd.permissions.includes('ADMIN') && !context.isAdmin) {
@@ -179,10 +179,10 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
   // Group commands by category
   const categories = {
     'Personality Management': [],
-    'Conversation': [],
-    'Authentication': [],
-    'Utility': [],
-    'Admin': [],
+    Conversation: [],
+    Authentication: [],
+    Utility: [],
+    Admin: [],
   };
 
   // Sort commands into categories
@@ -212,15 +212,14 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
         // Format command list
         const commandList = commands
           .map(cmd => {
-            const aliases = cmd.aliases && cmd.aliases.length > 0
-              ? ` (${cmd.aliases.join(', ')})`
-              : '';
+            const aliases =
+              cmd.aliases && cmd.aliases.length > 0 ? ` (${cmd.aliases.join(', ')})` : '';
             return `\`${cmd.name}\`${aliases}: ${cmd.description}`;
           })
           .join('\n');
 
-        embed.fields.push({ 
-          name: category, 
+        embed.fields.push({
+          name: category,
           value: commandList,
           inline: false,
         });
@@ -236,14 +235,13 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
     Object.entries(categories).forEach(([category, commands]) => {
       if (commands.length > 0) {
         helpText += `\n**${category}**\n`;
-        
+
         // Sort commands alphabetically
         commands.sort((a, b) => a.name.localeCompare(b.name));
-        
+
         commands.forEach(cmd => {
-          const aliases = cmd.aliases && cmd.aliases.length > 0
-            ? ` (${cmd.aliases.join(', ')})`
-            : '';
+          const aliases =
+            cmd.aliases && cmd.aliases.length > 0 ? ` (${cmd.aliases.join(', ')})` : '';
           helpText += `• \`${cmd.name}\`${aliases}: ${cmd.description}\n`;
         });
       }
@@ -264,22 +262,22 @@ function getCategoryForCommand(cmd) {
 
   // Check by command name
   const commandName = cmd.name.toLowerCase();
-  
+
   // Personality management
   if (['add', 'remove', 'list', 'alias', 'info'].includes(commandName)) {
     return 'Personality Management';
   }
-  
+
   // Conversation
   if (['activate', 'deactivate', 'reset', 'autorespond'].includes(commandName)) {
     return 'Conversation';
   }
-  
+
   // Authentication
   if (['auth', 'verify'].includes(commandName)) {
     return 'Authentication';
   }
-  
+
   // Default to Utility
   return 'Utility';
 }

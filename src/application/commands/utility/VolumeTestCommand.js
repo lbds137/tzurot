@@ -1,6 +1,6 @@
 /**
  * Volume Test Command - Test persistent volume functionality
- * 
+ *
  * Tests if Railway persistent volume is working correctly by writing
  * and reading test files. Bot owner only command for deployment verification.
  */
@@ -103,7 +103,10 @@ function createExecutor(dependencies = {}) {
             },
             {
               name: 'Files in Directory',
-              value: files.length > 0 ? files.slice(0, 10).join(', ') + (files.length > 10 ? '...' : '') : 'None',
+              value:
+                files.length > 0
+                  ? files.slice(0, 10).join(', ') + (files.length > 10 ? '...' : '')
+                  : 'None',
               inline: false,
             },
             {

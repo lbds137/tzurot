@@ -66,7 +66,7 @@ function createExecutor(dependencies) {
         logger.info('[AuthCommand] Detected proxy system webhook for auth command');
         return await context.respond(
           '**Authentication with Proxy Systems**\n\n' +
-            'For security reasons, authentication commands can\'t be used through webhook systems like PluralKit.\n\n' +
+            "For security reasons, authentication commands can't be used through webhook systems like PluralKit.\n\n" +
             'Please use your regular Discord account (without the proxy) to run authentication commands.'
         );
       }
@@ -124,7 +124,8 @@ async function showHelp(context) {
   const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
 
   if (isAdmin || isBotOwner) {
-    helpText += '\n\n**Admin Commands:**\n' + `- \`${commandPrefix}auth cleanup\` - Clean up expired tokens`;
+    helpText +=
+      '\n\n**Admin Commands:**\n' + `- \`${commandPrefix}auth cleanup\` - Clean up expired tokens`;
   }
 
   return await context.respond(helpText);
@@ -138,7 +139,9 @@ async function handleStart(context, auth) {
     const authUrl = await auth.getAuthorizationUrl();
 
     if (!authUrl) {
-      return await context.respond('❌ Failed to generate authentication URL. Please try again later.');
+      return await context.respond(
+        '❌ Failed to generate authentication URL. Please try again later.'
+      );
     }
 
     // Check if this is a DM
@@ -163,10 +166,12 @@ async function handleStart(context, auth) {
         );
 
         return await context.respond(
-          'I\'ve sent you a DM with authentication instructions. Please check your DMs.'
+          "I've sent you a DM with authentication instructions. Please check your DMs."
         );
       } catch (dmError) {
-        logger.warn(`[AuthCommand] Failed to send DM to user ${context.userId}: ${dmError.message}`);
+        logger.warn(
+          `[AuthCommand] Failed to send DM to user ${context.userId}: ${dmError.message}`
+        );
         return await context.respond(
           '❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.'
         );
@@ -226,7 +231,9 @@ async function handleCode(context, auth, code) {
     const stored = await auth.storeUserToken(context.userId, token);
 
     if (!stored) {
-      return await context.respond('❌ Failed to store authorization token. Please try again later.');
+      return await context.respond(
+        '❌ Failed to store authorization token. Please try again later.'
+      );
     }
 
     return await context.respond(
@@ -234,7 +241,9 @@ async function handleCode(context, auth, code) {
     );
   } catch (error) {
     logger.error(`[AuthCommand] Error during auth code exchange: ${error.message}`);
-    return await context.respond('❌ An error occurred during authorization. Please try again later.');
+    return await context.respond(
+      '❌ An error occurred during authorization. Please try again later.'
+    );
   }
 }
 

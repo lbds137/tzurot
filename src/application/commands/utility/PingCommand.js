@@ -1,6 +1,6 @@
 /**
  * Ping Command - Check bot responsiveness
- * 
+ *
  * A simple utility command that responds with "Pong!" to verify
  * the bot is online and responsive.
  */
@@ -17,7 +17,7 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const { botConfig = require('../../../../config').botConfig } = dependencies;
-      
+
       // Simply respond with pong and bot name
       await context.respond(`Pong! ${botConfig.name} is operational.`);
     } catch (error) {

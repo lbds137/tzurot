@@ -119,7 +119,6 @@ function createListCommand() {
               embed.description += `\n\nUse \`${botPrefix} list <page>\` to view other pages.`;
             }
 
-
             return await context.respondWithEmbed(embed);
           } else {
             // Plain text response
@@ -144,7 +143,6 @@ function createListCommand() {
               const botPrefix = context.dependencies.botPrefix || '!tz';
               response += `\nUse \`${botPrefix} list <page>\` to view other pages.`;
             }
-
 
             return await context.respond(response);
           }
