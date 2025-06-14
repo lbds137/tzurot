@@ -1,5 +1,3 @@
-const { getFeatureFlags } = require('../services/FeatureFlags');
-const { getComparisonTester } = require('../services/ComparisonTester');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
 const {
   FilePersonalityRepository,
@@ -11,8 +9,7 @@ const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const logger = require('../../logger');
 
-// Legacy imports
-const personalityManager = require('../../core/personality');
+// Legacy system removed - using DDD only
 
 /**
  * Router that directs personality operations to either legacy or new DDD system
@@ -20,8 +17,6 @@ const personalityManager = require('../../core/personality');
  */
 class PersonalityRouter {
   constructor(options = {}) {
-    this.featureFlags = options.featureFlags || getFeatureFlags();
-    this.comparisonTester = options.comparisonTester || getComparisonTester();
     this.logger = options.logger || logger;
 
     // PersonalityService will be injected by ApplicationBootstrap
@@ -105,34 +100,8 @@ class PersonalityRouter {
    * @returns {Object|null} Personality data
    */
   async getPersonality(nameOrAlias) {
-    const useNewSystem = this.featureFlags.isEnabled('ddd.personality.read');
-    const runComparison = this.featureFlags.isEnabled('features.comparison-testing');
-
-    if (runComparison) {
-      // Run both systems and compare
-      this.routingStats.comparisonTests++;
-
-      const result = await this.comparisonTester.compare(
-        'getPersonality',
-        () => this._legacyGetPersonality(nameOrAlias),
-        () => this._newGetPersonality(nameOrAlias),
-        {
-          ignoreFields: ['_internalId'],
-          compareTimestamps: false,
-        }
-      );
-
-      // Return the result based on feature flag
-      return useNewSystem ? result.newResult : result.legacyResult;
-    }
-
-    if (useNewSystem) {
-      this.routingStats.newReads++;
-      return this._newGetPersonality(nameOrAlias);
-    } else {
-      this.routingStats.legacyReads++;
-      return this._legacyGetPersonality(nameOrAlias);
-    }
+    this.routingStats.newReads++;
+    return this._newGetPersonality(nameOrAlias);
   }
 
   /**
@@ -140,33 +109,10 @@ class PersonalityRouter {
    * @returns {Array} All personalities
    */
   async getAllPersonalities() {
-    const useNewSystem = this.featureFlags.isEnabled('ddd.personality.read');
-    const runComparison = this.featureFlags.isEnabled('features.comparison-testing');
-
-    if (runComparison) {
-      this.routingStats.comparisonTests++;
-
-      const result = await this.comparisonTester.compare(
-        'getAllPersonalities',
-        () => this._legacyGetAllPersonalities(),
-        () => this._newGetAllPersonalities(),
-        {
-          ignoreFields: ['_internalId'],
-          compareTimestamps: false,
-        }
-      );
-
-      return useNewSystem ? result.newResult : result.legacyResult;
-    }
-
-    if (useNewSystem) {
-      this.routingStats.newReads++;
-      return this._newGetAllPersonalities();
-    } else {
-      this.routingStats.legacyReads++;
-      return this._legacyGetAllPersonalities();
-    }
+    this.routingStats.newReads++;
+    return this._newGetAllPersonalities();
   }
+
 
   /**
    * Register a new personality
@@ -302,79 +248,22 @@ class PersonalityRouter {
   getRoutingStatistics() {
     return {
       ...this.routingStats,
-      dddSystemActive:
-        this.featureFlags.isEnabled('ddd.personality.read') ||
-        this.featureFlags.isEnabled('ddd.personality.write'),
-      comparisonTestingActive: this.featureFlags.isEnabled('features.comparison-testing'),
-      dualWriteActive: this.featureFlags.isEnabled('ddd.personality.dual-write'),
+      dddSystemActive: true, // Always true now
+      comparisonTestingActive: false,
+      dualWriteActive: false,
     };
   }
 
-  // Legacy system wrappers
-
-  async _legacyGetPersonality(nameOrAlias) {
-    return personalityManager.getPersonalityByNameOrAlias(nameOrAlias);
-  }
-
-  async _legacyGetAllPersonalities() {
-    return personalityManager.getAllPersonalities();
-  }
-
-  async _legacyRegisterPersonality(name, ownerId, options) {
-    const result = await personalityManager.registerPersonality(
-      name,
-      ownerId,
-      options.avatarUrl,
-      options.displayName,
-      options.nsfwContent,
-      options.temperature,
-      options.maxWordCount
-    );
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    return result;
-  }
-
-  async _legacyRemovePersonality(name, userId) {
-    const result = await personalityManager.removePersonality(name, userId);
-
-    if (!result.success) {
-      throw new Error(result.message || 'Failed to remove personality');
-    }
-
-    return result;
-  }
-
-  async _legacyAddAlias(personalityName, alias, userId) {
-    const result = await personalityManager.addAlias(personalityName, alias, userId);
-
-    if (!result.success) {
-      throw new Error(result.message || 'Failed to add alias');
-    }
-
-    return result;
-  }
 
   // New DDD system wrappers
 
   async _newGetPersonality(nameOrAlias) {
     this._ensurePersonalityService();
     try {
-      // Try to get by name first
-      const byName = await this.personalityService.getPersonalityByName(nameOrAlias);
-      if (byName) {
-        return this._convertDDDToLegacyFormat(byName);
+      const personality = await this.personalityService.getPersonality(nameOrAlias);
+      if (personality) {
+        return this._convertDDDToLegacyFormat(personality);
       }
-
-      // If not found, try by alias
-      const byAlias = await this.personalityService.getPersonalityByAlias(nameOrAlias);
-      if (byAlias) {
-        return this._convertDDDToLegacyFormat(byAlias);
-      }
-
       return null;
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system getPersonality:', error);
@@ -385,7 +274,7 @@ class PersonalityRouter {
   async _newGetAllPersonalities() {
     this._ensurePersonalityService();
     try {
-      const personalities = await this.personalityService.listAllPersonalities();
+      const personalities = await this.personalityService.listPersonalities();
       return personalities.map(p => this._convertDDDToLegacyFormat(p));
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system getAllPersonalities:', error);

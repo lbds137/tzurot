@@ -1,7 +1,7 @@
 // Load environment variables
 require('dotenv').config();
 const { initStorage } = require('./src/dataStorage');
-const corePersonality = require('./src/core/personality');
+// Legacy personality system removed - using DDD only
 const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
@@ -62,9 +62,7 @@ async function init() {
       logger.warn('Railway volume not detected or not writable:', volumeError.message);
     }
     
-    // Initialize basic personality manager (loads existing data)
-    await corePersonality.initialize();
-    logger.info('Personality manager initialized');
+    // Personality initialization moved to DDD system in bot.js
     
     // Initialize conversation manager (loads saved conversation data)
     await coreConversation.initConversationManager();
@@ -253,7 +251,8 @@ async function sendDeactivationMessages() {
   if (promises.length > 0) {
     try {
       // Use Promise.allSettled with timeout to avoid hanging if a promise never resolves
-      const timeoutPromise = new Promise(resolve => setTimeout(resolve, 5000));
+      const timer = globalThis.setTimeout || setTimeout;
+      const timeoutPromise = new Promise(resolve => timer(resolve, 5000));
       await Promise.race([
         Promise.allSettled(promises),
         timeoutPromise

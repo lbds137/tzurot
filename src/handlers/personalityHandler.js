@@ -219,7 +219,8 @@ async function handlePersonalityInteraction(
 
             // Try to get the personality from webhook username or from our message map
             try {
-              const personalityManager = require('../core/personality');
+              const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+              const personalityRouter = getPersonalityRouter();
 
               // Try to look up by message ID first
               const personalityName = getPersonalityFromMessage(repliedToMessage.id, {
@@ -230,7 +231,7 @@ async function handlePersonalityInteraction(
                 // Get display name for the personality if available
                 try {
                   // Use the getAllPersonalities function which returns all personalities
-                  const allPersonalities = personalityManager.getAllPersonalities();
+                  const allPersonalities = await personalityRouter.getAllPersonalities();
 
                   // Find the matching personality by name
                   const personalityData = allPersonalities.find(
@@ -301,8 +302,9 @@ async function handlePersonalityInteraction(
               );
 
               // Try to find the full personality name from the display name
-              const personalityManager = require('../core/personality');
-              const allPersonalities = personalityManager.getAllPersonalities();
+              const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+              const personalityRouter = getPersonalityRouter();
+              const allPersonalities = await personalityRouter.getAllPersonalities();
               const matchingPersonality = allPersonalities.find(
                 p => p.displayName && p.displayName.toLowerCase() === baseName.toLowerCase()
               );
