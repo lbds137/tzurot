@@ -182,6 +182,25 @@ describe('CommandIntegrationAdapter', () => {
       }
     });
 
+    it('should check utility category flag', async () => {
+      mockFeatureFlags.isEnabled.mockImplementation(flag => {
+        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.utility';
+      });
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      
+      const utilityCommands = ['ping', 'status', 'debug', 'purgbot', 'volumetest', 'notifications'];
+      
+      for (const cmd of utilityCommands) {
+        mockCommandIntegration.handleDiscordTextCommand.mockClear();
+        await adapter.processCommand(mockMessage, cmd, []);
+        expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
+          mockMessage,
+          cmd,
+          []
+        );
+      }
+    });
+
     it('should use legacy for commands not in new system', async () => {
       mockFeatureFlags.isEnabled.mockReturnValue(true);
       mockCommandIntegration.hasCommand.mockReturnValue(false);

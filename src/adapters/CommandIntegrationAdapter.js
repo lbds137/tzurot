@@ -133,6 +133,12 @@ class CommandIntegrationAdapter {
       return this.featureFlags.isEnabled('ddd.commands.authentication');
     }
 
+    // Check utility category flag
+    const utilityCommands = ['ping', 'status', 'debug', 'purgbot', 'volumetest', 'notifications'];
+    if (utilityCommands.includes(commandName)) {
+      return this.featureFlags.isEnabled('ddd.commands.utility');
+    }
+
     // Default to legacy if no specific flag
     return false;
   }
