@@ -20,7 +20,7 @@ describe('ListCommand', () => {
     
     // Mock personality service
     mockPersonalityService = {
-      listPersonalitiesForUser: jest.fn().mockResolvedValue([
+      listPersonalitiesByOwner: jest.fn().mockResolvedValue([
         {
           profile: {
             name: 'personality1',
@@ -97,7 +97,7 @@ describe('ListCommand', () => {
     it('should list personalities successfully with embed', async () => {
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.listPersonalitiesForUser).toHaveBeenCalledWith('123456789');
+      expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
       
       expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -162,7 +162,7 @@ describe('ListCommand', () => {
         },
         aliases: []
       }));
-      mockPersonalityService.listPersonalitiesForUser.mockResolvedValue(manyPersonalities);
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(manyPersonalities);
       
       mockContext.args = ['2'];
       
@@ -184,29 +184,17 @@ describe('ListCommand', () => {
       );
     });
 
-    it('should show new system indicator when feature flag enabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      
-      await command.execute(mockContext);
-      
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          footer: expect.objectContaining({ text: 'Page 1 of 1 | Using new DDD system' })
-        })
-      );
-    });
-
     it('should handle slash command options', async () => {
       mockContext.isSlashCommand = true;
       mockContext.options = { page: 1 };
       
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.listPersonalitiesForUser).toHaveBeenCalledWith('123456789');
+      expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
     });
 
     it('should handle no personalities', async () => {
-      mockPersonalityService.listPersonalitiesForUser.mockResolvedValue([]);
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
       
       await command.execute(mockContext);
       
@@ -244,7 +232,7 @@ describe('ListCommand', () => {
         profile: { name: `personality${i + 1}` },
         aliases: []
       }));
-      mockPersonalityService.listPersonalitiesForUser.mockResolvedValue(manyPersonalities);
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(manyPersonalities);
       
       await command.execute(mockContext);
       
@@ -267,7 +255,7 @@ describe('ListCommand', () => {
     });
 
     it('should handle service exceptions', async () => {
-      mockPersonalityService.listPersonalitiesForUser.mockRejectedValue(new Error('Service error'));
+      mockPersonalityService.listPersonalitiesByOwner.mockRejectedValue(new Error('Service error'));
       
       await command.execute(mockContext);
       
@@ -278,7 +266,7 @@ describe('ListCommand', () => {
     });
 
     it('should handle single personality correctly', async () => {
-      mockPersonalityService.listPersonalitiesForUser.mockResolvedValue([
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
         {
           profile: { name: 'lonelypersonality' },
           aliases: []
@@ -295,7 +283,7 @@ describe('ListCommand', () => {
     });
 
     it('should use default bot prefix when not provided', async () => {
-      mockPersonalityService.listPersonalitiesForUser.mockResolvedValue([]);
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
       mockContext.dependencies.botPrefix = undefined;
       
       await command.execute(mockContext);

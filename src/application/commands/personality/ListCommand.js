@@ -47,16 +47,13 @@ function createListCommand() {
           }
         }
 
-        // Check if using new system
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.read');
-
         logger.info(
-          `[ListCommand] Listing personalities for user ${context.getUserId()} (page ${page}) using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[ListCommand] Listing personalities for user ${context.getUserId()} (page ${page})`
         );
 
         try {
           // Get the user's personalities using the application service
-          const personalities = await personalityService.listPersonalitiesForUser(
+          const personalities = await personalityService.listPersonalitiesByOwner(
             context.getUserId()
           );
 
@@ -122,9 +119,6 @@ function createListCommand() {
               embed.description += `\n\nUse \`${botPrefix} list <page>\` to view other pages.`;
             }
 
-            if (useNewSystem) {
-              embed.footer.text += ' | Using new DDD system';
-            }
 
             return await context.respondWithEmbed(embed);
           } else {
@@ -151,9 +145,6 @@ function createListCommand() {
               response += `\nUse \`${botPrefix} list <page>\` to view other pages.`;
             }
 
-            if (useNewSystem) {
-              response += '\n\n*(Using new DDD system)*';
-            }
 
             return await context.respond(response);
           }
