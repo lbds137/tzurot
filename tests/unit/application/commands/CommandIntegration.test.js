@@ -252,8 +252,8 @@ describe('CommandIntegration', () => {
       await integration.initialize();
       
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(6);
-      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info', 'alias', 'list', 'reset']);
+      expect(commands).toHaveLength(9);
+      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info', 'alias', 'list', 'reset', 'activate', 'deactivate', 'autorespond']);
     });
   });
 

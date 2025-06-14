@@ -116,9 +116,15 @@ class CommandIntegrationAdapter {
     }
 
     // Check category flags (e.g., ddd.commands.personality.*)
-    const personalityCommands = ['add', 'remove', 'info', 'reset', 'alias', 'list'];
+    const personalityCommands = ['add', 'remove', 'info', 'alias', 'list'];
     if (personalityCommands.includes(commandName)) {
       return this.featureFlags.isEnabled('ddd.commands.personality');
+    }
+
+    // Check conversation commands
+    const conversationCommands = ['reset', 'activate', 'deactivate', 'autorespond'];
+    if (conversationCommands.includes(commandName)) {
+      return this.featureFlags.isEnabled('ddd.commands.conversation');
     }
 
     // Default to legacy if no specific flag
