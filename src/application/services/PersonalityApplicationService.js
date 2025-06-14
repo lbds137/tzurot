@@ -360,7 +360,7 @@ class PersonalityApplicationService {
   async listPersonalitiesByOwner(ownerId) {
     try {
       const userId = new UserId(ownerId);
-      return await this.personalityRepository.findByOwnerId(userId.toString());
+      return await this.personalityRepository.findByOwner(userId);
     } catch (error) {
       logger.error(
         `[PersonalityApplicationService] Failed to list personalities by owner: ${error.message}`
