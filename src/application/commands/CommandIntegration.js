@@ -14,6 +14,9 @@ const { createInfoCommand } = require('./personality/InfoCommand');
 const { createAliasCommand } = require('./personality/AliasCommand');
 const { createListCommand } = require('./personality/ListCommand');
 const { createResetCommand } = require('./conversation/ResetCommand');
+const { createActivateCommand } = require('./conversation/ActivateCommand');
+const { createDeactivateCommand } = require('./conversation/DeactivateCommand');
+const { createAutorespondCommand } = require('./conversation/AutorespondCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -74,6 +77,9 @@ class CommandIntegration {
 
     // Register conversation commands
     this.registry.register(createResetCommand());
+    this.registry.register(createActivateCommand());
+    this.registry.register(createDeactivateCommand());
+    this.registry.register(createAutorespondCommand());
 
     // TODO: Register more commands as they are migrated
     // this.registry.register(createHelpCommand());

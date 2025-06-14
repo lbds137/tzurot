@@ -24,8 +24,9 @@ class FeatureFlags {
 
       // Command system flags
       'ddd.commands.enabled': false,
-      'ddd.commands.integration': false,  // Main flag to enable CommandIntegration routing
+      'ddd.commands.integration': false, // Main flag to enable CommandIntegration routing
       'ddd.commands.personality': false,
+      'ddd.commands.conversation': false,
       'ddd.commands.fallbackOnError': true,
       'ddd.commands.slash': false,
       'commands.slash.enabled': false,
