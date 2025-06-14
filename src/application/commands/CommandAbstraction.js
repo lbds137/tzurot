@@ -234,6 +234,95 @@ class CommandContext {
     }
     return false;
   }
+
+  /**
+   * Check if embeds are supported in the current context
+   */
+  canEmbed() {
+    if (this.platform === 'discord') {
+      // Discord supports embeds in both guild channels and DMs
+      return true;
+    } else if (this.platform === 'revolt') {
+      // Revolt has limited embed support
+      return false;
+    }
+    return false;
+  }
+
+  /**
+   * Send an embed response
+   */
+  async respondWithEmbed(embed) {
+    if (!this.canEmbed()) {
+      // Fallback to text representation
+      return this.respond(this._embedToText(embed));
+    }
+
+    if (this.platform === 'discord') {
+      // For Discord, wrap the embed properly
+      const options = { embeds: [embed] };
+      
+      if (this.isSlashCommand && this.interaction) {
+        if (this.interaction.deferred || this.interaction.replied) {
+          return await this.interaction.editReply(options);
+        } else {
+          return await this.interaction.reply(options);
+        }
+      } else if (this.message) {
+        return await this.message.reply(options);
+      } else if (this.channel) {
+        return await this.channel.send(options);
+      }
+    }
+
+    // Fallback for unsupported platforms
+    return this.respond(this._embedToText(embed));
+  }
+
+  /**
+   * Get author display name
+   */
+  getAuthorDisplayName() {
+    return this.author?.username || this.author?.tag || this.author?.name || 'Unknown User';
+  }
+
+  /**
+   * Get author avatar URL
+   */
+  getAuthorAvatarUrl() {
+    if (this.platform === 'discord' && this.author) {
+      return this.author.displayAvatarURL?.() || this.author.avatarURL?.() || null;
+    }
+    return this.author?.avatarUrl || this.author?.avatar || null;
+  }
+
+  /**
+   * Convert embed to text representation
+   * @private
+   */
+  _embedToText(embed) {
+    let text = '';
+    
+    if (embed.title) {
+      text += `**${embed.title}**\n`;
+    }
+    
+    if (embed.description) {
+      text += `${embed.description}\n`;
+    }
+    
+    if (embed.fields) {
+      for (const field of embed.fields) {
+        text += `\n**${field.name}**\n${field.value}\n`;
+      }
+    }
+    
+    if (embed.footer?.text) {
+      text += `\n_${embed.footer.text}_`;
+    }
+    
+    return text.trim();
+  }
 }
 
 /**
