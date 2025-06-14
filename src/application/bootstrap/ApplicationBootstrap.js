@@ -69,8 +69,8 @@ class ApplicationBootstrap {
       });
 
       const aiService = new HttpAIServiceAdapter({
-        baseUrl: process.env.AI_SERVICE_URL || 'http://localhost:8080',
-        apiKey: process.env.AI_SERVICE_API_KEY || 'test-key',
+        baseUrl: process.env.SERVICE_API_BASE_URL || 'http://localhost:8080',
+        apiKey: process.env.SERVICE_API_KEY || 'test-key',
         logger: logger,
       });
 
