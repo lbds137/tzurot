@@ -163,6 +163,25 @@ describe('CommandIntegrationAdapter', () => {
       }
     });
 
+    it('should check authentication category flag', async () => {
+      mockFeatureFlags.isEnabled.mockImplementation(flag => {
+        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.authentication';
+      });
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      
+      const authenticationCommands = ['auth', 'verify'];
+      
+      for (const cmd of authenticationCommands) {
+        mockCommandIntegration.handleDiscordTextCommand.mockClear();
+        await adapter.processCommand(mockMessage, cmd, []);
+        expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
+          mockMessage,
+          cmd,
+          []
+        );
+      }
+    });
+
     it('should use legacy for commands not in new system', async () => {
       mockFeatureFlags.isEnabled.mockReturnValue(true);
       mockCommandIntegration.hasCommand.mockReturnValue(false);

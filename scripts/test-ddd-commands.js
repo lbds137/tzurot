@@ -25,6 +25,8 @@ async function testDDDCommands() {
     console.log(`  - ddd.commands.integration: ${flags.isEnabled('ddd.commands.integration')}`);
     console.log(`  - ddd.commands.enabled: ${flags.isEnabled('ddd.commands.enabled')}`);
     console.log(`  - ddd.commands.personality: ${flags.isEnabled('ddd.commands.personality')}`);
+    console.log(`  - ddd.commands.conversation: ${flags.isEnabled('ddd.commands.conversation')}`);
+    console.log(`  - ddd.commands.authentication: ${flags.isEnabled('ddd.commands.authentication')}`);
     console.log(`  - ddd.personality.read: ${flags.isEnabled('ddd.personality.read')}`);
     console.log(`  - ddd.personality.write: ${flags.isEnabled('ddd.personality.write')}`);
     console.log('');
@@ -39,14 +41,38 @@ async function testDDDCommands() {
     console.log('📝 Registered Commands:');
     const commandIntegration = getCommandIntegration();
     const commands = commandIntegration.getAllCommands();
+    
+    // Group by category
+    const byCategory = {};
     commands.forEach(cmd => {
-      console.log(`  - /${cmd.name}: ${cmd.description}`);
+      const category = cmd.category || 'Uncategorized';
+      if (!byCategory[category]) byCategory[category] = [];
+      byCategory[category].push(cmd);
     });
+    
+    Object.entries(byCategory).forEach(([category, cmds]) => {
+      console.log(`\n  ${category} (${cmds.length}):`);
+      cmds.forEach(cmd => {
+        console.log(`    - /${cmd.name}: ${cmd.description}`);
+        if (cmd.aliases.length > 0) {
+          console.log(`      Aliases: ${cmd.aliases.join(', ')}`);
+        }
+      });
+    });
+    
     console.log(`\nTotal: ${commands.length} commands registered`);
+    
+    // Verify expected count
+    const expectedCommands = 11; // 5 personality + 4 conversation + 2 authentication
+    if (commands.length !== expectedCommands) {
+      console.error(`❌ Expected ${expectedCommands} commands but found ${commands.length}`);
+    } else {
+      console.log(`✅ All ${expectedCommands} commands registered successfully!`);
+    }
 
     // Test command lookup
     console.log('\n🔍 Testing Command Lookup:');
-    const testCommands = ['add', 'remove', 'info', 'alias', 'list', 'reset'];
+    const testCommands = ['add', 'remove', 'info', 'alias', 'list', 'reset', 'activate', 'deactivate', 'autorespond', 'auth', 'verify'];
     testCommands.forEach(cmdName => {
       const hasCommand = commandIntegration.hasCommand(cmdName);
       console.log(`  - ${cmdName}: ${hasCommand ? '✅ Found' : '❌ Not found'}`);
