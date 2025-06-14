@@ -343,8 +343,8 @@ describe('ApplicationBootstrap', () => {
 
   describe('Environment Configuration', () => {
     it('should use environment variables for AI service configuration', async () => {
-      process.env.AI_SERVICE_URL = 'http://test-ai-service:3000';
-      process.env.AI_SERVICE_API_KEY = 'test-api-key';
+      process.env.SERVICE_API_BASE_URL = 'http://test-ai-service:3000';
+      process.env.SERVICE_API_KEY = 'test-api-key';
       const bootstrap = new ApplicationBootstrap();
 
       await bootstrap.initialize();
@@ -357,8 +357,8 @@ describe('ApplicationBootstrap', () => {
     });
 
     it('should use default values when environment variables not set', async () => {
-      delete process.env.AI_SERVICE_URL;
-      delete process.env.AI_SERVICE_API_KEY;
+      delete process.env.SERVICE_API_BASE_URL;
+      delete process.env.SERVICE_API_KEY;
       const bootstrap = new ApplicationBootstrap();
 
       await bootstrap.initialize();
