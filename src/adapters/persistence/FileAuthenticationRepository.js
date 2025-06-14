@@ -439,7 +439,6 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     }
 
     this._cleanupTimer = this._setInterval(async () => {
-       
       try {
         await this._cleanupExpiredTokens();
       } catch (error) {
