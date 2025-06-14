@@ -144,7 +144,7 @@ async function clearMessages(context, messageTracker) {
 
 async function showStats(context, dependencies) {
   try {
-    const { webhookUserTracker, messageTracker, authManager } = dependencies;
+    const { messageTracker, authManager } = dependencies;
 
     // Gather various statistics
     const stats = {

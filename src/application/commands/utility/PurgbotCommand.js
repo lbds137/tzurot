@@ -89,8 +89,11 @@ function filterMessagesByCategory(messages, botId, commandMessageId, category) {
 function createExecutor(dependencies = {}) {
   // Default timer functions if not injected
   const {
-    delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
-    scheduleFn = setTimeout,
+    delayFn = (ms) => new Promise(resolve => {
+      const timer = globalThis.setTimeout || (() => {});
+      timer(resolve, ms);
+    }),
+    scheduleFn = globalThis.setTimeout || (() => {}),
   } = dependencies;
 
   return async function execute(context) {

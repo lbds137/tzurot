@@ -5,7 +5,7 @@
  * the bot is online and responsive.
  */
 
-const { Command, CommandOption } = require('../CommandAbstraction');
+const { Command } = require('../CommandAbstraction');
 const logger = require('../../../logger');
 
 /**

@@ -56,9 +56,10 @@ function createExecutor(dependencies = {}) {
         case 'on':
           return await optIn(context, userId, releaseNotificationManager);
 
-        case 'level':
+        case 'level': {
           const level = context.options.level || context.args[1];
           return await setLevel(context, userId, level, releaseNotificationManager);
+        }
 
         default:
           await context.respond(
