@@ -127,6 +127,12 @@ class CommandIntegrationAdapter {
       return this.featureFlags.isEnabled('ddd.commands.conversation');
     }
 
+    // Check authentication commands
+    const authenticationCommands = ['auth', 'verify'];
+    if (authenticationCommands.includes(commandName)) {
+      return this.featureFlags.isEnabled('ddd.commands.authentication');
+    }
+
     // Default to legacy if no specific flag
     return false;
   }

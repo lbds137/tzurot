@@ -17,6 +17,8 @@ const { createResetCommand } = require('./conversation/ResetCommand');
 const { createActivateCommand } = require('./conversation/ActivateCommand');
 const { createDeactivateCommand } = require('./conversation/DeactivateCommand');
 const { createAutorespondCommand } = require('./conversation/AutorespondCommand');
+const { createAuthCommand } = require('./authentication/AuthCommand');
+const { createVerifyCommand } = require('./authentication/VerifyCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -80,6 +82,10 @@ class CommandIntegration {
     this.registry.register(createActivateCommand());
     this.registry.register(createDeactivateCommand());
     this.registry.register(createAutorespondCommand());
+
+    // Register authentication commands
+    this.registry.register(createAuthCommand());
+    this.registry.register(createVerifyCommand());
 
     // TODO: Register more commands as they are migrated
     // this.registry.register(createHelpCommand());

@@ -1,0 +1,333 @@
+/**
+ * Tests for VerifyCommand
+ */
+
+const { createVerifyCommand } = require('../../../../../src/application/commands/authentication/VerifyCommand');
+const { createMigrationHelper } = require('../../../../utils/testEnhancements');
+const logger = require('../../../../../src/logger');
+
+// Mock logger
+jest.mock('../../../../../src/logger');
+
+describe('VerifyCommand', () => {
+  let verifyCommand;
+  let mockContext;
+  let mockAuth;
+  let mockChannelUtils;
+  let migrationHelper;
+
+  beforeEach(() => {
+    // Clear all mocks
+    jest.clearAllMocks();
+
+    migrationHelper = createMigrationHelper();
+    verifyCommand = createVerifyCommand();
+
+    // Mock auth service
+    mockAuth = {
+      isNsfwVerified: jest.fn().mockReturnValue(false),
+      storeNsfwVerification: jest.fn().mockResolvedValue(true),
+    };
+
+    // Mock channel utils
+    mockChannelUtils = {
+      isChannelNSFW: jest.fn().mockReturnValue(false),
+    };
+
+    // Mock context
+    mockContext = {
+      userId: 'user123',
+      channelId: 'channel123',
+      guildId: 'guild123',
+      commandPrefix: '!tz ',
+      isDM: false,
+      args: [],
+      options: {},
+      services: {
+        auth: mockAuth,
+        channelUtils: mockChannelUtils,
+      },
+      respond: jest.fn().mockResolvedValue(undefined),
+      isChannelNSFW: jest.fn().mockResolvedValue(false),
+      originalMessage: {
+        guild: {
+          channels: {
+            cache: new Map(),
+          },
+        },
+        member: {
+          id: 'user123',
+        },
+      },
+    };
+  });
+
+  describe('metadata', () => {
+    it('should have correct command metadata', () => {
+      expect(verifyCommand.name).toBe('verify');
+      expect(verifyCommand.description).toBe('Verify your age to use AI personalities in Direct Messages');
+      expect(verifyCommand.category).toBe('Authentication');
+      expect(verifyCommand.aliases).toEqual(['nsfw']);
+      expect(verifyCommand.options).toHaveLength(0);
+    });
+  });
+
+  describe('DM channel handling', () => {
+    it('should explain verification requirements when run in DM', async () => {
+      mockContext.isDM = true;
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Age Verification Required')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('must be run in a server channel marked as NSFW')
+      );
+    });
+  });
+
+  describe('already verified users', () => {
+    it('should inform already verified users', async () => {
+      mockAuth.isNsfwVerified.mockReturnValue(true);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Already Verified')
+      );
+      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('NSFW channel verification', () => {
+    it('should verify user in NSFW channel', async () => {
+      mockContext.isChannelNSFW.mockResolvedValue(true);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Successful')
+      );
+    });
+
+    it('should handle verification storage failure', async () => {
+      mockContext.isChannelNSFW.mockResolvedValue(true);
+      mockAuth.storeNsfwVerification.mockResolvedValue(false);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Error')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('error storing your verification status')
+      );
+    });
+  });
+
+  describe('NSFW channel access check', () => {
+    it('should verify user with access to other NSFW channels', async () => {
+      // Create mock channels
+      const nsfwChannel = {
+        id: 'nsfw-channel-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true),
+        }),
+      };
+
+      const regularChannel = {
+        id: 'regular-channel-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true),
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('nsfw-channel-123', nsfwChannel);
+      mockContext.originalMessage.guild.channels.cache.set('regular-channel-123', regularChannel);
+
+      // Mock channel utils to identify NSFW channels
+      mockChannelUtils.isChannelNSFW.mockImplementation(channel => {
+        return channel.id === 'nsfw-channel-123';
+      });
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Successful')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('<#nsfw-channel-123>')
+      );
+    });
+
+    it('should deny verification when no NSFW channels accessible', async () => {
+      // Create mock channel without NSFW
+      const regularChannel = {
+        id: 'regular-channel-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true),
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('regular-channel-123', regularChannel);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Unable to Verify')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining("don't have access to any NSFW channels")
+      );
+    });
+
+    it('should handle missing guild information', async () => {
+      mockContext.guildId = null;
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Error')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Unable to verify server information')
+      );
+    });
+
+    it('should handle channel permission check errors', async () => {
+      const nsfwChannel = {
+        id: 'nsfw-channel-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockImplementation(() => {
+          throw new Error('Permission check failed');
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('nsfw-channel-123', nsfwChannel);
+      mockChannelUtils.isChannelNSFW.mockReturnValue(true);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Error')
+      );
+    });
+  });
+
+  describe('storage verification', () => {
+    it('should handle verification storage error in NSFW channel list', async () => {
+      // Create mock NSFW channel
+      const nsfwChannel = {
+        id: 'nsfw-channel-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true),
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('nsfw-channel-123', nsfwChannel);
+      mockChannelUtils.isChannelNSFW.mockReturnValue(true);
+      mockAuth.storeNsfwVerification.mockResolvedValue(false);
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Verification Error')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('error storing your verification status')
+      );
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle unexpected errors gracefully', async () => {
+      mockAuth.isNsfwVerified.mockImplementation(() => {
+        throw new Error('Database error');
+      });
+
+      await verifyCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('An unexpected error occurred')
+      );
+      expect(logger.error).toHaveBeenCalled();
+    });
+
+    it('should handle missing original message', async () => {
+      mockContext.originalMessage = null;
+
+      await verifyCommand.execute(mockContext);
+
+      // Should still work, just won't find any NSFW channels
+      expect(mockContext.respond).toHaveBeenCalled();
+    });
+  });
+
+  describe('channel accessibility', () => {
+    it('should only count channels user can view', async () => {
+      // Create mock channels with different permissions
+      const visibleNsfwChannel = {
+        id: 'visible-nsfw-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true), // Can view
+        }),
+      };
+
+      const hiddenNsfwChannel = {
+        id: 'hidden-nsfw-123',
+        isTextBased: () => true,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(false), // Cannot view
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('visible-nsfw-123', visibleNsfwChannel);
+      mockContext.originalMessage.guild.channels.cache.set('hidden-nsfw-123', hiddenNsfwChannel);
+
+      // Both are NSFW but only one is visible
+      mockChannelUtils.isChannelNSFW.mockReturnValue(true);
+
+      await verifyCommand.execute(mockContext);
+
+      // Should succeed because user has access to at least one NSFW channel
+      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('<#visible-nsfw-123>')
+      );
+      expect(mockContext.respond).not.toHaveBeenCalledWith(
+        expect.stringContaining('<#hidden-nsfw-123>')
+      );
+    });
+
+    it('should only check text-based channels', async () => {
+      // Create voice channel (not text-based)
+      const voiceChannel = {
+        id: 'voice-channel-123',
+        isTextBased: () => false,
+        permissionsFor: jest.fn().mockReturnValue({
+          has: jest.fn().mockReturnValue(true),
+        }),
+      };
+
+      mockContext.originalMessage.guild.channels.cache.set('voice-channel-123', voiceChannel);
+      mockChannelUtils.isChannelNSFW.mockReturnValue(true);
+
+      await verifyCommand.execute(mockContext);
+
+      // Should not find any NSFW channels since voice channels don't count
+      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Unable to Verify')
+      );
+    });
+  });
+});
