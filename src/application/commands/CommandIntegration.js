@@ -11,6 +11,9 @@ const { getPersonalityRouter } = require('../routers/PersonalityRouter');
 const { createAddCommand } = require('./personality/AddCommand');
 const { createRemoveCommand } = require('./personality/RemoveCommand');
 const { createInfoCommand } = require('./personality/InfoCommand');
+const { createAliasCommand } = require('./personality/AliasCommand');
+const { createListCommand } = require('./personality/ListCommand');
+const { createResetCommand } = require('./conversation/ResetCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -66,11 +69,13 @@ class CommandIntegration {
     this.registry.register(createAddCommand());
     this.registry.register(createRemoveCommand());
     this.registry.register(createInfoCommand());
+    this.registry.register(createAliasCommand());
+    this.registry.register(createListCommand());
+
+    // Register conversation commands
+    this.registry.register(createResetCommand());
 
     // TODO: Register more commands as they are migrated
-    // this.registry.register(createResetCommand());
-    // this.registry.register(createAliasCommand());
-    // this.registry.register(createListCommand());
     // this.registry.register(createHelpCommand());
 
     logger.info(`[CommandIntegration] Registered ${this.registry.getAll().length} commands`);

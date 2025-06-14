@@ -130,12 +130,12 @@ function filterMessagesByCategory(messages, message, category) {
  */
 async function execute(message, args, context = {}) {
   // Use default timers if context not provided (backward compatibility)
-  const { 
-    scheduler = globalThis.setTimeout || setTimeout, 
+  const {
+    scheduler = globalThis.setTimeout || setTimeout,
     delay = ms => {
       const timer = globalThis.setTimeout || setTimeout;
       return new Promise(resolve => timer(resolve, ms));
-    }
+    },
   } = context;
   const directSend = validator.createDirectSend(message);
 
