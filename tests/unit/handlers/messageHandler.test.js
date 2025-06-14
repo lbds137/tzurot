@@ -16,6 +16,8 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
     store: jest.fn()
   }
 }));
+jest.mock('../../../src/adapters/CommandIntegrationAdapter');
+jest.mock('../../../src/application/services/FeatureFlags');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -33,6 +35,8 @@ const { getActivePersonality, getActivatedPersonality, isAutoResponseEnabled } =
 const { getPersonalityByAlias, getPersonality, getMaxAliasWordCount } = require('../../../src/core/personality');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
+const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
+const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 
 describe('messageHandler', () => {
   let mockClient;
@@ -100,6 +104,16 @@ describe('messageHandler', () => {
     getPersonalityByAlias.mockReturnValue(null);
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
+    
+    // Mock feature flags to disable DDD command integration
+    getFeatureFlags.mockReturnValue({
+      isEnabled: jest.fn().mockReturnValue(false)
+    });
+    
+    // Mock command integration adapter
+    getCommandIntegrationAdapter.mockReturnValue({
+      processCommand: jest.fn().mockResolvedValue({ success: true })
+    });
   });
   
   afterEach(() => {
