@@ -24,6 +24,7 @@ const { createStatusCommand } = require('./utility/StatusCommand');
 const { createNotificationsCommand } = require('./utility/NotificationsCommand');
 const { createDebugCommand } = require('./utility/DebugCommand');
 const { createPurgbotCommand } = require('./utility/PurgbotCommand');
+const { createVolumeTestCommand } = require('./utility/VolumeTestCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -98,9 +99,9 @@ class CommandIntegration {
     this.registry.register(createNotificationsCommand());
     this.registry.register(createDebugCommand());
     this.registry.register(createPurgbotCommand());
+    this.registry.register(createVolumeTestCommand());
 
     // TODO: Register more commands as they are migrated
-    // this.registry.register(createVolumetestCommand());
     // this.registry.register(createHelpCommand());
 
     logger.info(`[CommandIntegration] Registered ${this.registry.getAll().length} commands`);
