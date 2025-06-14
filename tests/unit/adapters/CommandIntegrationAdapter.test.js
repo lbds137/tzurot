@@ -131,9 +131,29 @@ describe('CommandIntegrationAdapter', () => {
       });
       mockCommandIntegration.hasCommand.mockReturnValue(true);
       
-      const personalityCommands = ['add', 'remove', 'info', 'reset', 'alias', 'list'];
+      const personalityCommands = ['add', 'remove', 'info', 'alias', 'list'];
       
       for (const cmd of personalityCommands) {
+        mockCommandIntegration.handleDiscordTextCommand.mockClear();
+        await adapter.processCommand(mockMessage, cmd, []);
+        expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
+          mockMessage,
+          cmd,
+          []
+        );
+      }
+    });
+
+    it('should check conversation category flag', async () => {
+      mockFeatureFlags.isEnabled.mockImplementation(flag => {
+        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.conversation';
+      });
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      
+      const conversationCommands = ['reset', 'activate', 'deactivate', 'autorespond'];
+      
+      for (const cmd of conversationCommands) {
+        mockCommandIntegration.handleDiscordTextCommand.mockClear();
         await adapter.processCommand(mockMessage, cmd, []);
         expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
           mockMessage,
