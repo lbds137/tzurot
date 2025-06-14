@@ -194,10 +194,10 @@ The DDD command system is production-ready with:
 
 The following 7 commands remain to be migrated:
 1. `/help` - Help system with DDD awareness
-2. `/ping` - Simple latency check
-3. `/status` - Bot status information
+2. `/ping` - Simple latency check ✅
+3. `/status` - Bot status information ✅
 4. `/debug` - Debug information (admin only)
-5. `/purgbot` - Purge bot messages (admin only)
+5. `/purgbot` - Purge bot messages in DMs
 6. `/notifications` - Release notification management
 7. `/volumetest` - Volume testing utility
 
