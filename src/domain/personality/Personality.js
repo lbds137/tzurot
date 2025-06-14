@@ -234,7 +234,7 @@ class Personality extends AggregateRoot {
 
   // Event handlers
   onPersonalityCreated(event) {
-    // eslint-disable-line no-unused-vars
+     
     this.personalityId = PersonalityId.fromString(event.payload.personalityId);
     this.ownerId = UserId.fromString(event.payload.ownerId);
     this.profile = event.payload.profile
@@ -248,7 +248,7 @@ class Personality extends AggregateRoot {
   }
 
   onPersonalityProfileUpdated(event) {
-    // eslint-disable-line no-unused-vars
+     
     this.profile = PersonalityProfile.fromJSON(event.payload.profile);
     if (event.payload.model) {
       this.model = AIModel.fromJSON(event.payload.model);
@@ -257,20 +257,20 @@ class Personality extends AggregateRoot {
   }
 
   onPersonalityRemoved(event) {
-    // eslint-disable-line no-unused-vars
+     
     this.removed = true;
     this.updatedAt = event.payload.removedAt;
   }
 
   onPersonalityAliasAdded(event) {
-    // eslint-disable-line no-unused-vars
+     
     const alias = Alias.fromJSON(event.payload.alias);
     this.aliases.push(alias);
     this.updatedAt = event.payload.addedAt;
   }
 
   onPersonalityAliasRemoved(event) {
-    // eslint-disable-line no-unused-vars
+     
     const alias = Alias.fromJSON(event.payload.alias);
     this.aliases = this.aliases.filter(a => !a.equals(alias));
     this.updatedAt = event.payload.removedAt;
