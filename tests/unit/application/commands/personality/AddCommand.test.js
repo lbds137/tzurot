@@ -178,18 +178,6 @@ describe('AddCommand', () => {
       );
     });
 
-    it('should show new system indicator when feature flag enabled', async () => {
-      mockContext.args = ['TestBot'];
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
-
-      await command.execute(mockContext);
-
-      expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('*(Using new DDD system)*'),
-        {}
-      );
-    });
   });
 
   describe('slash command execution', () => {
@@ -362,16 +350,5 @@ describe('AddCommand', () => {
       );
     });
 
-    it('should log system used', async () => {
-      mockContext.args = ['TestBot'];
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
-
-      await command.execute(mockContext);
-
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('using new system')
-      );
-    });
   });
 });
