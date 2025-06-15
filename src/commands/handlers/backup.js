@@ -128,6 +128,7 @@ class BackupClient {
     try {
       const response = await nodeFetch(url, {
         headers: {
+          'Authorization': `Bearer ${userAuth}`,
           'X-App-ID': auth.APP_ID,
           'X-User-Auth': userAuth,
           'User-Agent': 'Tzurot Discord Bot Backup/1.0',
