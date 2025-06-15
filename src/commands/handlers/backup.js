@@ -19,14 +19,17 @@ const nodeFetch = require('node-fetch');
 const meta = {
   name: 'backup',
   description: 'Backup personality data and memories from the AI service',
-  usage: 'backup [personality-name] | backup --all',
+  usage: 'backup [personality-name] | backup --all | backup --set-cookie <cookie>',
   aliases: [],
   permissions: [PermissionFlagsBits.Administrator],
 };
 
 // Configuration
-const API_BASE_URL = process.env.SERVICE_API_BASE_URL || 'https://shapes.inc/api';
+const API_BASE_URL = process.env.SHAPES_API_URL || 'https://shapes.inc/api';
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
+
+// Session storage - in production, this should be encrypted and stored securely
+const userSessions = new Map();
 
 // Lazy initialization to avoid path resolution at module load time
 let BACKUP_DIR = null;
@@ -121,19 +124,30 @@ class BackupClient {
     this.delayFn = options.delayFn || ((ms) => new Promise(resolve => this.scheduler(resolve, ms)));
   }
 
-  async makeAuthenticatedRequest(url, userAuth) {
+  async makeAuthenticatedRequest(url, authData) {
     const controller = new AbortController();
     const timeoutId = this.scheduler(() => controller.abort(), this.timeout);
     
     try {
+      const headers = {
+        'User-Agent': 'Tzurot Discord Bot Backup/1.0',
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      
+      // If we have a session cookie, use it
+      if (authData.cookie) {
+        headers['Cookie'] = authData.cookie;
+        logger.debug(`[Backup] Using session cookie for authentication`);
+      } else if (authData.token) {
+        // Otherwise fall back to token auth
+        headers['X-App-ID'] = auth.APP_ID;
+        headers['X-User-Auth'] = authData.token;
+        logger.debug(`[Backup] Using token authentication`);
+      }
+      
       const response = await nodeFetch(url, {
-        headers: {
-          'X-App-ID': auth.APP_ID,
-          'X-User-Auth': userAuth,
-          'User-Agent': 'Tzurot Discord Bot Backup/1.0',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers,
         signal: controller.signal,
       });
       
@@ -170,15 +184,10 @@ function getBackupClient() {
 /**
  * Fetch personality profile data
  */
-async function fetchPersonalityProfile(personalityName, userAuth) {
-  // Try different endpoint patterns based on the API being used
-  const isShapesInc = API_BASE_URL.includes('shapes.inc');
-  const url = isShapesInc 
-    ? `${API_BASE_URL}/shapes/username/${personalityName}`
-    : `${API_BASE_URL}/v1/personalities/${personalityName}`;
-  
+async function fetchPersonalityProfile(personalityName, authData) {
+  const url = `${API_BASE_URL}/shapes/username/${personalityName}`;
   logger.info(`[Backup] Fetching profile from: ${url}`);
-  return await getBackupClient().makeAuthenticatedRequest(url, userAuth);
+  return await getBackupClient().makeAuthenticatedRequest(url, authData);
 }
 
 /**
@@ -206,7 +215,7 @@ async function processMemoryPage(memories, stopAtMemoryId, seenMemoryIds) {
 /**
  * Fetch memories with smart syncing
  */
-async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, metadata) {
+async function fetchMemoriesSmartSync(personalityId, personalityName, authData, metadata) {
   logger.info(`[Backup] Fetching memories for ${personalityName}...`);
   
   let page = 1;
@@ -215,13 +224,9 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
   const stopAtMemoryId = metadata.lastMemoryId;
   
   while (true) {
-    const isShapesInc = API_BASE_URL.includes('shapes.inc');
-    const url = isShapesInc
-      ? `${API_BASE_URL}/memory/${personalityId}?page=${page}`
-      : `${API_BASE_URL}/v1/personalities/${personalityName}/memories?page=${page}`;
-    
+    const url = `${API_BASE_URL}/memory/${personalityId}?page=${page}`;
     logger.info(`[Backup] Fetching memories from: ${url}`);
-    const response = await getBackupClient().makeAuthenticatedRequest(url, userAuth);
+    const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
     
     if (!response.memories || response.memories.length === 0) {
       break;
@@ -271,7 +276,7 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
 /**
  * Backup a single personality
  */
-async function backupPersonality(personalityName, userAuth, directSend) {
+async function backupPersonality(personalityName, authData, directSend) {
   try {
     await directSend(`🔄 Starting backup for **${personalityName}**...`);
     
@@ -279,7 +284,7 @@ async function backupPersonality(personalityName, userAuth, directSend) {
     const metadata = await loadBackupMetadata(personalityName);
     
     // Fetch profile data
-    const profile = await fetchPersonalityProfile(personalityName, userAuth);
+    const profile = await fetchPersonalityProfile(personalityName, authData);
     await savePersonalityProfile(personalityName, profile);
     
     // Fetch memories if personality has an ID
@@ -288,7 +293,7 @@ async function backupPersonality(personalityName, userAuth, directSend) {
       const { newMemoryCount } = await fetchMemoriesSmartSync(
         profile.id,
         personalityName,
-        userAuth,
+        authData,
         metadata
       );
       
@@ -315,7 +320,7 @@ async function backupPersonality(personalityName, userAuth, directSend) {
 /**
  * Handle bulk backup of owner personalities
  */
-async function handleBulkBackup(userAuth, directSend) {
+async function handleBulkBackup(authData, directSend) {
   const ownerPersonalities = USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',')
     .map(p => p.trim())
     .filter(p => p);
@@ -331,7 +336,7 @@ async function handleBulkBackup(userAuth, directSend) {
   
   let successCount = 0;
   for (const personalityName of ownerPersonalities) {
-    await backupPersonality(personalityName, userAuth, directSend);
+    await backupPersonality(personalityName, authData, directSend);
     successCount++;
     
     // Delay between personalities
@@ -344,6 +349,50 @@ async function handleBulkBackup(userAuth, directSend) {
 }
 
 /**
+ * Handle setting session cookie
+ */
+async function handleSetCookie(message, args, directSend) {
+  if (args.length < 1) {
+    return await directSend(
+      '❌ Please provide your session cookie.\n\n' +
+      '**How to get your session cookie:**\n' +
+      '1. Open shapes.inc in your browser and log in\n' +
+      '2. Open Developer Tools (F12)\n' +
+      '3. Go to Application/Storage → Cookies\n' +
+      '4. Find the `appSession` cookie\n' +
+      '5. Copy its value (the long string)\n' +
+      '6. Use: `' + botPrefix + ' backup --set-cookie <cookie-value>`\n\n' +
+      '⚠️ **Security Notice:** Only use this in DMs for security!'
+    );
+  }
+  
+  // For security, only accept cookies in DMs
+  if (!message.channel.isDMBased()) {
+    try {
+      await message.delete();
+    } catch (_error) { // eslint-disable-line no-unused-vars
+      // Ignore delete errors
+    }
+    return await directSend(
+      '❌ For security, please set your session cookie via DM, not in a public channel.'
+    );
+  }
+  
+  const cookieValue = args.join(' ').trim();
+  
+  // Store the session cookie
+  userSessions.set(message.author.id, {
+    cookie: `appSession=${cookieValue}`,
+    setAt: Date.now()
+  });
+  
+  return await directSend(
+    '✅ Session cookie saved! You can now use the backup command.\n\n' +
+    '⚠️ **Note:** Session cookies expire. You may need to update it periodically.'
+  );
+}
+
+/**
  * Execute the backup command
  */
 async function execute(message, args) {
@@ -352,17 +401,35 @@ async function execute(message, args) {
   try {
     await ensureBackupDir();
     
-    // Get user auth
-    const authManager = auth.getAuthManager();
-    if (!authManager) {
-      return await directSend('❌ Authentication system not available.');
+    // Check for --set-cookie flag
+    if (args[0] === '--set-cookie') {
+      return await handleSetCookie(message, args.slice(1), directSend);
     }
     
-    const userAuth = authManager.getUserToken(message.author.id);
-    if (!userAuth) {
-      return await directSend(
-        '❌ You need to authenticate first. Use `' + botPrefix + ' auth <token>` to authenticate.'
-      );
+    // Get authentication data - prefer session cookie, fallback to token
+    let authData = {};
+    
+    // Check for stored session
+    const userSession = userSessions.get(message.author.id);
+    if (userSession) {
+      authData.cookie = userSession.cookie;
+      logger.info(`[Backup] Using stored session cookie for user ${message.author.id}`);
+    } else {
+      // Fall back to token auth
+      const authManager = auth.getAuthManager();
+      if (!authManager) {
+        return await directSend('❌ Authentication system not available.');
+      }
+      
+      const userAuth = authManager.getUserToken(message.author.id);
+      if (!userAuth) {
+        return await directSend(
+          '❌ No authentication found. Either:\n' +
+          '1. Authenticate with: `' + botPrefix + ' auth <token>`\n' +
+          '2. Set browser session: `' + botPrefix + ' backup --set-cookie <cookie>`'
+        );
+      }
+      authData.token = userAuth;
     }
     
     // Parse arguments
@@ -371,16 +438,17 @@ async function execute(message, args) {
         `Usage: \`${botPrefix} backup <personality-name>\` or \`${botPrefix} backup --all\`\n\n` +
         `Examples:\n` +
         `• \`${botPrefix} backup lilith-tzel-shani\` - Backup a single personality\n` +
-        `• \`${botPrefix} backup --all\` - Backup all owner personalities`
+        `• \`${botPrefix} backup --all\` - Backup all owner personalities\n` +
+        `• \`${botPrefix} backup --set-cookie <cookie>\` - Set browser session cookie`
       );
     }
     
     if (args[0] === '--all') {
-      await handleBulkBackup(userAuth, directSend);
+      await handleBulkBackup(authData, directSend);
     } else {
       // Backup single personality
       const personalityName = args[0].toLowerCase();
-      await backupPersonality(personalityName, userAuth, directSend);
+      await backupPersonality(personalityName, authData, directSend);
     }
     
   } catch (error) {
