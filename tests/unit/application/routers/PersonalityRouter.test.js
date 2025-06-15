@@ -1,41 +1,25 @@
 const { PersonalityRouter, getPersonalityRouter, resetPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
-const { FeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-const { ComparisonTester } = require('../../../../src/application/services/ComparisonTester');
 
 // Mock dependencies
-jest.mock('../../../../src/core/personality');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../src/application/services/PersonalityApplicationService');
 jest.mock('../../../../src/adapters/persistence/FilePersonalityRepository');
 jest.mock('../../../../src/adapters/persistence/FileAuthenticationRepository');
 jest.mock('../../../../src/adapters/ai/HttpAIServiceAdapter');
-jest.mock('../../../../src/core/api/ProfileInfoFetcher');
 jest.mock('../../../../src/domain/shared/DomainEventBus');
 
-const personalityManager = require('../../../../src/core/personality');
 const logger = require('../../../../src/logger');
 const { PersonalityApplicationService } = require('../../../../src/application/services/PersonalityApplicationService');
 const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
 const { FileAuthenticationRepository } = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
 const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServiceAdapter');
-const { ProfileInfoFetcher } = require('../../../../src/core/api');
 const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
 
 // Mock constructors  
 FilePersonalityRepository.mockImplementation(() => ({}));
 FileAuthenticationRepository.mockImplementation(() => ({}));
 HttpAIServiceAdapter.mockImplementation(() => ({}));
-if (ProfileInfoFetcher && ProfileInfoFetcher.mockImplementation) {
-  ProfileInfoFetcher.mockImplementation(() => ({}));
-}
 DomainEventBus.mockImplementation(() => ({}));
-
-// Setup mock functions for personality manager
-personalityManager.getPersonalityByNameOrAlias = jest.fn();
-personalityManager.getAllPersonalities = jest.fn();
-personalityManager.registerPersonality = jest.fn();
-personalityManager.removePersonality = jest.fn();
-personalityManager.addAlias = jest.fn();
 
 // Setup logger mock methods
 logger.info = jest.fn();
@@ -45,20 +29,7 @@ logger.debug = jest.fn();
 
 describe('PersonalityRouter', () => {
   let router;
-  let mockFeatureFlags;
-  let mockComparisonTester;
   let mockPersonalityService;
-  
-  const mockLegacyPersonality = {
-    fullName: 'test-personality',
-    displayName: 'Test',
-    owner: 'user123',
-    aliases: ['test-alias'],
-    avatarUrl: 'https://example.com/avatar.png',
-    nsfwContent: false,
-    temperature: 0.7,
-    maxWordCount: 500
-  };
   
   const mockDDDPersonality = {
     name: 'test-personality',
@@ -79,119 +50,78 @@ describe('PersonalityRouter', () => {
     jest.clearAllMocks();
     resetPersonalityRouter();
     
-    // Setup feature flags mock
-    mockFeatureFlags = new FeatureFlags();
-    jest.spyOn(mockFeatureFlags, 'isEnabled').mockReturnValue(false);
-    
-    // Setup comparison tester mock
-    mockComparisonTester = new ComparisonTester();
-    jest.spyOn(mockComparisonTester, 'compare').mockImplementation(async (name, legacyOp, newOp) => ({
-      match: true,
-      legacyResult: await legacyOp(),
-      newResult: await newOp(),
-      discrepancies: []
-    }));
-    
     // Setup personality service mock
-    mockPersonalityService = new PersonalityApplicationService({});
+    mockPersonalityService = {
+      getPersonality: jest.fn().mockResolvedValue(mockDDDPersonality),
+      listPersonalities: jest.fn().mockResolvedValue([mockDDDPersonality]),
+      registerPersonality: jest.fn().mockResolvedValue(mockDDDPersonality),
+      removePersonality: jest.fn().mockResolvedValue(),
+      addAlias: jest.fn().mockResolvedValue()
+    };
+    
     PersonalityApplicationService.mockImplementation(() => mockPersonalityService);
     
-    // Setup legacy personality manager mocks
-    personalityManager.getPersonalityByNameOrAlias.mockReturnValue(mockLegacyPersonality);
-    personalityManager.getAllPersonalities.mockReturnValue([mockLegacyPersonality]);
-    personalityManager.registerPersonality.mockResolvedValue({ success: true, personality: mockLegacyPersonality });
-    personalityManager.removePersonality.mockResolvedValue({ success: true, message: 'Removed' });
-    personalityManager.addAlias.mockResolvedValue({ success: true, message: 'Alias added' });
-    
-    // Setup new personality service mocks
-    mockPersonalityService.getPersonalityByName = jest.fn().mockResolvedValue(mockDDDPersonality);
-    mockPersonalityService.getPersonalityByAlias = jest.fn().mockResolvedValue(null);
-    mockPersonalityService.listAllPersonalities = jest.fn().mockResolvedValue([mockDDDPersonality]);
-    mockPersonalityService.registerPersonality = jest.fn().mockResolvedValue(mockDDDPersonality);
-    mockPersonalityService.removePersonality = jest.fn().mockResolvedValue();
-    mockPersonalityService.addAlias = jest.fn().mockResolvedValue();
-    
-    router = new PersonalityRouter({
-      featureFlags: mockFeatureFlags,
-      comparisonTester: mockComparisonTester,
-      logger
-    });
+    router = new PersonalityRouter({ logger });
   });
   
   describe('getPersonality', () => {
-    it('should use legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      
-      const result = await router.getPersonality('test-personality');
-      
-      expect(result).toEqual(mockLegacyPersonality);
-      expect(personalityManager.getPersonalityByNameOrAlias).toHaveBeenCalledWith('test-personality');
-      expect(mockPersonalityService.getPersonalityByName).not.toHaveBeenCalled();
-      expect(router.routingStats.legacyReads).toBe(1);
-      expect(router.routingStats.newReads).toBe(0);
-    });
-    
-    it('should use new system when feature flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.read');
-      
+    it('should use DDD system and convert to legacy format', async () => {
       const result = await router.getPersonality('test-personality');
       
       expect(result).toMatchObject({
         fullName: 'test-personality',
         displayName: 'Test',
-        owner: 'user123'
+        owner: 'user123',
+        aliases: ['test-alias'],
+        avatarUrl: 'https://example.com/avatar.png',
+        nsfwContent: false,
+        temperature: 0.7,
+        maxWordCount: 500
       });
-      expect(mockPersonalityService.getPersonalityByName).toHaveBeenCalledWith('test-personality');
-      expect(personalityManager.getPersonalityByNameOrAlias).not.toHaveBeenCalled();
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('test-personality');
       expect(router.routingStats.newReads).toBe(1);
-      expect(router.routingStats.legacyReads).toBe(0);
     });
     
-    it('should run comparison testing when enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'features.comparison-testing');
+    it('should return null when personality not found', async () => {
+      mockPersonalityService.getPersonality.mockResolvedValue(null);
       
-      const result = await router.getPersonality('test-personality');
+      const result = await router.getPersonality('unknown');
       
-      expect(result).toEqual(mockLegacyPersonality);
-      expect(mockComparisonTester.compare).toHaveBeenCalled();
-      expect(personalityManager.getPersonalityByNameOrAlias).toHaveBeenCalled();
-      expect(mockPersonalityService.getPersonalityByName).toHaveBeenCalled();
-      expect(router.routingStats.comparisonTests).toBe(1);
+      expect(result).toBeNull();
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('unknown');
     });
     
-    it('should try alias lookup when name lookup fails in new system', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.read');
-      mockPersonalityService.getPersonalityByName.mockResolvedValue(null);
-      mockPersonalityService.getPersonalityByAlias.mockResolvedValue(mockDDDPersonality);
+    it('should handle errors from DDD system', async () => {
+      mockPersonalityService.getPersonality.mockRejectedValue(new Error('DDD Error'));
       
-      const result = await router.getPersonality('test-alias');
-      
-      expect(mockPersonalityService.getPersonalityByName).toHaveBeenCalledWith('test-alias');
-      expect(mockPersonalityService.getPersonalityByAlias).toHaveBeenCalledWith('test-alias');
-      expect(result).toMatchObject({ fullName: 'test-personality' });
+      await expect(router.getPersonality('error-test')).rejects.toThrow('DDD Error');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[PersonalityRouter] Error in new system getPersonality:',
+        expect.any(Error)
+      );
     });
   });
   
   describe('getAllPersonalities', () => {
-    it('should use legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      
-      const result = await router.getAllPersonalities();
-      
-      expect(result).toEqual([mockLegacyPersonality]);
-      expect(personalityManager.getAllPersonalities).toHaveBeenCalled();
-      expect(mockPersonalityService.listAllPersonalities).not.toHaveBeenCalled();
-    });
-    
-    it('should use new system when feature flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.read');
-      
+    it('should use DDD system and convert to legacy format', async () => {
       const result = await router.getAllPersonalities();
       
       expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({ fullName: 'test-personality' });
-      expect(mockPersonalityService.listAllPersonalities).toHaveBeenCalled();
-      expect(personalityManager.getAllPersonalities).not.toHaveBeenCalled();
+      expect(result[0]).toMatchObject({
+        fullName: 'test-personality',
+        displayName: 'Test',
+        owner: 'user123'
+      });
+      expect(mockPersonalityService.listPersonalities).toHaveBeenCalled();
+      expect(router.routingStats.newReads).toBe(1);
+    });
+    
+    it('should handle empty list', async () => {
+      mockPersonalityService.listPersonalities.mockResolvedValue([]);
+      
+      const result = await router.getAllPersonalities();
+      
+      expect(result).toEqual([]);
     });
   });
   
@@ -204,27 +134,7 @@ describe('PersonalityRouter', () => {
       maxWordCount: 500
     };
     
-    it('should use legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      
-      const result = await router.registerPersonality('test-personality', 'user123', registrationOptions);
-      
-      expect(result).toEqual({ success: true, personality: mockLegacyPersonality });
-      expect(personalityManager.registerPersonality).toHaveBeenCalledWith(
-        'test-personality',
-        'user123',
-        registrationOptions.avatarUrl,
-        registrationOptions.displayName,
-        registrationOptions.nsfwContent,
-        registrationOptions.temperature,
-        registrationOptions.maxWordCount
-      );
-      expect(router.routingStats.legacyWrites).toBe(1);
-    });
-    
-    it('should use new system when feature flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
-      
+    it('should use DDD system for registration', async () => {
       const result = await router.registerPersonality('test-personality', 'user123', registrationOptions);
       
       expect(result.success).toBe(true);
@@ -242,101 +152,102 @@ describe('PersonalityRouter', () => {
       expect(router.routingStats.newWrites).toBe(1);
     });
     
-    it('should perform dual-write when enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.dual-write');
+    it('should handle registration errors', async () => {
+      mockPersonalityService.registerPersonality.mockRejectedValue(new Error('Registration failed'));
       
-      const result = await router.registerPersonality('test-personality', 'user123', registrationOptions);
-      
-      expect(result).toEqual({ success: true, personality: mockLegacyPersonality });
-      expect(personalityManager.registerPersonality).toHaveBeenCalled();
-      expect(mockPersonalityService.registerPersonality).toHaveBeenCalled();
-      expect(router.routingStats.dualWrites).toBe(1);
-    });
-    
-    it('should not fail operation if new system fails during dual-write', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.dual-write');
-      mockPersonalityService.registerPersonality.mockRejectedValue(new Error('New system error'));
-      
-      const result = await router.registerPersonality('test-personality', 'user123', registrationOptions);
-      
-      expect(result).toEqual({ success: true, personality: mockLegacyPersonality });
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('[PersonalityRouter] Dual-write to new system failed:'),
-        expect.any(Error)
-      );
+      await expect(router.registerPersonality('fail-test', 'user123', {}))
+        .rejects.toThrow('Registration failed');
     });
   });
   
   describe('removePersonality', () => {
-    it('should use legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      
-      const result = await router.removePersonality('test-personality', 'user123');
-      
-      expect(result).toEqual({ success: true, message: 'Removed' });
-      expect(personalityManager.removePersonality).toHaveBeenCalledWith('test-personality', 'user123');
-    });
-    
-    it('should use new system when feature flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
-      
+    it('should use DDD system for removal', async () => {
       const result = await router.removePersonality('test-personality', 'user123');
       
       expect(result.success).toBe(true);
+      expect(result.message).toBe('Personality test-personality removed successfully');
       expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
         personalityName: 'test-personality',
         requesterId: 'user123'
       });
+      expect(router.routingStats.newWrites).toBe(1);
+    });
+    
+    it('should handle removal errors', async () => {
+      mockPersonalityService.removePersonality.mockRejectedValue(new Error('Not authorized'));
+      
+      const result = await router.removePersonality('test-personality', 'user123');
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Not authorized');
     });
   });
   
   describe('addAlias', () => {
-    it('should use legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      
-      const result = await router.addAlias('test-personality', 'new-alias', 'user123');
-      
-      expect(result).toEqual({ success: true, message: 'Alias added' });
-      expect(personalityManager.addAlias).toHaveBeenCalledWith('test-personality', 'new-alias', 'user123');
-    });
-    
-    it('should use new system when feature flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
-      
+    it('should use DDD system for alias addition', async () => {
       const result = await router.addAlias('test-personality', 'new-alias', 'user123');
       
       expect(result.success).toBe(true);
+      expect(result.message).toBe('Alias new-alias added successfully');
       expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
         personalityName: 'test-personality',
         alias: 'new-alias',
         requesterId: 'user123'
       });
+      expect(router.routingStats.newWrites).toBe(1);
+    });
+    
+    it('should handle alias addition errors', async () => {
+      mockPersonalityService.addAlias.mockRejectedValue(new Error('Alias exists'));
+      
+      const result = await router.addAlias('test-personality', 'existing', 'user123');
+      
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Alias exists');
     });
   });
   
   describe('getRoutingStatistics', () => {
     it('should return accurate statistics', async () => {
       // Perform some operations
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
       await router.getPersonality('test');
+      await router.getAllPersonalities();
       await router.registerPersonality('test2', 'user123', {});
-      
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.read');
-      await router.getPersonality('test3');
       
       const stats = router.getRoutingStatistics();
       
       expect(stats).toEqual({
-        legacyReads: 1,
-        newReads: 1,
-        legacyWrites: 1,
-        newWrites: 0,
+        legacyReads: 0,
+        newReads: 2,
+        legacyWrites: 0,
+        newWrites: 1,
         dualWrites: 0,
         comparisonTests: 0,
         dddSystemActive: true,
         comparisonTestingActive: false,
         dualWriteActive: false
       });
+    });
+  });
+  
+  describe('initialization', () => {
+    it('should auto-initialize DDD system when personalityService not set', async () => {
+      router.personalityService = null;
+      
+      await router.getPersonality('test');
+      
+      expect(PersonalityApplicationService).toHaveBeenCalled();
+      expect(router.personalityService).toBeTruthy();
+    });
+    
+    it('should not reinitialize if personalityService already set', async () => {
+      const existingService = { mock: 'service' };
+      router.personalityService = existingService;
+      
+      router._ensurePersonalityService();
+      
+      expect(router.personalityService).toBe(existingService);
+      expect(PersonalityApplicationService).not.toHaveBeenCalled();
     });
   });
   
