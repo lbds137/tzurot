@@ -346,7 +346,7 @@ async function execute(message, args) {
       return await directSend('❌ Authentication system not available.');
     }
     
-    const userAuth = await authManager.getUserAuth(message.author.id);
+    const userAuth = authManager.getUserToken(message.author.id);
     if (!userAuth) {
       return await directSend(
         '❌ You need to authenticate first. Use `' + botPrefix + ' auth <token>` to authenticate.'
