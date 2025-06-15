@@ -218,10 +218,12 @@ class ApplicationBootstrap {
       const { personalityApplicationService } = this.applicationServices;
       
       // Check existing personalities for the owner
-      const existingPersonalities = await personalityApplicationService.listPersonalitiesByOwner({
-        ownerId
+      const existingPersonalities = await personalityApplicationService.listPersonalitiesByOwner(ownerId);
+      const existingNames = existingPersonalities.map(p => {
+        // Handle domain objects that might not have direct property access
+        const data = p.toJSON ? p.toJSON() : p;
+        return (data.profile?.name || data.name || '').toLowerCase();
       });
-      const existingNames = existingPersonalities.map(p => p.name.toLowerCase());
       
       const personalitiesToAdd = personalityNames.filter(
         name => !existingNames.includes(name.toLowerCase())
