@@ -23,6 +23,19 @@ describe('AddCommand', () => {
   let mockFeatureFlags;
   let mockContext;
 
+  // Mock personality object returned by the service
+  const mockPersonality = {
+    id: 'test-id',
+    name: 'TestBot',
+    profile: {
+      name: 'TestBot',
+      prompt: 'You are TestBot',
+      modelPath: '/default',
+      maxWordCount: 1000
+    },
+    aliases: []
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation();
@@ -101,9 +114,7 @@ describe('AddCommand', () => {
 
     it('should create personality with name only', async () => {
       mockContext.args = ['TestBot'];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -123,9 +134,7 @@ describe('AddCommand', () => {
 
     it('should create personality with custom prompt', async () => {
       mockContext.args = ['Claude', 'You', 'are', 'a', 'helpful', 'assistant'];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -145,9 +154,7 @@ describe('AddCommand', () => {
 
     it('should handle quoted prompts', async () => {
       mockContext.args = ['TestBot', '"You are TestBot, a friendly AI"'];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -160,9 +167,7 @@ describe('AddCommand', () => {
 
     it('should handle single quoted prompts', async () => {
       mockContext.args = ['TestBot', "'You are TestBot'"];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -176,9 +181,7 @@ describe('AddCommand', () => {
     it('should show new system indicator when feature flag enabled', async () => {
       mockContext.args = ['TestBot'];
       mockFeatureFlags.isEnabled.mockReturnValue(true);
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -201,9 +204,7 @@ describe('AddCommand', () => {
         model: '/gpt-4',
         maxwords: 2000
       };
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -221,9 +222,7 @@ describe('AddCommand', () => {
       mockContext.options = {
         name: 'TestBot'
       };
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -313,10 +312,9 @@ describe('AddCommand', () => {
 
     it('should handle service failure', async () => {
       mockContext.args = ['TestBot'];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: false,
-        error: 'Service unavailable'
-      });
+      mockPersonalityService.registerPersonality.mockRejectedValue(
+        new Error('Service unavailable')
+      );
 
       await command.execute(mockContext);
 
@@ -352,9 +350,7 @@ describe('AddCommand', () => {
   describe('logging', () => {
     it('should log command execution', async () => {
       mockContext.args = ['TestBot'];
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
@@ -369,9 +365,7 @@ describe('AddCommand', () => {
     it('should log system used', async () => {
       mockContext.args = ['TestBot'];
       mockFeatureFlags.isEnabled.mockReturnValue(true);
-      mockPersonalityService.registerPersonality.mockResolvedValue({
-        success: true
-      });
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
