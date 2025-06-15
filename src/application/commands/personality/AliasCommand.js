@@ -76,11 +76,8 @@ function createAliasCommand() {
           );
         }
 
-        // Check if using new system
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.write');
-
         logger.info(
-          `[AliasCommand] Adding alias "${newAlias}" to personality "${personalityNameOrAlias}" using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[AliasCommand] Adding alias "${newAlias}" to personality "${personalityNameOrAlias}"`
         );
 
         try {
@@ -111,17 +108,11 @@ function createAliasCommand() {
               embed.thumbnail = { url: personality.profile.avatarUrl };
             }
 
-            if (useNewSystem) {
-              embed.footer = { text: 'Using new DDD system' };
-            }
 
             return await context.respondWithEmbed(embed);
           } else {
             // Plain text response
             let response = `✅ Alias "${newAlias}" has been added to **${displayName}**.`;
-            if (useNewSystem) {
-              response += '\n*(Using new DDD system)*';
-            }
             return await context.respond(response);
           }
         } catch (error) {

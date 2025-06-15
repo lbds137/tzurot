@@ -137,7 +137,9 @@ class ApplicationBootstrap {
       logger.info('[ApplicationBootstrap] Initialized CommandIntegrationAdapter');
 
       // Step 8: Seed owner personalities (feature parity with legacy system)
+      logger.info('[ApplicationBootstrap] Starting owner personality seeding...');
       await this._seedOwnerPersonalities();
+      logger.info('[ApplicationBootstrap] Owner personality seeding completed');
 
       this.initialized = true;
       logger.info('[ApplicationBootstrap] ✅ DDD application layer initialization complete');
