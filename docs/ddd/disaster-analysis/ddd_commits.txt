@@ -1,0 +1,107 @@
+d703141 fix: correct personality seeding issues in ApplicationBootstrap
+6221c2c test: remove feature flag tests from command test files
+a92fd95 fix: remove feature flag checks from commands and fix messageTracker method check
+e1887e0 fix: use injectable timer pattern in ApplicationBootstrap to pass lint checks
+b81db99 fix: update AddCommand tests to match new service response format
+79fb6bd fix: correct AddCommand to handle DDD service response format
+be0eb70 feat: restore owner personality seeding in DDD system for feature parity
+7b7db7f fix: improve FilePersonalityRepository robustness for missing/corrupted files
+c7d512e fix: update PersonalityRouter tests for legacy system removal
+2b969ee feat: complete legacy personality system removal and unify to DDD
+3c57c2a feat: rip out legacy personality system and go full DDD
+b1d422d fix: separate DDD and legacy personality storage to prevent conflicts
+c529c9c fix: add missing CommandContext methods (canEmbed, respondWithEmbed, etc)
+79bdd60 fix: correct method name from findByOwnerId to findByOwner in PersonalityApplicationService
+cae1d7a fix: update ListCommand to use correct method name and remove legacy system references
+4c1f07c fix: prevent PersonalityRouter from auto-initializing DDD system
+d1a69d9 fix: complete environment variable alignment for DDD system
+633d61a fix: align DDD environment variables with existing .env.example
+02a4156 docs: complete Phase 4 planning for DDD cutover
+310fd32 feat: complete Phase 3 DDD migration - all 18 commands migrated! 🎉
+3b8a3d1 feat: migrate volumetest command to DDD architecture
+06d5c5b chore: update Claude settings with new allowed operations
+9fea81c style: apply linter fixes to utility commands and Personality class
+843e016 feat(ddd): migrate utility commands to DDD architecture - Phase 3 Week 4
+052f63d feat(ddd): migrate status command to DDD architecture
+d2f4c82 feat(ddd): migrate ping command to DDD architecture
+483a4c0 feat(ddd): migrate authentication commands to DDD architecture
+13f9156 test: fix failing tests after moving reset command to conversation category
+10e91bf feat(ddd): migrate conversation commands to DDD pattern - Phase 3 Week 2
+50a6e69 docs: add comprehensive DDD deployment guide
+03fa7cf feat(ddd): enable DDD command system with feature flags
+6c70194 docs: organize DDD documentation into dedicated folder
+7053f0d feat(ddd): complete personality command migration with alias and list commands
+0916344 docs: add missing MCP tools to CLAUDE.md documentation
+a0192c5 test: dramatically improve test coverage for new DDD components
+da563f2 fix: update timer patterns in notifications and command handlers
+31d82cd fix: update timer patterns in core modules for testability
+5af924e fix: update timer patterns in adapters for testability
+d9f1ea9 chore: format code with prettier and update documentation
+7c76099 test: fix bot.test.js by adding missing logger mock
+333f931 fix(ddd): update RemoveCommand to clear caches after personality removal
+d871fed feat(ddd): migrate ResetCommand to DDD architecture
+12505c5 feat(ddd): add findByName method and data migration to FilePersonalityRepository
+aba21fe feat(ddd): implement domain event emission system
+85810e5 chore: remove MCP_GEMINI_MODEL_UPGRADE.md
+78528b5 chore: reduce CLAUDE.md size from 44k to 37k characters
+44a4122 chore: consolidate Claude settings files
+3795691 docs: correct Gemini model availability based on official documentation
+f7b3161 docs: add MCP Gemini model upgrade guide with dual-model strategy
+a5a5bc0 docs: integrate MCP (Model Context Protocol) tools into CLAUDE.md workflow
+a38d18d feat: implement CommandIntegrationAdapter and migrate remove/info commands to DDD
+fc91dec fix: resolve MessageTracker open handle issues in tests
+9c33121 docs: enhance Discord adapter documentation and genericize AI service references
+3f891c6 docs: update DDD migration checklist and add Phase 3 progress report
+8472628 feat: implement DDD Phase 3 foundation with feature flags and command abstraction
+9975482 fix: update HttpAIServiceAdapter tests to match implementation
+ccd5bb4 fix: update HttpAIServiceAdapter tests to use correct method name
+569647c fix: resolve timer pattern lint errors for CI
+f28a141 fix: integrate timer patterns eslint rules into main config
+a5f95f2 fix: remove non-existent eslint rule reference
+2df0b2a feat: complete DDD Phase 2 adapter layer implementation
+d4fe983 test: add test coverage for AI adapters index file
+7fdd33a fix: update AIServiceAdapterFactory tests to match domain model structure
+be04e19 feat: implement HttpAIServiceAdapter for DDD Phase 2
+a148465 feat: implement MemoryConversationRepository adapter for DDD Phase 2
+e7bc3de fix: eliminate false positive in timer pattern checker for injectable timers
+71cffb7 fix: resolve mock system integration issues and improve reliability
+2f90592 feat: comprehensive DDD migration tooling and test helpers
+56ee4f3 docs: comprehensive DDD migration documentation and progress tracking
+00fa7bd fix: resolve ESLint issues in DDD test migration
+6e6f4c6 feat: complete DDD test migration to consolidated mock system
+f8747b8 test: add comprehensive tests for ProfileInfoClient
+51be004 docs: update test coverage summary for June 9, 2025
+7512e70 docs: add comprehensive testing and dependency injection documentation
+fe80012 test: add comprehensive validation tests for AIEvents
+b3adb9a feat: improve test anti-pattern checker to reduce false positives
+1a2e322 test: improve test performance and fix open handles
+3e2ebb3 docs: update test coverage summary for June 8, 2025
+8d2cf08 fix: resolve DiscordWebhookAdapter test failures and improve anti-pattern checker
+7710319 feat: implement FileAuthenticationRepository adapter
+e77e4a6 feat: implement FileConversationRepository adapter with comprehensive tests
+075d049 feat: implement Phase 2 adapters - DiscordWebhookAdapter and FilePersonalityRepository
+90858ff fix: update all tests to use enhanced Message entity with channelId
+84e7f05 feat: implement DiscordMessageAdapter with forwarded message support
+a92f966 feat: complete DDD Phase 1 with comprehensive domain testing
+2ee42c7 feat: complete DDD Phase 1 with comprehensive domain testing
+644b9e8 test: add comprehensive tests for DDD domain models
+0d40eca feat: complete Phase 1 with Authentication and AI Integration domains
+cd6fef7 feat: implement Phase 1 domain models for Personality and Conversation
+bfb4812 feat: complete DDD Phase 0 - establish domain foundation
+5d35232 feat: implement DDD Phase 0 - feature freeze and singleton removal
+635c8fb docs: reorganize features and create comprehensive index
+30843ba docs: update cross-references after consolidation
+a3fb288 enhance: redesign Claude personality definition for behavioral effectiveness
+f96ca3c docs: remove DDD documentation archives
+9b3d846 docs: consolidate notification system documentation
+fe2a640 docs: consolidate command system documentation
+f30cfe3 docs: update consolidation progress to reflect no archives kept
+e55303e docs: remove archived documentation files
+c102e76 docs: add documentation consolidation progress report
+69c66e3 docs: consolidate git workflow documentation
+d2e62dc docs: consolidate testing documentation into focused guides
+04d8177 docs: consolidate timer documentation into single comprehensive guide
+3b65422 docs: organize and consolidate improvement documentation
+5b684c1 docs: add comprehensive Domain-Driven Design migration plan
+bb0f602 style: apply linting and formatting fixes
+366fa1f fix: make getPersonality async to properly load error messages
