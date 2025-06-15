@@ -2,6 +2,17 @@
 jest.mock('discord.js');
 jest.mock('../../../../src/logger');
 
+// Mock config before importing it
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    name: 'Tzurot',
+    prefix: '!tz',
+    mentionChar: '@',
+    isDevelopment: false
+  }
+}));
+
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../../config');
 

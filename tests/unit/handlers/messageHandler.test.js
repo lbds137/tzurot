@@ -1,5 +1,12 @@
 // First, mock all dependencies
 jest.mock('../../../src/logger');
+jest.mock('../../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    mentionChar: '@',
+    isDevelopment: false
+  }
+}));
 jest.mock('../../../src/messageTracker');
 jest.mock('../../../src/handlers/referenceHandler');
 jest.mock('../../../src/handlers/personalityHandler');

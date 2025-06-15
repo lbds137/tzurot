@@ -3,6 +3,15 @@
  * Combines tests for mention handling, deduplication, error filtering, and embed handling
  */
 
+// Mock config before importing
+jest.mock('../../config', () => ({
+  botConfig: {
+    mentionChar: '@',
+    isDevelopment: false
+  },
+  botPrefix: '!tz'
+}));
+
 // Import enhanced test helpers
 const { createMigrationHelper } = require('../utils/testEnhancements');
 const { Message } = require('discord.js');
