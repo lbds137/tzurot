@@ -25,7 +25,7 @@ const meta = {
 };
 
 // Configuration
-const API_BASE_URL = 'https://shapes.inc/api';
+const API_BASE_URL = process.env.SERVICE_API_BASE_URL || 'https://shapes.inc/api';
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
 // Lazy initialization to avoid path resolution at module load time
@@ -128,7 +128,6 @@ class BackupClient {
     try {
       const response = await nodeFetch(url, {
         headers: {
-          'Authorization': `Bearer ${userAuth}`,
           'X-App-ID': auth.APP_ID,
           'X-User-Auth': userAuth,
           'User-Agent': 'Tzurot Discord Bot Backup/1.0',
@@ -172,7 +171,13 @@ function getBackupClient() {
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, userAuth) {
-  const url = `${API_BASE_URL}/shapes/username/${personalityName}`;
+  // Try different endpoint patterns based on the API being used
+  const isShapesInc = API_BASE_URL.includes('shapes.inc');
+  const url = isShapesInc 
+    ? `${API_BASE_URL}/shapes/username/${personalityName}`
+    : `${API_BASE_URL}/v1/personalities/${personalityName}`;
+  
+  logger.info(`[Backup] Fetching profile from: ${url}`);
   return await getBackupClient().makeAuthenticatedRequest(url, userAuth);
 }
 
@@ -210,7 +215,12 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
   const stopAtMemoryId = metadata.lastMemoryId;
   
   while (true) {
-    const url = `${API_BASE_URL}/memory/${personalityId}?page=${page}`;
+    const isShapesInc = API_BASE_URL.includes('shapes.inc');
+    const url = isShapesInc
+      ? `${API_BASE_URL}/memory/${personalityId}?page=${page}`
+      : `${API_BASE_URL}/v1/personalities/${personalityName}/memories?page=${page}`;
+    
+    logger.info(`[Backup] Fetching memories from: ${url}`);
     const response = await getBackupClient().makeAuthenticatedRequest(url, userAuth);
     
     if (!response.memories || response.memories.length === 0) {
