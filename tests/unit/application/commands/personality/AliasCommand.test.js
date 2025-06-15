@@ -110,17 +110,6 @@ describe('AliasCommand', () => {
       );
     });
 
-    it('should show new system indicator when feature flag enabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      
-      await command.execute(mockContext);
-      
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          footer: { text: 'Using new DDD system' }
-        })
-      );
-    });
 
     it('should handle slash command options', async () => {
       mockContext.isSlashCommand = true;

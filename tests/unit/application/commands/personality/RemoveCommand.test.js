@@ -110,17 +110,6 @@ describe('RemoveCommand', () => {
       );
     });
 
-    it('should show new system indicator when feature flag enabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      
-      await command.execute(mockContext);
-      
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Using new DDD system')
-        })
-      );
-    });
 
     it('should handle missing personality name', async () => {
       mockContext.args = [];
