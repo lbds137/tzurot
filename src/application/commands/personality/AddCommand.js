@@ -95,11 +95,8 @@ function createAddCommand() {
           return await context.respond('Personality name must be 50 characters or less.');
         }
 
-        // Check if using new system
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.write');
-
         logger.info(
-          `[AddCommand] Creating personality "${name}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[AddCommand] Creating personality "${name}" for user ${context.getUserId()}`
         );
 
         // Create the personality
@@ -120,9 +117,6 @@ function createAddCommand() {
           let response = `✅ Successfully created personality **${name}**`;
           if (prompt) {
             response += `\nPrompt: "${prompt}"`;
-          }
-          if (useNewSystem) {
-            response += '\n*(Using new DDD system)*';
           }
 
           return await context.respond(response);

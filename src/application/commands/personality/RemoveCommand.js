@@ -62,11 +62,8 @@ function createRemoveCommand() {
           return await context.respond('Please provide a personality name to remove.');
         }
 
-        // Check if using new system
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.write');
-
         logger.info(
-          `[RemoveCommand] Removing personality "${personalityName}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[RemoveCommand] Removing personality "${personalityName}" for user ${context.getUserId()}`
         );
 
         try {
@@ -98,7 +95,7 @@ function createRemoveCommand() {
           }
 
           // Clear message tracking to allow immediate re-adding
-          if (messageTracker) {
+          if (messageTracker && typeof messageTracker.removeCompletedAddCommand === 'function') {
             messageTracker.removeCompletedAddCommand(context.getUserId(), personalityName);
             logger.info(
               `[RemoveCommand] Cleared add command tracking for ${context.getUserId()}-${personalityName}`
@@ -116,10 +113,6 @@ function createRemoveCommand() {
           // Create response message
           const displayName = personality.profile.displayName || personality.profile.name;
           let response = `✅ **${displayName}** has been removed from your collection.`;
-
-          if (useNewSystem) {
-            response += '\n*(Using new DDD system)*';
-          }
 
           return await context.respond({
             content: response,
