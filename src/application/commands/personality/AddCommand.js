@@ -113,23 +113,19 @@ function createAddCommand() {
         };
 
         try {
-          const result = await personalityService.registerPersonality(command);
+          const personality = await personalityService.registerPersonality(command);
 
-          if (result.success) {
-            logger.info(`[AddCommand] Successfully created personality "${name}"`);
+          logger.info(`[AddCommand] Successfully created personality "${name}"`);
 
-            let response = `✅ Successfully created personality **${name}**`;
-            if (prompt) {
-              response += `\nPrompt: "${prompt}"`;
-            }
-            if (useNewSystem) {
-              response += '\n*(Using new DDD system)*';
-            }
-
-            return await context.respond(response);
-          } else {
-            throw new Error(result.error || 'Failed to create personality');
+          let response = `✅ Successfully created personality **${name}**`;
+          if (prompt) {
+            response += `\nPrompt: "${prompt}"`;
           }
+          if (useNewSystem) {
+            response += '\n*(Using new DDD system)*';
+          }
+
+          return await context.respond(response);
         } catch (error) {
           // Handle specific errors
           if (error.message.includes('already exists')) {
