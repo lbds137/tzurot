@@ -60,7 +60,7 @@ class ApplicationBootstrap {
       // Step 2: Create repositories
       const personalityRepository = new FilePersonalityRepository({
         dataPath: './data',
-        filename: 'ddd-personalities.json',
+        filename: 'personalities.json',
       });
 
       const authenticationRepository = new FileAuthenticationRepository({

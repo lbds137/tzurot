@@ -46,7 +46,7 @@ class PersonalityRouter {
         ? {}
         : new FilePersonalityRepository({
             dataPath: './data',
-            filename: 'ddd-personalities.json',
+            filename: 'personalities.json',
           });
 
       const authRepository = isMocked

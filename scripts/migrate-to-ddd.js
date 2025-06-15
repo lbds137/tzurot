@@ -45,7 +45,7 @@ async function migratePersonalities() {
     
     const repository = new FilePersonalityRepository({
       dataPath: path.join(__dirname, '../data'),
-      fileName: 'ddd-personalities.json'
+      fileName: 'personalities.json'
     });
     
     await repository.initialize();
