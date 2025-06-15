@@ -25,7 +25,7 @@ const meta = {
 };
 
 // Configuration
-const API_BASE_URL = process.env.SHAPES_API_URL || 'https://shapes.inc/api';
+const API_BASE_URL = process.env.SERVICE_WEBSITE ? `${process.env.SERVICE_WEBSITE}/api` : 'https://shapes.inc/api';
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
 // Session storage - in production, this should be encrypted and stored securely
@@ -356,7 +356,7 @@ async function handleSetCookie(message, args, directSend) {
     return await directSend(
       '❌ Please provide your session cookie.\n\n' +
       '**How to get your session cookie:**\n' +
-      '1. Open shapes.inc in your browser and log in\n' +
+      '1. Open the service website in your browser and log in\n' +
       '2. Open Developer Tools (F12)\n' +
       '3. Go to Application/Storage → Cookies\n' +
       '4. Find the `appSession` cookie\n' +
@@ -437,7 +437,7 @@ async function execute(message, args) {
       return await directSend(
         `Usage: \`${botPrefix} backup <personality-name>\` or \`${botPrefix} backup --all\`\n\n` +
         `Examples:\n` +
-        `• \`${botPrefix} backup lilith-tzel-shani\` - Backup a single personality\n` +
+        `• \`${botPrefix} backup <personality-name>\` - Backup a single personality\n` +
         `• \`${botPrefix} backup --all\` - Backup all owner personalities\n` +
         `• \`${botPrefix} backup --set-cookie <cookie>\` - Set browser session cookie`
       );
