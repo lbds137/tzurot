@@ -25,7 +25,7 @@ const meta = {
 };
 
 // Configuration
-const API_BASE_URL = process.env.SERVICE_WEBSITE ? `${process.env.SERVICE_WEBSITE}/api` : 'https://shapes.inc/api';
+const getApiBaseUrl = () => process.env.SERVICE_WEBSITE ? `${process.env.SERVICE_WEBSITE}/api` : null;
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
 // Session storage - in production, this should be encrypted and stored securely
@@ -185,7 +185,7 @@ function getBackupClient() {
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, authData) {
-  const url = `${API_BASE_URL}/shapes/username/${personalityName}`;
+  const url = `${getApiBaseUrl()}/shapes/username/${personalityName}`;
   logger.info(`[Backup] Fetching profile from: ${url}`);
   return await getBackupClient().makeAuthenticatedRequest(url, authData);
 }
@@ -224,26 +224,36 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, authData, 
   const stopAtMemoryId = metadata.lastMemoryId;
   
   while (true) {
-    const url = `${API_BASE_URL}/memory/${personalityId}?page=${page}`;
+    const url = `${getApiBaseUrl()}/memory/${personalityId}?page=${page}`;
     logger.info(`[Backup] Fetching memories from: ${url}`);
     const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
     
-    if (!response.memories || response.memories.length === 0) {
+    // Log memory API response structure for debugging (can be removed later)
+    logger.debug(`[Backup] Memory response has ${Object.keys(response || {}).length} keys: ${Object.keys(response || {}).join(', ')}`);
+    
+    // The API returns an object with an 'items' array containing memories
+    const memories = response.items || [];
+    
+    if (!memories || memories.length === 0) {
+      logger.info(`[Backup] No memories found in response for ${personalityName}`);
       break;
     }
     
     const { newMemories, foundStopMemory } = await processMemoryPage(
-      response.memories,
+      memories,
       stopAtMemoryId,
       seenMemoryIds
     );
     
     // Save this page if it has new memories
     if (newMemories.length > 0) {
-      await saveMemoryPage(personalityName, {
+      // Preserve the original response structure with filtered items
+      const pageData = {
         ...response,
-        memories: newMemories,
-      }, page);
+        items: newMemories
+      };
+      
+      await saveMemoryPage(personalityName, pageData, page);
       newMemoryCount += newMemories.length;
     }
     
@@ -253,8 +263,9 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, authData, 
       break;
     }
     
-    // Check if there are more pages
-    if (!response.pagination || page >= response.pagination.total_pages) {
+    // Check if there are more pages (handle different pagination formats)
+    const pagination = response.pagination || response.meta?.pagination;
+    if (!pagination || page >= (pagination.total_pages || pagination.totalPages || 1)) {
       break;
     }
     
@@ -399,6 +410,13 @@ async function execute(message, args) {
   const directSend = validator.createDirectSend(message);
   
   try {
+    // Check if API URL is configured
+    if (!getApiBaseUrl()) {
+      return await directSend(
+        '❌ Backup API URL not configured. Please set SERVICE_WEBSITE in environment.'
+      );
+    }
+    
     await ensureBackupDir();
     
     // Check for --set-cookie flag
@@ -407,7 +425,7 @@ async function execute(message, args) {
     }
     
     // Get authentication data - prefer session cookie, fallback to token
-    let authData = {};
+    const authData = {};
     
     // Check for stored session
     const userSession = userSessions.get(message.author.id);
@@ -451,6 +469,9 @@ async function execute(message, args) {
       await backupPersonality(personalityName, authData, directSend);
     }
     
+    // Return true to indicate successful command execution
+    return true;
+    
   } catch (error) {
     logger.error(`[Backup] Command error: ${error.message}`, error);
     return await directSend(`❌ An error occurred during backup: ${error.message}`);
@@ -461,6 +482,19 @@ module.exports = {
   meta,
   execute,
   BackupClient, // Exported for testing
+  // Export internal functions for testing
+  loadBackupMetadata,
+  saveBackupMetadata,
+  savePersonalityProfile,
+  saveMemoryPage,
+  fetchPersonalityProfile,
+  fetchMemoriesSmartSync,
+  processMemoryPage,
+  backupPersonality,
+  handleBulkBackup,
+  handleSetCookie,
+  userSessions, // Export for testing
+  getDelayFn, // Export for testing
   // Allow injection of delay function for testing
   _setDelayFunction: (fn) => {
     if (backupClient) {
