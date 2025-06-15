@@ -9,9 +9,9 @@ const path = require('path');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
 const { botPrefix } = require('../../../config');
-const { USER_CONFIG, TIME } = require('../../constants');
+const { USER_CONFIG } = require('../../constants');
 const auth = require('../../auth');
-const axios = require('axios');
+const nodeFetch = require('node-fetch');
 
 /**
  * Command metadata
@@ -49,7 +49,7 @@ async function loadBackupMetadata(personalityName) {
   try {
     const data = await fs.readFile(metadataPath, 'utf8');
     return JSON.parse(data);
-  } catch (error) {
+  } catch (_error) { // eslint-disable-line no-unused-vars
     // No existing metadata
     return {
       lastBackup: null,
@@ -95,35 +95,78 @@ async function saveMemoryPage(personalityName, memories, pageNum) {
 }
 
 /**
- * Make authenticated API request
+ * Backup client for making API requests
  */
-async function makeAuthenticatedRequest(url, userAuth) {
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'X-User-Auth': userAuth,
-        'User-Agent': 'Tzurot Discord Bot Backup/1.0',
-      },
-      timeout: 30000, // 30 second timeout
-    });
-    return response.data;
-  } catch (error) {
-    if (error.response) {
-      throw new Error(`API error ${error.response.status}: ${error.response.statusText}`);
-    } else if (error.request) {
-      throw new Error('No response from API');
-    } else {
+class BackupClient {
+  constructor(options = {}) {
+    this.scheduler = options.scheduler || setTimeout;
+    this.clearScheduler = options.clearScheduler || clearTimeout;
+    this.timeout = options.timeout || 30000;
+  }
+
+  async makeAuthenticatedRequest(url, userAuth) {
+    const controller = new AbortController();
+    const timeoutId = this.scheduler(() => controller.abort(), this.timeout);
+    
+    try {
+      const response = await nodeFetch(url, {
+        headers: {
+          'X-User-Auth': userAuth,
+          'User-Agent': 'Tzurot Discord Bot Backup/1.0',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out');
+      }
       throw error;
+    } finally {
+      this.clearScheduler(timeoutId);
     }
   }
 }
+
+// Create instance for use in module
+const backupClient = new BackupClient();
 
 /**
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, userAuth) {
   const url = `${API_BASE_URL}/shapes/username/${personalityName}`;
-  return await makeAuthenticatedRequest(url, userAuth);
+  return await backupClient.makeAuthenticatedRequest(url, userAuth);
+}
+
+/**
+ * Process a single page of memories
+ */
+async function processMemoryPage(memories, stopAtMemoryId, seenMemoryIds) {
+  const newMemories = [];
+  let foundStopMemory = false;
+  
+  for (const memory of memories) {
+    if (memory.id === stopAtMemoryId) {
+      foundStopMemory = true;
+      break;
+    }
+    
+    if (!seenMemoryIds.has(memory.id)) {
+      seenMemoryIds.add(memory.id);
+      newMemories.push(memory);
+    }
+  }
+  
+  return { newMemories, foundStopMemory };
 }
 
 /**
@@ -133,46 +176,31 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
   logger.info(`[Backup] Fetching memories for ${personalityName}...`);
   
   let page = 1;
-  let hasNewMemories = false;
   let newMemoryCount = 0;
   const seenMemoryIds = new Set();
-  
-  // If we have a lastMemoryId, we'll stop when we see it
   const stopAtMemoryId = metadata.lastMemoryId;
   
   while (true) {
     const url = `${API_BASE_URL}/memory/${personalityId}?page=${page}`;
-    const response = await makeAuthenticatedRequest(url, userAuth);
+    const response = await backupClient.makeAuthenticatedRequest(url, userAuth);
     
     if (!response.memories || response.memories.length === 0) {
       break;
     }
     
-    // Check if we've seen the stop memory
-    let foundStopMemory = false;
-    const newMemories = [];
-    
-    for (const memory of response.memories) {
-      if (memory.id === stopAtMemoryId) {
-        foundStopMemory = true;
-        break;
-      }
-      
-      // Track new memories
-      if (!seenMemoryIds.has(memory.id)) {
-        seenMemoryIds.add(memory.id);
-        newMemories.push(memory);
-        newMemoryCount++;
-      }
-    }
+    const { newMemories, foundStopMemory } = await processMemoryPage(
+      response.memories,
+      stopAtMemoryId,
+      seenMemoryIds
+    );
     
     // Save this page if it has new memories
     if (newMemories.length > 0) {
-      hasNewMemories = true;
       await saveMemoryPage(personalityName, {
         ...response,
         memories: newMemories,
       }, page);
+      newMemoryCount += newMemories.length;
     }
     
     // If we found our stop point, we're done
@@ -192,14 +220,13 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
   
   // Update metadata with the most recent memory ID
   if (newMemoryCount > 0 && seenMemoryIds.size > 0) {
-    // The first memory we saw is the most recent (reverse chronological)
     const mostRecentMemoryId = Array.from(seenMemoryIds)[0];
     metadata.lastMemoryId = mostRecentMemoryId;
     metadata.totalMemories += newMemoryCount;
   }
   
   logger.info(`[Backup] Synced ${newMemoryCount} new memories for ${personalityName}`);
-  return { hasNewMemories, newMemoryCount };
+  return { hasNewMemories: newMemoryCount > 0, newMemoryCount };
 }
 
 /**
@@ -247,14 +274,43 @@ async function backupPersonality(personalityName, userAuth, directSend) {
 }
 
 /**
+ * Handle bulk backup of owner personalities
+ */
+async function handleBulkBackup(userAuth, directSend) {
+  const ownerPersonalities = USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',')
+    .map(p => p.trim())
+    .filter(p => p);
+  
+  if (ownerPersonalities.length === 0) {
+    return await directSend('❌ No owner personalities configured.');
+  }
+  
+  await directSend(
+    `📦 Starting bulk backup of ${ownerPersonalities.length} personalities...\n` +
+    `This may take a few minutes.`
+  );
+  
+  let successCount = 0;
+  for (const personalityName of ownerPersonalities) {
+    await backupPersonality(personalityName, userAuth, directSend);
+    successCount++;
+    
+    // Delay between personalities
+    if (successCount < ownerPersonalities.length) {
+      await delay(DELAY_BETWEEN_REQUESTS * 2);
+    }
+  }
+  
+  await directSend(`\n✅ Bulk backup complete! Backed up ${successCount} personalities.`);
+}
+
+/**
  * Execute the backup command
  */
 async function execute(message, args) {
-  // Create direct send function
   const directSend = validator.createDirectSend(message);
   
   try {
-    // Ensure backup directory exists
     await ensureBackupDir();
     
     // Get user auth
@@ -281,33 +337,7 @@ async function execute(message, args) {
     }
     
     if (args[0] === '--all') {
-      // Backup all owner personalities
-      const ownerPersonalities = USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',')
-        .map(p => p.trim())
-        .filter(p => p);
-      
-      if (ownerPersonalities.length === 0) {
-        return await directSend('❌ No owner personalities configured.');
-      }
-      
-      await directSend(
-        `📦 Starting bulk backup of ${ownerPersonalities.length} personalities...\n` +
-        `This may take a few minutes.`
-      );
-      
-      let successCount = 0;
-      for (const personalityName of ownerPersonalities) {
-        await backupPersonality(personalityName, userAuth, directSend);
-        successCount++;
-        
-        // Delay between personalities
-        if (successCount < ownerPersonalities.length) {
-          await delay(DELAY_BETWEEN_REQUESTS * 2);
-        }
-      }
-      
-      await directSend(`\n✅ Bulk backup complete! Backed up ${successCount} personalities.`);
-      
+      await handleBulkBackup(userAuth, directSend);
     } else {
       // Backup single personality
       const personalityName = args[0].toLowerCase();
@@ -323,4 +353,5 @@ async function execute(message, args) {
 module.exports = {
   meta,
   execute,
+  BackupClient, // Exported for testing
 };
