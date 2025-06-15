@@ -25,27 +25,43 @@ const meta = {
 };
 
 // Configuration
-const BACKUP_DIR = path.join(__dirname, '..', '..', '..', 'data', 'personalities');
 const API_BASE_URL = 'https://shapes.inc/api';
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
+// Lazy initialization to avoid path resolution at module load time
+let BACKUP_DIR = null;
+function getBackupDir() {
+  if (!BACKUP_DIR) {
+    BACKUP_DIR = path.join(__dirname, '..', '..', '..', 'data', 'personalities');
+  }
+  return BACKUP_DIR;
+}
+
 /**
- * Helper to delay between requests
+ * Helper to delay between requests - injectable for testing
  */
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+function getDelayFn() {
+  // Return the delay function - can be overridden for testing
+  if (backupClient && backupClient.delayFn) {
+    return backupClient.delayFn;
+  }
+  // Default implementation using injectable scheduler
+  const scheduler = (backupClient && backupClient.scheduler) || setTimeout;
+  return (ms) => new Promise(resolve => scheduler(resolve, ms));
+}
 
 /**
  * Ensure backup directory exists
  */
 async function ensureBackupDir() {
-  await fs.mkdir(BACKUP_DIR, { recursive: true });
+  await fs.mkdir(getBackupDir(), { recursive: true });
 }
 
 /**
  * Load existing backup metadata to track what we've already saved
  */
 async function loadBackupMetadata(personalityName) {
-  const metadataPath = path.join(BACKUP_DIR, personalityName, '.backup-metadata.json');
+  const metadataPath = path.join(getBackupDir(), personalityName, '.backup-metadata.json');
   try {
     const data = await fs.readFile(metadataPath, 'utf8');
     return JSON.parse(data);
@@ -63,7 +79,7 @@ async function loadBackupMetadata(personalityName) {
  * Save backup metadata
  */
 async function saveBackupMetadata(personalityName, metadata) {
-  const personalityDir = path.join(BACKUP_DIR, personalityName);
+  const personalityDir = path.join(getBackupDir(), personalityName);
   await fs.mkdir(personalityDir, { recursive: true });
   
   const metadataPath = path.join(personalityDir, '.backup-metadata.json');
@@ -74,7 +90,7 @@ async function saveBackupMetadata(personalityName, metadata) {
  * Save personality profile data
  */
 async function savePersonalityProfile(personalityName, profileData) {
-  const personalityDir = path.join(BACKUP_DIR, personalityName);
+  const personalityDir = path.join(getBackupDir(), personalityName);
   await fs.mkdir(personalityDir, { recursive: true });
   
   const profilePath = path.join(personalityDir, `${personalityName}.json`);
@@ -86,7 +102,7 @@ async function savePersonalityProfile(personalityName, profileData) {
  * Save memory data
  */
 async function saveMemoryPage(personalityName, memories, pageNum) {
-  const memoryDir = path.join(BACKUP_DIR, personalityName, 'memory');
+  const memoryDir = path.join(getBackupDir(), personalityName, 'memory');
   await fs.mkdir(memoryDir, { recursive: true });
   
   const memoryPath = path.join(memoryDir, `${personalityName}_memory_${pageNum}.json`);
@@ -102,6 +118,7 @@ class BackupClient {
     this.scheduler = options.scheduler || setTimeout;
     this.clearScheduler = options.clearScheduler || clearTimeout;
     this.timeout = options.timeout || 30000;
+    this.delayFn = options.delayFn || ((ms) => new Promise(resolve => this.scheduler(resolve, ms)));
   }
 
   async makeAuthenticatedRequest(url, userAuth) {
@@ -136,15 +153,25 @@ class BackupClient {
   }
 }
 
-// Create instance for use in module
-const backupClient = new BackupClient();
+// Lazy initialization for BackupClient to avoid module-level side effects
+let backupClient = null;
+
+/**
+ * Get or create the BackupClient instance
+ */
+function getBackupClient() {
+  if (!backupClient) {
+    backupClient = new BackupClient();
+  }
+  return backupClient;
+}
 
 /**
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, userAuth) {
   const url = `${API_BASE_URL}/shapes/username/${personalityName}`;
-  return await backupClient.makeAuthenticatedRequest(url, userAuth);
+  return await getBackupClient().makeAuthenticatedRequest(url, userAuth);
 }
 
 /**
@@ -182,7 +209,7 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
   
   while (true) {
     const url = `${API_BASE_URL}/memory/${personalityId}?page=${page}`;
-    const response = await backupClient.makeAuthenticatedRequest(url, userAuth);
+    const response = await getBackupClient().makeAuthenticatedRequest(url, userAuth);
     
     if (!response.memories || response.memories.length === 0) {
       break;
@@ -215,7 +242,7 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, userAuth, 
     }
     
     page++;
-    await delay(DELAY_BETWEEN_REQUESTS);
+    await getDelayFn()(DELAY_BETWEEN_REQUESTS);
   }
   
   // Update metadata with the most recent memory ID
@@ -245,7 +272,7 @@ async function backupPersonality(personalityName, userAuth, directSend) {
     
     // Fetch memories if personality has an ID
     if (profile.id) {
-      await delay(DELAY_BETWEEN_REQUESTS);
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
       const { newMemoryCount } = await fetchMemoriesSmartSync(
         profile.id,
         personalityName,
@@ -297,7 +324,7 @@ async function handleBulkBackup(userAuth, directSend) {
     
     // Delay between personalities
     if (successCount < ownerPersonalities.length) {
-      await delay(DELAY_BETWEEN_REQUESTS * 2);
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS * 2);
     }
   }
   
@@ -354,4 +381,19 @@ module.exports = {
   meta,
   execute,
   BackupClient, // Exported for testing
+  // Allow injection of delay function for testing
+  _setDelayFunction: (fn) => {
+    if (backupClient) {
+      backupClient.delayFn = fn;
+    }
+  },
+  _resetDelayFunction: () => {
+    if (backupClient) {
+      backupClient.delayFn = (ms) => new Promise(resolve => backupClient.scheduler(resolve, ms));
+    }
+  },
+  // Reset backup client for testing
+  _resetBackupClient: () => {
+    backupClient = null;
+  },
 };

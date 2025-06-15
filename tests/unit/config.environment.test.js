@@ -5,17 +5,43 @@
  * and production configurations based on NODE_ENV.
  */
 
+// Mock dotenv to prevent loading .env file during tests
+jest.mock('dotenv', () => ({
+  config: jest.fn()
+}));
+
 describe('Environment Configuration', () => {
   let originalEnv;
+  let originalBotName;
+  let originalBotPrefix;
+  let originalBotMentionChar;
   
   beforeAll(() => {
-    // Save original NODE_ENV
+    // Save original environment variables
     originalEnv = process.env.NODE_ENV;
+    originalBotName = process.env.BOT_NAME;
+    originalBotPrefix = process.env.BOT_PREFIX;
+    originalBotMentionChar = process.env.BOT_MENTION_CHAR;
   });
   
   afterAll(() => {
-    // Restore original NODE_ENV
+    // Restore original environment variables
     process.env.NODE_ENV = originalEnv;
+    if (originalBotName !== undefined) {
+      process.env.BOT_NAME = originalBotName;
+    } else {
+      delete process.env.BOT_NAME;
+    }
+    if (originalBotPrefix !== undefined) {
+      process.env.BOT_PREFIX = originalBotPrefix;
+    } else {
+      delete process.env.BOT_PREFIX;
+    }
+    if (originalBotMentionChar !== undefined) {
+      process.env.BOT_MENTION_CHAR = originalBotMentionChar;
+    } else {
+      delete process.env.BOT_MENTION_CHAR;
+    }
   });
   
   beforeEach(() => {
@@ -23,6 +49,10 @@ describe('Environment Configuration', () => {
     delete require.cache[require.resolve('../../config')];
     // Also clear dotenv cache
     delete require.cache[require.resolve('dotenv')];
+    // Clear BOT_NAME to test default behavior
+    delete process.env.BOT_NAME;
+    delete process.env.BOT_PREFIX;
+    delete process.env.BOT_MENTION_CHAR;
   });
   
   it('should load correct config for current environment', () => {
