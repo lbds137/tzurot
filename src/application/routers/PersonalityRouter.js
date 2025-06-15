@@ -122,51 +122,8 @@ class PersonalityRouter {
    * @returns {Object} Registration result
    */
   async registerPersonality(name, ownerId, options = {}) {
-    const useNewSystem = this.featureFlags.isEnabled('ddd.personality.write');
-    const useDualWrite = this.featureFlags.isEnabled('ddd.personality.dual-write');
-    const runComparison = this.featureFlags.isEnabled('features.comparison-testing');
-
-    if (useDualWrite) {
-      // Write to both systems
-      this.routingStats.dualWrites++;
-
-      // Write to legacy first (it's the source of truth during migration)
-      const legacyResult = await this._legacyRegisterPersonality(name, ownerId, options);
-
-      // Then write to new system
-      try {
-        await this._newRegisterPersonality(name, ownerId, options);
-      } catch (error) {
-        this.logger.error('[PersonalityRouter] Dual-write to new system failed:', error);
-        // Don't fail the operation if new system fails during migration
-      }
-
-      return legacyResult;
-    }
-
-    if (runComparison) {
-      this.routingStats.comparisonTests++;
-
-      const result = await this.comparisonTester.compare(
-        'registerPersonality',
-        () => this._legacyRegisterPersonality(name, ownerId, options),
-        () => this._newRegisterPersonality(name, ownerId, options),
-        {
-          ignoreFields: ['_internalId', 'createdAt'],
-          compareTimestamps: false,
-        }
-      );
-
-      return useNewSystem ? result.newResult : result.legacyResult;
-    }
-
-    if (useNewSystem) {
-      this.routingStats.newWrites++;
-      return this._newRegisterPersonality(name, ownerId, options);
-    } else {
-      this.routingStats.legacyWrites++;
-      return this._legacyRegisterPersonality(name, ownerId, options);
-    }
+    this.routingStats.newWrites++;
+    return this._newRegisterPersonality(name, ownerId, options);
   }
 
   /**
@@ -176,32 +133,8 @@ class PersonalityRouter {
    * @returns {Object} Removal result
    */
   async removePersonality(name, userId) {
-    const useNewSystem = this.featureFlags.isEnabled('ddd.personality.write');
-    const useDualWrite = this.featureFlags.isEnabled('ddd.personality.dual-write');
-
-    if (useDualWrite) {
-      this.routingStats.dualWrites++;
-
-      // Remove from legacy first
-      const legacyResult = await this._legacyRemovePersonality(name, userId);
-
-      // Then remove from new system
-      try {
-        await this._newRemovePersonality(name, userId);
-      } catch (error) {
-        this.logger.error('[PersonalityRouter] Dual-write removal from new system failed:', error);
-      }
-
-      return legacyResult;
-    }
-
-    if (useNewSystem) {
-      this.routingStats.newWrites++;
-      return this._newRemovePersonality(name, userId);
-    } else {
-      this.routingStats.legacyWrites++;
-      return this._legacyRemovePersonality(name, userId);
-    }
+    this.routingStats.newWrites++;
+    return this._newRemovePersonality(name, userId);
   }
 
   /**
@@ -212,33 +145,8 @@ class PersonalityRouter {
    * @returns {Object} Result
    */
   async addAlias(personalityName, alias, userId) {
-    const useNewSystem = this.featureFlags.isEnabled('ddd.personality.write');
-    const useDualWrite = this.featureFlags.isEnabled('ddd.personality.dual-write');
-
-    if (useDualWrite) {
-      this.routingStats.dualWrites++;
-
-      const legacyResult = await this._legacyAddAlias(personalityName, alias, userId);
-
-      try {
-        await this._newAddAlias(personalityName, alias, userId);
-      } catch (error) {
-        this.logger.error(
-          '[PersonalityRouter] Dual-write alias addition to new system failed:',
-          error
-        );
-      }
-
-      return legacyResult;
-    }
-
-    if (useNewSystem) {
-      this.routingStats.newWrites++;
-      return this._newAddAlias(personalityName, alias, userId);
-    } else {
-      this.routingStats.legacyWrites++;
-      return this._legacyAddAlias(personalityName, alias, userId);
-    }
+    this.routingStats.newWrites++;
+    return this._newAddAlias(personalityName, alias, userId);
   }
 
   /**
