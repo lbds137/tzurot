@@ -24,6 +24,9 @@ const profileInfoFetcher = require('../../profileInfoFetcher');
 const { messageTracker } = require('../../messageTracker');
 const { getInstance: getConversationManager } = require('../../core/conversation');
 
+// Import legacy PersonalityManager for seeding compatibility
+const PersonalityManager = require('../../core/personality/PersonalityManager');
+
 /**
  * ApplicationBootstrap
  *
@@ -226,7 +229,6 @@ class ApplicationBootstrap {
       }
 
       // Use the legacy PersonalityManager for seeding to ensure compatibility with commands
-      const { PersonalityManager } = require('../../core/personality');
       const legacyManager = PersonalityManager.getInstance();
 
       // Initialize legacy manager if not already done
