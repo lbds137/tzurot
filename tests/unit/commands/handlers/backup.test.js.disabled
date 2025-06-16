@@ -92,6 +92,7 @@ describe('Backup Command', () => {
     
     // Setup environment variables
     process.env.SERVICE_WEBSITE = 'https://example.com';
+    process.env.PROFILE_INFO_PRIVATE_PATH = 'personalities/username';
     process.env.BOT_OWNER_ID = 'owner-123';
   });
 
@@ -251,7 +252,7 @@ describe('Backup Command', () => {
         
         expect(metadata).toEqual({
           lastBackup: null,
-          lastMemoryId: null,
+          lastMemoryTimestamp: null,
           totalMemories: 0
         });
       });
@@ -302,24 +303,21 @@ describe('Backup Command', () => {
       });
     });
     
-    describe('saveMemoryPage', () => {
-      it('should save memory data to numbered file', async () => {
-        const memories = {
-          memories: [
-            { id: 'mem-1', content: 'Memory 1' },
-            { id: 'mem-2', content: 'Memory 2' }
-          ],
-          pagination: { page: 1, total_pages: 5 }
-        };
+    describe('saveMemories', () => {
+      it('should save all memories to a single file', async () => {
+        const memories = [
+          { id: 'mem-1', content: 'Memory 1', timestamp: '2024-01-01' },
+          { id: 'mem-2', content: 'Memory 2', timestamp: '2024-01-02' }
+        ];
         
-        await backupCommand.saveMemoryPage('test-personality', memories, 1);
+        await backupCommand.saveMemories('test-personality', memories);
         
         expect(fs.mkdir).toHaveBeenCalledWith(
-          expect.stringContaining('test-personality/memory'),
+          expect.stringContaining('test-personality'),
           { recursive: true }
         );
         expect(fs.writeFile).toHaveBeenCalledWith(
-          expect.stringContaining('test-personality_memory_1.json'),
+          expect.stringContaining('test-personality_memories.json'),
           JSON.stringify(memories, null, 2)
         );
       });
@@ -348,20 +346,26 @@ describe('Backup Command', () => {
         );
         
         expect(nodeFetch).toHaveBeenCalledWith(
-          'https://example.com/api/shapes/username/test-personality',
+          'https://example.com/api/personalities/username/test-personality',
           expect.any(Object)
         );
         expect(profile).toEqual(mockProfile);
       });
     });
     
-    describe('fetchMemoriesSmartSync', () => {
-      it('should fetch new memories since last sync', async () => {
+    describe('syncMemories', () => {
+      it('should sync new memories since last sync', async () => {
+        // Mock existing memories
+        fs.readFile.mockResolvedValueOnce(JSON.stringify([
+          { id: 'mem-old', content: 'Old memory', timestamp: '2024-01-01' }
+        ]));
+        
+        // Mock API response with new memories
         const mockMemoryResponse = {
-          memories: [
-            { id: 'mem-new-1', content: 'New memory 1' },
-            { id: 'mem-new-2', content: 'New memory 2' },
-            { id: 'mem-old', content: 'Old memory' } // This is the stop point
+          items: [
+            { id: 'mem-new-2', content: 'New memory 2', timestamp: '2024-01-03' },
+            { id: 'mem-new-1', content: 'New memory 1', timestamp: '2024-01-02' },
+            { id: 'mem-old', content: 'Old memory', timestamp: '2024-01-01' }
           ],
           pagination: { page: 1, total_pages: 1 }
         };
@@ -376,11 +380,11 @@ describe('Backup Command', () => {
         fs.writeFile.mockResolvedValue(undefined);
         
         const metadata = {
-          lastMemoryId: 'mem-old', // Stop when we reach this
-          totalMemories: 10
+          lastMemoryTimestamp: '2024-01-01',
+          totalMemories: 1
         };
         
-        const result = await backupCommand.fetchMemoriesSmartSync(
+        const result = await backupCommand.syncMemories(
           'pers-123',
           'test-personality',
           { token: 'test-token' },
@@ -389,7 +393,13 @@ describe('Backup Command', () => {
         
         expect(result.newMemoryCount).toBe(2); // Only the new memories
         expect(result.hasNewMemories).toBe(true);
-        expect(metadata.totalMemories).toBe(12); // 10 + 2 new
+        expect(metadata.totalMemories).toBe(3); // 1 + 2 new
+        
+        // Check that memories were saved in chronological order
+        const savedMemories = JSON.parse(fs.writeFile.mock.calls[0][1]);
+        expect(savedMemories[0].id).toBe('mem-old');
+        expect(savedMemories[1].id).toBe('mem-new-1');
+        expect(savedMemories[2].id).toBe('mem-new-2');
       });
       
       it('should handle multiple pages of memories', async () => {
