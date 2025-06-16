@@ -105,6 +105,40 @@ describe('Avatar Storage - Comprehensive Tests', () => {
       const metadata = avatarStorage.getMetadata('test-bot');
       expect(metadata).toEqual(mockMetadata['test-bot']);
     });
+    
+    it('should handle empty metadata file gracefully', async () => {
+      // Mock reading an empty file
+      fs.promises.readFile.mockResolvedValueOnce('');
+      
+      await avatarStorage.initialize();
+      
+      // Should have written an empty object to the file
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('metadata.json'),
+        JSON.stringify({}, null, 2)
+      );
+      
+      // Should work normally after initialization
+      const metadata = avatarStorage.getMetadata('non-existent');
+      expect(metadata).toBeNull();
+    });
+    
+    it('should handle invalid JSON in metadata file', async () => {
+      // Mock reading invalid JSON
+      fs.promises.readFile.mockResolvedValueOnce('{ invalid json }');
+      
+      await avatarStorage.initialize();
+      
+      // Should have written an empty object to the file
+      expect(fs.promises.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('metadata.json'),
+        JSON.stringify({}, null, 2)
+      );
+      
+      // Should work normally after initialization
+      const metadata = avatarStorage.getMetadata('non-existent');
+      expect(metadata).toBeNull();
+    });
   });
   
   describe('Avatar Download', () => {
