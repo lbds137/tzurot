@@ -98,12 +98,30 @@ class PersonalityApplicationService {
 
       let personality;
       if (mode === 'external') {
-        // External mode - will fetch profile from API on demand
-        const profile = new PersonalityProfile({
-          mode: 'external',
-          name: name,
-          displayName: name, // Initial display name, will be updated from API
-        });
+        // External mode - fetch profile from API immediately
+        let profile;
+        
+        // Try to fetch profile data from API
+        if (this.profileFetcher) {
+          try {
+            const apiData = await this.profileFetcher.fetchProfileInfo(name);
+            if (apiData) {
+              profile = PersonalityProfile.fromApiResponse(apiData);
+              logger.info(`[PersonalityApplicationService] Fetched profile data from API for: ${name}`);
+            }
+          } catch (error) {
+            logger.warn(`[PersonalityApplicationService] Failed to fetch profile from API: ${error.message}`);
+          }
+        }
+        
+        // Fallback to basic external profile if fetch failed
+        if (!profile) {
+          profile = new PersonalityProfile({
+            mode: 'external',
+            name: name,
+            displayName: name,
+          });
+        }
 
         // For external mode, we don't need AI model
         const model = AIModel.createDefault();

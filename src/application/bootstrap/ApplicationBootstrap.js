@@ -253,14 +253,14 @@ class ApplicationBootstrap {
         try {
           // Extract display name from personality name
           const parts = personalityName.split('-');
-          const displayName = parts.length > 0 ? parts[0].toUpperCase() : personalityName;
+          const displayName = parts.length > 0 ? parts[0] : personalityName;
 
+          // Register as external personality (without prompt/modelPath)
+          // This will fetch actual data from the API
           await personalityApplicationService.registerPersonality({
             name: personalityName,
             ownerId: ownerId,
-            prompt: `You are ${displayName}`,
-            modelPath: `/profiles/${personalityName}`,
-            maxWordCount: 1000,
+            mode: 'external', // Explicitly set external mode
             aliases: [displayName.toLowerCase()],
           });
 
