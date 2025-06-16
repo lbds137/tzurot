@@ -95,14 +95,30 @@ class Personality extends AggregateRoot {
       throw new Error('Cannot update removed personality');
     }
 
-    // Create updated profile
+    // Only allow updates for local mode personalities
+    if (!this.profile || this.profile.mode !== 'local') {
+      throw new Error('Cannot update profile for external personalities');
+    }
+
+    // Create updated profile maintaining the mode
     const currentProfile = this.profile || {};
-    const updatedProfile = new PersonalityProfile(
-      currentProfile.name,
-      updates.prompt !== undefined ? updates.prompt : currentProfile.prompt,
-      updates.modelPath !== undefined ? updates.modelPath : currentProfile.modelPath,
-      updates.maxWordCount !== undefined ? updates.maxWordCount : currentProfile.maxWordCount
-    );
+    const updatedData = {
+      mode: 'local',
+      name: currentProfile.name,
+      user_prompt: updates.prompt !== undefined ? updates.prompt : currentProfile.prompt,
+      engine_model: updates.modelPath !== undefined ? updates.modelPath : currentProfile.modelPath,
+      maxWordCount:
+        updates.maxWordCount !== undefined ? updates.maxWordCount : currentProfile.maxWordCount,
+      // Preserve other local mode fields
+      jailbreak: currentProfile.jailbreak,
+      temperature: currentProfile.temperature,
+      avatar: currentProfile.avatarUrl,
+      voice_id: currentProfile.voiceConfig?.id,
+      voice_model: currentProfile.voiceConfig?.model,
+      voice_stability: currentProfile.voiceConfig?.stability,
+    };
+
+    const updatedProfile = new PersonalityProfile(updatedData);
 
     // Update model if provided
     const updatedModel = updates.model || this.model;

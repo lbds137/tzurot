@@ -39,7 +39,7 @@ class ApplicationBootstrap {
     this.eventBus = null;
     this.eventHandlerRegistry = null;
     this.applicationServices = {};
-    
+
     // Injectable delay function for testability
     this.delay =
       options.delay ||
@@ -201,77 +201,84 @@ class ApplicationBootstrap {
       // Get owner configuration from environment
       const ownerId = process.env.BOT_OWNER_ID;
       const personalitiesStr = process.env.BOT_OWNER_PERSONALITIES;
-      
+
       if (!ownerId) {
-        logger.info('[ApplicationBootstrap] No BOT_OWNER_ID configured, skipping personality seeding');
+        logger.info(
+          '[ApplicationBootstrap] No BOT_OWNER_ID configured, skipping personality seeding'
+        );
         return;
       }
-      
+
       if (!personalitiesStr) {
-        logger.info('[ApplicationBootstrap] No BOT_OWNER_PERSONALITIES configured, skipping personality seeding');
+        logger.info(
+          '[ApplicationBootstrap] No BOT_OWNER_PERSONALITIES configured, skipping personality seeding'
+        );
         return;
       }
-      
+
       const personalityNames = personalitiesStr.split(',').map(p => p.trim());
       logger.info(`[ApplicationBootstrap] Checking ${personalityNames.length} owner personalities`);
-      
+
       const { personalityApplicationService } = this.applicationServices;
-      
+
       // Check existing personalities for the owner
-      const existingPersonalities = await personalityApplicationService.listPersonalitiesByOwner(ownerId);
+      const existingPersonalities =
+        await personalityApplicationService.listPersonalitiesByOwner(ownerId);
       const existingNames = existingPersonalities.map(p => {
         // Handle domain objects that might not have direct property access
         const data = p.toJSON ? p.toJSON() : p;
         return (data.profile?.name || data.name || '').toLowerCase();
       });
-      
+
       const personalitiesToAdd = personalityNames.filter(
         name => !existingNames.includes(name.toLowerCase())
       );
-      
+
       if (personalitiesToAdd.length === 0) {
-        logger.info(`[ApplicationBootstrap] Owner has all ${personalityNames.length} expected personalities`);
+        logger.info(
+          `[ApplicationBootstrap] Owner has all ${personalityNames.length} expected personalities`
+        );
         return;
       }
-      
+
       logger.info(
         `[ApplicationBootstrap] Owner has ${existingPersonalities.length} personalities, missing ${personalitiesToAdd.length}`
       );
       logger.info('[ApplicationBootstrap] Starting personality seeding for missing entries...');
-      
+
       // Add missing personalities
       let successCount = 0;
-      
+
       for (const personalityName of personalitiesToAdd) {
         try {
           // Extract display name from personality name
           const parts = personalityName.split('-');
           const displayName = parts.length > 0 ? parts[0].toUpperCase() : personalityName;
-          
+
           await personalityApplicationService.registerPersonality({
             name: personalityName,
             ownerId: ownerId,
             prompt: `You are ${displayName}`,
             modelPath: `/profiles/${personalityName}`,
             maxWordCount: 1000,
-            aliases: [displayName.toLowerCase()]
+            aliases: [displayName.toLowerCase()],
           });
-          
+
           logger.info(`[ApplicationBootstrap] Successfully seeded: ${personalityName}`);
           successCount++;
-          
+
           // Small delay to avoid rate limiting
           await this.delay(100);
-          
         } catch (error) {
-          logger.error(`[ApplicationBootstrap] Failed to seed ${personalityName}: ${error.message}`);
+          logger.error(
+            `[ApplicationBootstrap] Failed to seed ${personalityName}: ${error.message}`
+          );
         }
       }
-      
+
       if (successCount > 0) {
         logger.info(`[ApplicationBootstrap] Seeded ${successCount} owner personalities`);
       }
-      
     } catch (error) {
       // Don't fail initialization if seeding fails
       logger.error('[ApplicationBootstrap] Error seeding owner personalities:', error);

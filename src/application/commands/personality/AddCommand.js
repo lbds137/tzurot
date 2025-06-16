@@ -95,9 +95,7 @@ function createAddCommand() {
           return await context.respond('Personality name must be 50 characters or less.');
         }
 
-        logger.info(
-          `[AddCommand] Creating personality "${name}" for user ${context.getUserId()}`
-        );
+        logger.info(`[AddCommand] Creating personality "${name}" for user ${context.getUserId()}`);
 
         // Create the personality
         const command = {

@@ -14,27 +14,79 @@ class PersonalityProfile extends ValueObject {
   constructor(nameOrConfig, prompt, modelPath, maxWordCount) {
     super();
 
-    // Support both object-based and parameter-based construction
+    // Support multiple construction patterns for different modes
     if (typeof nameOrConfig === 'object' && nameOrConfig !== null) {
-      // Legacy object-based construction
-      const { displayName, avatarUrl, errorMessage } = nameOrConfig;
-      this.displayName = displayName || null;
-      this.avatarUrl = avatarUrl || null;
-      this.errorMessage = errorMessage || null;
-      this.name = displayName || null;
-      this.prompt = null;
-      this.modelPath = null;
-      this.maxWordCount = null;
+      // Mode detection based on properties
+      if (nameOrConfig.mode === 'external') {
+        // External API mode - data from shapes.inc API
+        this.mode = 'external';
+        this.name = nameOrConfig.name || nameOrConfig.displayName;
+        this.displayName = nameOrConfig.displayName || null;
+        this.avatarUrl = nameOrConfig.avatarUrl || nameOrConfig.avatar || null;
+        this.errorMessage = nameOrConfig.errorMessage || nameOrConfig.error_message || null;
+        this.lastFetched = nameOrConfig.lastFetched
+          ? new Date(nameOrConfig.lastFetched)
+          : new Date();
+        // No local prompt/model data in external mode
+        this.prompt = null;
+        this.modelPath = null;
+        this.maxWordCount = null;
+      } else if (nameOrConfig.mode === 'local' || nameOrConfig.user_prompt || nameOrConfig.prompt) {
+        // Local mode - comprehensive personality data
+        this.mode = 'local';
+        this.name = nameOrConfig.username || nameOrConfig.name;
+        this.displayName = nameOrConfig.name || nameOrConfig.displayName;
+        this.avatarUrl = nameOrConfig.avatar || nameOrConfig.avatarUrl || null;
+        this.errorMessage = nameOrConfig.error_message || nameOrConfig.errorMessage || null;
+        // Local personality configuration
+        this.prompt = nameOrConfig.user_prompt || nameOrConfig.prompt;
+        this.jailbreak = nameOrConfig.jailbreak || null;
+        this.modelPath = nameOrConfig.engine_model || nameOrConfig.modelPath;
+        this.maxWordCount = nameOrConfig.maxWordCount || 2000;
+        this.temperature = nameOrConfig.engine_temperature || nameOrConfig.temperature || 1.0;
+        // Additional local config
+        this.voiceConfig =
+          nameOrConfig.voice_id || nameOrConfig.voiceConfig
+            ? {
+                model: nameOrConfig.voice_model || nameOrConfig.voiceConfig?.model,
+                id: nameOrConfig.voice_id || nameOrConfig.voiceConfig?.id,
+                stability: nameOrConfig.voice_stability || nameOrConfig.voiceConfig?.stability,
+              }
+            : null;
+      } else if (nameOrConfig.displayName && !nameOrConfig.user_prompt && !nameOrConfig.prompt) {
+        // Legacy object construction - assume external
+        this.mode = 'external';
+        this.displayName = nameOrConfig.displayName || null;
+        this.avatarUrl = nameOrConfig.avatarUrl || null;
+        this.errorMessage = nameOrConfig.errorMessage || null;
+        this.name = this.displayName || null;
+        this.prompt = null;
+        this.modelPath = null;
+        this.maxWordCount = null;
+        this.lastFetched = new Date();
+      } else {
+        // Default to external mode for empty objects
+        this.mode = 'external';
+        this.displayName = nameOrConfig.displayName || null;
+        this.avatarUrl = nameOrConfig.avatarUrl || null;
+        this.errorMessage = nameOrConfig.errorMessage || null;
+        this.name = nameOrConfig.name || this.displayName || null;
+        this.prompt = null;
+        this.modelPath = null;
+        this.maxWordCount = null;
+        this.lastFetched = new Date();
+      }
     } else {
-      // New parameter-based construction for application service
+      // Parameter-based construction - legacy support
+      this.mode = prompt ? 'local' : 'external';
       this.name = nameOrConfig;
-      this.prompt = prompt;
-      this.modelPath = modelPath;
+      this.prompt = prompt || null;
+      this.modelPath = modelPath || null;
       this.maxWordCount = maxWordCount || 1000;
-      // Display properties
       this.displayName = nameOrConfig;
       this.avatarUrl = null;
       this.errorMessage = null;
+      this.lastFetched = this.mode === 'external' ? new Date() : null;
     }
 
     this.validate();
@@ -99,15 +151,26 @@ class PersonalityProfile extends ValueObject {
   }
 
   toJSON() {
-    return {
+    const json = {
+      mode: this.mode,
       name: this.name,
-      prompt: this.prompt,
-      modelPath: this.modelPath,
-      maxWordCount: this.maxWordCount,
       displayName: this.displayName,
       avatarUrl: this.avatarUrl,
       errorMessage: this.errorMessage,
     };
+
+    if (this.mode === 'local') {
+      json.prompt = this.prompt;
+      json.jailbreak = this.jailbreak;
+      json.modelPath = this.modelPath;
+      json.maxWordCount = this.maxWordCount;
+      json.temperature = this.temperature;
+      json.voiceConfig = this.voiceConfig;
+    } else {
+      json.lastFetched = this.lastFetched;
+    }
+
+    return json;
   }
 
   static createEmpty() {
@@ -115,15 +178,62 @@ class PersonalityProfile extends ValueObject {
   }
 
   static fromJSON(data) {
-    if (!data) return new PersonalityProfile({});
+    if (!data) return PersonalityProfile.createEmpty();
 
-    // If it has name/prompt/modelPath, it's the new format
-    if (data.name && data.prompt && data.modelPath) {
-      return new PersonalityProfile(data.name, data.prompt, data.modelPath, data.maxWordCount);
+    // Ensure mode is preserved when reconstructing from JSON
+    const profileData = { ...data };
+    if (data.mode) {
+      profileData.mode = data.mode;
     }
 
-    // Otherwise it's the legacy format
-    return new PersonalityProfile(data);
+    return new PersonalityProfile(profileData);
+  }
+
+  /**
+   * Check if profile needs API refresh (external mode only)
+   * @param {number} staleThresholdMs - Milliseconds before profile is stale (default 1 hour)
+   * @returns {boolean}
+   */
+  needsApiRefresh(staleThresholdMs = 3600000) {
+    if (this.mode !== 'external') return false;
+    if (!this.lastFetched) return true;
+    return Date.now() - this.lastFetched.getTime() > staleThresholdMs;
+  }
+
+  /**
+   * Check if this is a locally managed personality
+   * @returns {boolean}
+   */
+  isLocallyManaged() {
+    return this.mode === 'local';
+  }
+
+  /**
+   * Create profile from shapes.inc API response
+   * @param {Object} apiData - Response from fetchProfileInfo
+   * @returns {PersonalityProfile}
+   */
+  static fromApiResponse(apiData) {
+    return new PersonalityProfile({
+      mode: 'external',
+      name: apiData.username || apiData.name,
+      displayName: apiData.name || apiData.displayName,
+      avatarUrl: apiData.avatar || apiData.avatar_url,
+      errorMessage: apiData.error_message,
+      lastFetched: new Date(),
+    });
+  }
+
+  /**
+   * Create profile from local backup data
+   * @param {Object} backupData - Data from personality backup files
+   * @returns {PersonalityProfile}
+   */
+  static fromBackupData(backupData) {
+    return new PersonalityProfile({
+      mode: 'local',
+      ...backupData,
+    });
   }
 }
 

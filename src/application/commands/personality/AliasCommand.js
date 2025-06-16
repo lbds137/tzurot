@@ -108,11 +108,10 @@ function createAliasCommand() {
               embed.thumbnail = { url: personality.profile.avatarUrl };
             }
 
-
             return await context.respondWithEmbed(embed);
           } else {
             // Plain text response
-            let response = `✅ Alias "${newAlias}" has been added to **${displayName}**.`;
+            const response = `✅ Alias "${newAlias}" has been added to **${displayName}**.`;
             return await context.respond(response);
           }
         } catch (error) {

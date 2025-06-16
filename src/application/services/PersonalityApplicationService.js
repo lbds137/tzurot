@@ -8,6 +8,7 @@ const {
 } = require('../../domain/personality');
 const { AIModel } = require('../../domain/ai');
 const { DomainEventBus } = require('../../domain/shared');
+const profileInfoFetcher = require('../../profileInfoFetcher');
 
 /**
  * PersonalityApplicationService
@@ -25,12 +26,14 @@ class PersonalityApplicationService {
    * @param {AIService} dependencies.aiService
    * @param {AuthenticationRepository} dependencies.authenticationRepository
    * @param {DomainEventBus} dependencies.eventBus
+   * @param {Object} [dependencies.profileFetcher] - Profile info fetcher for external API
    */
   constructor({
     personalityRepository,
     aiService,
     authenticationRepository,
     eventBus = new DomainEventBus(),
+    profileFetcher = profileInfoFetcher,
   }) {
     if (!personalityRepository) {
       throw new Error('PersonalityRepository is required');
@@ -46,6 +49,7 @@ class PersonalityApplicationService {
     this.aiService = aiService;
     this.authenticationRepository = authenticationRepository;
     this.eventBus = eventBus;
+    this.profileFetcher = profileFetcher;
   }
 
   /**
@@ -53,17 +57,26 @@ class PersonalityApplicationService {
    * @param {Object} command
    * @param {string} command.name - Personality name
    * @param {string} command.ownerId - Owner's Discord user ID
-   * @param {string} command.prompt - Personality prompt
-   * @param {string} command.modelPath - AI model path
+   * @param {string} [command.mode='external'] - 'external' for API-based or 'local' for self-managed
+   * @param {string} [command.prompt] - Personality prompt (local mode only)
+   * @param {string} [command.modelPath] - AI model path (local mode only)
    * @param {number} [command.maxWordCount] - Maximum word count
    * @param {string[]} [command.aliases] - Initial aliases
    * @returns {Promise<Personality>}
    */
   async registerPersonality(command) {
     try {
-      const { name, ownerId, prompt, modelPath, maxWordCount, aliases = [] } = command;
+      const {
+        name,
+        ownerId,
+        mode = 'external',
+        prompt,
+        modelPath,
+        maxWordCount,
+        aliases = [],
+      } = command;
 
-      logger.info(`[PersonalityApplicationService] Registering personality: ${name}`);
+      logger.info(`[PersonalityApplicationService] Registering ${mode} personality: ${name}`);
 
       // Validate the personality doesn't already exist
       const existingPersonality = await this.personalityRepository.findByName(name);
@@ -79,16 +92,38 @@ class PersonalityApplicationService {
         }
       }
 
-      // Create domain objects
-      const personalityId = PersonalityId.generate();
+      // Create personality based on mode
+      const personalityId = PersonalityId.fromString(name); // Use name as ID for simpler lookups
       const userId = new UserId(ownerId);
-      const profile = new PersonalityProfile(name, prompt, modelPath, maxWordCount);
 
-      // Get AI model capabilities from the AI service
-      const model = await this._resolveAIModel(modelPath);
+      let personality;
+      if (mode === 'external') {
+        // External mode - will fetch profile from API on demand
+        const profile = new PersonalityProfile({
+          mode: 'external',
+          name: name,
+          displayName: name, // Initial display name, will be updated from API
+        });
 
-      // Create the personality aggregate
-      const personality = Personality.create(personalityId, userId, profile, model);
+        // For external mode, we don't need AI model
+        const model = AIModel.createDefault();
+        personality = Personality.create(personalityId, userId, profile, model);
+      } else {
+        // Local mode - requires full configuration
+        if (!prompt || !modelPath) {
+          throw new Error('Local personalities require prompt and modelPath');
+        }
+
+        const profile = new PersonalityProfile({
+          mode: 'local',
+          name: name,
+          user_prompt: prompt,
+          engine_model: modelPath,
+          maxWordCount: maxWordCount,
+        });
+        const model = await this._resolveAIModel(modelPath);
+        personality = Personality.create(personalityId, userId, profile, model);
+      }
 
       // Add aliases if provided
       for (const aliasName of aliases) {
@@ -108,6 +143,54 @@ class PersonalityApplicationService {
       logger.error(
         `[PersonalityApplicationService] Failed to register personality: ${error.message}`
       );
+      throw error;
+    }
+  }
+
+  /**
+   * Get personality with profile data
+   * @param {string} personalityName - Name of the personality
+   * @param {string} [userId] - User ID for authentication
+   * @returns {Promise<Personality|null>}
+   */
+  async getPersonalityWithProfile(personalityName, userId = null) {
+    try {
+      logger.info(
+        `[PersonalityApplicationService] Getting personality with profile: ${personalityName}`
+      );
+
+      // Find the personality
+      const personality = await this.personalityRepository.findByName(personalityName);
+      if (!personality) {
+        return null;
+      }
+
+      // Check if profile needs refresh (external mode)
+      if (personality.profile && personality.profile.mode === 'external') {
+        if (personality.profile.needsApiRefresh()) {
+          logger.info(
+            `[PersonalityApplicationService] Refreshing profile from API for: ${personalityName}`
+          );
+
+          // Fetch latest profile data from API
+          const apiData = await this.profileFetcher.fetchProfileInfo(personalityName, userId);
+          if (apiData) {
+            // Update profile with API data
+            personality.profile = PersonalityProfile.fromApiResponse(apiData);
+
+            // Save updated profile
+            await this.personalityRepository.save(personality);
+          } else {
+            logger.warn(
+              `[PersonalityApplicationService] Failed to fetch profile for: ${personalityName}`
+            );
+          }
+        }
+      }
+
+      return personality;
+    } catch (error) {
+      logger.error(`[PersonalityApplicationService] Error getting personality: ${error.message}`);
       throw error;
     }
   }

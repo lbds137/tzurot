@@ -65,7 +65,12 @@ describe('Personality', () => {
       expect(personality).toBeInstanceOf(Personality);
       expect(personality.personalityId).toEqual(personalityId);
       expect(personality.ownerId).toEqual(ownerId);
-      expect(personality.profile).toEqual(profile);
+      // Profile goes through serialization/deserialization which adds default values
+      expect(personality.profile.name).toBe(profile.name);
+      expect(personality.profile.prompt).toBe(profile.prompt);
+      expect(personality.profile.modelPath).toBe(profile.modelPath);
+      expect(personality.profile.maxWordCount).toBe(profile.maxWordCount);
+      expect(personality.profile.mode).toBe('local');
       expect(personality.model).toEqual(model);
       expect(personality.createdAt).toBeDefined();
       expect(personality.removed).toBe(false);
@@ -344,18 +349,24 @@ describe('Personality', () => {
       
       const json = personality.toJSON();
       
-      expect(json).toMatchObject({
-        id: 'claude-3-opus',
-        personalityId: 'claude-3-opus',
-        ownerId: '123456789',
-        profile: profile.toJSON(),
-        model: model.toJSON(),
-        aliases: [],
-        removed: false,
-        version: 1
-      });
+      expect(json.id).toBe('claude-3-opus');
+      expect(json.personalityId).toBe('claude-3-opus');
+      expect(json.ownerId).toBe('123456789');
+      expect(json.aliases).toEqual([]);
+      expect(json.removed).toBe(false);
+      expect(json.version).toBe(1);
       expect(json.createdAt).toBeDefined();
       expect(json.updatedAt).toBeDefined();
+      
+      // Check profile separately as it gets normalized
+      expect(json.profile.name).toBe('claude-3-opus');
+      expect(json.profile.prompt).toBe('You are Claude 3 Opus');
+      expect(json.profile.modelPath).toBe('/default');
+      expect(json.profile.maxWordCount).toBe(1000);
+      expect(json.profile.mode).toBe('local');
+      
+      // Check model
+      expect(json.model).toEqual(model.toJSON());
     });
   });
 });

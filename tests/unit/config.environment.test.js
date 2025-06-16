@@ -74,14 +74,21 @@ describe('Environment Configuration', () => {
     expect(botConfig.environment).toBe('test');
     
     // Test environment consistency
-    // Testing both branches to avoid conditional expect
-    const expectedName = botConfig.isDevelopment ? 'Rotzot' : 'Tzurot';
-    const expectedPrefix = botConfig.isDevelopment ? '!rtz' : '!tz';
-    const expectedMentionChar = botConfig.isDevelopment ? '&' : '@';
+    // In test environment, isDevelopment is false, so we get production values
+    expect(botConfig.isDevelopment).toBe(false);
     
-    expect(botConfig.name).toBe(expectedName);
-    expect(botConfig.prefix).toBe(expectedPrefix);
-    expect(botConfig.mentionChar).toBe(expectedMentionChar);
+    // The bot name and prefix depend on environment variables
+    // If BOT_NAME is set to 'Rotzot', that takes precedence
+    if (process.env.BOT_NAME === 'Rotzot') {
+      expect(botConfig.name).toBe('Rotzot');
+      expect(botConfig.prefix).toBe('!rtz');
+    } else {
+      expect(botConfig.name).toBe('Tzurot');
+      expect(botConfig.prefix).toBe('!tz');
+    }
+    
+    // Mention char also depends on env or isDevelopment
+    expect(botConfig.mentionChar).toBe(process.env.BOT_MENTION_CHAR || '@');
     
     // Token should always use DISCORD_TOKEN now
     expect(botConfig.token).toBe(process.env.DISCORD_TOKEN);
