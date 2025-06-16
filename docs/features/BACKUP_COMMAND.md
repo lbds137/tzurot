@@ -14,14 +14,9 @@ The backup command allows administrators to save personality data and memories f
 
 ### Prerequisites
 
-You must be authenticated with the AI service using one of these methods:
+You must be authenticated with the AI service using browser session cookies:
 
-**Option 1: Token Authentication**
-```
-!tz auth <your-token>
-```
-
-**Option 2: Browser Session Cookie** (for services that use session-based auth)
+**Browser Session Cookie Authentication**
 ```
 !tz backup --set-cookie <cookie-value>
 ```
@@ -89,10 +84,16 @@ The command includes built-in delays between API requests to respect rate limits
 ## Security
 
 - Only administrators can use this command
-- Supports both token and session cookie authentication
+- Uses session cookie authentication (token auth not supported for internal API)
 - Session cookies can only be set in DM channels for security
 - No sensitive data is logged (cookies are truncated in logs)
 - Session cookies are stored in memory only (not persisted)
+
+## Important Notes
+
+- The backup command uses an undocumented internal API that doesn't support standard token authentication
+- Only browser session cookies work for authentication
+- This is designed specifically for backing up data before migrating away from the service
 
 ## Use Cases
 
