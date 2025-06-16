@@ -54,11 +54,26 @@ async function initialize() {
     // Load metadata if it exists
     try {
       const data = await fs.readFile(METADATA_FILE, 'utf8');
-      metadataCache = JSON.parse(data);
+      // Handle empty files gracefully
+      if (!data || data.trim() === '') {
+        logger.info('[AvatarStorage] Found empty metadata file, initializing with empty object');
+        metadataCache = {};
+        metadataDirty = true;
+        await saveMetadata();
+      } else {
+        metadataCache = JSON.parse(data);
+      }
     } catch (error) {
       if (error.code === 'ENOENT') {
         // File doesn't exist, create empty metadata
         metadataCache = {};
+        metadataDirty = true;
+        await saveMetadata();
+      } else if (error instanceof SyntaxError) {
+        // Handle JSON parse errors (including empty files)
+        logger.warn('[AvatarStorage] Invalid JSON in metadata file, reinitializing:', error.message);
+        metadataCache = {};
+        metadataDirty = true;
         await saveMetadata();
       } else {
         throw error;

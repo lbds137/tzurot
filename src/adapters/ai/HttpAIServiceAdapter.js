@@ -6,7 +6,7 @@ const nodeFetch = require('node-fetch');
 // Default delay function for timer operations
 // This follows the approved pattern from TIMER_PATTERNS_COMPLETE.md
 // Can be overridden via config.delay for testing
-const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms)); // eslint-disable-line no-restricted-globals, no-restricted-syntax
 
 /**
  * HTTP-based implementation of AIService
