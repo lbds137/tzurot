@@ -127,7 +127,7 @@ describe('Avatar Storage - Simple Tests', () => {
       // Should succeed with .png extension in URL
       const result = await avatarStorage.getLocalAvatarUrl(
         'test-bot',
-        'https://files.shapes.inc/api/files/avatar_test.png'
+        'https://files.example.com/api/files/avatar_test.png'
       );
       
       expect(result).toMatch(/^http.*\/avatars\/test-bot-[a-f0-9]{8}\.png$/);

@@ -87,9 +87,14 @@ SERVICE_API_BASE_URL=https://api.example.com
 # Service identifier for model paths
 SERVICE_ID=your_service_id
 
-# Profile Information Endpoints
-# Where to fetch personality profile data
-PROFILE_INFO_ENDPOINT=https://example.com/api/profiles
+# Service Website URL
+SERVICE_WEBSITE=https://app.example.com
+
+# Profile Information Paths
+# Public profile path (no auth required)
+PROFILE_INFO_PUBLIC_PATH=public/personalities
+# Private profile path (requires auth)
+PROFILE_INFO_PRIVATE_PATH=personalities/username
 
 # ===== OPTIONAL CONFIGURATION =====
 
@@ -154,11 +159,22 @@ CONVERSATION_TIMEOUT=1800000
    - Usually provided by AI service
    - Example: `your_service_id`
 
-5. **PROFILE_INFO_ENDPOINT**
-   - URL template for fetching personality profiles
-   - `{personalityName}` will be appended
-   - Example: `https://example.com/api/profiles`
-   - Note: Avatar URLs are now fetched directly from the profile API response
+5. **SERVICE_WEBSITE**
+   - Base URL of the service website
+   - Used for constructing API endpoints
+   - Example: `https://app.example.com`
+
+6. **PROFILE_INFO_PUBLIC_PATH**
+   - API path for public personality profiles (no auth required)
+   - Combined with SERVICE_WEBSITE to form full URL
+   - Example: `public/personalities`
+   - Full URL would be: `{SERVICE_WEBSITE}/api/{PROFILE_INFO_PUBLIC_PATH}/{personalityName}`
+
+7. **PROFILE_INFO_PRIVATE_PATH**
+   - API path for private personality profiles (requires authentication)
+   - Used by backup command and authenticated requests
+   - Example: `personalities/username`
+   - Full URL would be: `{SERVICE_WEBSITE}/api/{PROFILE_INFO_PRIVATE_PATH}/{personalityName}`
 
 #### Optional Variables
 

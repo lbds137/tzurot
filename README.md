@@ -133,7 +133,11 @@ DISCORD_TOKEN=your_discord_bot_token
 SERVICE_API_KEY=your_api_key
 SERVICE_API_ENDPOINT=https://api.example.com
 SERVICE_ID=your_service_id
-PROFILE_INFO_ENDPOINT=https://example.com/api/profiles
+SERVICE_WEBSITE=https://app.example.com
+
+# Profile information paths
+PROFILE_INFO_PUBLIC_PATH=public/personalities
+PROFILE_INFO_PRIVATE_PATH=personalities/username
 
 # Bot Configuration (Optional)
 PREFIX=!tz

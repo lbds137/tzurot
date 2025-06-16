@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Local Avatar Storage System** - Bot now downloads and serves personality avatars locally (#79)
-  - Prevents Discord from blocking external avatar URLs (shapes.inc domain)
+  - Prevents Discord from blocking external avatar URLs
   - Implements lazy loading with checksum-based change detection
   - Serves avatars via HTTP endpoint at `/avatars`
   - Automatically migrates existing personalities on first use
@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Should resolve cases where bot processes messages multiple times but only shows last response
 - **Avatar Content Type Handling** - Support for `application/octet-stream` responses
   - Handles generic binary content types when URL has valid image extension
-  - Fixes avatar download failures from shapes.inc API
+  - Fixes avatar download failures from external service APIs
 - **HTTP Server Deployment** - Resolved Railway deployment issues
   - Fixed port configuration mismatch (now uses PORT=3000)
   - Added root path handler for health checks

@@ -38,7 +38,7 @@ function getModelPath(personalityName) {
 
 // Function to get the profile info endpoint for a personality
 function getProfileInfoEndpoint(personalityName) {
-  return `${process.env.PROFILE_INFO_ENDPOINT}/${personalityName}`;
+  return `${process.env.SERVICE_WEBSITE}/api/${process.env.PROFILE_INFO_PUBLIC_PATH}/${personalityName}`;
 }
 
 // Public server configuration

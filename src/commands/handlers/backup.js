@@ -26,6 +26,7 @@ const meta = {
 
 // Configuration
 const getApiBaseUrl = () => process.env.SERVICE_WEBSITE ? `${process.env.SERVICE_WEBSITE}/api` : null;
+const PROFILE_INFO_PRIVATE_PATH = process.env.PROFILE_INFO_PRIVATE_PATH;
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
 // Session storage - in production, this should be encrypted and stored securely
@@ -72,7 +73,7 @@ async function loadBackupMetadata(personalityName) {
     // No existing metadata
     return {
       lastBackup: null,
-      lastMemoryId: null,
+      lastMemoryTimestamp: null,
       totalMemories: 0,
     };
   }
@@ -102,15 +103,29 @@ async function savePersonalityProfile(personalityName, profileData) {
 }
 
 /**
- * Save memory data
+ * Load existing memories from file
  */
-async function saveMemoryPage(personalityName, memories, pageNum) {
-  const memoryDir = path.join(getBackupDir(), personalityName, 'memory');
-  await fs.mkdir(memoryDir, { recursive: true });
+async function loadMemories(personalityName) {
+  const memoryPath = path.join(getBackupDir(), personalityName, `${personalityName}_memories.json`);
+  try {
+    const data = await fs.readFile(memoryPath, 'utf8');
+    return JSON.parse(data);
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    // No existing memories
+    return [];
+  }
+}
+
+/**
+ * Save all memories to a single file
+ */
+async function saveMemories(personalityName, memories) {
+  const personalityDir = path.join(getBackupDir(), personalityName);
+  await fs.mkdir(personalityDir, { recursive: true });
   
-  const memoryPath = path.join(memoryDir, `${personalityName}_memory_${pageNum}.json`);
+  const memoryPath = path.join(personalityDir, `${personalityName}_memories.json`);
   await fs.writeFile(memoryPath, JSON.stringify(memories, null, 2));
-  logger.info(`[Backup] Saved memory page ${pageNum} for ${personalityName}`);
+  logger.info(`[Backup] Saved ${memories.length} memories for ${personalityName}`);
 }
 
 /**
@@ -185,87 +200,41 @@ function getBackupClient() {
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, authData) {
-  const url = `${getApiBaseUrl()}/shapes/username/${personalityName}`;
+  const url = `${getApiBaseUrl()}/${PROFILE_INFO_PRIVATE_PATH}/${personalityName}`;
   logger.info(`[Backup] Fetching profile from: ${url}`);
   return await getBackupClient().makeAuthenticatedRequest(url, authData);
 }
 
 /**
- * Process a single page of memories
+ * Fetch all memories and return them in chronological order
  */
-async function processMemoryPage(memories, stopAtMemoryId, seenMemoryIds) {
-  const newMemories = [];
-  let foundStopMemory = false;
+async function fetchAllMemories(personalityId, personalityName, authData) {
+  logger.info(`[Backup] Fetching all memories for ${personalityName}...`);
   
-  for (const memory of memories) {
-    if (memory.id === stopAtMemoryId) {
-      foundStopMemory = true;
-      break;
-    }
-    
-    if (!seenMemoryIds.has(memory.id)) {
-      seenMemoryIds.add(memory.id);
-      newMemories.push(memory);
-    }
-  }
-  
-  return { newMemories, foundStopMemory };
-}
-
-/**
- * Fetch memories with smart syncing
- */
-async function fetchMemoriesSmartSync(personalityId, personalityName, authData, metadata) {
-  logger.info(`[Backup] Fetching memories for ${personalityName}...`);
-  
+  const allMemories = [];
   let page = 1;
-  let newMemoryCount = 0;
-  const seenMemoryIds = new Set();
-  const stopAtMemoryId = metadata.lastMemoryId;
+  let totalPages = 1;
   
-  while (true) {
+  while (page <= totalPages) {
     const url = `${getApiBaseUrl()}/memory/${personalityId}?page=${page}`;
-    logger.info(`[Backup] Fetching memories from: ${url}`);
+    logger.info(`[Backup] Fetching memory page ${page}...`);
     const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
     
-    // Log memory API response structure for debugging (can be removed later)
-    logger.debug(`[Backup] Memory response has ${Object.keys(response || {}).length} keys: ${Object.keys(response || {}).join(', ')}`);
-    
-    // The API returns an object with an 'items' array containing memories
+    // The API returns memories in reverse chronological order (newest first)
     const memories = response.items || [];
     
-    if (!memories || memories.length === 0) {
-      logger.info(`[Backup] No memories found in response for ${personalityName}`);
-      break;
+    if (memories.length > 0) {
+      // Add to beginning to maintain reverse order temporarily
+      allMemories.unshift(...memories);
     }
     
-    const { newMemories, foundStopMemory } = await processMemoryPage(
-      memories,
-      stopAtMemoryId,
-      seenMemoryIds
-    );
-    
-    // Save this page if it has new memories
-    if (newMemories.length > 0) {
-      // Preserve the original response structure with filtered items
-      const pageData = {
-        ...response,
-        items: newMemories
-      };
-      
-      await saveMemoryPage(personalityName, pageData, page);
-      newMemoryCount += newMemories.length;
-    }
-    
-    // If we found our stop point, we're done
-    if (foundStopMemory) {
-      logger.info(`[Backup] Found previous sync point at page ${page}`);
-      break;
-    }
-    
-    // Check if there are more pages (handle different pagination formats)
+    // Check pagination
     const pagination = response.pagination || response.meta?.pagination;
-    if (!pagination || page >= (pagination.total_pages || pagination.totalPages || 1)) {
+    if (pagination) {
+      totalPages = pagination.total_pages || pagination.totalPages || 1;
+    }
+    
+    if (page >= totalPages) {
       break;
     }
     
@@ -273,15 +242,60 @@ async function fetchMemoriesSmartSync(personalityId, personalityName, authData, 
     await getDelayFn()(DELAY_BETWEEN_REQUESTS);
   }
   
-  // Update metadata with the most recent memory ID
-  if (newMemoryCount > 0 && seenMemoryIds.size > 0) {
-    const mostRecentMemoryId = Array.from(seenMemoryIds)[0];
-    metadata.lastMemoryId = mostRecentMemoryId;
-    metadata.totalMemories += newMemoryCount;
-  }
+  // Sort memories by created_at timestamp (oldest first)
+  allMemories.sort((a, b) => {
+    // Handle both timestamp formats: Unix timestamp (number) and ISO string
+    const timeA = typeof a.created_at === 'number' ? a.created_at : new Date(a.created_at || a.timestamp || 0).getTime() / 1000;
+    const timeB = typeof b.created_at === 'number' ? b.created_at : new Date(b.created_at || b.timestamp || 0).getTime() / 1000;
+    return timeA - timeB;
+  });
   
-  logger.info(`[Backup] Synced ${newMemoryCount} new memories for ${personalityName}`);
-  return { hasNewMemories: newMemoryCount > 0, newMemoryCount };
+  logger.info(`[Backup] Fetched ${allMemories.length} total memories`);
+  return allMemories;
+}
+
+/**
+ * Sync memories intelligently - only fetch new ones
+ */
+async function syncMemories(personalityId, personalityName, authData, metadata) {
+  logger.info(`[Backup] Syncing memories for ${personalityName}...`);
+  
+  // Load existing memories
+  const existingMemories = await loadMemories(personalityName);
+  const existingMemoryIds = new Set(existingMemories.map(m => m.id));
+  
+  // If we have a last sync timestamp, we can optimize by only fetching newer memories
+  // For now, we'll fetch all and filter
+  const allMemories = await fetchAllMemories(personalityId, personalityName, authData);
+  
+  // Find new memories (those not in our existing set)
+  const newMemories = allMemories.filter(memory => !existingMemoryIds.has(memory.id));
+  
+  if (newMemories.length > 0) {
+    // Merge with existing memories (maintaining chronological order)
+    const updatedMemories = [...existingMemories, ...newMemories];
+    
+    // Save the updated memory list
+    await saveMemories(personalityName, updatedMemories);
+    
+    // Update metadata
+    metadata.totalMemories = updatedMemories.length;
+    if (updatedMemories.length > 0) {
+      // Store the timestamp of the most recent memory for future syncs
+      const mostRecentMemory = updatedMemories[updatedMemories.length - 1];
+      // Store as Unix timestamp for consistency
+      const timestamp = typeof mostRecentMemory.created_at === 'number' 
+        ? mostRecentMemory.created_at 
+        : new Date(mostRecentMemory.created_at || mostRecentMemory.timestamp || 0).getTime() / 1000;
+      metadata.lastMemoryTimestamp = timestamp;
+    }
+    
+    logger.info(`[Backup] Added ${newMemories.length} new memories (total: ${updatedMemories.length})`);
+    return { hasNewMemories: true, newMemoryCount: newMemories.length };
+  } else {
+    logger.info(`[Backup] No new memories found`);
+    return { hasNewMemories: false, newMemoryCount: 0 };
+  }
 }
 
 /**
@@ -301,7 +315,7 @@ async function backupPersonality(personalityName, authData, directSend) {
     // Fetch memories if personality has an ID
     if (profile.id) {
       await getDelayFn()(DELAY_BETWEEN_REQUESTS);
-      const { newMemoryCount } = await fetchMemoriesSmartSync(
+      const { newMemoryCount } = await syncMemories(
         profile.id,
         personalityName,
         authData,
@@ -486,10 +500,11 @@ module.exports = {
   loadBackupMetadata,
   saveBackupMetadata,
   savePersonalityProfile,
-  saveMemoryPage,
+  loadMemories,
+  saveMemories,
   fetchPersonalityProfile,
-  fetchMemoriesSmartSync,
-  processMemoryPage,
+  fetchAllMemories,
+  syncMemories,
   backupPersonality,
   handleBulkBackup,
   handleSetCookie,
