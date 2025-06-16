@@ -1,5 +1,12 @@
 // First, mock all dependencies
 jest.mock('../../../src/logger');
+jest.mock('../../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    mentionChar: '@',
+    isDevelopment: false
+  }
+}));
 jest.mock('../../../src/messageTracker');
 jest.mock('../../../src/handlers/referenceHandler');
 jest.mock('../../../src/handlers/personalityHandler');
@@ -85,7 +92,7 @@ describe('messageHandler', () => {
     
     // Set default mock implementations
     messageTracker.track.mockReturnValue(true);
-    referenceHandler.handleMessageReference.mockResolvedValue(false);
+    referenceHandler.handleMessageReference.mockResolvedValue({ processed: false });
     personalityHandler.handlePersonalityInteraction.mockResolvedValue(undefined);
     personalityHandler.activeRequests = new Map();
     messageTrackerHandler.trackMessageInChannel.mockReturnValue(undefined);
@@ -100,7 +107,7 @@ describe('messageHandler', () => {
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);
     isAutoResponseEnabled.mockReturnValue(undefined);
-    getPersonality.mockReturnValue(mockPersonality);
+    getPersonality.mockResolvedValue(mockPersonality);
     getPersonalityByAlias.mockReturnValue(null);
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
@@ -263,11 +270,11 @@ describe('messageHandler', () => {
       
       // Reset and setup mocks
       jest.clearAllMocks();
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Make sure the other handlers return false to get to mentions
-      referenceHandler.handleMessageReference.mockResolvedValueOnce(false);
+      referenceHandler.handleMessageReference.mockResolvedValueOnce({ processed: false });
       
       // Call the handler
       await messageHandler.handleMessage(mentionMessage, mockClient);
@@ -295,7 +302,7 @@ describe('messageHandler', () => {
       // Reset and setup mocks
       jest.clearAllMocks();
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Make sure handlers before this one return false
@@ -344,7 +351,7 @@ describe('messageHandler', () => {
       
       // Setup for activated channel handling
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       channelUtils.isChannelNSFW.mockReturnValueOnce(true); // NSFW channel
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
@@ -482,7 +489,7 @@ describe('messageHandler', () => {
       };
       
       // Set up mocks for this test
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Call the handler
@@ -629,7 +636,7 @@ describe('messageHandler', () => {
       jest.clearAllMocks();
       
       // Set up mocks for this test
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
       
       // Call the handler
@@ -658,7 +665,7 @@ describe('messageHandler', () => {
       
       // Set up an active conversation
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       
       // Call the handler
@@ -717,7 +724,7 @@ describe('messageHandler', () => {
       
       // Set up an active conversation in a DM
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
       
       // Set up a DM message
@@ -755,7 +762,7 @@ describe('messageHandler', () => {
       
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       channelUtils.isChannelNSFW.mockReturnValueOnce(true); // Channel is NSFW
       
@@ -810,7 +817,7 @@ describe('messageHandler', () => {
       
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -851,7 +858,7 @@ describe('messageHandler', () => {
       
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockReturnValueOnce(mockPersonality);
+      getPersonality.mockResolvedValueOnce(mockPersonality);
       
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -919,7 +926,7 @@ describe('messageHandler', () => {
       
       // Set up an activated channel
       getActivatedPersonality.mockReturnValue('TestPersonality');
-      getPersonality.mockReturnValue(mockPersonality);
+      getPersonality.mockResolvedValue(mockPersonality);
       channelUtils.isChannelNSFW.mockReturnValue(true);
       
       // Set up a reply to another user (not a personality)

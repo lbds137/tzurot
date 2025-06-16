@@ -46,23 +46,29 @@ class FilePersonalityRepository extends PersonalityRepository {
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
         const parsedData = JSON.parse(data);
-        
+
         // Ensure the parsed data has the expected structure
         if (!parsedData || typeof parsedData !== 'object') {
           throw new Error('Invalid file structure');
         }
-        
+
         // Ensure required properties exist
         this._cache = {
           personalities: parsedData.personalities || {},
           aliases: parsedData.aliases || {},
         };
-        
+
         logger.info('[FilePersonalityRepository] Loaded personalities from file');
       } catch (error) {
-        if (error.code === 'ENOENT' || error instanceof SyntaxError || error.message === 'Invalid file structure') {
+        if (
+          error.code === 'ENOENT' ||
+          error instanceof SyntaxError ||
+          error.message === 'Invalid file structure'
+        ) {
           // File doesn't exist or is corrupted, create empty structure
-          logger.info(`[FilePersonalityRepository] Personalities file not found or corrupted (${error.message}), creating new one`);
+          logger.info(
+            `[FilePersonalityRepository] Personalities file not found or corrupted (${error.message}), creating new one`
+          );
           this._cache = {
             personalities: {},
             aliases: {},
@@ -155,7 +161,9 @@ class FilePersonalityRepository extends PersonalityRepository {
 
       // Ensure cache structure exists
       if (!this._cache || !this._cache.personalities) {
-        logger.warn('[FilePersonalityRepository] Cache not properly initialized, returning empty list');
+        logger.warn(
+          '[FilePersonalityRepository] Cache not properly initialized, returning empty list'
+        );
         return personalities;
       }
 
@@ -420,8 +428,6 @@ class FilePersonalityRepository extends PersonalityRepository {
       throw new Error(`Failed to persist data: ${error.message}`);
     }
   }
-
-
 
   /**
    * Ensure repository is initialized

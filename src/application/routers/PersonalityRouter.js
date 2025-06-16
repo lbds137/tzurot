@@ -113,7 +113,6 @@ class PersonalityRouter {
     return this._newGetAllPersonalities();
   }
 
-
   /**
    * Register a new personality
    * @param {string} name - Personality name
@@ -161,7 +160,6 @@ class PersonalityRouter {
       dualWriteActive: false,
     };
   }
-
 
   // New DDD system wrappers
 

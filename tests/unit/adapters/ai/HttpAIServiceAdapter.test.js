@@ -61,7 +61,7 @@ describe('HttpAIServiceAdapter', () => {
 
     it('should throw error when no base URL provided', () => {
       // Ensure no environment variable
-      delete process.env.AI_SERVICE_URL;
+      delete process.env.SERVICE_API_BASE_URL;
       
       expect(() => new HttpAIServiceAdapter()).toThrow('AI service base URL is required');
     });

@@ -112,7 +112,7 @@ function createRemoveCommand() {
 
           // Create response message
           const displayName = personality.profile.displayName || personality.profile.name;
-          let response = `✅ **${displayName}** has been removed from your collection.`;
+          const response = `✅ **${displayName}** has been removed from your collection.`;
 
           return await context.respond({
             content: response,

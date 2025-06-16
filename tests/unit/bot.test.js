@@ -113,6 +113,7 @@ describe('Bot Core Functionality', () => {
   
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
     // Save original environment
     originalToken = process.env.DISCORD_TOKEN;
     originalDevToken = process.env.DISCORD_DEV_TOKEN;
@@ -127,6 +128,7 @@ describe('Bot Core Functionality', () => {
   });
   
   afterEach(() => {
+    jest.useRealTimers();
     // Restore original environment
     process.env.DISCORD_TOKEN = originalToken;
     process.env.DISCORD_DEV_TOKEN = originalDevToken;
