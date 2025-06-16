@@ -1,5 +1,3 @@
-const { Message } = require('../../domain/conversation');
-const { PersonalityId } = require('../../domain/personality');
 const logger = require('../../logger');
 
 /**
@@ -32,7 +30,7 @@ class DiscordWebhookAdapter {
    */
   async sendMessage({
     channelId,
-    personalityId,
+    personalityId: _personalityId,  // Currently unused but kept for interface consistency
     personalityProfile,
     content,
     attachments = [],

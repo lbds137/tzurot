@@ -66,6 +66,8 @@ jest.mock('../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   debug: jest.fn(),
+  warn: jest.fn(),
+  warning: jest.fn() // Just in case
 }));
 
 jest.mock('../../src/webhookManager', () => ({
@@ -97,12 +99,27 @@ jest.mock('../../src/utils/pluralkitMessageStore', () => ({
   }
 }));
 
-jest.mock('../../src/logger', () => ({
-  info: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-  debug: jest.fn(),
-  warning: jest.fn() // Just in case
+// Mock ApplicationBootstrap to prevent real initialization
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn().mockReturnValue({
+    initialize: jest.fn().mockResolvedValue(undefined)
+  })
+}));
+
+// Mock config before requiring bot.js
+jest.mock('../../config', () => ({
+  botConfig: {
+    name: 'Tzurot',
+    prefix: '!tz',
+    token: 'test-token',
+    isDevelopment: false,
+    environment: 'test',
+    mentionChar: '@'
+  },
+  botPrefix: '!tz',
+  getApiEndpoint: jest.fn(),
+  getModelPath: jest.fn(),
+  getProfileInfoEndpoint: jest.fn()
 }));
 
 describe('Bot Core Functionality', () => {

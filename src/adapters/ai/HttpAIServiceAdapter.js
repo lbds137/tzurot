@@ -4,12 +4,9 @@ const logger = require('../../logger');
 const nodeFetch = require('node-fetch');
 
 // Default delay function for timer operations
-// Uses global setTimeout - can be overridden via config.delay for testing
-const defaultDelay = ms => {
-  // In production, use the actual setTimeout from global scope
-  const timer = globalThis.setTimeout || setTimeout;
-  return new Promise(resolve => timer(resolve, ms));
-};
+// This follows the approved pattern from TIMER_PATTERNS_COMPLETE.md
+// Can be overridden via config.delay for testing
+const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * HTTP-based implementation of AIService
@@ -187,7 +184,7 @@ class HttpAIServiceAdapter extends AIService {
           // Try to parse JSON error
           try {
             error.response.data = JSON.parse(error.response.data);
-          } catch (_parseError) {
+          } catch {
             // Ignore parse errors, keep original string
           }
 
@@ -296,38 +293,40 @@ class HttpAIServiceAdapter extends AIService {
   async _defaultResponseTransform(apiResponse) {
     // Handle common response formats
     let content = '';
-    let metadata = {};
+    // Metadata is extracted but not currently used in AIContent
+    // Could be extended in future to include model info
+    // let metadata = {};
 
     // OpenAI-style format
     if (apiResponse.choices && Array.isArray(apiResponse.choices)) {
       const choice = apiResponse.choices[0];
       content = choice.message?.content || choice.text || '';
-      metadata = {
-        finishReason: choice.finish_reason,
-        usage: apiResponse.usage,
-        model: apiResponse.model,
-      };
+      // metadata = {
+      //   finishReason: choice.finish_reason,
+      //   usage: apiResponse.usage,
+      //   model: apiResponse.model,
+      // };
     }
     // Anthropic-style format
     else if (apiResponse.content && Array.isArray(apiResponse.content)) {
       const textBlocks = apiResponse.content.filter(block => block.type === 'text');
       content = textBlocks.map(block => block.text).join('\n');
-      metadata = {
-        id: apiResponse.id,
-        model: apiResponse.model,
-        stopReason: apiResponse.stop_reason,
-        usage: apiResponse.usage,
-      };
+      // metadata = {
+      //   id: apiResponse.id,
+      //   model: apiResponse.model,
+      //   stopReason: apiResponse.stop_reason,
+      //   usage: apiResponse.usage,
+      // };
     }
     // Simple format
     else if (apiResponse.text || apiResponse.response || apiResponse.message) {
       content = apiResponse.text || apiResponse.response || apiResponse.message;
-      metadata = apiResponse.metadata || {};
+      // metadata = apiResponse.metadata || {};
     }
     // Content field format (common in simple APIs)
     else if (apiResponse.content && typeof apiResponse.content === 'string') {
       content = apiResponse.content;
-      metadata = apiResponse.metadata || {};
+      // metadata = apiResponse.metadata || {};
     }
     // Direct string response
     else if (typeof apiResponse === 'string') {
