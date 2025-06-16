@@ -136,13 +136,22 @@ class ApplicationBootstrap {
       await commandAdapter.initialize(this.applicationServices);
       logger.info('[ApplicationBootstrap] Initialized CommandIntegrationAdapter');
 
-      // Step 8: Seed owner personalities (feature parity with legacy system)
-      logger.info('[ApplicationBootstrap] Starting owner personality seeding...');
-      await this._seedOwnerPersonalities();
-      logger.info('[ApplicationBootstrap] Owner personality seeding completed');
-
+      // Step 8: Schedule owner personality seeding in background (don't block initialization)
       this.initialized = true;
       logger.info('[ApplicationBootstrap] ✅ DDD application layer initialization complete');
+
+      // Schedule personality seeding in background after a delay
+      const seedingDelay = 5000; // 5 seconds to let bot fully start
+      const timer = globalThis.setTimeout || setTimeout;
+      timer(async () => {
+        try {
+          logger.info('[ApplicationBootstrap] Starting background owner personality seeding...');
+          await this._seedOwnerPersonalities();
+          logger.info('[ApplicationBootstrap] Background owner personality seeding completed');
+        } catch (error) {
+          logger.error('[ApplicationBootstrap] Error in background personality seeding:', error);
+        }
+      }, seedingDelay);
 
       // Log active feature flags
       this._logActiveFeatures();
@@ -193,7 +202,7 @@ class ApplicationBootstrap {
   }
 
   /**
-   * Seed owner personalities (feature parity with legacy system)
+   * Seed owner personalities using legacy system for compatibility
    * @private
    */
   async _seedOwnerPersonalities() {
@@ -216,19 +225,22 @@ class ApplicationBootstrap {
         return;
       }
 
+      // Use the legacy PersonalityManager for seeding to ensure compatibility with commands
+      const { PersonalityManager } = require('../../core/personality');
+      const legacyManager = PersonalityManager.getInstance();
+
+      // Initialize legacy manager if not already done
+      if (!legacyManager.initialized) {
+        logger.info('[ApplicationBootstrap] Initializing legacy PersonalityManager for seeding...');
+        await legacyManager.initialize(true, { skipBackgroundSeeding: true });
+      }
+
       const personalityNames = personalitiesStr.split(',').map(p => p.trim());
       logger.info(`[ApplicationBootstrap] Checking ${personalityNames.length} owner personalities`);
 
-      const { personalityApplicationService } = this.applicationServices;
-
       // Check existing personalities for the owner
-      const existingPersonalities =
-        await personalityApplicationService.listPersonalitiesByOwner(ownerId);
-      const existingNames = existingPersonalities.map(p => {
-        // Handle domain objects that might not have direct property access
-        const data = p.toJSON ? p.toJSON() : p;
-        return (data.profile?.name || data.name || '').toLowerCase();
-      });
+      const existingPersonalities = legacyManager.listPersonalitiesForUser(ownerId);
+      const existingNames = existingPersonalities.map(p => p.fullName.toLowerCase());
 
       const personalitiesToAdd = personalityNames.filter(
         name => !existingNames.includes(name.toLowerCase())
@@ -246,26 +258,24 @@ class ApplicationBootstrap {
       );
       logger.info('[ApplicationBootstrap] Starting personality seeding for missing entries...');
 
-      // Add missing personalities
+      // Add missing personalities using legacy system
       let successCount = 0;
 
       for (const personalityName of personalitiesToAdd) {
         try {
-          // Extract display name from personality name
-          const parts = personalityName.split('-');
-          const displayName = parts.length > 0 ? parts[0] : personalityName;
-
-          // Register as external personality (without prompt/modelPath)
-          // This will fetch actual data from the API
-          await personalityApplicationService.registerPersonality({
-            name: personalityName,
-            ownerId: ownerId,
-            mode: 'external', // Explicitly set external mode
-            aliases: [displayName.toLowerCase()],
+          // Register using legacy system with fetchInfo enabled
+          const result = await legacyManager.registerPersonality(personalityName, ownerId, {
+            fetchInfo: true, // This fetches avatarUrl, displayName, and errorMessage from API
           });
 
-          logger.info(`[ApplicationBootstrap] Successfully seeded: ${personalityName}`);
-          successCount++;
+          if (result.success) {
+            logger.info(`[ApplicationBootstrap] Successfully seeded: ${personalityName}`);
+            successCount++;
+          } else {
+            logger.error(
+              `[ApplicationBootstrap] Failed to seed ${personalityName}: ${result.error}`
+            );
+          }
 
           // Small delay to avoid rate limiting
           await this.delay(100);
