@@ -1,0 +1,657 @@
+/**
+ * Comprehensive tests for the backup command handler
+ * Tests BackupClient, metadata handling, save functions, fetch functions, and execute scenarios
+ */
+
+// Mock dependencies before imports
+jest.mock('discord.js');
+jest.mock('../../../../src/logger');
+jest.mock('../../../../config', () => ({
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false
+  }
+}));
+jest.mock('../../../../src/commands/utils/commandValidator');
+jest.mock('../../../../src/auth');
+jest.mock('node-fetch');
+jest.mock('../../../../src/constants', () => ({
+  USER_CONFIG: {
+    OWNER_PERSONALITIES_LIST: ''
+  }
+}));
+jest.mock('fs', () => ({
+  promises: {
+    mkdir: jest.fn().mockResolvedValue(undefined),
+    readFile: jest.fn(),
+    writeFile: jest.fn().mockResolvedValue(undefined)
+  }
+}));
+
+// Import test utilities
+const { createMigrationHelper } = require('../../../utils/testEnhancements');
+const { createMockMessage } = require('../../../utils/commandTestHelpers');
+
+// Import mocked modules
+const logger = require('../../../../src/logger');
+const validator = require('../../../../src/commands/utils/commandValidator');
+const auth = require('../../../../src/auth');
+const nodeFetch = require('node-fetch');
+const fs = require('fs').promises;
+
+// Import the backup command and its components
+const backupCommand = require('../../../../src/commands/handlers/backup');
+const { BackupClient } = backupCommand;
+
+// Create migration helper for command tests
+const migrationHelper = createMigrationHelper('command');
+
+describe('Backup Command', () => {
+  let mockMessage;
+  let mockDirectSend;
+  let mockAuthManager;
+
+  beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Mock console
+    jest.spyOn(console, 'log').mockImplementation();
+    jest.spyOn(console, 'error').mockImplementation();
+    
+    // Create standard mock message
+    mockMessage = createMockMessage({
+      content: '!tz backup test-personality',
+      authorId: 'user-123',
+      channelId: 'channel-123',
+      isDM: false
+    });
+    
+    // Create mock direct send
+    mockDirectSend = jest.fn().mockResolvedValue({ id: 'sent-message' });
+    validator.createDirectSend.mockReturnValue(mockDirectSend);
+    
+    // Setup auth mocks
+    mockAuthManager = {
+      getUserToken: jest.fn().mockReturnValue('test-auth-token'),
+      getAuthorizationUrl: jest.fn().mockReturnValue('https://example.com/auth'),
+      exchangeCodeForToken: jest.fn().mockResolvedValue('new-auth-token'),
+      storeUserToken: jest.fn().mockResolvedValue(true),
+      hasValidToken: jest.fn().mockReturnValue(true),
+      deleteUserToken: jest.fn().mockResolvedValue(true),
+      cleanupExpiredTokens: jest.fn().mockResolvedValue(0)
+    };
+    auth.getAuthManager.mockReturnValue(mockAuthManager);
+    auth.APP_ID = 'test-app-id';
+    
+    // Reset backup client to ensure clean state
+    backupCommand._resetBackupClient();
+    
+    // Clear user sessions
+    backupCommand.userSessions.clear();
+    
+    // Setup environment variables
+    process.env.SERVICE_WEBSITE = 'https://example.com';
+    process.env.PROFILE_INFO_PRIVATE_PATH = 'personalities/username';
+    process.env.BOT_OWNER_ID = 'owner-123';
+  });
+
+  afterEach(() => {
+    // No need to restore timers since we're not using fake timers globally
+  });
+
+  describe('Command Metadata', () => {
+    it('should export required properties', () => {
+      expect(backupCommand).toBeDefined();
+      expect(backupCommand.meta).toBeDefined();
+      expect(backupCommand.meta.name).toBe('backup');
+      expect(backupCommand.meta.description).toContain('Backup personality data');
+      expect(backupCommand.meta.usage).toContain('backup');
+      expect(backupCommand.execute).toBeDefined();
+      expect(typeof backupCommand.execute).toBe('function');
+    });
+  });
+
+  describe('BackupClient Class', () => {
+    let backupClient;
+    
+    beforeEach(() => {
+      jest.useFakeTimers();
+      backupClient = new BackupClient({
+        scheduler: (fn, ms) => setTimeout(fn, ms),
+        clearScheduler: (id) => clearTimeout(id),
+        timeout: 1000
+      });
+    });
+    
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+    
+    describe('makeAuthenticatedRequest', () => {
+      it('should make request with session cookie when provided', async () => {
+        // Setup mock response
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue({ data: 'test' })
+        });
+        
+        const result = await backupClient.makeAuthenticatedRequest(
+          'https://example.com/api/test',
+          { cookie: 'appSession=test-cookie' }
+        );
+        
+        expect(nodeFetch).toHaveBeenCalledWith(
+          'https://example.com/api/test',
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              'Cookie': 'appSession=test-cookie',
+              'User-Agent': 'Tzurot Discord Bot Backup/1.0'
+            })
+          })
+        );
+        expect(result).toEqual({ data: 'test' });
+      });
+      
+      it('should make request with token auth when no cookie provided', async () => {
+        // Setup mock response
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue({ data: 'test' })
+        });
+        
+        const result = await backupClient.makeAuthenticatedRequest(
+          'https://example.com/api/test',
+          { token: 'test-token' }
+        );
+        
+        expect(nodeFetch).toHaveBeenCalledWith(
+          'https://example.com/api/test',
+          expect.objectContaining({
+            headers: expect.objectContaining({
+              'X-App-ID': 'test-app-id',
+              'X-User-Auth': 'test-token'
+            })
+          })
+        );
+        expect(result).toEqual({ data: 'test' });
+      });
+      
+      it('should handle API errors', async () => {
+        nodeFetch.mockResolvedValue({
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized'
+        });
+        
+        await expect(
+          backupClient.makeAuthenticatedRequest('https://example.com/api/test', { token: 'test' })
+        ).rejects.toThrow('API error 401: Unauthorized');
+      });
+      
+      it('should handle timeout errors', async () => {
+        // Create a promise that never resolves
+        let rejectFn;
+        nodeFetch.mockImplementation(() => {
+          return new Promise((resolve, reject) => {
+            rejectFn = reject;
+          });
+        });
+        
+        const promise = backupClient.makeAuthenticatedRequest(
+          'https://example.com/api/test',
+          { token: 'test' }
+        );
+        
+        // Advance timers to trigger the abort
+        jest.advanceTimersByTime(1000);
+        
+        // Manually reject the fetch to simulate abort
+        if (rejectFn) {
+          const abortError = new Error('Aborted');
+          abortError.name = 'AbortError';
+          rejectFn(abortError);
+        }
+        
+        await expect(promise).rejects.toThrow('Request timed out');
+      });
+    });
+  });
+
+  describe('Backup Metadata Functions', () => {
+    const testPersonality = 'test-personality';
+    const backupDir = '/src/commands/handlers/../../../data/personalities';
+    
+    describe('loadBackupMetadata', () => {
+      it('should load existing metadata from file', async () => {
+        const mockMetadata = {
+          lastBackup: '2024-01-01T00:00:00.000Z',
+          lastMemoryId: 'mem-123',
+          totalMemories: 42
+        };
+        
+        fs.readFile.mockResolvedValue(JSON.stringify(mockMetadata));
+        
+        const metadata = await backupCommand.loadBackupMetadata(testPersonality);
+        
+        expect(fs.readFile).toHaveBeenCalledWith(
+          expect.stringContaining(`${testPersonality}/.backup-metadata.json`),
+          'utf8'
+        );
+        expect(metadata).toEqual(mockMetadata);
+      });
+      
+      it('should return default metadata when file does not exist', async () => {
+        fs.readFile.mockRejectedValue(new Error('ENOENT'));
+        
+        const metadata = await backupCommand.loadBackupMetadata(testPersonality);
+        
+        expect(metadata).toEqual({
+          lastBackup: null,
+          lastMemoryTimestamp: null,
+          totalMemories: 0
+        });
+      });
+    });
+    
+    describe('saveBackupMetadata', () => {
+      it('should save metadata to file', async () => {
+        const metadata = {
+          lastBackup: '2024-01-01T00:00:00.000Z',
+          lastMemoryId: 'mem-456',
+          totalMemories: 100
+        };
+        
+        await backupCommand.saveBackupMetadata(testPersonality, metadata);
+        
+        expect(fs.mkdir).toHaveBeenCalledWith(
+          expect.stringContaining(testPersonality),
+          { recursive: true }
+        );
+        expect(fs.writeFile).toHaveBeenCalledWith(
+          expect.stringContaining(`${testPersonality}/.backup-metadata.json`),
+          JSON.stringify(metadata, null, 2)
+        );
+      });
+    });
+  });
+
+  describe('Save Functions', () => {
+    describe('savePersonalityProfile', () => {
+      it('should save profile data to file', async () => {
+        const profileData = {
+          id: 'pers-123',
+          name: 'test-personality',
+          displayName: 'Test Personality',
+          avatarUrl: 'https://example.com/avatar.png'
+        };
+        
+        await backupCommand.savePersonalityProfile('test-personality', profileData);
+        
+        expect(fs.mkdir).toHaveBeenCalledWith(
+          expect.stringContaining('test-personality'),
+          { recursive: true }
+        );
+        expect(fs.writeFile).toHaveBeenCalledWith(
+          expect.stringContaining('test-personality/test-personality.json'),
+          JSON.stringify(profileData, null, 2)
+        );
+      });
+    });
+    
+    describe('saveMemories', () => {
+      it('should save all memories to a single file', async () => {
+        const memories = [
+          { id: 'mem-1', content: 'Memory 1', timestamp: '2024-01-01' },
+          { id: 'mem-2', content: 'Memory 2', timestamp: '2024-01-02' }
+        ];
+        
+        await backupCommand.saveMemories('test-personality', memories);
+        
+        expect(fs.mkdir).toHaveBeenCalledWith(
+          expect.stringContaining('test-personality'),
+          { recursive: true }
+        );
+        expect(fs.writeFile).toHaveBeenCalledWith(
+          expect.stringContaining('test-personality_memories.json'),
+          JSON.stringify(memories, null, 2)
+        );
+      });
+    });
+  });
+
+  describe('Fetch Functions', () => {
+    describe('fetchPersonalityProfile', () => {
+      it('should fetch profile from API', async () => {
+        const mockProfile = {
+          id: 'pers-123',
+          name: 'test-personality',
+          displayName: 'Test Personality'
+        };
+        
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue(mockProfile)
+        });
+        
+        const profile = await backupCommand.fetchPersonalityProfile(
+          'test-personality',
+          { token: 'test-token' }
+        );
+        
+        expect(nodeFetch).toHaveBeenCalledWith(
+          'https://example.com/api/personalities/username/test-personality',
+          expect.any(Object)
+        );
+        expect(profile).toEqual(mockProfile);
+      });
+    });
+    
+    describe('syncMemories', () => {
+      it('should sync new memories since last sync', async () => {
+        // Mock existing memories
+        fs.readFile.mockResolvedValueOnce(JSON.stringify([
+          { id: 'mem-old', content: 'Old memory', timestamp: '2024-01-01' }
+        ]));
+        
+        // Mock API response with new memories
+        const mockMemoryResponse = {
+          items: [
+            { id: 'mem-new-2', content: 'New memory 2', timestamp: '2024-01-03' },
+            { id: 'mem-new-1', content: 'New memory 1', timestamp: '2024-01-02' },
+            { id: 'mem-old', content: 'Old memory', timestamp: '2024-01-01' }
+          ],
+          pagination: { page: 1, total_pages: 1 }
+        };
+        
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue(mockMemoryResponse)
+        });
+        
+        fs.writeFile.mockResolvedValue(undefined);
+        
+        const metadata = {
+          lastMemoryTimestamp: '2024-01-01',
+          totalMemories: 1
+        };
+        
+        const result = await backupCommand.syncMemories(
+          'pers-123',
+          'test-personality',
+          { token: 'test-token' },
+          metadata
+        );
+        
+        expect(result.newMemoryCount).toBe(2); // Only the new memories
+        expect(result.hasNewMemories).toBe(true);
+        expect(metadata.totalMemories).toBe(3); // 1 + 2 new
+        
+        // Check that memories were saved in chronological order
+        const savedMemories = JSON.parse(fs.writeFile.mock.calls[0][1]);
+        expect(savedMemories[0].id).toBe('mem-old');
+        expect(savedMemories[1].id).toBe('mem-new-1');
+        expect(savedMemories[2].id).toBe('mem-new-2');
+      });
+      
+      it('should handle multiple pages of memories', async () => {
+        const mockPage1 = {
+          memories: [{ id: 'mem-1', content: 'Memory 1' }],
+          pagination: { page: 1, total_pages: 2 }
+        };
+        const mockPage2 = {
+          memories: [{ id: 'mem-2', content: 'Memory 2' }],
+          pagination: { page: 2, total_pages: 2 }
+        };
+        
+        nodeFetch
+          .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: jest.fn().mockResolvedValue(mockPage1)
+          })
+          .mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: jest.fn().mockResolvedValue(mockPage2)
+          });
+        
+        const metadata = { lastMemoryId: null, totalMemories: 0 };
+        
+        // Mock the delay function to avoid actual delays
+        backupCommand._setDelayFunction(() => Promise.resolve());
+        
+        const result = await backupCommand.fetchMemoriesSmartSync(
+          'pers-123',
+          'test-personality',
+          { token: 'test-token' },
+          metadata
+        );
+        
+        expect(nodeFetch).toHaveBeenCalledTimes(2);
+        expect(result.newMemoryCount).toBe(2);
+        
+        // Reset delay function
+        backupCommand._resetDelayFunction();
+      });
+    });
+  });
+
+  describe('Execute Function', () => {
+    describe('Basic Usage', () => {
+      it('should show usage when no arguments provided', async () => {
+        await backupCommand.execute(mockMessage, []);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Usage:')
+        );
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('backup <personality-name>')
+        );
+      });
+      
+      it('should fail when SERVICE_WEBSITE is not configured', async () => {
+        delete process.env.SERVICE_WEBSITE;
+        
+        await backupCommand.execute(mockMessage, ['test-personality']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Backup API URL not configured')
+        );
+      });
+    });
+    
+    describe('Authentication', () => {
+      it('should require authentication when no token or session', async () => {
+        mockAuthManager.getUserToken.mockReturnValue(null);
+        
+        await backupCommand.execute(mockMessage, ['test-personality']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('No authentication found')
+        );
+      });
+      
+      it('should use session cookie if available', async () => {
+        // Mock user session
+        backupCommand.userSessions.set('user-123', {
+          cookie: 'appSession=test-session',
+          setAt: Date.now()
+        });
+        
+        // Mock successful API responses
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({
+            id: 'pers-123',
+            name: 'test-personality'
+          })
+        });
+        
+        await backupCommand.execute(mockMessage, ['test-personality']);
+        
+        expect(logger.info).toHaveBeenCalledWith(
+          expect.stringContaining('Using stored session cookie')
+        );
+      });
+    });
+    
+    describe('--set-cookie Command', () => {
+      it('should reject cookie setting in public channels', async () => {
+        mockMessage.channel.isDMBased.mockReturnValue(false);
+        
+        await backupCommand.execute(mockMessage, ['--set-cookie', 'test-cookie']);
+        
+        expect(mockMessage.delete).toHaveBeenCalled();
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('please set your session cookie via DM')
+        );
+      });
+      
+      it('should accept cookie in DM channels', async () => {
+        mockMessage.channel.isDMBased.mockReturnValue(true);
+        
+        await backupCommand.execute(mockMessage, ['--set-cookie', 'test-cookie-value']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Session cookie saved!')
+        );
+        
+        // Verify cookie was stored
+        const session = backupCommand.userSessions.get('user-123');
+        expect(session).toBeDefined();
+        expect(session.cookie).toBe('appSession=test-cookie-value');
+      });
+      
+      it('should provide instructions when no cookie value provided', async () => {
+        mockMessage.channel.isDMBased.mockReturnValue(true);
+        
+        await backupCommand.execute(mockMessage, ['--set-cookie']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('How to get your session cookie')
+        );
+      });
+    });
+    
+    describe('Single Personality Backup', () => {
+      beforeEach(() => {
+        // Mock successful profile fetch
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({
+            id: 'pers-123',
+            name: 'test-personality',
+            displayName: 'Test Personality'
+          })
+        });
+        
+        // Mock file operations
+        fs.readFile.mockRejectedValue(new Error('ENOENT')); // No existing metadata
+        fs.writeFile.mockResolvedValue(undefined);
+        fs.mkdir.mockResolvedValue(undefined);
+      });
+      
+      it('should backup a single personality successfully', async () => {
+        await backupCommand.execute(mockMessage, ['test-personality']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Starting backup for **test-personality**')
+        );
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Backup complete for **test-personality**')
+        );
+      });
+      
+      it('should handle backup errors gracefully', async () => {
+        nodeFetch.mockRejectedValue(new Error('Network error'));
+        
+        await backupCommand.execute(mockMessage, ['test-personality']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Failed to backup **test-personality**')
+        );
+      });
+    });
+    
+    describe('Bulk Backup (--all)', () => {
+      beforeEach(() => {
+        // Mock owner personalities
+        process.env.BOT_OWNER_PERSONALITIES = 'pers1,pers2,pers3';
+        
+        // Mock successful API responses
+        nodeFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({
+            id: 'pers-123',
+            name: 'personality',
+            displayName: 'Personality'
+          })
+        });
+        
+        // Mock file operations
+        fs.readFile.mockRejectedValue(new Error('ENOENT'));
+        fs.writeFile.mockResolvedValue(undefined);
+        fs.mkdir.mockResolvedValue(undefined);
+        
+        // Mock delay function to speed up tests
+        backupCommand._setDelayFunction(() => Promise.resolve());
+      });
+      
+      afterEach(() => {
+        backupCommand._resetDelayFunction();
+      });
+      
+      it('should backup all owner personalities', async () => {
+        await backupCommand.execute(mockMessage, ['--all']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Starting bulk backup of 3 personalities')
+        );
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('Bulk backup complete!')
+        );
+        
+        // Should have backed up each personality
+        expect(nodeFetch).toHaveBeenCalledTimes(3);
+      });
+      
+      it('should handle missing owner personalities config', async () => {
+        delete process.env.BOT_OWNER_PERSONALITIES;
+        
+        await backupCommand.execute(mockMessage, ['--all']);
+        
+        expect(mockDirectSend).toHaveBeenCalledWith(
+          expect.stringContaining('No owner personalities configured')
+        );
+      });
+    });
+    
+    describe('Error Handling', () => {
+      it('should handle general command errors', async () => {
+        // Force an error by making validator throw
+        validator.createDirectSend.mockImplementation(() => {
+          throw new Error('Test error');
+        });
+        
+        await backupCommand.execute(mockMessage, ['test']);
+        
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining('Command error:'),
+          expect.any(Error)
+        );
+      });
+    });
+  });
+});
