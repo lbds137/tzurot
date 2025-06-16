@@ -1,5 +1,4 @@
 const { ConversationRepository } = require('../../domain/conversation');
-const { Conversation, ConversationId } = require('../../domain/conversation');
 const logger = require('../../logger');
 
 /**
