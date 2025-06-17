@@ -76,6 +76,11 @@ class PersonalityProfile extends ValueObject {
         this.maxWordCount = null;
         this.lastFetched = new Date();
       }
+      
+      // Store public API data if provided
+      if (nameOrConfig.publicApiData) {
+        this.publicApiData = nameOrConfig.publicApiData;
+      }
     } else {
       // Parameter-based construction - legacy support
       this.mode = prompt ? 'local' : 'external';
@@ -209,19 +214,48 @@ class PersonalityProfile extends ValueObject {
   }
 
   /**
-   * Create profile from shapes.inc API response
+   * Create profile from external API response
    * @param {Object} apiData - Response from fetchProfileInfo
    * @returns {PersonalityProfile}
    */
   static fromApiResponse(apiData) {
-    return new PersonalityProfile({
+    // Extract more data from public API
+    const profile = {
       mode: 'external',
       name: apiData.username || apiData.name,
       displayName: apiData.name || apiData.displayName,
       avatarUrl: apiData.avatar || apiData.avatar_url,
       errorMessage: apiData.error_message,
       lastFetched: new Date(),
-    });
+    };
+
+    // Store additional public API data for future use
+    profile.publicApiData = {
+      id: apiData.id,
+      searchDescription: apiData.search_description,
+      searchTags: apiData.search_tags_v2 || [],
+      shapeSettings: apiData.shape_settings || {},
+      wackMessage: apiData.wack_message,
+      userCount: apiData.user_count || 0,
+      messageCount: apiData.message_count || 0,
+      bannerUrl: apiData.banner,
+      enabled: apiData.enabled !== false,
+      // Optional fields that may be populated
+      tagline: apiData.tagline || null,
+      typicalPhrases: apiData.typical_phrases || [],
+      examplePrompts: apiData.example_prompts || [],
+      screenshots: apiData.screenshots || [],
+      category: apiData.category || null,
+      customCategory: apiData.custom_category || null,
+      characterUniverse: apiData.character_universe || null,
+      characterBackground: apiData.character_background || null,
+      discordInvite: apiData.discord_invite || null,
+      // Personality-specific flags
+      allowMultipleMessages: apiData.allow_multiple_messages || false,
+      allowUserEngineOverride: apiData.allow_user_engine_override !== false,
+    };
+
+    return new PersonalityProfile(profile);
   }
 
   /**
