@@ -41,7 +41,7 @@ class PersonalityManager {
   async initialize(deferOwnerPersonalities = true, options = {}) {
     try {
       logger.info('[PersonalityManager] Initializing...');
-      
+
       // Initialize avatar storage system
       await avatarStorage.initialize();
       logger.info('[PersonalityManager] Avatar storage initialized');
@@ -53,7 +53,7 @@ class PersonalityManager {
       this.registry.loadFromObjects(personalities, aliases);
 
       // Extract options with defaults
-      const { skipBackgroundSeeding = false, seedingDelay = 500, scheduler = setTimeout } = options;
+      const { skipBackgroundSeeding = false, seedingDelay = 500, scheduler = globalThis.setTimeout || setTimeout } = options;
 
       // Handle owner personality seeding
       if (deferOwnerPersonalities && !skipBackgroundSeeding) {
@@ -479,7 +479,7 @@ class PersonalityManager {
       const profileData = {};
       if (avatarUrl) {
         profileData.avatarUrl = avatarUrl;
-        
+
         // Pre-download the avatar to avoid exposing external service URLs
         try {
           logger.info(`[PersonalityManager] Pre-downloading avatar for ${fullName}`);
@@ -552,7 +552,9 @@ class PersonalityManager {
           try {
             const localUrl = await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
             if (!localUrl) {
-              logger.info(`[PersonalityManager] Avatar missing locally for ${fullName}, downloading...`);
+              logger.info(
+                `[PersonalityManager] Avatar missing locally for ${fullName}, downloading...`
+              );
             }
           } catch (error) {
             logger.warn(

@@ -30,8 +30,8 @@ const config = {
 };
 
 // Injectable timer functions for testability
-let setTimeoutFn = setTimeout;
-let clearTimeoutFn = clearTimeout;
+let setTimeoutFn = globalThis.setTimeout || setTimeout;
+let clearTimeoutFn = globalThis.clearTimeout || clearTimeout;
 
 /**
  * Override timer functions for testing
@@ -71,7 +71,10 @@ async function initialize() {
         await saveMetadata();
       } else if (error instanceof SyntaxError) {
         // Handle JSON parse errors (including empty files)
-        logger.warn('[AvatarStorage] Invalid JSON in metadata file, reinitializing:', error.message);
+        logger.warn(
+          '[AvatarStorage] Invalid JSON in metadata file, reinitializing:',
+          error.message
+        );
         metadataCache = {};
         metadataDirty = true;
         await saveMetadata();

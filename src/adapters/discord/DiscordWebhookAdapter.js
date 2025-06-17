@@ -30,7 +30,7 @@ class DiscordWebhookAdapter {
    */
   async sendMessage({
     channelId,
-    personalityId: _personalityId,  // Currently unused but kept for interface consistency
+    personalityId: _personalityId, // Currently unused but kept for interface consistency
     personalityProfile,
     content,
     attachments = [],
