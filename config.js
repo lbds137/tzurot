@@ -2,7 +2,6 @@
 require('dotenv').config();
 
 // Environment detection
-// eslint-disable-next-line no-restricted-syntax -- Config file needs to check environment
 const isDevelopment = process.env.NODE_ENV === 'development';
 
 // Bot configuration - all values come from environment variables
@@ -31,14 +30,26 @@ function getServiceId() {
   return process.env.SERVICE_ID;
 }
 
+// Function to get the personality jargon term (e.g., "personalities", "agents", "characters")
+function getPersonalityJargonTerm() {
+  return process.env.PERSONALITY_JARGON_TERM;
+}
+
 // Function to get the complete model path for a personality
 function getModelPath(personalityName) {
   return `${getServiceId()}/${personalityName}`;
 }
 
-// Function to get the profile info endpoint for a personality
+// Function to get the profile info endpoint for a personality (public)
 function getProfileInfoEndpoint(personalityName) {
-  return `${process.env.SERVICE_WEBSITE}/api/${process.env.PROFILE_INFO_PUBLIC_PATH}/${personalityName}`;
+  const jargonTerm = getPersonalityJargonTerm();
+  return `${process.env.SERVICE_WEBSITE}/api/public/${jargonTerm}/${personalityName}`;
+}
+
+// Function to get the private profile info path for backup operations
+function getPrivateProfileInfoPath() {
+  const jargonTerm = getPersonalityJargonTerm();
+  return `${jargonTerm}/username`;
 }
 
 // Public server configuration
@@ -70,6 +81,8 @@ module.exports = {
   getApiEndpoint,
   getModelPath,
   getProfileInfoEndpoint,
+  getPrivateProfileInfoPath,
+  getPersonalityJargonTerm,
   botPrefix,
   botConfig,
   avatarConfig,

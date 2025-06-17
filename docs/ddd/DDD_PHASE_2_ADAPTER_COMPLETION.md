@@ -40,7 +40,7 @@ The adapter layer implementation for DDD Phase 2 has been successfully completed
 ## Key Design Decisions
 
 ### 1. Provider-Agnostic AI Adapters
-Per user request, the AI adapter implementation avoids any hardcoded references to specific providers (e.g., shapes.inc). Configuration is handled through:
+Per user request, the AI adapter implementation avoids any hardcoded references to specific providers. Configuration is handled through:
 - Environment variables for base URLs
 - Factory pattern for provider-specific configurations
 - Transformation functions for request/response mapping

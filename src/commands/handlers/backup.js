@@ -1,6 +1,6 @@
 /**
  * Backup Command Handler
- * Pulls complete personality data from the AI service including memories
+ * Pulls complete personality data from the AI service including memories, knowledge, training, and user personalization
  * Supports both bulk backup of owner personalities and single personality backup
  */
 const { PermissionFlagsBits } = require('discord.js');
@@ -8,9 +8,12 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { botPrefix } = require('../../../config');
+const {
+  botPrefix,
+  getPersonalityJargonTerm,
+  getPrivateProfileInfoPath,
+} = require('../../../config');
 const { USER_CONFIG } = require('../../constants');
-const auth = require('../../auth');
 const nodeFetch = require('node-fetch');
 
 /**
@@ -18,7 +21,8 @@ const nodeFetch = require('node-fetch');
  */
 const meta = {
   name: 'backup',
-  description: 'Backup personality data and memories from the AI service',
+  description:
+    'Backup personality data, memories, knowledge, training, and user personalization from the AI service',
   usage: 'backup [personality-name] | backup --all | backup --set-cookie <cookie>',
   aliases: [],
   permissions: [PermissionFlagsBits.Administrator],
@@ -27,7 +31,6 @@ const meta = {
 // Configuration
 const getApiBaseUrl = () =>
   process.env.SERVICE_WEBSITE ? `${process.env.SERVICE_WEBSITE}/api` : null;
-const PROFILE_INFO_PRIVATE_PATH = process.env.PROFILE_INFO_PRIVATE_PATH;
 const DELAY_BETWEEN_REQUESTS = 1000; // 1 second between requests to be respectful
 
 // Session storage - in production, this should be encrypted and stored securely
@@ -51,6 +54,7 @@ function getDelayFn() {
     return backupClient.delayFn;
   }
   // Default implementation using injectable scheduler
+  // eslint-disable-next-line no-restricted-globals
   const scheduler = (backupClient && backupClient.scheduler) || setTimeout;
   return ms => new Promise(resolve => scheduler(resolve, ms));
 }
@@ -70,13 +74,17 @@ async function loadBackupMetadata(personalityName) {
   try {
     const data = await fs.readFile(metadataPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) {
-    // eslint-disable-line no-unused-vars
+  } catch (_error) { // eslint-disable-line no-unused-vars
     // No existing metadata
     return {
       lastBackup: null,
       lastMemoryTimestamp: null,
       totalMemories: 0,
+      lastKnowledgeSync: null,
+      totalKnowledge: 0,
+      lastTrainingSync: null,
+      totalTraining: 0,
+      lastUserPersonalizationSync: null,
     };
   }
 }
@@ -112,8 +120,7 @@ async function loadMemories(personalityName) {
   try {
     const data = await fs.readFile(memoryPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) {
-    // eslint-disable-line no-unused-vars
+  } catch (_error) { // eslint-disable-line no-unused-vars
     // No existing memories
     return [];
   }
@@ -129,6 +136,99 @@ async function saveMemories(personalityName, memories) {
   const memoryPath = path.join(personalityDir, `${personalityName}_memories.json`);
   await fs.writeFile(memoryPath, JSON.stringify(memories, null, 2));
   logger.info(`[Backup] Saved ${memories.length} memories for ${personalityName}`);
+}
+
+/**
+ * Load existing knowledge from file
+ */
+async function loadKnowledge(personalityName) {
+  const knowledgePath = path.join(
+    getBackupDir(),
+    personalityName,
+    `${personalityName}_knowledge.json`
+  );
+  try {
+    const data = await fs.readFile(knowledgePath, 'utf8');
+    return JSON.parse(data);
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    // No existing knowledge
+    return [];
+  }
+}
+
+/**
+ * Save knowledge/story data to a single file
+ */
+async function saveKnowledge(personalityName, knowledge) {
+  const personalityDir = path.join(getBackupDir(), personalityName);
+  await fs.mkdir(personalityDir, { recursive: true });
+
+  const knowledgePath = path.join(personalityDir, `${personalityName}_knowledge.json`);
+  await fs.writeFile(knowledgePath, JSON.stringify(knowledge, null, 2));
+  logger.info(`[Backup] Saved knowledge/story data for ${personalityName}`);
+}
+
+/**
+ * Load existing training from file
+ */
+async function loadTraining(personalityName) {
+  const trainingPath = path.join(
+    getBackupDir(),
+    personalityName,
+    `${personalityName}_training.json`
+  );
+  try {
+    const data = await fs.readFile(trainingPath, 'utf8');
+    return JSON.parse(data);
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    // No existing training
+    return [];
+  }
+}
+
+/**
+ * Save training data to a single file
+ */
+async function saveTraining(personalityName, training) {
+  const personalityDir = path.join(getBackupDir(), personalityName);
+  await fs.mkdir(personalityDir, { recursive: true });
+
+  const trainingPath = path.join(personalityDir, `${personalityName}_training.json`);
+  await fs.writeFile(trainingPath, JSON.stringify(training, null, 2));
+  logger.info(`[Backup] Saved training data for ${personalityName}`);
+}
+
+/**
+ * Load existing user personalization from file
+ */
+async function loadUserPersonalization(personalityName) {
+  const userPersonalizationPath = path.join(
+    getBackupDir(),
+    personalityName,
+    `${personalityName}_user_personalization.json`
+  );
+  try {
+    const data = await fs.readFile(userPersonalizationPath, 'utf8');
+    return JSON.parse(data);
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    // No existing user personalization
+    return {};
+  }
+}
+
+/**
+ * Save user personalization data to a single file
+ */
+async function saveUserPersonalization(personalityName, userPersonalization) {
+  const personalityDir = path.join(getBackupDir(), personalityName);
+  await fs.mkdir(personalityDir, { recursive: true });
+
+  const userPersonalizationPath = path.join(
+    personalityDir,
+    `${personalityName}_user_personalization.json`
+  );
+  await fs.writeFile(userPersonalizationPath, JSON.stringify(userPersonalization, null, 2));
+  logger.info(`[Backup] Saved user personalization data for ${personalityName}`);
 }
 
 /**
@@ -153,16 +253,13 @@ class BackupClient {
         Accept: 'application/json',
       };
 
-      // If we have a session cookie, use it
-      if (authData.cookie) {
-        headers['Cookie'] = authData.cookie;
-        logger.debug(`[Backup] Using session cookie for authentication`);
-      } else if (authData.token) {
-        // Otherwise fall back to token auth
-        headers['X-App-ID'] = auth.APP_ID;
-        headers['X-User-Auth'] = authData.token;
-        logger.debug(`[Backup] Using token authentication`);
+      // Session cookie is required - token auth doesn't work for these APIs
+      if (!authData.cookie) {
+        throw new Error('Session cookie required for backup operations');
       }
+
+      headers['Cookie'] = authData.cookie;
+      logger.debug(`[Backup] Using session cookie for authentication`);
 
       const response = await nodeFetch(url, {
         headers,
@@ -170,7 +267,9 @@ class BackupClient {
       });
 
       if (!response.ok) {
-        throw new Error(`API error ${response.status}: ${response.statusText}`);
+        const error = new Error(`API error ${response.status}: ${response.statusText}`);
+        error.status = response.status;
+        throw error;
       }
 
       const data = await response.json();
@@ -203,7 +302,8 @@ function getBackupClient() {
  * Fetch personality profile data
  */
 async function fetchPersonalityProfile(personalityName, authData) {
-  const url = `${getApiBaseUrl()}/${PROFILE_INFO_PRIVATE_PATH}/${personalityName}`;
+  const privatePath = getPrivateProfileInfoPath();
+  const url = `${getApiBaseUrl()}/${privatePath}/${personalityName}`;
   logger.info(`[Backup] Fetching profile from: ${url}`);
   return await getBackupClient().makeAuthenticatedRequest(url, authData);
 }
@@ -264,6 +364,110 @@ async function fetchAllMemories(personalityId, personalityName, authData) {
 }
 
 /**
+ * Fetch knowledge/story data for a personality
+ */
+async function fetchKnowledgeData(personalityId, personalityName, authData) {
+  logger.info(`[Backup] Fetching knowledge/story data for ${personalityName}...`);
+
+  try {
+    const jargonTerm = getPersonalityJargonTerm();
+    if (!jargonTerm) {
+      throw new Error('PERSONALITY_JARGON_TERM environment variable not configured');
+    }
+    const url = `${getApiBaseUrl()}/${jargonTerm}/${personalityId}/story`;
+    logger.info(`[Backup] Fetching knowledge from: ${url}`);
+    const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
+
+    // The knowledge/story endpoint might return different formats
+    // Handle both array and object responses
+    let knowledge = [];
+    if (Array.isArray(response)) {
+      knowledge = response;
+    } else if (response.items) {
+      knowledge = response.items;
+    } else if (response.story || response.knowledge) {
+      knowledge = response.story || response.knowledge;
+    } else if (response && Object.keys(response).length > 0) {
+      // If it's a single object, wrap it in an array
+      knowledge = [response];
+    }
+
+    logger.info(`[Backup] Fetched ${knowledge.length} knowledge/story entries`);
+    return knowledge;
+  } catch (error) {
+    logger.error(`[Backup] Error fetching knowledge for ${personalityName}: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch training data for a personality
+ */
+async function fetchTrainingData(personalityId, personalityName, authData) {
+  logger.info(`[Backup] Fetching training data for ${personalityName}...`);
+
+  try {
+    const jargonTerm = getPersonalityJargonTerm();
+    if (!jargonTerm) {
+      throw new Error('PERSONALITY_JARGON_TERM environment variable not configured');
+    }
+    const url = `${getApiBaseUrl()}/${jargonTerm}/${personalityId}/training`;
+    logger.info(`[Backup] Fetching training from: ${url}`);
+    const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
+
+    // The training endpoint should return an array similar to story
+    let training = [];
+    if (Array.isArray(response)) {
+      training = response;
+    } else if (response.items) {
+      training = response.items;
+    } else if (response.training) {
+      training = response.training;
+    } else if (response && Object.keys(response).length > 0) {
+      // If it's a single object, wrap it in an array
+      training = [response];
+    }
+
+    logger.info(`[Backup] Fetched ${training.length} training entries`);
+    return training;
+  } catch (error) {
+    logger.error(`[Backup] Error fetching training for ${personalityName}: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Fetch user personalization data for a personality
+ */
+async function fetchUserPersonalizationData(personalityId, personalityName, authData) {
+  logger.info(`[Backup] Fetching user personalization data for ${personalityName}...`);
+
+  try {
+    const jargonTerm = getPersonalityJargonTerm();
+    if (!jargonTerm) {
+      throw new Error('PERSONALITY_JARGON_TERM environment variable not configured');
+    }
+    const url = `${getApiBaseUrl()}/${jargonTerm}/${personalityId}/user`;
+    logger.info(`[Backup] Fetching user personalization from: ${url}`);
+    const response = await getBackupClient().makeAuthenticatedRequest(url, authData);
+
+    // The user personalization endpoint returns a single object
+    if (response && Object.keys(response).length > 0) {
+      logger.info(`[Backup] Fetched user personalization data`);
+      return response;
+    } else {
+      logger.info(`[Backup] No user personalization data found for ${personalityName}`);
+      return {};
+    }
+  } catch (error) {
+    logger.error(
+      `[Backup] Error fetching user personalization for ${personalityName}: ${error.message}`
+    );
+    return {};
+  }
+}
+
+/**
  * Sync memories intelligently - only fetch new ones
  */
 async function syncMemories(personalityId, personalityName, authData, metadata) {
@@ -312,6 +516,132 @@ async function syncMemories(personalityId, personalityName, authData, metadata) 
 }
 
 /**
+ * Sync knowledge intelligently - check for changes
+ */
+async function syncKnowledge(personalityId, personalityName, authData, metadata) {
+  logger.info(`[Backup] Syncing knowledge for ${personalityName}...`);
+
+  try {
+    // Fetch current knowledge data
+    const currentKnowledge = await fetchKnowledgeData(personalityId, personalityName, authData);
+
+    if (currentKnowledge.length === 0) {
+      logger.info(`[Backup] No knowledge data found for ${personalityName}`);
+      return { hasNewKnowledge: false, knowledgeCount: 0 };
+    }
+
+    // Load existing knowledge
+    const existingKnowledge = await loadKnowledge(personalityName);
+
+    // Simple comparison - if different, update
+    const currentJson = JSON.stringify(currentKnowledge);
+    const existingJson = JSON.stringify(existingKnowledge);
+
+    if (currentJson !== existingJson) {
+      await saveKnowledge(personalityName, currentKnowledge);
+      metadata.totalKnowledge = currentKnowledge.length;
+      metadata.lastKnowledgeSync = new Date().toISOString();
+
+      logger.info(
+        `[Backup] Updated knowledge for ${personalityName} (${currentKnowledge.length} entries)`
+      );
+      return { hasNewKnowledge: true, knowledgeCount: currentKnowledge.length };
+    } else {
+      logger.info(`[Backup] Knowledge unchanged for ${personalityName}`);
+      return { hasNewKnowledge: false, knowledgeCount: currentKnowledge.length };
+    }
+  } catch (error) {
+    logger.error(`[Backup] Error syncing knowledge for ${personalityName}: ${error.message}`);
+    return { hasNewKnowledge: false, knowledgeCount: 0 };
+  }
+}
+
+/**
+ * Sync training intelligently - check for changes
+ */
+async function syncTraining(personalityId, personalityName, authData, metadata) {
+  logger.info(`[Backup] Syncing training for ${personalityName}...`);
+
+  try {
+    // Fetch current training data
+    const currentTraining = await fetchTrainingData(personalityId, personalityName, authData);
+
+    if (currentTraining.length === 0) {
+      logger.info(`[Backup] No training data found for ${personalityName}`);
+      return { hasNewTraining: false, trainingCount: 0 };
+    }
+
+    // Load existing training
+    const existingTraining = await loadTraining(personalityName);
+
+    // Simple comparison - if different, update
+    const currentJson = JSON.stringify(currentTraining);
+    const existingJson = JSON.stringify(existingTraining);
+
+    if (currentJson !== existingJson) {
+      await saveTraining(personalityName, currentTraining);
+      metadata.totalTraining = currentTraining.length;
+      metadata.lastTrainingSync = new Date().toISOString();
+
+      logger.info(
+        `[Backup] Updated training for ${personalityName} (${currentTraining.length} entries)`
+      );
+      return { hasNewTraining: true, trainingCount: currentTraining.length };
+    } else {
+      logger.info(`[Backup] Training unchanged for ${personalityName}`);
+      return { hasNewTraining: false, trainingCount: currentTraining.length };
+    }
+  } catch (error) {
+    logger.error(`[Backup] Error syncing training for ${personalityName}: ${error.message}`);
+    return { hasNewTraining: false, trainingCount: 0 };
+  }
+}
+
+/**
+ * Sync user personalization intelligently - check for changes
+ */
+async function syncUserPersonalization(personalityId, personalityName, authData, metadata) {
+  logger.info(`[Backup] Syncing user personalization for ${personalityName}...`);
+
+  try {
+    // Fetch current user personalization data
+    const currentUserPersonalization = await fetchUserPersonalizationData(
+      personalityId,
+      personalityName,
+      authData
+    );
+
+    if (Object.keys(currentUserPersonalization).length === 0) {
+      logger.info(`[Backup] No user personalization data found for ${personalityName}`);
+      return { hasNewUserPersonalization: false };
+    }
+
+    // Load existing user personalization
+    const existingUserPersonalization = await loadUserPersonalization(personalityName);
+
+    // Simple comparison - if different, update
+    const currentJson = JSON.stringify(currentUserPersonalization);
+    const existingJson = JSON.stringify(existingUserPersonalization);
+
+    if (currentJson !== existingJson) {
+      await saveUserPersonalization(personalityName, currentUserPersonalization);
+      metadata.lastUserPersonalizationSync = new Date().toISOString();
+
+      logger.info(`[Backup] Updated user personalization for ${personalityName}`);
+      return { hasNewUserPersonalization: true };
+    } else {
+      logger.info(`[Backup] User personalization unchanged for ${personalityName}`);
+      return { hasNewUserPersonalization: false };
+    }
+  } catch (error) {
+    logger.error(
+      `[Backup] Error syncing user personalization for ${personalityName}: ${error.message}`
+    );
+    return { hasNewUserPersonalization: false };
+  }
+}
+
+/**
  * Backup a single personality
  */
 async function backupPersonality(personalityName, authData, directSend) {
@@ -325,10 +655,34 @@ async function backupPersonality(personalityName, authData, directSend) {
     const profile = await fetchPersonalityProfile(personalityName, authData);
     await savePersonalityProfile(personalityName, profile);
 
-    // Fetch memories if personality has an ID
+    // Fetch memories and knowledge if personality has an ID
     if (profile.id) {
       await getDelayFn()(DELAY_BETWEEN_REQUESTS);
       const { newMemoryCount } = await syncMemories(
+        profile.id,
+        personalityName,
+        authData,
+        metadata
+      );
+
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
+      const { hasNewKnowledge, knowledgeCount } = await syncKnowledge(
+        profile.id,
+        personalityName,
+        authData,
+        metadata
+      );
+
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
+      const { hasNewTraining, trainingCount } = await syncTraining(
+        profile.id,
+        personalityName,
+        authData,
+        metadata
+      );
+
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
+      const { hasNewUserPersonalization } = await syncUserPersonalization(
         profile.id,
         personalityName,
         authData,
@@ -343,14 +697,21 @@ async function backupPersonality(personalityName, authData, directSend) {
         `✅ Backup complete for **${personalityName}**\n` +
           `• Profile: Updated\n` +
           `• New memories: ${newMemoryCount}\n` +
-          `• Total memories: ${metadata.totalMemories}`
+          `• Total memories: ${metadata.totalMemories}\n` +
+          `• Knowledge: ${hasNewKnowledge ? 'Updated' : 'Unchanged'} (${knowledgeCount} entries)\n` +
+          `• Training: ${hasNewTraining ? 'Updated' : 'Unchanged'} (${trainingCount} entries)\n` +
+          `• User Personalization: ${hasNewUserPersonalization ? 'Updated' : 'Unchanged'}`
       );
     } else {
-      await directSend(`✅ Backup complete for **${personalityName}** (no memories found)`);
+      await directSend(
+        `✅ Backup complete for **${personalityName}** (no additional data found - profile only)`
+      );
     }
   } catch (error) {
     logger.error(`[Backup] Error backing up ${personalityName}: ${error.message}`);
     await directSend(`❌ Failed to backup **${personalityName}**: ${error.message}`);
+    // Re-throw the error so bulk backup can catch it
+    throw error;
   }
 }
 
@@ -372,17 +733,38 @@ async function handleBulkBackup(authData, directSend) {
   );
 
   let successCount = 0;
+  let shouldContinue = true;
+  
   for (const personalityName of ownerPersonalities) {
-    await backupPersonality(personalityName, authData, directSend);
-    successCount++;
+    if (!shouldContinue) break;
+    
+    try {
+      await backupPersonality(personalityName, authData, directSend);
+      successCount++;
 
-    // Delay between personalities
-    if (successCount < ownerPersonalities.length) {
-      await getDelayFn()(DELAY_BETWEEN_REQUESTS * 2);
+      // Delay between personalities
+      if (successCount < ownerPersonalities.length) {
+        await getDelayFn()(DELAY_BETWEEN_REQUESTS * 2);
+      }
+    } catch (error) {
+      // Check if it's a 401 Unauthorized error
+      if (error.status === 401 || error.message.includes('401')) {
+        await directSend(
+          `\n❌ Authentication failed! Your session cookie may have expired.\n` +
+          `Successfully backed up ${successCount} of ${ownerPersonalities.length} personalities before failure.\n\n` +
+          `Please update your session cookie with: \`${botPrefix} backup --set-cookie <new-cookie>\``
+        );
+        shouldContinue = false;
+      } else {
+        // For other errors, log but continue with next personality
+        logger.error(`[Backup] Error backing up ${personalityName}: ${error.message}`);
+      }
     }
   }
 
-  await directSend(`\n✅ Bulk backup complete! Backed up ${successCount} personalities.`);
+  if (shouldContinue) {
+    await directSend(`\n✅ Bulk backup complete! Backed up ${successCount} personalities.`);
+  }
 }
 
 /**
@@ -409,8 +791,7 @@ async function handleSetCookie(message, args, directSend) {
   if (!message.channel.isDMBased()) {
     try {
       await message.delete();
-    } catch (_error) {
-      // eslint-disable-line no-unused-vars
+    } catch (_error) { // eslint-disable-line no-unused-vars
       // Ignore delete errors
     }
     return await directSend(
@@ -453,35 +834,27 @@ async function execute(message, args) {
       return await handleSetCookie(message, args.slice(1), directSend);
     }
 
-    // Get authentication data - prefer session cookie, fallback to token
+    // Get authentication data - session cookie is required
     const authData = {};
 
     // Check for stored session
     const userSession = userSessions.get(message.author.id);
-    if (userSession) {
-      authData.cookie = userSession.cookie;
-      logger.info(`[Backup] Using stored session cookie for user ${message.author.id}`);
-    } else {
-      // Fall back to token auth
-      const authManager = auth.getAuthManager();
-      if (!authManager) {
-        return await directSend('❌ Authentication system not available.');
-      }
-
-      const userAuth = authManager.getUserToken(message.author.id);
-      if (!userAuth) {
-        return await directSend(
-          '❌ No authentication found. Either:\n' +
-            '1. Authenticate with: `' +
-            botPrefix +
-            ' auth <token>`\n' +
-            '2. Set browser session: `' +
-            botPrefix +
-            ' backup --set-cookie <cookie>`'
-        );
-      }
-      authData.token = userAuth;
+    if (!userSession) {
+      return await directSend(
+        '❌ Session cookie required for backup operations.\n\n' +
+          '**How to set your session cookie:**\n' +
+          '1. Open the service website in your browser and log in\n' +
+          '2. Open Developer Tools (F12)\n' +
+          '3. Go to Application/Storage → Cookies\n' +
+          '4. Find the `appSession` cookie\n' +
+          '5. Copy its value (the long string)\n' +
+          '6. Use: `' + botPrefix + ' backup --set-cookie <cookie-value>`\n\n' +
+          '⚠️ **Note:** Token authentication does not work for these backup APIs.'
+      );
     }
+
+    authData.cookie = userSession.cookie;
+    logger.info(`[Backup] Using stored session cookie for user ${message.author.id}`);
 
     // Parse arguments
     if (args.length === 0) {
@@ -520,9 +893,21 @@ module.exports = {
   savePersonalityProfile,
   loadMemories,
   saveMemories,
+  loadKnowledge,
+  saveKnowledge,
+  loadTraining,
+  saveTraining,
+  loadUserPersonalization,
+  saveUserPersonalization,
   fetchPersonalityProfile,
   fetchAllMemories,
+  fetchKnowledgeData,
+  fetchTrainingData,
+  fetchUserPersonalizationData,
   syncMemories,
+  syncKnowledge,
+  syncTraining,
+  syncUserPersonalization,
   backupPersonality,
   handleBulkBackup,
   handleSetCookie,
