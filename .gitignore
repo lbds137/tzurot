@@ -142,3 +142,6 @@ dist
 data/
 test-data/
 /test-results.json
+
+# External service documentation (kept locally only)
+docs/external-services/
