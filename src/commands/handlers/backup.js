@@ -136,8 +136,8 @@ async function saveMemories(personalityName, memories) {
  */
 class BackupClient {
   constructor(options = {}) {
-    this.scheduler = options.scheduler || (globalThis.setTimeout || setTimeout);
-    this.clearScheduler = options.clearScheduler || (globalThis.clearTimeout || clearTimeout);
+    this.scheduler = options.scheduler || globalThis.setTimeout || setTimeout;
+    this.clearScheduler = options.clearScheduler || globalThis.clearTimeout || clearTimeout;
     this.timeout = options.timeout || 30000;
     this.delayFn = options.delayFn || (ms => new Promise(resolve => this.scheduler(resolve, ms)));
   }

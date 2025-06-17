@@ -53,7 +53,11 @@ class PersonalityManager {
       this.registry.loadFromObjects(personalities, aliases);
 
       // Extract options with defaults
-      const { skipBackgroundSeeding = false, seedingDelay = 500, scheduler = globalThis.setTimeout || setTimeout } = options;
+      const {
+        skipBackgroundSeeding = false,
+        seedingDelay = 500,
+        scheduler = globalThis.setTimeout || setTimeout,
+      } = options;
 
       // Handle owner personality seeding
       if (deferOwnerPersonalities && !skipBackgroundSeeding) {

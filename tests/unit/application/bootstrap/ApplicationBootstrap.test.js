@@ -173,16 +173,10 @@ describe('ApplicationBootstrap', () => {
 
       await bootstrap.initialize();
 
-      expect(mockCommandIntegration.initialize).toHaveBeenCalledWith(
-        expect.objectContaining({
-          personalityApplicationService: expect.any(Object),
-          conversationManager: mockConversationManager,
-          profileInfoCache: expect.any(Object),
-          messageTracker: expect.any(Object),
-          featureFlags: mockFeatureFlags,
-          botPrefix: expect.any(String),
-        })
-      );
+      // CommandIntegration should only be initialized through the adapter (no direct initialization)
+      expect(mockCommandIntegration.initialize).not.toHaveBeenCalled();
+      
+      // CommandIntegrationAdapter should be initialized with application services
       expect(mockCommandAdapter.initialize).toHaveBeenCalledWith(
         expect.objectContaining({
           personalityApplicationService: expect.any(Object),
