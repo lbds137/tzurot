@@ -85,6 +85,10 @@ async function loadBackupMetadata(personalityName) {
       lastTrainingSync: null,
       totalTraining: 0,
       lastUserPersonalizationSync: null,
+      lastChatHistorySync: null,
+      totalChatMessages: 0,
+      oldestChatMessage: null,
+      newestChatMessage: null,
     };
   }
 }
@@ -229,6 +233,149 @@ async function saveUserPersonalization(personalityName, userPersonalization) {
   );
   await fs.writeFile(userPersonalizationPath, JSON.stringify(userPersonalization, null, 2));
   logger.info(`[Backup] Saved user personalization data for ${personalityName}`);
+}
+
+/**
+ * Load existing chat history from file
+ */
+async function loadChatHistory(personalityName) {
+  const chatPath = path.join(getBackupDir(), personalityName, `${personalityName}_chat_history.json`);
+  try {
+    const data = await fs.readFile(chatPath, 'utf8');
+    const chatData = JSON.parse(data);
+    return chatData.messages || [];
+  } catch (_error) { // eslint-disable-line no-unused-vars
+    return [];
+  }
+}
+
+/**
+ * Save chat history to file
+ */
+async function saveChatHistory(personalityName, messages, metadata) {
+  const personalityDir = path.join(getBackupDir(), personalityName);
+  await fs.mkdir(personalityDir, { recursive: true });
+
+  const chatData = {
+    shape_id: metadata.personalityId,
+    shape_name: personalityName,
+    message_count: messages.length,
+    date_range: {
+      earliest: messages.length > 0 ? new Date(messages[0].ts * 1000).toISOString() : null,
+      latest: messages.length > 0 ? new Date(messages[messages.length - 1].ts * 1000).toISOString() : null,
+    },
+    export_date: new Date().toISOString(),
+    messages: messages,
+  };
+
+  const chatPath = path.join(personalityDir, `${personalityName}_chat_history.json`);
+  await fs.writeFile(chatPath, JSON.stringify(chatData, null, 2));
+  logger.info(`[Backup] Saved ${messages.length} chat messages for ${personalityName}`);
+}
+
+/**
+ * Fetch complete chat history using pagination
+ * Returns messages sorted chronologically (oldest first) for easy incremental updates
+ */
+async function fetchChatHistory(personalityId, personalityName, authData) {
+  logger.info(`[Backup] Fetching chat history for ${personalityName}...`);
+  
+  const allMessages = [];
+  let beforeTs = null;
+  let iteration = 0;
+  const CHAT_BATCH_SIZE = 50;
+
+  try {
+    while (true) {
+      iteration++;
+      const jargonTerm = getPersonalityJargonTerm();
+      if (!jargonTerm) {
+        throw new Error('PERSONALITY_JARGON_TERM environment variable not configured');
+      }
+      let url = `${getApiBaseUrl()}/${jargonTerm}/${personalityId}/chat/history?limit=${CHAT_BATCH_SIZE}&shape_id=${personalityId}`;
+      
+      if (beforeTs) {
+        url += `&before_ts=${beforeTs}`;
+      }
+
+      logger.info(`[Backup] Fetching chat batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`);
+      
+      const messages = await getBackupClient().makeAuthenticatedRequest(url, authData);
+      
+      if (!Array.isArray(messages) || messages.length === 0) {
+        logger.info(`[Backup] No more messages found`);
+        break;
+      }
+      
+      allMessages.push(...messages);
+      logger.info(`[Backup] Retrieved ${messages.length} messages (total: ${allMessages.length})`);
+      
+      // Find earliest timestamp for next batch
+      beforeTs = Math.min(...messages.map(m => m.ts));
+      
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
+    }
+
+    // Sort by timestamp (oldest first) - consistent with memory storage pattern
+    allMessages.sort((a, b) => a.ts - b.ts);
+    
+    logger.info(`[Backup] Fetched ${allMessages.length} total chat messages`);
+    return allMessages;
+    
+  } catch (error) {
+    logger.error(`[Backup] Error fetching chat history: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * Sync chat history intelligently - only fetch new messages
+ */
+async function syncChatHistory(personalityId, personalityName, authData, metadata) {
+  logger.info(`[Backup] Syncing chat history for ${personalityName}...`);
+  
+  // Load existing chat history (already sorted oldest to newest)
+  const existingMessages = await loadChatHistory(personalityName);
+  
+  // Get the timestamp of the newest existing message for efficient fetching
+  let newestExistingTimestamp = 0;
+  if (existingMessages.length > 0) {
+    newestExistingTimestamp = existingMessages[existingMessages.length - 1].ts;
+  }
+  
+  // Fetch all messages (they come sorted oldest to newest from fetchChatHistory)
+  const allMessages = await fetchChatHistory(personalityId, personalityName, authData);
+  
+  if (allMessages.length === 0) {
+    logger.info(`[Backup] No chat history available`);
+    return { hasNewMessages: false, newMessageCount: 0, totalMessages: existingMessages.length };
+  }
+  
+  // Find new messages (those with timestamp > newest existing)
+  const newMessages = allMessages.filter(msg => msg.ts > newestExistingTimestamp);
+  
+  if (newMessages.length > 0) {
+    // Simply append new messages to existing ones (both are already sorted)
+    const updatedMessages = [...existingMessages, ...newMessages];
+    
+    // Save updated chat history
+    await saveChatHistory(personalityName, updatedMessages, { personalityId });
+    
+    // Update metadata
+    metadata.totalChatMessages = updatedMessages.length;
+    metadata.lastChatHistorySync = new Date().toISOString();
+    
+    if (updatedMessages.length > 0) {
+      metadata.oldestChatMessage = new Date(updatedMessages[0].ts * 1000).toISOString();
+      metadata.newestChatMessage = new Date(updatedMessages[updatedMessages.length - 1].ts * 1000).toISOString();
+    }
+    
+    logger.info(`[Backup] Added ${newMessages.length} new messages (total: ${updatedMessages.length})`);
+    return { hasNewMessages: true, newMessageCount: newMessages.length, totalMessages: updatedMessages.length };
+  } else {
+    logger.info(`[Backup] No new messages found`);
+    return { hasNewMessages: false, newMessageCount: 0, totalMessages: existingMessages.length };
+  }
 }
 
 /**
@@ -689,19 +836,36 @@ async function backupPersonality(personalityName, authData, directSend) {
         metadata
       );
 
+      // Sync chat history
+      await getDelayFn()(DELAY_BETWEEN_REQUESTS);
+      const chatResult = await syncChatHistory(
+        profile.id,
+        personalityName,
+        authData,
+        metadata
+      );
+
       // Update metadata
       metadata.lastBackup = new Date().toISOString();
       await saveBackupMetadata(personalityName, metadata);
 
-      await directSend(
+      let resultMessage = 
         `✅ Backup complete for **${personalityName}**\n` +
-          `• Profile: Updated\n` +
-          `• New memories: ${newMemoryCount}\n` +
-          `• Total memories: ${metadata.totalMemories}\n` +
-          `• Knowledge: ${hasNewKnowledge ? 'Updated' : 'Unchanged'} (${knowledgeCount} entries)\n` +
-          `• Training: ${hasNewTraining ? 'Updated' : 'Unchanged'} (${trainingCount} entries)\n` +
-          `• User Personalization: ${hasNewUserPersonalization ? 'Updated' : 'Unchanged'}`
-      );
+        `• Profile: Updated\n` +
+        `• New memories: ${newMemoryCount}\n` +
+        `• Total memories: ${metadata.totalMemories}\n` +
+        `• Knowledge: ${hasNewKnowledge ? 'Updated' : 'Unchanged'} (${knowledgeCount} entries)\n` +
+        `• Training: ${hasNewTraining ? 'Updated' : 'Unchanged'} (${trainingCount} entries)\n` +
+        `• User Personalization: ${hasNewUserPersonalization ? 'Updated' : 'Unchanged'}\n` +
+        `• Chat History: ${chatResult.newMessageCount} new messages (total: ${chatResult.totalMessages})`;
+      
+      if (metadata.oldestChatMessage && metadata.newestChatMessage) {
+        const oldest = new Date(metadata.oldestChatMessage).toLocaleDateString();
+        const newest = new Date(metadata.newestChatMessage).toLocaleDateString();
+        resultMessage += `\n• Date range: ${oldest} to ${newest}`;
+      }
+      
+      await directSend(resultMessage);
     } else {
       await directSend(
         `✅ Backup complete for **${personalityName}** (no additional data found - profile only)`
@@ -913,6 +1077,11 @@ module.exports = {
   handleSetCookie,
   userSessions, // Export for testing
   getDelayFn, // Export for testing
+  // Chat history functions
+  loadChatHistory,
+  saveChatHistory,
+  fetchChatHistory,
+  syncChatHistory,
   // Allow injection of delay function for testing
   _setDelayFunction: fn => {
     if (backupClient) {

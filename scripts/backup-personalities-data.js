@@ -5,7 +5,7 @@
  *
  * This script is completely self-contained with no external dependencies.
  * It backs up complete personality data including memories, knowledge, training,
- * and user personalization from external personality services.
+ * user personalization, and complete chat history from external personality services.
  *
  * Usage:
  * 1. Log into the external service in your browser
@@ -156,6 +156,28 @@ async function saveUserPersonalizationData(username, userPersonalization) {
   const filePath = path.join(personalityDir, `${username}_user_personalization.json`);
   await fs.writeFile(filePath, JSON.stringify(userPersonalization, null, 2));
   console.log(`  ✓ Saved user personalization data for ${username}`);
+}
+
+// Save chat history data to a single file
+async function saveChatHistoryData(username, personalityId, messages) {
+  const personalityDir = path.join(OUTPUT_DIR, username);
+  await fs.mkdir(personalityDir, { recursive: true });
+
+  const chatData = {
+    shape_id: personalityId,
+    shape_name: username,
+    message_count: messages.length,
+    date_range: {
+      earliest: messages.length > 0 ? new Date(messages[0].ts * 1000).toISOString() : null,
+      latest: messages.length > 0 ? new Date(messages[messages.length - 1].ts * 1000).toISOString() : null,
+    },
+    export_date: new Date().toISOString(),
+    messages: messages,
+  };
+
+  const filePath = path.join(personalityDir, `${username}_chat_history.json`);
+  await fs.writeFile(filePath, JSON.stringify(chatData, null, 2));
+  console.log(`  ✓ Saved ${messages.length} chat messages for ${username}`);
 }
 
 // Fetch all memories for a personality
@@ -310,6 +332,62 @@ async function fetchUserPersonalizationData(personalityId, username) {
   }
 }
 
+// Fetch complete chat history for a personality
+async function fetchChatHistory(personalityId, username) {
+  console.log(`\nFetching chat history for ${username}...`);
+
+  try {
+    const allMessages = [];
+    let beforeTs = null;
+    let iteration = 0;
+    const CHAT_BATCH_SIZE = 50; // Max messages per request
+
+    while (true) {
+      iteration++;
+      let url = `${SERVICE_WEBSITE}/api/${PERSONALITY_JARGON_TERM}/${personalityId}/chat/history?limit=${CHAT_BATCH_SIZE}&shape_id=${personalityId}`;
+      
+      if (beforeTs) {
+        url += `&before_ts=${beforeTs}`;
+      }
+
+      console.log(`  Fetching batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`);
+      
+      const messages = await httpsGet(url);
+      
+      if (!Array.isArray(messages) || messages.length === 0) {
+        console.log(`  No more messages found`);
+        break;
+      }
+      
+      allMessages.push(...messages);
+      console.log(`  Retrieved ${messages.length} messages (total: ${allMessages.length})`);
+      
+      // Find earliest timestamp for next batch
+      beforeTs = Math.min(...messages.map(m => m.ts));
+      
+      await delay(DELAY_BETWEEN_REQUESTS);
+    }
+
+    // Sort by timestamp (oldest first)
+    allMessages.sort((a, b) => a.ts - b.ts);
+    
+    if (allMessages.length > 0) {
+      // Save chat history
+      await saveChatHistoryData(username, personalityId, allMessages);
+      
+      // Calculate statistics
+      const totalChars = allMessages.reduce((sum, msg) => {
+        return sum + (msg.message?.length || 0) + (msg.reply?.length || 0);
+      }, 0);
+      console.log(`  Total characters: ${totalChars.toLocaleString()}`);
+    } else {
+      console.log(`  No chat history found for ${username}`);
+    }
+  } catch (error) {
+    console.error(`  ERROR fetching chat history for ${username}: ${error.message}`);
+  }
+}
+
 // Fetch complete data for a personality
 async function fetchPersonalityData(username) {
   console.log(`\nFetching data for ${username}...`);
@@ -334,9 +412,12 @@ async function fetchPersonalityData(username) {
 
     await delay(DELAY_BETWEEN_REQUESTS);
     await fetchUserPersonalizationData(profileData.id, username);
+
+    await delay(DELAY_BETWEEN_REQUESTS);
+    await fetchChatHistory(profileData.id, username);
   } else {
     console.log(
-      `  WARNING: No ID found for ${username}, skipping memories, knowledge, training, and user personalization`
+      `  WARNING: No ID found for ${username}, skipping memories, knowledge, training, user personalization, and chat history`
     );
   }
 }
