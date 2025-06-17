@@ -41,6 +41,10 @@ class PersonalityManager {
   async initialize(deferOwnerPersonalities = true, options = {}) {
     try {
       logger.info('[PersonalityManager] Initializing...');
+      
+      // Initialize avatar storage system
+      await avatarStorage.initialize();
+      logger.info('[PersonalityManager] Avatar storage initialized');
 
       // Load data from persistence
       const { personalities, aliases } = await this.persistence.load();
@@ -473,7 +477,23 @@ class PersonalityManager {
       ]);
 
       const profileData = {};
-      if (avatarUrl) profileData.avatarUrl = avatarUrl;
+      if (avatarUrl) {
+        profileData.avatarUrl = avatarUrl;
+        
+        // Pre-download the avatar to avoid exposing external service URLs
+        try {
+          logger.info(`[PersonalityManager] Pre-downloading avatar for ${fullName}`);
+          const localUrl = await avatarStorage.getLocalAvatarUrl(fullName, avatarUrl);
+          if (localUrl) {
+            logger.info(`[PersonalityManager] Avatar downloaded successfully for ${fullName}`);
+          }
+        } catch (downloadError) {
+          logger.warn(
+            `[PersonalityManager] Failed to pre-download avatar for ${fullName}: ${downloadError.message}`
+          );
+          // Continue anyway - avatar will be downloaded on first use
+        }
+      }
       if (displayName) profileData.displayName = displayName;
       if (errorMessage) profileData.errorMessage = errorMessage;
 
@@ -505,26 +525,40 @@ class PersonalityManager {
 
       // Check if avatar needs updating using checksum comparison
       let avatarChanged = false;
-      if (profileData.avatarUrl && profileData.avatarUrl !== personality.avatarUrl) {
-        // URL changed, check if actual image changed
-        try {
-          const needsUpdate = await avatarStorage.needsUpdate(fullName, profileData.avatarUrl);
-          if (needsUpdate) {
-            logger.info(
-              `[PersonalityManager] Avatar changed for ${fullName}, will update local storage`
-            );
-            avatarChanged = true;
-            // Pre-download the new avatar to ensure it's cached
-            await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
-          } else {
-            logger.info(
-              `[PersonalityManager] Avatar URL changed but image unchanged for ${fullName}`
+      if (profileData.avatarUrl) {
+        if (profileData.avatarUrl !== personality.avatarUrl) {
+          // URL changed, check if actual image changed
+          try {
+            const needsUpdate = await avatarStorage.needsUpdate(fullName, profileData.avatarUrl);
+            if (needsUpdate) {
+              logger.info(
+                `[PersonalityManager] Avatar changed for ${fullName}, will update local storage`
+              );
+              avatarChanged = true;
+              // Pre-download the new avatar to ensure it's cached
+              await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
+            } else {
+              logger.info(
+                `[PersonalityManager] Avatar URL changed but image unchanged for ${fullName}`
+              );
+            }
+          } catch (error) {
+            logger.error(
+              `[PersonalityManager] Error checking avatar update for ${fullName}: ${error.message}`
             );
           }
-        } catch (error) {
-          logger.error(
-            `[PersonalityManager] Error checking avatar update for ${fullName}: ${error.message}`
-          );
+        } else {
+          // URL hasn't changed, but ensure avatar is downloaded
+          try {
+            const localUrl = await avatarStorage.getLocalAvatarUrl(fullName, profileData.avatarUrl);
+            if (!localUrl) {
+              logger.info(`[PersonalityManager] Avatar missing locally for ${fullName}, downloading...`);
+            }
+          } catch (error) {
+            logger.warn(
+              `[PersonalityManager] Failed to ensure avatar downloaded for ${fullName}: ${error.message}`
+            );
+          }
         }
       }
 
