@@ -225,5 +225,5 @@ jest.spyOn(context, 'canEmbed');
 
 ---
 
-*Last Updated: 2024-12-14*
+*Last Updated: June 2025*
 *Issue Discovery: DDD Phase 3 List Command Implementation*

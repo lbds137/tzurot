@@ -11,7 +11,7 @@ This document chronicles significant bugs discovered through testing (or missed 
 ## The getAllReleases Bug
 
 ### Date Discovered
-December 2024 (caught in development)
+June 2025 (caught in development)
 
 ### What Happened
 Tests were passing with a mocked method `githubClient.getAllReleases()` that didn't exist in the real GitHubReleaseClient implementation. The actual method was `getReleasesBetween()`.
@@ -152,7 +152,7 @@ Discovered during code review when someone noticed the parameter mismatch.
 ## The Timer Singleton Issue
 
 ### Date Discovered
-Multiple incidents throughout 2024-2025
+Multiple incidents throughout 2025
 
 ### What Happened
 Tests using timer-based code were extremely slow and flaky because singleton objects created during module import couldn't use injectable timers.
