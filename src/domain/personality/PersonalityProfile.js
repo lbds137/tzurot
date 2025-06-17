@@ -18,7 +18,7 @@ class PersonalityProfile extends ValueObject {
     if (typeof nameOrConfig === 'object' && nameOrConfig !== null) {
       // Mode detection based on properties
       if (nameOrConfig.mode === 'external') {
-        // External API mode - data from shapes.inc API
+        // External API mode - data from external API
         this.mode = 'external';
         this.name = nameOrConfig.name || nameOrConfig.displayName;
         this.displayName = nameOrConfig.displayName || null;

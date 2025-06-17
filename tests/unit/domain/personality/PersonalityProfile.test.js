@@ -61,7 +61,7 @@ describe('PersonalityProfile', () => {
     });
     
     describe('local mode (self-managed)', () => {
-      it('should create local profile with shapes.inc data', () => {
+      it('should create local profile with external API data', () => {
         const profile = new PersonalityProfile({
           mode: 'local',
           username: 'angel-dust',
@@ -470,7 +470,7 @@ describe('PersonalityProfile', () => {
         jailbreak: 'I express myself...',
         engine_model: 'google/gemini-2.5-pro',
         engine_temperature: 1.0,
-        avatar: 'https://files.shapes.inc/avatar.png',
+        avatar: 'https://files.example.com/avatar.png',
         voice_id: 'XFS4iF5WnOwpgzpJCvuM',
         voice_model: 'eleven_multilingual_v2',
         voice_stability: 0.53
@@ -485,7 +485,7 @@ describe('PersonalityProfile', () => {
       expect(profile.jailbreak).toBe('I express myself...');
       expect(profile.modelPath).toBe('google/gemini-2.5-pro');
       expect(profile.temperature).toBe(1.0);
-      expect(profile.avatarUrl).toBe('https://files.shapes.inc/avatar.png');
+      expect(profile.avatarUrl).toBe('https://files.example.com/avatar.png');
       expect(profile.voiceConfig).toEqual({
         id: 'XFS4iF5WnOwpgzpJCvuM',
         model: 'eleven_multilingual_v2',
