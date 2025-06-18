@@ -47,6 +47,25 @@ class FilePersonalityRepository extends PersonalityRepository {
         const data = await fs.readFile(this.filePath, 'utf8');
         const parsedData = JSON.parse(data);
 
+        // Check if this is legacy format (flat structure without personalities/aliases properties)
+        if (
+          parsedData &&
+          typeof parsedData === 'object' &&
+          !parsedData.personalities &&
+          !parsedData.aliases
+        ) {
+          // Check if it has personality-like data (has properties with fullName)
+          const hasLegacyData = Object.values(parsedData).some(
+            item => item && typeof item === 'object' && (item.fullName || item.addedBy)
+          );
+
+          if (hasLegacyData) {
+            logger.info('[FilePersonalityRepository] Detected legacy format, migrating...');
+            await this._migrateLegacyData(parsedData);
+            return;
+          }
+        }
+
         // Ensure the parsed data has the expected structure
         if (!parsedData || typeof parsedData !== 'object') {
           throw new Error('Invalid file structure');
@@ -344,30 +363,44 @@ class FilePersonalityRepository extends PersonalityRepository {
     if (data.profile) {
       // Check if it's the new format (with name, prompt, etc) or old format (displayName, etc)
       if (data.profile.name || data.profile.prompt) {
-        // New format
-        profile = new PersonalityProfile(
-          data.profile.name || data.id || data.personalityId,
-          data.profile.prompt || `You are ${data.profile.name || data.id}`,
-          data.profile.modelPath || '/default',
-          data.profile.maxWordCount || 1000
-        );
+        // New format - use object constructor to preserve all fields
+        profile = new PersonalityProfile({
+          mode: data.profile.mode || 'local',
+          name: data.profile.name || data.id || data.personalityId,
+          displayName:
+            data.profile.displayName || data.profile.name || data.id || data.personalityId,
+          prompt: data.profile.prompt || `You are ${data.profile.name || data.id}`,
+          modelPath: data.profile.modelPath || '/default',
+          maxWordCount: data.profile.maxWordCount || 1000,
+          avatarUrl: data.profile.avatarUrl,
+          bio: data.profile.bio,
+          systemPrompt: data.profile.systemPrompt,
+          temperature: data.profile.temperature,
+          maxTokens: data.profile.maxTokens,
+        });
       } else {
-        // Legacy format - convert to new format
-        profile = new PersonalityProfile(
-          data.profile.displayName || data.id || data.personalityId,
-          data.profile.systemPrompt || `You are ${data.profile.displayName || data.id}`,
-          '/default',
-          data.profile.maxTokens || 1000
-        );
+        // Legacy format - convert to new format using object constructor
+        profile = new PersonalityProfile({
+          mode: data.profile.mode || 'local',
+          name: data.profile.displayName || data.id || data.personalityId,
+          displayName: data.profile.displayName || data.id || data.personalityId,
+          prompt: data.profile.systemPrompt || `You are ${data.profile.displayName || data.id}`,
+          modelPath: '/default',
+          maxWordCount: data.profile.maxTokens || 1000,
+          avatarUrl: data.profile.avatarUrl,
+          errorMessage: data.profile.errorMessage,
+        });
       }
     } else {
-      // No profile data - create default
-      profile = new PersonalityProfile(
-        data.id || data.personalityId,
-        `You are ${data.id || data.personalityId}`,
-        '/default',
-        1000
-      );
+      // No profile data - create default using object constructor
+      profile = new PersonalityProfile({
+        mode: 'local',
+        name: data.id || data.personalityId,
+        displayName: data.id || data.personalityId,
+        prompt: `You are ${data.id || data.personalityId}`,
+        modelPath: '/default',
+        maxWordCount: 1000,
+      });
     }
 
     // Create model from stored data or use default
@@ -473,6 +506,88 @@ class FilePersonalityRepository extends PersonalityRepository {
       totalAliases: Object.keys(this._cache.aliases).length,
       owners: [...new Set(Object.values(this._cache.personalities).map(p => p.ownerId))].length,
     };
+  }
+
+  /**
+   * Migrate legacy personality data to new format
+   * @private
+   * @param {Object} legacyData - Legacy flat format data
+   */
+  async _migrateLegacyData(legacyData) {
+    const migrated = {
+      personalities: {},
+      aliases: {},
+    };
+
+    // Also check for legacy aliases file
+    const aliasesPath = path.join(this.dataPath, 'aliases.json');
+    let legacyAliases = {};
+    try {
+      const aliasData = await fs.readFile(aliasesPath, 'utf8');
+      legacyAliases = JSON.parse(aliasData) || {};
+      logger.info(
+        `[FilePersonalityRepository] Found legacy aliases file with ${Object.keys(legacyAliases).length} aliases`
+      );
+    } catch (error) {
+      logger.info('[FilePersonalityRepository] No legacy aliases file found');
+    }
+
+    // Migrate each personality
+    for (const [name, data] of Object.entries(legacyData)) {
+      // Skip if not a valid personality entry
+      if (!data || typeof data !== 'object' || (!data.fullName && !data.addedBy)) {
+        continue;
+      }
+
+      const personalityId = data.fullName || name; // Use fullName as ID for compatibility
+
+      migrated.personalities[personalityId] = {
+        id: personalityId,
+        personalityId: personalityId,
+        ownerId: data.addedBy || data.createdBy || 'unknown',
+        profile: {
+          mode: 'external',
+          name: data.fullName || name,
+          displayName: data.displayName || data.fullName || name,
+          avatarUrl: data.avatarUrl || null,
+          errorMessage: data.errorMessage || null,
+        },
+        aliases: [],
+        createdAt: data.addedAt || data.lastUpdated || new Date().toISOString(),
+        updatedAt: data.lastUpdated || new Date().toISOString(),
+        removed: false,
+      };
+    }
+
+    // Migrate aliases
+    for (const [alias, targetName] of Object.entries(legacyAliases)) {
+      const lowerAlias = alias.toLowerCase();
+      migrated.aliases[lowerAlias] = targetName;
+
+      // Add to personality's alias list if personality exists
+      if (migrated.personalities[targetName]) {
+        migrated.personalities[targetName].aliases.push({
+          value: lowerAlias,
+          originalCase: alias,
+        });
+      }
+    }
+
+    // Save migrated data
+    this._cache = migrated;
+    await this._persist();
+
+    // Backup legacy data
+    const backupPath = path.join(this.dataPath, 'personalities.legacy.json');
+    await fs.writeFile(backupPath, JSON.stringify(legacyData, null, 2));
+    logger.info(`[FilePersonalityRepository] Backed up legacy data to ${backupPath}`);
+
+    // Mark as initialized
+    this._initialized = true;
+
+    logger.info(
+      `[FilePersonalityRepository] Migration complete: ${Object.keys(migrated.personalities).length} personalities, ${Object.keys(migrated.aliases).length} aliases`
+    );
   }
 }
 

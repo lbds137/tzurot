@@ -27,7 +27,7 @@ class PersonalityDataService {
     try {
       // Check if we have extended data
       const extendedProfile = await this.repository.getExtendedProfile(personalityName);
-      
+
       if (extendedProfile) {
         logger.info(`[PersonalityDataService] Using extended profile for ${personalityName}`);
         return extendedProfile;
@@ -138,12 +138,12 @@ class PersonalityDataService {
 
     // Get extended profile if available
     const extendedProfile = await this.repository.getExtendedProfile(personalityName);
-    
+
     // Build system prompt with context
     let systemPrompt = '';
     if (extendedProfile) {
       systemPrompt = extendedProfile.userPrompt || extendedProfile.prompt || '';
-      
+
       // Add jailbreak prompt if available
       if (extendedProfile.jailbreakPrompt) {
         systemPrompt += '\n\n' + extendedProfile.jailbreakPrompt;
@@ -164,24 +164,26 @@ class PersonalityDataService {
     if (context.memories.length > 0) {
       systemPrompt += '\n\n## Relevant Memories\n';
       context.memories.forEach((memory, index) => {
-        const timestamp = memory.created_at ? new Date(memory.created_at * 1000).toISOString() : 'Unknown';
+        const timestamp = memory.created_at
+          ? new Date(memory.created_at * 1000).toISOString()
+          : 'Unknown';
         systemPrompt += `${index + 1}. [${timestamp}] ${memory.content || memory.text || JSON.stringify(memory)}\n`;
       });
     }
 
     // Build conversation messages
-    const messages = [
-      { role: 'system', content: systemPrompt },
-    ];
+    const messages = [{ role: 'system', content: systemPrompt }];
 
     // Add recent conversation history
     if (context.history.length > 0) {
       // Reverse to get chronological order (oldest first)
       const chronologicalHistory = [...context.history].reverse();
-      messages.push(...chronologicalHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      })));
+      messages.push(
+        ...chronologicalHistory.map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        }))
+      );
     }
 
     // Add current message (handle complex formats)
@@ -210,7 +212,7 @@ class PersonalityDataService {
   async addToConversationHistory(personalityName, userId, message) {
     // For now, this is a placeholder - in future, we'll store in STM
     const cacheKey = `${personalityName}:${userId}`;
-    
+
     if (!this.contextCache.has(cacheKey)) {
       this.contextCache.set(cacheKey, []);
     }

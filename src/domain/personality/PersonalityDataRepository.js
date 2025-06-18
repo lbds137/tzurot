@@ -15,7 +15,8 @@ const { ExtendedPersonalityProfile } = require('./ExtendedPersonalityProfile');
 class PersonalityDataRepository {
   constructor(dataDir = null) {
     // Allow injection for testing
-    this.dataDir = dataDir || path.join(__dirname, '..', '..', '..', 'data', 'ddd_personality_data');
+    this.dataDir =
+      dataDir || path.join(__dirname, '..', '..', '..', 'data', 'ddd_personality_data');
     this.backupDir = path.join(__dirname, '..', '..', '..', 'data', 'personalities');
     this.cache = new Map(); // Memory cache for loaded data
   }
@@ -43,9 +44,11 @@ class PersonalityDataRepository {
       // Check for backup data and migrate on-the-fly
       const backupData = await this.loadBackupData(personalityName);
       if (backupData) {
-        logger.info(`[PersonalityDataRepository] Auto-migrating backup data for ${personalityName}`);
+        logger.info(
+          `[PersonalityDataRepository] Auto-migrating backup data for ${personalityName}`
+        );
         const profile = ExtendedPersonalityProfile.fromBackupData(backupData);
-        
+
         // Save migrated data for future use
         await this.saveMigratedData(personalityName, profile);
         this.cache.set(personalityName, profile);
@@ -54,7 +57,9 @@ class PersonalityDataRepository {
 
       return null;
     } catch (error) {
-      logger.error(`[PersonalityDataRepository] Error loading data for ${personalityName}: ${error.message}`);
+      logger.error(
+        `[PersonalityDataRepository] Error loading data for ${personalityName}: ${error.message}`
+      );
       return null;
     }
   }
@@ -106,7 +111,7 @@ class PersonalityDataRepository {
   async loadBackupData(personalityName) {
     try {
       const personalityBackupDir = path.join(this.backupDir, personalityName);
-      
+
       // Check if backup directory exists
       await fs.access(personalityBackupDir);
 
@@ -122,7 +127,7 @@ class PersonalityDataRepository {
 
       // Load auxiliary data files
       const auxiliaryData = {};
-      
+
       // Try to load each auxiliary file
       const auxiliaryFiles = {
         knowledge: `${personalityName}_knowledge.json`,
@@ -160,7 +165,7 @@ class PersonalityDataRepository {
    */
   async saveMigratedData(personalityName, profile) {
     const personalityDir = path.join(this.dataDir, personalityName);
-    
+
     // Ensure directory exists
     await fs.mkdir(personalityDir, { recursive: true });
 
@@ -204,9 +209,8 @@ class PersonalityDataRepository {
 
     // Filter by user if specified
     if (userId) {
-      allMessages = allMessages.filter(msg => 
-        msg.user_id === userId || 
-        (msg.metadata && msg.metadata.user_id === userId)
+      allMessages = allMessages.filter(
+        msg => msg.user_id === userId || (msg.metadata && msg.metadata.user_id === userId)
       );
     }
 
@@ -227,7 +231,7 @@ class PersonalityDataRepository {
    */
   async getKnowledge(personalityName) {
     const knowledgePath = path.join(this.dataDir, personalityName, 'knowledge.json');
-    
+
     try {
       const content = await fs.readFile(knowledgePath, 'utf8');
       return JSON.parse(content);
@@ -245,7 +249,7 @@ class PersonalityDataRepository {
    */
   async getMemories(personalityName) {
     const memoriesPath = path.join(this.dataDir, personalityName, 'memories.json');
-    
+
     try {
       const content = await fs.readFile(memoriesPath, 'utf8');
       return JSON.parse(content);

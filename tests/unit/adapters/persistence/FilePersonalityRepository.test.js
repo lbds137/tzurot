@@ -620,6 +620,172 @@ describe('FilePersonalityRepository', () => {
     });
   });
   
+  describe('legacy data migration', () => {
+    const legacyData = {
+      "test-personality": {
+        "fullName": "test-personality",
+        "addedBy": "123456789012345678",
+        "displayName": "Test Display",
+        "avatarUrl": "https://example.com/avatar.png",
+        "errorMessage": "Test error message",
+        "lastUpdated": "2025-06-18T17:45:21.858Z"
+      },
+      "another-personality": {
+        "fullName": "another-personality",
+        "addedBy": "987654321098765432",
+        "addedAt": "2025-06-01T10:00:00.000Z",
+        "displayName": "Another Display"
+      }
+    };
+
+    const legacyAliases = {
+      "test-alias": "test-personality",
+      "another-alias": "another-personality",
+      "TEST-CAPS": "test-personality"
+    };
+
+    it('should detect and migrate legacy format data', async () => {
+      // Mock reading legacy format file
+      fs.readFile.mockImplementation((filePath) => {
+        if (filePath === path.join('./test-data', 'test-personalities.json')) {
+          return Promise.resolve(JSON.stringify(legacyData));
+        }
+        if (filePath.endsWith('aliases.json')) {
+          return Promise.resolve(JSON.stringify(legacyAliases));
+        }
+        return Promise.reject(new Error('File not found'));
+      });
+
+      // Mock write operations
+      fs.writeFile.mockResolvedValue();
+      fs.rename.mockResolvedValue();
+
+      // Initialize repository - should trigger migration
+      await repository.initialize();
+
+      // Verify backup was created
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        expect.stringContaining('personalities.legacy.json'),
+        JSON.stringify(legacyData, null, 2)
+      );
+
+      // Verify new format was persisted
+      const writeCall = fs.writeFile.mock.calls.find(call => 
+        call[0].endsWith('.tmp')
+      );
+      expect(writeCall).toBeDefined();
+      
+      const persistedData = JSON.parse(writeCall[1]);
+      
+      // Check structure
+      expect(persistedData).toHaveProperty('personalities');
+      expect(persistedData).toHaveProperty('aliases');
+      
+      // Check personality migration
+      expect(persistedData.personalities['test-personality']).toMatchObject({
+        id: 'test-personality',
+        personalityId: 'test-personality',
+        ownerId: '123456789012345678',
+        profile: {
+          mode: 'external',
+          name: 'test-personality',
+          displayName: 'Test Display',
+          avatarUrl: 'https://example.com/avatar.png',
+          errorMessage: 'Test error message'
+        },
+        aliases: expect.arrayContaining([
+          { value: 'test-alias', originalCase: 'test-alias' },
+          { value: 'test-caps', originalCase: 'TEST-CAPS' }
+        ])
+      });
+
+      // Check aliases migration
+      expect(persistedData.aliases['test-alias']).toBe('test-personality');
+      expect(persistedData.aliases['another-alias']).toBe('another-personality');
+      expect(persistedData.aliases['test-caps']).toBe('test-personality');
+    });
+
+    it('should handle missing aliases file gracefully', async () => {
+      // Mock reading legacy format file
+      fs.readFile.mockImplementation((filePath) => {
+        if (filePath === path.join('./test-data', 'test-personalities.json')) {
+          return Promise.resolve(JSON.stringify(legacyData));
+        }
+        // Simulate missing aliases.json
+        return Promise.reject({ code: 'ENOENT' });
+      });
+
+      fs.writeFile.mockResolvedValue();
+      fs.rename.mockResolvedValue();
+
+      await repository.initialize();
+
+      // Should still complete migration
+      const writeCall = fs.writeFile.mock.calls.find(call => 
+        call[0].endsWith('.tmp')
+      );
+      const persistedData = JSON.parse(writeCall[1]);
+      
+      expect(persistedData.personalities['test-personality']).toBeDefined();
+      expect(persistedData.aliases).toEqual({});
+    });
+
+    it('should not migrate if data is already in new format', async () => {
+      const newFormatData = {
+        personalities: {
+          "test-id": {
+            id: "test-id",
+            personalityId: "test-id",
+            ownerId: "123456",
+            profile: { name: "test" }
+          }
+        },
+        aliases: {
+          "test-alias": "test-id"
+        }
+      };
+
+      fs.readFile.mockResolvedValue(JSON.stringify(newFormatData));
+      fs.writeFile.mockResolvedValue();
+
+      await repository.initialize();
+
+      // Should not create backup
+      expect(fs.writeFile).not.toHaveBeenCalledWith(
+        expect.stringContaining('personalities.legacy.json'),
+        expect.anything()
+      );
+    });
+
+    it('should access migrated data correctly after migration', async () => {
+      fs.readFile.mockImplementation((filePath) => {
+        if (filePath === path.join('./test-data', 'test-personalities.json')) {
+          return Promise.resolve(JSON.stringify(legacyData));
+        }
+        if (filePath.endsWith('aliases.json')) {
+          return Promise.resolve(JSON.stringify(legacyAliases));
+        }
+        return Promise.reject(new Error('File not found'));
+      });
+
+      fs.writeFile.mockResolvedValue();
+      fs.rename.mockResolvedValue();
+
+      await repository.initialize();
+
+      // Test finding by name
+      const personality = await repository.findByName('test-personality');
+      expect(personality).toBeDefined();
+      expect(personality.personalityId.value).toBe('test-personality');
+      expect(personality.profile.displayName).toBe('Test Display');
+
+      // Test finding by alias
+      const byAlias = await repository.findByAlias('test-alias');
+      expect(byAlias).toBeDefined();
+      expect(byAlias.personalityId.value).toBe('test-personality');
+    });
+  });
+  
   describe('hydration behavior', () => {
     it('should handle aliases as strings', async () => {
       // Test by saving and retrieving
