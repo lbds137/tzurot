@@ -2,6 +2,8 @@
 
 This document provides comprehensive documentation for the Tzurot bot command system, covering user commands, developer guidelines, and technical architecture.
 
+> **Note**: This documentation describes the legacy command system currently in production. A new Domain-Driven Design (DDD) command system has been built but is not yet active. See [DDD_ENABLEMENT_GUIDE.md](/docs/ddd/DDD_ENABLEMENT_GUIDE.md) for information about the new system.
+
 ## Table of Contents
 
 1. [User Guide](#user-guide)

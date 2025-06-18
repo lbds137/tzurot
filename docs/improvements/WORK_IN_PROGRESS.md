@@ -3,7 +3,7 @@
 ## Overview
 This document tracks all incomplete migrations, refactors, and half-finished work that must be addressed or abandoned during the DDD migration.
 
-## Status as of June 8, 2025
+## Status as of June 18, 2025
 
 ### 1. Mock Migration
 **Status**: 5% complete (6/133 test files migrated)
@@ -20,29 +20,32 @@ This document tracks all incomplete migrations, refactors, and half-finished wor
 **Decision**: Stop current approach, use DDD boundaries instead
 
 ### 3. Environment Variable Cleanup
-**Status**: Completed in commit da8cbab
-**Evidence**: Standardized naming convention applied
-**Decision**: ✅ Done - maintain standards going forward
+**Status**: ✅ Completed in commit da8cbab
+**Evidence**: Standardized naming convention applied (BOT_ prefix, no DEV variants)
+**Decision**: Done - maintain standards going forward
 
 ### 4. Timer Injection
-**Status**: Not started
+**Status**: ❌ Not complete (26 violations remain)
+**Evidence**: Running `npm run lint:timers` shows 11 errors, 15 warnings
 **Blocking**: Test performance, fake timer usage
 **Critical Files**:
-- `aiService.js` - Retry delays
-- `webhookManager.js` - Chunk delays  
-- `rateLimiter.js` - Rate limiting
-- `messageThrottler.js` - Message throttling
-**Decision**: Complete in Phase 0 (this week)
+- `utils.js` - Direct setTimeout
+- `threadHandler.js` - Global timer in module  
+- `messageThrottler.js` - Direct setTimeout
+- `dmHandler.js` - Timer issues
+**Decision**: Address remaining violations
 
 ### 5. Singleton Removal
-**Status**: Not started
+**Status**: ❌ Not complete (14 files with singleton patterns)
+**Evidence**: Still using `module.exports = new` and `getInstance` patterns
 **Blocking**: Testability, modularity
-**Critical Singletons**:
-- `personalityManager.js`
-- `conversationManager.js`
-- `webhookManager.js`
+**Remaining Singletons**:
 - `logger.js`
-**Decision**: Complete in Phase 0 (this week)
+- `PersonalityManager.js` (has getInstance)
+- `ConversationManager.js` (has getInstance)
+- `pluralkitMessageStore.js` (exports instance)
+- Various DDD services using singleton pattern
+**Decision**: Legacy singletons remain, DDD using different pattern
 
 ### 6. Express Migration
 **Status**: Planned but not started
