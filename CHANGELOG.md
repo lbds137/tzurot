@@ -5,6 +5,39 @@ All notable changes to the Tzurot Discord bot will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Extended Personality Profile** - Enhanced domain model for comprehensive personality data (#97)
+  - Added `ExtendedPersonalityProfile` class supporting voice config, image settings, and moderation flags
+  - Enhanced `PersonalityProfile` with `publicApiData` property to capture additional API fields
+  - Prepared foundation for migration from external API to local implementation
+
+- **Automatic Personality Data Migration** - Seamless migration from backup data (#97)
+  - Added `PersonalityDataRepository` for automatic backup detection in `data/personalities/`
+  - Created `PersonalityDataService` providing unified access to personality data
+  - Implemented lazy migration converting backup data to ExtendedPersonalityProfile on first access
+  - No manual intervention required - migration happens transparently
+
+- **Enhanced AI Context** (Preview) - Rich contextual information for AI responses (#97)
+  - Automatically includes chat history, memories, and knowledge when enabled
+  - Controlled by `features.enhanced-context` feature flag (disabled by default)
+  - Enable with `FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=true` when using alternate AI services
+  - Provides up to 10 recent messages, 5 memories, and 3 knowledge items in context
+
+- **Comprehensive Backup Enhancement** - Complete chat history backup capability (#95)
+  - Discovered and integrated undocumented chat history endpoint with pagination
+  - Added `before_ts` parameter support for retrieving full conversation history
+  - Seamlessly integrated into existing backup command and standalone script
+  - Retrieves messages beyond the 50-message short-term memory limit
+  - Stores messages chronologically (oldest first) for efficient incremental updates
+
+### Changed
+- **Backup Command Enhancement** - Improved backup functionality (#95)
+  - Now backs up complete chat history alongside memories, knowledge, and training data
+  - Shows character count statistics for backed-up conversations
+  - Maintains backward compatibility with existing backup workflow
+
 ## [1.3.2] - 2025-06-06
 
 ### Fixed
