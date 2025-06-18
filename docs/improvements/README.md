@@ -18,24 +18,15 @@ improvements/
 │   ├── WORK_IN_PROGRESS.md
 │   ├── BRANCH_STRATEGY.md
 │   └── SINGLETON_MIGRATION_GUIDE.md
-├── post-ddd/                  # Frozen until DDD complete
-│   ├── POST_DDD_ROADMAP.md   # START HERE for future work
-│   ├── DATABASE_MIGRATION_PLAN.md
-│   ├── EXPRESS_MIGRATION.md
-│   ├── FEATURE_IDEAS.md
-│   ├── MULTI_USER_SCALABILITY.md
-│   ├── PROFILE_DATA_ENHANCEMENT.md
-│   ├── TYPESCRIPT_MIGRATION_PLAN.md
-│   └── LRUCACHE_MIGRATION_PLAN.md
-└── archive/
-    ├── completed/             # Work that's done
-    │   ├── DEPENDENCY_INJECTION_STATUS.md
-    │   └── ENVIRONMENT_VARIABLE_CLEANUP.md
-    └── superseded/           # Replaced by newer docs
-        ├── DOCUMENTATION_CLEANUP_RECOMMENDATIONS.md
-        ├── DOCUMENTATION_CONSOLIDATION_PROGRESS.md
-        ├── IMPROVEMENT_CONSOLIDATION_STATUS.md
-        └── PERSONALITY_GETTER_ANALYSIS.md
+└── post-ddd/                  # Frozen until DDD complete
+    ├── POST_DDD_ROADMAP.md   # START HERE for future work
+    ├── DATABASE_MIGRATION_PLAN.md
+    ├── EXPRESS_MIGRATION.md
+    ├── FEATURE_IDEAS.md
+    ├── MULTI_USER_SCALABILITY.md
+    ├── PROFILE_DATA_ENHANCEMENT.md
+    ├── TYPESCRIPT_MIGRATION_PLAN.md
+    └── LRUCACHE_MIGRATION_PLAN.md
 ```
 
 ### Primary DDD Documents (see `/docs/ddd/`)
@@ -57,13 +48,6 @@ See the `post-ddd/` directory for future work:
 - **POST_DDD_ROADMAP.md** - Prioritized implementation plan
 - Database, Express, TypeScript migrations
 - Feature enhancements and scalability improvements
-
-### What's Done?
-
-See the `archive/` directory for completed work:
-- Environment variable cleanup ✅
-- Initial dependency injection work ✅
-- Various planning documents that led to current state
 
 ## How to Use This Documentation
 
