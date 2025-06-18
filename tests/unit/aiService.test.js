@@ -48,6 +48,22 @@ jest.mock('../../src/utils/contentSanitizer', () => ({
 }));
 
 // Mock personality module for error message handling
+
+// Mock FeatureFlags module
+jest.mock('../../src/application/services/FeatureFlags', () => ({
+  getFeatureFlags: jest.fn().mockReturnValue({
+    isEnabled: jest.fn().mockReturnValue(false)
+  })
+}));
+
+// Mock PersonalityDataService module
+jest.mock('../../src/services/PersonalityDataService', () => ({
+  getPersonalityDataService: jest.fn().mockReturnValue({
+    hasBackupData: jest.fn().mockReturnValue(false),
+    buildContextualPrompt: jest.fn()
+  })
+}));
+
 jest.mock('../../src/core/personality', () => ({
   getPersonality: jest.fn().mockReturnValue(null) // No personality found, use defaults
 }));
@@ -766,6 +782,75 @@ describe('AI Service', () => {
       // Verify the personality was added to the blackout list
       const key = createBlackoutKey(personalityName, context);
       expect(errorBlackoutPeriods.has(key)).toBe(true);
+    });
+
+    it('should respect enhanced context feature flag', async () => {
+      const personalityName = 'test-personality';
+      const message = 'Test message';
+      const context = { 
+        userId: 'user-123', 
+        channelId: 'channel-456'
+      };
+
+      // Set up mocks
+      const aiAuth = require('../../src/utils/aiAuth');
+      const openaiModule = require('openai');
+      const { getFeatureFlags } = require('../../src/application/services/FeatureFlags');
+      const { getPersonalityDataService } = require('../../src/services/PersonalityDataService');
+      
+      const OpenAI = openaiModule.OpenAI;
+      const mockClient = new OpenAI();
+      
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [{
+          message: {
+            content: 'Test response'
+          }
+        }]
+      });
+      
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      // Test with feature flag disabled (default)
+      await getAiResponse(personalityName, message, context);
+      
+      // Should not check for backup data when flag is disabled
+      expect(getPersonalityDataService().hasBackupData).not.toHaveBeenCalled();
+      
+      // Now enable the feature flag
+      getFeatureFlags().isEnabled.mockReturnValue(true);
+      getPersonalityDataService().hasBackupData.mockResolvedValue(true);
+      getPersonalityDataService().buildContextualPrompt.mockResolvedValue({
+        messages: [
+          { role: 'system', content: 'Enhanced prompt' },
+          { role: 'user', content: message }
+        ],
+        context: { history: [{ role: 'user', content: 'Previous message' }] },
+        hasExtendedContext: true
+      });
+      
+      // Clear previous calls
+      jest.clearAllMocks();
+      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      mockClient.chat.completions.create.mockResolvedValue({
+        choices: [{
+          message: {
+            content: 'Enhanced response'
+          }
+        }]
+      });
+      
+      // Test with feature flag enabled
+      await getAiResponse(personalityName, message, context);
+      
+      // Should check for backup data when flag is enabled
+      expect(getPersonalityDataService().hasBackupData).toHaveBeenCalledWith(personalityName);
+      expect(getPersonalityDataService().buildContextualPrompt).toHaveBeenCalledWith(
+        personalityName,
+        'user-123',
+        message,
+        expect.objectContaining({ prompt: null })
+      );
     });
     
   });
