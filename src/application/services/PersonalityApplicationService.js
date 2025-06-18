@@ -305,9 +305,29 @@ class PersonalityApplicationService {
       // Check if alias is already in use
       const existingPersonality = await this.personalityRepository.findByAlias(aliasName);
       if (existingPersonality) {
-        throw new Error(
-          `Alias "${aliasName}" is already in use by ${existingPersonality.profile.name}`
+        // If alias already points to the same personality, no-op (success)
+        if (existingPersonality.personalityId.equals(personality.personalityId)) {
+          logger.info(
+            `[PersonalityApplicationService] Alias "${aliasName}" already points to ${personality.profile.name} - no changes needed`
+          );
+          return personality;
+        }
+
+        // Otherwise, reassign the alias from the old personality to the new one
+        logger.info(
+          `[PersonalityApplicationService] Reassigning alias "${aliasName}" from ${existingPersonality.profile.name} to ${personality.profile.name}`
         );
+
+        // Remove alias from the existing personality
+        const aliasToRemove = existingPersonality.aliases.find(
+          a => a.value.toLowerCase() === aliasName.toLowerCase()
+        );
+        if (aliasToRemove) {
+          existingPersonality.removeAlias(aliasToRemove);
+          await this.personalityRepository.save(existingPersonality);
+          // Publish events for the old personality
+          await this._publishEvents(existingPersonality);
+        }
       }
 
       // Add the alias
