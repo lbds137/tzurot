@@ -1,5 +1,7 @@
 # System Architecture
 
+> **⚠️ IMPORTANT**: This document describes the **legacy architecture** currently handling 100% of production traffic. For a complete view including the built-but-inactive DDD system, see [ARCHITECTURE_OVERVIEW_2025-06-18.md](../architecture/ARCHITECTURE_OVERVIEW_2025-06-18.md).
+
 ## Table of Contents
 
 - [Overview](#overview)

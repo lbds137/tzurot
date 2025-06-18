@@ -9,13 +9,17 @@ This directory contains the documentation for the Tzurot Discord bot project.
 ### `/core` - Core Documentation
 Essential documentation for understanding and working with the system:
 - **SETUP.md** - Getting started guide
-- **ARCHITECTURE.md** - System design and component overview
+- **ARCHITECTURE.md** - Legacy system architecture (currently active)
 - **API_REFERENCE.md** - API endpoints and interfaces
 - **DEPLOYMENT.md** - Deployment instructions
 - **TROUBLESHOOTING.md** - Common issues and solutions
 - **SECURITY.md** - Security guidelines and best practices
 - **MESSAGE_FORMAT_SPECIFICATION.md** - Message format details
 - **COMMAND_SYSTEM.md** - Complete command system documentation
+
+### `/architecture` - Architecture Documentation
+- **ARCHITECTURE_OVERVIEW_2025-06-18.md** - Complete view of both legacy (active) and DDD (built, inactive) systems
+- **CORE_INTERACTION_FLOW.md** - Detailed interaction flows
 
 ### `/components` - Feature Documentation
 Documentation for specific features and components:
@@ -41,17 +45,29 @@ Testing guidelines and coverage information:
 - **CRITICAL_COVERAGE_GAPS.md** - Areas needing tests
 - **COMMANDLOADER_TEST_APPROACH.md** - Command loader testing
 
-### `/improvements` - Future Improvements
-Plans and proposals for future enhancements:
-- **README.md** - Improvement overview
-- **FEATURE_IDEAS.md** - Feature roadmap
-- **MODULE_STRUCTURE_PROPOSAL.md** - Proposed refactoring
-- **AISERVICE_REFACTORING_PLAN.md** - AI service improvements
-- **CODE_IMPROVEMENT_OPPORTUNITIES.md** - Code quality improvements
-- **MULTI_USER_SCALABILITY.md** - Scaling considerations
-- **REFERENCE_AND_MEDIA_REFACTOR.md** - Media system improvements
-- **DOCUMENTATION_ORGANIZATION_PROPOSAL.md** - Doc improvements
-- **MULTIPLE_MEDIA_API_FIX.md** - Media API enhancements
+### `/improvements` - Improvement Tracking
+Organized by status and priority:
+- **README.md** - Overview of improvement organization
+- **active/** - Currently in-progress DDD migration work
+  - **FEATURE_FREEZE_NOTICE.md** - Feature freeze during DDD migration
+  - **TECHNICAL_DEBT_INVENTORY.md** - Debt being addressed by DDD
+  - **WORK_IN_PROGRESS.md** - Current incomplete tasks
+- **post-ddd/** - Frozen improvements awaiting DDD completion
+  - **POST_DDD_ROADMAP.md** - Prioritized implementation plan
+  - **DATABASE_MIGRATION_PLAN.md** - PostgreSQL migration (high priority)
+  - **PROFILE_DATA_ENHANCEMENT.md** - Enhanced AI features
+  - **FEATURE_IDEAS.md** - New feature proposals
+- **archive/** - Completed or superseded improvements
+
+### `/ddd` - Domain-Driven Design Documentation
+Complete DDD migration documentation:
+- **README.md** - DDD overview and phase status
+- **DDD_ACTUAL_STATUS_2025-06-18.md** - Current state (built but inactive)
+- **DDD_ENABLEMENT_GUIDE.md** - How to activate DDD features
+- **DDD_DEPLOYMENT_GUIDE.md** - Production deployment guide
+- **DOMAIN_DRIVEN_DESIGN_PLAN.md** - Original design plan
+- **DDD_PHASE_3_PROGRESS.md** - Phase 3 completion details
+- **DDD_PHASE_4_PLAN.md** - Current phase plan
 
 ### `/development` - Development Guides
 Development-specific documentation:
@@ -95,7 +111,9 @@ Development-specific documentation:
 ## 🚀 Quick Links
 
 - [Setup Guide](core/SETUP.md)
-- [Architecture Overview](core/ARCHITECTURE.md)
+- [Architecture Overview - Complete](architecture/ARCHITECTURE_OVERVIEW_2025-06-18.md)
+- [Architecture - Legacy System](core/ARCHITECTURE.md)
+- [DDD Status & Enablement](ddd/DDD_ACTUAL_STATUS_2025-06-18.md)
 - [Testing Guide](testing/README.md)
 - [Command System](core/COMMAND_SYSTEM.md)
 - [Security Guidelines](core/SECURITY.md)
