@@ -2,87 +2,68 @@
 
 ## 🚨 ACTIVE: Domain-Driven Design Migration
 
-**Status**: PHASE 1 COMPLETE ✅ | READY FOR PHASE 2  
-**Timeline**: 11 weeks total (Weeks 1-3 completed)  
+**Status**: PHASE 3 COMPLETE ✅ | PHASE 4 IN PROGRESS  
+**Timeline**: 11 weeks total (Weeks 1-8 completed)  
 **Priority**: CRITICAL - System survival depends on this  
-**Current Phase**: Phase 2 - Infrastructure & Application Layer (Weeks 4-5)
-**Progress**: 27% Complete (3/11 weeks)
+**Current Phase**: Phase 4 - Enable feature flags and remove legacy
+**Progress**: 75% Complete (built but not activated)
 
-### Primary Documents
+## Current Directory Structure
 
-1. **[DDD_IMPLEMENTATION_SUMMARY.md](./DDD_IMPLEMENTATION_SUMMARY.md)** - START HERE
-   - Executive summary and action plan
-   - Links to all other documents
-   - Immediate action items
+```
+improvements/
+├── active/                    # Currently being worked on
+│   ├── FEATURE_FREEZE_NOTICE.md
+│   ├── TECHNICAL_DEBT_INVENTORY.md
+│   ├── WORK_IN_PROGRESS.md
+│   ├── BRANCH_STRATEGY.md
+│   └── SINGLETON_MIGRATION_GUIDE.md
+├── post-ddd/                  # Frozen until DDD complete
+│   ├── POST_DDD_ROADMAP.md   # START HERE for future work
+│   ├── DATABASE_MIGRATION_PLAN.md
+│   ├── EXPRESS_MIGRATION.md
+│   ├── FEATURE_IDEAS.md
+│   ├── MULTI_USER_SCALABILITY.md
+│   ├── PROFILE_DATA_ENHANCEMENT.md
+│   ├── TYPESCRIPT_MIGRATION_PLAN.md
+│   └── LRUCACHE_MIGRATION_PLAN.md
+└── archive/
+    ├── completed/             # Work that's done
+    │   ├── DEPENDENCY_INJECTION_STATUS.md
+    │   └── ENVIRONMENT_VARIABLE_CLEANUP.md
+    └── superseded/           # Replaced by newer docs
+        ├── DOCUMENTATION_CLEANUP_RECOMMENDATIONS.md
+        ├── DOCUMENTATION_CONSOLIDATION_PROGRESS.md
+        ├── IMPROVEMENT_CONSOLIDATION_STATUS.md
+        └── PERSONALITY_GETTER_ANALYSIS.md
+```
 
-2. **[DOMAIN_DRIVEN_DESIGN_PLAN.md](./DOMAIN_DRIVEN_DESIGN_PLAN.md)**
-   - Complete architectural plan
-   - Bounded contexts defined
-   - 11-week implementation timeline
+### Primary DDD Documents (see `/docs/ddd/`)
 
-3. **[FEATURE_FREEZE_NOTICE.md](./FEATURE_FREEZE_NOTICE.md)**
-   - What's allowed and what's not
-   - Enforcement mechanisms
-   - Exception process
+1. **[DDD_IMPLEMENTATION_SUMMARY.md](../ddd/DDD_IMPLEMENTATION_SUMMARY.md)** - Current status
+2. **[DDD_ENABLEMENT_GUIDE.md](../ddd/DDD_ENABLEMENT_GUIDE.md)** - How to turn on DDD
+3. **[DDD_PHASE_4_PLAN.md](../ddd/DDD_PHASE_4_PLAN.md)** - Current phase details
 
-### Implementation Guides
+### What's Active?
 
-#### Completed Phases ✅
-- **[DDD_PHASE_0_GUIDE.md](./DDD_PHASE_0_GUIDE.md)** - Week 1: Stop the bleeding ✅
-- **[DDD_PHASE_1_COMPLETION_REPORT.md](./DDD_PHASE_1_COMPLETION_REPORT.md)** - Phase 1 detailed report ✅
+See the `active/` directory for work in progress:
+- **TECHNICAL_DEBT_INVENTORY.md** - Tracks what needs fixing
+- **WORK_IN_PROGRESS.md** - Current incomplete work status
+- **SINGLETON_MIGRATION_GUIDE.md** - 14 singletons remain
 
-#### Active Guides 📋
-- **[DDD_MIGRATION_CHECKLIST.md](./DDD_MIGRATION_CHECKLIST.md)** - Complete migration checklist
-- **[TECHNICAL_DEBT_INVENTORY.md](./TECHNICAL_DEBT_INVENTORY.md)** - What we're fixing and why
-- **[BRANCH_STRATEGY.md](./BRANCH_STRATEGY.md)** - Safe deployment approach
+### What's Frozen?
 
-#### Future Work 🔜
-- **[LRUCACHE_MIGRATION_PLAN.md](./LRUCACHE_MIGRATION_PLAN.md)** - LRUCache npm migration (after Phase 2)
+See the `post-ddd/` directory for future work:
+- **POST_DDD_ROADMAP.md** - Prioritized implementation plan
+- Database, Express, TypeScript migrations
+- Feature enhancements and scalability improvements
 
-### Reference Documents
+### What's Done?
 
-These provide context and analysis:
-- **[PERSONALITY_GETTER_ANALYSIS.md](./PERSONALITY_GETTER_ANALYSIS.md)** - The 52-file cascade problem
-- **[IMPROVEMENT_CONSOLIDATION_STATUS.md](./IMPROVEMENT_CONSOLIDATION_STATUS.md)** - How we consolidated 24 documents
-
-## Organized Archive Structure
-
-### 📁 archive/superseded/
-Documents replaced by the DDD plan:
-- `MODULE_REFACTORING_PLAN.md` - Replaced by DDD bounded contexts
-- `MODULE_STRUCTURE_PROPOSAL.md` - Incorporated into DDD plan
-- `AISERVICE_REFACTORING_PLAN.md` - Part of AI Integration context
-- `PERSONALITY_SYSTEM_REFACTOR.md` - Part of Personality context
-- `REFERENCE_AND_MEDIA_REFACTOR.md` - Part of Conversation context
-- `FACADE_REMOVAL_PLAN.md` - Part of Phase 4 cleanup
-
-### 📁 archive/bug-fixes/
-Bug reports to convert to GitHub issues:
-- `WEBHOOK_PERSONALITY_DETECTION_FIX.md`
-- `MULTIPLE_MEDIA_API_FIX.md`
-- `OPEN_HANDLES_ISSUE.md`
-- `CREATE_GITHUB_ISSUES.md` - Instructions for creating issues
-
-### 📁 reference/analysis/
-Historical analyses that informed the DDD plan:
-- `CODE_IMPROVEMENT_OPPORTUNITIES.md`
-- `MESSAGE_REFERENCE_IMPROVEMENTS.md`
-- `MEMORY_MANAGEMENT_PLAN.md`
-- `DOCUMENTATION_ORGANIZATION_PROPOSAL.md`
-
-### Completed Technical Debt ✅
-
-#### Phase 0-1 Requirements (DONE)
-- `SINGLETON_MIGRATION_GUIDE.md` - ✅ All singletons removed
-- `TIMER_INJECTION_REFACTOR.md` - ✅ Consolidated to `/docs/testing/TIMER_PATTERNS_COMPLETE.md`
-- `ENVIRONMENT_VARIABLE_CLEANUP.md` - ⚠️ Partially complete (config.js exists)
-
-#### Feature Enhancements (FROZEN)
-- `FEATURE_IDEAS.md`
-- `PROFILE_DATA_ENHANCEMENT.md`
-- `MULTI_USER_SCALABILITY.md`
-- `EXPRESS_MIGRATION.md`
-- `DATABASE_MIGRATION_PLAN.md`
+See the `archive/` directory for completed work:
+- Environment variable cleanup ✅
+- Initial dependency injection work ✅
+- Various planning documents that led to current state
 
 ## How to Use This Documentation
 
