@@ -79,7 +79,7 @@ describe('AddCommand', () => {
     });
 
     it('should have correct options', () => {
-      expect(command.options).toHaveLength(4);
+      expect(command.options).toHaveLength(5);
       
       const nameOption = command.options.find(o => o.name === 'name');
       expect(nameOption).toBeDefined();
@@ -98,6 +98,11 @@ describe('AddCommand', () => {
       expect(maxWordsOption).toBeDefined();
       expect(maxWordsOption.type).toBe('integer');
       expect(maxWordsOption.required).toBe(false);
+      
+      const aliasOption = command.options.find(o => o.name === 'alias');
+      expect(aliasOption).toBeDefined();
+      expect(aliasOption.type).toBe('string');
+      expect(aliasOption.required).toBe(false);
     });
   });
 
@@ -106,7 +111,7 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.reply).toHaveBeenCalledWith(
-        expect.stringContaining('Usage: `!tz add <name> [prompt]`'),
+        expect.stringContaining('Usage: `!tz add <name> [alias] [prompt]`'),
         {}
       );
       expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
@@ -178,6 +183,83 @@ describe('AddCommand', () => {
       );
     });
 
+    it('should create personality with alias only', async () => {
+      mockContext.args = ['TestBot', 'tb'];
+      mockPersonalityService.registerPersonality.mockResolvedValue({
+        ...mockPersonality,
+        aliases: ['tb']
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+        name: 'TestBot',
+        ownerId: 'user123',
+        prompt: 'You are TestBot',
+        modelPath: '/default',
+        maxWordCount: 1000,
+        aliases: ['tb']
+      });
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Alias: **tb**'),
+        {}
+      );
+    });
+
+    it('should create personality with alias and prompt', async () => {
+      mockContext.args = ['TestBot', 'tb', 'You', 'are', 'a', 'test', 'bot'];
+      mockPersonalityService.registerPersonality.mockResolvedValue({
+        ...mockPersonality,
+        aliases: ['tb']
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+        name: 'TestBot',
+        ownerId: 'user123',
+        prompt: 'You are a test bot',
+        modelPath: '/default',
+        maxWordCount: 1000,
+        aliases: ['tb']
+      });
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Alias: **tb**'),
+        {}
+      );
+    });
+
+    it('should create personality with alias and quoted prompt', async () => {
+      mockContext.args = ['TestBot', 'tb', '"You are a test bot"'];
+      mockPersonalityService.registerPersonality.mockResolvedValue({
+        ...mockPersonality,
+        aliases: ['tb']
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+        name: 'TestBot',
+        ownerId: 'user123',
+        prompt: 'You are a test bot',
+        modelPath: '/default',
+        maxWordCount: 1000,
+        aliases: ['tb']
+      });
+    });
+
+    it('should validate alias format', async () => {
+      mockContext.args = ['TestBot', 'tb@#$'];
+      
+      await command.execute(mockContext);
+
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        'Aliases can only contain letters, numbers, underscores, and hyphens.',
+        {}
+      );
+      expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
+    });
+
   });
 
   describe('slash command execution', () => {
@@ -222,6 +304,32 @@ describe('AddCommand', () => {
         maxWordCount: 1000,
         aliases: []
       });
+    });
+
+    it('should create personality with alias option', async () => {
+      mockContext.options = {
+        name: 'TestBot',
+        alias: 'tb'
+      };
+      mockPersonalityService.registerPersonality.mockResolvedValue({
+        ...mockPersonality,
+        aliases: ['tb']
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+        name: 'TestBot',
+        ownerId: 'user123',
+        prompt: 'You are TestBot',
+        modelPath: '/default',
+        maxWordCount: 1000,
+        aliases: ['tb']
+      });
+      expect(mockContext.reply).toHaveBeenCalledWith(
+        expect.stringContaining('Alias: **tb**'),
+        {}
+      );
     });
   });
 

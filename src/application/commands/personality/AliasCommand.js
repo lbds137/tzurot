@@ -81,8 +81,18 @@ function createAliasCommand() {
         );
 
         try {
+          // Get the user ID from the context
+          const userId = context.getUserId();
+          if (!userId) {
+            return await context.respond('Unable to identify user. Please try again.');
+          }
+
           // Add the alias using the application service
-          const result = await personalityService.addAlias(personalityNameOrAlias, newAlias);
+          const result = await personalityService.addAlias(
+            personalityNameOrAlias,
+            newAlias,
+            userId
+          );
 
           if (!result.success) {
             return await context.respond(result.error || 'Failed to add alias.');
