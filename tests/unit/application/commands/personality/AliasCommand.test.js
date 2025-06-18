@@ -83,7 +83,7 @@ describe('AliasCommand', () => {
     it('should add alias successfully with embed', async () => {
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias');
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias', '123456789');
       
       expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -104,7 +104,7 @@ describe('AliasCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias');
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias', '123456789');
       expect(mockContext.respond).toHaveBeenCalledWith(
         '✅ Alias "newalias" has been added to **Test Personality**.'
       );
@@ -121,7 +121,7 @@ describe('AliasCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias');
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias', '123456789');
     });
 
     it('should require both arguments for text command', async () => {
@@ -243,7 +243,7 @@ describe('AliasCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias');
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith('testpersonality', 'newalias', '123456789');
     });
 
     it('should use default bot prefix when not provided', async () => {
@@ -255,6 +255,15 @@ describe('AliasCommand', () => {
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('`!tz alias')
       );
+    });
+
+    it('should handle missing user ID', async () => {
+      mockContext.getUserId.mockReturnValue(null);
+      
+      await command.execute(mockContext);
+      
+      expect(mockContext.respond).toHaveBeenCalledWith('Unable to identify user. Please try again.');
+      expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
     });
   });
 });

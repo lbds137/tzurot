@@ -41,6 +41,12 @@ function createAddCommand() {
         type: 'integer',
         required: false,
       }),
+      new CommandOption({
+        name: 'alias',
+        description: 'An alias/nickname for the personality (optional)',
+        type: 'string',
+        required: false,
+      }),
     ],
     execute: async context => {
       try {
@@ -53,7 +59,7 @@ function createAddCommand() {
         }
 
         // Get arguments based on command type
-        let name, prompt, modelPath, maxWordCount;
+        let name, prompt, modelPath, maxWordCount, alias;
 
         if (context.isSlashCommand) {
           // Slash command - options are named
@@ -61,27 +67,73 @@ function createAddCommand() {
           prompt = context.options.prompt;
           modelPath = context.options.model;
           maxWordCount = context.options.maxwords;
+          alias = context.options.alias;
         } else {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
             return await context.respond(
-              'Usage: `!tz add <name> [prompt]`\n' +
-                'Example: `!tz add Claude "You are Claude, a helpful AI assistant"`'
+              'Usage: `!tz add <name> [alias] [prompt]`\n' +
+                'Examples:\n' +
+                '`!tz add Claude` - Creates Claude with default prompt\n' +
+                '`!tz add Claude claude-alias` - Creates Claude with an alias\n' +
+                '`!tz add Claude "You are Claude, a helpful AI assistant"` - Creates Claude with custom prompt\n' +
+                '`!tz add Claude claude-alias "You are Claude, a helpful AI assistant"` - Creates Claude with alias and custom prompt'
             );
           }
 
           name = context.args[0];
 
-          // Everything after the name is the prompt
+          // Check if second argument is an alias (single word without quotes) or start of prompt
           if (context.args.length > 1) {
-            prompt = context.args.slice(1).join(' ');
+            const secondArg = context.args[1];
+            const isQuotedPrompt = secondArg.startsWith('"') || secondArg.startsWith("'");
+            const hasSpaceInSecondArg = context.args.length === 2 && secondArg.includes(' ');
 
-            // Remove quotes if present
-            if (
-              (prompt.startsWith('"') && prompt.endsWith('"')) ||
-              (prompt.startsWith("'") && prompt.endsWith("'"))
-            ) {
-              prompt = prompt.slice(1, -1);
+            // Check if second argument looks like it could be an alias (single word)
+            const looksLikeAlias =
+              !isQuotedPrompt &&
+              !hasSpaceInSecondArg &&
+              context.args.length === 2 &&
+              !secondArg.includes(' ');
+
+            if (looksLikeAlias) {
+              // It looks like an alias, validate the format
+              if (!/^[a-zA-Z0-9_-]+$/.test(secondArg)) {
+                return await context.respond(
+                  'Aliases can only contain letters, numbers, underscores, and hyphens.'
+                );
+              }
+              alias = secondArg;
+            } else if (!isQuotedPrompt && context.args.length > 2) {
+              // Multiple arguments - check if second could be an alias
+              const isValidAlias = /^[a-zA-Z0-9_-]+$/.test(secondArg);
+              const thirdArg = context.args[2];
+
+              // If it looks like alias + prompt pattern
+              if (
+                isValidAlias &&
+                thirdArg &&
+                (thirdArg[0] === thirdArg[0].toUpperCase() || thirdArg.toLowerCase() === 'you')
+              ) {
+                alias = secondArg;
+                prompt = context.args.slice(2).join(' ');
+              } else {
+                // Otherwise, treat everything after name as prompt
+                prompt = context.args.slice(1).join(' ');
+              }
+            } else {
+              // Second argument starts with quote or is multi-word - treat as prompt
+              prompt = context.args.slice(1).join(' ');
+            }
+
+            // Remove quotes from prompt if present
+            if (prompt) {
+              if (
+                (prompt.startsWith('"') && prompt.endsWith('"')) ||
+                (prompt.startsWith("'") && prompt.endsWith("'"))
+              ) {
+                prompt = prompt.slice(1, -1);
+              }
             }
           }
         }
@@ -97,6 +149,8 @@ function createAddCommand() {
 
         logger.info(`[AddCommand] Creating personality "${name}" for user ${context.getUserId()}`);
 
+        // Alias validation already happened during parsing
+
         // Create the personality
         const command = {
           name: name,
@@ -104,7 +158,7 @@ function createAddCommand() {
           prompt: prompt || `You are ${name}`,
           modelPath: modelPath || '/default',
           maxWordCount: maxWordCount || 1000,
-          aliases: [],
+          aliases: alias ? [alias] : [], // Include alias if provided
         };
 
         try {
@@ -113,6 +167,9 @@ function createAddCommand() {
           logger.info(`[AddCommand] Successfully created personality "${name}"`);
 
           let response = `✅ Successfully created personality **${name}**`;
+          if (alias) {
+            response += `\nAlias: **${alias}**`;
+          }
           if (prompt) {
             response += `\nPrompt: "${prompt}"`;
           }
