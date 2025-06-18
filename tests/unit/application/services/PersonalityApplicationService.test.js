@@ -452,22 +452,52 @@ describe('PersonalityApplicationService', () => {
       })).rejects.toThrow('Only the owner can add aliases');
     });
     
-    it('should reject if alias is already in use', async () => {
+    it('should reassign alias if already in use by another personality', async () => {
       const otherPersonality = Personality.create(
         PersonalityId.generate(),
         new UserId('999999999999999999'),
         new PersonalityProfile('OtherBot', 'Other', '/model', 1000),
         new AIModel('gpt-4', '/model', {})
       );
+      otherPersonality.addAlias(new Alias('TakenAlias'));
+      otherPersonality.markEventsAsCommitted();
       
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(otherPersonality);
       
-      await expect(service.addAlias({
+      const result = await service.addAlias({
         personalityName: 'TestBot',
         alias: 'TakenAlias',
         requesterId: '123456789012345678'
-      })).rejects.toThrow('Alias "TakenAlias" is already in use by OtherBot');
+      });
+      
+      // Verify alias was added to new personality
+      expect(result.aliases).toContainEqual(expect.objectContaining({ value: 'takenalias' }));
+      
+      // Verify both personalities were saved
+      expect(mockPersonalityRepository.save).toHaveBeenCalledTimes(2);
+      expect(mockPersonalityRepository.save).toHaveBeenCalledWith(otherPersonality);
+      expect(mockPersonalityRepository.save).toHaveBeenCalledWith(existingPersonality);
+      
+      // Verify alias was removed from other personality
+      expect(otherPersonality.aliases).not.toContainEqual(expect.objectContaining({ value: 'takenalias' }));
+    });
+    
+    it('should no-op if alias already points to same personality', async () => {
+      existingPersonality.addAlias(new Alias('ExistingAlias'));
+      
+      mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(existingPersonality);
+      
+      const result = await service.addAlias({
+        personalityName: 'TestBot',
+        alias: 'ExistingAlias',
+        requesterId: '123456789012345678'
+      });
+      
+      expect(result).toBe(existingPersonality);
+      // Should not save when alias already exists for same personality
+      expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
     });
   });
   
