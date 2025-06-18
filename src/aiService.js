@@ -13,6 +13,7 @@ const {
   analyzeErrorAndGenerateMessage,
   handleApiError,
 } = require('./utils/aiErrorHandler');
+const { getPersonalityDataService } = require('./services/PersonalityDataService');
 
 // Initialize the AI client - delegates to aiAuth module
 function initAiClient() {
@@ -309,9 +310,38 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     throw new Error('Authentication required to use this service');
   }
 
+  // Check if we have enhanced personality data available
+  let enhancedMessages = messages;
+  const personalityDataService = getPersonalityDataService();
+  
+  try {
+    const hasBackupData = await personalityDataService.hasBackupData(personalityName);
+    
+    if (hasBackupData) {
+      logger.info(`[AIService] Using enhanced context for ${personalityName}`);
+      
+      // Build contextual prompt with personality data and conversation history
+      const userMessage = messages[messages.length - 1].content;
+      const contextualData = await personalityDataService.buildContextualPrompt(
+        personalityName,
+        userId,
+        userMessage,
+        { prompt: null } // Will be populated from backup data
+      );
+      
+      if (contextualData.hasExtendedContext) {
+        enhancedMessages = contextualData.messages;
+        logger.debug(`[AIService] Added ${contextualData.context.history.length} history items to context`);
+      }
+    }
+  } catch (contextError) {
+    logger.warn(`[AIService] Error loading enhanced context: ${contextError.message}`);
+    // Fall back to regular messages
+  }
+
   const response = await aiClient.chat.completions.create({
     model: modelPath,
-    messages: messages,
+    messages: enhancedMessages,
     temperature: 0.7,
     headers: headers,
   });
