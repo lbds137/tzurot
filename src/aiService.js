@@ -314,17 +314,17 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Check if enhanced context is enabled via feature flag
   let enhancedMessages = messages;
   const featureFlags = getFeatureFlags();
-  
+
   if (featureFlags.isEnabled('features.enhanced-context')) {
     // Only use enhanced context if feature flag is enabled (for external services)
     const personalityDataService = getPersonalityDataService();
-    
+
     try {
       const hasBackupData = await personalityDataService.hasBackupData(personalityName);
-      
+
       if (hasBackupData) {
         logger.info(`[AIService] Using enhanced context for ${personalityName}`);
-        
+
         // Build contextual prompt with personality data and conversation history
         const userMessage = messages[messages.length - 1].content;
         const contextualData = await personalityDataService.buildContextualPrompt(
@@ -333,10 +333,12 @@ async function handleNormalPersonality(personalityName, message, context, modelP
           userMessage,
           { prompt: null } // Will be populated from backup data
         );
-        
+
         if (contextualData.hasExtendedContext) {
           enhancedMessages = contextualData.messages;
-          logger.debug(`[AIService] Added ${contextualData.context.history.length} history items to context`);
+          logger.debug(
+            `[AIService] Added ${contextualData.context.history.length} history items to context`
+          );
         }
       }
     } catch (contextError) {

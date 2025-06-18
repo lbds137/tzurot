@@ -76,7 +76,7 @@ class PersonalityProfile extends ValueObject {
         this.maxWordCount = null;
         this.lastFetched = new Date();
       }
-      
+
       // Store public API data if provided
       if (nameOrConfig.publicApiData) {
         this.publicApiData = nameOrConfig.publicApiData;

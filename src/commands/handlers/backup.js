@@ -74,7 +74,8 @@ async function loadBackupMetadata(personalityName) {
   try {
     const data = await fs.readFile(metadataPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     // No existing metadata
     return {
       lastBackup: null,
@@ -124,7 +125,8 @@ async function loadMemories(personalityName) {
   try {
     const data = await fs.readFile(memoryPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     // No existing memories
     return [];
   }
@@ -154,7 +156,8 @@ async function loadKnowledge(personalityName) {
   try {
     const data = await fs.readFile(knowledgePath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     // No existing knowledge
     return [];
   }
@@ -184,7 +187,8 @@ async function loadTraining(personalityName) {
   try {
     const data = await fs.readFile(trainingPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     // No existing training
     return [];
   }
@@ -214,7 +218,8 @@ async function loadUserPersonalization(personalityName) {
   try {
     const data = await fs.readFile(userPersonalizationPath, 'utf8');
     return JSON.parse(data);
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     // No existing user personalization
     return {};
   }
@@ -239,12 +244,17 @@ async function saveUserPersonalization(personalityName, userPersonalization) {
  * Load existing chat history from file
  */
 async function loadChatHistory(personalityName) {
-  const chatPath = path.join(getBackupDir(), personalityName, `${personalityName}_chat_history.json`);
+  const chatPath = path.join(
+    getBackupDir(),
+    personalityName,
+    `${personalityName}_chat_history.json`
+  );
   try {
     const data = await fs.readFile(chatPath, 'utf8');
     const chatData = JSON.parse(data);
     return chatData.messages || [];
-  } catch (_error) { // eslint-disable-line no-unused-vars
+  } catch (_error) {
+    // eslint-disable-line no-unused-vars
     return [];
   }
 }
@@ -262,7 +272,10 @@ async function saveChatHistory(personalityName, messages, metadata) {
     message_count: messages.length,
     date_range: {
       earliest: messages.length > 0 ? new Date(messages[0].ts * 1000).toISOString() : null,
-      latest: messages.length > 0 ? new Date(messages[messages.length - 1].ts * 1000).toISOString() : null,
+      latest:
+        messages.length > 0
+          ? new Date(messages[messages.length - 1].ts * 1000).toISOString()
+          : null,
     },
     export_date: new Date().toISOString(),
     messages: messages,
@@ -279,7 +292,7 @@ async function saveChatHistory(personalityName, messages, metadata) {
  */
 async function fetchChatHistory(personalityId, personalityName, authData) {
   logger.info(`[Backup] Fetching chat history for ${personalityName}...`);
-  
+
   const allMessages = [];
   let beforeTs = null;
   let iteration = 0;
@@ -293,35 +306,36 @@ async function fetchChatHistory(personalityId, personalityName, authData) {
         throw new Error('PERSONALITY_JARGON_TERM environment variable not configured');
       }
       let url = `${getApiBaseUrl()}/${jargonTerm}/${personalityId}/chat/history?limit=${CHAT_BATCH_SIZE}&shape_id=${personalityId}`;
-      
+
       if (beforeTs) {
         url += `&before_ts=${beforeTs}`;
       }
 
-      logger.info(`[Backup] Fetching chat batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`);
-      
+      logger.info(
+        `[Backup] Fetching chat batch ${iteration}${beforeTs ? ` (before ${new Date(beforeTs * 1000).toISOString()})` : ''}...`
+      );
+
       const messages = await getBackupClient().makeAuthenticatedRequest(url, authData);
-      
+
       if (!Array.isArray(messages) || messages.length === 0) {
         logger.info(`[Backup] No more messages found`);
         break;
       }
-      
+
       allMessages.push(...messages);
       logger.info(`[Backup] Retrieved ${messages.length} messages (total: ${allMessages.length})`);
-      
+
       // Find earliest timestamp for next batch
       beforeTs = Math.min(...messages.map(m => m.ts));
-      
+
       await getDelayFn()(DELAY_BETWEEN_REQUESTS);
     }
 
     // Sort by timestamp (oldest first) - consistent with memory storage pattern
     allMessages.sort((a, b) => a.ts - b.ts);
-    
+
     logger.info(`[Backup] Fetched ${allMessages.length} total chat messages`);
     return allMessages;
-    
   } catch (error) {
     logger.error(`[Backup] Error fetching chat history: ${error.message}`);
     return [];
@@ -333,45 +347,53 @@ async function fetchChatHistory(personalityId, personalityName, authData) {
  */
 async function syncChatHistory(personalityId, personalityName, authData, metadata) {
   logger.info(`[Backup] Syncing chat history for ${personalityName}...`);
-  
+
   // Load existing chat history (already sorted oldest to newest)
   const existingMessages = await loadChatHistory(personalityName);
-  
+
   // Get the timestamp of the newest existing message for efficient fetching
   let newestExistingTimestamp = 0;
   if (existingMessages.length > 0) {
     newestExistingTimestamp = existingMessages[existingMessages.length - 1].ts;
   }
-  
+
   // Fetch all messages (they come sorted oldest to newest from fetchChatHistory)
   const allMessages = await fetchChatHistory(personalityId, personalityName, authData);
-  
+
   if (allMessages.length === 0) {
     logger.info(`[Backup] No chat history available`);
     return { hasNewMessages: false, newMessageCount: 0, totalMessages: existingMessages.length };
   }
-  
+
   // Find new messages (those with timestamp > newest existing)
   const newMessages = allMessages.filter(msg => msg.ts > newestExistingTimestamp);
-  
+
   if (newMessages.length > 0) {
     // Simply append new messages to existing ones (both are already sorted)
     const updatedMessages = [...existingMessages, ...newMessages];
-    
+
     // Save updated chat history
     await saveChatHistory(personalityName, updatedMessages, { personalityId });
-    
+
     // Update metadata
     metadata.totalChatMessages = updatedMessages.length;
     metadata.lastChatHistorySync = new Date().toISOString();
-    
+
     if (updatedMessages.length > 0) {
       metadata.oldestChatMessage = new Date(updatedMessages[0].ts * 1000).toISOString();
-      metadata.newestChatMessage = new Date(updatedMessages[updatedMessages.length - 1].ts * 1000).toISOString();
+      metadata.newestChatMessage = new Date(
+        updatedMessages[updatedMessages.length - 1].ts * 1000
+      ).toISOString();
     }
-    
-    logger.info(`[Backup] Added ${newMessages.length} new messages (total: ${updatedMessages.length})`);
-    return { hasNewMessages: true, newMessageCount: newMessages.length, totalMessages: updatedMessages.length };
+
+    logger.info(
+      `[Backup] Added ${newMessages.length} new messages (total: ${updatedMessages.length})`
+    );
+    return {
+      hasNewMessages: true,
+      newMessageCount: newMessages.length,
+      totalMessages: updatedMessages.length,
+    };
   } else {
     logger.info(`[Backup] No new messages found`);
     return { hasNewMessages: false, newMessageCount: 0, totalMessages: existingMessages.length };
@@ -838,18 +860,13 @@ async function backupPersonality(personalityName, authData, directSend) {
 
       // Sync chat history
       await getDelayFn()(DELAY_BETWEEN_REQUESTS);
-      const chatResult = await syncChatHistory(
-        profile.id,
-        personalityName,
-        authData,
-        metadata
-      );
+      const chatResult = await syncChatHistory(profile.id, personalityName, authData, metadata);
 
       // Update metadata
       metadata.lastBackup = new Date().toISOString();
       await saveBackupMetadata(personalityName, metadata);
 
-      let resultMessage = 
+      let resultMessage =
         `✅ Backup complete for **${personalityName}**\n` +
         `• Profile: Updated\n` +
         `• New memories: ${newMemoryCount}\n` +
@@ -858,13 +875,13 @@ async function backupPersonality(personalityName, authData, directSend) {
         `• Training: ${hasNewTraining ? 'Updated' : 'Unchanged'} (${trainingCount} entries)\n` +
         `• User Personalization: ${hasNewUserPersonalization ? 'Updated' : 'Unchanged'}\n` +
         `• Chat History: ${chatResult.newMessageCount} new messages (total: ${chatResult.totalMessages})`;
-      
+
       if (metadata.oldestChatMessage && metadata.newestChatMessage) {
         const oldest = new Date(metadata.oldestChatMessage).toLocaleDateString();
         const newest = new Date(metadata.newestChatMessage).toLocaleDateString();
         resultMessage += `\n• Date range: ${oldest} to ${newest}`;
       }
-      
+
       await directSend(resultMessage);
     } else {
       await directSend(
@@ -898,10 +915,10 @@ async function handleBulkBackup(authData, directSend) {
 
   let successCount = 0;
   let shouldContinue = true;
-  
+
   for (const personalityName of ownerPersonalities) {
     if (!shouldContinue) break;
-    
+
     try {
       await backupPersonality(personalityName, authData, directSend);
       successCount++;
@@ -915,8 +932,8 @@ async function handleBulkBackup(authData, directSend) {
       if (error.status === 401 || error.message.includes('401')) {
         await directSend(
           `\n❌ Authentication failed! Your session cookie may have expired.\n` +
-          `Successfully backed up ${successCount} of ${ownerPersonalities.length} personalities before failure.\n\n` +
-          `Please update your session cookie with: \`${botPrefix} backup --set-cookie <new-cookie>\``
+            `Successfully backed up ${successCount} of ${ownerPersonalities.length} personalities before failure.\n\n` +
+            `Please update your session cookie with: \`${botPrefix} backup --set-cookie <new-cookie>\``
         );
         shouldContinue = false;
       } else {
@@ -955,7 +972,8 @@ async function handleSetCookie(message, args, directSend) {
   if (!message.channel.isDMBased()) {
     try {
       await message.delete();
-    } catch (_error) { // eslint-disable-line no-unused-vars
+    } catch (_error) {
+      // eslint-disable-line no-unused-vars
       // Ignore delete errors
     }
     return await directSend(
@@ -1012,7 +1030,9 @@ async function execute(message, args) {
           '3. Go to Application/Storage → Cookies\n' +
           '4. Find the `appSession` cookie\n' +
           '5. Copy its value (the long string)\n' +
-          '6. Use: `' + botPrefix + ' backup --set-cookie <cookie-value>`\n\n' +
+          '6. Use: `' +
+          botPrefix +
+          ' backup --set-cookie <cookie-value>`\n\n' +
           '⚠️ **Note:** Token authentication does not work for these backup APIs.'
       );
     }

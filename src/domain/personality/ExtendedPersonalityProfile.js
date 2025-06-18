@@ -71,9 +71,11 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
       isHighRisk: config.is_high_risk || config.isHighRisk || false,
       isSensitive: config.is_sensitive || config.isSensitive || false,
       isSensitiveImage: config.is_sensitive_image || config.isSensitiveImage || false,
-      selfIdentifiedSensitive: config.self_identified_sensitive || config.selfIdentifiedSensitive || false,
+      selfIdentifiedSensitive:
+        config.self_identified_sensitive || config.selfIdentifiedSensitive || false,
     };
-    this.autoModerationResults = config.auto_moderation_results || config.autoModerationResults || null;
+    this.autoModerationResults =
+      config.auto_moderation_results || config.autoModerationResults || null;
 
     // External auth
     this.xAuthUrl = config.x_auth_url || config.xAuthUrl || null;
@@ -97,14 +99,22 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
     }
 
     return {
-      model: config.voice_model || config.voiceModel || config.voiceConfig?.model || 'eleven_multilingual_v2',
+      model:
+        config.voice_model ||
+        config.voiceModel ||
+        config.voiceConfig?.model ||
+        'eleven_multilingual_v2',
       id: config.voice_id || config.voiceId || config.voiceConfig?.id,
       file: config.voice_file || config.voiceFile || config.voiceConfig?.file || null,
-      frequency: config.voice_frequency || config.voiceFrequency || config.voiceConfig?.frequency || 1,
-      stability: config.voice_stability || config.voiceStability || config.voiceConfig?.stability || 1,
-      similarity: config.voice_similarity || config.voiceSimilarity || config.voiceConfig?.similarity || 0.75,
+      frequency:
+        config.voice_frequency || config.voiceFrequency || config.voiceConfig?.frequency || 1,
+      stability:
+        config.voice_stability || config.voiceStability || config.voiceConfig?.stability || 1,
+      similarity:
+        config.voice_similarity || config.voiceSimilarity || config.voiceConfig?.similarity || 0.75,
       style: config.voice_style || config.voiceStyle || config.voiceConfig?.style || 0,
-      transcriptionEnabled: config.voice_transcription_enabled || config.voiceTranscriptionEnabled || true,
+      transcriptionEnabled:
+        config.voice_transcription_enabled || config.voiceTranscriptionEnabled || true,
     };
   }
 
@@ -132,7 +142,11 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
    * @returns {boolean}
    */
   hasLocalBackupData() {
-    return !!(this.dataFiles.knowledge || this.dataFiles.memories || this.dataFiles.userPersonalization);
+    return !!(
+      this.dataFiles.knowledge ||
+      this.dataFiles.memories ||
+      this.dataFiles.userPersonalization
+    );
   }
 
   /**
@@ -157,7 +171,8 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
    */
   getModerationRiskLevel() {
     if (this.moderationFlags.isHighRisk) return 'high';
-    if (this.moderationFlags.isSensitive || this.moderationFlags.selfIdentifiedSensitive) return 'medium';
+    if (this.moderationFlags.isSensitive || this.moderationFlags.selfIdentifiedSensitive)
+      return 'medium';
     return 'low';
   }
 
@@ -167,19 +182,19 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
    */
   toJSON() {
     const baseJson = super.toJSON();
-    
+
     return {
       ...baseJson,
       // User and credits
       userId: this.userId,
       creditsUsed: this.creditsUsed,
       creditsAvailable: this.creditsAvailable,
-      
+
       // Categorization
       category: this.category,
       customCategory: this.customCategory,
       tagline: this.tagline,
-      
+
       // Character details
       typicalPhrases: this.typicalPhrases,
       screenshots: this.screenshots,
@@ -187,25 +202,25 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
       characterUniverse: this.characterUniverse,
       characterBackground: this.characterBackground,
       examplePrompts: this.examplePrompts,
-      
+
       // Extended prompts
       userPrompt: this.userPrompt,
       jailbreakPrompt: this.jailbreakPrompt,
       imageJailbreak: this.imageJailbreak,
-      
+
       // Configurations
       voiceConfig: this.voiceConfig,
       imageConfig: this.imageConfig,
       engineConfig: this.engineConfig,
-      
+
       // Localization
       languagePreset: this.languagePreset,
       timezone: this.timezone,
-      
+
       // Moderation
       moderationFlags: this.moderationFlags,
       autoModerationResults: this.autoModerationResults,
-      
+
       // Other
       xAuthUrl: this.xAuthUrl,
       birthday: this.birthday,
@@ -240,7 +255,7 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
    */
   static fromBackupData(backupData) {
     const { main, knowledge, memories, userPersonalization } = backupData;
-    
+
     return new ExtendedPersonalityProfile({
       mode: 'local',
       ...main,
@@ -259,7 +274,7 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
    */
   static fromJSON(data) {
     if (!data) return null;
-    
+
     return new ExtendedPersonalityProfile(data);
   }
 
