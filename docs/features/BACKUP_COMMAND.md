@@ -5,7 +5,9 @@ The backup command allows administrators to save personality data and memories f
 ## Features
 
 - **Full Profile Backup**: Saves complete personality configuration including all settings
+- **Complete Chat History**: Backs up full conversation history using pagination (beyond 50-message limit)
 - **Smart Memory Sync**: Only downloads new memories since last backup (handles reverse chronological order)
+- **Knowledge & Training Data**: Captures knowledge base, training examples, and user personalization
 - **Bulk Backup**: Backup all owner personalities with a single command
 - **Individual Backup**: Target specific personalities
 - **Incremental Updates**: Tracks last backup state to minimize API calls
@@ -53,9 +55,13 @@ Backups are saved to `data/personalities/` with the following structure:
 ```
 data/personalities/
 ├── personality-name/
-│   ├── personality-name.json      # Full profile data
-│   ├── personality-name_memories.json  # All memories in chronological order
-│   └── .backup-metadata.json      # Tracking info for incremental sync
+│   ├── personality-name.json               # Full profile data
+│   ├── personality-name_memories.json      # All memories in chronological order
+│   ├── personality-name_messages.json      # Complete chat history (oldest to newest)
+│   ├── personality-name_knowledge.json     # Knowledge base entries
+│   ├── personality-name_training.json      # Training examples
+│   ├── personality-name_user_data.json     # User personalization data
+│   └── .backup-metadata.json              # Tracking info for incremental sync
 ```
 
 ### Memory Storage Format
@@ -74,6 +80,16 @@ The backup system intelligently handles memory syncing:
 3. **Automatic Sorting**: Memories are explicitly sorted by timestamp, not relying on API order
 4. **Deduplication**: Uses memory IDs to prevent duplicate entries
 5. **Metadata Tracking**: Stores last memory timestamp and total count for efficient syncing
+
+## Chat History Backup
+
+The backup command now includes complete conversation history:
+
+1. **Full History**: Uses undocumented `before_ts` parameter for pagination
+2. **No Limits**: Retrieves messages beyond the standard 50-message API limit
+3. **Chronological Order**: Stores messages from oldest to newest for easy reading
+4. **Character Stats**: Shows total character count for backed-up conversations
+5. **Incremental Ready**: Structured for future incremental backup support
 
 ## Rate Limiting
 

@@ -22,7 +22,7 @@ This guide covers various deployment options for Tzurot, from simple VPS deploym
 
 ### System Requirements
 
-- **Node.js**: Version 22.x or higher (specified in package.json)
+- **Node.js**: Version 22.x or higher (required by package.json)
 - **Memory**: Minimum 512MB RAM (1GB recommended)
 - **Storage**: 500MB for application and dependencies
 - **Network**: Stable internet connection
