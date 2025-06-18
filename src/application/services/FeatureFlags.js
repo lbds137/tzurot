@@ -37,6 +37,7 @@ class FeatureFlags {
       // Feature flags for new capabilities
       'features.comparison-testing': false,
       'features.performance-logging': false,
+      'features.enhanced-context': false, // Enable sending enhanced context to AI (for external services)
 
       // Override all flags from config
       ...config,

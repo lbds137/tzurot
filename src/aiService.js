@@ -14,6 +14,7 @@ const {
   handleApiError,
 } = require('./utils/aiErrorHandler');
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
+const { getFeatureFlags } = require('./application/services/FeatureFlags');
 
 // Initialize the AI client - delegates to aiAuth module
 function initAiClient() {
@@ -310,33 +311,40 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     throw new Error('Authentication required to use this service');
   }
 
-  // Check if we have enhanced personality data available
+  // Check if enhanced context is enabled via feature flag
   let enhancedMessages = messages;
-  const personalityDataService = getPersonalityDataService();
+  const featureFlags = getFeatureFlags();
   
-  try {
-    const hasBackupData = await personalityDataService.hasBackupData(personalityName);
+  if (featureFlags.isEnabled('features.enhanced-context')) {
+    // Only use enhanced context if feature flag is enabled (for external services)
+    const personalityDataService = getPersonalityDataService();
     
-    if (hasBackupData) {
-      logger.info(`[AIService] Using enhanced context for ${personalityName}`);
+    try {
+      const hasBackupData = await personalityDataService.hasBackupData(personalityName);
       
-      // Build contextual prompt with personality data and conversation history
-      const userMessage = messages[messages.length - 1].content;
-      const contextualData = await personalityDataService.buildContextualPrompt(
-        personalityName,
-        userId,
-        userMessage,
-        { prompt: null } // Will be populated from backup data
-      );
-      
-      if (contextualData.hasExtendedContext) {
-        enhancedMessages = contextualData.messages;
-        logger.debug(`[AIService] Added ${contextualData.context.history.length} history items to context`);
+      if (hasBackupData) {
+        logger.info(`[AIService] Using enhanced context for ${personalityName}`);
+        
+        // Build contextual prompt with personality data and conversation history
+        const userMessage = messages[messages.length - 1].content;
+        const contextualData = await personalityDataService.buildContextualPrompt(
+          personalityName,
+          userId,
+          userMessage,
+          { prompt: null } // Will be populated from backup data
+        );
+        
+        if (contextualData.hasExtendedContext) {
+          enhancedMessages = contextualData.messages;
+          logger.debug(`[AIService] Added ${contextualData.context.history.length} history items to context`);
+        }
       }
+    } catch (contextError) {
+      logger.warn(`[AIService] Error loading enhanced context: ${contextError.message}`);
+      // Fall back to regular messages
     }
-  } catch (contextError) {
-    logger.warn(`[AIService] Error loading enhanced context: ${contextError.message}`);
-    // Fall back to regular messages
+  } else {
+    logger.debug(`[AIService] Enhanced context feature flag is disabled, using standard messages`);
   }
 
   const response = await aiClient.chat.completions.create({

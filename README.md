@@ -93,6 +93,7 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 - **Media Handling**: Process images and audio files in conversations
 - **PluralKit Compatibility**: Works alongside PluralKit and other proxy bots
 - **Rate Limiting**: Built-in protection against abuse
+- **Enhanced Context** (Preview): Automatic personality data migration for external AI services
 
 ### Security & Authentication
 - OAuth-like authentication flow for API access
@@ -144,6 +145,9 @@ PREFIX=!tz
 BOT_OWNER_ID=your_discord_user_id
 OWNER_PERSONALITIES=personality1,personality2
 LOG_LEVEL=info
+
+# Feature Flags (Optional)
+FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT=false  # Enable when migrating to alternate AI services
 ```
 
 See [SETUP.md](docs/core/SETUP.md) for complete configuration details.
