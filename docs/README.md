@@ -57,7 +57,6 @@ Organized by status and priority:
   - **DATABASE_MIGRATION_PLAN.md** - PostgreSQL migration (high priority)
   - **PROFILE_DATA_ENHANCEMENT.md** - Enhanced AI features
   - **FEATURE_IDEAS.md** - New feature proposals
-- **archive/** - Completed or superseded improvements
 
 ### `/ddd` - Domain-Driven Design Documentation
 Complete DDD migration documentation:
