@@ -1,7 +1,7 @@
 # Tzurot - Discord AI Personality Bot
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen)](https://nodejs.org)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen)](https://nodejs.org)
 [![Discord.js](https://img.shields.io/badge/discord.js-v14-blue)](https://discord.js.org)
 
 Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamless interaction with AI personalities through Discord's webhook system. Each AI personality appears with its own name and avatar, creating authentic character interactions within Discord servers.
@@ -34,8 +34,8 @@ Tzurot (Hebrew for "shapes") is a sophisticated Discord bot that enables seamles
 
 ### Prerequisites
 
-- Node.js 16.x or higher
-- npm 7.x or higher
+- Node.js 22.x or higher
+- npm 10.x or higher
 - Discord Bot Token ([create one here](https://discord.com/developers/applications))
 - AI Service API credentials
 

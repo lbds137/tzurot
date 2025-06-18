@@ -18,8 +18,8 @@ This guide provides detailed instructions for setting up Tzurot for local develo
 
 ### Required Software
 
-- **Node.js 16.x or higher** - JavaScript runtime
-- **npm 7.x or higher** - Package manager (comes with Node.js)
+- **Node.js 22.x or higher** - JavaScript runtime
+- **npm 10.x or higher** - Package manager (comes with Node.js)
 - **Git** - Version control
 - **Text Editor/IDE** - VS Code, WebStorm, or similar
 
