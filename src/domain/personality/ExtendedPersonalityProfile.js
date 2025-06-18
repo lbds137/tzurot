@@ -253,9 +253,20 @@ class ExtendedPersonalityProfile extends PersonalityProfile {
   }
 
   /**
+   * Create from JSON data
+   * @param {Object} data - JSON data
+   * @returns {ExtendedPersonalityProfile}
+   */
+  static fromJSON(data) {
+    if (!data) return null;
+    
+    return new ExtendedPersonalityProfile(data);
+  }
+
+  /**
    * Create migration-ready profile from existing data
    * @param {Object} existingProfile - Current PersonalityProfile data
-   * @param {Object} backupData - Shapes.inc backup data
+   * @param {Object} backupData - External service backup data
    * @returns {ExtendedPersonalityProfile}
    */
   static createForMigration(existingProfile, backupData) {
