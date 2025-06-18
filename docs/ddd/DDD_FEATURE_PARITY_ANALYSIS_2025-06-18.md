@@ -189,20 +189,82 @@ This document provides a detailed comparison between the legacy and DDD implemen
 ### DDD Performance Measurements
 - TBD
 
-## Data Integrity Comparison
+## Data Format & Migration Analysis
 
-### Legacy Data Handling
-- TBD
+### Legacy Data Format
+**File**: `data/personalities.json`
+```json
+{
+  "personality-name": {
+    "fullName": "personality-name",
+    "addedBy": "userId",
+    "displayName": "Display Name",
+    "avatarUrl": "https://...",
+    "errorMessage": "Custom error",
+    "lastUpdated": "2025-06-18T17:45:21.858Z"
+  }
+}
+```
+**File**: `data/aliases.json` (currently empty {})
 
-### DDD Data Handling
-- TBD
+### DDD Data Format
+**File**: Same files, but structure in repository:
+```json
+{
+  "personalities": {
+    "personality-id": {
+      "id": "personality-id",
+      "personalityId": "personality-id",
+      "ownerId": "userId",
+      "profile": {
+        "mode": "external|local",
+        "name": "name",
+        "displayName": "Display Name",
+        "avatarUrl": "https://...",
+        "errorMessage": "error",
+        "prompt": "prompt text",
+        "modelPath": "/model/path"
+      },
+      "aliases": ["alias1", "alias2"],
+      "createdAt": "ISO date",
+      "updatedAt": "ISO date"
+    }
+  },
+  "aliases": {
+    "alias1": "personality-id",
+    "alias2": "personality-id"
+  }
+}
+```
+
+### Data Migration Issues
+1. **No Automatic Migration Path**
+   - DDD repository expects different structure
+   - Legacy uses flat structure, DDD uses nested
+   - Field name differences (addedBy vs ownerId)
+
+2. **Domain Model Redundancy**
+   - `PersonalityProfile` - Base profile (messy constructor with multiple patterns)
+   - `ExtendedPersonalityProfile` - Extends base, adds 50+ fields from external API
+   - Constructor complexity: supports object, parameters, and multiple modes
+
+3. **Missing Migration Logic**
+   - No code to convert legacy format to DDD format
+   - FilePersonalityRepository creates empty file if not found
+   - Would lose all existing personality data on switch
 
 ## Findings Summary
 
 ### Critical Gaps
-1. **Alias Reassignment** - DDD prevents alias reuse, legacy allows intelligent reassignment
-2. **Alias at Creation** - Legacy supports `add <name> [alias]`, DDD doesn't
-3. **Deduplication Logic** - Legacy has sophisticated duplicate request prevention, DDD lacks this
+1. **Data Migration** - No automatic migration from legacy to DDD format, would lose all data
+2. **Alias Reassignment** - DDD prevents alias reuse, legacy allows intelligent reassignment
+3. **Alias at Creation** - Legacy supports `add <name> [alias]`, DDD doesn't
+4. **Deduplication Logic** - Legacy has sophisticated duplicate request prevention, DDD lacks this
+
+### Domain Model Issues
+1. **PersonalityProfile Constructor** - Overly complex with multiple construction patterns
+2. **ExtendedPersonalityProfile** - Adds 50+ fields, most unused for Discord bot
+3. **Data Structure Mismatch** - DDD expects nested structure, legacy uses flat
 
 ### Minor Differences
 1. **Avatar Preloading** - Legacy preloads avatars after creation, DDD doesn't
@@ -212,28 +274,47 @@ This document provides a detailed comparison between the legacy and DDD implemen
 ### Performance Concerns
 1. **Async Overhead** - DDD uses async service layer, may add latency
 2. **Missing Optimizations** - No avatar preloading, no request deduplication
+3. **Complex Domain Models** - May add unnecessary overhead
 
 ## Remediation Plan
 
 ### Must Fix Before Migration
-1. **Implement Alias Reassignment**
+
+1. **Implement Data Migration**
+   - Create migration script to convert legacy format to DDD format
+   - Add migration check on repository initialization
+   - Preserve all existing personality data and aliases
+   - Test with production data backup
+
+2. **Implement Alias Reassignment**
    - Add logic to PersonalityApplicationService.addAlias() to allow reassignment
    - Match legacy behavior: reassign if exists, no-op if same personality
    
-2. **Add Alias Support to Add Command**
+3. **Add Alias Support to Add Command**
    - Update AddCommand to accept optional alias parameter
    - Ensure it calls addAlias after personality creation
 
-3. **Implement Request Deduplication**
+4. **Implement Request Deduplication**
    - Add pendingAdditions tracking to prevent duplicate requests
    - Port the 5-second cooldown logic from legacy
 
+### Should Fix Before Migration
+
+1. **Simplify Domain Models**
+   - Refactor PersonalityProfile constructor to be less complex
+   - Consider if ExtendedPersonalityProfile is needed for Discord bot
+   - Remove unused fields to reduce overhead
+
 ### Can Fix Post-Migration
+
 1. **Avatar Preloading** - Nice optimization but not critical
 2. **Embed Consistency** - Standardize response formats across commands
 3. **Performance Monitoring** - Add metrics to track latency increases
+4. **Domain Model Cleanup** - Further refinement of value objects
 
 ### Won't Fix (Acceptable Differences)
+
 1. **Ownership Validation on Alias** - This is actually an improvement
 2. **Better Cache Clearing** - DDD has superior cache management
 3. **Structured Error Handling** - DDD's approach is cleaner
+4. **Additional Features** - Prompt/model/maxwords are enhancements

@@ -4,9 +4,102 @@
 
 ## Overview
 
-Based on the feature parity analysis, we've identified 3 critical gaps that must be fixed before enabling DDD in production. This document provides implementation plans for each fix.
+Based on the feature parity analysis, we've identified 4 critical gaps that must be fixed before enabling DDD in production. This document provides implementation plans for each fix.
 
 ## Critical Fixes Required
+
+### 0. Data Migration (HIGHEST PRIORITY)
+
+**Problem**: DDD uses a different data format. Switching would lose all existing personality data.
+
+**Implementation Plan**:
+
+```javascript
+// In FilePersonalityRepository.js initialize()
+async initialize() {
+  // ... existing code ...
+  
+  try {
+    const data = await fs.readFile(this.filePath, 'utf8');
+    const parsedData = JSON.parse(data);
+    
+    // Check if this is legacy format (flat structure)
+    if (parsedData && !parsedData.personalities && !parsedData.aliases) {
+      logger.info('[FilePersonalityRepository] Detected legacy format, migrating...');
+      await this._migrateLegacyData(parsedData);
+      return;
+    }
+    
+    // ... rest of existing code
+  }
+}
+
+async _migrateLegacyData(legacyData) {
+  const migrated = {
+    personalities: {},
+    aliases: {}
+  };
+  
+  // Also check for legacy aliases file
+  const aliasesPath = path.join(this.dataPath, 'aliases.json');
+  let legacyAliases = {};
+  try {
+    const aliasData = await fs.readFile(aliasesPath, 'utf8');
+    legacyAliases = JSON.parse(aliasData) || {};
+  } catch (error) {
+    logger.info('[FilePersonalityRepository] No legacy aliases file found');
+  }
+  
+  // Migrate each personality
+  for (const [name, data] of Object.entries(legacyData)) {
+    const personalityId = name; // Use name as ID for compatibility
+    
+    migrated.personalities[personalityId] = {
+      id: personalityId,
+      personalityId: personalityId,
+      ownerId: data.addedBy || data.createdBy,
+      profile: {
+        mode: 'external',
+        name: data.fullName || name,
+        displayName: data.displayName || name,
+        avatarUrl: data.avatarUrl || null,
+        errorMessage: data.errorMessage || null,
+      },
+      aliases: [],
+      createdAt: data.addedAt || data.lastUpdated || new Date().toISOString(),
+      updatedAt: data.lastUpdated || new Date().toISOString(),
+      removed: false
+    };
+  }
+  
+  // Migrate aliases
+  for (const [alias, targetName] of Object.entries(legacyAliases)) {
+    migrated.aliases[alias] = targetName;
+    // Add to personality's alias list
+    if (migrated.personalities[targetName]) {
+      migrated.personalities[targetName].aliases.push(alias);
+    }
+  }
+  
+  // Save migrated data
+  this._cache = migrated;
+  await this._persist();
+  
+  // Backup legacy data
+  const backupPath = path.join(this.dataPath, 'personalities.legacy.json');
+  await fs.writeFile(backupPath, JSON.stringify(legacyData, null, 2));
+  logger.info(`[FilePersonalityRepository] Backed up legacy data to ${backupPath}`);
+  
+  logger.info(`[FilePersonalityRepository] Migration complete: ${Object.keys(migrated.personalities).length} personalities`);
+}
+```
+
+**Testing Required**:
+- Test with production data copy
+- Verify all personalities are migrated
+- Check aliases are preserved
+- Ensure no data loss
+- Test rollback to legacy format
 
 ### 1. Implement Alias Reassignment
 
@@ -202,20 +295,27 @@ deduplicator.trackRequest(dedupeKey);
 
 ## Implementation Order
 
-1. **Alias Reassignment** (High Priority)
+1. **Data Migration** (CRITICAL)
+   - Without this, all user data is lost
+   - Must be tested thoroughly
+   - Estimated: 3-4 hours
+
+2. **Alias Reassignment** (High Priority)
    - Most user-visible issue
    - Required for user satisfaction
    - Estimated: 2-4 hours
 
-2. **Add Command Alias** (Medium Priority)
+3. **Add Command Alias** (Medium Priority)
    - Quality of life improvement
    - Backward compatibility
    - Estimated: 1-2 hours
 
-3. **Request Deduplication** (Low Priority)
+4. **Request Deduplication** (Low Priority)
    - Prevents edge case issues
    - Not user-visible normally
    - Estimated: 1-2 hours
+
+**Total Estimated Time**: 8-12 hours
 
 ## Testing Strategy
 
