@@ -45,6 +45,33 @@ class BackupAPIClient {
   }
 
   /**
+   * Fetch personalities by category (self or recent)
+   * @param {string} category - Category type ('self' or 'recent')
+   * @param {Object} authData - Authentication data
+   * @returns {Promise<Array>} Array of personality data
+   */
+  async fetchPersonalitiesByCategory(category, authData) {
+    const personalityJargon = getPersonalityJargonTerm();
+    const url = `${this.apiBaseUrl}/${personalityJargon}?category=${category}`;
+    logger.info(`[BackupAPIClient] Fetching ${category} personalities from: ${url}`);
+    
+    try {
+      const personalities = await this._makeAuthenticatedRequest(url, authData);
+      
+      if (!Array.isArray(personalities)) {
+        logger.error(`[BackupAPIClient] Expected array of personalities, got:`, typeof personalities);
+        return [];
+      }
+      
+      logger.info(`[BackupAPIClient] Retrieved ${personalities.length} ${category} personalities`);
+      return personalities;
+    } catch (error) {
+      logger.error(`[BackupAPIClient] Error fetching ${category} personalities:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch personality profile data
    * @param {string} personalityName - Name of personality
    * @param {Object} authData - Authentication data

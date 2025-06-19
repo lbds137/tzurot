@@ -111,7 +111,7 @@ describe('BackupCommand', () => {
 
       expect(options[0].name).toBe('subcommand');
       expect(options[0].required).toBe(false);
-      expect(options[0].choices).toHaveLength(3);
+      expect(options[0].choices).toHaveLength(5);
 
       expect(options[1].name).toBe('personality');
       expect(options[1].required).toBe(false);
@@ -1090,6 +1090,157 @@ describe('BackupCommand', () => {
         );
         expect(errorCall).toBeDefined();
         expect(mockZipArchiveService.createBulkArchiveFromMemory).not.toHaveBeenCalled();
+      });
+    });
+    
+    describe('category backup (self/recent)', () => {
+      beforeEach(() => {
+        // Set up auth data
+        userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+        
+        // Mock successful fetchPersonalitiesByCategory
+        mockApiClientService.fetchPersonalitiesByCategory = jest.fn();
+        
+        // Mock successful backup execution
+        mockBackupService.executeBackup.mockImplementation(async (job) => {
+          job.start();
+          job.personalityData = {
+            name: job.personalityName,
+            profile: { id: 'test-id', name: job.personalityName },
+            memories: [],
+            knowledge: [],
+            training: [],
+            userPersonalization: {},
+            chatHistory: [],
+            metadata: { lastBackup: new Date().toISOString() }
+          };
+          job.userDisplayPrefix = 'test-user';
+          job.complete({});
+          return job;
+        });
+        
+        // Mock ZIP creation
+        mockZipArchiveService.createPersonalityArchiveFromMemory.mockResolvedValue(Buffer.from('zip'));
+        mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
+        mockZipArchiveService.formatBytes.mockReturnValue('1 KB');
+      });
+      
+      it('should backup self personalities', async () => {
+        const selfPersonalities = [
+          { id: '123456789012345678', name: 'MyPersonality1' },
+          { id: '223456789012345678', name: 'MyPersonality2' }
+        ];
+        mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(selfPersonalities);
+        
+        mockContext.args = ['self'];
+        await backupCommand.execute(mockContext);
+        
+        // Verify API was called correctly
+        expect(mockApiClientService.fetchPersonalitiesByCategory).toHaveBeenCalledWith('self', { cookie: 'session=test' });
+        
+        // Verify starting embed
+        const startingCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '📦 Starting Self-Owned Backup'
+        );
+        expect(startingCall).toBeDefined();
+        expect(startingCall[0].description).toContain('Beginning backup of 2 self personalities');
+        
+        // Verify individual backups were executed
+        expect(mockBackupService.executeBackup).toHaveBeenCalledTimes(2);
+        
+        // Verify jobs have persistToFilesystem: false
+        const firstCall = mockBackupService.executeBackup.mock.calls[0];
+        expect(firstCall[0].persistToFilesystem).toBe(false);
+        
+        // Verify ZIP files were created and sent
+        expect(mockZipArchiveService.createPersonalityArchiveFromMemory).toHaveBeenCalledTimes(2);
+        
+        // Verify summary embed
+        const summaryCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '📦 Self-Owned Backup Complete'
+        );
+        expect(summaryCall).toBeDefined();
+      });
+      
+      it('should backup recent personalities', async () => {
+        const recentPersonalities = [
+          { id: '323456789012345678', name: 'RecentPersonality1' },
+          { id: '423456789012345678', name: 'RecentPersonality2' },
+          { id: '523456789012345678', name: 'RecentPersonality3' }
+        ];
+        mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(recentPersonalities);
+        
+        mockContext.args = ['recent'];
+        await backupCommand.execute(mockContext);
+        
+        // Verify API was called correctly
+        expect(mockApiClientService.fetchPersonalitiesByCategory).toHaveBeenCalledWith('recent', { cookie: 'session=test' });
+        
+        // Verify starting embed
+        const startingCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '📦 Starting Recent Backup'
+        );
+        expect(startingCall).toBeDefined();
+        expect(startingCall[0].description).toContain('Beginning backup of 3 recent personalities');
+        
+        // Verify summary embed
+        const summaryCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '📦 Recent Backup Complete'
+        );
+        expect(summaryCall).toBeDefined();
+      });
+      
+      it('should handle empty category results', async () => {
+        mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue([]);
+        
+        mockContext.args = ['self'];
+        await backupCommand.execute(mockContext);
+        
+        const errorCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '❌ No Personalities Found'
+        );
+        expect(errorCall).toBeDefined();
+        expect(errorCall[0].description).toContain('No self personalities found');
+        
+        // Should not attempt any backups
+        expect(mockBackupService.executeBackup).not.toHaveBeenCalled();
+      });
+      
+      it('should handle API fetch errors', async () => {
+        mockApiClientService.fetchPersonalitiesByCategory.mockRejectedValue(new Error('API Error'));
+        
+        mockContext.args = ['recent'];
+        await backupCommand.execute(mockContext);
+        
+        const errorCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '❌ Backup Failed'
+        );
+        expect(errorCall).toBeDefined();
+        expect(errorCall[0].description).toContain('Failed to fetch recent personalities');
+      });
+      
+      it('should handle many personalities with Discord embed limits', async () => {
+        // Create 100 personalities to test truncation
+        const manyPersonalities = Array.from({ length: 100 }, (_, i) => ({
+          id: `id${i}`,
+          name: `VeryLongPersonalityNameForTesting${i}`
+        }));
+        mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(manyPersonalities);
+        
+        mockContext.args = ['self'];
+        await backupCommand.execute(mockContext);
+        
+        // Verify summary embed handles long lists
+        const summaryCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '📦 Self-Owned Backup Complete'
+        );
+        expect(summaryCall).toBeDefined();
+        
+        const successField = summaryCall[0].fields.find(f => f.name === '✅ Successful Backups');
+        expect(successField).toBeDefined();
+        expect(successField.value.length).toBeLessThanOrEqual(1024);
+        expect(successField.value).toContain('...and');
+        expect(successField.value).toContain('more');
       });
     });
   });
