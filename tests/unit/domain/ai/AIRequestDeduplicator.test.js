@@ -120,9 +120,10 @@ describe('AIRequestDeduplicator', () => {
       
       expect(deduplicator.pendingRequests.size).toBe(1);
       
+      // Wait for the promise and its finally handler
       await promise;
-      // Allow promise cleanup to execute
-      await new Promise(resolve => setImmediate(resolve));
+      // Use Jest's timer helpers to flush microtasks
+      await Promise.resolve();
       
       expect(deduplicator.pendingRequests.size).toBe(0);
     });
@@ -133,12 +134,12 @@ describe('AIRequestDeduplicator', () => {
       
       try {
         await promise;
-      } catch (e) {
-        // Expected
+      } catch (_e) {
+        // Expected - promise rejection is expected here
       }
       
-      // Allow promise cleanup to execute
-      await new Promise(resolve => setImmediate(resolve));
+      // Flush microtasks to allow promise cleanup
+      await Promise.resolve();
       
       expect(deduplicator.errorBlackouts.size).toBe(1);
     });

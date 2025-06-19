@@ -79,12 +79,21 @@ describe('AuthCommand', () => {
     it('should show help when no action is provided', async () => {
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('🔐 Authentication Required')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('auth start')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔐 Authentication Help',
+            description: expect.stringContaining('To get started'),
+            color: 0x2196f3,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Available Commands',
+                value: expect.stringContaining('auth start'),
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should show admin commands for administrators', async () => {
@@ -92,12 +101,18 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Admin Commands:')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('auth cleanup')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: '👨‍💼 Admin Commands',
+                value: expect.stringContaining('auth cleanup'),
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should show admin commands for bot owner', async () => {
@@ -105,9 +120,17 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Admin Commands:')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: '👨‍💼 Admin Commands',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
   });
 
@@ -119,9 +142,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Authentication with Proxy Systems')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authentication with Proxy Systems',
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
   });
 
@@ -133,9 +161,19 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockAuth.getAuthorizationUrl).toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('https://auth.example.com/authorize')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔐 Authentication Required',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: '1️⃣ Click the link',
+                value: expect.stringContaining('https://auth.example.com/authorize'),
+              }),
+            ]),
+          }),
+        ],
+      });
       expect(mockContext.sendDM).not.toHaveBeenCalled();
     });
 
@@ -145,12 +183,25 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockAuth.getAuthorizationUrl).toHaveBeenCalled();
-      expect(mockContext.sendDM).toHaveBeenCalledWith(
-        expect.stringContaining('https://auth.example.com/authorize')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('sent you a DM')
-      );
+      expect(mockContext.sendDM).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔐 Authentication Required',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                value: expect.stringContaining('https://auth.example.com/authorize'),
+              }),
+            ]),
+          }),
+        ],
+      });
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '📨 Check Your DMs',
+          }),
+        ],
+      });
     });
 
     it('should handle DM failure gracefully', async () => {
@@ -159,9 +210,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Unable to send you a DM')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Unable to Send DM',
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should handle auth URL generation failure', async () => {
@@ -170,9 +226,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to generate authentication URL')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authentication Failed',
+            description: 'Failed to generate authentication URL.',
+          }),
+        ],
+      });
     });
   });
 
@@ -183,9 +244,15 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockContext.deleteMessage).toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('please submit your authorization code via DM')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔒 Security Warning',
+            description: 'For security, authorization codes must be submitted via DM only.',
+            color: 0xff9800,
+          }),
+        ],
+      });
     });
 
     it('should process code in DM channel', async () => {
@@ -197,9 +264,15 @@ describe('AuthCommand', () => {
       expect(mockContext.startTyping).toHaveBeenCalled();
       expect(mockAuth.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
       expect(mockAuth.storeUserToken).toHaveBeenCalledWith('user123', 'test-token');
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Authorization successful')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Authorization Successful!',
+            description: 'Your account has been successfully linked.',
+            color: 0x4caf50,
+          }),
+        ],
+      });
     });
 
     it('should handle spoiler-wrapped codes', async () => {
@@ -216,9 +289,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Please provide your authorization code')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Code Required',
+            description: 'Please provide your authorization code.',
+          }),
+        ],
+      });
     });
 
     it('should handle invalid code', async () => {
@@ -228,9 +306,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Authorization failed')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authorization Failed',
+            description: 'Unable to validate your authorization code.',
+          }),
+        ],
+      });
     });
 
     it('should handle token storage failure', async () => {
@@ -240,9 +323,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to store authorization token')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Storage Failed',
+            description: 'Unable to save your authorization token.',
+          }),
+        ],
+      });
     });
   });
 
@@ -253,9 +341,15 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining("don't have an authorization token")
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Not Authorized',
+            description: "You don't have an active authorization token.",
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should show status when authenticated', async () => {
@@ -264,9 +358,21 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('You have a valid authorization token')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔐 Authentication Status',
+            description: expect.stringContaining('Your authorization is active'),
+            color: 0x4caf50,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Status',
+                value: '✅ Authorized',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should show token details when available', async () => {
@@ -280,12 +386,22 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Created: 5 days ago')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Expires in: 25 days')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Token Age',
+                value: '5 days',
+              }),
+              expect.objectContaining({
+                name: 'Expires In',
+                value: '25 days',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should warn about expiring tokens', async () => {
@@ -299,9 +415,18 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Your token will expire soon')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: '⚠️ Token Expiring Soon',
+                value: expect.stringContaining('Your token will expire soon'),
+              }),
+            ]),
+          }),
+        ],
+      });
     });
   });
 
@@ -313,9 +438,15 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockAuth.deleteUserToken).toHaveBeenCalledWith('user123');
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Your authorization has been revoked')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Authorization Revoked',
+            description: 'Your authorization has been successfully revoked.',
+            color: 0x4caf50,
+          }),
+        ],
+      });
     });
 
     it('should handle revoke failure', async () => {
@@ -324,9 +455,15 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to revoke authorization')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Revocation Failed',
+            description: 'Unable to revoke your authorization.',
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
   });
 
@@ -338,9 +475,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('only be used by server administrators')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Permission Denied',
+            description: 'This command requires administrator permissions.',
+          }),
+        ],
+      });
       expect(mockAuth.cleanupExpiredTokens).not.toHaveBeenCalled();
     });
 
@@ -352,9 +494,14 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockAuth.cleanupExpiredTokens).toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Removed 3 expired tokens')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Cleanup Complete',
+            description: 'Successfully removed 3 expired tokens.',
+          }),
+        ],
+      });
     });
 
     it('should allow cleanup for bot owner', async () => {
@@ -365,9 +512,14 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       expect(mockAuth.cleanupExpiredTokens).toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('No expired tokens were found')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Cleanup Complete',
+            description: 'No expired tokens were found.',
+          }),
+        ],
+      });
     });
 
     it('should handle cleanup errors', async () => {
@@ -377,9 +529,20 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('An error occurred during cleanup')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Cleanup Failed',
+            description: 'An error occurred during the cleanup process.',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Error details',
+                value: 'Database error',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
   });
 
@@ -389,9 +552,14 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Unknown auth subcommand')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Unknown Auth Command',
+            description: '"unknown" is not a valid auth subcommand.',
+          }),
+        ],
+      });
     });
 
     it('should handle unexpected errors', async () => {
@@ -400,9 +568,19 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('An error occurred: Network error')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authentication Error',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Error details',
+                value: 'Network error',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
   });
 

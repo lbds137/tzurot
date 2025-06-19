@@ -11,6 +11,56 @@ if (!process.env.JEST_WORKER_ID) {
   process.env.JEST_WORKER_ID = '1';
 }
 
+// Mock heavy DDD modules to prevent cascade loading
+// These modules import many dependencies and slow down tests
+jest.mock('../src/application/bootstrap/ApplicationBootstrap', () => ({
+  ApplicationBootstrap: jest.fn().mockImplementation(() => ({
+    initialize: jest.fn().mockResolvedValue(undefined),
+    shutdown: jest.fn().mockResolvedValue(undefined),
+    initialized: false,
+  })),
+}));
+
+jest.mock('../src/adapters/persistence/FilePersonalityRepository', () => ({
+  FilePersonalityRepository: jest.fn().mockImplementation(() => ({
+    initialize: jest.fn().mockResolvedValue(undefined),
+    findById: jest.fn().mockResolvedValue(null),
+    findByName: jest.fn().mockResolvedValue(null),
+    findByNameOrAlias: jest.fn().mockResolvedValue(null),
+    save: jest.fn().mockResolvedValue(true),
+    remove: jest.fn().mockResolvedValue(true),
+    findAll: jest.fn().mockResolvedValue([]),
+    findByOwner: jest.fn().mockResolvedValue([]),
+    getStatistics: jest.fn().mockResolvedValue({ totalPersonalities: 0, totalAliases: 0, owners: 0 }),
+  })),
+}));
+
+jest.mock('../src/application/services/PersonalityApplicationService', () => ({
+  PersonalityApplicationService: jest.fn().mockImplementation(() => ({
+    registerPersonality: jest.fn().mockResolvedValue({}),
+    getPersonality: jest.fn().mockResolvedValue(null),
+    listPersonalitiesByOwner: jest.fn().mockResolvedValue([]),
+    addAlias: jest.fn().mockResolvedValue({}),
+    removePersonality: jest.fn().mockResolvedValue(true),
+  })),
+}));
+
+jest.mock('../src/adapters/ai/HttpAIServiceAdapter', () => ({
+  HttpAIServiceAdapter: jest.fn().mockImplementation(() => ({
+    sendRequest: jest.fn().mockResolvedValue({}),
+    initialize: jest.fn().mockResolvedValue(undefined),
+    isHealthy: jest.fn().mockResolvedValue(true),
+  })),
+}));
+
+// Mock the heavy webhook manager that loads many dependencies
+jest.mock('../src/webhookManager', () => ({
+  getOrCreateWebhook: jest.fn().mockResolvedValue({}),
+  sendWebhookMessage: jest.fn().mockResolvedValue({}),
+  sendAsUser: jest.fn().mockResolvedValue({}),
+  handleError: jest.fn(),
+}));
+
 // Note: We now use jest.useFakeTimers() in beforeEach to handle all timer mocking
 // This provides consistent timer behavior across all tests
 
