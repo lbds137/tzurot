@@ -78,6 +78,15 @@ function createExecutor(dependencies = {}) {
         return await showHelp(context);
       } else if (subcommand === 'all') {
         return await handleBulkBackup(context, backupServiceInstance, authData, zipArchiveService);
+      } else if (subcommand === 'self' || subcommand === 'recent') {
+        return await handleCategoryBackup(
+          context,
+          subcommand,
+          backupServiceInstance,
+          authData,
+          zipArchiveService,
+          apiClientService
+        );
       } else {
         return await handleSingleBackup(
           context,
@@ -117,6 +126,8 @@ async function showHelp(context) {
         value: [
           `\`${botPrefix} backup <personality-name>\` - Backup a single personality`,
           `\`${botPrefix} backup all\` - Backup all owner personalities`,
+          `\`${botPrefix} backup self\` - Backup your own personalities`,
+          `\`${botPrefix} backup recent\` - Backup personalities you recently talked to`,
           `\`${botPrefix} backup set-cookie <cookie>\` - Set browser session cookie`,
         ].join('\n'),
         inline: false,
@@ -277,6 +288,162 @@ async function getAuthData(context) {
   }
 
   return { cookie: userSession.cookie };
+}
+
+/**
+ * Handle category-based backup (self or recent)
+ * @param {Object} context - Command context
+ * @param {string} category - Category type ('self' or 'recent')
+ * @param {BackupService} backupService - Backup service instance
+ * @param {Object} authData - Authentication data
+ * @param {ZipArchiveService} zipArchiveService - ZIP archive service
+ * @param {BackupAPIClient} apiClientService - API client service
+ */
+async function handleCategoryBackup(context, category, backupService, authData, zipArchiveService, apiClientService) {
+  try {
+    // Fetch personalities for the category
+    const personalities = await apiClientService.fetchPersonalitiesByCategory(category, authData);
+    
+    if (!personalities || personalities.length === 0) {
+      const errorEmbed = {
+        title: '❌ No Personalities Found',
+        description: `No ${category} personalities found for your account.`,
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respondWithEmbed(errorEmbed);
+      return;
+    }
+    
+    // Extract personality names from the API response
+    const personalityNames = personalities.map(p => p.name);
+    
+    // Create progress callback
+    const progressCallback = async message => {
+      await context.respond(message);
+    };
+    
+    // Start backup message
+    const startEmbed = {
+      title: `📦 Starting ${category === 'self' ? 'Self-Owned' : 'Recent'} Backup`,
+      description: `Beginning backup of ${personalityNames.length} ${category} personalities...`,
+      color: 0x2196f3,
+      fields: [
+        {
+          name: '📤 Delivery',
+          value: `Individual ZIP files will be sent as each personality completes`,
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    await context.respondWithEmbed(startEmbed);
+    
+    // Track results
+    const successfulBackups = [];
+    const failedBackups = [];
+    
+    // Process each personality one by one
+    for (const personalityName of personalityNames) {
+      const job = new BackupJob({
+        personalityName: personalityName.toLowerCase(),
+        userId: context.userId,
+        isBulk: true,
+        persistToFilesystem: false, // Don't persist category backups to filesystem
+      });
+      
+      try {
+        // Run the backup
+        await backupService.executeBackup(job, authData, progressCallback);
+        
+        // If successful, send the ZIP immediately
+        if (job.status === 'completed') {
+          try {
+            logger.info(`[BackupCommand] Job completed for ${personalityName}, sending ZIP file`);
+            await _sendIndividualBackupZip(context, job, zipArchiveService);
+            successfulBackups.push(personalityName);
+          } catch (zipError) {
+            logger.error(`[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`);
+            const errorEmbed = {
+              title: '⚠️ ZIP Creation Failed',
+              description: `Failed to create ZIP for **${personalityName}**. Data was backed up successfully but ZIP delivery failed.`,
+              color: 0xff9800,
+              timestamp: new Date().toISOString(),
+            };
+            await context.respondWithEmbed(errorEmbed);
+            // Still count as successful since data was backed up
+            successfulBackups.push(personalityName);
+          }
+        } else {
+          failedBackups.push(personalityName);
+        }
+        
+        // Delay between personalities to avoid rate limits
+        if (personalityName !== personalityNames[personalityNames.length - 1]) {
+          await backupService.delayFn(2000);
+        }
+      } catch (error) {
+        logger.error(`[BackupCommand] Error backing up ${personalityName}: ${error.message}`);
+        failedBackups.push(personalityName);
+        
+        // Check for authentication errors that should stop the bulk operation
+        if (error.status === 401 || error.message.includes('401') || 
+            error.message.includes('Authentication') || error.message.includes('Session cookie')) {
+          const authErrorEmbed = {
+            title: '❌ Authentication Failed',
+            description: `Your session cookie may have expired.\nSuccessfully backed up ${successfulBackups.length} of ${personalityNames.length} personalities before failure.`,
+            color: 0xf44336,
+            fields: [
+              {
+                name: 'Next Steps',
+                value: 'Please update your session cookie with the backup set-cookie command.',
+                inline: false,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          await context.respondWithEmbed(authErrorEmbed);
+          break; // Stop processing on auth errors
+        }
+      }
+    }
+    
+    // Send final summary
+    const summaryEmbed = {
+      title: `📦 ${category === 'self' ? 'Self-Owned' : 'Recent'} Backup Complete`,
+      description: `Successfully backed up ${successfulBackups.length} of ${personalityNames.length} personalities.`,
+      color: successfulBackups.length > 0 ? 0x4caf50 : 0xf44336,
+      fields: [],
+      timestamp: new Date().toISOString(),
+    };
+    
+    if (successfulBackups.length > 0) {
+      summaryEmbed.fields.push({
+        name: '✅ Successful Backups',
+        value: _formatPersonalityList(successfulBackups),
+        inline: true,
+      });
+    }
+    
+    if (failedBackups.length > 0) {
+      summaryEmbed.fields.push({
+        name: '❌ Failed Backups',
+        value: _formatPersonalityList(failedBackups),
+        inline: true,
+      });
+    }
+    
+    await context.respondWithEmbed(summaryEmbed);
+  } catch (error) {
+    logger.error(`[BackupCommand] Category backup error: ${error.message}`);
+    const errorEmbed = {
+      title: '❌ Backup Failed',
+      description: `Failed to fetch ${category} personalities: ${error.message}`,
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respondWithEmbed(errorEmbed);
+  }
 }
 
 /**
@@ -621,6 +788,8 @@ function createBackupCommand(dependencies = {}) {
         choices: [
           { name: 'Backup single personality', value: 'personality' },
           { name: 'Backup all owner personalities', value: 'all' },
+          { name: 'Backup your own personalities', value: 'self' },
+          { name: 'Backup recent personalities', value: 'recent' },
           { name: 'Set session cookie', value: 'set-cookie' },
         ],
       }),
@@ -679,6 +848,7 @@ module.exports = {
   handleSetCookie,
   getAuthData,
   handleBulkBackup,
+  handleCategoryBackup,
   handleSingleBackup,
   showHelp,
   _formatPersonalityList, // Export for testing
