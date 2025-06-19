@@ -119,7 +119,7 @@ async function showStatus(context, conversationManager) {
  */
 async function enableAutoResponse(context, conversationManager) {
   try {
-    conversationManager.setAutoResponse(context.getUserId(), true);
+    conversationManager.enableAutoResponse(context.getUserId());
     logger.info(`[AutorespondCommand] Enabled auto-response for user ${context.getUserId()}`);
 
     const embed = {
@@ -155,7 +155,7 @@ async function enableAutoResponse(context, conversationManager) {
  */
 async function disableAutoResponse(context, conversationManager) {
   try {
-    conversationManager.setAutoResponse(context.getUserId(), false);
+    conversationManager.disableAutoResponse(context.getUserId());
     logger.info(`[AutorespondCommand] Disabled auto-response for user ${context.getUserId()}`);
 
     const embed = {
