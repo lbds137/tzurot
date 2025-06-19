@@ -409,4 +409,263 @@ describe('ApplicationBootstrap', () => {
       });
     });
   });
+
+  describe('Owner Personality Seeding', () => {
+    let mockPersonalityService;
+    let mockLegacyManager;
+    let mockTimer;
+
+    beforeEach(() => {
+      // Mock environment variables
+      delete process.env.BOT_OWNER_ID;
+      delete process.env.BOT_OWNER_PERSONALITIES;
+
+      // Mock timer for seeding delay
+      mockTimer = jest.fn();
+      global.setTimeout = mockTimer;
+
+      // Mock personality service for DDD
+      mockPersonalityService = {
+        listPersonalitiesByOwner: jest.fn().mockResolvedValue([]),
+        registerPersonality: jest.fn().mockResolvedValue({ profile: { name: 'test' } }),
+      };
+
+      // Mock legacy manager
+      mockLegacyManager = {
+        initialized: true,
+        initialize: jest.fn().mockResolvedValue(),
+        listPersonalitiesForUser: jest.fn().mockReturnValue([]),
+        registerPersonality: jest.fn().mockResolvedValue({ success: true }),
+      };
+      const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
+      PersonalityManager.getInstance.mockReturnValue(mockLegacyManager);
+    });
+
+    it('should skip seeding when DDD personality write is enabled', async () => {
+      // Enable DDD personality write
+      mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
+      
+      process.env.BOT_OWNER_ID = '123456789012345678';
+      process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
+
+      const bootstrap = new ApplicationBootstrap();
+      await bootstrap.initialize();
+
+      // Seeding should be skipped entirely when DDD write is enabled
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ApplicationBootstrap] ✅ DDD application layer initialization complete'
+      );
+      expect(mockTimer).not.toHaveBeenCalled();
+    });
+
+    it('should schedule legacy seeding when DDD personality write is disabled', async () => {
+      // Disable DDD personality write
+      mockFeatureFlags.isEnabled.mockImplementation(flag => flag !== 'ddd.personality.write');
+      
+      process.env.BOT_OWNER_ID = '123456789012345678';
+      process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
+
+      const bootstrap = new ApplicationBootstrap();
+      await bootstrap.initialize();
+
+      // Verify timer was set for background seeding
+      expect(mockTimer).toHaveBeenCalledWith(expect.any(Function), 5000);
+    });
+
+    describe('_seedOwnerPersonalities', () => {
+      let bootstrap;
+
+      beforeEach(() => {
+        bootstrap = new ApplicationBootstrap();
+        bootstrap.applicationServices = {
+          personalityApplicationService: mockPersonalityService,
+        };
+        bootstrap.delay = jest.fn().mockResolvedValue();
+      });
+
+      it('should skip seeding when BOT_OWNER_ID is not configured', async () => {
+        await bootstrap._seedOwnerPersonalities();
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] No BOT_OWNER_ID configured, skipping personality seeding'
+        );
+      });
+
+      it('should skip seeding when BOT_OWNER_PERSONALITIES is not configured', async () => {
+        process.env.BOT_OWNER_ID = '123456789012345678';
+
+        await bootstrap._seedOwnerPersonalities();
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] No BOT_OWNER_PERSONALITIES configured, skipping personality seeding'
+        );
+      });
+
+      it('should use DDD seeding when feature flag is enabled', async () => {
+        process.env.BOT_OWNER_ID = '123456789012345678';
+        process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
+        mockFeatureFlags.isEnabled.mockReturnValue(true);
+
+        await bootstrap._seedOwnerPersonalities();
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Using DDD PersonalityApplicationService for seeding'
+        );
+        expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalled();
+      });
+
+      it('should use legacy seeding when feature flag is disabled', async () => {
+        process.env.BOT_OWNER_ID = '123456789012345678';
+        process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
+        mockFeatureFlags.isEnabled.mockReturnValue(false);
+
+        await bootstrap._seedOwnerPersonalities();
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Using legacy PersonalityManager for seeding'
+        );
+        expect(mockLegacyManager.listPersonalitiesForUser).toHaveBeenCalled();
+      });
+    });
+
+    describe('DDD personality seeding', () => {
+      let bootstrap;
+
+      beforeEach(() => {
+        bootstrap = new ApplicationBootstrap();
+        bootstrap.applicationServices = {
+          personalityApplicationService: mockPersonalityService,
+        };
+        bootstrap.delay = jest.fn().mockResolvedValue();
+      });
+
+      it('should skip when all personalities exist', async () => {
+        mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
+          { profile: { name: 'lilith' } },
+          { profile: { name: 'lucifer' } },
+        ]);
+
+        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Owner has all 2 expected personalities'
+        );
+        expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
+      });
+
+      it('should seed missing personalities', async () => {
+        mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
+          { profile: { name: 'lilith' } },
+        ]);
+
+        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', ['lilith', 'lucifer', 'baphomet']);
+
+        expect(mockPersonalityService.registerPersonality).toHaveBeenCalledTimes(2);
+        expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+          name: 'lucifer',
+          ownerId: '123456789012345678',
+          mode: 'external',
+        });
+        expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+          name: 'baphomet',
+          ownerId: '123456789012345678',
+          mode: 'external',
+        });
+      });
+
+      it('should handle case-insensitive personality names', async () => {
+        mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
+          { profile: { name: 'Lilith' } }, // Capital L
+        ]);
+
+        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(mockPersonalityService.registerPersonality).toHaveBeenCalledTimes(1);
+        expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith({
+          name: 'lucifer',
+          ownerId: '123456789012345678',
+          mode: 'external',
+        });
+      });
+
+      it('should handle registration errors gracefully', async () => {
+        mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
+        mockPersonalityService.registerPersonality
+          .mockResolvedValueOnce({ profile: { name: 'lilith' } })
+          .mockRejectedValueOnce(new Error('API error'));
+
+        await bootstrap._seedOwnerPersonalitiesWithDDD('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(logger.error).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Failed to seed lucifer via DDD: API error'
+        );
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Seeded 1 owner personalities via DDD'
+        );
+      });
+    });
+
+    describe('Legacy personality seeding', () => {
+      let bootstrap;
+
+      beforeEach(() => {
+        bootstrap = new ApplicationBootstrap();
+        bootstrap.applicationServices = {
+          personalityApplicationService: mockPersonalityService,
+        };
+        bootstrap.delay = jest.fn().mockResolvedValue();
+      });
+
+      it('should initialize legacy manager if needed', async () => {
+        mockLegacyManager.initialized = false;
+
+        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith']);
+
+        expect(mockLegacyManager.initialize).toHaveBeenCalledWith(true, {
+          skipBackgroundSeeding: true,
+        });
+      });
+
+      it('should skip when all personalities exist', async () => {
+        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([
+          { fullName: 'lilith' },
+          { fullName: 'lucifer' },
+        ]);
+
+        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(logger.info).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Owner has all 2 expected personalities'
+        );
+        expect(mockLegacyManager.registerPersonality).not.toHaveBeenCalled();
+      });
+
+      it('should seed missing personalities with fetchInfo', async () => {
+        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([
+          { fullName: 'lilith' },
+        ]);
+
+        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(mockLegacyManager.registerPersonality).toHaveBeenCalledWith(
+          'lucifer',
+          '123456789012345678',
+          { fetchInfo: true }
+        );
+      });
+
+      it('should handle registration failures', async () => {
+        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([]);
+        mockLegacyManager.registerPersonality
+          .mockResolvedValueOnce({ success: true })
+          .mockResolvedValueOnce({ success: false, error: 'Already exists' });
+
+        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
+
+        expect(logger.error).toHaveBeenCalledWith(
+          '[ApplicationBootstrap] Failed to seed lucifer: Already exists'
+        );
+      });
+    });
+  });
 });

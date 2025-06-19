@@ -299,11 +299,18 @@ async function getAuthData(context) {
  * @param {ZipArchiveService} zipArchiveService - ZIP archive service
  * @param {BackupAPIClient} apiClientService - API client service
  */
-async function handleCategoryBackup(context, category, backupService, authData, zipArchiveService, apiClientService) {
+async function handleCategoryBackup(
+  context,
+  category,
+  backupService,
+  authData,
+  zipArchiveService,
+  apiClientService
+) {
   try {
     // Fetch personalities for the category
     const personalities = await apiClientService.fetchPersonalitiesByCategory(category, authData);
-    
+
     if (!personalities || personalities.length === 0) {
       const errorEmbed = {
         title: '❌ No Personalities Found',
@@ -314,15 +321,15 @@ async function handleCategoryBackup(context, category, backupService, authData, 
       await context.respondWithEmbed(errorEmbed);
       return;
     }
-    
+
     // Extract personality names from the API response
     const personalityNames = personalities.map(p => p.name);
-    
+
     // Create progress callback
     const progressCallback = async message => {
       await context.respond(message);
     };
-    
+
     // Start backup message
     const startEmbed = {
       title: `📦 Starting ${category === 'self' ? 'Self-Owned' : 'Recent'} Backup`,
@@ -338,11 +345,11 @@ async function handleCategoryBackup(context, category, backupService, authData, 
       timestamp: new Date().toISOString(),
     };
     await context.respondWithEmbed(startEmbed);
-    
+
     // Track results
     const successfulBackups = [];
     const failedBackups = [];
-    
+
     // Process each personality one by one
     for (const personalityName of personalityNames) {
       const job = new BackupJob({
@@ -351,11 +358,11 @@ async function handleCategoryBackup(context, category, backupService, authData, 
         isBulk: true,
         persistToFilesystem: false, // Don't persist category backups to filesystem
       });
-      
+
       try {
         // Run the backup
         await backupService.executeBackup(job, authData, progressCallback);
-        
+
         // If successful, send the ZIP immediately
         if (job.status === 'completed') {
           try {
@@ -363,7 +370,9 @@ async function handleCategoryBackup(context, category, backupService, authData, 
             await _sendIndividualBackupZip(context, job, zipArchiveService);
             successfulBackups.push(personalityName);
           } catch (zipError) {
-            logger.error(`[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`);
+            logger.error(
+              `[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`
+            );
             const errorEmbed = {
               title: '⚠️ ZIP Creation Failed',
               description: `Failed to create ZIP for **${personalityName}**. Data was backed up successfully but ZIP delivery failed.`,
@@ -377,7 +386,7 @@ async function handleCategoryBackup(context, category, backupService, authData, 
         } else {
           failedBackups.push(personalityName);
         }
-        
+
         // Delay between personalities to avoid rate limits
         if (personalityName !== personalityNames[personalityNames.length - 1]) {
           await backupService.delayFn(2000);
@@ -385,10 +394,14 @@ async function handleCategoryBackup(context, category, backupService, authData, 
       } catch (error) {
         logger.error(`[BackupCommand] Error backing up ${personalityName}: ${error.message}`);
         failedBackups.push(personalityName);
-        
+
         // Check for authentication errors that should stop the bulk operation
-        if (error.status === 401 || error.message.includes('401') || 
-            error.message.includes('Authentication') || error.message.includes('Session cookie')) {
+        if (
+          error.status === 401 ||
+          error.message.includes('401') ||
+          error.message.includes('Authentication') ||
+          error.message.includes('Session cookie')
+        ) {
           const authErrorEmbed = {
             title: '❌ Authentication Failed',
             description: `Your session cookie may have expired.\nSuccessfully backed up ${successfulBackups.length} of ${personalityNames.length} personalities before failure.`,
@@ -407,7 +420,7 @@ async function handleCategoryBackup(context, category, backupService, authData, 
         }
       }
     }
-    
+
     // Send final summary
     const summaryEmbed = {
       title: `📦 ${category === 'self' ? 'Self-Owned' : 'Recent'} Backup Complete`,
@@ -416,7 +429,7 @@ async function handleCategoryBackup(context, category, backupService, authData, 
       fields: [],
       timestamp: new Date().toISOString(),
     };
-    
+
     if (successfulBackups.length > 0) {
       summaryEmbed.fields.push({
         name: '✅ Successful Backups',
@@ -424,7 +437,7 @@ async function handleCategoryBackup(context, category, backupService, authData, 
         inline: true,
       });
     }
-    
+
     if (failedBackups.length > 0) {
       summaryEmbed.fields.push({
         name: '❌ Failed Backups',
@@ -432,7 +445,7 @@ async function handleCategoryBackup(context, category, backupService, authData, 
         inline: true,
       });
     }
-    
+
     await context.respondWithEmbed(summaryEmbed);
   } catch (error) {
     logger.error(`[BackupCommand] Category backup error: ${error.message}`);
@@ -521,7 +534,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
     try {
       // Run the backup
       await backupService.executeBackup(job, authData, progressCallback);
-      
+
       // If successful, send the ZIP immediately
       if (job.status === 'completed') {
         try {
@@ -529,7 +542,9 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
           await _sendIndividualBackupZip(context, job, zipArchiveService);
           successfulBackups.push(personalityName);
         } catch (zipError) {
-          logger.error(`[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`);
+          logger.error(
+            `[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`
+          );
           const errorEmbed = {
             title: '⚠️ ZIP Creation Failed',
             description: `Failed to create ZIP for **${personalityName}**. Data was backed up successfully but ZIP delivery failed.`,
@@ -543,7 +558,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
       } else {
         failedBackups.push(personalityName);
       }
-      
+
       // Delay between personalities to avoid rate limits
       if (personalityName !== ownerPersonalities[ownerPersonalities.length - 1]) {
         await backupService.delayFn(2000);
@@ -551,10 +566,14 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
     } catch (error) {
       logger.error(`[BackupCommand] Error backing up ${personalityName}: ${error.message}`);
       failedBackups.push(personalityName);
-      
+
       // Check for authentication errors that should stop the bulk operation
-      if (error.status === 401 || error.message.includes('401') || 
-          error.message.includes('Authentication') || error.message.includes('Session cookie')) {
+      if (
+        error.status === 401 ||
+        error.message.includes('401') ||
+        error.message.includes('Authentication') ||
+        error.message.includes('Session cookie')
+      ) {
         const authErrorEmbed = {
           title: '❌ Authentication Failed',
           description: `Your session cookie may have expired.\nSuccessfully backed up ${successfulBackups.length} of ${ownerPersonalities.length} personalities before failure.`,
@@ -824,7 +843,7 @@ function _formatPersonalityList(personalities) {
   const MAX_LENGTH = 1000; // Leave some buffer for safety
   let result = '';
   let truncated = 0;
-  
+
   for (const personality of personalities) {
     const line = `• ${personality}\n`;
     if (result.length + line.length > MAX_LENGTH) {
@@ -833,11 +852,11 @@ function _formatPersonalityList(personalities) {
     }
     result += line;
   }
-  
+
   if (truncated > 0) {
     result += `\n*...and ${truncated} more*`;
   }
-  
+
   return result.trim() || 'None';
 }
 
