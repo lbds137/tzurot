@@ -122,10 +122,10 @@ class ConversationManager {
    * @param {string} messageId - Discord message ID
    * @param {Object} [options] - Additional options
    * @param {string} [options.webhookUsername] - Username of the webhook for fallback detection
-   * @returns {string|null} The personality name or null if not found
+   * @returns {Promise<string|null>} The personality name or null if not found
    */
-  getPersonalityFromMessage(messageId, options = {}) {
-    return this.messageHistory.getPersonalityFromMessage(messageId, options);
+  async getPersonalityFromMessage(messageId, options = {}) {
+    return await this.messageHistory.getPersonalityFromMessage(messageId, options);
   }
 
   /**
@@ -332,8 +332,8 @@ module.exports = {
   initConversationManager: () => module.exports.getInstance().init(),
   recordConversation: (...args) => module.exports.getInstance().recordConversation(...args),
   getActivePersonality: (...args) => module.exports.getInstance().getActivePersonality(...args),
-  getPersonalityFromMessage: (...args) =>
-    module.exports.getInstance().getPersonalityFromMessage(...args),
+  getPersonalityFromMessage: async (...args) =>
+    await module.exports.getInstance().getPersonalityFromMessage(...args),
   clearConversation: (...args) => module.exports.getInstance().clearConversation(...args),
   activatePersonality: (...args) => module.exports.getInstance().activatePersonality(...args),
   deactivatePersonality: (...args) => module.exports.getInstance().deactivatePersonality(...args),

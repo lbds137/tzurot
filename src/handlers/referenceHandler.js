@@ -121,7 +121,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
         );
       }
 
-      const personalityName = getPersonalityFromMessage(referencedMessage.id, {
+      const personalityName = await getPersonalityFromMessage(referencedMessage.id, {
         webhookUsername,
       });
       logger.debug(`Personality lookup result: ${personalityName || 'null'}`);
@@ -351,7 +351,7 @@ async function processMessageLinks(
                   const personalityManager = require('../core/personality');
 
                   // Try to look up by message ID first
-                  const personalityName = getPersonalityFromMessage(linkedMessage.id, {
+                  const personalityName = await getPersonalityFromMessage(linkedMessage.id, {
                     webhookUsername: result.referencedWebhookName || undefined,
                   });
 
