@@ -67,7 +67,7 @@ describe('BackupAPIClient', () => {
     it('should use defaults when no options provided', () => {
       const defaultClient = new BackupAPIClient();
       expect(defaultClient.apiBaseUrl).toBe('https://example.com/api');
-      expect(defaultClient.timeout).toBe(30000);
+      expect(defaultClient.timeout).toBe(120000); // 2 minutes for large datasets
     });
 
     it('should handle missing SERVICE_WEBSITE', () => {

@@ -322,101 +322,117 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
     await context.respond(message);
   };
 
-  try {
-    const jobs = await backupService.executeBulkBackup(
-      ownerPersonalities,
-      context.userId,
-      authData,
-      progressCallback,
-      isBotOwner // Only persist for bot owner
-    );
+  // Start bulk backup message
+  const startEmbed = {
+    title: '📦 Starting Bulk Backup',
+    description: `Beginning backup of ${ownerPersonalities.length} personalities...`,
+    color: 0x2196f3,
+    fields: [
+      {
+        name: '📤 Delivery',
+        value: `Individual ZIP files will be sent as each personality completes`,
+        inline: false,
+      },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+  await context.respondWithEmbed(startEmbed);
 
-    // Create bulk ZIP archive after successful backups (always from memory for consistency)
+  // Track results
+  const successfulBackups = [];
+  const failedBackups = [];
+
+  // Process each personality one by one, just like individual backups
+  for (const personalityName of ownerPersonalities) {
+    const job = new BackupJob({
+      personalityName: personalityName.toLowerCase(),
+      userId: context.userId,
+      isBulk: true,
+      persistToFilesystem: isBotOwner,
+    });
+
     try {
-      const zipBuffer = await zipArchiveService.createBulkArchiveFromMemory(jobs);
-
-      // Check if ZIP is within Discord limits
-      if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
-        const errorEmbed = {
-          title: '⚠️ File Too Large',
-          description: `The bulk backup ZIP file is too large to send via Discord (${zipArchiveService.formatBytes(zipBuffer.length)}). Maximum file size is 8MB.`,
-          color: 0xff9800,
+      // Run the backup
+      await backupService.executeBackup(job, authData, progressCallback);
+      
+      // If successful, send the ZIP immediately
+      if (job.status === 'completed') {
+        try {
+          logger.info(`[BackupCommand] Job completed for ${personalityName}, sending ZIP file`);
+          await _sendIndividualBackupZip(context, job, zipArchiveService);
+          successfulBackups.push(personalityName);
+        } catch (zipError) {
+          logger.error(`[BackupCommand] ZIP creation error for ${personalityName}: ${zipError.message}`);
+          const errorEmbed = {
+            title: '⚠️ ZIP Creation Failed',
+            description: `Failed to create ZIP for **${personalityName}**. Data was backed up successfully but ZIP delivery failed.`,
+            color: 0xff9800,
+            timestamp: new Date().toISOString(),
+          };
+          await context.respondWithEmbed(errorEmbed);
+          // Still count as successful since data was backed up
+          successfulBackups.push(personalityName);
+        }
+      } else {
+        failedBackups.push(personalityName);
+      }
+      
+      // Delay between personalities to avoid rate limits
+      if (personalityName !== ownerPersonalities[ownerPersonalities.length - 1]) {
+        await backupService.delayFn(2000);
+      }
+    } catch (error) {
+      logger.error(`[BackupCommand] Error backing up ${personalityName}: ${error.message}`);
+      failedBackups.push(personalityName);
+      
+      // Check for authentication errors that should stop the bulk operation
+      if (error.status === 401 || error.message.includes('401') || 
+          error.message.includes('Authentication') || error.message.includes('Session cookie')) {
+        const authErrorEmbed = {
+          title: '❌ Authentication Failed',
+          description: `Your session cookie may have expired.\nSuccessfully backed up ${successfulBackups.length} of ${ownerPersonalities.length} personalities before failure.`,
+          color: 0xf44336,
           fields: [
             {
-              name: 'Alternative',
-              value:
-                'The backup data has been saved locally on the bot server. Contact the bot administrator for manual retrieval.',
+              name: 'Next Steps',
+              value: 'Please update your session cookie with the backup set-cookie command.',
               inline: false,
             },
           ],
           timestamp: new Date().toISOString(),
         };
-        await context.respondWithEmbed(errorEmbed);
-        return;
+        await context.respondWithEmbed(authErrorEmbed);
+        break; // Stop processing on auth errors
       }
-
-      // Send ZIP file as attachment
-      const successEmbed = {
-        title: '✅ Bulk Backup Complete',
-        description: `Successfully created backup archive for ${ownerPersonalities.length} personalities.`,
-        color: 0x4caf50,
-        fields: [
-          {
-            name: '👥 Personalities Included',
-            value: ownerPersonalities.map(p => `• ${p}`).join('\n'),
-            inline: false,
-          },
-          {
-            name: '📦 Archive Contents',
-            value: [
-              '• Full profile configurations',
-              '• Complete memories & chat history',
-              '• Knowledge & training data',
-              '• User personalization',
-              '• Backup metadata',
-            ].join('\n'),
-            inline: false,
-          },
-          {
-            name: '💾 Archive Size',
-            value: zipArchiveService.formatBytes(zipBuffer.length),
-            inline: true,
-          },
-        ],
-        timestamp: new Date().toISOString(),
-      };
-
-      // Generate filename with user display prefix if available (from first job)
-      const dateStr = new Date().toISOString().split('T')[0];
-      const baseBulkFilename = `tzurot_bulk_backup_${dateStr}.zip`;
-      const userDisplayPrefix = jobs.length > 0 ? jobs[0].userDisplayPrefix : null;
-      const bulkFilename = userDisplayPrefix
-        ? `${userDisplayPrefix}_${baseBulkFilename}`
-        : baseBulkFilename;
-
-      await context.respond({
-        embeds: [successEmbed],
-        files: [
-          {
-            attachment: zipBuffer,
-            name: bulkFilename,
-          },
-        ],
-      });
-    } catch (zipError) {
-      logger.error(`[BackupCommand] Bulk ZIP creation error: ${zipError.message}`);
-      const errorEmbed = {
-        title: '⚠️ Archive Creation Failed',
-        description:
-          'The bulk backup was successful but failed to create ZIP archive. Data is saved locally.',
-        color: 0xff9800,
-        timestamp: new Date().toISOString(),
-      };
-      await context.respondWithEmbed(errorEmbed);
     }
-  } catch (error) {
-    logger.error(`[BackupCommand] Bulk backup error: ${error.message}`);
   }
+
+  // Send final summary
+  const summaryEmbed = {
+    title: '📦 Bulk Backup Complete',
+    description: `Successfully backed up ${successfulBackups.length} of ${ownerPersonalities.length} personalities.`,
+    color: successfulBackups.length > 0 ? 0x4caf50 : 0xf44336,
+    fields: [],
+    timestamp: new Date().toISOString(),
+  };
+
+  if (successfulBackups.length > 0) {
+    summaryEmbed.fields.push({
+      name: '✅ Successful Backups',
+      value: successfulBackups.map(p => `• ${p}`).join('\n'),
+      inline: true,
+    });
+  }
+
+  if (failedBackups.length > 0) {
+    summaryEmbed.fields.push({
+      name: '❌ Failed Backups',
+      value: failedBackups.map(p => `• ${p}`).join('\n'),
+      inline: true,
+    });
+  }
+
+  await context.respondWithEmbed(summaryEmbed);
 }
 
 /**
@@ -452,118 +468,9 @@ async function handleSingleBackup(
   try {
     await backupService.executeBackup(job, authData, progressCallback);
 
-    // Create ZIP archive after successful backup (always from memory for consistency)
+    // Create and send ZIP archive using shared logic
     try {
-      const zipBuffer = await zipArchiveService.createPersonalityArchiveFromMemory(
-        personalityName.toLowerCase(),
-        job.personalityData,
-        job.results
-      );
-
-      // Check if ZIP is within Discord limits
-      if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
-        const errorEmbed = {
-          title: '⚠️ File Too Large',
-          description: `The backup ZIP file is too large to send via Discord (${zipArchiveService.formatBytes(zipBuffer.length)}). Maximum file size is 8MB.`,
-          color: 0xff9800,
-          fields: [
-            {
-              name: 'Alternative',
-              value:
-                'The backup data has been saved locally on the bot server. Contact the bot administrator for manual retrieval.',
-              inline: false,
-            },
-          ],
-          timestamp: new Date().toISOString(),
-        };
-        await context.respondWithEmbed(errorEmbed);
-        return;
-      }
-
-      // Send ZIP file as attachment
-      const archiveContents = [];
-
-      // Build dynamic archive contents based on what was actually backed up
-      if (job.results.profile && job.results.profile.updated) {
-        archiveContents.push('• Profile configuration');
-      } else if (job.results.profile && job.results.profile.skipped) {
-        archiveContents.push('• Limited profile data');
-      }
-
-      // Only show memories if there are actually memories
-      if (job.results.memories && job.results.memories.totalCount > 0) {
-        const memCount = job.results.memories.totalCount;
-        archiveContents.push(`• Memories (${memCount} total)`);
-      }
-
-      // Only show knowledge if there are actually knowledge entries
-      if (
-        job.results.knowledge &&
-        job.results.knowledge.updated &&
-        job.results.knowledge.entryCount > 0
-      ) {
-        const knowledgeCount = job.results.knowledge.entryCount;
-        archiveContents.push(`• Knowledge data (${knowledgeCount} entries)`);
-      }
-
-      // Only show training if there are actually training entries
-      if (
-        job.results.training &&
-        job.results.training.updated &&
-        job.results.training.entryCount > 0
-      ) {
-        const trainingCount = job.results.training.entryCount;
-        archiveContents.push(`• Training data (${trainingCount} entries)`);
-      }
-
-      // Only show user personalization if it was updated
-      if (job.results.userPersonalization && job.results.userPersonalization.updated) {
-        archiveContents.push('• User personalization');
-      }
-
-      // Only show chat history if there are actually messages
-      if (job.results.chatHistory && job.results.chatHistory.totalMessages > 0) {
-        const msgCount = job.results.chatHistory.totalMessages;
-        archiveContents.push(`• Chat history (${msgCount} messages)`);
-      }
-
-      archiveContents.push('• Backup metadata');
-
-      const successEmbed = {
-        title: '✅ Backup Complete',
-        description: `Successfully created backup archive for **${personalityName}**.`,
-        color: 0x4caf50,
-        fields: [
-          {
-            name: '📦 Archive Contents',
-            value: archiveContents.join('\n'),
-            inline: false,
-          },
-          {
-            name: '💾 Archive Size',
-            value: zipArchiveService.formatBytes(zipBuffer.length),
-            inline: true,
-          },
-        ],
-        timestamp: new Date().toISOString(),
-      };
-
-      // Generate filename with user display prefix if available
-      const dateStr = new Date().toISOString().split('T')[0];
-      const baseFilename = `${personalityName.toLowerCase()}_backup_${dateStr}.zip`;
-      const filename = job.userDisplayPrefix
-        ? `${job.userDisplayPrefix}_${baseFilename}`
-        : baseFilename;
-
-      await context.respond({
-        embeds: [successEmbed],
-        files: [
-          {
-            attachment: zipBuffer,
-            name: filename,
-          },
-        ],
-      });
+      await _sendIndividualBackupZip(context, job, zipArchiveService);
     } catch (zipError) {
       logger.error(`[BackupCommand] ZIP creation error: ${zipError.message}`);
       const errorEmbed = {
@@ -578,6 +485,119 @@ async function handleSingleBackup(
   } catch (error) {
     logger.error(`[BackupCommand] Single backup error: ${error.message}`);
   }
+}
+
+/**
+ * Helper method to send individual backup ZIP file
+ * @private
+ */
+async function _sendIndividualBackupZip(context, job, zipArchiveService) {
+  // Create ZIP from memory for the individual personality
+  const zipBuffer = await zipArchiveService.createPersonalityArchiveFromMemory(
+    job.personalityName,
+    job.personalityData,
+    job.results
+  );
+
+  // Check if ZIP is within Discord limits
+  if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
+    const errorEmbed = {
+      title: '⚠️ File Too Large',
+      description: `The backup ZIP for **${job.personalityName}** is too large to send via Discord (${zipArchiveService.formatBytes(zipBuffer.length)}). Maximum file size is 8MB.`,
+      color: 0xff9800,
+      fields: [
+        {
+          name: 'Alternative',
+          value:
+            'The backup data has been saved locally on the bot server. Contact the bot administrator for manual retrieval.',
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    await context.respondWithEmbed(errorEmbed);
+    return;
+  }
+
+  // Build dynamic archive contents based on what was actually backed up
+  const archiveContents = [];
+
+  if (job.results.profile && job.results.profile.updated) {
+    archiveContents.push('• Profile configuration');
+  } else if (job.results.profile && job.results.profile.skipped) {
+    archiveContents.push('• Limited profile data');
+  }
+
+  // Only show memories if there are actually memories
+  if (job.results.memories && job.results.memories.totalCount > 0) {
+    const memCount = job.results.memories.totalCount;
+    archiveContents.push(`• Memories (${memCount} total)`);
+  }
+
+  // Only show knowledge if there are actually knowledge entries
+  if (
+    job.results.knowledge &&
+    job.results.knowledge.updated &&
+    job.results.knowledge.entryCount > 0
+  ) {
+    const knowledgeCount = job.results.knowledge.entryCount;
+    archiveContents.push(`• Knowledge data (${knowledgeCount} entries)`);
+  }
+
+  // Only show training if there are actually training entries
+  if (job.results.training && job.results.training.updated && job.results.training.entryCount > 0) {
+    const trainingCount = job.results.training.entryCount;
+    archiveContents.push(`• Training data (${trainingCount} entries)`);
+  }
+
+  // Only show user personalization if it was updated
+  if (job.results.userPersonalization && job.results.userPersonalization.updated) {
+    archiveContents.push('• User personalization');
+  }
+
+  // Only show chat history if there are actually messages
+  if (job.results.chatHistory && job.results.chatHistory.totalMessages > 0) {
+    const msgCount = job.results.chatHistory.totalMessages;
+    archiveContents.push(`• Chat history (${msgCount} messages)`);
+  }
+
+  archiveContents.push('• Backup metadata');
+
+  const successEmbed = {
+    title: '✅ Backup Complete',
+    description: `Successfully created backup archive for **${job.personalityName}**.`,
+    color: 0x4caf50,
+    fields: [
+      {
+        name: '📦 Archive Contents',
+        value: archiveContents.join('\n'),
+        inline: false,
+      },
+      {
+        name: '💾 Archive Size',
+        value: zipArchiveService.formatBytes(zipBuffer.length),
+        inline: true,
+      },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  // Generate filename with user display prefix if available
+  const dateStr = new Date().toISOString().split('T')[0];
+  const baseFilename = `${job.personalityName.toLowerCase()}_backup_${dateStr}.zip`;
+  const filename = job.userDisplayPrefix
+    ? `${job.userDisplayPrefix}_${baseFilename}`
+    : baseFilename;
+
+  await context.respond({
+    embeds: [successEmbed],
+    files: [
+      {
+        attachment: zipBuffer,
+        name: filename,
+      },
+    ],
+  });
 }
 
 /**
