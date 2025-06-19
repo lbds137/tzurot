@@ -156,6 +156,28 @@ class PersonalityApplicationService {
       // Save to repository
       await this.personalityRepository.save(personality);
 
+      // For external personalities, automatically add display name as an alias if it differs from the full name
+      if (mode === 'external' && personality.profile && personality.profile.displayName) {
+        const displayNameLower = personality.profile.displayName.toLowerCase();
+        const fullNameLower = name.toLowerCase();
+
+        if (displayNameLower !== fullNameLower && !aliases.includes(displayNameLower)) {
+          try {
+            // Add the display name as an alias
+            const alias = new Alias(displayNameLower);
+            personality.addAlias(alias);
+            await this.personalityRepository.save(personality);
+            logger.info(
+              `[PersonalityApplicationService] Automatically added display name alias "${displayNameLower}" for ${name}`
+            );
+          } catch (aliasError) {
+            logger.warn(
+              `[PersonalityApplicationService] Failed to add display name alias: ${aliasError.message}`
+            );
+          }
+        }
+      }
+
       // Publish domain events
       await this._publishEvents(personality);
 

@@ -7,12 +7,16 @@ jest.mock('../../src/logger');
 jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/handlers/messageTrackerHandler');
+jest.mock('../../src/application/services/FeatureFlags');
+jest.mock('../../src/application/routers/PersonalityRouter');
 
 const logger = require('../../src/logger');
 const { handleMessageReference } = require('../../src/handlers/referenceHandler');
 const { getPersonalityFromMessage } = require('../../src/core/conversation');
 const { getPersonality, getPersonalityByAlias } = require('../../src/core/personality');
 const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
+const { getFeatureFlags } = require('../../src/application/services/FeatureFlags');
+const { getPersonalityRouter } = require('../../src/application/routers/PersonalityRouter');
 
 describe('Nested Reference Handling', () => {
   let mockMessage;
@@ -94,15 +98,29 @@ describe('Nested Reference Handling', () => {
       throw new Error('Unknown Message');
     });
 
-    // Set up personality manager mocks
-    getPersonality.mockReturnValue({
+    // Set up DDD mocks
+    const mockFeatureFlags = {
+      isEnabled: jest.fn().mockReturnValue(false), // Use legacy by default
+    };
+    getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+    const mockPersonalityRouter = {
+      getPersonality: jest.fn().mockResolvedValue({
+        fullName: 'test-personality',
+        displayName: 'Test',
+      }),
+    };
+    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+    // Set up personality manager mocks (async)
+    getPersonality.mockResolvedValue({
       fullName: 'test-personality',
       displayName: 'Test',
     });
     getPersonalityByAlias.mockReturnValue(null);
 
-    // Set up conversation manager mocks
-    getPersonalityFromMessage.mockReturnValue('test-personality');
+    // Set up conversation manager mocks (async)
+    getPersonalityFromMessage.mockResolvedValue('test-personality');
 
     // Mock the personality interaction handler
     mockHandlePersonalityInteraction = jest.fn().mockResolvedValue(true);

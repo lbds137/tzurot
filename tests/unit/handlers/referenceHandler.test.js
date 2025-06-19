@@ -16,8 +16,12 @@ jest.mock('../../../src/utils/embedUtils', () => ({
   parseEmbedsToText: jest.fn(),
 }));
 jest.mock('../../../src/handlers/messageTrackerHandler');
+jest.mock('../../../src/application/services/FeatureFlags');
+jest.mock('../../../src/application/routers/PersonalityRouter');
 
 const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
+const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
+const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
 
 describe('Reference Handler Module', () => {
   // Mock Discord client and objects
@@ -44,15 +48,25 @@ describe('Reference Handler Module', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Default mocks for the personality manager
-    getPersonality.mockImplementation(name => {
+    // Mock feature flags to use legacy system by default
+    getFeatureFlags.mockReturnValue({
+      isEnabled: jest.fn().mockReturnValue(false),
+    });
+
+    // Mock personality router
+    getPersonalityRouter.mockReturnValue({
+      getPersonality: jest.fn().mockResolvedValue(null),
+    });
+
+    // Default mocks for the personality manager (now async)
+    getPersonality.mockImplementation(async name => {
       if (name === 'test-personality') {
         return mockPersonality;
       }
       return null;
     });
 
-    getPersonalityByAlias.mockImplementation(alias => {
+    getPersonalityByAlias.mockImplementation(async alias => {
       if (alias === 'test') {
         return mockPersonality;
       }
@@ -186,7 +200,7 @@ describe('Reference Handler Module', () => {
       };
 
       // Update our mock to handle this specific case
-      getPersonalityByAlias.mockImplementation(alias => {
+      getPersonalityByAlias.mockImplementation(async alias => {
         if (alias === 'angel dust') {
           return spaceAliasPersonality;
         }

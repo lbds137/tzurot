@@ -15,6 +15,7 @@ const {
 } = require('../../../config');
 const { USER_CONFIG } = require('../../constants');
 const nodeFetch = require('node-fetch');
+const { getPersonality, getPersonalityByAlias } = require('../../core/personality');
 
 /**
  * Command metadata
@@ -459,6 +460,43 @@ function getBackupClient() {
     backupClient = new BackupClient();
   }
   return backupClient;
+}
+
+/**
+ * Resolve a personality name/alias to the actual full name
+ * @param {string} input - User input (could be full name, alias, or display name)
+ * @returns {Promise<{fullName: string, displayName: string} | null>} Resolved personality info or null if not found
+ */
+async function resolvePersonalityName(input) {
+  logger.debug(`[Backup] Resolving personality name for input: "${input}"`);
+
+  try {
+    // First try as full name
+    const personality = await getPersonality(input);
+    if (personality) {
+      logger.debug(`[Backup] Found personality by full name: ${personality.fullName}`);
+      return {
+        fullName: personality.fullName,
+        displayName: personality.displayName || personality.fullName,
+      };
+    }
+
+    // Try as alias
+    const personalityByAlias = getPersonalityByAlias(input);
+    if (personalityByAlias) {
+      logger.debug(`[Backup] Found personality by alias: ${personalityByAlias.fullName}`);
+      return {
+        fullName: personalityByAlias.fullName,
+        displayName: personalityByAlias.displayName || personalityByAlias.fullName,
+      };
+    }
+
+    logger.debug(`[Backup] No personality found for input: "${input}"`);
+    return null;
+  } catch (error) {
+    logger.error(`[Backup] Error resolving personality name: ${error.message}`);
+    return null;
+  }
 }
 
 /**
@@ -910,11 +948,22 @@ async function handleBulkBackup(authData, directSend) {
   let successCount = 0;
   let shouldContinue = true;
 
-  for (const personalityName of ownerPersonalities) {
+  for (const personalityInput of ownerPersonalities) {
     if (!shouldContinue) break;
 
     try {
-      await backupPersonality(personalityName, authData, directSend);
+      // Resolve the personality name first
+      const resolvedPersonality = await resolvePersonalityName(personalityInput);
+
+      if (!resolvedPersonality) {
+        await directSend(`⚠️ Skipping "${personalityInput}" - personality not found`);
+        continue;
+      }
+
+      logger.info(
+        `[Backup] Resolved owner personality "${personalityInput}" to: ${resolvedPersonality.fullName}`
+      );
+      await backupPersonality(resolvedPersonality.fullName, authData, directSend);
       successCount++;
 
       // Delay between personalities
@@ -932,7 +981,7 @@ async function handleBulkBackup(authData, directSend) {
         shouldContinue = false;
       } else {
         // For other errors, log but continue with next personality
-        logger.error(`[Backup] Error backing up ${personalityName}: ${error.message}`);
+        logger.error(`[Backup] Error backing up ${personalityInput}: ${error.message}`);
       }
     }
   }
@@ -1047,9 +1096,24 @@ async function execute(message, args) {
     if (args[0] === '--all') {
       await handleBulkBackup(authData, directSend);
     } else {
-      // Backup single personality
-      const personalityName = args[0].toLowerCase();
-      await backupPersonality(personalityName, authData, directSend);
+      // Backup single personality - resolve the name first
+      const userInput = args[0].trim();
+      const resolvedPersonality = await resolvePersonalityName(userInput);
+
+      if (!resolvedPersonality) {
+        return await directSend(
+          `❌ Personality "${userInput}" not found.\n\n` +
+            `Please check the personality name and try again. You can use either:\n` +
+            `• Full name (e.g., "angel-dust-hazbin")\n` +
+            `• Display name (e.g., "Angel Dust")\n` +
+            `• Alias (if one is set)`
+        );
+      }
+
+      logger.info(
+        `[Backup] Resolved "${userInput}" to personality: ${resolvedPersonality.fullName}`
+      );
+      await backupPersonality(resolvedPersonality.fullName, authData, directSend);
     }
 
     // Return true to indicate successful command execution
@@ -1065,6 +1129,7 @@ module.exports = {
   execute,
   BackupClient, // Exported for testing
   // Export internal functions for testing
+  resolvePersonalityName,
   loadBackupMetadata,
   saveBackupMetadata,
   savePersonalityProfile,
