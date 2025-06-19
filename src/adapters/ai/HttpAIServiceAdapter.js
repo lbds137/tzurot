@@ -99,6 +99,42 @@ class HttpAIServiceAdapter extends AIService {
 
     const requestId = request.id.value;
 
+    // Extract request details for deduplication
+    const personalityName = request.personality || 'default';
+    const content = request.prompt || '';
+    const context = {
+      userAuth: request.userId || null,
+      conversationId: request.conversationId || null,
+    };
+
+    // Check for duplicate request
+    const existingPromise = await this.deduplicator.checkDuplicate(personalityName, content, context);
+    if (existingPromise) {
+      logger.info(`[HttpAIServiceAdapter] Returning existing promise for duplicate request ${requestId}`);
+      return existingPromise;
+    }
+
+    // Create the request promise
+    const requestPromise = this._executeRequest(request, requestId);
+
+    // Register as pending to prevent duplicates
+    this.deduplicator.registerPending(personalityName, content, context, requestPromise);
+
+    // Handle errors for blackout periods
+    requestPromise.catch(error => {
+      if (error.code === 'RATE_LIMIT' || error.code === 'SERVICE_ERROR' || error.status === 500) {
+        this.deduplicator.markFailed(personalityName, content, context);
+      }
+    });
+
+    return requestPromise;
+  }
+
+  /**
+   * Execute the actual request (extracted for deduplication)
+   * @private
+   */
+  async _executeRequest(request, requestId) {
     try {
       logger.info(`[HttpAIServiceAdapter] Sending request ${requestId}`);
       this._requestCount++;
