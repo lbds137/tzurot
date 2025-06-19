@@ -81,17 +81,29 @@ describe('ResetCommand', () => {
         'testpersonality'
       );
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('✅ Conversation with **Test Personality** has been reset')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Conversation Reset',
+            description: expect.stringContaining('Your conversation with **Test Personality** has been reset'),
+            color: 0x4caf50,
+          }),
+        ],
+      });
     });
 
     it('should show new system indicator when feature flag enabled', async () => {
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Using new DDD system')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            footer: expect.objectContaining({
+              text: 'Using new DDD system',
+            }),
+          }),
+        ],
+      });
     });
 
     it('should handle missing personality name', async () => {
@@ -99,9 +111,15 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('You need to provide a personality name')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Missing Personality Name',
+            description: expect.stringContaining('Please provide a personality name'),
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(mockPersonalityService.getPersonality).not.toHaveBeenCalled();
     });
 
@@ -119,9 +137,15 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Personality "testpersonality" not found')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Personality Not Found',
+            description: expect.stringContaining('Could not find a personality named **testpersonality**'),
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(mockConversationManager.clearConversation).not.toHaveBeenCalled();
     });
 
@@ -130,9 +154,15 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('No active conversation found')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ No Active Conversation',
+            description: expect.stringContaining('No active conversation found with **Test Personality**'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should handle missing personality service', async () => {
@@ -140,9 +170,15 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('❌ An error occurred')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error Resetting Conversation',
+            description: expect.stringContaining('An error occurred while trying to reset the conversation'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should handle missing conversation manager', async () => {
@@ -150,9 +186,15 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('❌ An error occurred')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error Resetting Conversation',
+            description: expect.stringContaining('An error occurred while trying to reset the conversation'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should handle errors gracefully', async () => {
@@ -160,9 +202,21 @@ describe('ResetCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('❌ An error occurred')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error Resetting Conversation',
+            description: expect.stringContaining('An error occurred while trying to reset the conversation'),
+            color: 0xf44336,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Error details',
+                value: 'Database error',
+              }),
+            ]),
+          }),
+        ],
+      });
     });
   });
 });
