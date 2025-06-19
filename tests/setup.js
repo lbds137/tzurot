@@ -19,6 +19,8 @@ jest.mock('../src/application/bootstrap/ApplicationBootstrap', () => ({
     shutdown: jest.fn().mockResolvedValue(undefined),
     initialized: false,
   })),
+  getApplicationBootstrap: jest.fn(),
+  resetApplicationBootstrap: jest.fn(),
 }));
 
 jest.mock('../src/adapters/persistence/FilePersonalityRepository', () => ({

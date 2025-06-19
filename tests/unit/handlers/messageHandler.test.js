@@ -565,7 +565,7 @@ describe('messageHandler', () => {
       };
       
       // Mock getPersonalityByAlias to return for various aliases
-      getPersonalityByAlias.mockImplementation((name) => {
+      getPersonalityByAlias.mockImplementation(async (name) => {
         if (name === 'Test') {
           return { fullName: 'test', displayName: 'Test' };
         }
