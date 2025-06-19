@@ -247,7 +247,7 @@ async function handleStart(context, auth) {
     }
 
     // Check if this is a DM
-    const isDM = context.isDM;
+    const isDM = context.isDM();
 
     if (isDM) {
       // In DMs, we can safely send the auth URL directly
@@ -424,7 +424,7 @@ async function handleCode(context, auth, code) {
   }
 
   // For security, only accept auth codes in DMs
-  if (!context.isDM) {
+  if (!context.isDM()) {
     // Try to delete the message to protect the code
     try {
       await context.deleteMessage();

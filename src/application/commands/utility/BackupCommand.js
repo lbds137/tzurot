@@ -191,7 +191,7 @@ async function handleSetCookie(context) {
   }
 
   // For security, only accept cookies in DMs
-  if (!context.isDM) {
+  if (!context.isDM()) {
     const errorEmbed = {
       title: '❌ Security Restriction',
       description: 'For security, please set your session cookie via DM, not in a public channel.',

@@ -33,7 +33,7 @@ describe('PingCommand', () => {
       channelId: 'channel123',
       guildId: 'guild123',
       commandPrefix: '!tz ',
-      isDM: false,
+      isDM: jest.fn().mockReturnValue(false),
       args: [],
       options: {},
       respond: jest.fn().mockResolvedValue(undefined),
@@ -74,7 +74,7 @@ describe('PingCommand', () => {
     });
 
     it('should work in DM channels', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
 
       await pingCommand.execute(mockContext);
 
@@ -97,7 +97,7 @@ describe('PingCommand', () => {
     });
 
     it('should work in guild channels', async () => {
-      mockContext.isDM = false;
+      mockContext.isDM.mockReturnValue(false);
 
       await pingCommand.execute(mockContext);
 

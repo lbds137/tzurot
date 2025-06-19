@@ -100,7 +100,7 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       // This command is only available in DMs for security
-      if (!context.isDM) {
+      if (!context.isDM()) {
         await context.respond(
           '⚠️ This command can only be used in DM channels for security reasons.'
         );

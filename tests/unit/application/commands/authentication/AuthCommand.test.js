@@ -48,7 +48,7 @@ describe('AuthCommand', () => {
       channelId: 'channel123',
       guildId: 'guild123',
       commandPrefix: '!tz ',
-      isDM: false,
+      isDM: jest.fn().mockReturnValue(false),
       isWebhook: false,
       args: [],
       options: {},
@@ -157,7 +157,7 @@ describe('AuthCommand', () => {
 
   describe('auth start', () => {
     it('should send auth URL in DM when in DM channel', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['start'];
 
       await authCommand.execute(mockContext);
@@ -258,7 +258,7 @@ describe('AuthCommand', () => {
     });
 
     it('should process code in DM channel', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', 'test-code'];
 
       await authCommand.execute(mockContext);
@@ -278,7 +278,7 @@ describe('AuthCommand', () => {
     });
 
     it('should handle spoiler-wrapped codes', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', '||test-code||'];
 
       await authCommand.execute(mockContext);
@@ -302,7 +302,7 @@ describe('AuthCommand', () => {
     });
 
     it('should handle invalid code', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', 'invalid-code'];
       mockAuth.exchangeCodeForToken.mockResolvedValue(null);
 
@@ -319,7 +319,7 @@ describe('AuthCommand', () => {
     });
 
     it('should handle token storage failure', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', 'test-code'];
       mockAuth.storeUserToken.mockResolvedValue(false);
 
@@ -596,7 +596,7 @@ describe('AuthCommand', () => {
     });
 
     it('should support code option for slash commands', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
       mockContext.options = { action: 'code', code: 'test-code' };
 
       await authCommand.execute(mockContext);

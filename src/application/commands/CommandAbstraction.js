@@ -269,6 +269,36 @@ class CommandContext {
   }
 
   /**
+   * Delete the original message (if supported by platform)
+   */
+  async deleteMessage() {
+    if (this.platform === 'discord' && this.message && this.message.delete) {
+      try {
+        return await this.message.delete();
+      } catch (error) {
+        logger.error(`[CommandContext] Failed to delete message: ${error.message}`);
+        throw error;
+      }
+    }
+    throw new Error('Delete message not supported on this platform');
+  }
+
+  /**
+   * Send a direct message to the user
+   */
+  async sendDM(content, options = {}) {
+    if (this.platform === 'discord' && this.author) {
+      try {
+        return await this.author.send(content, options);
+      } catch (error) {
+        logger.error(`[CommandContext] Failed to send DM: ${error.message}`);
+        throw error;
+      }
+    }
+    throw new Error('Send DM not supported on this platform');
+  }
+
+  /**
    * Send an embed response
    */
   async respondWithEmbed(embed) {

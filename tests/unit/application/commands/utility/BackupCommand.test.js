@@ -72,7 +72,7 @@ describe('BackupCommand', () => {
       channelId: 'channel123',
       guildId: 'guild123',
       commandPrefix: '!tz ',
-      isDM: false,
+      isDM: jest.fn().mockReturnValue(false),
       args: [],
       options: {},
       respond: jest.fn().mockResolvedValue(undefined),
@@ -165,7 +165,7 @@ describe('BackupCommand', () => {
 
   describe('execute - set-cookie subcommand', () => {
     beforeEach(() => {
-      mockContext.isDM = true; // Required for cookie setting
+      mockContext.isDM.mockReturnValue(true); // Required for cookie setting
     });
 
     it('should set session cookie successfully', async () => {
@@ -221,7 +221,7 @@ describe('BackupCommand', () => {
     });
 
     it('should reject cookie setting in non-DM channels', async () => {
-      mockContext.isDM = false;
+      mockContext.isDM.mockReturnValue(false);
       mockContext.args = ['set-cookie', 'test-cookie'];
 
       await backupCommand.execute(mockContext);

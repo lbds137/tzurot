@@ -95,7 +95,7 @@ describe('PurgbotCommand', () => {
       userId: 'user123',
       channelId: 'dm123',
       commandPrefix: '!tz ',
-      isDM: true,
+      isDM: jest.fn().mockReturnValue(true),
       platform: 'discord',
       args: [],
       options: {},
@@ -128,7 +128,7 @@ describe('PurgbotCommand', () => {
 
   describe('DM restriction', () => {
     it('should reject non-DM channels', async () => {
-      mockContext.isDM = false;
+      mockContext.isDM.mockReturnValue(false);
 
       await purgbotCommand.execute(mockContext);
 
@@ -377,16 +377,11 @@ describe('PurgbotCommand', () => {
       // Create context that will cause an error when checking isDM
       const errorContext = {
         ...mockContext,
-        isDM: undefined,
+        isDM: jest.fn().mockImplementation(() => {
+          throw new Error('Unexpected error accessing isDM');
+        }),
         respond: jest.fn(),
       };
-
-      // Force an error by making isDM access throw
-      Object.defineProperty(errorContext, 'isDM', {
-        get() {
-          throw new Error('Unexpected error accessing isDM');
-        },
-      });
 
       await purgbotCommand.execute(errorContext);
 
