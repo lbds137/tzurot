@@ -26,7 +26,7 @@ class RateLimiter {
    */
   constructor(options = {}) {
     // Default configuration
-    this.minRequestSpacing = options.minRequestSpacing || 3000; // 3 seconds between requests
+    this.minRequestSpacing = options.minRequestSpacing || 6000; // 6 seconds between requests
     this.maxConcurrent = options.maxConcurrent || 1; // Default to 1 concurrent request
     this.maxConsecutiveRateLimits = options.maxConsecutiveRateLimits || 3;
     this.cooldownPeriod = options.cooldownPeriod || 60000; // 1 minute cooldown

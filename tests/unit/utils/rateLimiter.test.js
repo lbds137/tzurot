@@ -23,7 +23,7 @@ describe('RateLimiter', () => {
     it('should initialize with default options', () => {
       const limiter = new RateLimiter();
 
-      expect(limiter.minRequestSpacing).toBe(3000);
+      expect(limiter.minRequestSpacing).toBe(6000);
       expect(limiter.maxConcurrent).toBe(1);
       expect(limiter.maxConsecutiveRateLimits).toBe(3);
       expect(limiter.cooldownPeriod).toBe(60000);
