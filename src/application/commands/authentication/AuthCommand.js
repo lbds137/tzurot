@@ -6,6 +6,16 @@
 
 const { Command, CommandOption } = require('../CommandAbstraction');
 const logger = require('../../../logger');
+const { botPrefix } = require('../../../../config');
+
+/**
+ * Get the command prefix from context or use default
+ * @param {Object} context - Command context
+ * @returns {string} Command prefix
+ */
+function getCommandPrefix(context) {
+  return context.commandPrefix || context.dependencies?.botPrefix || botPrefix;
+}
 
 /**
  * Factory function to create an AuthCommand instance
@@ -124,7 +134,7 @@ function createExecutor(_dependencies) {
               },
               {
                 name: 'Get help',
-                value: `Use \`${context.commandPrefix || context.dependencies?.botPrefix || '!tz'} auth\` to see detailed help`,
+                value: `Use \`${getCommandPrefix(context)} auth\` to see detailed help`,
                 inline: false,
               },
             ],
@@ -166,7 +176,7 @@ function createExecutor(_dependencies) {
  * Show authentication help
  */
 async function showHelp(context) {
-  const { commandPrefix } = context;
+  const commandPrefix = getCommandPrefix(context);
 
   const fields = [
     {
@@ -263,7 +273,7 @@ async function handleStart(context, auth) {
           },
           {
             name: '4️⃣ Submit your code',
-            value: `Use \`${context.commandPrefix}auth code YOUR_CODE\` to complete`,
+            value: `Use \`${getCommandPrefix(context)} auth code YOUR_CODE\` to complete`,
             inline: false,
           },
         ],
@@ -298,7 +308,7 @@ async function handleStart(context, auth) {
             },
             {
               name: '4️⃣ Submit your code here',
-              value: `Use \`${context.commandPrefix}auth code YOUR_CODE\` in this DM`,
+              value: `Use \`${getCommandPrefix(context)} auth code YOUR_CODE\` in this DM`,
               inline: false,
             },
           ],
@@ -396,12 +406,12 @@ async function handleCode(context, auth, code) {
       fields: [
         {
           name: 'Usage',
-          value: `\`${context.commandPrefix}auth code YOUR_CODE\``,
+          value: `\`${getCommandPrefix(context)} auth code YOUR_CODE\``,
           inline: false,
         },
         {
           name: 'Example',
-          value: `\`${context.commandPrefix}auth code abc123def456\``,
+          value: `\`${getCommandPrefix(context)} auth code abc123def456\``,
           inline: false,
         },
       ],
@@ -453,8 +463,8 @@ async function handleCode(context, auth, code) {
     logger.info('[AuthCommand] Extracted code from spoiler tags');
   }
 
-  // Show typing indicator while processing
-  await context.startTyping();
+  // Note: startTyping is not available in DDD command context
+  // The typing indicator would need to be implemented in the adapter layer
 
   try {
     // Exchange the code for a token
@@ -474,7 +484,7 @@ async function handleCode(context, auth, code) {
           },
           {
             name: 'What to do',
-            value: `1. Start the auth process again: \`${context.commandPrefix}auth start\`\n2. Make sure to copy the code exactly\n3. Submit the code promptly (codes expire quickly)`,
+            value: `1. Start the auth process again: \`${getCommandPrefix(context)} auth start\`\n2. Make sure to copy the code exactly\n3. Submit the code promptly (codes expire quickly)`,
             inline: false,
           },
         ],
@@ -531,7 +541,7 @@ async function handleCode(context, auth, code) {
         },
         {
           name: 'Need help?',
-          value: `• Check your status: \`${context.commandPrefix}auth status\`\n• Revoke access: \`${context.commandPrefix}auth revoke\``,
+          value: `• Check your status: \`${getCommandPrefix(context)} auth status\`\n• Revoke access: \`${getCommandPrefix(context)} auth revoke\``,
           inline: false,
         },
       ],
@@ -555,7 +565,7 @@ async function handleCode(context, auth, code) {
         },
         {
           name: 'What to do',
-          value: `• Wait a few minutes and try again\n• Start fresh with \`${context.commandPrefix}auth start\`\n• Contact support if the issue persists`,
+          value: `• Wait a few minutes and try again\n• Start fresh with \`${getCommandPrefix(context)} auth start\`\n• Contact support if the issue persists`,
           inline: false,
         },
       ],
@@ -619,7 +629,7 @@ async function handleStatus(context, auth) {
       if (expirationInfo.daysUntilExpiration < 7) {
         fields.push({
           name: '⚠️ Token Expiring Soon',
-          value: `Your token will expire soon. Use \`${context.commandPrefix}auth revoke\` and then \`${context.commandPrefix}auth start\` to renew your token.`,
+          value: `Your token will expire soon. Use \`${getCommandPrefix(context)} auth revoke\` and then \`${getCommandPrefix(context)} auth start\` to renew your token.`,
           inline: false,
         });
       }
@@ -651,7 +661,7 @@ async function handleStatus(context, auth) {
         },
         {
           name: 'Get started',
-          value: `Use \`${context.commandPrefix}auth start\` to begin the authorization process.`,
+          value: `Use \`${getCommandPrefix(context)} auth start\` to begin the authorization process.`,
           inline: false,
         },
         {
@@ -692,7 +702,7 @@ async function handleRevoke(context, auth) {
         },
         {
           name: 'Want to re-authorize?',
-          value: `Use \`${context.commandPrefix}auth start\` to connect your account again.`,
+          value: `Use \`${getCommandPrefix(context)} auth start\` to connect your account again.`,
           inline: false,
         },
       ],
@@ -715,7 +725,7 @@ async function handleRevoke(context, auth) {
         },
         {
           name: 'What to do',
-          value: `• Check your status: \`${context.commandPrefix}auth status\`\n• Try again in a moment\n• Contact support if the issue persists`,
+          value: `• Check your status: \`${getCommandPrefix(context)} auth status\`\n• Try again in a moment\n• Contact support if the issue persists`,
           inline: false,
         },
       ],

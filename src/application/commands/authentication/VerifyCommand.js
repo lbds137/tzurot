@@ -6,6 +6,16 @@
 
 const { Command } = require('../CommandAbstraction');
 const logger = require('../../../logger');
+const { botPrefix } = require('../../../../config');
+
+/**
+ * Get the command prefix from context or use default
+ * @param {Object} context - Command context
+ * @returns {string} Command prefix
+ */
+function getCommandPrefix(context) {
+  return context.commandPrefix || context.dependencies?.botPrefix || botPrefix;
+}
 
 /**
  * Factory function to create a VerifyCommand instance
@@ -57,7 +67,7 @@ function createExecutor(_dependencies) {
             },
             {
               name: 'How to verify',
-              value: `1. Join a Discord server\n2. Find an NSFW-marked channel\n3. Run \`${context.commandPrefix}verify\` there`,
+              value: `1. Join a Discord server\n2. Find an NSFW-marked channel\n3. Run \`${getCommandPrefix(context)} verify\` there`,
               inline: false,
             },
             {
