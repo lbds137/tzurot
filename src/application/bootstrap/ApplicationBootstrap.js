@@ -155,8 +155,9 @@ class ApplicationBootstrap {
       if (!getFeatureFlags().isEnabled('ddd.personality.write')) {
         // Schedule personality seeding in background after a delay
         const seedingDelay = 5000; // 5 seconds to let bot fully start
-        const timer = globalThis.setTimeout || setTimeout;
-        timer(async () => {
+
+        // Create a promise-based delay and execute seeding after it
+        this.delay(seedingDelay).then(async () => {
           try {
             logger.info('[ApplicationBootstrap] Starting background owner personality seeding...');
             await this._seedOwnerPersonalities();
@@ -164,7 +165,7 @@ class ApplicationBootstrap {
           } catch (error) {
             logger.error('[ApplicationBootstrap] Error in background personality seeding:', error);
           }
-        }, seedingDelay);
+        });
       } else {
         logger.info(
           '[ApplicationBootstrap] Skipping legacy personality seeding - DDD personality system is enabled'
