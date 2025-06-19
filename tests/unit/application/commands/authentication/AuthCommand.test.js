@@ -263,7 +263,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockContext.startTyping).toHaveBeenCalled();
+      // Note: startTyping is not available in DDD command context
       expect(mockAuth.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
       expect(mockAuth.storeUserToken).toHaveBeenCalledWith('user123', 'test-token');
       expect(mockContext.respond).toHaveBeenCalledWith({
