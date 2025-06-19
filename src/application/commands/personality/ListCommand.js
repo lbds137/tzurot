@@ -87,7 +87,7 @@ function createListCommand() {
               const displayName = personality.profile.displayName || personality.profile.name;
               const aliases =
                 personality.aliases && personality.aliases.length > 0
-                  ? personality.aliases.map(a => a.alias).join(', ')
+                  ? personality.aliases.map(a => a.value || a.alias).join(', ')
                   : 'None';
 
               return {
@@ -131,7 +131,7 @@ function createListCommand() {
               const displayName = personality.profile.displayName || personality.profile.name;
               const aliases =
                 personality.aliases && personality.aliases.length > 0
-                  ? personality.aliases.map(a => a.alias).join(', ')
+                  ? personality.aliases.map(a => a.value || a.alias).join(', ')
                   : 'None';
 
               response += `**${startIdx + index + 1}. ${displayName}**\n`;
