@@ -3,6 +3,9 @@
  * Focus on initialization behavior and integration
  */
 
+// Unmock ApplicationBootstrap since we're testing it directly
+jest.unmock('../../../../src/application/bootstrap/ApplicationBootstrap');
+
 // Mock all dependencies before imports
 jest.mock('../../../../src/logger');
 jest.mock('../../../../src/domain/shared/DomainEventBus');
@@ -19,6 +22,10 @@ jest.mock('../../../../src/profileInfoFetcher');
 jest.mock('../../../../src/messageTracker');
 jest.mock('../../../../src/core/conversation');
 jest.mock('../../../../config');
+jest.mock('../../../../src/auth');
+jest.mock('../../../../src/utils/webhookUserTracker');
+jest.mock('../../../../src/utils/channelUtils');
+jest.mock('../../../../src/core/personality/PersonalityManager');
 
 const {
   ApplicationBootstrap,
@@ -96,10 +103,23 @@ describe('ApplicationBootstrap', () => {
     require('../../../../src/core/conversation').getInstance.mockReturnValue(mockConversationManager);
 
     // Mock repositories and services
-    FilePersonalityRepository.mockImplementation(() => ({}));
-    FileAuthenticationRepository.mockImplementation(() => ({}));
+    FilePersonalityRepository.mockImplementation(() => ({
+      initialize: jest.fn().mockResolvedValue(),
+    }));
+    FileAuthenticationRepository.mockImplementation(() => ({
+      initialize: jest.fn().mockResolvedValue(),
+    }));
     HttpAIServiceAdapter.mockImplementation(() => ({}));
     PersonalityApplicationService.mockImplementation(() => ({}));
+
+    // Mock PersonalityManager
+    const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
+    PersonalityManager.getInstance = jest.fn().mockReturnValue({
+      initialized: false,
+      initialize: jest.fn().mockResolvedValue(),
+      listPersonalitiesForUser: jest.fn().mockReturnValue([]),
+      registerPersonality: jest.fn().mockResolvedValue({ success: true }),
+    });
 
     // Reset singleton
     resetApplicationBootstrap();
@@ -222,6 +242,10 @@ describe('ApplicationBootstrap', () => {
         messageTracker: expect.any(Object),
         featureFlags: mockFeatureFlags,
         botPrefix: expect.any(String),
+        auth: expect.any(Object),
+        webhookUserTracker: expect.any(Object),
+        channelUtils: expect.any(Object),
+        authenticationRepository: expect.any(Object),
       });
     });
 

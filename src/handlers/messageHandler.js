@@ -86,7 +86,7 @@ async function checkForPersonalityMentions(message) {
       // Check if this is a valid personality (directly or as an alias)
       let personality = await getPersonality(cleanedName);
       if (!personality) {
-        personality = getPersonalityByAlias(cleanedName);
+        personality = await getPersonalityByAlias(cleanedName);
       }
 
       if (personality) {
@@ -133,7 +133,7 @@ async function checkForPersonalityMentions(message) {
         logger.debug(
           `[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`
         );
-        const personality = getPersonalityByAlias(potentialAlias);
+        const personality = await getPersonalityByAlias(potentialAlias);
 
         if (personality) {
           logger.debug(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
@@ -464,7 +464,7 @@ async function handleMentions(message, client) {
       // Check if this is a valid personality (directly or as an alias)
       let personality = await getPersonality(mentionName);
       if (!personality) {
-        personality = getPersonalityByAlias(mentionName);
+        personality = await getPersonalityByAlias(mentionName);
       }
 
       if (personality) {
@@ -528,7 +528,7 @@ async function handleMentions(message, client) {
             logger.debug(`[handleMentions] Trying mention combination: "${mentionText}"`);
 
             // Try as an alias
-            const personality = getPersonalityByAlias(mentionText);
+            const personality = await getPersonalityByAlias(mentionText);
 
             if (personality) {
               logger.info(
@@ -635,7 +635,7 @@ async function handleActiveConversation(message, client) {
 
   // If not found as direct name, try it as an alias
   if (!personality) {
-    personality = getPersonalityByAlias(activePersonalityName);
+    personality = await getPersonalityByAlias(activePersonalityName);
   }
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
@@ -722,7 +722,7 @@ async function handleActivatedChannel(message, client) {
 
   // If not found as direct name, try it as an alias
   if (!personality) {
-    personality = getPersonalityByAlias(activatedPersonalityName);
+    personality = await getPersonalityByAlias(activatedPersonalityName);
   }
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);

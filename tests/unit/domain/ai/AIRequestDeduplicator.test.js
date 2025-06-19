@@ -70,8 +70,10 @@ describe('AIRequestDeduplicator', () => {
       const promise = Promise.resolve('response');
       deduplicator.registerPending('TestBot', 'Hello', {}, promise);
       
-      const result = await deduplicator.checkDuplicate('TestBot', 'Hello');
-      expect(result).toBe(promise);
+      const result = deduplicator.checkDuplicate('TestBot', 'Hello');
+      expect(result).toBeTruthy();
+      // Verify it's the same promise by checking resolved value
+      await expect(result).resolves.toBe('response');
     });
     
     it('should throw error for requests in blackout period', async () => {
@@ -86,8 +88,10 @@ describe('AIRequestDeduplicator', () => {
       const promise = Promise.resolve('response');
       deduplicator.registerPending('TestBot', 'Hello', {}, promise);
       
-      const result = await deduplicator.checkDuplicate('testbot', 'Hello');
-      expect(result).toBe(promise);
+      const result = deduplicator.checkDuplicate('testbot', 'Hello');
+      expect(result).toBeTruthy();
+      // Verify it's the same promise by checking resolved value
+      await expect(result).resolves.toBe('response');
     });
     
     it('should consider context in deduplication', async () => {
@@ -97,11 +101,14 @@ describe('AIRequestDeduplicator', () => {
       deduplicator.registerPending('TestBot', 'Hello', { userAuth: 'user1' }, promise1);
       deduplicator.registerPending('TestBot', 'Hello', { userAuth: 'user2' }, promise2);
       
-      const result1 = await deduplicator.checkDuplicate('TestBot', 'Hello', { userAuth: 'user1' });
-      const result2 = await deduplicator.checkDuplicate('TestBot', 'Hello', { userAuth: 'user2' });
+      const result1 = deduplicator.checkDuplicate('TestBot', 'Hello', { userAuth: 'user1' });
+      const result2 = deduplicator.checkDuplicate('TestBot', 'Hello', { userAuth: 'user2' });
       
-      expect(result1).toBe(promise1);
-      expect(result2).toBe(promise2);
+      expect(result1).toBeTruthy();
+      expect(result2).toBeTruthy();
+      // Verify they are different promises with different values
+      await expect(result1).resolves.toBe('response1');
+      await expect(result2).resolves.toBe('response2');
     });
   });
   
@@ -132,13 +139,10 @@ describe('AIRequestDeduplicator', () => {
       const promise = Promise.reject(new Error('API error'));
       deduplicator.registerPending('TestBot', 'Hello', {}, promise);
       
-      try {
-        await promise;
-      } catch (_e) {
-        // Expected - promise rejection is expected here
-      }
-      
-      // Flush microtasks to allow promise cleanup
+      // Wait for the promise chain to complete (including catch handler)
+      await promise.catch(() => {}); // Catch to prevent unhandled rejection
+      // Give the internal catch handler time to execute
+      await Promise.resolve();
       await Promise.resolve();
       
       expect(deduplicator.errorBlackouts.size).toBe(1);
