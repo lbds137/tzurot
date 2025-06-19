@@ -26,6 +26,7 @@ const { createDebugCommand } = require('./utility/DebugCommand');
 const { createPurgbotCommand } = require('./utility/PurgbotCommand');
 const { createVolumeTestCommand } = require('./utility/VolumeTestCommand');
 const { createHelpCommand } = require('./utility/HelpCommand');
+const { createBackupCommand } = require('./utility/BackupCommand');
 
 /**
  * Initialize the command system with all commands and services
@@ -102,6 +103,7 @@ class CommandIntegration {
     this.registry.register(createPurgbotCommand());
     this.registry.register(createVolumeTestCommand());
     this.registry.register(createHelpCommand());
+    this.registry.register(createBackupCommand());
 
     logger.info(`[CommandIntegration] Registered ${this.registry.getAll().length} commands`);
   }

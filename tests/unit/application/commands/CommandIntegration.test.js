@@ -248,6 +248,10 @@ describe('CommandIntegration', () => {
     it('should return false for non-existent command', () => {
       expect(integration.hasCommand('nonexistent')).toBe(false);
     });
+
+    it('should have backup command registered', () => {
+      expect(integration.hasCommand('backup')).toBe(true);
+    });
   });
 
   describe('getAllCommands', () => {
@@ -255,7 +259,7 @@ describe('CommandIntegration', () => {
       await integration.initialize();
 
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(18);
+      expect(commands).toHaveLength(19);
       expect(commands.map(c => c.name)).toEqual([
         'add',
         'remove',
@@ -275,6 +279,7 @@ describe('CommandIntegration', () => {
         'purgbot',
         'volumetest',
         'help',
+        'backup',
       ]);
     });
   });
