@@ -42,11 +42,14 @@ describe('DeactivateCommand', () => {
       channelId: '987654321098765432',
       guildId: '111222333444555666',
       commandPrefix: '!tz',
-      services: {
+      dependencies: {
         conversationManager: mockConversationManager,
       },
       respond: jest.fn(),
       hasPermission: jest.fn(),
+      getChannelId: jest.fn().mockReturnValue('987654321098765432'),
+      getGuildId: jest.fn().mockReturnValue('111222333444555666'),
+      isDM: false,
     };
 
     // Create the command
@@ -97,6 +100,7 @@ describe('DeactivateCommand', () => {
     it('should reject in DM channels', async () => {
       // Arrange
       mockContext.guildId = null; // DM channel
+      mockContext.getGuildId.mockReturnValue(null);
 
       // Act
       await command.execute(mockContext);

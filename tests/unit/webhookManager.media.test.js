@@ -1,3 +1,6 @@
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 // Mock dependencies
 jest.mock('../../src/logger');
 jest.mock('../../src/utils/media/mediaHandler');

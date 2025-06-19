@@ -38,6 +38,9 @@ describe('AI Domain Index', () => {
     it('should export all services', () => {
       expect(aiDomain.AIService).toBeDefined();
       expect(typeof aiDomain.AIService).toBe('function');
+      
+      expect(aiDomain.AIRequestDeduplicator).toBeDefined();
+      expect(typeof aiDomain.AIRequestDeduplicator).toBe('function');
     });
 
     it('should export all repositories', () => {
@@ -124,6 +127,7 @@ describe('AI Domain Index', () => {
         'AIContent',
         'AIModel',
         'AIService',
+        'AIRequestDeduplicator',
         'AIRequestRepository',
         'AIRequestCreated',
         'AIRequestSent',

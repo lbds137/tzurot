@@ -1,6 +1,10 @@
 /**
  * Test for webhookManager.js createVirtualResult function
  */
+
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 const logger = require('../../src/logger');
 
 // Mock the logger to avoid unnecessary output
@@ -10,6 +14,132 @@ jest.mock('../../src/logger', () => ({
   error: jest.fn(),
   debug: jest.fn(),
 }));
+
+// Mock profileInfoFetcher to prevent interval creation
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getFetcher: jest.fn().mockReturnValue({
+    fetchProfileInfo: jest.fn().mockResolvedValue({
+      avatarUrl: 'https://example.com/avatar.png',
+      displayName: 'Test User'
+    })
+  }),
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
+  deleteFromCache: jest.fn()
+}));
+
+// Mock other dependencies
+jest.mock('../../src/utils/webhookCache', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  clear: jest.fn(),
+  getActiveWebhooks: jest.fn(() => new Set()),
+  clearWebhookCache: jest.fn(),
+  clearAllWebhookCaches: jest.fn(),
+  registerEventListeners: jest.fn()
+}));
+
+jest.mock('../../src/utils/messageDeduplication', () => ({
+  isDuplicate: jest.fn(() => false),
+  addMessage: jest.fn(),
+  hashMessage: jest.fn(() => 'mock-hash'),
+  isDuplicateMessage: jest.fn(() => false)
+}));
+
+jest.mock('../../src/utils/messageFormatter', () => ({
+  formatContent: jest.fn(content => content),
+  trimContent: jest.fn(content => content),
+  splitMessage: jest.fn(content => [content])
+}));
+
+jest.mock('../../src/utils/avatarManager', () => ({
+  validateAvatarUrl: jest.fn(async () => true),
+  getValidAvatarUrl: jest.fn(async (url) => url),
+  preloadPersonalityAvatar: jest.fn(async () => {}),
+  warmupAvatar: jest.fn(async () => {})
+}));
+
+jest.mock('../../src/utils/errorTracker', () => ({
+  trackError: jest.fn(),
+  ErrorCategory: {
+    WEBHOOK: 'webhook',
+    AVATAR: 'avatar'
+  }
+}));
+
+jest.mock('../../src/utils/media', () => ({
+  isMediaUrl: jest.fn(() => false),
+  formatMediaUrls: jest.fn(() => []),
+  processMediaForWebhook: jest.fn(),
+  prepareAttachmentOptions: jest.fn(() => ({}))
+}));
+
+jest.mock('../../src/webhook', () => ({
+  createWebhookForPersonality: jest.fn(),
+  sendWebhookMessage: jest.fn(),
+  CHUNK_DELAY: 100,
+  MAX_CONTENT_LENGTH: 2000,
+  EMBED_CHUNK_SIZE: 1800,
+  DEFAULT_MESSAGE_DELAY: 150,
+  MAX_ERROR_WAIT_TIME: 60000,
+  MIN_MESSAGE_DELAY: 150,
+  // Functions that webhookManager re-exports
+  sendDirectThreadMessage: jest.fn(),
+  createPersonalityChannelKey: jest.fn((personality, channel) => `${personality}_${channel}`),
+  hasPersonalityPendingMessage: jest.fn(() => false),
+  registerPendingMessage: jest.fn(),
+  clearPendingMessage: jest.fn(),
+  calculateMessageDelay: jest.fn(() => 0),
+  updateChannelLastMessageTime: jest.fn(),
+  sendFormattedMessageInDM: jest.fn(),
+  isErrorContent: jest.fn(() => false),
+  markErrorContent: jest.fn(),
+  isErrorWebhookMessage: jest.fn(() => false),
+  getStandardizedUsername: jest.fn((personality) => {
+    if (!personality) return 'Bot';
+    return personality.displayName || 'Bot';
+  }),
+  generateMessageTrackingId: jest.fn(() => 'mock-tracking-id'),
+  prepareMessageData: jest.fn((data) => data),
+  createVirtualResult: jest.fn(() => {
+    const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      message: { id: virtualId },
+      messageIds: [virtualId],
+      isDuplicate: true
+    };
+  }),
+  sendMessageChunk: jest.fn(),
+  minimizeConsoleOutput: jest.fn(),
+  restoreConsoleOutput: jest.fn()
+}));
+
+jest.mock('../../src/constants', () => ({
+  TIME: {
+    SECOND: 1000,
+    MINUTE: 60000
+  }
+}));
+
+// Mock discord.js
+jest.mock('discord.js', () => {
+  return {
+    WebhookClient: jest.fn().mockImplementation(() => ({
+      id: 'mock-webhook-id',
+      send: jest.fn().mockResolvedValue({
+        id: 'mock-message-id',
+        webhookId: 'mock-webhook-id'
+      }),
+      destroy: jest.fn()
+    })),
+    EmbedBuilder: jest.fn().mockImplementation(data => ({
+      ...data,
+      setTitle: jest.fn().mockReturnThis(),
+      setDescription: jest.fn().mockReturnThis(), 
+      setColor: jest.fn().mockReturnThis(),
+      addFields: jest.fn().mockReturnThis()
+    }))
+  };
+});
 
 describe('WebhookManager - createVirtualResult', () => {
   let webhookManager;

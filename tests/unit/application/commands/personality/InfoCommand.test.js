@@ -21,10 +21,15 @@ describe('InfoCommand', () => {
     // Mock personality service
     mockPersonalityService = {
       getPersonality: jest.fn().mockResolvedValue({
-        fullName: 'testpersonality',
-        displayName: 'Test Personality',
-        aliases: ['test', 'testy'],
-        owner: '123456789',
+        profile: {
+          name: 'testpersonality',
+          displayName: 'Test Personality',
+          owner: '123456789'
+        },
+        aliases: [
+          { value: 'test' },
+          { value: 'testy' }
+        ],
         avatarUrl: 'https://example.com/avatar.png'
       })
     };
@@ -148,10 +153,13 @@ describe('InfoCommand', () => {
 
     it('should handle personality without aliases', async () => {
       mockPersonalityService.getPersonality.mockResolvedValue({
-        fullName: 'noalias',
-        displayName: 'No Alias',
+        profile: {
+          name: 'noalias',
+          displayName: 'No Alias',
+          owner: '123456789'
+        },
         aliases: [],
-        owner: '123456789'
+        avatarUrl: null
       });
       
       await command.execute(mockContext);
@@ -171,10 +179,15 @@ describe('InfoCommand', () => {
 
     it('should handle personality without display name', async () => {
       mockPersonalityService.getPersonality.mockResolvedValue({
-        fullName: 'nodisplay',
-        displayName: null,
-        aliases: [],
-        owner: '123456789'
+        profile: {
+          name: 'nodisplay',
+          displayName: null,
+          owner: '123456789'
+        },
+        aliases: [
+          { value: 'nd' }
+        ],
+        avatarUrl: null
       });
       
       await command.execute(mockContext);

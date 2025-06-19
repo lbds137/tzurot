@@ -7,6 +7,9 @@
  * - No delay on first chunk
  */
 
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 // Mock all dependencies before loading webhookManager
 const mockActiveWebhooks = new Set();
 const mockDelayFn = jest.fn().mockResolvedValue();
@@ -48,6 +51,19 @@ jest.mock('../../src/utils/webhookCache', () => ({
 jest.mock('../../src/utils/messageDeduplication', () => ({
   isDuplicateMessage: jest.fn().mockReturnValue(false),
   hashMessage: jest.fn().mockReturnValue('hash')
+}));
+
+jest.mock('../../src/utils/avatarManager', () => ({
+  validateAvatarUrl: jest.fn().mockResolvedValue(true),
+  getValidAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
+  preloadPersonalityAvatar: jest.fn(),
+  warmupAvatar: jest.fn()
+}));
+
+jest.mock('../../src/utils/messageFormatter', () => ({
+  formatContent: jest.fn(content => content),
+  trimContent: jest.fn(content => content),
+  splitMessage: jest.fn(content => [content])
 }));
 
 jest.mock('../../src/utils/avatarManager', () => ({
@@ -104,7 +120,15 @@ jest.mock('../../src/webhook', () => ({
 }));
 
 jest.mock('../../src/profileInfoFetcher', () => ({
-  getProfileDisplayName: jest.fn().mockResolvedValue('Test Display')
+  getFetcher: jest.fn().mockReturnValue({
+    fetchProfileInfo: jest.fn().mockResolvedValue({
+      avatarUrl: 'https://example.com/avatar.png',
+      displayName: 'Test User'
+    })
+  }),
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
+  getProfileDisplayName: jest.fn().mockResolvedValue('Test Display'),
+  deleteFromCache: jest.fn()
 }));
 
 jest.mock('../../src/constants', () => ({

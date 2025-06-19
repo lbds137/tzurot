@@ -48,7 +48,7 @@ describe('ActivateCommand', () => {
       channelId: '987654321098765432',
       guildId: '111222333444555666',
       commandPrefix: '!tz',
-      services: {
+      dependencies: {
         personalityApplicationService: mockPersonalityService,
         conversationManager: mockConversationManager,
         botPrefix: '!tz',
@@ -56,6 +56,9 @@ describe('ActivateCommand', () => {
       respond: jest.fn(),
       hasPermission: jest.fn(),
       isChannelNSFW: jest.fn(),
+      getChannelId: jest.fn().mockReturnValue('987654321098765432'),
+      getGuildId: jest.fn().mockReturnValue('111222333444555666'),
+      isDM: false,
     };
 
     // Create the command
@@ -82,7 +85,9 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
-        profileUrl: 'https://example.com/aria.png',
+        fullName: 'Aria',
+        displayName: 'Aria',
+        avatarUrl: 'https://example.com/aria.png',
       });
 
       // Act
@@ -117,7 +122,9 @@ describe('ActivateCommand', () => {
       mockPersonalityService.getPersonality.mockResolvedValue(null);
       mockPersonalityService.findPersonalityByAlias.mockResolvedValue({
         name: 'Aria',
-        profileUrl: 'https://example.com/aria.png',
+        fullName: 'Aria',
+        displayName: 'Aria',
+        avatarUrl: 'https://example.com/aria.png',
       });
 
       // Act
@@ -139,6 +146,8 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Bambi Prime',
+        fullName: 'Bambi Prime',
+        displayName: 'Bambi Prime',
       });
 
       // Act
@@ -159,6 +168,8 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
+        fullName: 'Aria',
+        displayName: 'Aria',
       });
 
       // Act
@@ -171,6 +182,7 @@ describe('ActivateCommand', () => {
     it('should reject in DM channels', async () => {
       // Arrange
       mockContext.guildId = null; // DM channel
+      mockContext.getGuildId.mockReturnValue(null);
 
       // Act
       await command.execute(mockContext);
@@ -272,7 +284,11 @@ describe('ActivateCommand', () => {
       mockContext.args = ['Aria'];
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
-      mockPersonalityService.getPersonality.mockResolvedValue({ name: 'Aria' });
+      mockPersonalityService.getPersonality.mockResolvedValue({ 
+        name: 'Aria',
+        fullName: 'Aria',
+        displayName: 'Aria',
+      });
       mockConversationManager.activatePersonality.mockRejectedValue(new Error('Activation failed'));
 
       // Act
@@ -315,7 +331,9 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
-        // No profileUrl
+        fullName: 'Aria',
+        displayName: 'Aria',
+        // No avatarUrl
       });
 
       // Act
@@ -333,7 +351,9 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
-        profileUrl: 'https://example.com/aria.png',
+        fullName: 'Aria', 
+        displayName: 'Aria',
+        avatarUrl: 'https://example.com/aria.png',
       });
 
       // Act

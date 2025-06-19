@@ -2,6 +2,9 @@
  * Tests for webhookManager.js exported functions
  */
 
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 // Import mocks
 jest.mock('node-fetch', () => {
   return jest.fn().mockImplementation(() => ({

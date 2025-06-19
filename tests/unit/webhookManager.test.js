@@ -3,6 +3,9 @@
  * Focus on message splitting and duplicate detection
  */
 
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 // We will require the module fresh in each test suite to ensure proper isolation
 let webhookManager;
 
