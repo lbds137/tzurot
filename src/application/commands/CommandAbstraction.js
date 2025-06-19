@@ -335,9 +335,31 @@ class CommandContext {
    */
   async isChannelNSFW() {
     if (this.platform === 'discord' && this.channel) {
-      return this.channel.nsfw || false;
+      // Direct check for the channel's nsfw flag
+      if (this.channel.nsfw === true) {
+        return true;
+      }
+
+      // If this is a thread, check its parent channel
+      if (this.channel.isThread && this.channel.isThread()) {
+        // Some thread types might have different parent access methods
+        const parent =
+          this.channel.parent || this.channel.parentChannel || this.channel.parentTextChannel;
+        if (parent) {
+          return parent.nsfw === true;
+        }
+      }
+
+      // For forum threads, try a different approach
+      if (this.channel.parentId && this.guild) {
+        // Try to get the parent channel from the guild cache
+        const parent = this.guild.channels.cache.get(this.channel.parentId);
+        if (parent) {
+          return parent.nsfw === true;
+        }
+      }
     }
-    // For other platforms, default to false
+    // For other platforms or if we can't determine, default to false
     return false;
   }
 
