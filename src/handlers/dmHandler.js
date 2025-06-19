@@ -4,15 +4,60 @@
 const logger = require('../logger');
 const { getStandardizedUsername } = require('../webhookManager');
 const {
-  getPersonalityByAlias,
-  getPersonality,
-  listPersonalitiesForUser,
+  getPersonalityByAlias: getLegacyPersonalityByAlias,
+  getPersonality: getLegacyPersonality,
+  listPersonalitiesForUser: legacyListPersonalitiesForUser,
 } = require('../core/personality');
 const { getActivePersonality } = require('../core/conversation');
 const auth = require('../auth');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const personalityHandler = require('./personalityHandler');
 const { botPrefix } = require('../../config');
+const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+const { getFeatureFlags } = require('../application/services/FeatureFlags');
+
+/**
+ * Get personality by name, using DDD system if enabled
+ * @param {string} name - Personality name
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonality(name) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    const router = getPersonalityRouter();
+    return await router.getPersonality(name);
+  }
+  return await getLegacyPersonality(name);
+}
+
+/**
+ * Get personality by alias, using DDD system if enabled
+ * @param {string} alias - Personality alias
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonalityByAlias(alias) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    // DDD system searches by name or alias in one method
+    const router = getPersonalityRouter();
+    return await router.getPersonality(alias);
+  }
+  return getLegacyPersonalityByAlias(alias);
+}
+
+/**
+ * List personalities for a user, using DDD system if enabled
+ * @param {string} userId - User ID
+ * @returns {Promise<Array<Object>>} Array of personalities
+ */
+async function listPersonalitiesForUser(userId) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    const router = getPersonalityRouter();
+    return await router.listPersonalitiesForUser(userId);
+  }
+  return legacyListPersonalitiesForUser(userId);
+}
 
 /**
  * Handles replies to DM-formatted bot messages
@@ -32,6 +77,29 @@ async function handleDmReply(message, client) {
     // Check if it's our bot's message
     if (repliedToMessage.author.id !== client.user.id) {
       return false;
+    }
+
+    // Check NSFW verification first before processing any personality interactions
+    const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
+    const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+
+    if (!isVerified) {
+      // User is not verified, prompt them to verify first
+      logger.info(
+        `[DmHandler] User ${message.author.id} attempted to use personalities without verification in DM reply`
+      );
+      try {
+        await message.reply(
+          '⚠️ **Age Verification Required**\n\n' +
+            'To use AI personalities, you need to verify your age first.\n\n' +
+            `Please run \`${botPrefix} verify\` in a channel marked as NSFW. ` +
+            "This will verify that you meet Discord's age requirements for accessing NSFW content."
+        );
+      } catch (error) {
+        logger.error(`[DmHandler] Error sending verification prompt: ${error.message}`);
+        logger.debug(`[DmHandler] Error stack: ${error.stack || 'No stack available'}`);
+      }
+      return true; // We handled this message with the verification prompt
     }
 
     const content = repliedToMessage.content;
@@ -116,20 +184,11 @@ async function handleDmReply(message, client) {
     if (displayName) {
       // Attempt to find the personality by display name
       try {
-        // First, try to get personality by alias for this specific user
-        personality = getPersonalityByAlias(displayName);
+        // Try to get personality by alias (global lookup)
+        personality = await getPersonalityByAlias(displayName);
 
         if (personality) {
-          logger.info(
-            `[DmHandler] Found personality by alias for user ${message.author.id}: ${personality.fullName}`
-          );
-        } else {
-          // If not found by user-specific alias, try getting by global alias
-          personality = getPersonalityByAlias(displayName);
-
-          if (personality) {
-            logger.info(`[DmHandler] Found personality by global alias: ${personality.fullName}`);
-          }
+          logger.info(`[DmHandler] Found personality by alias: ${personality.fullName}`);
         }
 
         // If still not found, try by direct personality name
@@ -144,7 +203,7 @@ async function handleDmReply(message, client) {
         // If still not found, try more flexible matching strategies
         if (!personality) {
           // Get all personalities for this user
-          const personalities = listPersonalitiesForUser(message.author.id);
+          const personalities = await listPersonalitiesForUser(message.author.id);
           logger.info(
             `[DmHandler] Found ${personalities?.length || 0} personalities for user ${message.author.id}`
           );
@@ -298,7 +357,7 @@ async function handleDirectMessage(message, client) {
     // Get the personality data
     let personality = await getPersonality(activePersonalityName);
     if (!personality) {
-      personality = getPersonalityByAlias(activePersonalityName);
+      personality = await getPersonalityByAlias(activePersonalityName);
     }
 
     if (personality) {

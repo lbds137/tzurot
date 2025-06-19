@@ -142,7 +142,7 @@ function createExecutor(dependencies = {}) {
 
         // Add footer
         embed.footer = {
-          text: `Use "${context.commandPrefix}help" for available commands.`,
+          text: `Use "${context.commandPrefix} help" for available commands.`,
         };
 
         await context.respondWithEmbed(embed);

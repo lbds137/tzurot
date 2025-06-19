@@ -48,7 +48,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
 
   if (!command) {
     await context.respond(
-      `Unknown command: \`${commandName}\`. Use \`${botPrefix}help\` to see available commands.`
+      `Unknown command: \`${commandName}\`. Use \`${botPrefix} help\` to see available commands.`
     );
     return;
   }
@@ -60,7 +60,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
   }
 
   // Build detailed help for the command
-  let helpContent = `**${botPrefix}${command.name}`;
+  let helpContent = `**${botPrefix} ${command.name}`;
 
   // Add command parameters to usage
   if (command.options && command.options.length > 0) {
@@ -125,14 +125,14 @@ function getCommandSpecificHelp(commandName, botPrefix) {
 • \`stats\` - Show debug statistics`;
 
     case 'add':
-      return `\n\n**Example:** \`${botPrefix}add lilith-tzel-shani lilith\`
+      return `\n\n**Example:** \`${botPrefix} add lilith-tzel-shani lilith\`
 
 This will add the personality "lilith-tzel-shani" with an optional alias "lilith" that you can use as a shortcut.`;
 
     case 'list':
       return `\n\n**Examples:**
-• \`${botPrefix}list\` - Show first page of personalities
-• \`${botPrefix}list 2\` - Show second page of personalities`;
+• \`${botPrefix} list\` - Show first page of personalities
+• \`${botPrefix} list 2\` - Show second page of personalities`;
 
     case 'notifications':
       return `\n\n**Notification Levels:**
@@ -142,9 +142,9 @@ This will add the personality "lilith-tzel-shani" with an optional alias "lilith
 
     case 'autorespond':
       return `\n\n**Usage:**
-• \`${botPrefix}autorespond on\` - Enable auto-response
-• \`${botPrefix}autorespond off\` - Disable auto-response
-• \`${botPrefix}autorespond status\` - Check current setting`;
+• \`${botPrefix} autorespond on\` - Enable auto-response
+• \`${botPrefix} autorespond off\` - Disable auto-response
+• \`${botPrefix} autorespond status\` - Check current setting`;
 
     case 'purgbot':
       return `\n\n**Categories:**
@@ -183,6 +183,7 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
     Authentication: [],
     Utility: [],
     Admin: [],
+    Owner: [],
   };
 
   // Sort commands into categories
@@ -198,7 +199,7 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
     // Discord-style embed
     const embed = {
       title: `${botConfig.name} Commands`,
-      description: `Use \`${botPrefix}help <command>\` for more information about a specific command.`,
+      description: `Use \`${botPrefix} help <command>\` for more information about a specific command.`,
       color: 0x2196f3,
       fields: [],
     };
@@ -230,7 +231,7 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
   } else {
     // Text-based response
     let helpText = `**${botConfig.name} Commands**\n`;
-    helpText += `Use \`${botPrefix}help <command>\` for more information about a specific command.\n`;
+    helpText += `Use \`${botPrefix} help <command>\` for more information about a specific command.\n`;
 
     Object.entries(categories).forEach(([category, commands]) => {
       if (commands.length > 0) {
@@ -255,8 +256,13 @@ async function showGeneralHelp(context, commandRegistry, botPrefix, botConfig) {
  * Determine the category for a command
  */
 function getCategoryForCommand(cmd) {
-  // Admin commands
-  if (cmd.permissions.includes('ADMIN') || cmd.permissions.includes('OWNER')) {
+  // Owner commands (bot owner only)
+  if (cmd.permissions.includes('OWNER')) {
+    return 'Owner';
+  }
+
+  // Admin commands (server admins)
+  if (cmd.permissions.includes('ADMIN')) {
     return 'Admin';
   }
 

@@ -68,7 +68,7 @@ describe('DebugCommand', () => {
       userTag: 'TestUser#1234',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: false,
       isAdmin: true,
       args: [],

@@ -271,6 +271,7 @@ describe('BackupJob', () => {
         personalityName: 'TestPersonality',
         userId: 'user123',
         isBulk: false,
+        persistToFilesystem: true,
         status: 'in_progress',
         createdAt: job.createdAt.toISOString(),
         startedAt: job.startedAt.toISOString(),

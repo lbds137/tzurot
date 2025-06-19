@@ -331,17 +331,17 @@ async function handleMessage(message, client) {
       return; // Mention was handled
     }
 
+    // Check for activated channel personality first - takes priority over active conversations
+    const activatedChannelResult = await handleActivatedChannel(message, client);
+    if (activatedChannelResult) {
+      return; // Activated channel was handled
+    }
+
     // Check for active conversation
     const activeConversationResult = await handleActiveConversation(message, client);
     if (activeConversationResult) {
       logger.debug(`[MessageHandler] Message processed as active conversation`);
       return; // Active conversation was handled
-    }
-
-    // Check for activated channel personality
-    const activatedChannelResult = await handleActivatedChannel(message, client);
-    if (activatedChannelResult) {
-      return; // Activated channel was handled
     }
 
     // Handle DM-specific behavior for "sticky" conversations

@@ -34,7 +34,6 @@ describe('ActivateCommand', () => {
     // Create mock services
     mockPersonalityService = {
       getPersonality: jest.fn(),
-      findPersonalityByAlias: jest.fn(),
     };
 
     mockConversationManager = {
@@ -123,8 +122,8 @@ describe('ActivateCommand', () => {
       mockContext.args = ['ari'];
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
-      mockPersonalityService.getPersonality.mockResolvedValue(null);
-      mockPersonalityService.findPersonalityByAlias.mockResolvedValue({
+      // The getPersonality method now handles both name and alias lookup internally
+      mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
@@ -136,7 +135,6 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('ari');
-      expect(mockPersonalityService.findPersonalityByAlias).toHaveBeenCalledWith('ari');
       expect(mockConversationManager.activatePersonality).toHaveBeenCalledWith(
         mockContext.channelId,
         'Aria'
@@ -276,8 +274,8 @@ describe('ActivateCommand', () => {
       mockContext.args = ['NonExistent'];
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
+      // getPersonality now handles both name and alias lookup internally
       mockPersonalityService.getPersonality.mockResolvedValue(null);
-      mockPersonalityService.findPersonalityByAlias.mockResolvedValue(null);
 
       // Act
       await command.execute(mockContext);

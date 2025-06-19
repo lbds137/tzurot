@@ -51,7 +51,7 @@ describe('NotificationsCommand', () => {
       userId: 'user123',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: false,
       args: [],
       options: {},

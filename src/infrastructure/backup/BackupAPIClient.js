@@ -34,6 +34,17 @@ class BackupAPIClient {
   }
 
   /**
+   * Fetch current user information from the "me" endpoint
+   * @param {Object} authData - Authentication data
+   * @returns {Promise<Object>} User data with id field
+   */
+  async fetchCurrentUser(authData) {
+    const url = `${this.apiBaseUrl}/users/me`;
+    logger.info(`[BackupAPIClient] Fetching current user info from: ${url}`);
+    return await this._makeAuthenticatedRequest(url, authData);
+  }
+
+  /**
    * Fetch personality profile data
    * @param {string} personalityName - Name of personality
    * @param {Object} authData - Authentication data

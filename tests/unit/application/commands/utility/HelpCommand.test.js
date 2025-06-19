@@ -126,7 +126,7 @@ describe('HelpCommand', () => {
       userId: 'user123',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: false,
       isAdmin: false,
       args: [],
@@ -154,7 +154,7 @@ describe('HelpCommand', () => {
     it('should display all commands grouped by category', async () => {
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -182,7 +182,7 @@ describe('HelpCommand', () => {
     it('should hide admin commands for non-admin users', async () => {
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -198,7 +198,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -216,7 +216,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -234,15 +234,15 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
       await command.execute(mockContext);
 
       const embedCall = mockContext.respondWithEmbed.mock.calls[0][0];
-      const adminField = embedCall.fields.find(f => f.name === 'Admin');
-      expect(adminField.value).toContain('`volumetest`: Test volume');
+      const ownerField = embedCall.fields.find(f => f.name === 'Owner');
+      expect(ownerField.value).toContain('`volumetest`: Test volume');
     });
 
     it('should provide text fallback when embeds not supported', async () => {
@@ -250,7 +250,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -274,7 +274,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -297,7 +297,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -316,7 +316,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -333,7 +333,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -349,7 +349,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -366,7 +366,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -381,7 +381,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -401,7 +401,7 @@ describe('HelpCommand', () => {
 
       const command = createHelpCommand({
         commandRegistry: mockRegistry,
-        botPrefix: '!tz ',
+        botPrefix: '!tz',
         botConfig: { name: 'TestBot' },
       });
 
@@ -451,7 +451,10 @@ describe('HelpCommand', () => {
 
       it('should categorize admin commands correctly', () => {
         expect(getCategoryForCommand({ name: 'debug', permissions: ['ADMIN'] })).toBe('Admin');
-        expect(getCategoryForCommand({ name: 'volumetest', permissions: ['OWNER'] })).toBe('Admin');
+      });
+
+      it('should categorize owner commands correctly', () => {
+        expect(getCategoryForCommand({ name: 'volumetest', permissions: ['OWNER'] })).toBe('Owner');
       });
 
       it('should default to Utility for other commands', () => {
@@ -462,24 +465,24 @@ describe('HelpCommand', () => {
 
     describe('getCommandSpecificHelp', () => {
       it('should provide auth command specific help', () => {
-        const help = getCommandSpecificHelp('auth', '!tz ');
+        const help = getCommandSpecificHelp('auth', '!tz');
         expect(help).toContain('**Subcommands:**');
         expect(help).toContain('`start` - Begin the authentication process');
         expect(help).toContain('**Security Note:**');
       });
 
       it('should provide debug command specific help', () => {
-        const help = getCommandSpecificHelp('debug', '!tz ');
+        const help = getCommandSpecificHelp('debug', '!tz');
         expect(help).toContain('`clearwebhooks` - Clear cached webhook');
       });
 
       it('should provide add command specific help', () => {
-        const help = getCommandSpecificHelp('add', '!tz ');
+        const help = getCommandSpecificHelp('add', '!tz');
         expect(help).toContain('**Example:** `!tz add lilith-tzel-shani lilith`');
       });
 
       it('should return empty string for commands without specific help', () => {
-        const help = getCommandSpecificHelp('ping', '!tz ');
+        const help = getCommandSpecificHelp('ping', '!tz');
         expect(help).toBe('');
       });
     });

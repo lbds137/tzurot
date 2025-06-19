@@ -55,7 +55,7 @@ function createExecutor(dependencies = {}) {
           color: 0xf44336,
           timestamp: new Date().toISOString(),
         };
-        await context.respond({ embeds: [errorEmbed] });
+        await context.respondWithEmbed(errorEmbed);
         return;
       }
 
@@ -95,7 +95,7 @@ function createExecutor(dependencies = {}) {
         color: 0xf44336,
         timestamp: new Date().toISOString(),
       };
-      await context.respond({ embeds: [errorEmbed] });
+      await context.respondWithEmbed(errorEmbed);
     }
   };
 }
@@ -124,10 +124,17 @@ async function showHelp(context) {
       {
         name: 'Data Types Backed Up',
         value: [
-          '• Profile configuration',
+          '**For personality owners:**',
+          '• Profile configuration (private API)',
           '• Memories (incremental sync)',
           '• Knowledge & story data',
           '• Training examples',
+          '• User personalization',
+          '• Complete chat history',
+          '',
+          '**For non-owners:**',
+          '• Limited profile data (public API only)',
+          '• Memories (incremental sync)',
           '• User personalization',
           '• Complete chat history',
         ].join('\n'),
@@ -147,12 +154,12 @@ async function showHelp(context) {
       },
     ],
     footer: {
-      text: 'Administrator permissions required',
+      text: 'Available to all users',
     },
     timestamp: new Date().toISOString(),
   };
 
-  await context.respond({ embeds: [helpEmbed] });
+  await context.respondWithEmbed(helpEmbed);
 }
 
 /**
@@ -186,7 +193,7 @@ async function handleSetCookie(context) {
       },
       timestamp: new Date().toISOString(),
     };
-    await context.respond({ embeds: [helpEmbed] });
+    await context.respondWithEmbed(helpEmbed);
     return;
   }
 
@@ -198,7 +205,7 @@ async function handleSetCookie(context) {
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
-    await context.respond({ embeds: [errorEmbed] });
+    await context.respondWithEmbed(errorEmbed);
     return;
   }
 
@@ -229,7 +236,7 @@ async function handleSetCookie(context) {
     },
     timestamp: new Date().toISOString(),
   };
-  await context.respond({ embeds: [successEmbed] });
+  await context.respondWithEmbed(successEmbed);
 }
 
 /**
@@ -265,7 +272,7 @@ async function getAuthData(context) {
       },
       timestamp: new Date().toISOString(),
     };
-    await context.respond({ embeds: [errorEmbed] });
+    await context.respondWithEmbed(errorEmbed);
     return null;
   }
 
@@ -280,6 +287,21 @@ async function getAuthData(context) {
  * @param {ZipArchiveService} zipArchiveService - ZIP archive service
  */
 async function handleBulkBackup(context, backupService, authData, zipArchiveService) {
+  // Check if user is bot owner - bulk backup is owner-only
+  const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
+
+  if (!isBotOwner) {
+    const errorEmbed = {
+      title: '❌ Access Denied',
+      description:
+        'Bulk backup is only available to the bot owner. Use single personality backup instead.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respondWithEmbed(errorEmbed);
+    return;
+  }
+
   const ownerPersonalities = USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',')
     .map(p => p.trim())
     .filter(p => p);
@@ -291,7 +313,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
-    await context.respond({ embeds: [errorEmbed] });
+    await context.respondWithEmbed(errorEmbed);
     return;
   }
 
@@ -301,22 +323,17 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
   };
 
   try {
-    await backupService.executeBulkBackup(
+    const jobs = await backupService.executeBulkBackup(
       ownerPersonalities,
       context.userId,
       authData,
-      progressCallback
+      progressCallback,
+      isBotOwner // Only persist for bot owner
     );
 
-    // Create bulk ZIP archive after successful backups
-    const backupDir = path.join(__dirname, '..', '..', '..', '..', 'data', 'personalities');
-    const personalityPaths = ownerPersonalities.map(name => ({
-      name: name.toLowerCase(),
-      path: path.join(backupDir, name.toLowerCase()),
-    }));
-
+    // Create bulk ZIP archive after successful backups (always from memory for consistency)
     try {
-      const zipBuffer = await zipArchiveService.createBulkArchive(personalityPaths);
+      const zipBuffer = await zipArchiveService.createBulkArchiveFromMemory(jobs);
 
       // Check if ZIP is within Discord limits
       if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
@@ -334,7 +351,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
           ],
           timestamp: new Date().toISOString(),
         };
-        await context.respond({ embeds: [errorEmbed] });
+        await context.respondWithEmbed(errorEmbed);
         return;
       }
 
@@ -350,6 +367,17 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
             inline: false,
           },
           {
+            name: '📦 Archive Contents',
+            value: [
+              '• Full profile configurations',
+              '• Complete memories & chat history',
+              '• Knowledge & training data',
+              '• User personalization',
+              '• Backup metadata',
+            ].join('\n'),
+            inline: false,
+          },
+          {
             name: '💾 Archive Size',
             value: zipArchiveService.formatBytes(zipBuffer.length),
             inline: true,
@@ -358,12 +386,20 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
         timestamp: new Date().toISOString(),
       };
 
+      // Generate filename with user display prefix if available (from first job)
+      const dateStr = new Date().toISOString().split('T')[0];
+      const baseBulkFilename = `tzurot_bulk_backup_${dateStr}.zip`;
+      const userDisplayPrefix = jobs.length > 0 ? jobs[0].userDisplayPrefix : null;
+      const bulkFilename = userDisplayPrefix
+        ? `${userDisplayPrefix}_${baseBulkFilename}`
+        : baseBulkFilename;
+
       await context.respond({
         embeds: [successEmbed],
         files: [
           {
             attachment: zipBuffer,
-            name: `tzurot_bulk_backup_${new Date().toISOString().split('T')[0]}.zip`,
+            name: bulkFilename,
           },
         ],
       });
@@ -376,7 +412,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
         color: 0xff9800,
         timestamp: new Date().toISOString(),
       };
-      await context.respond({ embeds: [errorEmbed] });
+      await context.respondWithEmbed(errorEmbed);
     }
   } catch (error) {
     logger.error(`[BackupCommand] Bulk backup error: ${error.message}`);
@@ -398,10 +434,14 @@ async function handleSingleBackup(
   authData,
   zipArchiveService
 ) {
+  // Check if user is bot owner
+  const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
+
   const job = new BackupJob({
     personalityName: personalityName.toLowerCase(),
     userId: context.userId,
     isBulk: false,
+    persistToFilesystem: isBotOwner, // Only persist for bot owner
   });
 
   // Create progress callback
@@ -412,14 +452,12 @@ async function handleSingleBackup(
   try {
     await backupService.executeBackup(job, authData, progressCallback);
 
-    // Create ZIP archive after successful backup
-    const backupDir = path.join(__dirname, '..', '..', '..', '..', 'data', 'personalities');
-    const personalityPath = path.join(backupDir, personalityName.toLowerCase());
-
+    // Create ZIP archive after successful backup (always from memory for consistency)
     try {
-      const zipBuffer = await zipArchiveService.createPersonalityArchive(
+      const zipBuffer = await zipArchiveService.createPersonalityArchiveFromMemory(
         personalityName.toLowerCase(),
-        personalityPath
+        job.personalityData,
+        job.results
       );
 
       // Check if ZIP is within Discord limits
@@ -438,11 +476,59 @@ async function handleSingleBackup(
           ],
           timestamp: new Date().toISOString(),
         };
-        await context.respond({ embeds: [errorEmbed] });
+        await context.respondWithEmbed(errorEmbed);
         return;
       }
 
       // Send ZIP file as attachment
+      const archiveContents = [];
+
+      // Build dynamic archive contents based on what was actually backed up
+      if (job.results.profile && job.results.profile.updated) {
+        archiveContents.push('• Profile configuration');
+      } else if (job.results.profile && job.results.profile.skipped) {
+        archiveContents.push('• Limited profile data');
+      }
+
+      // Only show memories if there are actually memories
+      if (job.results.memories && job.results.memories.totalCount > 0) {
+        const memCount = job.results.memories.totalCount;
+        archiveContents.push(`• Memories (${memCount} total)`);
+      }
+
+      // Only show knowledge if there are actually knowledge entries
+      if (
+        job.results.knowledge &&
+        job.results.knowledge.updated &&
+        job.results.knowledge.entryCount > 0
+      ) {
+        const knowledgeCount = job.results.knowledge.entryCount;
+        archiveContents.push(`• Knowledge data (${knowledgeCount} entries)`);
+      }
+
+      // Only show training if there are actually training entries
+      if (
+        job.results.training &&
+        job.results.training.updated &&
+        job.results.training.entryCount > 0
+      ) {
+        const trainingCount = job.results.training.entryCount;
+        archiveContents.push(`• Training data (${trainingCount} entries)`);
+      }
+
+      // Only show user personalization if it was updated
+      if (job.results.userPersonalization && job.results.userPersonalization.updated) {
+        archiveContents.push('• User personalization');
+      }
+
+      // Only show chat history if there are actually messages
+      if (job.results.chatHistory && job.results.chatHistory.totalMessages > 0) {
+        const msgCount = job.results.chatHistory.totalMessages;
+        archiveContents.push(`• Chat history (${msgCount} messages)`);
+      }
+
+      archiveContents.push('• Backup metadata');
+
       const successEmbed = {
         title: '✅ Backup Complete',
         description: `Successfully created backup archive for **${personalityName}**.`,
@@ -450,13 +536,7 @@ async function handleSingleBackup(
         fields: [
           {
             name: '📦 Archive Contents',
-            value: [
-              '• Profile configuration',
-              '• Memories & chat history',
-              '• Knowledge & training data',
-              '• User personalization',
-              '• Backup metadata',
-            ].join('\n'),
+            value: archiveContents.join('\n'),
             inline: false,
           },
           {
@@ -468,12 +548,19 @@ async function handleSingleBackup(
         timestamp: new Date().toISOString(),
       };
 
+      // Generate filename with user display prefix if available
+      const dateStr = new Date().toISOString().split('T')[0];
+      const baseFilename = `${personalityName.toLowerCase()}_backup_${dateStr}.zip`;
+      const filename = job.userDisplayPrefix
+        ? `${job.userDisplayPrefix}_${baseFilename}`
+        : baseFilename;
+
       await context.respond({
         embeds: [successEmbed],
         files: [
           {
             attachment: zipBuffer,
-            name: `${personalityName.toLowerCase()}_backup_${new Date().toISOString().split('T')[0]}.zip`,
+            name: filename,
           },
         ],
       });
@@ -486,7 +573,7 @@ async function handleSingleBackup(
         color: 0xff9800,
         timestamp: new Date().toISOString(),
       };
-      await context.respond({ embeds: [errorEmbed] });
+      await context.respondWithEmbed(errorEmbed);
     }
   } catch (error) {
     logger.error(`[BackupCommand] Single backup error: ${error.message}`);
@@ -501,10 +588,10 @@ async function handleSingleBackup(
 function createBackupCommand(dependencies = {}) {
   const command = new Command({
     name: 'backup',
-    description: 'Backup personality data from the AI service (Requires Administrator permission)',
+    description: 'Backup personality data from the AI service',
     category: 'Utility',
     aliases: [],
-    permissions: ['ADMIN'],
+    permissions: ['USER'],
     options: [
       new CommandOption({
         name: 'subcommand',
@@ -533,8 +620,7 @@ function createBackupCommand(dependencies = {}) {
     execute: createExecutor(dependencies),
   });
 
-  // Add adminOnly property for backward compatibility
-  command.adminOnly = true;
+  // Available to all users (no special permissions needed)
 
   return command;
 }

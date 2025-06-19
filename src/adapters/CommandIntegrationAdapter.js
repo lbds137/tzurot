@@ -142,6 +142,7 @@ class CommandIntegrationAdapter {
       'volumetest',
       'notifications',
       'help',
+      'backup',
     ];
     if (utilityCommands.includes(commandName)) {
       return this.featureFlags.isEnabled('ddd.commands.utility');

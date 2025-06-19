@@ -59,59 +59,200 @@ class BackupService {
       // Load existing personality data
       const personalityData = await this.personalityDataRepository.load(job.personalityName);
 
-      // Backup profile data
-      await this._backupProfile(personalityData, authData);
-      job.updateResults('profile', { updated: true });
+      // Check ownership - fetch current user and personality profile to compare user_id
+      let isOwner = false;
+      let currentUser = null;
+      let personalityProfile = null;
+      let userDisplayPrefix = null;
 
-      if (personalityData.id) {
-        // Backup memories
-        await this.delayFn(this.delayBetweenRequests);
-        const memoryResult = await this._backupMemories(personalityData, authData);
-        job.updateResults('memories', {
-          newCount: memoryResult.newMemoryCount,
-          totalCount: memoryResult.totalMemories,
-          updated: memoryResult.hasNewMemories,
-        });
+      try {
+        // Fetch current user
+        currentUser = await this.apiClientService.fetchCurrentUser(authData);
 
-        // Backup knowledge
-        await this.delayFn(this.delayBetweenRequests);
-        const knowledgeResult = await this._backupKnowledge(personalityData, authData);
-        job.updateResults('knowledge', {
-          updated: knowledgeResult.hasNewKnowledge,
-          entryCount: knowledgeResult.knowledgeCount,
-        });
+        // Extract user display name for file prefixing
+        if (currentUser && currentUser.displayName) {
+          userDisplayPrefix = this._convertToHyphenated(currentUser.displayName);
+          logger.info(`[BackupService] User display prefix: ${userDisplayPrefix}`);
+        }
 
-        // Backup training
-        await this.delayFn(this.delayBetweenRequests);
-        const trainingResult = await this._backupTraining(personalityData, authData);
-        job.updateResults('training', {
-          updated: trainingResult.hasNewTraining,
-          entryCount: trainingResult.trainingCount,
-        });
-
-        // Backup user personalization
-        await this.delayFn(this.delayBetweenRequests);
-        const userPersonalizationResult = await this._backupUserPersonalization(
-          personalityData,
+        // Fetch personality profile to get user_id (always succeeds if personality exists)
+        personalityProfile = await this.apiClientService.fetchPersonalityProfile(
+          job.personalityName,
           authData
         );
-        job.updateResults('userPersonalization', {
-          updated: userPersonalizationResult.hasNewUserPersonalization,
+
+        if (currentUser && currentUser.id && personalityProfile && personalityProfile.user_id) {
+          isOwner = currentUser.id === personalityProfile.user_id;
+        }
+
+        logger.info(
+          `[BackupService] User ownership check for ${job.personalityName}: ${isOwner ? 'owner' : 'non-owner'}`
+        );
+      } catch (error) {
+        logger.warn(
+          `[BackupService] Could not verify ownership for ${job.personalityName}: ${error.message}`
+        );
+        // Default to limited backup for safety
+        isOwner = false;
+      }
+
+      // Store user info for ZIP naming
+      job.userDisplayPrefix = userDisplayPrefix;
+
+      // Fetch personality profile - for non-owners this returns limited public API data
+      if (personalityProfile) {
+        personalityData.updateProfile(personalityProfile);
+      } else {
+        // Fallback to fetch profile if not already fetched
+        await this._backupProfile(personalityData, authData);
+      }
+
+      // Owners get full backup, non-owners get limited backup
+      if (isOwner) {
+        // Full backup for owners
+        job.updateResults('profile', { updated: true });
+
+        if (personalityData.id) {
+          // Backup memories
+          await this.delayFn(this.delayBetweenRequests);
+          const memoryResult = await this._backupMemories(personalityData, authData);
+          job.updateResults('memories', {
+            newCount: memoryResult.newMemoryCount,
+            totalCount: memoryResult.totalMemories,
+            updated: memoryResult.hasNewMemories,
+          });
+
+          // Backup knowledge
+          await this.delayFn(this.delayBetweenRequests);
+          const knowledgeResult = await this._backupKnowledge(personalityData, authData);
+          job.updateResults('knowledge', {
+            updated: knowledgeResult.hasNewKnowledge,
+            entryCount: knowledgeResult.knowledgeCount,
+          });
+
+          // Backup training
+          await this.delayFn(this.delayBetweenRequests);
+          const trainingResult = await this._backupTraining(personalityData, authData);
+          job.updateResults('training', {
+            updated: trainingResult.hasNewTraining,
+            entryCount: trainingResult.trainingCount,
+          });
+
+          // Backup user personalization
+          await this.delayFn(this.delayBetweenRequests);
+          const userPersonalizationResult = await this._backupUserPersonalization(
+            personalityData,
+            authData
+          );
+          job.updateResults('userPersonalization', {
+            updated: userPersonalizationResult.hasNewUserPersonalization,
+          });
+
+          // Backup chat history
+          await this.delayFn(this.delayBetweenRequests);
+          const chatResult = await this._backupChatHistory(personalityData, authData);
+          job.updateResults('chatHistory', {
+            newMessageCount: chatResult.newMessageCount,
+            totalMessages: chatResult.totalMessages,
+            updated: chatResult.hasNewMessages,
+          });
+        }
+      } else {
+        // Limited backup for non-owners
+        // For non-owners, the private API returns the same limited data as public API
+        // We can still get the personality ID, but limited profile data
+        job.updateResults('profile', {
+          updated: false,
+          skipped: true,
+          reason: 'Non-owner: Limited public profile data only',
         });
 
-        // Backup chat history
-        await this.delayFn(this.delayBetweenRequests);
-        const chatResult = await this._backupChatHistory(personalityData, authData);
-        job.updateResults('chatHistory', {
-          newMessageCount: chatResult.newMessageCount,
-          totalMessages: chatResult.totalMessages,
-          updated: chatResult.hasNewMessages,
+        // The limited data will always have an ID, so we can always backup memories, user personalization, and chat history
+        if (personalityData.id) {
+          // Backup memories
+          await this.delayFn(this.delayBetweenRequests);
+          const memoryResult = await this._backupMemories(personalityData, authData);
+          job.updateResults('memories', {
+            newCount: memoryResult.newMemoryCount,
+            totalCount: memoryResult.totalMemories,
+            updated: memoryResult.hasNewMemories,
+          });
+
+          // Backup user personalization
+          await this.delayFn(this.delayBetweenRequests);
+          const userPersonalizationResult = await this._backupUserPersonalization(
+            personalityData,
+            authData
+          );
+          job.updateResults('userPersonalization', {
+            updated: userPersonalizationResult.hasNewUserPersonalization,
+          });
+
+          // Backup chat history
+          await this.delayFn(this.delayBetweenRequests);
+          const chatResult = await this._backupChatHistory(personalityData, authData);
+          job.updateResults('chatHistory', {
+            newMessageCount: chatResult.newMessageCount,
+            totalMessages: chatResult.totalMessages,
+            updated: chatResult.hasNewMessages,
+          });
+        } else {
+          // This should not happen as limited data always includes ID, but handle gracefully
+          logger.error(
+            `[BackupService] Unexpected: No personality ID in limited profile data for ${job.personalityName}`
+          );
+          job.updateResults('memories', {
+            updated: false,
+            skipped: true,
+            reason: 'Missing personality ID (unexpected)',
+            newCount: 0,
+            totalCount: 0,
+          });
+          job.updateResults('userPersonalization', {
+            updated: false,
+            skipped: true,
+            reason: 'Missing personality ID (unexpected)',
+          });
+          job.updateResults('chatHistory', {
+            updated: false,
+            skipped: true,
+            reason: 'Missing personality ID (unexpected)',
+            newMessageCount: 0,
+            totalMessages: 0,
+          });
+        }
+
+        // Set results for skipped data types (not available to non-owners)
+        job.updateResults('knowledge', {
+          updated: false,
+          skipped: true,
+          reason: 'Non-owner access',
+          entryCount: 0,
+        });
+        job.updateResults('training', {
+          updated: false,
+          skipped: true,
+          reason: 'Non-owner access',
+          entryCount: 0,
         });
       }
 
-      // Mark backup complete and save
+      // Mark backup complete and conditionally save to filesystem
       personalityData.markBackupComplete();
-      await this.personalityDataRepository.save(personalityData);
+
+      if (job.persistToFilesystem) {
+        await this.personalityDataRepository.save(personalityData);
+        logger.info(
+          `[BackupService] Backup data persisted to filesystem for ${job.personalityName}`
+        );
+      } else {
+        logger.info(
+          `[BackupService] Backup data not persisted to filesystem for ${job.personalityName} (non-owner or temporary backup)`
+        );
+      }
+
+      // Store the personality data in the job for potential ZIP creation from memory
+      job.personalityData = personalityData;
 
       job.complete(job.results);
       logger.info(`[BackupService] Backup completed for ${job.personalityName}`);
@@ -139,9 +280,16 @@ class BackupService {
    * @param {string} userId - User requesting backup
    * @param {Object} authData - Authentication data
    * @param {Function} [progressCallback] - Callback for progress updates
+   * @param {boolean} [persistToFilesystem=true] - Whether to persist backups to filesystem
    * @returns {Promise<Array<BackupJob>>} Array of completed jobs
    */
-  async executeBulkBackup(personalityNames, userId, authData, progressCallback = null) {
+  async executeBulkBackup(
+    personalityNames,
+    userId,
+    authData,
+    progressCallback = null,
+    persistToFilesystem = true
+  ) {
     if (!Array.isArray(personalityNames) || personalityNames.length === 0) {
       throw new Error('Invalid personality names: must be non-empty array');
     }
@@ -153,6 +301,7 @@ class BackupService {
           personalityName,
           userId,
           isBulk: true,
+          persistToFilesystem,
         })
     );
 
@@ -229,7 +378,19 @@ class BackupService {
       personalityData.name,
       authData
     );
-    return personalityData.syncMemories(memories);
+    logger.debug(
+      `[BackupService] API returned ${memories?.length || 0} memories for ${personalityData.name}`
+    );
+
+    const result = personalityData.syncMemories(memories);
+    logger.debug(
+      `[BackupService] PersonalityData sync result for ${personalityData.name}: ${JSON.stringify(result)}`
+    );
+    logger.debug(
+      `[BackupService] PersonalityData now has ${personalityData.memories?.length || 0} memories stored`
+    );
+
+    return result;
   }
 
   /**
@@ -268,7 +429,19 @@ class BackupService {
       personalityData.name,
       authData
     );
-    return personalityData.updateUserPersonalization(userPersonalization);
+    logger.debug(
+      `[BackupService] API returned user personalization for ${personalityData.name}: ${JSON.stringify(userPersonalization)}`
+    );
+
+    const result = personalityData.updateUserPersonalization(userPersonalization);
+    logger.debug(
+      `[BackupService] PersonalityData user personalization sync result for ${personalityData.name}: ${JSON.stringify(result)}`
+    );
+    logger.debug(
+      `[BackupService] PersonalityData now has ${Object.keys(personalityData.userPersonalization || {}).length} user personalization keys`
+    );
+
+    return result;
   }
 
   /**
@@ -281,7 +454,19 @@ class BackupService {
       personalityData.name,
       authData
     );
-    return personalityData.syncChatHistory(chatHistory);
+    logger.debug(
+      `[BackupService] API returned ${chatHistory?.length || 0} chat messages for ${personalityData.name}`
+    );
+
+    const result = personalityData.syncChatHistory(chatHistory);
+    logger.debug(
+      `[BackupService] PersonalityData chat history sync result for ${personalityData.name}: ${JSON.stringify(result)}`
+    );
+    logger.debug(
+      `[BackupService] PersonalityData now has ${personalityData.chatHistory?.length || 0} chat messages stored`
+    );
+
+    return result;
   }
 
   /**
@@ -292,15 +477,38 @@ class BackupService {
     const { results } = job;
     const { personalityName } = job;
 
-    let message =
-      `✅ Backup complete for **${personalityName}**\n` +
-      `• Profile: Updated\n` +
-      `• New memories: ${results.memories.newCount}\n` +
-      `• Total memories: ${results.memories.totalCount}\n` +
-      `• Knowledge: ${results.knowledge.updated ? 'Updated' : 'Unchanged'} (${results.knowledge.entryCount} entries)\n` +
-      `• Training: ${results.training.updated ? 'Updated' : 'Unchanged'} (${results.training.entryCount} entries)\n` +
-      `• User Personalization: ${results.userPersonalization.updated ? 'Updated' : 'Unchanged'}\n` +
-      `• Chat History: ${results.chatHistory.newMessageCount} new messages (total: ${results.chatHistory.totalMessages})`;
+    let message = `✅ Backup complete for **${personalityName}**\n`;
+
+    // Profile data
+    if (results.profile.skipped) {
+      message += `• Profile: Skipped (${results.profile.reason})\n`;
+    } else {
+      message += `• Profile: ${results.profile.updated ? 'Updated' : 'Unchanged'}\n`;
+    }
+
+    // Memory data
+    message += `• New memories: ${results.memories.newCount || 0}\n`;
+    message += `• Total memories: ${results.memories.totalCount || 0}\n`;
+
+    // Knowledge data
+    if (results.knowledge.skipped) {
+      message += `• Knowledge: Skipped (${results.knowledge.reason})\n`;
+    } else {
+      message += `• Knowledge: ${results.knowledge.updated ? 'Updated' : 'Unchanged'} (${results.knowledge.entryCount} entries)\n`;
+    }
+
+    // Training data
+    if (results.training.skipped) {
+      message += `• Training: Skipped (${results.training.reason})\n`;
+    } else {
+      message += `• Training: ${results.training.updated ? 'Updated' : 'Unchanged'} (${results.training.entryCount} entries)\n`;
+    }
+
+    // User personalization
+    message += `• User Personalization: ${results.userPersonalization.updated ? 'Updated' : 'Unchanged'}\n`;
+
+    // Chat history
+    message += `• Chat History: ${results.chatHistory.newMessageCount || 0} new messages (total: ${results.chatHistory.totalMessages || 0})`;
 
     await progressCallback(message);
   }
@@ -326,6 +534,20 @@ class BackupService {
   _createDefaultDelayFn() {
     // eslint-disable-next-line no-restricted-syntax
     return ms => new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Convert display name to hyphenated filename-safe format
+   * @private
+   * @param {string} displayName - User's display name
+   * @returns {string} Hyphenated version
+   */
+  _convertToHyphenated(displayName) {
+    return displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove non-alphanumeric except spaces
+      .trim()
+      .replace(/\s+/g, '-'); // Replace spaces with hyphens
   }
 }
 

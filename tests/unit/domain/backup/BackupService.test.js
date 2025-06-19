@@ -28,6 +28,7 @@ describe('BackupService', () => {
     };
 
     mockApiClientService = {
+      fetchCurrentUser: jest.fn(),
       fetchPersonalityProfile: jest.fn(),
       fetchAllMemories: jest.fn(),
       fetchKnowledgeData: jest.fn(),
@@ -88,11 +89,18 @@ describe('BackupService', () => {
       mockPersonalityDataRepository.load.mockResolvedValue(personalityData);
       mockPersonalityDataRepository.save.mockResolvedValue(undefined);
 
+      // Mock ownership check - user is owner
+      mockApiClientService.fetchCurrentUser.mockResolvedValue({
+        id: 'user123',
+        username: 'testuser',
+      });
+
       // Mock successful API responses
       mockApiClientService.fetchPersonalityProfile.mockResolvedValue({
         id: 'personality-id-123',
         name: 'TestPersonality',
         description: 'Test description',
+        user_id: 'user123', // Same as current user - makes them owner
       });
 
       mockApiClientService.fetchAllMemories.mockResolvedValue([
@@ -194,7 +202,9 @@ describe('BackupService', () => {
       const result = await backupService.executeBackup(job, authData, mockProgressCallback);
 
       expect(result.status).toBe(BackupStatus.COMPLETED);
-      expect(result.results.profile.updated).toBe(true);
+      expect(result.results.profile.updated).toBe(false);
+      expect(result.results.profile.skipped).toBe(true);
+      expect(result.results.profile.reason).toBe('Non-owner: Limited public profile data only');
 
       // Other API methods should not be called for personality without ID
       expect(mockApiClientService.fetchAllMemories).not.toHaveBeenCalled();

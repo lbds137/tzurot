@@ -149,6 +149,16 @@ class PersonalityRouter {
   }
 
   /**
+   * List personalities for a specific user
+   * @param {string} userId - User ID to list personalities for
+   * @returns {Array} Array of personalities owned by the user
+   */
+  async listPersonalitiesForUser(userId) {
+    this.routingStats.newReads++;
+    return this._newListPersonalitiesForUser(userId);
+  }
+
+  /**
    * Get routing statistics
    * @returns {Object} Statistics
    */
@@ -247,6 +257,17 @@ class PersonalityRouter {
     }
   }
 
+  async _newListPersonalitiesForUser(userId) {
+    this._ensurePersonalityService();
+    try {
+      const personalities = await this.personalityService.listPersonalitiesByOwner(userId);
+      return personalities.map(p => this._convertDDDToLegacyFormat(p));
+    } catch (error) {
+      this.logger.error('[PersonalityRouter] Error in new system listPersonalitiesForUser:', error);
+      throw error;
+    }
+  }
+
   /**
    * Convert DDD personality format to legacy format
    * @param {Object} dddPersonality - DDD format personality
@@ -260,6 +281,7 @@ class PersonalityRouter {
       fullName: personality.profile?.name || personality.name,
       displayName:
         personality.profile?.displayName || personality.profile?.name || personality.name,
+      addedBy: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
       owner: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
       aliases: personality.aliases?.map(a => a.value || a.alias || a) || [],
       avatarUrl: personality.profile?.avatarUrl,

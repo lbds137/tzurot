@@ -99,13 +99,8 @@ function createExecutor(_dependencies) {
       // Look up the personality
       let personality;
       try {
-        // First try direct lookup
+        // The getPersonality method handles both name and alias lookup internally
         personality = await personalityService.getPersonality(personalityInput);
-
-        // If not found, try as alias
-        if (!personality) {
-          personality = await personalityService.findPersonalityByAlias(personalityInput);
-        }
       } catch (error) {
         logger.error('[ActivateCommand] Error looking up personality:', error);
         const errorEmbed = {
