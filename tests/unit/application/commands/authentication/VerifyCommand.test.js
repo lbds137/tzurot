@@ -42,7 +42,8 @@ describe('VerifyCommand', () => {
       channelId: 'channel123',
       guildId: 'guild123',
       commandPrefix: '!tz ',
-      isDM: false,
+      isDM: jest.fn().mockReturnValue(false),
+      getGuildId: jest.fn().mockReturnValue('guild123'),
       args: [],
       options: {},
       dependencies: {
@@ -78,7 +79,8 @@ describe('VerifyCommand', () => {
 
   describe('DM channel handling', () => {
     it('should explain verification requirements when run in DM', async () => {
-      mockContext.isDM = true;
+      mockContext.isDM.mockReturnValue(true);
+      mockContext.getGuildId.mockReturnValue(null);
 
       await verifyCommand.execute(mockContext);
 
@@ -225,7 +227,8 @@ describe('VerifyCommand', () => {
     });
 
     it('should handle missing guild information', async () => {
-      mockContext.guildId = null;
+      mockContext.getGuildId.mockReturnValue(null);
+      mockContext.originalMessage.guild = null;
 
       await verifyCommand.execute(mockContext);
 

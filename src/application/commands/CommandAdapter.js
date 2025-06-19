@@ -41,7 +41,7 @@ class DiscordCommandAdapter {
         userId: message.author.id,
         channelId: message.channel.id,
         guildId: message.guild?.id || null,
-        isDM: !message.guild,
+        isDirectMessage: !message.guild,
         commandPrefix: botPrefix,
         originalMessage: message,
       });

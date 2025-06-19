@@ -49,7 +49,7 @@ function createExecutor(_dependencies) {
       const isAlreadyVerified = auth.isNsfwVerified(context.userId);
 
       // Check if this is a DM channel
-      const isDM = context.isDM;
+      const isDM = context.isDM();
 
       // If the command is run in a DM, explain it needs to be run in a server
       if (isDM) {
@@ -174,7 +174,7 @@ function createExecutor(_dependencies) {
       // If not in a NSFW channel, check if the user has access to any NSFW channels in this server
       try {
         // Get guild information through context (platform-agnostic)
-        if (!context.guildId) {
+        if (!context.getGuildId()) {
           const serverErrorEmbed = {
             title: '❌ Verification Error',
             description: 'Unable to verify server information.',

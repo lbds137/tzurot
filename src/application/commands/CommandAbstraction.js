@@ -149,6 +149,13 @@ class CommandContext {
     options = {}, // Named options (for slash commands)
     reply, // Reply function
     dependencies = {}, // Injected dependencies
+    // Additional properties for better context
+    userId, // User ID
+    channelId, // Channel ID
+    guildId, // Guild ID
+    isDirectMessage = false, // Whether this is a DM
+    commandPrefix, // Command prefix used
+    originalMessage, // Original message object (same as message, for compatibility)
   }) {
     this.platform = platform;
     this.isSlashCommand = isSlashCommand;
@@ -161,6 +168,13 @@ class CommandContext {
     this.options = options;
     this.reply = reply;
     this.dependencies = dependencies;
+    // Store additional properties
+    this.userId = userId;
+    this.channelId = channelId;
+    this.guildId = guildId;
+    this.isDirectMessage = isDirectMessage;
+    this.commandPrefix = commandPrefix;
+    this.originalMessage = originalMessage || message;
   }
 
   /**
@@ -206,29 +220,34 @@ class CommandContext {
    * Get user ID in platform-agnostic way
    */
   getUserId() {
-    return this.author?.id || this.author?.userId || null;
+    return this.userId || this.author?.id || this.author?.userId || null;
   }
 
   /**
    * Get channel ID in platform-agnostic way
    */
   getChannelId() {
-    return this.channel?.id || this.channel?.channelId || null;
+    return this.channelId || this.channel?.id || this.channel?.channelId || null;
   }
 
   /**
    * Get guild ID in platform-agnostic way
    */
   getGuildId() {
-    return this.guild?.id || this.guild?.guildId || null;
+    return this.guildId || this.guild?.id || this.guild?.guildId || null;
   }
 
   /**
    * Check if command was used in DM
    */
   isDM() {
+    // If isDirectMessage was explicitly set, use that
+    if (this.isDirectMessage !== undefined) {
+      return this.isDirectMessage;
+    }
+    // Otherwise, determine based on platform
     if (this.platform === 'discord') {
-      return !this.guild;
+      return !this.guild && !this.guildId;
     } else if (this.platform === 'revolt') {
       return this.channel?.channel_type === 'DirectMessage';
     }
