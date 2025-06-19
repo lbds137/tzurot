@@ -43,22 +43,63 @@ function createExecutor(dependencies) {
 
       // If the command is run in a DM, explain it needs to be run in a server
       if (isDM) {
-        return await context.respond(
-          '⚠️ **Age Verification Required**\n\n' +
-            'This command must be run in a server channel marked as NSFW to verify your age.\n\n' +
-            `Please join a server, find a channel marked as NSFW, and run \`${context.commandPrefix}verify\` there. This will verify that you meet Discord's age requirements for NSFW content.\n\n` +
-            'This verification is required to use AI personalities in Direct Messages.'
-        );
+        const dmErrorEmbed = {
+          title: '⚠️ Age Verification Required',
+          description: 'This command must be run in a server channel marked as NSFW to verify your age.',
+          color: 0xff9800, // Orange color
+          fields: [
+            {
+              name: 'Why NSFW channel?',
+              value: "Discord's age verification system uses NSFW channel access to confirm age requirements.",
+              inline: false,
+            },
+            {
+              name: 'How to verify',
+              value: `1. Join a Discord server\n2. Find an NSFW-marked channel\n3. Run \`${context.commandPrefix}verify\` there`,
+              inline: false,
+            },
+            {
+              name: 'What happens after?',
+              value: 'Once verified, you can use AI personalities in Direct Messages.',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: 'This is a one-time verification process',
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [dmErrorEmbed] });
       }
 
       // Check if the current channel is NSFW (platform-agnostic)
       const isCurrentChannelNSFW = await context.isChannelNSFW();
 
       if (isAlreadyVerified) {
-        return await context.respond(
-          '✅ **Already Verified**\n\n' +
-            'You are already verified to access AI personalities in Direct Messages. No further action is needed.'
-        );
+        const alreadyVerifiedEmbed = {
+          title: '✅ Already Verified',
+          description: 'You are already verified to access AI personalities in Direct Messages.',
+          color: 0x4caf50, // Green color
+          fields: [
+            {
+              name: 'Status',
+              value: 'Age verification complete',
+              inline: true,
+            },
+            {
+              name: 'DM Access',
+              value: 'Enabled',
+              inline: true,
+            },
+            {
+              name: 'What now?',
+              value: 'You can use any AI personality in Direct Messages without restrictions.',
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [alreadyVerifiedEmbed] });
       }
 
       // If the current channel is NSFW, the user is automatically verified
@@ -67,16 +108,53 @@ function createExecutor(dependencies) {
         const success = await auth.storeNsfwVerification(context.userId, true);
 
         if (success) {
-          return await context.respond(
-            '✅ **Verification Successful**\n\n' +
-              'You have been successfully verified to use AI personalities in Direct Messages.\n\n' +
-              "This verification confirms you meet Discord's age requirements for accessing NSFW content."
-          );
+          const successEmbed = {
+            title: '✅ Verification Successful',
+            description: 'You have been successfully verified to use AI personalities in Direct Messages.',
+            color: 0x4caf50, // Green color
+            fields: [
+              {
+                name: 'What does this mean?',
+                value: "You've confirmed you meet Discord's age requirements for NSFW content.",
+                inline: false,
+              },
+              {
+                name: 'DM Access',
+                value: 'You can now use all AI personalities in Direct Messages.',
+                inline: false,
+              },
+              {
+                name: 'Verification method',
+                value: 'NSFW channel access confirmed',
+                inline: false,
+              },
+            ],
+            footer: {
+              text: 'This verification is permanent',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [successEmbed] });
         } else {
-          return await context.respond(
-            '❌ **Verification Error**\n\n' +
-              'There was an error storing your verification status. Please try again later.'
-          );
+          const errorEmbed = {
+            title: '❌ Verification Error',
+            description: 'There was an error storing your verification status.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'What happened?',
+                value: 'The verification check passed, but we couldn\'t save your status.',
+                inline: false,
+              },
+              {
+                name: 'What to do',
+                value: '• Try the command again\n• Contact support if the issue persists',
+                inline: false,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [errorEmbed] });
         }
       }
 
@@ -84,10 +162,25 @@ function createExecutor(dependencies) {
       try {
         // Get guild information through context (platform-agnostic)
         if (!context.guildId) {
-          return await context.respond(
-            '❌ **Verification Error**\n\n' +
-              'Unable to verify server information. Please try again in a server channel.'
-          );
+          const serverErrorEmbed = {
+            title: '❌ Verification Error',
+            description: 'Unable to verify server information.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'Issue',
+                value: 'Cannot access server data from this context.',
+                inline: false,
+              },
+              {
+                name: 'Solution',
+                value: 'Please try again in a regular server channel (not a thread or forum).',
+                inline: false,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [serverErrorEmbed] });
         }
 
         // Find NSFW channels that the user has access to
@@ -100,38 +193,136 @@ function createExecutor(dependencies) {
 
           if (success) {
             // Format channel list for Discord
-            const channelList = nsfwChannels.map(id => `<#${id}>`).join(', ');
+            const channelList = nsfwChannels.slice(0, 5).map(id => `<#${id}>`).join(', ');
+            const moreChannels = nsfwChannels.length > 5 ? `\n...and ${nsfwChannels.length - 5} more` : '';
 
-            return await context.respond(
-              '✅ **Verification Successful**\n\n' +
-                'You have been successfully verified to use AI personalities in Direct Messages.\n\n' +
-                "This verification confirms you meet Discord's age requirements for accessing NSFW content.\n\n" +
-                `**Available NSFW channels**: ${channelList}\nRun the command in one of these channels next time.`
-            );
+            const verifiedEmbed = {
+              title: '✅ Verification Successful',
+              description: 'You have been successfully verified to use AI personalities in Direct Messages.',
+              color: 0x4caf50, // Green color
+              fields: [
+                {
+                  name: 'Verification confirmed',
+                  value: "You meet Discord's age requirements for NSFW content.",
+                  inline: false,
+                },
+                {
+                  name: 'NSFW channels you can access',
+                  value: channelList + moreChannels,
+                  inline: false,
+                },
+                {
+                  name: 'Pro tip',
+                  value: 'Next time, run this command in one of these NSFW channels for instant verification.',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Verification complete',
+              },
+              timestamp: new Date().toISOString(),
+            };
+            return await context.respond({ embeds: [verifiedEmbed] });
           } else {
-            return await context.respond(
-              '❌ **Verification Error**\n\n' +
-                'There was an error storing your verification status. Please try again later.'
-            );
+            const storeErrorEmbed = {
+              title: '❌ Verification Error',
+              description: 'There was an error storing your verification status.',
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What happened?',
+                  value: 'The verification check passed, but we couldn\'t save your status.',
+                  inline: false,
+                },
+                {
+                  name: 'What to do',
+                  value: '• Try the command again\n• Contact support if the issue persists',
+                  inline: false,
+                },
+              ],
+              timestamp: new Date().toISOString(),
+            };
+            return await context.respond({ embeds: [storeErrorEmbed] });
           }
         } else {
           // The user doesn't have access to any NSFW channels
-          return await context.respond(
-            '⚠️ **Unable to Verify**\n\n' +
-              "You need to run this command in a channel marked as NSFW. This channel is not marked as NSFW, and you don't have access to any NSFW channels in this server.\n\n" +
-              'Please try again in a different server with NSFW channels that you can access.'
-          );
+          const noAccessEmbed = {
+            title: '⚠️ Unable to Verify',
+            description: 'Age verification requires access to NSFW channels.',
+            color: 0xff9800, // Orange color
+            fields: [
+              {
+                name: 'Current situation',
+                value: '• This channel is not marked as NSFW\n• You don\'t have access to any NSFW channels in this server',
+                inline: false,
+              },
+              {
+                name: 'What you need',
+                value: 'Access to at least one NSFW-marked channel to verify your age.',
+                inline: false,
+              },
+              {
+                name: 'Solutions',
+                value: '• Ask a server admin for NSFW channel access\n• Try in a different server where you have NSFW access\n• Join a server with public NSFW channels',
+                inline: false,
+              },
+            ],
+            footer: {
+              text: 'NSFW access confirms age requirements',
+            },
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [noAccessEmbed] });
         }
       } catch (error) {
         logger.error('[VerifyCommand] Error checking NSFW channels:', error);
-        return await context.respond(
-          '❌ **Verification Error**\n\n' +
-            `An error occurred during verification: ${error.message}`
-        );
+        const channelErrorEmbed = {
+          title: '❌ Verification Error',
+          description: 'An error occurred while checking NSFW channel access.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'Error details',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value: '• Try again in a moment\n• Make sure you\'re in a regular server channel\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [channelErrorEmbed] });
       }
     } catch (error) {
       logger.error('[VerifyCommand] Unexpected error:', error);
-      return await context.respond('❌ An unexpected error occurred. Please try again later.');
+      const unexpectedErrorEmbed = {
+        title: '❌ Unexpected Error',
+        description: 'An unexpected error occurred during the verification process.',
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'Error details',
+            value: error.message || 'Unknown error',
+            inline: false,
+          },
+          {
+            name: 'What to do',
+            value: '• Try again in a few moments\n• Check your internet connection\n• Contact support if the issue persists',
+            inline: false,
+          },
+        ],
+        footer: {
+          text: `Error ID: ${Date.now()}`,
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [unexpectedErrorEmbed] });
     }
   };
 }

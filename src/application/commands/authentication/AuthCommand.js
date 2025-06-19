@@ -64,11 +64,28 @@ function createExecutor(dependencies) {
       // Check if this is a webhook message from a proxy system
       if (isWebhook && webhookUserTracker?.isProxySystemWebhook(context.originalMessage)) {
         logger.info('[AuthCommand] Detected proxy system webhook for auth command');
-        return await context.respond(
-          '**Authentication with Proxy Systems**\n\n' +
-            "For security reasons, authentication commands can't be used through webhook systems like PluralKit.\n\n" +
-            'Please use your regular Discord account (without the proxy) to run authentication commands.'
-        );
+        const proxyWarningEmbed = {
+          title: '❌ Authentication with Proxy Systems',
+          description: "For security reasons, authentication commands can't be used through webhook systems like PluralKit.",
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'Why is this blocked?',
+              value: 'Authentication requires direct verification of your Discord identity, which proxy systems bypass.',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value: 'Please use your regular Discord account (without the proxy) to run authentication commands.',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: 'This is a security measure to protect your account',
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [proxyWarningEmbed] });
       }
 
       // Get action from options or args
@@ -91,14 +108,52 @@ function createExecutor(dependencies) {
           return await handleRevoke(context, auth);
         case 'cleanup':
           return await handleCleanup(context, auth);
-        default:
-          return await context.respond(
-            `Unknown auth subcommand: \`${action}\`. Use \`${context.commandPrefix}auth\` to see available subcommands.`
-          );
+        default: {
+          const unknownActionEmbed = {
+            title: '❌ Unknown Auth Command',
+            description: `"${action}" is not a valid auth subcommand.`,
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'Available subcommands',
+                value: 'start, code, status, revoke',
+                inline: false,
+              },
+              {
+                name: 'Get help',
+                value: `Use \`${context.commandPrefix || context.dependencies?.botPrefix || '!tz'} auth\` to see detailed help`,
+                inline: false,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [unknownActionEmbed] });
+        }
       }
     } catch (error) {
       logger.error('[AuthCommand] Unexpected error:', error);
-      return await context.respond('❌ An unexpected error occurred. Please try again later.');
+      const errorEmbed = {
+        title: '❌ Authentication Error',
+        description: 'An unexpected error occurred while processing your authentication request.',
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'Error details',
+            value: error.message || 'Unknown error',
+            inline: false,
+          },
+          {
+            name: 'What to do',
+            value: '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
+            inline: false,
+          },
+        ],
+        footer: {
+          text: `Error ID: ${Date.now()}`,
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [errorEmbed] });
     }
   };
 }
@@ -109,26 +164,47 @@ function createExecutor(dependencies) {
 async function showHelp(context) {
   const { commandPrefix } = context;
 
-  let helpText =
-    '**🔐 Authentication Required**\n\n' +
-    `To get started, run: \`${commandPrefix}auth start\`\n\n` +
-    '**Available Commands:**\n' +
-    `- \`${commandPrefix}auth start\` - Begin the authentication process\n` +
-    `- \`${commandPrefix}auth code <code>\` - Submit your authorization code (DM only)\n` +
-    `- \`${commandPrefix}auth status\` - Check your authentication status\n` +
-    `- \`${commandPrefix}auth revoke\` - Revoke your authorization\n\n` +
-    '⚠️ For security, authorization codes must be submitted via DM only.';
+  const fields = [
+    {
+      name: 'Available Commands',
+      value:
+        `• \`${commandPrefix}auth start\` - Begin the authentication process\n` +
+        `• \`${commandPrefix}auth code <code>\` - Submit your authorization code (DM only)\n` +
+        `• \`${commandPrefix}auth status\` - Check your authentication status\n` +
+        `• \`${commandPrefix}auth revoke\` - Revoke your authorization`,
+      inline: false,
+    },
+    {
+      name: '⚠️ Security Notice',
+      value: 'For security, authorization codes must be submitted via DM only.',
+      inline: false,
+    },
+  ];
 
   // Check if user is admin or bot owner for additional commands
   const isAdmin = await context.hasPermission('Administrator');
   const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
 
   if (isAdmin || isBotOwner) {
-    helpText +=
-      '\n\n**Admin Commands:**\n' + `- \`${commandPrefix}auth cleanup\` - Clean up expired tokens`;
+    fields.push({
+      name: '👨‍💼 Admin Commands',
+      value: `• \`${commandPrefix}auth cleanup\` - Clean up expired tokens`,
+      inline: false,
+    });
   }
 
-  return await context.respond(helpText);
+  const helpEmbed = {
+    title: '🔐 Authentication Help',
+    description: `To get started, run: \`${commandPrefix}auth start\``,
+    color: 0x2196f3, // Blue color
+    fields: fields,
+    footer: {
+      text: 'Authentication ensures secure access to your personal AI service',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  return await context.respond({ embeds: [helpEmbed] });
 }
 
 /**
@@ -139,9 +215,20 @@ async function handleStart(context, auth) {
     const authUrl = await auth.getAuthorizationUrl();
 
     if (!authUrl) {
-      return await context.respond(
-        '❌ Failed to generate authentication URL. Please try again later.'
-      );
+      const errorEmbed = {
+        title: '❌ Authentication Failed',
+        description: 'Failed to generate authentication URL.',
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'What to do',
+            value: '• Try again in a moment\n• Check if the bot is properly configured\n• Contact support if the issue persists',
+            inline: false,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [errorEmbed] });
     }
 
     // Check if this is a DM
@@ -149,37 +236,142 @@ async function handleStart(context, auth) {
 
     if (isDM) {
       // In DMs, we can safely send the auth URL directly
-      return await context.respond(
-        '**Authentication Required**\n\n' +
-          'Please click the link below to authenticate with the service:\n\n' +
-          `${authUrl}\n\n` +
-          `After authorizing, you'll receive a code. Use \`${context.commandPrefix}auth code YOUR_CODE\` to complete the process.`
-      );
+      const authEmbed = {
+        title: '🔐 Authentication Required',
+        description: 'Please follow these steps to authenticate with the AI service:',
+        color: 0x2196f3, // Blue color
+        fields: [
+          {
+            name: '1️⃣ Click the link',
+            value: `[Authenticate with AI Service](${authUrl})`,
+            inline: false,
+          },
+          {
+            name: '2️⃣ Authorize the application',
+            value: 'Follow the prompts to grant permission',
+            inline: false,
+          },
+          {
+            name: '3️⃣ Copy your code',
+            value: "You'll receive an authorization code after approval",
+            inline: false,
+          },
+          {
+            name: '4️⃣ Submit your code',
+            value: `Use \`${context.commandPrefix}auth code YOUR_CODE\` to complete`,
+            inline: false,
+          },
+        ],
+        footer: {
+          text: 'This link is unique to you and will expire',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [authEmbed] });
     } else {
       // In public channels, try to send a DM
       try {
-        await context.sendDM(
-          '**Authentication Required**\n\n' +
-            'Please click the link below to authenticate with the service:\n\n' +
-            `${authUrl}\n\n` +
-            `After authorizing, you'll receive a code. Use \`${context.commandPrefix}auth code YOUR_CODE\` here in DM to complete the process.`
-        );
+        const dmAuthEmbed = {
+          title: '🔐 Authentication Required',
+          description: 'Please follow these steps to authenticate with the AI service:',
+          color: 0x2196f3, // Blue color
+          fields: [
+            {
+              name: '1️⃣ Click the link',
+              value: `[Authenticate with AI Service](${authUrl})`,
+              inline: false,
+            },
+            {
+              name: '2️⃣ Authorize the application',
+              value: 'Follow the prompts to grant permission',
+              inline: false,
+            },
+            {
+              name: '3️⃣ Copy your code',
+              value: "You'll receive an authorization code after approval",
+              inline: false,
+            },
+            {
+              name: '4️⃣ Submit your code here',
+              value: `Use \`${context.commandPrefix}auth code YOUR_CODE\` in this DM`,
+              inline: false,
+            },
+          ],
+          footer: {
+            text: 'This link is unique to you and will expire',
+          },
+          timestamp: new Date().toISOString(),
+        };
+        await context.sendDM({ embeds: [dmAuthEmbed] });
 
-        return await context.respond(
-          "I've sent you a DM with authentication instructions. Please check your DMs."
-        );
+        const successEmbed = {
+          title: '📨 Check Your DMs',
+          description: "I've sent you a DM with authentication instructions.",
+          color: 0x4caf50, // Green color
+          fields: [
+            {
+              name: "Can't find the DM?",
+              value: '• Check your Message Requests\n• Make sure DMs are enabled\n• Look for a message from this bot',
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [successEmbed] });
       } catch (dmError) {
         logger.warn(
           `[AuthCommand] Failed to send DM to user ${context.userId}: ${dmError.message}`
         );
-        return await context.respond(
-          '❌ Unable to send you a DM. Please ensure your DMs are open, then try again. You can open DMs in User Settings > Privacy & Safety.'
-        );
+        const dmFailedEmbed = {
+          title: '❌ Unable to Send DM',
+          description: 'I couldn\'t send you a direct message with the authentication link.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'Common reasons',
+              value: '• Your DMs are disabled\n• You blocked the bot\n• Server privacy settings',
+              inline: false,
+            },
+            {
+              name: 'How to fix',
+              value: '1. Go to User Settings > Privacy & Safety\n2. Enable "Allow direct messages from server members"\n3. Try the command again',
+              inline: false,
+            },
+            {
+              name: 'Alternative',
+              value: 'Run this command in a DM with the bot instead',
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [dmFailedEmbed] });
       }
     }
   } catch (error) {
     logger.error(`[AuthCommand] Error starting auth process: ${error.message}`);
-    return await context.respond(`❌ An error occurred: ${error.message}`);
+    const errorEmbed = {
+      title: '❌ Authentication Error',
+      description: 'An unexpected error occurred while starting the authentication process.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Error details',
+          value: error.message || 'Unknown error',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
+          inline: false,
+        },
+      ],
+      footer: {
+        text: `Error ID: ${Date.now()}`,
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -189,9 +381,28 @@ async function handleStart(context, auth) {
 async function handleCode(context, auth, code) {
   // Check if a code was provided
   if (!code) {
-    return await context.respond(
-      `Please provide your authorization code. Usage: \`${context.commandPrefix}auth code YOUR_CODE\``
-    );
+    const missingCodeEmbed = {
+      title: '❌ Code Required',
+      description: 'Please provide your authorization code.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Usage',
+          value: `\`${context.commandPrefix}auth code YOUR_CODE\``,
+          inline: false,
+        },
+        {
+          name: 'Example',
+          value: `\`${context.commandPrefix}auth code abc123def456\``,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'The code is provided after authorizing the app',
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [missingCodeEmbed] });
   }
 
   // For security, only accept auth codes in DMs
@@ -203,9 +414,28 @@ async function handleCode(context, auth, code) {
       logger.warn(`[AuthCommand] Failed to delete auth code message: ${deleteError.message}`);
     }
 
-    return await context.respond(
-      '❌ For security, please submit your authorization code via DM, not in a public channel.'
-    );
+    const securityWarningEmbed = {
+      title: '🔒 Security Warning',
+      description: 'For security, authorization codes must be submitted via DM only.',
+      color: 0xff9800, // Orange color
+      fields: [
+        {
+          name: 'Why DM only?',
+          value: 'Authorization codes are sensitive and should never be shared in public channels.',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: '1. Open a DM with this bot\n2. Run the auth code command there\n3. Your message with the code has been deleted for security',
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'Your security is our priority',
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [securityWarningEmbed] });
   }
 
   // Check if the code is wrapped in Discord spoiler tags ||code||
@@ -223,7 +453,25 @@ async function handleCode(context, auth, code) {
     const token = await auth.exchangeCodeForToken(code);
 
     if (!token) {
-      return await context.respond('❌ Authorization failed. The code may be invalid or expired.');
+      const authFailedEmbed = {
+        title: '❌ Authorization Failed',
+        description: 'Unable to validate your authorization code.',
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'Possible reasons',
+            value: '• The code is invalid\n• The code has expired\n• The code was already used',
+            inline: false,
+          },
+          {
+            name: 'What to do',
+            value: `1. Start the auth process again: \`${context.commandPrefix}auth start\`\n2. Make sure to copy the code exactly\n3. Submit the code promptly (codes expire quickly)`,
+            inline: false,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [authFailedEmbed] });
     }
 
     // Store the token
@@ -231,19 +479,81 @@ async function handleCode(context, auth, code) {
     const stored = await auth.storeUserToken(context.userId, token);
 
     if (!stored) {
-      return await context.respond(
-        '❌ Failed to store authorization token. Please try again later.'
-      );
+      const storeFailedEmbed = {
+        title: '❌ Storage Failed',
+        description: 'Unable to save your authorization token.',
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'What happened?',
+            value: 'The authorization was successful, but we couldn\'t save your token.',
+            inline: false,
+          },
+          {
+            name: 'What to do',
+            value: '• Try the process again in a few minutes\n• Contact support if the issue persists',
+            inline: false,
+          },
+        ],
+        footer: {
+          text: 'This is usually a temporary issue',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [storeFailedEmbed] });
     }
 
-    return await context.respond(
-      '✅ Authorization successful! The bot will now use your account for AI interactions.'
-    );
+    const successEmbed = {
+      title: '✅ Authorization Successful!',
+      description: 'Your account has been successfully linked.',
+      color: 0x4caf50, // Green color
+      fields: [
+        {
+          name: 'What happens now?',
+          value: 'The bot will use your personal AI account for all your interactions.',
+          inline: false,
+        },
+        {
+          name: 'Benefits',
+          value: '• Personalized AI responses\n• Your own usage limits\n• Private conversation history',
+          inline: false,
+        },
+        {
+          name: 'Need help?',
+          value: `• Check your status: \`${context.commandPrefix}auth status\`\n• Revoke access: \`${context.commandPrefix}auth revoke\``,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'Thank you for authenticating!',
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [successEmbed] });
   } catch (error) {
     logger.error(`[AuthCommand] Error during auth code exchange: ${error.message}`);
-    return await context.respond(
-      '❌ An error occurred during authorization. Please try again later.'
-    );
+    const errorEmbed = {
+      title: '❌ Authorization Error',
+      description: 'An unexpected error occurred during the authorization process.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Error details',
+          value: error.message || 'Unknown error',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: `• Wait a few minutes and try again\n• Start fresh with \`${context.commandPrefix}auth start\`\n• Contact support if the issue persists`,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: `Error ID: ${Date.now()}`,
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -259,29 +569,89 @@ async function handleStatus(context, auth) {
     const tokenAge = auth.getTokenAge(context.userId);
     const expirationInfo = auth.getTokenExpirationInfo(context.userId);
 
-    let statusMessage =
-      '✅ You have a valid authorization token. The bot is using your account for AI interactions.';
+    const fields = [
+      {
+        name: 'Status',
+        value: '✅ Authorized',
+        inline: true,
+      },
+      {
+        name: 'AI Service',
+        value: 'Using your personal account',
+        inline: true,
+      },
+    ];
 
     // Add token age and expiration info if available
     if (tokenAge !== null && expirationInfo) {
-      statusMessage += '\n\n**Token Details:**\n';
-      statusMessage += `- Created: ${tokenAge} day${tokenAge !== 1 ? 's' : ''} ago\n`;
-      statusMessage += `- Expires in: ${expirationInfo.daysUntilExpiration} day${
-        expirationInfo.daysUntilExpiration !== 1 ? 's' : ''
-      }\n`;
-      statusMessage += `- Time remaining: ${expirationInfo.percentRemaining}%`;
+      fields.push({
+        name: 'Token Age',
+        value: `${tokenAge} day${tokenAge !== 1 ? 's' : ''}`,
+        inline: true,
+      });
+      
+      fields.push({
+        name: 'Expires In',
+        value: `${expirationInfo.daysUntilExpiration} day${
+          expirationInfo.daysUntilExpiration !== 1 ? 's' : ''
+        }`,
+        inline: true,
+      });
+      
+      fields.push({
+        name: 'Time Remaining',
+        value: `${expirationInfo.percentRemaining}%`,
+        inline: true,
+      });
 
       // Add warning if token is expiring soon (less than 7 days)
       if (expirationInfo.daysUntilExpiration < 7) {
-        statusMessage += `\n\n⚠️ **Your token will expire soon.** When it expires, you'll need to re-authenticate. Use \`${context.commandPrefix}auth revoke\` and then \`${context.commandPrefix}auth start\` to renew your token.`;
+        fields.push({
+          name: '⚠️ Token Expiring Soon',
+          value: `Your token will expire soon. Use \`${context.commandPrefix}auth revoke\` and then \`${context.commandPrefix}auth start\` to renew your token.`,
+          inline: false,
+        });
       }
     }
 
-    return await context.respond(statusMessage);
+    const statusEmbed = {
+      title: '🔐 Authentication Status',
+      description: 'Your authorization is active. The bot is using your personal AI account for all interactions.',
+      color: 0x4caf50, // Green color
+      fields: fields,
+      footer: {
+        text: 'Token details shown above',
+      },
+      timestamp: new Date().toISOString(),
+    };
+
+    return await context.respond({ embeds: [statusEmbed] });
   } else {
-    return await context.respond(
-      `❌ You don't have an authorization token. Use \`${context.commandPrefix}auth start\` to begin the authorization process.`
-    );
+    const notAuthorizedEmbed = {
+      title: '❌ Not Authorized',
+      description: "You don't have an active authorization token.",
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'What does this mean?',
+          value: 'The bot is using the shared AI service instead of your personal account.',
+          inline: false,
+        },
+        {
+          name: 'Get started',
+          value: `Use \`${context.commandPrefix}auth start\` to begin the authorization process.`,
+          inline: false,
+        },
+        {
+          name: 'Benefits of authorizing',
+          value: '• Personal AI responses\n• Your own usage limits\n• Private conversation history',
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    
+    return await context.respond({ embeds: [notAuthorizedEmbed] });
   }
 }
 
@@ -293,11 +663,53 @@ async function handleRevoke(context, auth) {
   const deleted = await auth.deleteUserToken(context.userId);
 
   if (deleted) {
-    return await context.respond(
-      '✅ Your authorization has been revoked. The bot will no longer use your personal account.'
-    );
+    const successEmbed = {
+      title: '✅ Authorization Revoked',
+      description: 'Your authorization has been successfully revoked.',
+      color: 0x4caf50, // Green color
+      fields: [
+        {
+          name: 'What happened?',
+          value: 'Your personal AI account has been disconnected from the bot.',
+          inline: false,
+        },
+        {
+          name: 'What now?',
+          value: 'The bot will use the shared AI service for your interactions.',
+          inline: false,
+        },
+        {
+          name: 'Want to re-authorize?',
+          value: `Use \`${context.commandPrefix}auth start\` to connect your account again.`,
+          inline: false,
+        },
+      ],
+      footer: {
+        text: 'Your token has been securely deleted',
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [successEmbed] });
   } else {
-    return await context.respond('❌ Failed to revoke authorization. Please try again later.');
+    const errorEmbed = {
+      title: '❌ Revocation Failed',
+      description: 'Unable to revoke your authorization.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Possible reasons',
+          value: '• You may not have an active token\n• There was a temporary system error',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: `• Check your status: \`${context.commandPrefix}auth status\`\n• Try again in a moment\n• Contact support if the issue persists`,
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -310,9 +722,30 @@ async function handleCleanup(context, auth) {
   const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
 
   if (!isAdmin && !isBotOwner) {
-    return await context.respond(
-      '❌ This command can only be used by server administrators or the bot owner.'
-    );
+    const permissionEmbed = {
+      title: '❌ Permission Denied',
+      description: 'This command requires administrator permissions.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Required permissions',
+          value: 'Server Administrator or Bot Owner',
+          inline: true,
+        },
+        {
+          name: 'Your role',
+          value: 'Regular User',
+          inline: true,
+        },
+        {
+          name: 'Why is this restricted?',
+          value: 'Token cleanup affects all users and should only be performed by administrators.',
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [permissionEmbed] });
   }
 
   try {
@@ -320,15 +753,91 @@ async function handleCleanup(context, auth) {
     const removedCount = await auth.cleanupExpiredTokens();
 
     if (removedCount > 0) {
-      return await context.respond(
-        `✅ Cleanup complete. Removed ${removedCount} expired token${removedCount === 1 ? '' : 's'}.`
-      );
+      const successEmbed = {
+        title: '✅ Cleanup Complete',
+        description: `Successfully removed ${removedCount} expired token${removedCount === 1 ? '' : 's'}.`,
+        color: 0x4caf50, // Green color
+        fields: [
+          {
+            name: 'Tokens removed',
+            value: removedCount.toString(),
+            inline: true,
+          },
+          {
+            name: 'Status',
+            value: 'Complete',
+            inline: true,
+          },
+          {
+            name: 'What was cleaned?',
+            value: 'Expired authentication tokens that were no longer valid.',
+            inline: false,
+          },
+          {
+            name: 'Impact',
+            value: 'Affected users will need to re-authenticate when they next use the bot.',
+            inline: false,
+          },
+        ],
+        footer: {
+          text: 'Cleanup performed by administrator',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [successEmbed] });
     } else {
-      return await context.respond('✅ Cleanup complete. No expired tokens were found.');
+      const noTokensEmbed = {
+        title: '✅ Cleanup Complete',
+        description: 'No expired tokens were found.',
+        color: 0x2196f3, // Blue color
+        fields: [
+          {
+            name: 'Tokens removed',
+            value: '0',
+            inline: true,
+          },
+          {
+            name: 'Status',
+            value: 'Nothing to clean',
+            inline: true,
+          },
+          {
+            name: 'System status',
+            value: 'All stored tokens are currently valid.',
+            inline: false,
+          },
+        ],
+        footer: {
+          text: 'System is clean',
+        },
+        timestamp: new Date().toISOString(),
+      };
+      return await context.respond({ embeds: [noTokensEmbed] });
     }
   } catch (error) {
     logger.error(`[AuthCommand] Error during manual cleanup: ${error.message}`);
-    return await context.respond(`❌ An error occurred during cleanup: ${error.message}`);
+    const errorEmbed = {
+      title: '❌ Cleanup Failed',
+      description: 'An error occurred during the cleanup process.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Error details',
+          value: error.message || 'Unknown error',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: '• Check the bot logs for more details\n• Try again in a moment\n• Contact the bot developer if the issue persists',
+          inline: false,
+        },
+      ],
+      footer: {
+        text: `Error ID: ${Date.now()}`,
+      },
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
