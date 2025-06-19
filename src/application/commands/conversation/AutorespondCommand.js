@@ -77,14 +77,14 @@ function createExecutor(_dependencies) {
       }
     } catch (error) {
       logger.error('[AutorespondCommand] Unexpected error:', error);
-      
+
       const errorEmbed = {
         title: '❌ Error',
         description: 'An unexpected error occurred. Please try again later.',
         color: 0xf44336,
         timestamp: new Date().toISOString(),
       };
-      
+
       return await context.respond({ embeds: [errorEmbed] });
     }
   };
@@ -159,14 +159,14 @@ async function enableAutoResponse(context, conversationManager) {
     return await context.respond({ embeds: [embed] });
   } catch (error) {
     logger.error('[AutorespondCommand] Error enabling auto-response:', error);
-    
+
     const errorEmbed = {
       title: '❌ Error',
       description: 'Failed to enable auto-response. Please try again.',
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
-    
+
     return await context.respond({ embeds: [errorEmbed] });
   }
 }
@@ -203,14 +203,14 @@ async function disableAutoResponse(context, conversationManager) {
     return await context.respond({ embeds: [embed] });
   } catch (error) {
     logger.error('[AutorespondCommand] Error disabling auto-response:', error);
-    
+
     const errorEmbed = {
       title: '❌ Error',
       description: 'Failed to disable auto-response. Please try again.',
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
-    
+
     return await context.respond({ embeds: [errorEmbed] });
   }
 }

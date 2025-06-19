@@ -2,7 +2,9 @@
  * Tests for AliasCommand
  */
 
-const { createAliasCommand } = require('../../../../../src/application/commands/personality/AliasCommand');
+const {
+  createAliasCommand,
+} = require('../../../../../src/application/commands/personality/AliasCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 
 describe('AliasCommand', () => {
@@ -14,27 +16,27 @@ describe('AliasCommand', () => {
 
   beforeEach(() => {
     migrationHelper = createMigrationHelper();
-    
+
     // Create the command
     command = createAliasCommand();
-    
+
     // Mock personality service
     mockPersonalityService = {
       addAlias: jest.fn().mockResolvedValue({
         profile: {
           name: 'testpersonality',
           displayName: 'Test Personality',
-          avatarUrl: 'https://example.com/avatar.png'
+          avatarUrl: 'https://example.com/avatar.png',
         },
-        aliases: [{ alias: 'test' }, { alias: 'newalias' }]
-      })
+        aliases: [{ alias: 'test' }, { alias: 'newalias' }],
+      }),
     };
-    
+
     // Mock feature flags
     mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false)
+      isEnabled: jest.fn().mockReturnValue(false),
     };
-    
+
     // Mock context
     mockContext = {
       isSlashCommand: false,
@@ -47,8 +49,8 @@ describe('AliasCommand', () => {
       dependencies: {
         personalityApplicationService: mockPersonalityService,
         featureFlags: mockFeatureFlags,
-        botPrefix: '!tz'
-      }
+        botPrefix: '!tz',
+      },
     };
   });
 
@@ -79,124 +81,133 @@ describe('AliasCommand', () => {
   describe('execute', () => {
     it('should add alias successfully with embed', async () => {
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
         alias: 'newalias',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
-      
+
       // No respondWithEmbed anymore, check the normal respond was called correctly above
     });
 
     it('should add alias successfully without embed support', async () => {
       mockContext.canEmbed.mockReturnValue(false);
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
         alias: 'newalias',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Alias Added Successfully!'
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Alias Added Successfully!',
+          }),
+        ],
       });
     });
-
 
     it('should handle slash command options', async () => {
       mockContext.isSlashCommand = true;
       mockContext.options = {
         personality: 'testpersonality',
-        alias: 'newalias'
+        alias: 'newalias',
       };
       mockContext.args = [];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
         alias: 'newalias',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
     });
 
     it('should require both arguments for text command', async () => {
       mockContext.args = ['testpersonality'];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: 'How to Add an Alias',
-          description: 'Add a nickname or shortcut for an existing personality.',
-          color: 0x2196f3
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: 'How to Add an Alias',
+            description: 'Add a nickname or shortcut for an existing personality.',
+            color: 0x2196f3,
+          }),
+        ],
       });
     });
 
     it('should validate personality name is provided', async () => {
       mockContext.args = ['', 'newalias'];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Missing Personality Name',
-          description: 'Please provide a personality name or existing alias.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Missing Personality Name',
+            description: 'Please provide a personality name or existing alias.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should validate alias is provided', async () => {
       mockContext.args = ['testpersonality', ''];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Missing Alias',
-          description: 'Please provide a new alias to add.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Missing Alias',
+            description: 'Please provide a new alias to add.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should validate alias format', async () => {
       mockContext.args = ['testpersonality', 'bad alias!'];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Invalid Alias Format',
-          description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Alias Format',
+            description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should handle service errors', async () => {
-      mockPersonalityService.addAlias.mockRejectedValue(
-        new Error('Alias already exists')
-      );
-      
+      mockPersonalityService.addAlias.mockRejectedValue(new Error('Alias already exists'));
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: 'An error occurred while adding the alias.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: 'An error occurred while adding the alias.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
@@ -205,18 +216,20 @@ describe('AliasCommand', () => {
         profile: {
           name: 'testpersonality',
           displayName: 'Test Personality',
-          avatarUrl: null
+          avatarUrl: null,
         },
-        aliases: [{ alias: 'test' }, { alias: 'newalias' }]
+        aliases: [{ alias: 'test' }, { alias: 'newalias' }],
       });
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Alias Added Successfully!',
-          description: expect.stringContaining('The alias **newalias** has been added')
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Alias Added Successfully!',
+            description: expect.stringContaining('The alias **newalias** has been added'),
+          }),
+        ],
       });
       // Check thumbnail is not present
       const call = mockContext.respond.mock.calls[0][0];
@@ -227,85 +240,97 @@ describe('AliasCommand', () => {
       mockPersonalityService.addAlias.mockResolvedValue({
         profile: {
           name: 'testpersonality',
-          displayName: null
+          displayName: null,
         },
-        aliases: [{ alias: 'test' }, { alias: 'newalias' }]
+        aliases: [{ alias: 'test' }, { alias: 'newalias' }],
       });
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Alias Added Successfully!',
-          description: expect.stringContaining('The alias **newalias** has been added to **testpersonality**')
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Alias Added Successfully!',
+            description: expect.stringContaining(
+              'The alias **newalias** has been added to **testpersonality**'
+            ),
+          }),
+        ],
       });
     });
 
     it('should handle missing personality service', async () => {
       mockContext.dependencies.personalityApplicationService = null;
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: 'An error occurred while adding the alias.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: 'An error occurred while adding the alias.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should handle service exceptions', async () => {
       mockPersonalityService.addAlias.mockRejectedValue(new Error('Service error'));
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: 'An error occurred while adding the alias.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: 'An error occurred while adding the alias.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should lowercase input arguments', async () => {
       mockContext.args = ['TESTPERSONALITY', 'NEWALIAS'];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
         alias: 'newalias',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
     });
 
     it('should use default bot prefix when not provided', async () => {
       mockContext.dependencies.botPrefix = undefined;
       mockContext.args = ['testpersonality'];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Basic Usage',
-              value: '`!tz alias <personality-name> <new-alias>`'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Basic Usage',
+                value: '`!tz alias <personality-name> <new-alias>`',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
     it('should handle missing user ID', async () => {
       mockContext.getUserId.mockReturnValue(null);
-      
+
       await command.execute(mockContext);
-      
-      expect(mockContext.respond).toHaveBeenCalledWith('Unable to identify user. Please try again.');
+
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        'Unable to identify user. Please try again.'
+      );
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
     });
   });

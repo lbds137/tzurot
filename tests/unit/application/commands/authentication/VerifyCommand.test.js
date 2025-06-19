@@ -2,7 +2,9 @@
  * Tests for VerifyCommand
  */
 
-const { createVerifyCommand } = require('../../../../../src/application/commands/authentication/VerifyCommand');
+const {
+  createVerifyCommand,
+} = require('../../../../../src/application/commands/authentication/VerifyCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
 
@@ -65,7 +67,9 @@ describe('VerifyCommand', () => {
   describe('metadata', () => {
     it('should have correct command metadata', () => {
       expect(verifyCommand.name).toBe('verify');
-      expect(verifyCommand.description).toBe('Verify your age to use AI personalities in Direct Messages');
+      expect(verifyCommand.description).toBe(
+        'Verify your age to use AI personalities in Direct Messages'
+      );
       expect(verifyCommand.category).toBe('Authentication');
       expect(verifyCommand.aliases).toEqual(['nsfw']);
       expect(verifyCommand.options).toHaveLength(0);
@@ -211,7 +215,9 @@ describe('VerifyCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '⚠️ Unable to Verify',
-            description: expect.stringContaining('Age verification requires access to NSFW channels'),
+            description: expect.stringContaining(
+              'Age verification requires access to NSFW channels'
+            ),
             color: 0xff9800,
           }),
         ],
@@ -394,7 +400,9 @@ describe('VerifyCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '⚠️ Unable to Verify',
-            description: expect.stringContaining('Age verification requires access to NSFW channels'),
+            description: expect.stringContaining(
+              'Age verification requires access to NSFW channels'
+            ),
             color: 0xff9800,
           }),
         ],

@@ -24,9 +24,9 @@ describe('Request Tracker', () => {
       const userId = 'user123';
       const channelId = 'channel456';
       const personalityName = 'test-personality';
-      
+
       const result = requestTracker.trackRequest(userId, channelId, personalityName);
-      
+
       expect(result).toBe('user123-channel456-test-personality');
       expect(requestTracker.getActiveRequestCount()).toBe(1);
     });
@@ -35,11 +35,11 @@ describe('Request Tracker', () => {
       const userId = 'user123';
       const channelId = 'channel456';
       const personalityName = 'test-personality';
-      
+
       // First request
       const first = requestTracker.trackRequest(userId, channelId, personalityName);
       expect(first).not.toBeNull();
-      
+
       // Duplicate request
       const second = requestTracker.trackRequest(userId, channelId, personalityName);
       expect(second).toBeNull();
@@ -52,7 +52,7 @@ describe('Request Tracker', () => {
       const result1 = requestTracker.trackRequest('user1', 'channel1', 'personality1');
       const result2 = requestTracker.trackRequest('user2', 'channel1', 'personality1');
       const result3 = requestTracker.trackRequest('user1', 'channel2', 'personality1');
-      
+
       expect(result1).not.toBeNull();
       expect(result2).not.toBeNull();
       expect(result3).not.toBeNull();
@@ -64,7 +64,7 @@ describe('Request Tracker', () => {
     it('should remove a tracked request', () => {
       const requestKey = requestTracker.trackRequest('user123', 'channel456', 'test-personality');
       expect(requestTracker.getActiveRequestCount()).toBe(1);
-      
+
       requestTracker.removeRequest(requestKey);
       expect(requestTracker.getActiveRequestCount()).toBe(0);
       expect(logger.debug).toHaveBeenCalledWith(
@@ -87,7 +87,7 @@ describe('Request Tracker', () => {
   describe('isRequestActive', () => {
     it('should return true for active request', () => {
       requestTracker.trackRequest('user123', 'channel456', 'test-personality');
-      
+
       const isActive = requestTracker.isRequestActive('user123', 'channel456', 'test-personality');
       expect(isActive).toBe(true);
     });
@@ -101,10 +101,10 @@ describe('Request Tracker', () => {
   describe('getRequestAge', () => {
     it('should return age of existing request', () => {
       const requestKey = requestTracker.trackRequest('user123', 'channel456', 'test-personality');
-      
+
       // Advance timers by 100ms
       jest.advanceTimersByTime(100);
-      
+
       const age = requestTracker.getRequestAge(requestKey);
       expect(age).toBeGreaterThanOrEqual(100);
       expect(age).toBeLessThan(200);
@@ -120,15 +120,15 @@ describe('Request Tracker', () => {
     it('should clean up requests older than specified age', () => {
       // Create some requests
       const key1 = requestTracker.trackRequest('user1', 'channel1', 'personality1');
-      
+
       // Advance time by 100ms
       jest.advanceTimersByTime(100);
-      
+
       const key2 = requestTracker.trackRequest('user2', 'channel2', 'personality2');
-      
+
       // Clean up requests older than 50ms
       const cleaned = requestTracker.cleanupStaleRequests(50);
-      
+
       expect(cleaned).toBe(1);
       expect(requestTracker.isRequestActive('user1', 'channel1', 'personality1')).toBe(false);
       expect(requestTracker.isRequestActive('user2', 'channel2', 'personality2')).toBe(true);
@@ -136,7 +136,7 @@ describe('Request Tracker', () => {
 
     it('should return 0 when no stale requests', () => {
       requestTracker.trackRequest('user1', 'channel1', 'personality1');
-      
+
       const cleaned = requestTracker.cleanupStaleRequests(5 * 60 * 1000);
       expect(cleaned).toBe(0);
     });
@@ -146,16 +146,16 @@ describe('Request Tracker', () => {
       const originalNow = Date.now;
       const mockTime = originalNow();
       Date.now = jest.fn(() => mockTime);
-      
+
       // Track a request
       requestTracker.trackRequest('user1', 'channel1', 'personality1');
-      
+
       // Move time forward 6 minutes
       Date.now = jest.fn(() => mockTime + 6 * 60 * 1000);
-      
+
       const cleaned = requestTracker.cleanupStaleRequests();
       expect(cleaned).toBe(1);
-      
+
       // Restore Date.now
       Date.now = originalNow;
     });
@@ -166,7 +166,7 @@ describe('Request Tracker', () => {
       requestTracker.trackRequest('user1', 'channel1', 'personality1');
       requestTracker.trackRequest('user2', 'channel2', 'personality2');
       expect(requestTracker.getActiveRequestCount()).toBe(2);
-      
+
       requestTracker.clearAllRequests();
       expect(requestTracker.getActiveRequestCount()).toBe(0);
       expect(logger.info).toHaveBeenCalledWith('[RequestTracker] Cleared all active requests');
@@ -176,7 +176,7 @@ describe('Request Tracker', () => {
   describe('activeRequests backward compatibility', () => {
     it('should expose activeRequests Map', () => {
       expect(requestTracker.activeRequests).toBeInstanceOf(Map);
-      
+
       // Should be the same instance that's used internally
       requestTracker.trackRequest('user1', 'channel1', 'personality1');
       expect(requestTracker.activeRequests.size).toBe(1);

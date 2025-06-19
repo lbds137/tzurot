@@ -6,7 +6,9 @@
 // Mock dependencies before imports
 jest.mock('../../../../src/logger');
 
-const { PersonalityEventLogger } = require('../../../../src/application/eventHandlers/PersonalityEventLogger');
+const {
+  PersonalityEventLogger,
+} = require('../../../../src/application/eventHandlers/PersonalityEventLogger');
 const logger = require('../../../../src/logger');
 
 describe('PersonalityEventLogger', () => {
@@ -32,11 +34,11 @@ describe('PersonalityEventLogger', () => {
           profile: {
             name: 'test-personality',
             displayName: 'Test Personality',
-            avatarUrl: 'https://example.com/avatar.png'
+            avatarUrl: 'https://example.com/avatar.png',
           },
-          ownerId: '123456789012345678'
+          ownerId: '123456789012345678',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       await eventLogger.handlePersonalityCreated(event);
@@ -52,10 +54,10 @@ describe('PersonalityEventLogger', () => {
         aggregateId: 'minimal-personality',
         payload: {
           profile: {
-            name: 'minimal-personality'
+            name: 'minimal-personality',
           },
-          ownerId: '987654321098765432'
-        }
+          ownerId: '987654321098765432',
+        },
       };
 
       await eventLogger.handlePersonalityCreated(event);
@@ -71,10 +73,10 @@ describe('PersonalityEventLogger', () => {
         aggregateId: 'special-chars-test',
         payload: {
           profile: {
-            name: 'special-chars@test#personality'
+            name: 'special-chars@test#personality',
           },
-          ownerId: '111222333444555666'
-        }
+          ownerId: '111222333444555666',
+        },
       };
 
       await eventLogger.handlePersonalityCreated(event);
@@ -90,8 +92,8 @@ describe('PersonalityEventLogger', () => {
         aggregateId: 'test-personality',
         payload: {
           profile: { name: 'test-personality' },
-          ownerId: '123456789012345678'
-        }
+          ownerId: '123456789012345678',
+        },
       };
 
       const result = await eventLogger.handlePersonalityCreated(event);
@@ -109,10 +111,10 @@ describe('PersonalityEventLogger', () => {
         payload: {
           changes: {
             displayName: 'New Display Name',
-            avatarUrl: 'https://example.com/new-avatar.png'
-          }
+            avatarUrl: 'https://example.com/new-avatar.png',
+          },
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       await eventLogger.handlePersonalityProfileUpdated(event);
@@ -128,8 +130,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityProfileUpdated',
         aggregateId: longPersonalityName,
         payload: {
-          changes: { displayName: 'Updated Name' }
-        }
+          changes: { displayName: 'Updated Name' },
+        },
       };
 
       await eventLogger.handlePersonalityProfileUpdated(event);
@@ -143,7 +145,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityProfileUpdated',
         aggregateId: 'minimal-update',
-        payload: {}
+        payload: {},
       };
 
       await eventLogger.handlePersonalityProfileUpdated(event);
@@ -157,7 +159,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityProfileUpdated',
         aggregateId: 'test-personality',
-        payload: { changes: {} }
+        payload: { changes: {} },
       };
 
       const result = await eventLogger.handlePersonalityProfileUpdated(event);
@@ -173,9 +175,9 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityRemoved',
         aggregateId: 'removed-personality',
         payload: {
-          reason: 'User request'
+          reason: 'User request',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       await eventLogger.handlePersonalityRemoved(event);
@@ -189,7 +191,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityRemoved',
         aggregateId: 'simple-removal',
-        payload: {}
+        payload: {},
       };
 
       await eventLogger.handlePersonalityRemoved(event);
@@ -203,7 +205,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityRemoved',
         aggregateId: 'null-payload-removal',
-        payload: null
+        payload: null,
       };
 
       await eventLogger.handlePersonalityRemoved(event);
@@ -217,7 +219,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityRemoved',
         aggregateId: 'test-personality',
-        payload: {}
+        payload: {},
       };
 
       const result = await eventLogger.handlePersonalityRemoved(event);
@@ -233,9 +235,9 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasAdded',
         aggregateId: 'main-personality',
         payload: {
-          alias: 'new-alias'
+          alias: 'new-alias',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       await eventLogger.handlePersonalityAliasAdded(event);
@@ -250,8 +252,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasAdded',
         aggregateId: 'personality-with-special-chars',
         payload: {
-          alias: 'alias@with#special$chars'
-        }
+          alias: 'alias@with#special$chars',
+        },
       };
 
       await eventLogger.handlePersonalityAliasAdded(event);
@@ -268,8 +270,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasAdded',
         aggregateId: longPersonality,
         payload: {
-          alias: longAlias
-        }
+          alias: longAlias,
+        },
       };
 
       await eventLogger.handlePersonalityAliasAdded(event);
@@ -284,8 +286,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasAdded',
         aggregateId: 'test-personality',
         payload: {
-          alias: ''
-        }
+          alias: '',
+        },
       };
 
       await eventLogger.handlePersonalityAliasAdded(event);
@@ -299,7 +301,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityAliasAdded',
         aggregateId: 'test-personality',
-        payload: { alias: 'test-alias' }
+        payload: { alias: 'test-alias' },
       };
 
       const result = await eventLogger.handlePersonalityAliasAdded(event);
@@ -315,9 +317,9 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasRemoved',
         aggregateId: 'main-personality',
         payload: {
-          alias: 'old-alias'
+          alias: 'old-alias',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       await eventLogger.handlePersonalityAliasRemoved(event);
@@ -332,8 +334,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasRemoved',
         aggregateId: 'unicode-personality',
         payload: {
-          alias: '🤖-robot-alias'
-        }
+          alias: '🤖-robot-alias',
+        },
       };
 
       await eventLogger.handlePersonalityAliasRemoved(event);
@@ -348,8 +350,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasRemoved',
         aggregateId: 'minimal-personality',
         payload: {
-          alias: 'a'
-        }
+          alias: 'a',
+        },
       };
 
       await eventLogger.handlePersonalityAliasRemoved(event);
@@ -364,8 +366,8 @@ describe('PersonalityEventLogger', () => {
         type: 'PersonalityAliasRemoved',
         aggregateId: 'undefined-test',
         payload: {
-          alias: undefined
-        }
+          alias: undefined,
+        },
       };
 
       await eventLogger.handlePersonalityAliasRemoved(event);
@@ -379,7 +381,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityAliasRemoved',
         aggregateId: 'test-personality',
-        payload: { alias: 'test-alias' }
+        payload: { alias: 'test-alias' },
       };
 
       const result = await eventLogger.handlePersonalityAliasRemoved(event);
@@ -392,7 +394,7 @@ describe('PersonalityEventLogger', () => {
   describe('Event Handler Integration', () => {
     it('should handle all event types consistently', async () => {
       const basePayload = {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       const events = [
@@ -402,38 +404,38 @@ describe('PersonalityEventLogger', () => {
           payload: {
             ...basePayload,
             profile: { name: 'integration-test' },
-            ownerId: '123456789012345678'
-          }
+            ownerId: '123456789012345678',
+          },
         },
         {
           type: 'PersonalityProfileUpdated',
           aggregateId: 'integration-test',
           payload: {
             ...basePayload,
-            changes: { displayName: 'Updated Name' }
-          }
+            changes: { displayName: 'Updated Name' },
+          },
         },
         {
           type: 'PersonalityAliasAdded',
           aggregateId: 'integration-test',
           payload: {
             ...basePayload,
-            alias: 'test-alias'
-          }
+            alias: 'test-alias',
+          },
         },
         {
           type: 'PersonalityAliasRemoved',
           aggregateId: 'integration-test',
           payload: {
             ...basePayload,
-            alias: 'test-alias'
-          }
+            alias: 'test-alias',
+          },
         },
         {
           type: 'PersonalityRemoved',
           aggregateId: 'integration-test',
-          payload: basePayload
-        }
+          payload: basePayload,
+        },
       ];
 
       // Process all events
@@ -476,8 +478,8 @@ describe('PersonalityEventLogger', () => {
         aggregateId: `concurrent-test-${i}`,
         payload: {
           profile: { name: `concurrent-test-${i}` },
-          ownerId: '123456789012345678'
-        }
+          ownerId: '123456789012345678',
+        },
       }));
 
       // Process all events concurrently
@@ -498,39 +500,37 @@ describe('PersonalityEventLogger', () => {
         {
           handler: 'handlePersonalityCreated',
           event: {
-            payload: { profile: { name: 'test' }, ownerId: '123' }
+            payload: { profile: { name: 'test' }, ownerId: '123' },
           },
-          expectedPattern: /^\[PersonalityEventLogger\] Personality created:/
+          expectedPattern: /^\[PersonalityEventLogger\] Personality created:/,
         },
         {
           handler: 'handlePersonalityProfileUpdated',
           event: { aggregateId: 'test' },
-          expectedPattern: /^\[PersonalityEventLogger\] Personality profile updated:/
+          expectedPattern: /^\[PersonalityEventLogger\] Personality profile updated:/,
         },
         {
           handler: 'handlePersonalityRemoved',
           event: { aggregateId: 'test' },
-          expectedPattern: /^\[PersonalityEventLogger\] Personality removed:/
+          expectedPattern: /^\[PersonalityEventLogger\] Personality removed:/,
         },
         {
           handler: 'handlePersonalityAliasAdded',
           event: { aggregateId: 'test', payload: { alias: 'alias' } },
-          expectedPattern: /^\[PersonalityEventLogger\] Alias added:/
+          expectedPattern: /^\[PersonalityEventLogger\] Alias added:/,
         },
         {
           handler: 'handlePersonalityAliasRemoved',
           event: { aggregateId: 'test', payload: { alias: 'alias' } },
-          expectedPattern: /^\[PersonalityEventLogger\] Alias removed:/
-        }
+          expectedPattern: /^\[PersonalityEventLogger\] Alias removed:/,
+        },
       ];
 
       for (const testCase of testEvents) {
         jest.clearAllMocks();
         await eventLogger[testCase.handler](testCase.event);
-        
-        expect(logger.info).toHaveBeenCalledWith(
-          expect.stringMatching(testCase.expectedPattern)
-        );
+
+        expect(logger.info).toHaveBeenCalledWith(expect.stringMatching(testCase.expectedPattern));
       }
     });
   });
@@ -540,7 +540,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityProfileUpdated',
         aggregateId: undefined,
-        payload: {}
+        payload: {},
       };
 
       await eventLogger.handlePersonalityProfileUpdated(event);
@@ -554,7 +554,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityRemoved',
         aggregateId: null,
-        payload: {}
+        payload: {},
       };
 
       await eventLogger.handlePersonalityRemoved(event);
@@ -568,7 +568,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityAliasAdded',
         aggregateId: 'test-personality',
-        payload: {} // Empty payload, but payload exists
+        payload: {}, // Empty payload, but payload exists
       };
 
       await eventLogger.handlePersonalityAliasAdded(event);
@@ -582,7 +582,7 @@ describe('PersonalityEventLogger', () => {
       const event = {
         type: 'PersonalityCreated',
         aggregateId: 'test-personality',
-        payload: {} // Missing profile and ownerId
+        payload: {}, // Missing profile and ownerId
       };
 
       // This should throw since the code doesn't have defensive checks

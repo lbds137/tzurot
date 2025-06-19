@@ -2,7 +2,9 @@
  * Tests for DebugCommand
  */
 
-const { createDebugCommand } = require('../../../../../src/application/commands/utility/DebugCommand');
+const {
+  createDebugCommand,
+} = require('../../../../../src/application/commands/utility/DebugCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
 
@@ -78,7 +80,9 @@ describe('DebugCommand', () => {
   describe('metadata', () => {
     it('should have correct command metadata', () => {
       expect(debugCommand.name).toBe('debug');
-      expect(debugCommand.description).toBe('Advanced debugging tools (Requires Administrator permission)');
+      expect(debugCommand.description).toBe(
+        'Advanced debugging tools (Requires Administrator permission)'
+      );
       expect(debugCommand.category).toBe('Utility');
       expect(debugCommand.aliases).toEqual([]);
       expect(debugCommand.adminOnly).toBe(true);
@@ -93,11 +97,13 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Access Denied',
-          description: 'This command requires administrator permissions.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Access Denied',
+            description: 'This command requires administrator permissions.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockWebhookUserTracker.clearAllCachedWebhooks).not.toHaveBeenCalled();
     });
@@ -108,17 +114,19 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '🛠️ Debug Command Help',
-          description: expect.stringContaining('Usage:'),
-          color: 0x2196f3,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Available Subcommands',
-              value: expect.stringContaining('clearwebhooks')
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '🛠️ Debug Command Help',
+            description: expect.stringContaining('Usage:'),
+            color: 0x2196f3,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Available Subcommands',
+                value: expect.stringContaining('clearwebhooks'),
+              }),
+            ]),
+          }),
+        ],
       });
     });
   });
@@ -130,15 +138,15 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockWebhookUserTracker.clearAllCachedWebhooks).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith(
-        '[Debug] Webhook cache cleared by TestUser#1234'
-      );
+      expect(logger.info).toHaveBeenCalledWith('[Debug] Webhook cache cleared by TestUser#1234');
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Webhooks Cleared',
-          description: 'Cleared all cached webhook identifications.',
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Webhooks Cleared',
+            description: 'Cleared all cached webhook identifications.',
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -162,11 +170,13 @@ describe('DebugCommand', () => {
         '[Debug] NSFW verification cleared for TestUser#1234'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Verification Cleared',
-          description: 'Your NSFW verification has been cleared. You are now unverified.',
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Verification Cleared',
+            description: 'Your NSFW verification has been cleared. You are now unverified.',
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -177,11 +187,13 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: 'ℹ️ No Change',
-          description: 'You were not verified, so nothing was cleared.',
-          color: 0x2196f3
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: 'ℹ️ No Change',
+            description: 'You were not verified, so nothing was cleared.',
+            color: 0x2196f3,
+          }),
+        ],
       });
     });
   });
@@ -200,11 +212,13 @@ describe('DebugCommand', () => {
         '[Debug] Conversation history cleared for TestUser#1234 in channel channel123'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Conversation Cleared',
-          description: 'Cleared your conversation history in this channel.',
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Conversation Cleared',
+            description: 'Cleared your conversation history in this channel.',
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -220,11 +234,13 @@ describe('DebugCommand', () => {
         '[Debug] Error clearing conversation: Database error'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Clear Failed',
-          description: 'Failed to clear conversation history.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Clear Failed',
+            description: 'Failed to clear conversation history.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
   });
@@ -240,11 +256,13 @@ describe('DebugCommand', () => {
         '[Debug] Authentication tokens cleaned up for TestUser#1234'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Authentication Cleared',
-          description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Authentication Cleared',
+            description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -254,15 +272,15 @@ describe('DebugCommand', () => {
 
       await debugCommand.execute(mockContext);
 
-      expect(logger.error).toHaveBeenCalledWith(
-        '[Debug] Error clearing auth: Auth error'
-      );
+      expect(logger.error).toHaveBeenCalledWith('[Debug] Error clearing auth: Auth error');
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Clear Failed',
-          description: 'Failed to clear authentication.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Clear Failed',
+            description: 'Failed to clear authentication.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
   });
@@ -278,11 +296,13 @@ describe('DebugCommand', () => {
         '[Debug] Message tracking history cleared by TestUser#1234'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Messages Cleared',
-          description: 'Cleared message tracking history.',
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Messages Cleared',
+            description: 'Cleared message tracking history.',
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -298,11 +318,13 @@ describe('DebugCommand', () => {
         '[Debug] Error clearing message tracker: Tracker error'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Clear Failed',
-          description: 'Failed to clear message tracking.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Clear Failed',
+            description: 'Failed to clear message tracking.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
   });
@@ -314,21 +336,23 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '📊 Debug Statistics',
-          description: 'Current system debug information',
-          color: 0x2196f3,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Messages',
-              value: 'Tracked: 42'
-            }),
-            expect.objectContaining({
-              name: 'Raw Data',
-              value: expect.stringContaining('"tracked": 42')
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '📊 Debug Statistics',
+            description: 'Current system debug information',
+            color: 0x2196f3,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Messages',
+                value: 'Tracked: 42',
+              }),
+              expect.objectContaining({
+                name: 'Raw Data',
+                value: expect.stringContaining('"tracked": 42'),
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
@@ -347,11 +371,13 @@ describe('DebugCommand', () => {
         '[Debug] Error gathering stats: Property access error'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Stats Failed',
-          description: 'Failed to gather statistics.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Stats Failed',
+            description: 'Failed to gather statistics.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
@@ -362,15 +388,17 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '📊 Debug Statistics',
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Raw Data',
-              value: expect.stringContaining('"tracked": 0')
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '📊 Debug Statistics',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Raw Data',
+                value: expect.stringContaining('"tracked": 0'),
+              }),
+            ]),
+          }),
+        ],
       });
     });
   });
@@ -382,11 +410,13 @@ describe('DebugCommand', () => {
       await debugCommand.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Unknown Subcommand',
-          description: 'Unknown debug subcommand: `invalid`.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Unknown Subcommand',
+            description: 'Unknown debug subcommand: `invalid`.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
   });
@@ -406,11 +436,13 @@ describe('DebugCommand', () => {
         expect.any(Error)
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Command Error',
-          description: 'An error occurred while executing the debug command.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Command Error',
+            description: 'An error occurred while executing the debug command.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
   });
@@ -418,7 +450,7 @@ describe('DebugCommand', () => {
   describe('factory function', () => {
     it('should create command with default dependencies', () => {
       const command = createDebugCommand();
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('debug');
       expect(command.adminOnly).toBe(true);
@@ -429,7 +461,7 @@ describe('DebugCommand', () => {
       const command = createDebugCommand({
         messageTracker: customTracker,
       });
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('debug');
     });

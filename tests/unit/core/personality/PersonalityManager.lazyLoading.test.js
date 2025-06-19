@@ -27,13 +27,13 @@ describe('PersonalityManager - Lazy Loading', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Set up logger mock
     logger.info = jest.fn();
     logger.error = jest.fn();
     logger.warn = jest.fn();
     logger.debug = jest.fn();
-    
+
     // Set up avatarStorage mock
     avatarStorage.needsUpdate = jest.fn().mockResolvedValue(false);
     avatarStorage.getLocalAvatarUrl = jest.fn().mockResolvedValue(null);
@@ -148,17 +148,21 @@ describe('PersonalityManager - Lazy Loading', () => {
       // Mock API responses for refresh
       getProfileAvatarUrl.mockResolvedValue('https://example.com/new-avatar.png');
       getProfileDisplayName.mockResolvedValue('Test Personality');
-      getProfileErrorMessage.mockResolvedValue('Oops! Something went wrong! ||*(an error has occurred)*||');
+      getProfileErrorMessage.mockResolvedValue(
+        'Oops! Something went wrong! ||*(an error has occurred)*||'
+      );
 
       // Get the personality - when errorMessage is missing, it waits for refresh
       const personality = await manager.getPersonality('test-personality');
 
       // Should have refreshed data (not old data) since we wait for errorMessage
-      expect(personality.errorMessage).toBe('Oops! Something went wrong! ||*(an error has occurred)*||');
+      expect(personality.errorMessage).toBe(
+        'Oops! Something went wrong! ||*(an error has occurred)*||'
+      );
       expect(personality.avatarUrl).toBe('https://example.com/new-avatar.png');
       expect(personality.displayName).toBe('Test Personality');
       expect(personality.lastUpdated).toBeDefined();
-      
+
       expect(logger.info).toHaveBeenCalledWith(
         '[PersonalityManager] Personality test-personality missing errorMessage, refreshing...'
       );
@@ -187,9 +191,7 @@ describe('PersonalityManager - Lazy Loading', () => {
 
       // Should return the data without refreshing
       expect(personality).toEqual(personalityData);
-      expect(logger.info).not.toHaveBeenCalledWith(
-        expect.stringContaining('refreshing')
-      );
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('refreshing'));
 
       // API should not be called
       expect(getProfileAvatarUrl).not.toHaveBeenCalled();

@@ -1,6 +1,6 @@
 /**
  * @jest-environment node
- * 
+ *
  * Discord Adapters Index Test
  * - Tests the exports from adapters/discord/index.js
  */

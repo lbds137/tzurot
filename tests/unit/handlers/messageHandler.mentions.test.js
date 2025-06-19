@@ -4,14 +4,18 @@
  */
 
 const { checkForPersonalityMentions } = require('../../../src/handlers/messageHandler');
-const { getPersonality, getPersonalityByAlias, getMaxAliasWordCount } = require('../../../src/core/personality');
+const {
+  getPersonality,
+  getPersonalityByAlias,
+  getMaxAliasWordCount,
+} = require('../../../src/core/personality');
 
 // Mock dependencies
 jest.mock('../../../src/core/personality');
 jest.mock('../../../src/logger');
 jest.mock('../../../config', () => ({
   botConfig: { mentionChar: '@' },
-  botPrefix: '!tz'
+  botPrefix: '!tz',
 }));
 
 describe('checkForPersonalityMentions', () => {
@@ -77,7 +81,8 @@ describe('checkForPersonalityMentions', () => {
     it('should detect valid two-word personality mention', async () => {
       const message = { content: '@angel dust hello', author: { id: 'user123' } };
       getPersonality.mockResolvedValue(null);
-      getPersonalityByAlias.mockReturnValueOnce(null) // First check for "angel"
+      getPersonalityByAlias
+        .mockReturnValueOnce(null) // First check for "angel"
         .mockReturnValueOnce({ fullName: 'angel-dust-hazbin' }); // Second check for "angel dust"
 
       const result = await checkForPersonalityMentions(message);
@@ -89,7 +94,8 @@ describe('checkForPersonalityMentions', () => {
     it('should handle multi-word mention at end of message', async () => {
       const message = { content: 'hello @angel dust', author: { id: 'user123' } };
       getPersonality.mockResolvedValue(null);
-      getPersonalityByAlias.mockReturnValueOnce(null)
+      getPersonalityByAlias
+        .mockReturnValueOnce(null)
         .mockReturnValueOnce({ fullName: 'angel-dust-hazbin' });
 
       const result = await checkForPersonalityMentions(message);
@@ -100,7 +106,8 @@ describe('checkForPersonalityMentions', () => {
     it('should handle multi-word mention with punctuation', async () => {
       const message = { content: '@angel dust, how are you?', author: { id: 'user123' } };
       getPersonality.mockResolvedValue(null);
-      getPersonalityByAlias.mockReturnValueOnce(null)
+      getPersonalityByAlias
+        .mockReturnValueOnce(null)
         .mockReturnValueOnce({ fullName: 'angel-dust-hazbin' });
 
       const result = await checkForPersonalityMentions(message);
@@ -113,7 +120,8 @@ describe('checkForPersonalityMentions', () => {
       getMaxAliasWordCount.mockReturnValue(3);
       const message = { content: '@the dark lord speaks', author: { id: 'user123' } };
       getPersonality.mockResolvedValue(null);
-      getPersonalityByAlias.mockReturnValueOnce(null) // "the"
+      getPersonalityByAlias
+        .mockReturnValueOnce(null) // "the"
         .mockReturnValueOnce(null) // "the dark"
         .mockReturnValueOnce({ fullName: 'the-dark-lord' }); // "the dark lord"
 
@@ -170,7 +178,8 @@ describe('checkForPersonalityMentions', () => {
       getMaxAliasWordCount.mockReturnValue(2);
       const message = { content: '@angel   dust hello', author: { id: 'user123' } };
       getPersonality.mockResolvedValue(null);
-      getPersonalityByAlias.mockReturnValueOnce(null)
+      getPersonalityByAlias
+        .mockReturnValueOnce(null)
         .mockReturnValueOnce({ fullName: 'angel-dust-hazbin' });
 
       const result = await checkForPersonalityMentions(message);

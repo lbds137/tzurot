@@ -5,7 +5,7 @@
 
 // Mock the config module first
 jest.mock('../../config', () => ({
-  botPrefix: '!tz'
+  botPrefix: '!tz',
 }));
 
 const { presets, discord, api, modules } = require('../__mocks__');
@@ -18,13 +18,13 @@ describe('Consolidated Mock System Examples', () => {
   describe('Using Presets', () => {
     it('should work with command test preset', () => {
       const mockEnv = presets.commandTest({
-        userPermissions: ['ADMINISTRATOR']
+        userPermissions: ['ADMINISTRATOR'],
       });
 
       // Create a mock message
       const message = mockEnv.discord.createMessage({
         content: `${botPrefix} help`,
-        author: { id: 'user-123', username: 'testuser' }
+        author: { id: 'user-123', username: 'testuser' },
       });
 
       expect(message.content).toBe(`${botPrefix} help`);
@@ -35,8 +35,8 @@ describe('Consolidated Mock System Examples', () => {
     it('should work with webhook test preset', () => {
       const mockEnv = presets.webhookTest({
         mockResponses: {
-          'test-personality': 'Mock AI response from test personality'
-        }
+          'test-personality': 'Mock AI response from test personality',
+        },
       });
 
       expect(mockEnv.api.ai).toBeTruthy();
@@ -47,26 +47,26 @@ describe('Consolidated Mock System Examples', () => {
   describe('Manual Mock Creation', () => {
     it('should create Discord mocks manually', () => {
       const discordEnv = discord.createDiscordEnvironment({
-        setupDefaults: true
+        setupDefaults: true,
       });
 
-      // Test client creation  
+      // Test client creation
       expect(discordEnv.client).toBeTruthy();
       expect(typeof discordEnv.client.login).toBe('function');
 
       // Test message creation
       const message = discordEnv.createMessage({
         content: 'Test message',
-        author: { username: 'testuser' }
+        author: { username: 'testuser' },
       });
-      
+
       expect(message.content).toBe('Test message');
       expect(message.author.username).toBe('testuser');
     });
 
     it('should create API mocks manually', () => {
       const apiEnv = api.createApiEnvironment({
-        setupDefaults: true
+        setupDefaults: true,
       });
 
       // Test fetch mock
@@ -83,9 +83,9 @@ describe('Consolidated Mock System Examples', () => {
         personalityManager: {
           defaultPersonality: {
             fullName: 'custom-test-personality',
-            displayName: 'Custom Test Bot'
-          }
-        }
+            displayName: 'Custom Test Bot',
+          },
+        },
       });
 
       expect(moduleEnv.personalityManager).toBeTruthy();
@@ -96,37 +96,37 @@ describe('Consolidated Mock System Examples', () => {
   describe('Advanced Mock Usage', () => {
     it('should handle custom API responses', async () => {
       const apiEnv = api.createApiEnvironment();
-      
+
       // Set up custom response
       apiEnv.fetch.setResponse('/test-endpoint', {
         ok: true,
         status: 200,
-        data: { message: 'Custom response' }
+        data: { message: 'Custom response' },
       });
 
       // Test the mock - Mock the fetch call instead of making real request
-      const mockResponse = { 
-        ok: true, 
-        status: 200, 
-        json: jest.fn().mockResolvedValue({ message: 'Custom response' }) 
+      const mockResponse = {
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ message: 'Custom response' }),
       };
       apiEnv.fetch.fetch = jest.fn().mockResolvedValue(mockResponse);
       const response = await apiEnv.fetch.fetch('/test-endpoint');
       const data = await response.json();
-      
+
       expect(data.message).toBe('Custom response');
       expect(response.ok).toBe(true);
     });
 
     it('should handle AI service responses', async () => {
       const apiEnv = api.createApiEnvironment();
-      
+
       const response = await apiEnv.ai.createChatCompletion({
         model: 'gpt-3.5-turbo',
         messages: [
           { role: 'system', content: 'You are personality: test-bot' },
-          { role: 'user', content: 'Hello world' }
-        ]
+          { role: 'user', content: 'Hello world' },
+        ],
       });
 
       expect(response.choices[0].message.content).toContain('[test-bot]');
@@ -136,17 +136,17 @@ describe('Consolidated Mock System Examples', () => {
     it('should integrate multiple mock systems', () => {
       // Create a complete test environment (use main integration test, not DDD one)
       const mockEnv = presets.commandTest();
-      
+
       // Test Discord integration
       const message = mockEnv.discord.createMessage({
         content: 'Test integration',
-        channel: { id: 'test-channel' }
+        channel: { id: 'test-channel' },
       });
-      
+
       // Test personality manager integration
       mockEnv.modules.personalityManager.activatePersonality('test-channel', 'test-personality');
       const activated = mockEnv.modules.personalityManager.getActivatedPersonality('test-channel');
-      
+
       expect(activated).toBe('test-personality');
       expect(message.channel.id).toBe('test-channel');
     });
@@ -155,23 +155,24 @@ describe('Consolidated Mock System Examples', () => {
   describe('Mock State Management', () => {
     it('should maintain state across mock interactions', () => {
       const moduleEnv = modules.createModuleEnvironment();
-      
+
       // Add a personality
       moduleEnv.personalityManager._addTestPersonality({
         fullName: 'state-test-personality',
-        displayName: 'State Test'
+        displayName: 'State Test',
       });
-      
+
       // Verify it exists
       const personality = moduleEnv.personalityManager.getPersonality('state-test-personality');
       expect(personality).toBeTruthy();
       expect(personality.displayName).toBe('State Test');
-      
+
       // Clear state
       moduleEnv.personalityManager._clearAll();
-      
+
       // Verify it's gone (except default)
-      const clearedPersonality = moduleEnv.personalityManager.getPersonality('state-test-personality');
+      const clearedPersonality =
+        moduleEnv.personalityManager.getPersonality('state-test-personality');
       expect(clearedPersonality).toBeNull();
     });
   });

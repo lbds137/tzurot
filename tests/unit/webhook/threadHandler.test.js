@@ -5,8 +5,8 @@ jest.mock('../../../src/utils/messageDeduplication');
 jest.mock('../../../src/utils/messageFormatter');
 jest.mock('../../../config', () => ({
   botConfig: {
-    name: 'TestWebhook'
-  }
+    name: 'TestWebhook',
+  },
 }));
 jest.mock('discord.js');
 
@@ -77,13 +77,13 @@ describe('threadHandler', () => {
     mockDelayFn = jest.fn().mockResolvedValue(undefined);
 
     // Mock processMediaForWebhook to return the input content
-    processMediaForWebhook.mockImplementation(async (content) => ({
+    processMediaForWebhook.mockImplementation(async content => ({
       content: content,
       attachments: [],
     }));
-    
+
     // Mock splitMessage
-    splitMessage.mockImplementation((content) => {
+    splitMessage.mockImplementation(content => {
       if (!content || content.length <= 2000) {
         return [content];
       }
@@ -94,7 +94,7 @@ describe('threadHandler', () => {
       }
       return chunks;
     });
-    
+
     // Mock isDuplicateMessage - default to false
     isDuplicateMessage.mockReturnValue(false);
   });
@@ -106,7 +106,7 @@ describe('threadHandler', () => {
   describe('sendDirectThreadMessage', () => {
     it('should validate channel is a thread', async () => {
       const nonThreadChannel = { id: 'not-thread', isThread: jest.fn().mockReturnValue(false) };
-      
+
       await expect(
         sendDirectThreadMessage(
           nonThreadChannel,
@@ -136,7 +136,7 @@ describe('threadHandler', () => {
 
     it('should fetch webhooks from parent channel', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map());
-      
+
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
@@ -192,7 +192,7 @@ describe('threadHandler', () => {
     it('should process media in content', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-      
+
       processMediaForWebhook.mockResolvedValue({
         content: 'Processed content',
         attachments: [{ name: 'image.png', attachment: Buffer.from('data') }],
@@ -208,13 +208,15 @@ describe('threadHandler', () => {
         mockDelayFn
       );
 
-      expect(processMediaForWebhook).toHaveBeenCalledWith('Content with https://example.com/image.png');
+      expect(processMediaForWebhook).toHaveBeenCalledWith(
+        'Content with https://example.com/image.png'
+      );
     });
 
     it('should handle media processing errors gracefully', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-      
+
       processMediaForWebhook.mockRejectedValue(new Error('Media error'));
 
       const result = await sendDirectThreadMessage(
@@ -234,7 +236,7 @@ describe('threadHandler', () => {
     it('should split long messages into chunks', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-      
+
       // Create a very long message that will be split
       const longContent = 'A'.repeat(2100); // Over Discord's 2000 char limit
 
@@ -255,7 +257,7 @@ describe('threadHandler', () => {
     it('should add delay between chunks', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const longContent = 'A'.repeat(2100);
 
       await sendDirectThreadMessage(
@@ -298,10 +300,10 @@ describe('threadHandler', () => {
 
     it('should fallback to webhook.thread() method if thread_id fails', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
-      
+
       // First attempt with thread_id fails
       mockWebhookClient.send.mockRejectedValueOnce(new Error('Invalid thread_id'));
-      
+
       // Create thread-specific webhook
       const threadWebhook = { send: jest.fn().mockResolvedValue({ id: 'message-123' }) };
       mockWebhookClient.thread.mockReturnValue(threadWebhook);
@@ -327,7 +329,7 @@ describe('threadHandler', () => {
 
     it('should fallback to channel.send() if all webhook methods fail', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
-      
+
       // Both webhook attempts fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
       mockWebhookClient.thread.mockImplementation(() => {
@@ -355,7 +357,7 @@ describe('threadHandler', () => {
     it('should include files and embeds in last chunk only', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const embeds = [{ title: 'Test Embed' }];
       const files = [{ name: 'test.txt', attachment: Buffer.from('test') }];
 
@@ -379,7 +381,7 @@ describe('threadHandler', () => {
 
     it('should skip duplicate messages', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
-      
+
       // Mock isDuplicateMessage to return true
       isDuplicateMessage.mockReturnValue(true);
 
@@ -436,7 +438,7 @@ describe('threadHandler', () => {
 
     it('should propagate error if first chunk fails after all fallbacks', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
-      
+
       // All methods fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
       mockWebhookClient.thread = undefined; // No thread method
@@ -457,7 +459,7 @@ describe('threadHandler', () => {
 
     it('should continue with remaining chunks if non-first chunk fails', async () => {
       mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
-      
+
       // First chunk succeeds, second fails, third succeeds
       mockWebhookClient.send
         .mockResolvedValueOnce({ id: 'message-1' })

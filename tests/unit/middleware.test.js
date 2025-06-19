@@ -1,6 +1,6 @@
 /**
  * Tests for Middleware System
- * 
+ *
  * Tests the middleware pipeline, individual middleware functions,
  * and integration with command validation.
  */
@@ -9,7 +9,7 @@ const {
   middlewareManager,
   createLoggingMiddleware,
   createPermissionMiddleware,
-  createRateLimitMiddleware
+  createRateLimitMiddleware,
 } = require('../../src/middleware');
 const logger = require('../../src/logger');
 const { botPrefix } = require('../../config');
@@ -23,28 +23,28 @@ jest.mock('../../src/commandValidation', () => ({
       optional: ['param2'],
       types: {
         param1: 'string',
-        param2: 'number'
-      }
+        param2: 'number',
+      },
     },
     complexCommand: {
       required: ['requiredParam1', 'requiredParam2'],
-      optional: ['optionalParam']
-    }
+      optional: ['optionalParam'],
+    },
   },
   validateCommandMiddleware: jest.fn((command, args) => {
     if (command === 'failValidation') {
       return {
         success: false,
         errors: ['Validation failed'],
-        message: 'Validation failed: test error'
+        message: 'Validation failed: test error',
       };
     }
     return {
       success: true,
       message: 'Validation successful',
-      validatedArgs: args
+      validatedArgs: args,
     };
-  })
+  }),
 }));
 
 describe('Middleware System', () => {
@@ -53,15 +53,15 @@ describe('Middleware System', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockAuthor = {
       id: '123456789',
-      tag: 'testuser#1234'
+      tag: 'testuser#1234',
     };
 
     mockMessage = {
       author: mockAuthor,
-      content: `${botPrefix} test command`
+      content: `${botPrefix} test command`,
     };
   });
 
@@ -94,14 +94,14 @@ describe('Middleware System', () => {
       it('should execute middleware in sequence', async () => {
         const middleware1 = jest.fn(context => ({ ...context, step1: true }));
         const middleware2 = jest.fn(context => ({ ...context, step2: true }));
-        
+
         // Create a new instance for this test to avoid state pollution
         // We need to access the MiddlewareManager class directly
         const MiddlewareManager = middlewareManager.constructor;
         const manager = new MiddlewareManager();
         // Clear the default validation middleware
         manager.middlewares = [];
-        
+
         manager.use(middleware1);
         manager.use(middleware2);
 
@@ -116,11 +116,11 @@ describe('Middleware System', () => {
       it('should stop pipeline on early return', async () => {
         const middleware1 = jest.fn(() => ({ earlyReturn: true, message: 'Stopped' }));
         const middleware2 = jest.fn();
-        
+
         const MiddlewareManager = middlewareManager.constructor;
         const manager = new MiddlewareManager();
         manager.middlewares = [];
-        
+
         manager.use(middleware1);
         manager.use(middleware2);
 
@@ -135,11 +135,11 @@ describe('Middleware System', () => {
       it('should stop pipeline when middleware returns false', async () => {
         const middleware1 = jest.fn(() => false);
         const middleware2 = jest.fn();
-        
+
         const MiddlewareManager = middlewareManager.constructor;
         const manager = new MiddlewareManager();
         manager.middlewares = [];
-        
+
         manager.use(middleware1);
         manager.use(middleware2);
 
@@ -155,11 +155,11 @@ describe('Middleware System', () => {
         const errorMiddleware = jest.fn(() => {
           throw new Error('Middleware error');
         });
-        
+
         const MiddlewareManager = middlewareManager.constructor;
         const manager = new MiddlewareManager();
         manager.middlewares = [];
-        
+
         manager.use(errorMiddleware);
 
         const context = { command: 'test' };
@@ -168,7 +168,7 @@ describe('Middleware System', () => {
         expect(result).toMatchObject({
           earlyReturn: true,
           error: true,
-          message: 'Middleware error: Middleware error'
+          message: 'Middleware error: Middleware error',
         });
         expect(logger.error).toHaveBeenCalledWith(
           '[MiddlewareManager] Error in middleware execution:',
@@ -182,11 +182,11 @@ describe('Middleware System', () => {
           context.modified = true;
           return context;
         });
-        
+
         const MiddlewareManager = middlewareManager.constructor;
         const manager = new MiddlewareManager();
         manager.middlewares = [];
-        
+
         manager.use(middleware);
 
         await manager.execute(originalContext);
@@ -200,11 +200,11 @@ describe('Middleware System', () => {
         const context = {
           requiresValidation: false,
           command: 'test',
-          args: []
+          args: [],
         };
 
         const result = middlewareManager.validationMiddleware(context);
-        
+
         expect(result).toBe(context);
       });
 
@@ -212,7 +212,7 @@ describe('Middleware System', () => {
         const context = {
           requiresValidation: true,
           command: 'testCommand',
-          args: ['value1', 'value2']
+          args: ['value1', 'value2'],
         };
 
         const result = middlewareManager.validationMiddleware(context);
@@ -221,7 +221,7 @@ describe('Middleware System', () => {
         expect(result.namedArgs).toMatchObject({
           param1: 'value1',
           param2: 'value2',
-          _raw: ['value1', 'value2']
+          _raw: ['value1', 'value2'],
         });
       });
 
@@ -229,7 +229,7 @@ describe('Middleware System', () => {
         const context = {
           requiresValidation: true,
           command: 'failValidation',
-          args: []
+          args: [],
         };
 
         const result = middlewareManager.validationMiddleware(context);
@@ -244,80 +244,79 @@ describe('Middleware System', () => {
         const context = {
           requiresValidation: true,
           command: 'unknownCommand',
-          args: ['arg1', 'arg2']
+          args: ['arg1', 'arg2'],
         };
 
         const result = middlewareManager.validationMiddleware(context);
 
         expect(result.validated).toBe(true);
         expect(result.namedArgs).toMatchObject({
-          _raw: ['arg1', 'arg2']
+          _raw: ['arg1', 'arg2'],
         });
       });
     });
 
     describe('convertArgsToNamedParams', () => {
       it('should convert array args to named params', () => {
-        const result = middlewareManager.convertArgsToNamedParams(
-          'testCommand',
-          ['value1', 'value2']
-        );
+        const result = middlewareManager.convertArgsToNamedParams('testCommand', [
+          'value1',
+          'value2',
+        ]);
 
         expect(result).toMatchObject({
           param1: 'value1',
           param2: 'value2',
-          _raw: ['value1', 'value2']
+          _raw: ['value1', 'value2'],
         });
       });
 
       it('should handle missing optional parameters', () => {
-        const result = middlewareManager.convertArgsToNamedParams(
-          'testCommand',
-          ['value1']
-        );
+        const result = middlewareManager.convertArgsToNamedParams('testCommand', ['value1']);
 
         expect(result).toMatchObject({
           param1: 'value1',
-          _raw: ['value1']
+          _raw: ['value1'],
         });
         expect(result.param2).toBeUndefined();
       });
 
       it('should handle extra arguments', () => {
-        const result = middlewareManager.convertArgsToNamedParams(
-          'testCommand',
-          ['value1', 'value2', 'extra']
-        );
+        const result = middlewareManager.convertArgsToNamedParams('testCommand', [
+          'value1',
+          'value2',
+          'extra',
+        ]);
 
         expect(result).toMatchObject({
           param1: 'value1',
           param2: 'value2',
-          _raw: ['value1', 'value2', 'extra']
+          _raw: ['value1', 'value2', 'extra'],
         });
       });
 
       it('should handle complex commands with multiple required params', () => {
-        const result = middlewareManager.convertArgsToNamedParams(
-          'complexCommand',
-          ['req1', 'req2', 'opt1']
-        );
+        const result = middlewareManager.convertArgsToNamedParams('complexCommand', [
+          'req1',
+          'req2',
+          'opt1',
+        ]);
 
         expect(result).toMatchObject({
           requiredParam1: 'req1',
           requiredParam2: 'req2',
           optionalParam: 'opt1',
-          _raw: ['req1', 'req2', 'opt1']
+          _raw: ['req1', 'req2', 'opt1'],
         });
       });
 
       it('should return raw args for unknown commands', () => {
-        const result = middlewareManager.convertArgsToNamedParams(
-          'unknownCommand',
-          ['arg1', 'arg2']
-        );
+        const result = middlewareManager.convertArgsToNamedParams('unknownCommand', [
+          'arg1',
+          'arg2',
+        ]);
 
         expect(result).toMatchObject({
-          _raw: ['arg1', 'arg2']
+          _raw: ['arg1', 'arg2'],
         });
       });
     });
@@ -329,7 +328,7 @@ describe('Middleware System', () => {
       const context = {
         command: 'test',
         args: ['arg1', 'arg2'],
-        message: mockMessage
+        message: mockMessage,
       };
 
       const result = await loggingMiddleware(context);
@@ -345,10 +344,10 @@ describe('Middleware System', () => {
     it('should allow command when permission check passes', async () => {
       const permissionCheck = jest.fn().mockResolvedValue(true);
       const permissionMiddleware = createPermissionMiddleware(permissionCheck);
-      
+
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       const result = await permissionMiddleware(context);
@@ -360,10 +359,10 @@ describe('Middleware System', () => {
     it('should return early when permission check fails', async () => {
       const permissionCheck = jest.fn().mockResolvedValue(false);
       const permissionMiddleware = createPermissionMiddleware(permissionCheck);
-      
+
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       const result = await permissionMiddleware(context);
@@ -371,7 +370,7 @@ describe('Middleware System', () => {
       expect(result).toMatchObject({
         earlyReturn: true,
         error: true,
-        message: 'You do not have permission to execute this command.'
+        message: 'You do not have permission to execute this command.',
       });
     });
   });
@@ -390,7 +389,7 @@ describe('Middleware System', () => {
       const rateLimitMiddleware = createRateLimitMiddleware(3, 10000);
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       // First request should pass
@@ -410,7 +409,7 @@ describe('Middleware System', () => {
       const rateLimitMiddleware = createRateLimitMiddleware(2, 10000);
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       // Make 2 requests (should pass)
@@ -422,7 +421,7 @@ describe('Middleware System', () => {
       expect(result).toMatchObject({
         earlyReturn: true,
         error: true,
-        message: 'Rate limit exceeded for command: test. Please try again later.'
+        message: 'Rate limit exceeded for command: test. Please try again later.',
       });
     });
 
@@ -430,7 +429,7 @@ describe('Middleware System', () => {
       const rateLimitMiddleware = createRateLimitMiddleware(1, 5000);
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       // First request should pass
@@ -450,24 +449,24 @@ describe('Middleware System', () => {
 
     it('should track rate limits per user and command', async () => {
       const rateLimitMiddleware = createRateLimitMiddleware(1, 10000);
-      
+
       const context1 = {
         command: 'test1',
-        message: mockMessage
+        message: mockMessage,
       };
 
       const context2 = {
         command: 'test2',
-        message: mockMessage
+        message: mockMessage,
       };
 
       const otherUserMessage = {
-        author: { id: '987654321', tag: 'otheruser#5678' }
+        author: { id: '987654321', tag: 'otheruser#5678' },
       };
 
       const context3 = {
         command: 'test1',
-        message: otherUserMessage
+        message: otherUserMessage,
       };
 
       // Same user, different commands - should both pass
@@ -488,7 +487,7 @@ describe('Middleware System', () => {
       const rateLimitMiddleware = createRateLimitMiddleware();
       const context = {
         command: 'test',
-        message: mockMessage
+        message: mockMessage,
       };
 
       // Should allow 5 requests by default

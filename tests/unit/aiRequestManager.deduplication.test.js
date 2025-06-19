@@ -123,6 +123,5 @@ describe('AIRequestManager - Request Deduplication', () => {
       expect(requestId).toContain('_ref'); // Reference hash
       expect(requestId).toContain('_h'); // Content hash
     });
-
   });
 });

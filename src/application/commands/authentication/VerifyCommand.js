@@ -45,12 +45,14 @@ function createExecutor(_dependencies) {
       if (isDM) {
         const dmErrorEmbed = {
           title: '⚠️ Age Verification Required',
-          description: 'This command must be run in a server channel marked as NSFW to verify your age.',
+          description:
+            'This command must be run in a server channel marked as NSFW to verify your age.',
           color: 0xff9800, // Orange color
           fields: [
             {
               name: 'Why NSFW channel?',
-              value: "Discord's age verification system uses NSFW channel access to confirm age requirements.",
+              value:
+                "Discord's age verification system uses NSFW channel access to confirm age requirements.",
               inline: false,
             },
             {
@@ -110,7 +112,8 @@ function createExecutor(_dependencies) {
         if (success) {
           const successEmbed = {
             title: '✅ Verification Successful',
-            description: 'You have been successfully verified to use AI personalities in Direct Messages.',
+            description:
+              'You have been successfully verified to use AI personalities in Direct Messages.',
             color: 0x4caf50, // Green color
             fields: [
               {
@@ -143,7 +146,7 @@ function createExecutor(_dependencies) {
             fields: [
               {
                 name: 'What happened?',
-                value: 'The verification check passed, but we couldn\'t save your status.',
+                value: "The verification check passed, but we couldn't save your status.",
                 inline: false,
               },
               {
@@ -193,12 +196,17 @@ function createExecutor(_dependencies) {
 
           if (success) {
             // Format channel list for Discord
-            const channelList = nsfwChannels.slice(0, 5).map(id => `<#${id}>`).join(', ');
-            const moreChannels = nsfwChannels.length > 5 ? `\n...and ${nsfwChannels.length - 5} more` : '';
+            const channelList = nsfwChannels
+              .slice(0, 5)
+              .map(id => `<#${id}>`)
+              .join(', ');
+            const moreChannels =
+              nsfwChannels.length > 5 ? `\n...and ${nsfwChannels.length - 5} more` : '';
 
             const verifiedEmbed = {
               title: '✅ Verification Successful',
-              description: 'You have been successfully verified to use AI personalities in Direct Messages.',
+              description:
+                'You have been successfully verified to use AI personalities in Direct Messages.',
               color: 0x4caf50, // Green color
               fields: [
                 {
@@ -213,7 +221,8 @@ function createExecutor(_dependencies) {
                 },
                 {
                   name: 'Pro tip',
-                  value: 'Next time, run this command in one of these NSFW channels for instant verification.',
+                  value:
+                    'Next time, run this command in one of these NSFW channels for instant verification.',
                   inline: false,
                 },
               ],
@@ -231,7 +240,7 @@ function createExecutor(_dependencies) {
               fields: [
                 {
                   name: 'What happened?',
-                  value: 'The verification check passed, but we couldn\'t save your status.',
+                  value: "The verification check passed, but we couldn't save your status.",
                   inline: false,
                 },
                 {
@@ -253,7 +262,8 @@ function createExecutor(_dependencies) {
             fields: [
               {
                 name: 'Current situation',
-                value: '• This channel is not marked as NSFW\n• You don\'t have access to any NSFW channels in this server',
+                value:
+                  "• This channel is not marked as NSFW\n• You don't have access to any NSFW channels in this server",
                 inline: false,
               },
               {
@@ -263,7 +273,8 @@ function createExecutor(_dependencies) {
               },
               {
                 name: 'Solutions',
-                value: '• Ask a server admin for NSFW channel access\n• Try in a different server where you have NSFW access\n• Join a server with public NSFW channels',
+                value:
+                  '• Ask a server admin for NSFW channel access\n• Try in a different server where you have NSFW access\n• Join a server with public NSFW channels',
                 inline: false,
               },
             ],
@@ -288,7 +299,8 @@ function createExecutor(_dependencies) {
             },
             {
               name: 'What to do',
-              value: '• Try again in a moment\n• Make sure you\'re in a regular server channel\n• Contact support if the issue persists',
+              value:
+                "• Try again in a moment\n• Make sure you're in a regular server channel\n• Contact support if the issue persists",
               inline: false,
             },
           ],
@@ -313,7 +325,8 @@ function createExecutor(_dependencies) {
           },
           {
             name: 'What to do',
-            value: '• Try again in a few moments\n• Check your internet connection\n• Contact support if the issue persists',
+            value:
+              '• Try again in a few moments\n• Check your internet connection\n• Contact support if the issue persists',
             inline: false,
           },
         ],

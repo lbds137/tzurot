@@ -1,6 +1,6 @@
 /**
  * Auth test setup helper
- * 
+ *
  * Provides utilities for setting up auth-related mocks in tests
  * to handle the removal of NODE_ENV checks
  */
@@ -13,24 +13,21 @@
  * @returns {Object} Mock references for assertions
  */
 function setupAuthMocks(options = {}) {
-  const {
-    isAuthenticated = true,
-    mockClient = createMockAIClient()
-  } = options;
+  const { isAuthenticated = true, mockClient = createMockAIClient() } = options;
 
   // Create auth manager mock
   const mockAuthManager = {
     aiClientFactory: {
-      getDefaultClient: jest.fn().mockReturnValue(mockClient)
+      getDefaultClient: jest.fn().mockReturnValue(mockClient),
     },
     getAIClient: jest.fn().mockResolvedValue(mockClient),
     userTokenManager: {
       hasValidToken: jest.fn().mockReturnValue(isAuthenticated),
-      getUserToken: jest.fn().mockReturnValue(isAuthenticated ? 'mock-token' : null)
+      getUserToken: jest.fn().mockReturnValue(isAuthenticated ? 'mock-token' : null),
     },
     nsfwVerificationManager: {
-      isVerified: jest.fn().mockReturnValue(true)
-    }
+      isVerified: jest.fn().mockReturnValue(true),
+    },
   };
 
   // Mock the auth module
@@ -40,7 +37,7 @@ function setupAuthMocks(options = {}) {
     getUserToken: jest.fn().mockReturnValue(isAuthenticated ? 'mock-token' : null),
     isNsfwVerified: jest.fn().mockReturnValue(true),
     API_KEY: 'mock-api-key',
-    APP_ID: 'mock-app-id'
+    APP_ID: 'mock-app-id',
   }));
 
   // Mock aiAuth to return proper client
@@ -49,12 +46,12 @@ function setupAuthMocks(options = {}) {
     initAiAuth: jest.fn(),
     getAI: jest.fn().mockReturnValue(mockClient),
     getAIForUser: jest.fn().mockResolvedValue(mockClient),
-    getAiClientForUser: jest.fn().mockResolvedValue(mockClient)
+    getAiClientForUser: jest.fn().mockResolvedValue(mockClient),
   }));
 
   return {
     mockAuthManager,
-    mockClient
+    mockClient,
   };
 }
 
@@ -67,7 +64,7 @@ function createMockAIClient(options = {}) {
   const {
     responseContent = 'Mock AI response',
     shouldError = false,
-    errorMessage = 'Mock API error'
+    errorMessage = 'Mock API error',
   } = options;
 
   return {
@@ -79,15 +76,17 @@ function createMockAIClient(options = {}) {
             throw new Error(errorMessage);
           }
           return {
-            choices: [{
-              message: {
-                content: responseContent
-              }
-            }]
+            choices: [
+              {
+                message: {
+                  content: responseContent,
+                },
+              },
+            ],
           };
-        })
-      }
-    }
+        }),
+      },
+    },
   };
 }
 
@@ -102,5 +101,5 @@ function resetAuthMocks() {
 module.exports = {
   setupAuthMocks,
   createMockAIClient,
-  resetAuthMocks
+  resetAuthMocks,
 };

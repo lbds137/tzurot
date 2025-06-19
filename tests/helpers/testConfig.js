@@ -1,6 +1,6 @@
 /**
  * Test Configuration Helper
- * 
+ *
  * Provides environment-aware configuration for tests to avoid hardcoding values.
  * This ensures tests work correctly in both development and production modes.
  */
@@ -49,5 +49,5 @@ module.exports = {
   isDevelopmentMode,
   // Export config for backward compatibility
   botPrefix: getBotPrefix(),
-  botName: getBotName()
+  botName: getBotName(),
 };

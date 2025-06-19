@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  * @testType index
- * 
+ *
  * Authentication Domain Index Test
  * - Tests exports of the authentication domain module
  * - Verifies API surface and basic functionality
@@ -18,7 +18,7 @@ describe('Authentication Domain Index', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-  
+
   describe('exports', () => {
     it('should export all aggregates', () => {
       expect(authDomain.UserAuth).toBeDefined();
@@ -28,10 +28,10 @@ describe('Authentication Domain Index', () => {
     it('should export all value objects', () => {
       expect(authDomain.Token).toBeDefined();
       expect(typeof authDomain.Token).toBe('function');
-      
+
       expect(authDomain.NsfwStatus).toBeDefined();
       expect(typeof authDomain.NsfwStatus).toBe('function');
-      
+
       expect(authDomain.AuthContext).toBeDefined();
       expect(typeof authDomain.AuthContext).toBe('function');
     });
@@ -49,28 +49,28 @@ describe('Authentication Domain Index', () => {
     it('should export all events', () => {
       expect(authDomain.UserAuthenticated).toBeDefined();
       expect(typeof authDomain.UserAuthenticated).toBe('function');
-      
+
       expect(authDomain.UserTokenExpired).toBeDefined();
       expect(typeof authDomain.UserTokenExpired).toBe('function');
-      
+
       expect(authDomain.UserTokenRefreshed).toBeDefined();
       expect(typeof authDomain.UserTokenRefreshed).toBe('function');
-      
+
       expect(authDomain.UserNsfwVerified).toBeDefined();
       expect(typeof authDomain.UserNsfwVerified).toBe('function');
-      
+
       expect(authDomain.UserNsfwVerificationCleared).toBeDefined();
       expect(typeof authDomain.UserNsfwVerificationCleared).toBe('function');
-      
+
       expect(authDomain.UserBlacklisted).toBeDefined();
       expect(typeof authDomain.UserBlacklisted).toBe('function');
-      
+
       expect(authDomain.UserUnblacklisted).toBeDefined();
       expect(typeof authDomain.UserUnblacklisted).toBe('function');
-      
+
       expect(authDomain.AuthenticationDenied).toBeDefined();
       expect(typeof authDomain.AuthenticationDenied).toBe('function');
-      
+
       expect(authDomain.ProxyAuthenticationAttempted).toBeDefined();
       expect(typeof authDomain.ProxyAuthenticationAttempted).toBe('function');
     });
@@ -80,16 +80,16 @@ describe('Authentication Domain Index', () => {
     it('should allow creating authenticated users', () => {
       const userId = new UserId('123456789012345678');
       const token = authDomain.Token.createWithLifetime('test-token', 3600 * 1000);
-      
+
       const userAuth = authDomain.UserAuth.authenticate(userId, token);
-      
+
       expect(userAuth).toBeInstanceOf(authDomain.UserAuth);
     });
 
     it('should allow creating auth contexts', () => {
       const dmContext = authDomain.AuthContext.createForDM('123456789012345678');
       const threadContext = authDomain.AuthContext.createForThread('987654321098765432', false);
-      
+
       expect(dmContext).toBeInstanceOf(authDomain.AuthContext);
       expect(threadContext).toBeInstanceOf(authDomain.AuthContext);
     });
@@ -97,7 +97,7 @@ describe('Authentication Domain Index', () => {
     it('should allow creating NSFW status', () => {
       const unverified = authDomain.NsfwStatus.createUnverified();
       const verified = authDomain.NsfwStatus.createVerified();
-      
+
       expect(unverified).toBeInstanceOf(authDomain.NsfwStatus);
       expect(verified).toBeInstanceOf(authDomain.NsfwStatus);
     });
@@ -106,9 +106,9 @@ describe('Authentication Domain Index', () => {
       const event = new authDomain.UserAuthenticated('user-123', {
         userId: '123456789012345678',
         token: { value: 'test-token', expiresAt: new Date().toISOString() },
-        authenticatedAt: new Date().toISOString()
+        authenticatedAt: new Date().toISOString(),
       });
-      
+
       expect(event).toBeInstanceOf(authDomain.UserAuthenticated);
     });
   });
@@ -138,13 +138,13 @@ describe('Authentication Domain Index', () => {
         'UserBlacklisted',
         'UserUnblacklisted',
         'AuthenticationDenied',
-        'ProxyAuthenticationAttempted'
+        'ProxyAuthenticationAttempted',
       ];
-      
+
       for (const key of expectedKeys) {
         expect(exportedKeys).toContain(key);
       }
-      
+
       expect(exportedKeys).toHaveLength(expectedKeys.length);
     });
   });

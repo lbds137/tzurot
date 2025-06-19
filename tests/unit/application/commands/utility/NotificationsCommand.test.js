@@ -120,12 +120,8 @@ describe('NotificationsCommand', () => {
 
       await notificationsCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('opted in to')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Level: minor')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('opted in to'));
+      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('Level: minor'));
     });
 
     it('should handle status errors gracefully', async () => {
@@ -200,9 +196,7 @@ describe('NotificationsCommand', () => {
           color: 0x00ff00,
           title: '🔔 Opted In',
           description: 'You have been opted in to release notifications.',
-          fields: expect.arrayContaining([
-            expect.objectContaining({ name: 'Current Level' }),
-          ]),
+          fields: expect.arrayContaining([expect.objectContaining({ name: 'Current Level' })]),
         })
       );
     });
@@ -354,7 +348,7 @@ describe('NotificationsCommand', () => {
   describe('factory function', () => {
     it('should create command with default dependencies', () => {
       const command = createNotificationsCommand();
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('notifications');
     });
@@ -364,7 +358,7 @@ describe('NotificationsCommand', () => {
       const command = createNotificationsCommand({
         releaseNotificationManager: customManager,
       });
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('notifications');
     });

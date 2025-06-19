@@ -6,7 +6,7 @@ jest.mock('../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 describe('utils', () => {
@@ -14,11 +14,11 @@ describe('utils', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
-    
+
     // Configure utils to use Jest's fake timers
     utils.configureTimers({
       setTimeout: jest.fn().mockImplementation((fn, ms) => setTimeout(fn, ms)),
-      clearTimeout: jest.fn().mockImplementation((id) => clearTimeout(id))
+      clearTimeout: jest.fn().mockImplementation(id => clearTimeout(id)),
     });
   });
 
@@ -73,7 +73,10 @@ describe('utils', () => {
     });
 
     it('should remove item from Map after timeout', () => {
-      const testMap = new Map([['key1', 'value1'], ['key2', 'value2']]);
+      const testMap = new Map([
+        ['key1', 'value1'],
+        ['key2', 'value2'],
+      ]);
       const timeout = utils.cleanupTimeout(testMap, 'key1', 2000, 'MapTest');
 
       expect(testMap.has('key1')).toBe(true);
@@ -139,10 +142,10 @@ describe('utils', () => {
 
     beforeEach(() => {
       mockChannel = {
-        send: jest.fn().mockResolvedValue({ id: 'sent-message-id' })
+        send: jest.fn().mockResolvedValue({ id: 'sent-message-id' }),
       };
       mockMessage = {
-        channel: mockChannel
+        channel: mockChannel,
       };
     });
 
@@ -169,16 +172,13 @@ describe('utils', () => {
       const result = await sendFn('Test message');
 
       expect(mockChannel.send).toHaveBeenCalledWith('Test message');
-      expect(logger.error).toHaveBeenCalledWith(
-        'Error sending message:',
-        expect.any(Error)
-      );
+      expect(logger.error).toHaveBeenCalledWith('Error sending message:', expect.any(Error));
       expect(result).toBeNull();
     });
 
     it('should handle various content types', async () => {
       const sendFn = utils.createDirectSend(mockMessage);
-      
+
       // Test with different content types
       await sendFn({ content: 'Text with options', tts: true });
       expect(mockChannel.send).toHaveBeenCalledWith({ content: 'Text with options', tts: true });
@@ -191,7 +191,7 @@ describe('utils', () => {
   describe('getAllAliasesForPersonality', () => {
     it('should return empty array for invalid inputs', () => {
       const aliasMap = new Map([['alias1', 'personality1']]);
-      
+
       expect(utils.getAllAliasesForPersonality(null, aliasMap)).toEqual([]);
       expect(utils.getAllAliasesForPersonality('', aliasMap)).toEqual([]);
       expect(utils.getAllAliasesForPersonality('personality1', null)).toEqual([]);
@@ -204,7 +204,7 @@ describe('utils', () => {
         ['alias2', 'personality2'],
         ['alias3', 'personality1'],
         ['alias4', 'personality1'],
-        ['alias5', 'personality3']
+        ['alias5', 'personality3'],
       ]);
 
       const aliases = utils.getAllAliasesForPersonality('personality1', aliasMap);
@@ -215,7 +215,7 @@ describe('utils', () => {
     it('should return empty array if no aliases found', () => {
       const aliasMap = new Map([
         ['alias1', 'personality1'],
-        ['alias2', 'personality2']
+        ['alias2', 'personality2'],
       ]);
 
       const aliases = utils.getAllAliasesForPersonality('personality3', aliasMap);

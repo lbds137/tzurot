@@ -47,7 +47,9 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
 
       // Should replace the marker with reference ID
-      expect(result).toMatch(/\*sighs dramatically\* Something went wrong! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(result).toMatch(
+        /\*sighs dramatically\* Something went wrong! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
       expect(logger.info).toHaveBeenCalledWith(
         '[AIErrorHandler] Using personality-specific error message for test-personality'
       );
@@ -68,7 +70,9 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
 
       // Should append the marker with reference ID
-      expect(result).toMatch(/Oops! My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(result).toMatch(
+        /Oops! My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
     });
 
     it('should handle personality error messages with different spoiler patterns', async () => {
@@ -223,8 +227,10 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
 
       // Should use personality message and replace the marker with reference
-      expect(result).toMatch(/My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
-      expect(result).not.toContain('Hmm, I couldn\'t generate a response'); // Should NOT use default
+      expect(result).toMatch(
+        /My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
+      );
+      expect(result).not.toContain("Hmm, I couldn't generate a response"); // Should NOT use default
       expect(logger.info).toHaveBeenCalledWith(
         '[AIErrorHandler] Using personality-specific error message for test-personality'
       );

@@ -2,7 +2,9 @@
  * Tests for ListCommand
  */
 
-const { createListCommand } = require('../../../../../src/application/commands/personality/ListCommand');
+const {
+  createListCommand,
+} = require('../../../../../src/application/commands/personality/ListCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 
 describe('ListCommand', () => {
@@ -14,10 +16,10 @@ describe('ListCommand', () => {
 
   beforeEach(() => {
     migrationHelper = createMigrationHelper();
-    
+
     // Create the command
     command = createListCommand();
-    
+
     // Mock personality service
     mockPersonalityService = {
       listPersonalitiesByOwner: jest.fn().mockResolvedValue([
@@ -25,34 +27,34 @@ describe('ListCommand', () => {
           profile: {
             name: 'personality1',
             displayName: 'First Personality',
-            avatarUrl: 'https://example.com/avatar1.png'
+            avatarUrl: 'https://example.com/avatar1.png',
           },
-          aliases: [{ alias: 'p1' }, { alias: 'first' }]
+          aliases: [{ alias: 'p1' }, { alias: 'first' }],
         },
         {
           profile: {
             name: 'personality2',
             displayName: 'Second Personality',
-            avatarUrl: null
+            avatarUrl: null,
           },
-          aliases: []
+          aliases: [],
         },
         {
           profile: {
             name: 'personality3',
             displayName: null,
-            avatarUrl: 'https://example.com/avatar3.png'
+            avatarUrl: 'https://example.com/avatar3.png',
           },
-          aliases: [{ alias: 'p3' }]
-        }
-      ])
+          aliases: [{ alias: 'p3' }],
+        },
+      ]),
     };
-    
+
     // Mock feature flags
     mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false)
+      isEnabled: jest.fn().mockReturnValue(false),
     };
-    
+
     // Mock context
     mockContext = {
       isSlashCommand: false,
@@ -67,8 +69,8 @@ describe('ListCommand', () => {
       dependencies: {
         personalityApplicationService: mockPersonalityService,
         featureFlags: mockFeatureFlags,
-        botPrefix: '!tz'
-      }
+        botPrefix: '!tz',
+      },
     };
   });
 
@@ -96,43 +98,45 @@ describe('ListCommand', () => {
   describe('execute', () => {
     it('should list personalities successfully with embed', async () => {
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '📋 Your Personalities',
-          description: 'Showing 3 of 3 personalities',
-          color: 0x2196f3,
-          fields: expect.arrayContaining([
-            {
-              name: '1. First Personality',
-              value: '**Name:** `personality1`\n**Aliases:** p1, first',
-              inline: false
+        embeds: [
+          expect.objectContaining({
+            title: '📋 Your Personalities',
+            description: 'Showing 3 of 3 personalities',
+            color: 0x2196f3,
+            fields: expect.arrayContaining([
+              {
+                name: '1. First Personality',
+                value: '**Name:** `personality1`\n**Aliases:** p1, first',
+                inline: false,
+              },
+              {
+                name: '2. Second Personality',
+                value: '**Name:** `personality2`\n**Aliases:** None',
+                inline: false,
+              },
+              {
+                name: '3. personality3',
+                value: '**Name:** `personality3`\n**Aliases:** p3',
+                inline: false,
+              },
+            ]),
+            footer: {
+              text: 'Page 1 of 1',
             },
-            {
-              name: '2. Second Personality',
-              value: '**Name:** `personality2`\n**Aliases:** None',
-              inline: false
-            },
-            {
-              name: '3. personality3',
-              value: '**Name:** `personality3`\n**Aliases:** p3',
-              inline: false
-            }
-          ]),
-          footer: {
-            text: 'Page 1 of 1'
-          }
-        })]
+          }),
+        ],
       });
     });
 
     it('should list personalities successfully without embed support', async () => {
       mockContext.canEmbed.mockReturnValue(false);
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
       expect(mockContext.respond).toHaveBeenCalled();
     });
@@ -145,17 +149,17 @@ describe('ListCommand', () => {
           profile: {
             name: `personality${i}`,
             displayName: `Personality ${i}`,
-            avatarUrl: null
+            avatarUrl: null,
           },
-          aliases: []
+          aliases: [],
         });
       }
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(personalities);
-      
+
       mockContext.args = ['2']; // Page 2
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
       expect(embedCall.embeds[0].title).toBe('📋 Your Personalities');
       expect(embedCall.embeds[0].description).toBe('Showing 5 of 15 personalities');
@@ -166,72 +170,78 @@ describe('ListCommand', () => {
     it('should handle slash command options', async () => {
       mockContext.isSlashCommand = true;
       mockContext.options = { page: 1 };
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
       expect(mockContext.respond).toHaveBeenCalled();
     });
 
     it('should handle no personalities', async () => {
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '📋 No Personalities Yet',
-          description: "You haven't added any personalities.",
-          color: 0xff9800,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Get Started',
-              value: expect.stringContaining('!tz add <personality-name>')
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '📋 No Personalities Yet',
+            description: "You haven't added any personalities.",
+            color: 0xff9800,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Get Started',
+                value: expect.stringContaining('!tz add <personality-name>'),
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
     it('should handle invalid page number', async () => {
       mockContext.args = ['5']; // Page 5 doesn't exist
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Invalid Page Number',
-          description: 'The page number you specified is out of range.',
-          color: 0xf44336,
-          fields: expect.arrayContaining([
-            {
-              name: 'Valid Range',
-              value: 'Pages 1 to 1',
-              inline: true
-            },
-            {
-              name: 'You Entered',
-              value: '5',
-              inline: true
-            }
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Page Number',
+            description: 'The page number you specified is out of range.',
+            color: 0xf44336,
+            fields: expect.arrayContaining([
+              {
+                name: 'Valid Range',
+                value: 'Pages 1 to 1',
+                inline: true,
+              },
+              {
+                name: 'You Entered',
+                value: '5',
+                inline: true,
+              },
+            ]),
+          }),
+        ],
       });
     });
 
     it('should handle non-numeric page argument', async () => {
       mockContext.args = ['abc'];
-      
+
       await command.execute(mockContext);
-      
+
       // Should default to page 1
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '📋 Your Personalities',
-          footer: {
-            text: 'Page 1 of 1'
-          }
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '📋 Your Personalities',
+            footer: {
+              text: 'Page 1 of 1',
+            },
+          }),
+        ],
       });
     });
 
@@ -243,15 +253,15 @@ describe('ListCommand', () => {
           profile: {
             name: `personality${i}`,
             displayName: `Personality ${i}`,
-            avatarUrl: null
+            avatarUrl: null,
           },
-          aliases: []
+          aliases: [],
         });
       }
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(personalities);
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
       const fields = embedCall.embeds[0].fields;
       const navigationField = fields.find(f => f.name === 'Navigation');
@@ -261,37 +271,41 @@ describe('ListCommand', () => {
 
     it('should handle missing personality service', async () => {
       mockContext.dependencies.personalityApplicationService = null;
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'What happened',
-              value: 'PersonalityApplicationService not available'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'What happened',
+                value: 'PersonalityApplicationService not available',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
     it('should handle service exceptions', async () => {
       mockPersonalityService.listPersonalitiesByOwner.mockRejectedValue(new Error('Service error'));
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'What happened',
-              value: 'Service error'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'What happened',
+                value: 'Service error',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
@@ -301,14 +315,14 @@ describe('ListCommand', () => {
           profile: {
             name: 'single-personality',
             displayName: 'Single One',
-            avatarUrl: null
+            avatarUrl: null,
           },
-          aliases: []
-        }
+          aliases: [],
+        },
       ]);
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
       expect(embedCall.embeds[0].description).toBe('Showing 1 of 1 personalities');
       expect(embedCall.embeds[0].footer.text).toBe('Page 1 of 1');
@@ -320,9 +334,9 @@ describe('ListCommand', () => {
     it('should use default bot prefix when not provided', async () => {
       mockContext.dependencies.botPrefix = undefined;
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
       expect(embedCall.embeds[0].fields[0].value).toContain('!tz add');
     });
@@ -330,39 +344,43 @@ describe('ListCommand', () => {
     it('should handle null page in slash command', async () => {
       mockContext.isSlashCommand = true;
       mockContext.options = { page: null };
-      
+
       await command.execute(mockContext);
-      
+
       // Should default to page 1
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          footer: {
-            text: 'Page 1 of 1'
-          }
-        })]
+        embeds: [
+          expect.objectContaining({
+            footer: {
+              text: 'Page 1 of 1',
+            },
+          }),
+        ],
       });
     });
 
     it('should parse page number as integer', async () => {
       mockContext.args = ['1.5']; // Decimal number
-      
+
       await command.execute(mockContext);
-      
+
       // Should parse as 1
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          footer: {
-            text: 'Page 1 of 1'
-          }
-        })]
+        embeds: [
+          expect.objectContaining({
+            footer: {
+              text: 'Page 1 of 1',
+            },
+          }),
+        ],
       });
     });
 
     it('should show DDD feature flag status when enabled', async () => {
       mockFeatureFlags.isEnabled.mockReturnValue(true);
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
       const systemField = embedCall.embeds[0].fields.find(f => f.name === 'System');
       expect(systemField).toBeDefined();
@@ -375,16 +393,18 @@ describe('ListCommand', () => {
           profile: {
             name: 'personality1',
             displayName: 'First Personality',
-            avatarUrl: 'https://example.com/avatar1.png'
+            avatarUrl: 'https://example.com/avatar1.png',
           },
-          aliases: [{ value: 'p1' }, { value: 'first' }]
-        }
+          aliases: [{ value: 'p1' }, { value: 'first' }],
+        },
       ]);
-      
+
       await command.execute(mockContext);
-      
+
       const embedCall = mockContext.respond.mock.calls[0][0];
-      expect(embedCall.embeds[0].fields[0].value).toBe('**Name:** `personality1`\n**Aliases:** p1, first');
+      expect(embedCall.embeds[0].fields[0].value).toBe(
+        '**Name:** `personality1`\n**Aliases:** p1, first'
+      );
     });
   });
 });

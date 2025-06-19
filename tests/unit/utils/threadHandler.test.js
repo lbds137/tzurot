@@ -15,11 +15,11 @@ describe('Thread Handler Module', () => {
         id: 'thread123',
         type: 'GUILD_PUBLIC_THREAD',
         isThread: jest.fn().mockReturnValue(true),
-        parent: { id: 'parent123', name: 'general', type: 'GUILD_TEXT' }
+        parent: { id: 'parent123', name: 'general', type: 'GUILD_TEXT' },
       };
-      
+
       const result = threadHandler.detectThread(channel);
-      
+
       expect(result.isThread).toBe(true);
       expect(result.isNativeThread).toBe(true);
       expect(result.isForcedThread).toBe(false);
@@ -30,11 +30,11 @@ describe('Thread Handler Module', () => {
       const channel = {
         id: 'thread123',
         type: 'GUILD_PUBLIC_THREAD',
-        isThread: jest.fn().mockReturnValue(false)
+        isThread: jest.fn().mockReturnValue(false),
       };
-      
+
       const result = threadHandler.detectThread(channel);
-      
+
       expect(result.isThread).toBe(true);
       expect(result.isNativeThread).toBe(false);
       expect(result.isForcedThread).toBe(true);
@@ -46,11 +46,11 @@ describe('Thread Handler Module', () => {
     it('should handle forum channels', () => {
       const channel = {
         id: 'forum123',
-        type: 'FORUM'
+        type: 'FORUM',
       };
-      
+
       const result = threadHandler.detectThread(channel);
-      
+
       expect(result.isThread).toBe(true);
       expect(result.channelType).toBe('FORUM');
     });
@@ -59,11 +59,11 @@ describe('Thread Handler Module', () => {
       const channel = {
         id: 'thread123',
         type: 11, // GuildPublicThread
-        isThread: jest.fn().mockReturnValue(true)
+        isThread: jest.fn().mockReturnValue(true),
       };
-      
+
       const result = threadHandler.detectThread(channel);
-      
+
       expect(result.isThread).toBe(true);
     });
 
@@ -71,11 +71,11 @@ describe('Thread Handler Module', () => {
       const channel = {
         id: 'channel123',
         type: 'GUILD_TEXT',
-        isThread: jest.fn().mockReturnValue(false)
+        isThread: jest.fn().mockReturnValue(false),
       };
-      
+
       const result = threadHandler.detectThread(channel);
-      
+
       expect(result.isThread).toBe(false);
       expect(result.isNativeThread).toBe(false);
       expect(result.isForcedThread).toBe(false);
@@ -96,7 +96,7 @@ describe('Thread Handler Module', () => {
     it('should detect forum threads by parent', () => {
       const channel = {
         type: 'GUILD_PUBLIC_THREAD',
-        parent: { type: 'FORUM' }
+        parent: { type: 'FORUM' },
       };
       expect(threadHandler.isForumChannel(channel)).toBe(true);
     });
@@ -111,37 +111,33 @@ describe('Thread Handler Module', () => {
     it('should build basic options for non-threads', () => {
       const channel = {
         id: 'channel123',
-        type: 'GUILD_TEXT'
+        type: 'GUILD_TEXT',
       };
       const threadInfo = { isThread: false };
-      
+
       const options = threadHandler.buildThreadWebhookOptions(
         channel,
         'user123',
         threadInfo,
         false
       );
-      
+
       expect(options).toEqual({
         userId: 'user123',
         channelType: 'GUILD_TEXT',
-        isReplyToDMFormattedMessage: false
+        isReplyToDMFormattedMessage: false,
       });
     });
 
     it('should add thread options for threads', () => {
       const channel = {
         id: 'thread123',
-        type: 'GUILD_PUBLIC_THREAD'
+        type: 'GUILD_PUBLIC_THREAD',
       };
       const threadInfo = { isThread: true };
-      
-      const options = threadHandler.buildThreadWebhookOptions(
-        channel,
-        'user123',
-        threadInfo
-      );
-      
+
+      const options = threadHandler.buildThreadWebhookOptions(channel, 'user123', threadInfo);
+
       expect(options.threadId).toBe('thread123');
       expect(options.channelType).toBe('GUILD_PUBLIC_THREAD');
     });
@@ -149,16 +145,12 @@ describe('Thread Handler Module', () => {
     it('should add forum options for forum channels', () => {
       const channel = {
         id: 'forum123',
-        type: 'FORUM'
+        type: 'FORUM',
       };
       const threadInfo = { isThread: true };
-      
-      const options = threadHandler.buildThreadWebhookOptions(
-        channel,
-        'user123',
-        threadInfo
-      );
-      
+
+      const options = threadHandler.buildThreadWebhookOptions(channel, 'user123', threadInfo);
+
       expect(options.isForum).toBe(true);
       expect(options.forum).toBe(true);
       expect(options.forumThreadId).toBe('forum123');
@@ -166,16 +158,12 @@ describe('Thread Handler Module', () => {
 
     it('should handle missing thread ID', () => {
       const channel = {
-        type: 'GUILD_PUBLIC_THREAD'
+        type: 'GUILD_PUBLIC_THREAD',
       };
       const threadInfo = { isThread: true };
-      
-      const options = threadHandler.buildThreadWebhookOptions(
-        channel,
-        'user123',
-        threadInfo
-      );
-      
+
+      const options = threadHandler.buildThreadWebhookOptions(channel, 'user123', threadInfo);
+
       expect(options.threadId).toBeUndefined();
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Thread detected but threadId is not set')
@@ -191,24 +179,24 @@ describe('Thread Handler Module', () => {
     beforeEach(() => {
       mockWebhookManager = {
         sendDirectThreadMessage: jest.fn(),
-        sendWebhookMessage: jest.fn()
+        sendWebhookMessage: jest.fn(),
       };
-      
+
       mockChannel = {
         id: 'thread123',
-        send: jest.fn()
+        send: jest.fn(),
       };
-      
+
       mockPersonality = {
         fullName: 'test-personality',
-        displayName: 'Test'
+        displayName: 'Test',
       };
     });
 
     it('should succeed with direct thread message', async () => {
       const expectedResult = { messageIds: ['msg123'] };
       mockWebhookManager.sendDirectThreadMessage.mockResolvedValue(expectedResult);
-      
+
       const result = await threadHandler.sendThreadMessage(
         mockWebhookManager,
         mockChannel,
@@ -217,7 +205,7 @@ describe('Thread Handler Module', () => {
         {},
         {}
       );
-      
+
       expect(result).toBe(expectedResult);
       expect(mockWebhookManager.sendDirectThreadMessage).toHaveBeenCalled();
     });
@@ -226,7 +214,7 @@ describe('Thread Handler Module', () => {
       const expectedResult = { messageIds: ['msg456'] };
       mockWebhookManager.sendDirectThreadMessage.mockRejectedValue(new Error('Thread failed'));
       mockWebhookManager.sendWebhookMessage.mockResolvedValue(expectedResult);
-      
+
       const result = await threadHandler.sendThreadMessage(
         mockWebhookManager,
         mockChannel,
@@ -235,7 +223,7 @@ describe('Thread Handler Module', () => {
         {},
         {}
       );
-      
+
       expect(result).toBe(expectedResult);
       expect(mockWebhookManager.sendWebhookMessage).toHaveBeenCalled();
     });
@@ -245,7 +233,7 @@ describe('Thread Handler Module', () => {
       mockWebhookManager.sendDirectThreadMessage.mockRejectedValue(new Error('Thread failed'));
       mockWebhookManager.sendWebhookMessage.mockRejectedValue(new Error('Webhook failed'));
       mockChannel.send.mockResolvedValue(directMessage);
-      
+
       const result = await threadHandler.sendThreadMessage(
         mockWebhookManager,
         mockChannel,
@@ -254,7 +242,7 @@ describe('Thread Handler Module', () => {
         {},
         {}
       );
-      
+
       expect(result.messageIds).toEqual(['direct789']);
       expect(result.isEmergencyFallback).toBe(true);
       expect(mockChannel.send).toHaveBeenCalledWith('**Test:** Hello');
@@ -264,7 +252,7 @@ describe('Thread Handler Module', () => {
       mockWebhookManager.sendDirectThreadMessage.mockRejectedValue(new Error('Thread failed'));
       mockWebhookManager.sendWebhookMessage.mockRejectedValue(new Error('Webhook failed'));
       mockChannel.send.mockRejectedValue(new Error('Send failed'));
-      
+
       await expect(
         threadHandler.sendThreadMessage(
           mockWebhookManager,
@@ -289,15 +277,15 @@ describe('Thread Handler Module', () => {
         parent: {
           id: 'parent123',
           name: 'general',
-          type: 'GUILD_TEXT'
+          type: 'GUILD_TEXT',
         },
         isTextBased: jest.fn().mockReturnValue(true),
         isVoiceBased: jest.fn().mockReturnValue(false),
-        isDMBased: jest.fn().mockReturnValue(false)
+        isDMBased: jest.fn().mockReturnValue(false),
       };
-      
+
       const info = threadHandler.getThreadInfo(channel);
-      
+
       expect(info).toEqual({
         id: 'thread123',
         name: 'Discussion Thread',
@@ -308,7 +296,7 @@ describe('Thread Handler Module', () => {
         parentType: 'GUILD_TEXT',
         isTextBased: true,
         isVoiceBased: false,
-        isDMBased: false
+        isDMBased: false,
       });
     });
 
@@ -316,11 +304,11 @@ describe('Thread Handler Module', () => {
       const channel = {
         id: 'thread123',
         name: 'Thread',
-        type: 'GUILD_PUBLIC_THREAD'
+        type: 'GUILD_PUBLIC_THREAD',
       };
-      
+
       const info = threadHandler.getThreadInfo(channel);
-      
+
       expect(info.parentId).toBeUndefined();
       expect(info.parentName).toBeUndefined();
       expect(info.parentType).toBeUndefined();

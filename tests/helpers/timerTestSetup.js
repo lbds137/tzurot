@@ -1,6 +1,6 @@
 /**
  * Timer test setup helper
- * 
+ *
  * Provides utilities for setting up timer-related mocks in tests
  * to work with injectable timer patterns
  */
@@ -31,7 +31,7 @@ function setupInjectableTimers(module) {
       }
       return id;
     }),
-    clearInterval: jest.fn()
+    clearInterval: jest.fn(),
   };
 
   // Configure the module if it has timer configuration
@@ -51,7 +51,7 @@ function setupInjectableTimers(module) {
 function setupInjectableDelay(module, options = {}) {
   const { immediate = true } = options;
 
-  const mockDelay = jest.fn((ms) => {
+  const mockDelay = jest.fn(ms => {
     if (immediate) {
       return Promise.resolve();
     }
@@ -82,16 +82,16 @@ function resetTimerMocks(module) {
       setTimeout: global.setTimeout,
       clearTimeout: global.clearTimeout,
       setInterval: global.setInterval,
-      clearInterval: global.clearInterval
+      clearInterval: global.clearInterval,
     });
   }
   if (module.configureDelay) {
-    module.configureDelay((ms) => new Promise(resolve => setTimeout(resolve, ms)));
+    module.configureDelay(ms => new Promise(resolve => setTimeout(resolve, ms)));
   }
 }
 
 module.exports = {
   setupInjectableTimers,
   setupInjectableDelay,
-  resetTimerMocks
+  resetTimerMocks,
 };

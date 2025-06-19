@@ -6,7 +6,9 @@
 const { Command, CommandOption } = require('../CommandAbstraction');
 const { BackupJob } = require('../../../domain/backup/BackupJob');
 const { BackupService } = require('../../../domain/backup/BackupService');
-const { PersonalityDataRepository } = require('../../../infrastructure/backup/PersonalityDataRepository');
+const {
+  PersonalityDataRepository,
+} = require('../../../infrastructure/backup/PersonalityDataRepository');
 const { BackupAPIClient } = require('../../../infrastructure/backup/BackupAPIClient');
 const logger = require('../../../logger');
 const { USER_CONFIG } = require('../../../constants');
@@ -29,16 +31,18 @@ function createExecutor(dependencies = {}) {
         backupService = null,
         personalityDataRepository = new PersonalityDataRepository(),
         apiClientService = new BackupAPIClient(),
-        delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+        delayFn = null,
       } = dependencies;
 
       // Initialize backup service if not provided
-      const backupServiceInstance = backupService || new BackupService({
-        personalityDataRepository,
-        apiClientService,
-        authenticationService: null, // Not needed for current implementation
-        delayFn
-      });
+      const backupServiceInstance =
+        backupService ||
+        new BackupService({
+          personalityDataRepository,
+          apiClientService,
+          authenticationService: null, // Not needed for current implementation
+          delayFn: delayFn,
+        });
 
       // Check if API URL is configured
       if (!process.env.SERVICE_WEBSITE) {
@@ -54,7 +58,7 @@ function createExecutor(dependencies = {}) {
 
       // Get subcommand and arguments
       const subcommand = context.options.subcommand || context.args[0];
-      
+
       // Handle --set-cookie subcommand
       if (subcommand === 'set-cookie') {
         return await handleSetCookie(context);
@@ -74,7 +78,6 @@ function createExecutor(dependencies = {}) {
       } else {
         return await handleSingleBackup(context, subcommand, backupServiceInstance, authData);
       }
-
     } catch (error) {
       logger.error('[BackupCommand] Execution failed:', error);
       const errorEmbed = {
@@ -93,8 +96,8 @@ function createExecutor(dependencies = {}) {
  * @param {Object} context - Command context
  */
 async function showHelp(context) {
-  const { botPrefix } = require('../../../config');
-  
+  const { botPrefix } = require('../../../../config');
+
   const helpEmbed = {
     title: '📦 Backup Command Help',
     description: 'Backup personality data from the AI service',
@@ -105,7 +108,7 @@ async function showHelp(context) {
         value: [
           `\`${botPrefix} backup <personality-name>\` - Backup a single personality`,
           `\`${botPrefix} backup all\` - Backup all owner personalities`,
-          `\`${botPrefix} backup set-cookie <cookie>\` - Set browser session cookie`
+          `\`${botPrefix} backup set-cookie <cookie>\` - Set browser session cookie`,
         ].join('\n'),
         inline: false,
       },
@@ -117,20 +120,22 @@ async function showHelp(context) {
           '• Knowledge & story data',
           '• Training examples',
           '• User personalization',
-          '• Complete chat history'
+          '• Complete chat history',
         ].join('\n'),
         inline: false,
       },
       {
         name: 'Authentication Required',
-        value: 'You must set your session cookie first using the `set-cookie` subcommand. Token authentication does not work for backup APIs.',
+        value:
+          'You must set your session cookie first using the `set-cookie` subcommand. Token authentication does not work for backup APIs.',
         inline: false,
       },
       {
         name: '🔒 Privacy Notice',
-        value: 'Session cookies are stored only in memory and never persisted to disk. They are automatically deleted when the bot restarts.',
+        value:
+          'Session cookies are stored only in memory and never persisted to disk. They are automatically deleted when the bot restarts.',
         inline: false,
-      }
+      },
     ],
     footer: {
       text: 'Administrator permissions required',
@@ -162,10 +167,10 @@ async function handleSetCookie(context) {
             '3. Go to Application/Storage → Cookies',
             '4. Find the `appSession` cookie',
             '5. Copy its value (the long string)',
-            '6. Use this command with the cookie value'
+            '6. Use this command with the cookie value',
           ].join('\n'),
           inline: false,
-        }
+        },
       ],
       footer: {
         text: '⚠️ Security Notice: Only use this in DMs for security!',
@@ -205,10 +210,10 @@ async function handleSetCookie(context) {
           '• Your session cookie is stored **only in memory**',
           '• It is **never saved to disk** or any persistent storage',
           '• The cookie is **automatically deleted** when the bot restarts',
-          '• Session cookies expire and may need periodic updates'
+          '• Session cookies expire and may need periodic updates',
         ].join('\n'),
         inline: false,
-      }
+      },
     ],
     footer: {
       text: '⚠️ Note: Your session data is temporary and not persisted.',
@@ -226,8 +231,8 @@ async function handleSetCookie(context) {
 async function getAuthData(context) {
   const userSession = userSessions.get(context.userId);
   if (!userSession) {
-    const { botPrefix } = require('../../../config');
-    
+    const { botPrefix } = require('../../../../config');
+
     const errorEmbed = {
       title: '❌ Authentication Required',
       description: 'Session cookie required for backup operations.',
@@ -241,10 +246,10 @@ async function getAuthData(context) {
             '3. Go to Application/Storage → Cookies',
             '4. Find the `appSession` cookie',
             '5. Copy its value (the long string)',
-            `6. Use: \`${botPrefix} backup set-cookie <cookie-value>\``
+            `6. Use: \`${botPrefix} backup set-cookie <cookie-value>\``,
           ].join('\n'),
           inline: false,
-        }
+        },
       ],
       footer: {
         text: '⚠️ Note: Token authentication does not work for these backup APIs.',
@@ -281,7 +286,7 @@ async function handleBulkBackup(context, backupService, authData) {
   }
 
   // Create progress callback
-  const progressCallback = async (message) => {
+  const progressCallback = async message => {
     await context.respond(message);
   };
 
@@ -308,11 +313,11 @@ async function handleSingleBackup(context, personalityName, backupService, authD
   const job = new BackupJob({
     personalityName: personalityName.toLowerCase(),
     userId: context.userId,
-    isBulk: false
+    isBulk: false,
   });
 
   // Create progress callback
-  const progressCallback = async (message) => {
+  const progressCallback = async message => {
     await context.respond(message);
   };
 
@@ -344,7 +349,7 @@ function createBackupCommand(dependencies = {}) {
         choices: [
           { name: 'Backup single personality', value: 'personality' },
           { name: 'Backup all owner personalities', value: 'all' },
-          { name: 'Set session cookie', value: 'set-cookie' }
+          { name: 'Set session cookie', value: 'set-cookie' },
         ],
       }),
       new CommandOption({
@@ -377,5 +382,5 @@ module.exports = {
   getAuthData,
   handleBulkBackup,
   handleSingleBackup,
-  showHelp
+  showHelp,
 };

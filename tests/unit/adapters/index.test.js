@@ -1,6 +1,6 @@
 /**
  * @jest-environment node
- * 
+ *
  * Main Adapters Index Test
  * - Tests the exports from adapters/index.js
  */
@@ -51,13 +51,19 @@ describe('Main Adapters Index', () => {
 
   it('should have all expected top-level exports', () => {
     const expectedExports = [
-      'ai', 'discord', 'persistence',
-      'HttpAIServiceAdapter', 'AIServiceAdapterFactory',
-      'DiscordMessageAdapter', 'DiscordWebhookAdapter',
-      'FilePersonalityRepository', 'FileConversationRepository',
-      'FileAuthenticationRepository', 'MemoryConversationRepository'
+      'ai',
+      'discord',
+      'persistence',
+      'HttpAIServiceAdapter',
+      'AIServiceAdapterFactory',
+      'DiscordMessageAdapter',
+      'DiscordWebhookAdapter',
+      'FilePersonalityRepository',
+      'FileConversationRepository',
+      'FileAuthenticationRepository',
+      'MemoryConversationRepository',
     ].sort();
-    
+
     const actualExports = Object.keys(adapters).sort();
     expect(actualExports).toEqual(expectedExports);
   });

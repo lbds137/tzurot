@@ -1,4 +1,10 @@
-const { isValidUrlFormat, isTrustedDomain, hasImageExtension, isImageUrl, configureTimers } = require('../../../src/utils/urlValidator');
+const {
+  isValidUrlFormat,
+  isTrustedDomain,
+  hasImageExtension,
+  isImageUrl,
+  configureTimers,
+} = require('../../../src/utils/urlValidator');
 const logger = require('../../../src/logger');
 const nodeFetch = require('node-fetch');
 
@@ -7,7 +13,7 @@ jest.mock('../../../src/logger', () => ({
   error: jest.fn(),
   warn: jest.fn(),
   info: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 // Mock node-fetch
@@ -17,18 +23,18 @@ describe('urlValidator', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Configure urlValidator to use fake timers
     configureTimers({
       setTimeout: jest.fn((callback, delay) => {
         return global.setTimeout(callback, delay);
       }),
-      clearTimeout: jest.fn((id) => {
+      clearTimeout: jest.fn(id => {
         return global.clearTimeout(id);
-      })
+      }),
     });
   });
-  
+
   afterEach(() => {
     jest.useRealTimers();
   });
@@ -41,7 +47,7 @@ describe('urlValidator', () => {
         'https://example.com/path',
         'https://example.com/path?query=value',
         'https://example.com:8080/path',
-        'ftp://example.com/file.txt'
+        'ftp://example.com/file.txt',
       ];
 
       validUrls.forEach(url => {
@@ -57,14 +63,14 @@ describe('urlValidator', () => {
         'not a url',
         'example.com',
         'https://',
-        '//example.com'
+        '//example.com',
       ];
 
       invalidUrls.forEach(url => {
         expect(isValidUrlFormat(url)).toBe(false);
       });
     });
-    
+
     it('should return true for javascript URLs', () => {
       // JavaScript URLs are technically valid URLs according to the URL constructor
       expect(isValidUrlFormat('javascript:alert("test")')).toBe(true);
@@ -72,7 +78,7 @@ describe('urlValidator', () => {
 
     it('should log warnings for invalid URLs', () => {
       isValidUrlFormat('invalid url');
-      
+
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('[UrlValidator] Invalid URL format: invalid url')
       );
@@ -82,7 +88,7 @@ describe('urlValidator', () => {
   describe('isTrustedDomain', () => {
     it('should return true for URLs from trusted domains', () => {
       const trustedDomains = ['example.com', 'trusted.org'];
-      
+
       expect(isTrustedDomain('https://example.com/image.png', trustedDomains)).toBe(true);
       expect(isTrustedDomain('https://subdomain.example.com/path', trustedDomains)).toBe(true);
       expect(isTrustedDomain('http://trusted.org', trustedDomains)).toBe(true);
@@ -90,14 +96,14 @@ describe('urlValidator', () => {
 
     it('should return false for URLs not from trusted domains', () => {
       const trustedDomains = ['example.com', 'trusted.org'];
-      
+
       expect(isTrustedDomain('https://untrusted.com/image.png', trustedDomains)).toBe(false);
       expect(isTrustedDomain('https://evil.net', trustedDomains)).toBe(false);
     });
 
     it('should return false for invalid URLs', () => {
       const trustedDomains = ['example.com'];
-      
+
       expect(isTrustedDomain('not a url', trustedDomains)).toBe(false);
       expect(isTrustedDomain('', trustedDomains)).toBe(false);
       expect(isTrustedDomain(null, trustedDomains)).toBe(false);
@@ -121,7 +127,7 @@ describe('urlValidator', () => {
         'https://example.com/image.webp',
         'https://example.com/image.PNG',
         'https://example.com/image.jpg?query=value',
-        'https://example.com/path/to/image.jpeg?size=large&version=2'
+        'https://example.com/path/to/image.jpeg?size=large&version=2',
       ];
 
       imageUrls.forEach(url => {
@@ -137,7 +143,7 @@ describe('urlValidator', () => {
         'https://example.com/script.js',
         'https://example.com/',
         'https://example.com/image',
-        'https://example.com/fake.jpg.txt'
+        'https://example.com/fake.jpg.txt',
       ];
 
       nonImageUrls.forEach(url => {
@@ -168,7 +174,7 @@ describe('urlValidator', () => {
 
     it('should trust URLs with image extensions when trustExtensions is true', async () => {
       const result = await isImageUrl('https://example.com/image.png');
-      
+
       expect(result).toBe(true);
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining('URL has image extension, trusting without validation')
@@ -180,18 +186,18 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('image/png')
+          get: jest.fn().mockReturnValue('image/png'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
             read: jest.fn().mockResolvedValue({ done: false, value: new Uint8Array([1, 2, 3]) }),
-            cancel: jest.fn()
-          })
-        }
+            cancel: jest.fn(),
+          }),
+        },
       });
 
       const result = await isImageUrl('https://example.com/image.png', { trustExtensions: false });
-      
+
       expect(result).toBe(true);
       expect(nodeFetch).toHaveBeenCalled();
     });
@@ -199,27 +205,27 @@ describe('urlValidator', () => {
     it('should trust URLs from default trusted domains', async () => {
       const trustedUrls = [
         'https://cdn.discordapp.com/attachments/123/456/image',
-        'https://discord.com/assets/image', 
-        'https://media.discordapp.net/attachments/789/012/photo'
+        'https://discord.com/assets/image',
+        'https://media.discordapp.net/attachments/789/012/photo',
       ];
 
       for (const url of trustedUrls) {
         jest.clearAllMocks();
-        
+
         // Test with default options - these URLs will be trusted
         const result = await isImageUrl(url);
-        
+
         expect(result).toBe(true);
       }
-      
+
       expect(nodeFetch).not.toHaveBeenCalled();
     });
 
     it('should use custom trusted domains when provided', async () => {
       const result = await isImageUrl('https://custom-domain.com/image', {
-        trustedDomains: ['custom-domain.com']
+        trustedDomains: ['custom-domain.com'],
       });
-      
+
       expect(result).toBe(true);
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining('URL is from trusted domain, skipping validation')
@@ -231,18 +237,20 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('image/jpeg')
+          get: jest.fn().mockReturnValue('image/jpeg'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
-            read: jest.fn().mockResolvedValue({ done: false, value: new Uint8Array([255, 216, 255]) }),
-            cancel: jest.fn()
-          })
-        }
+            read: jest
+              .fn()
+              .mockResolvedValue({ done: false, value: new Uint8Array([255, 216, 255]) }),
+            cancel: jest.fn(),
+          }),
+        },
       });
 
       const result = await isImageUrl('https://untrusted.com/image', { trustExtensions: false });
-      
+
       expect(result).toBe(true);
       expect(nodeFetch).toHaveBeenCalledWith(
         'https://untrusted.com/image',
@@ -250,8 +258,8 @@ describe('urlValidator', () => {
           method: 'GET',
           headers: expect.objectContaining({
             'User-Agent': expect.any(String),
-            Accept: expect.stringContaining('image/')
-          })
+            Accept: expect.stringContaining('image/'),
+          }),
         })
       );
     });
@@ -260,40 +268,41 @@ describe('urlValidator', () => {
       // Create an AbortController that we can control
       const mockAbortController = {
         abort: jest.fn(),
-        signal: {}
+        signal: {},
       };
       jest.spyOn(global, 'AbortController').mockImplementation(() => mockAbortController);
-      
+
       // Mock fetch to never resolve
       nodeFetch.mockImplementation(() => {
         // Simulate abort error when controller.abort() is called
         return Promise.reject(new Error('The user aborted a request.'));
       });
-      
-      const promise = isImageUrl('https://slow-server.com/image', { timeout: 1000, trustExtensions: false });
-      
+
+      const promise = isImageUrl('https://slow-server.com/image', {
+        timeout: 1000,
+        trustExtensions: false,
+      });
+
       // Advance timers to trigger the timeout
       jest.advanceTimersByTime(1000);
-      
+
       const result = await promise;
-      
+
       expect(result).toBe(false);
       expect(mockAbortController.abort).toHaveBeenCalled();
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Error validating URL')
-      );
-      
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Error validating URL'));
+
       global.AbortController.mockRestore();
     });
 
     it('should return false for non-OK HTTP responses', async () => {
       nodeFetch.mockResolvedValue({
         ok: false,
-        status: 404
+        status: 404,
       });
 
       const result = await isImageUrl('https://example.com/not-found', { trustExtensions: false });
-      
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('URL returned non-OK status: 404')
@@ -304,12 +313,14 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue(null)
-        }
+          get: jest.fn().mockReturnValue(null),
+        },
       });
 
-      const result = await isImageUrl('https://example.com/no-content-type', { trustExtensions: false });
-      
+      const result = await isImageUrl('https://example.com/no-content-type', {
+        trustExtensions: false,
+      });
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('URL has no content-type header')
@@ -320,12 +331,12 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('text/html')
-        }
+          get: jest.fn().mockReturnValue('text/html'),
+        },
       });
 
       const result = await isImageUrl('https://example.com/page.html', { trustExtensions: false });
-      
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('URL does not point to an image: text/html')
@@ -336,18 +347,20 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('application/octet-stream')
+          get: jest.fn().mockReturnValue('application/octet-stream'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
             read: jest.fn().mockResolvedValue({ done: false, value: new Uint8Array([1, 2, 3]) }),
-            cancel: jest.fn()
-          })
-        }
+            cancel: jest.fn(),
+          }),
+        },
       });
 
-      const result = await isImageUrl('https://example.com/binary-image', { trustExtensions: false });
-      
+      const result = await isImageUrl('https://example.com/binary-image', {
+        trustExtensions: false,
+      });
+
       expect(result).toBe(true);
     });
 
@@ -355,18 +368,18 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('image/png')
+          get: jest.fn().mockReturnValue('image/png'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
             read: jest.fn().mockResolvedValue({ done: true }),
-            cancel: jest.fn()
-          })
-        }
+            cancel: jest.fn(),
+          }),
+        },
       });
 
       const result = await isImageUrl('https://example.com/empty', { trustExtensions: false });
-      
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('URL returned an empty response')
@@ -377,18 +390,18 @@ describe('urlValidator', () => {
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('image/png')
+          get: jest.fn().mockReturnValue('image/png'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
             read: jest.fn().mockRejectedValue(new Error('Read failed')),
-            cancel: jest.fn()
-          })
-        }
+            cancel: jest.fn(),
+          }),
+        },
       });
 
       const result = await isImageUrl('https://example.com/read-error', { trustExtensions: false });
-      
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Error reading response body: Read failed')
@@ -399,21 +412,25 @@ describe('urlValidator', () => {
       nodeFetch.mockRejectedValue(new Error('Network error'));
 
       const result = await isImageUrl('https://example.com/image.jpg', { trustExtensions: false });
-      
+
       expect(result).toBe(true);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Error validating URL: Network error')
       );
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('URL appears to be an image based on extension, accepting despite errors')
+        expect.stringContaining(
+          'URL appears to be an image based on extension, accepting despite errors'
+        )
       );
     });
 
     it('should return false on fetch errors for non-image extensions', async () => {
       nodeFetch.mockRejectedValue(new Error('Network error'));
 
-      const result = await isImageUrl('https://example.com/document.pdf', { trustExtensions: false });
-      
+      const result = await isImageUrl('https://example.com/document.pdf', {
+        trustExtensions: false,
+      });
+
       expect(result).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Error validating URL: Network error')
@@ -425,25 +442,25 @@ describe('urlValidator', () => {
       // Get the mock clearTimeout from our configured timers
       const mockTimers = {
         setTimeout: jest.fn((callback, delay) => global.setTimeout(callback, delay)),
-        clearTimeout: jest.fn((id) => global.clearTimeout(id))
+        clearTimeout: jest.fn(id => global.clearTimeout(id)),
       };
       configureTimers(mockTimers);
-      
+
       nodeFetch.mockResolvedValue({
         ok: true,
         headers: {
-          get: jest.fn().mockReturnValue('image/png')
+          get: jest.fn().mockReturnValue('image/png'),
         },
         body: {
           getReader: jest.fn().mockReturnValue({
             read: jest.fn().mockResolvedValue({ done: false, value: new Uint8Array([1, 2, 3]) }),
-            cancel: jest.fn()
-          })
-        }
+            cancel: jest.fn(),
+          }),
+        },
       });
 
       await isImageUrl('https://example.com/image', { trustExtensions: false, timeout: 5000 });
-      
+
       expect(mockTimers.clearTimeout).toHaveBeenCalled();
     });
   });

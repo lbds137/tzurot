@@ -22,7 +22,7 @@ function createMockMessage(options = {}) {
       id: 'mock-user-id',
       tag: 'MockUser#1234',
       bot: false,
-      username: 'MockUser'
+      username: 'MockUser',
     },
     content: 'Mock message content',
     channel: createMockChannel(),
@@ -32,33 +32,33 @@ function createMockMessage(options = {}) {
     guild: { id: 'mock-guild-id' },
     member: {
       permissions: {
-        has: (permission) => true
-      }
+        has: permission => true,
+      },
     },
-    deletable: true
+    deletable: true,
   };
 
   const mockMessage = {
     ...defaults,
     ...options,
-    reply: jest.fn().mockImplementation(async (content) => {
+    reply: jest.fn().mockImplementation(async content => {
       return createMockMessage({
         id: `reply-to-${options.id || defaults.id}`,
-        reference: { messageId: options.id || defaults.id }
+        reference: { messageId: options.id || defaults.id },
       });
     }),
     delete: jest.fn().mockResolvedValue(true),
     reactions: {
-      cache: new Map()
-    }
+      cache: new Map(),
+    },
   };
 
   // If the guild was provided but not the member, create a mock member
   if (mockMessage.guild && !options.member) {
     mockMessage.member = {
       permissions: {
-        has: jest.fn().mockReturnValue(true)
-      }
+        has: jest.fn().mockReturnValue(true),
+      },
     };
   }
 
@@ -80,14 +80,14 @@ function createMockChannel(options = {}) {
     isText: true,
     isDMBased: () => false,
     isTextBased: () => true,
-    send: jest.fn().mockImplementation(async (content) => {
+    send: jest.fn().mockImplementation(async content => {
       return createMockMessage({
-        channel: { id: options.id || defaults.id }
+        channel: { id: options.id || defaults.id },
       });
     }),
     sendTyping: jest.fn().mockResolvedValue(true),
     permissionsFor: jest.fn().mockReturnValue({
-      has: jest.fn().mockReturnValue(true)
+      has: jest.fn().mockReturnValue(true),
     }),
     messages: {
       fetch: jest.fn().mockImplementation(async (options = {}) => {
@@ -96,19 +96,19 @@ function createMockChannel(options = {}) {
         for (let i = 0; i < (options.limit || 3); i++) {
           const msg = createMockMessage({
             id: `mock-fetched-message-${i}`,
-            channel: { id: options.id || defaults.id }
+            channel: { id: options.id || defaults.id },
           });
           messages.set(msg.id, msg);
         }
         return messages;
-      })
+      }),
     },
-    guild: { id: 'mock-guild-id' }
+    guild: { id: 'mock-guild-id' },
   };
 
   return {
     ...defaults,
-    ...options
+    ...options,
   };
 }
 
@@ -123,21 +123,21 @@ function createMockClient(options = {}) {
     user: {
       id: 'mock-bot-id',
       tag: 'MockBot#0000',
-      setActivity: jest.fn()
+      setActivity: jest.fn(),
     },
     channels: {
       cache: channels,
-      fetch: jest.fn().mockImplementation(async (id) => {
+      fetch: jest.fn().mockImplementation(async id => {
         if (channels.has(id)) {
           return channels.get(id);
         }
         const newChannel = createMockChannel({ id });
         channels.set(id, newChannel);
         return newChannel;
-      })
+      }),
     },
     guilds: {
-      cache: new Map()
+      cache: new Map(),
     },
     login: jest.fn().mockResolvedValue('mock-token'),
     on: jest.fn(),
@@ -150,7 +150,7 @@ function createMockClient(options = {}) {
         });
       }
       return true;
-    })
+    }),
   };
 
   const mockClient = {
@@ -165,7 +165,7 @@ function createMockClient(options = {}) {
       }
       mockClient._listeners[event].push(listener);
       return mockClient;
-    })
+    }),
   };
 
   return mockClient;
@@ -181,23 +181,23 @@ function createMockWebhook(options = {}) {
     id: 'mock-webhook-id',
     name: 'Mock Webhook',
     channelId: 'mock-channel-id',
-    send: jest.fn().mockImplementation(async (content) => {
+    send: jest.fn().mockImplementation(async content => {
       return createMockMessage({
         webhookId: options.id || defaults.id,
         author: {
           id: 'webhook-user-id',
           username: options.name || defaults.name,
-          bot: true
+          bot: true,
         },
         content: typeof content === 'string' ? content : '',
-        embeds: content.embeds || []
+        embeds: content.embeds || [],
       });
-    })
+    }),
   };
 
   return {
     ...defaults,
-    ...options
+    ...options,
   };
 }
 
@@ -211,7 +211,7 @@ function createMockRESTClient() {
     post: jest.fn().mockImplementation(async (endpoint, options) => {
       // Simulate successful response with generated ID
       return { id: `mock-api-response-${Date.now()}` };
-    })
+    }),
   };
 }
 
@@ -227,7 +227,7 @@ function createMockEmbed(options = {}) {
     color: 0x0099ff,
     fields: [],
     timestamp: new Date(),
-    thumbnail: options.thumbnailUrl ? { url: options.thumbnailUrl } : null
+    thumbnail: options.thumbnailUrl ? { url: options.thumbnailUrl } : null,
   };
 
   const mockEmbed = {
@@ -264,7 +264,7 @@ function createMockEmbed(options = {}) {
     }),
     toJSON: jest.fn().mockImplementation(() => {
       return { ...mockEmbed };
-    })
+    }),
   };
 
   return mockEmbed;
@@ -281,15 +281,15 @@ function createMockPermissions() {
       READ_MESSAGE_HISTORY: 1 << 1,
       MANAGE_MESSAGES: 1 << 2,
       MANAGE_WEBHOOKS: 1 << 3,
-      ADMINISTRATOR: 1 << 4
+      ADMINISTRATOR: 1 << 4,
     },
     Flags: {
       ViewChannel: 1 << 0,
       ReadMessageHistory: 1 << 1,
       ManageMessages: 1 << 2,
       ManageWebhooks: 1 << 3,
-      Administrator: 1 << 4
-    }
+      Administrator: 1 << 4,
+    },
   };
 }
 
@@ -299,7 +299,7 @@ function createMockPermissions() {
  */
 function mockDiscordJs() {
   const Permissions = createMockPermissions();
-  
+
   return {
     Client: jest.fn().mockImplementation(() => createMockClient()),
     WebhookClient: jest.fn().mockImplementation(() => createMockWebhook()),
@@ -312,23 +312,23 @@ function mockDiscordJs() {
       GuildMessages: 2,
       MessageContent: 4,
       GuildWebhooks: 8,
-      DirectMessages: 16
+      DirectMessages: 16,
     },
     Partials: {
       Channel: 1,
       Message: 2,
-      Reaction: 4
+      Reaction: 4,
     },
-    TextChannel: function() {
+    TextChannel: function () {
       this.send = jest.fn();
     },
     REST: jest.fn().mockImplementation(() => createMockRESTClient()),
     Routes: {
       applicationCommands: jest.fn(),
       webhooks: jest.fn(),
-      channels: jest.fn()
+      channels: jest.fn(),
     },
-    Collection: class Collection extends Map {}
+    Collection: class Collection extends Map {},
   };
 }
 
@@ -340,5 +340,5 @@ module.exports = {
   createMockEmbed,
   createMockRESTClient,
   createMockPermissions,
-  mockDiscordJs
+  mockDiscordJs,
 };

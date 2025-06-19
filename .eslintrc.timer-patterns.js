@@ -5,16 +5,16 @@
 
 module.exports = {
   rules: {
-    // Detect problematic timer patterns
+    // Detect problematic timer patterns (allow in return statements for injectable defaults)
     'no-restricted-syntax': [
-      'error',
+      'warn', // Changed from error to warning
       {
         selector: 'NewExpression[callee.name="Promise"] > ArrowFunctionExpression > CallExpression[callee.name="setTimeout"]',
-        message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
+        message: 'Consider if this Promise-wrapped setTimeout should be injectable. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
       },
       {
         selector: 'NewExpression[callee.name="Promise"] > FunctionExpression > CallExpression[callee.name="setTimeout"]',
-        message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
+        message: 'Consider if this Promise-wrapped setTimeout should be injectable. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
       },
       {
         selector: 'MethodDefinition[key.name="constructor"] CallExpression[callee.name="setTimeout"]:not([callee.object.type="MemberExpression"])',

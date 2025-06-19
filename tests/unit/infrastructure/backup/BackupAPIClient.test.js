@@ -9,7 +9,10 @@ const logger = require('../../../../src/logger');
 jest.mock('../../../../src/logger');
 jest.mock('../../../../config', () => ({
   getPersonalityJargonTerm: jest.fn(),
-  getPrivateProfileInfoPath: jest.fn()
+  getPrivateProfileInfoPath: jest.fn(),
+  botConfig: {
+    isDevelopment: false,
+  },
 }));
 
 const { getPersonalityJargonTerm, getPrivateProfileInfoPath } = require('../../../../config');
@@ -25,7 +28,7 @@ describe('BackupAPIClient', () => {
 
     // Mock fetch
     mockFetch = jest.fn();
-    
+
     // Mock schedulers
     mockScheduler = jest.fn((callback, delay) => {
       // Simulate async timeout behavior
@@ -38,13 +41,14 @@ describe('BackupAPIClient', () => {
     getPrivateProfileInfoPath.mockReturnValue('private/profile');
 
     // Mock environment
-    process.env.SERVICE_WEBSITE = 'https://api.example.com';
+    process.env.SERVICE_WEBSITE = 'https://example.com';
 
     client = new BackupAPIClient({
-      apiBaseUrl: 'https://api.example.com/api',
+      apiBaseUrl: 'https://example.com/api',
       timeout: 5000,
       scheduler: mockScheduler,
-      fetch: mockFetch
+      clearScheduler: mockClearScheduler,
+      fetch: mockFetch,
     });
   });
 
@@ -54,7 +58,7 @@ describe('BackupAPIClient', () => {
 
   describe('constructor', () => {
     it('should initialize with custom options', () => {
-      expect(client.apiBaseUrl).toBe('https://api.example.com/api');
+      expect(client.apiBaseUrl).toBe('https://example.com/api');
       expect(client.timeout).toBe(5000);
       expect(client.scheduler).toBe(mockScheduler);
       expect(client.fetch).toBe(mockFetch);
@@ -62,7 +66,7 @@ describe('BackupAPIClient', () => {
 
     it('should use defaults when no options provided', () => {
       const defaultClient = new BackupAPIClient();
-      expect(defaultClient.apiBaseUrl).toBe('https://api.example.com/api');
+      expect(defaultClient.apiBaseUrl).toBe('https://example.com/api');
       expect(defaultClient.timeout).toBe(30000);
     });
 
@@ -78,7 +82,7 @@ describe('BackupAPIClient', () => {
       const profileData = { id: 'test-id', name: 'TestPersonality' };
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue(profileData)
+        json: jest.fn().mockResolvedValue(profileData),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -87,19 +91,19 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(profileData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/private/profile/TestPersonality',
+        'https://example.com/api/private/profile/TestPersonality',
         {
           headers: {
             'User-Agent': 'Tzurot Discord Bot Backup/2.0',
             'Content-Type': 'application/json',
             Accept: 'application/json',
-            Cookie: 'session=abc123'
+            Cookie: 'session=abc123',
           },
-          signal: expect.any(AbortSignal)
+          signal: expect.any(AbortSignal),
         }
       );
       expect(logger.info).toHaveBeenCalledWith(
-        '[BackupAPIClient] Fetching profile from: https://api.example.com/api/private/profile/TestPersonality'
+        '[BackupAPIClient] Fetching profile from: https://example.com/api/private/profile/TestPersonality'
       );
     });
   });
@@ -108,19 +112,17 @@ describe('BackupAPIClient', () => {
     it('should fetch all memories with pagination', async () => {
       const memories1 = [
         { id: 'mem3', content: 'Memory 3', created_at: 1609459300 },
-        { id: 'mem2', content: 'Memory 2', created_at: 1609459200 }
+        { id: 'mem2', content: 'Memory 2', created_at: 1609459200 },
       ];
-      const memories2 = [
-        { id: 'mem1', content: 'Memory 1', created_at: 1609459100 }
-      ];
+      const memories2 = [{ id: 'mem1', content: 'Memory 1', created_at: 1609459100 }];
 
       // First page response
       const response1 = {
         ok: true,
         json: jest.fn().mockResolvedValue({
           items: memories1,
-          pagination: { total_pages: 2 }
-        })
+          pagination: { total_pages: 2 },
+        }),
       };
 
       // Second page response
@@ -128,13 +130,11 @@ describe('BackupAPIClient', () => {
         ok: true,
         json: jest.fn().mockResolvedValue({
           items: memories2,
-          pagination: { total_pages: 2 }
-        })
+          pagination: { total_pages: 2 },
+        }),
       };
 
-      mockFetch
-        .mockResolvedValueOnce(response1)
-        .mockResolvedValueOnce(response2);
+      mockFetch.mockResolvedValueOnce(response1).mockResolvedValueOnce(response2);
 
       const authData = { cookie: 'session=abc123' };
       const result = await client.fetchAllMemories('personality-id', 'TestPersonality', authData);
@@ -147,11 +147,11 @@ describe('BackupAPIClient', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/memory/personality-id?page=1',
+        'https://example.com/api/memory/personality-id?page=1',
         expect.any(Object)
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/memory/personality-id?page=2',
+        'https://example.com/api/memory/personality-id?page=2',
         expect.any(Object)
       );
     });
@@ -162,8 +162,8 @@ describe('BackupAPIClient', () => {
         ok: true,
         json: jest.fn().mockResolvedValue({
           items: memories,
-          pagination: { total_pages: 1 }
-        })
+          pagination: { total_pages: 1 },
+        }),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -177,7 +177,7 @@ describe('BackupAPIClient', () => {
     it('should handle empty memories response', async () => {
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue({ items: [] })
+        json: jest.fn().mockResolvedValue({ items: [] }),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -190,11 +190,11 @@ describe('BackupAPIClient', () => {
     it('should handle memories with ISO timestamp format', async () => {
       const memories = [
         { id: 'mem1', content: 'Memory 1', created_at: '2021-01-01T00:00:00.000Z' },
-        { id: 'mem2', content: 'Memory 2', created_at: '2021-01-01T00:01:00.000Z' }
+        { id: 'mem2', content: 'Memory 2', created_at: '2021-01-01T00:01:00.000Z' },
       ];
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue({ items: memories })
+        json: jest.fn().mockResolvedValue({ items: memories }),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -213,7 +213,7 @@ describe('BackupAPIClient', () => {
       const knowledgeData = [{ id: 'know1', content: 'Knowledge 1' }];
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue(knowledgeData)
+        json: jest.fn().mockResolvedValue(knowledgeData),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -222,7 +222,7 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(knowledgeData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/shapes/personality-id/story',
+        'https://example.com/api/shapes/personality-id/story',
         expect.any(Object)
       );
     });
@@ -238,16 +238,21 @@ describe('BackupAPIClient', () => {
         // Object with knowledge field
         { response: { knowledge: [{ id: 'know1' }] }, expected: [{ id: 'know1' }] },
         // Single object
-        { response: { id: 'know1', content: 'Knowledge' }, expected: [{ id: 'know1', content: 'Knowledge' }] }
+        {
+          response: { id: 'know1', content: 'Knowledge' },
+          expected: [{ id: 'know1', content: 'Knowledge' }],
+        },
       ];
 
       for (const testCase of testCases) {
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: jest.fn().mockResolvedValue(testCase.response)
+          json: jest.fn().mockResolvedValue(testCase.response),
         });
 
-        const result = await client.fetchKnowledgeData('personality-id', 'TestPersonality', { cookie: 'test' });
+        const result = await client.fetchKnowledgeData('personality-id', 'TestPersonality', {
+          cookie: 'test',
+        });
         expect(result).toEqual(testCase.expected);
       }
     });
@@ -282,7 +287,7 @@ describe('BackupAPIClient', () => {
       const trainingData = [{ id: 'train1', input: 'Input', output: 'Output' }];
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue(trainingData)
+        json: jest.fn().mockResolvedValue(trainingData),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
@@ -291,7 +296,7 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(trainingData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/shapes/personality-id/training',
+        'https://example.com/api/shapes/personality-id/training',
         expect.any(Object)
       );
     });
@@ -305,16 +310,21 @@ describe('BackupAPIClient', () => {
         // Object with training field
         { response: { training: [{ id: 'train1' }] }, expected: [{ id: 'train1' }] },
         // Single object
-        { response: { id: 'train1', input: 'Input' }, expected: [{ id: 'train1', input: 'Input' }] }
+        {
+          response: { id: 'train1', input: 'Input' },
+          expected: [{ id: 'train1', input: 'Input' }],
+        },
       ];
 
       for (const testCase of testCases) {
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: jest.fn().mockResolvedValue(testCase.response)
+          json: jest.fn().mockResolvedValue(testCase.response),
         });
 
-        const result = await client.fetchTrainingData('personality-id', 'TestPersonality', { cookie: 'test' });
+        const result = await client.fetchTrainingData('personality-id', 'TestPersonality', {
+          cookie: 'test',
+        });
         expect(result).toEqual(testCase.expected);
       }
     });
@@ -325,16 +335,20 @@ describe('BackupAPIClient', () => {
       const personalizationData = { preferences: { theme: 'dark' } };
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue(personalizationData)
+        json: jest.fn().mockResolvedValue(personalizationData),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const authData = { cookie: 'session=abc123' };
-      const result = await client.fetchUserPersonalizationData('personality-id', 'TestPersonality', authData);
+      const result = await client.fetchUserPersonalizationData(
+        'personality-id',
+        'TestPersonality',
+        authData
+      );
 
       expect(result).toEqual(personalizationData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/shapes/personality-id/user',
+        'https://example.com/api/shapes/personality-id/user',
         expect.any(Object)
       );
     });
@@ -342,12 +356,16 @@ describe('BackupAPIClient', () => {
     it('should handle empty response', async () => {
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue({})
+        json: jest.fn().mockResolvedValue({}),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const authData = { cookie: 'session=abc123' };
-      const result = await client.fetchUserPersonalizationData('personality-id', 'TestPersonality', authData);
+      const result = await client.fetchUserPersonalizationData(
+        'personality-id',
+        'TestPersonality',
+        authData
+      );
 
       expect(result).toEqual({});
     });
@@ -357,24 +375,22 @@ describe('BackupAPIClient', () => {
     it('should fetch complete chat history with pagination', async () => {
       const messages1 = [
         { ts: 1609459300, content: 'Message 3' },
-        { ts: 1609459200, content: 'Message 2' }
+        { ts: 1609459200, content: 'Message 2' },
       ];
-      const messages2 = [
-        { ts: 1609459100, content: 'Message 1' }
-      ];
+      const messages2 = [{ ts: 1609459100, content: 'Message 1' }];
 
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: jest.fn().mockResolvedValue(messages1)
+          json: jest.fn().mockResolvedValue(messages1),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: jest.fn().mockResolvedValue(messages2)
+          json: jest.fn().mockResolvedValue(messages2),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: jest.fn().mockResolvedValue([]) // Empty response to end pagination
+          json: jest.fn().mockResolvedValue([]), // Empty response to end pagination
         });
 
       const authData = { cookie: 'session=abc123' };
@@ -388,11 +404,11 @@ describe('BackupAPIClient', () => {
 
       // Check pagination URLs
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id',
+        'https://example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id',
         expect.any(Object)
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id&before_ts=1609459100',
+        'https://example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id&before_ts=1609459100',
         expect.any(Object)
       );
     });
@@ -400,7 +416,7 @@ describe('BackupAPIClient', () => {
     it('should handle empty chat history', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue([])
+        json: jest.fn().mockResolvedValue([]),
       });
 
       const authData = { cookie: 'session=abc123' };
@@ -427,47 +443,49 @@ describe('BackupAPIClient', () => {
       const responseData = { success: true };
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue(responseData)
+        json: jest.fn().mockResolvedValue(responseData),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const authData = { cookie: 'session=abc123' };
-      const result = await client._makeAuthenticatedRequest('https://api.example.com/test', authData);
+      const result = await client._makeAuthenticatedRequest(
+        'https://api.example.com/test',
+        authData
+      );
 
       expect(result).toEqual(responseData);
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://api.example.com/test',
-        {
-          headers: {
-            'User-Agent': 'Tzurot Discord Bot Backup/2.0',
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Cookie: 'session=abc123'
-          },
-          signal: expect.any(AbortSignal)
-        }
-      );
+      expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/test', {
+        headers: {
+          'User-Agent': 'Tzurot Discord Bot Backup/2.0',
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Cookie: 'session=abc123',
+        },
+        signal: expect.any(AbortSignal),
+      });
     });
 
     it('should throw error when no cookie provided', async () => {
       const authData = {}; // No cookie
 
-      await expect(client._makeAuthenticatedRequest('https://api.example.com/test', authData))
-        .rejects.toThrow('Session cookie required for backup operations');
+      await expect(
+        client._makeAuthenticatedRequest('https://example.com/test', authData)
+      ).rejects.toThrow('Session cookie required for backup operations');
     });
 
     it('should handle HTTP error responses', async () => {
       const mockResponse = {
         ok: false,
         status: 401,
-        statusText: 'Unauthorized'
+        statusText: 'Unauthorized',
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const authData = { cookie: 'session=abc123' };
 
-      await expect(client._makeAuthenticatedRequest('https://api.example.com/test', authData))
-        .rejects.toThrow('API error 401: Unauthorized');
+      await expect(
+        client._makeAuthenticatedRequest('https://example.com/test', authData)
+      ).rejects.toThrow('API error 401: Unauthorized');
     });
 
     it('should handle timeout errors', async () => {
@@ -478,19 +496,20 @@ describe('BackupAPIClient', () => {
 
       const authData = { cookie: 'session=abc123' };
 
-      await expect(client._makeAuthenticatedRequest('https://api.example.com/test', authData))
-        .rejects.toThrow('Request timed out');
+      await expect(
+        client._makeAuthenticatedRequest('https://example.com/test', authData)
+      ).rejects.toThrow('Request timed out');
     });
 
     it('should clear timeout on completion', async () => {
       const mockResponse = {
         ok: true,
-        json: jest.fn().mockResolvedValue({})
+        json: jest.fn().mockResolvedValue({}),
       };
       mockFetch.mockResolvedValue(mockResponse);
 
       const authData = { cookie: 'session=abc123' };
-      await client._makeAuthenticatedRequest('https://api.example.com/test', authData);
+      await client._makeAuthenticatedRequest('https://example.com/test', authData);
 
       expect(mockClearScheduler).toHaveBeenCalled();
     });
@@ -499,9 +518,10 @@ describe('BackupAPIClient', () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const authData = { cookie: 'session=abc123' };
-      
-      await expect(client._makeAuthenticatedRequest('https://api.example.com/test', authData))
-        .rejects.toThrow('Network error');
+
+      await expect(
+        client._makeAuthenticatedRequest('https://example.com/test', authData)
+      ).rejects.toThrow('Network error');
 
       expect(mockClearScheduler).toHaveBeenCalled();
     });
@@ -511,14 +531,14 @@ describe('BackupAPIClient', () => {
     it('should construct URL from SERVICE_WEBSITE', () => {
       process.env.SERVICE_WEBSITE = 'https://example.com';
       const testClient = new BackupAPIClient();
-      
+
       expect(testClient._getDefaultApiBaseUrl()).toBe('https://example.com/api');
     });
 
     it('should return null if SERVICE_WEBSITE not set', () => {
       delete process.env.SERVICE_WEBSITE;
       const testClient = new BackupAPIClient();
-      
+
       expect(testClient._getDefaultApiBaseUrl()).toBeNull();
     });
   });

@@ -26,7 +26,7 @@ class MockResponse {
 
   async text() {
     if (this._text !== null) return this._text;
-    if (this._data !== undefined) return JSON.stringify(this._data); 
+    if (this._data !== undefined) return JSON.stringify(this._data);
     return '';
   }
 
@@ -49,7 +49,7 @@ class MockResponse {
       headers: Object.fromEntries(this.headers),
       data: this._data,
       arrayBuffer: this._arrayBuffer,
-      text: this._text
+      text: this._text,
     });
   }
 }
@@ -64,7 +64,7 @@ class MockFetch {
     this.delays = new Map();
     this.defaultDelay = options.defaultDelay || 0;
     this.requestHistory = [];
-    
+
     // Bind the fetch function
     this.fetch = this.fetch.bind(this);
   }
@@ -77,7 +77,7 @@ class MockFetch {
     this.requestHistory.push({
       url,
       options: { ...options },
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Apply delay
@@ -108,14 +108,14 @@ class MockFetch {
     if (typeof response === 'function') {
       response = response(url, options);
     }
-    
+
     if (!response) {
       // Default 404 response
       response = new MockResponse({
         ok: false,
         status: 404,
         statusText: 'Not Found',
-        data: { error: 'Not Found' }
+        data: { error: 'Not Found' },
       });
     }
 
@@ -182,7 +182,7 @@ class MockAIService {
     this.requestHistory.push({
       type: 'chat_completion',
       params: { ...params },
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     // Simulate delay
@@ -205,26 +205,28 @@ class MockAIService {
       object: 'chat.completion',
       created: Math.floor(Date.now() / 1000),
       model: params.model || 'gpt-3.5-turbo',
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content,
+          },
+          finish_reason: 'stop',
         },
-        finish_reason: 'stop'
-      }],
+      ],
       usage: {
         prompt_tokens: this._countTokens(params.messages),
         completion_tokens: Math.floor(content.length / 4),
-        total_tokens: this._countTokens(params.messages) + Math.floor(content.length / 4)
-      }
+        total_tokens: this._countTokens(params.messages) + Math.floor(content.length / 4),
+      },
     };
   }
 
   _generateAIResponse(params) {
     const personality = this._extractPersonality(params);
     const topic = this._extractTopic(params);
-    
+
     if (personality) {
       return `[${personality}] This is a mock AI response about ${topic}.`;
     }
@@ -233,7 +235,7 @@ class MockAIService {
 
   _extractPersonality(params) {
     if (!params.messages) return null;
-    
+
     for (const msg of params.messages) {
       if (msg.role === 'system' && msg.content) {
         const match = msg.content.match(/personality[:\s]+([^\s,]+)/i);
@@ -245,15 +247,13 @@ class MockAIService {
 
   _extractTopic(params) {
     if (!params.messages) return 'unknown topic';
-    
-    const userMessage = params.messages
-      .filter(m => m.role === 'user')
-      .pop();
-    
+
+    const userMessage = params.messages.filter(m => m.role === 'user').pop();
+
     if (userMessage && userMessage.content) {
       return userMessage.content.split(' ').slice(0, 3).join(' ') || 'unknown topic';
     }
-    
+
     return 'unknown topic';
   }
 
@@ -279,7 +279,7 @@ class MockProfileService {
     this.defaultProfile = {
       id: '12345',
       name: 'Test Profile',
-      ...options.defaultProfile
+      ...options.defaultProfile,
     };
     this.profileResponses = new Map();
     this.shouldError = options.shouldError || false;
@@ -298,7 +298,7 @@ class MockProfileService {
     return new MockResponse({
       ok: true,
       status: 200,
-      data: response
+      data: response,
     });
   }
 }
@@ -317,21 +317,24 @@ function createApiEnvironment(options = {}) {
     fetch.setResponse('/api/profiles/', {
       ok: true,
       status: 200,
-      data: profiles.defaultProfile
+      data: profiles.defaultProfile,
     });
 
     // Default AI API responses
     fetch.setResponse('/v1/chat/completions', (url, opts) => {
       const body = JSON.parse(opts.body || '{}');
-      return ai.createChatCompletion(body).then(response => ({
-        ok: true,
-        status: 200,
-        data: response
-      })).catch(error => ({
-        ok: false,
-        status: error.status || 500,
-        data: { error: error.message }
-      }));
+      return ai
+        .createChatCompletion(body)
+        .then(response => ({
+          ok: true,
+          status: 200,
+          data: response,
+        }))
+        .catch(error => ({
+          ok: false,
+          status: error.status || 500,
+          data: { error: error.message },
+        }));
     });
   }
 
@@ -339,7 +342,7 @@ function createApiEnvironment(options = {}) {
     fetch,
     ai,
     profiles,
-    createResponse: (opts) => new MockResponse(opts)
+    createResponse: opts => new MockResponse(opts),
   };
 }
 
@@ -348,5 +351,5 @@ module.exports = {
   MockFetch,
   MockAIService,
   MockProfileService,
-  createApiEnvironment
+  createApiEnvironment,
 };

@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  * @testType domain
- * 
+ *
  * ChannelActivation Test
  * - Pure domain test with no external dependencies
  * - Tests channel activation aggregate
@@ -24,7 +24,7 @@ describe('ChannelActivation', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2024-01-01T00:00:00Z'));
-    
+
     validChannelId = '123456789012345678';
     validPersonalityId = new PersonalityId('test-personality');
     validUserId = new UserId('987654321098765432');
@@ -47,14 +47,17 @@ describe('ChannelActivation', () => {
     });
 
     it('should require valid channelId', () => {
-      expect(() => new ChannelActivation('', validPersonalityId, validUserId))
-        .toThrow('ChannelActivation requires valid channelId');
-      
-      expect(() => new ChannelActivation(null, validPersonalityId, validUserId))
-        .toThrow('ChannelActivation requires valid channelId');
-      
-      expect(() => new ChannelActivation(123, validPersonalityId, validUserId))
-        .toThrow('ChannelActivation requires valid channelId');
+      expect(() => new ChannelActivation('', validPersonalityId, validUserId)).toThrow(
+        'ChannelActivation requires valid channelId'
+      );
+
+      expect(() => new ChannelActivation(null, validPersonalityId, validUserId)).toThrow(
+        'ChannelActivation requires valid channelId'
+      );
+
+      expect(() => new ChannelActivation(123, validPersonalityId, validUserId)).toThrow(
+        'ChannelActivation requires valid channelId'
+      );
     });
   });
 
@@ -70,19 +73,23 @@ describe('ChannelActivation', () => {
     });
 
     it('should require valid PersonalityId', () => {
-      expect(() => ChannelActivation.create(validChannelId, 'invalid', validUserId))
-        .toThrow('Invalid PersonalityId');
-      
-      expect(() => ChannelActivation.create(validChannelId, null, validUserId))
-        .toThrow('Invalid PersonalityId');
+      expect(() => ChannelActivation.create(validChannelId, 'invalid', validUserId)).toThrow(
+        'Invalid PersonalityId'
+      );
+
+      expect(() => ChannelActivation.create(validChannelId, null, validUserId)).toThrow(
+        'Invalid PersonalityId'
+      );
     });
 
     it('should require valid UserId', () => {
-      expect(() => ChannelActivation.create(validChannelId, validPersonalityId, 'invalid'))
-        .toThrow('Invalid UserId');
-      
-      expect(() => ChannelActivation.create(validChannelId, validPersonalityId, null))
-        .toThrow('Invalid UserId');
+      expect(() => ChannelActivation.create(validChannelId, validPersonalityId, 'invalid')).toThrow(
+        'Invalid UserId'
+      );
+
+      expect(() => ChannelActivation.create(validChannelId, validPersonalityId, null)).toThrow(
+        'Invalid UserId'
+      );
     });
   });
 
@@ -101,8 +108,7 @@ describe('ChannelActivation', () => {
       const activation = ChannelActivation.create(validChannelId, validPersonalityId, validUserId);
       activation.deactivate();
 
-      expect(() => activation.deactivate())
-        .toThrow('Channel already deactivated');
+      expect(() => activation.deactivate()).toThrow('Channel already deactivated');
     });
   });
 
@@ -132,7 +138,7 @@ describe('ChannelActivation', () => {
         personalityId: 'test-personality',
         activatedBy: '987654321098765432',
         activatedAt: '2024-01-01T00:00:00.000Z',
-        active: true
+        active: true,
       });
     });
 

@@ -1,18 +1,20 @@
 /**
  * @jest-environment node
  * @testType unit
- * 
+ *
  * AddCommand Test
  * Tests the add personality command
  */
 
-const { createAddCommand } = require('../../../../../src/application/commands/personality/AddCommand');
+const {
+  createAddCommand,
+} = require('../../../../../src/application/commands/personality/AddCommand');
 const { CommandContext } = require('../../../../../src/application/commands/CommandAbstraction');
 
 // Mock logger
 jest.mock('../../../../../src/logger', () => ({
   info: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
 }));
 
 const logger = require('../../../../../src/logger');
@@ -31,9 +33,9 @@ describe('AddCommand', () => {
       name: 'TestBot',
       prompt: 'You are TestBot',
       modelPath: '/default',
-      maxWordCount: 1000
+      maxWordCount: 1000,
     },
-    aliases: []
+    aliases: [],
   };
 
   beforeEach(() => {
@@ -46,11 +48,11 @@ describe('AddCommand', () => {
 
     // Mock services
     mockPersonalityService = {
-      registerPersonality: jest.fn()
+      registerPersonality: jest.fn(),
     };
 
     mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false)
+      isEnabled: jest.fn().mockReturnValue(false),
     };
 
     // Create base context
@@ -65,8 +67,8 @@ describe('AddCommand', () => {
       respond: jest.fn().mockResolvedValue({}),
       dependencies: {
         personalityApplicationService: mockPersonalityService,
-        featureFlags: mockFeatureFlags
-      }
+        featureFlags: mockFeatureFlags,
+      },
     });
   });
 
@@ -81,25 +83,25 @@ describe('AddCommand', () => {
 
     it('should have correct options', () => {
       expect(command.options).toHaveLength(5);
-      
+
       const nameOption = command.options.find(o => o.name === 'name');
       expect(nameOption).toBeDefined();
       expect(nameOption.required).toBe(true);
       expect(nameOption.type).toBe('string');
-      
+
       const promptOption = command.options.find(o => o.name === 'prompt');
       expect(promptOption).toBeDefined();
       expect(promptOption.required).toBe(false);
-      
+
       const modelOption = command.options.find(o => o.name === 'model');
       expect(modelOption).toBeDefined();
       expect(modelOption.required).toBe(false);
-      
+
       const maxWordsOption = command.options.find(o => o.name === 'maxwords');
       expect(maxWordsOption).toBeDefined();
       expect(maxWordsOption.type).toBe('integer');
       expect(maxWordsOption.required).toBe(false);
-      
+
       const aliasOption = command.options.find(o => o.name === 'alias');
       expect(aliasOption).toBeDefined();
       expect(aliasOption.type).toBe('string');
@@ -110,21 +112,23 @@ describe('AddCommand', () => {
   describe('text command execution', () => {
     it('should show usage when no arguments provided', async () => {
       mockContext.respond = jest.fn().mockResolvedValue({});
-      
+
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: 'How to Add a Personality',
-          description: 'Create a new AI personality for your Discord server.',
-          color: 0x2196f3,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Basic Usage',
-              value: '`!tz add <name> [alias] [prompt]`'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: 'How to Add a Personality',
+            description: 'Create a new AI personality for your Discord server.',
+            color: 0x2196f3,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Basic Usage',
+                value: '`!tz add <name> [alias] [prompt]`',
+              }),
+            ]),
+          }),
+        ],
       });
       expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
     });
@@ -142,14 +146,16 @@ describe('AddCommand', () => {
         prompt: 'You are TestBot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: []
+        aliases: [],
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Personality Created Successfully!',
-          description: expect.stringContaining('TestBot'),
-          color: 0x4caf50
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Created Successfully!',
+            description: expect.stringContaining('TestBot'),
+            color: 0x4caf50,
+          }),
+        ],
       });
     });
 
@@ -166,17 +172,19 @@ describe('AddCommand', () => {
         prompt: 'You are a helpful assistant',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: []
+        aliases: [],
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Prompt',
-              value: 'You are a helpful assistant'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Prompt',
+                value: 'You are a helpful assistant',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
@@ -188,7 +196,7 @@ describe('AddCommand', () => {
 
       expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: 'You are TestBot, a friendly AI'
+          prompt: 'You are TestBot, a friendly AI',
         })
       );
     });
@@ -201,7 +209,7 @@ describe('AddCommand', () => {
 
       expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
-          prompt: 'You are TestBot'
+          prompt: 'You are TestBot',
         })
       );
     });
@@ -211,7 +219,7 @@ describe('AddCommand', () => {
       mockContext.respond = jest.fn().mockResolvedValue({});
       mockPersonalityService.registerPersonality.mockResolvedValue({
         ...mockPersonality,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
 
       await command.execute(mockContext);
@@ -222,17 +230,19 @@ describe('AddCommand', () => {
         prompt: 'You are TestBot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Alias',
-              value: 'tb'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'tb',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
@@ -241,7 +251,7 @@ describe('AddCommand', () => {
       mockContext.respond = jest.fn().mockResolvedValue({});
       mockPersonalityService.registerPersonality.mockResolvedValue({
         ...mockPersonality,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
 
       await command.execute(mockContext);
@@ -252,17 +262,19 @@ describe('AddCommand', () => {
         prompt: 'You are a test bot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Alias',
-              value: 'tb'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'tb',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
@@ -270,7 +282,7 @@ describe('AddCommand', () => {
       mockContext.args = ['TestBot', 'tb', '"You are a test bot"'];
       mockPersonalityService.registerPersonality.mockResolvedValue({
         ...mockPersonality,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
 
       await command.execute(mockContext);
@@ -281,26 +293,27 @@ describe('AddCommand', () => {
         prompt: 'You are a test bot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
     });
 
     it('should validate alias format', async () => {
       mockContext.args = ['TestBot', 'tb@#$'];
       mockContext.respond = jest.fn().mockResolvedValue({});
-      
+
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Invalid Alias Format',
-          description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Alias Format',
+            description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
     });
-
   });
 
   describe('slash command execution', () => {
@@ -313,7 +326,7 @@ describe('AddCommand', () => {
         name: 'TestBot',
         prompt: 'Custom prompt',
         model: '/gpt-4',
-        maxwords: 2000
+        maxwords: 2000,
       };
       mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
@@ -325,13 +338,13 @@ describe('AddCommand', () => {
         prompt: 'Custom prompt',
         modelPath: '/gpt-4',
         maxWordCount: 2000,
-        aliases: []
+        aliases: [],
       });
     });
 
     it('should use defaults for missing options', async () => {
       mockContext.options = {
-        name: 'TestBot'
+        name: 'TestBot',
       };
       mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
 
@@ -343,19 +356,19 @@ describe('AddCommand', () => {
         prompt: 'You are TestBot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: []
+        aliases: [],
       });
     });
 
     it('should create personality with alias option', async () => {
       mockContext.options = {
         name: 'TestBot',
-        alias: 'tb'
+        alias: 'tb',
       };
       mockContext.respond = jest.fn().mockResolvedValue({});
       mockPersonalityService.registerPersonality.mockResolvedValue({
         ...mockPersonality,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
 
       await command.execute(mockContext);
@@ -366,17 +379,19 @@ describe('AddCommand', () => {
         prompt: 'You are TestBot',
         modelPath: '/default',
         maxWordCount: 1000,
-        aliases: ['tb']
+        aliases: ['tb'],
       });
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Alias',
-              value: 'tb'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'tb',
+              }),
+            ]),
+          }),
+        ],
       });
     });
   });
@@ -390,11 +405,13 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Invalid Name',
-          description: 'Personality name must be at least 2 characters long.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Name',
+            description: 'Personality name must be at least 2 characters long.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
     });
@@ -407,11 +424,13 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Name Too Long',
-          description: 'Personality name must be 50 characters or less.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Name Too Long',
+            description: 'Personality name must be 50 characters or less.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
     });
@@ -426,16 +445,17 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: expect.stringContaining('An error occurred while creating the personality'),
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: expect.stringContaining(
+              'An error occurred while creating the personality'
+            ),
+            color: 0xf44336,
+          }),
+        ],
       });
-      expect(logger.error).toHaveBeenCalledWith(
-        '[AddCommand] Error:',
-        expect.any(Error)
-      );
+      expect(logger.error).toHaveBeenCalledWith('[AddCommand] Error:', expect.any(Error));
     });
 
     it('should handle already exists error', async () => {
@@ -448,11 +468,13 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Personality Already Exists',
-          description: expect.stringContaining('already exists'),
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Personality Already Exists',
+            description: expect.stringContaining('already exists'),
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
@@ -466,11 +488,13 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Authentication Required',
-          description: 'You need to authenticate before creating personalities.',
-          color: 0xff9800
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authentication Required',
+            description: 'You need to authenticate before creating personalities.',
+            color: 0xff9800,
+          }),
+        ],
       });
     });
 
@@ -484,38 +508,36 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: expect.stringContaining('An error occurred'),
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: expect.stringContaining('An error occurred'),
+            color: 0xf44336,
+          }),
+        ],
       });
-      expect(logger.error).toHaveBeenCalledWith(
-        '[AddCommand] Error:',
-        expect.any(Error)
-      );
+      expect(logger.error).toHaveBeenCalledWith('[AddCommand] Error:', expect.any(Error));
     });
 
     it('should handle generic errors', async () => {
       mockContext.args = ['TestBot'];
       mockContext.respond = jest.fn().mockResolvedValue({});
-      mockPersonalityService.registerPersonality.mockRejectedValue(
-        new Error('Unknown error')
-      );
+      mockPersonalityService.registerPersonality.mockRejectedValue(new Error('Unknown error'));
 
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: expect.stringContaining('An error occurred while creating the personality'),
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: expect.stringContaining(
+              'An error occurred while creating the personality'
+            ),
+            color: 0xf44336,
+          }),
+        ],
       });
-      expect(logger.error).toHaveBeenCalledWith(
-        '[AddCommand] Error:',
-        expect.any(Error)
-      );
+      expect(logger.error).toHaveBeenCalledWith('[AddCommand] Error:', expect.any(Error));
     });
   });
 
@@ -533,6 +555,5 @@ describe('AddCommand', () => {
         expect.stringContaining('[AddCommand] Successfully created personality "TestBot"')
       );
     });
-
   });
 });

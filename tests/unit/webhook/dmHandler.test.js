@@ -4,7 +4,10 @@ jest.mock('../../../src/utils/media/mediaHandler');
 jest.mock('../../../src/utils/messageFormatter');
 
 const logger = require('../../../src/logger');
-const { processMediaForWebhook, prepareAttachmentOptions } = require('../../../src/utils/media/mediaHandler');
+const {
+  processMediaForWebhook,
+  prepareAttachmentOptions,
+} = require('../../../src/utils/media/mediaHandler');
 const { splitMessage } = require('../../../src/utils/messageFormatter');
 const { sendFormattedMessageInDM } = require('../../../src/webhook/dmHandler');
 
@@ -39,7 +42,7 @@ describe('dmHandler', () => {
     };
 
     // Mock splitMessage to return array
-    splitMessage.mockImplementation((content) => {
+    splitMessage.mockImplementation(content => {
       if (content.length <= 2000) {
         return [content];
       }
@@ -52,7 +55,7 @@ describe('dmHandler', () => {
     });
 
     // Mock processMediaForWebhook to return input content unchanged by default
-    processMediaForWebhook.mockImplementation(async (content) => ({
+    processMediaForWebhook.mockImplementation(async content => ({
       content: content,
       attachments: [],
     }));
@@ -84,18 +87,12 @@ describe('dmHandler', () => {
 
     it('should use fullName when displayName is missing', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const personalityNoDisplay = {
         fullName: 'test-personality',
       };
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        'Hello',
-        personalityNoDisplay,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, 'Hello', personalityNoDisplay, {}, mockDelayFn);
 
       // Should extract and capitalize first part
       expect(mockChannel.send).toHaveBeenCalledWith({
@@ -105,18 +102,12 @@ describe('dmHandler', () => {
 
     it('should handle personality with no hyphen in fullName', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const personalityNoHyphen = {
         fullName: 'personality',
       };
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        'Hello',
-        personalityNoHyphen,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, 'Hello', personalityNoHyphen, {}, mockDelayFn);
 
       expect(mockChannel.send).toHaveBeenCalledWith({
         content: '**Personality:** Hello',
@@ -125,14 +116,8 @@ describe('dmHandler', () => {
 
     it('should fallback to Bot when no name available', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
-      await sendFormattedMessageInDM(
-        mockChannel,
-        'Hello',
-        {},
-        {},
-        mockDelayFn
-      );
+
+      await sendFormattedMessageInDM(mockChannel, 'Hello', {}, {}, mockDelayFn);
 
       expect(mockChannel.send).toHaveBeenCalledWith({
         content: '**Bot:** Hello',
@@ -141,12 +126,12 @@ describe('dmHandler', () => {
 
     it('should process media URLs in content', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       processMediaForWebhook.mockResolvedValue({
         content: 'Check out this image',
         attachments: [{ name: 'image.png', attachment: Buffer.from('data') }],
       });
-      
+
       prepareAttachmentOptions.mockReturnValue({
         files: [{ name: 'image.png', attachment: Buffer.from('data') }],
       });
@@ -159,7 +144,9 @@ describe('dmHandler', () => {
         mockDelayFn
       );
 
-      expect(processMediaForWebhook).toHaveBeenCalledWith('Check out this image https://example.com/image.png');
+      expect(processMediaForWebhook).toHaveBeenCalledWith(
+        'Check out this image https://example.com/image.png'
+      );
       expect(mockChannel.send).toHaveBeenCalledWith(
         expect.objectContaining({
           files: [{ name: 'image.png', attachment: Buffer.from('data') }],
@@ -169,7 +156,7 @@ describe('dmHandler', () => {
 
     it('should handle media processing errors gracefully', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       processMediaForWebhook.mockRejectedValue(new Error('Media error'));
 
       await sendFormattedMessageInDM(
@@ -188,7 +175,7 @@ describe('dmHandler', () => {
 
     it('should handle multimodal content array', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const multimodalContent = [
         { type: 'text', text: 'Here is some text' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
@@ -219,7 +206,7 @@ describe('dmHandler', () => {
 
     it('should send image when no audio in multimodal content', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const multimodalContent = [
         { type: 'text', text: 'Here is an image' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
@@ -241,7 +228,7 @@ describe('dmHandler', () => {
 
     it('should handle empty multimodal text content', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const multimodalContent = [
         { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
       ];
@@ -262,8 +249,9 @@ describe('dmHandler', () => {
 
     it('should handle referenced media markers', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
-      const contentWithMarker = 'Check this out [REFERENCE_MEDIA:image:https://example.com/ref.png] cool right?';
+
+      const contentWithMarker =
+        'Check this out [REFERENCE_MEDIA:image:https://example.com/ref.png] cool right?';
 
       await sendFormattedMessageInDM(
         mockChannel,
@@ -285,8 +273,9 @@ describe('dmHandler', () => {
 
     it('should handle audio reference markers', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
-      const contentWithMarker = 'Listen to this [REFERENCE_MEDIA:audio:https://example.com/sound.mp3]';
+
+      const contentWithMarker =
+        'Listen to this [REFERENCE_MEDIA:audio:https://example.com/sound.mp3]';
 
       await sendFormattedMessageInDM(
         mockChannel,
@@ -303,16 +292,10 @@ describe('dmHandler', () => {
 
     it('should split long messages into chunks', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const longContent = 'A'.repeat(2100);
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        longContent,
-        mockPersonality,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, longContent, mockPersonality, {}, mockDelayFn);
 
       expect(splitMessage).toHaveBeenCalled();
       expect(mockChannel.send).toHaveBeenCalledTimes(2);
@@ -320,23 +303,17 @@ describe('dmHandler', () => {
 
     it('should add delay between chunks', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const longContent = 'A'.repeat(2100);
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        longContent,
-        mockPersonality,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, longContent, mockPersonality, {}, mockDelayFn);
 
       expect(mockDelayFn).toHaveBeenCalledWith(750);
     });
 
     it('should include embeds in last chunk only', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const embeds = [{ title: 'Test Embed' }];
 
       await sendFormattedMessageInDM(
@@ -355,12 +332,12 @@ describe('dmHandler', () => {
 
     it('should handle media attachments in last chunk', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       processMediaForWebhook.mockResolvedValue({
         content: 'Content',
         attachments: [{ name: 'file.txt' }],
       });
-      
+
       prepareAttachmentOptions.mockReturnValue({
         files: [{ name: 'file.txt' }],
       });
@@ -382,7 +359,7 @@ describe('dmHandler', () => {
 
     it('should add delay between media messages', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const multimodalContent = [
         { type: 'text', text: 'Text' },
         { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } },
@@ -404,7 +381,7 @@ describe('dmHandler', () => {
       mockChannel.send
         .mockResolvedValueOnce({ id: 'text-123' })
         .mockRejectedValueOnce(new Error('Audio send failed'));
-      
+
       const multimodalContent = [
         { type: 'text', text: 'Text' },
         { type: 'audio_url', audio_url: { url: 'https://example.com/audio.mp3' } },
@@ -420,14 +397,16 @@ describe('dmHandler', () => {
 
       // Should still return success for text message
       expect(result.messageIds).toContain('text-123');
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error sending audio message'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error sending audio message')
+      );
     });
 
     it('should handle errors when sending multimodal image', async () => {
       mockChannel.send
         .mockResolvedValueOnce({ id: 'text-123' })
         .mockRejectedValueOnce(new Error('Image send failed'));
-      
+
       const multimodalContent = [
         { type: 'text', text: 'Text' },
         { type: 'image_url', image_url: { url: 'https://example.com/image.png' } },
@@ -442,14 +421,16 @@ describe('dmHandler', () => {
       );
 
       expect(result.messageIds).toContain('text-123');
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error sending image message'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error sending image message')
+      );
     });
 
     it('should return structured result with all message IDs', async () => {
       mockChannel.send
         .mockResolvedValueOnce({ id: 'message-1' })
         .mockResolvedValueOnce({ id: 'message-2' });
-      
+
       const longContent = 'A'.repeat(2100);
 
       const result = await sendFormattedMessageInDM(
@@ -472,29 +453,17 @@ describe('dmHandler', () => {
       mockChannel.send.mockRejectedValue(new Error('Send failed'));
 
       await expect(
-        sendFormattedMessageInDM(
-          mockChannel,
-          'Test',
-          mockPersonality,
-          {},
-          mockDelayFn
-        )
+        sendFormattedMessageInDM(mockChannel, 'Test', mockPersonality, {}, mockDelayFn)
       ).rejects.toThrow('Send failed');
     });
 
     it('should handle invalid reference media markers', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       // Marker without closing bracket
       const invalidMarker = 'Text [REFERENCE_MEDIA:image:url more text';
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        invalidMarker,
-        mockPersonality,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, invalidMarker, mockPersonality, {}, mockDelayFn);
 
       // Should send as-is without processing
       expect(mockChannel.send).toHaveBeenCalledWith({
@@ -505,16 +474,10 @@ describe('dmHandler', () => {
 
     it('should handle reference markers with colons in URL', async () => {
       mockChannel.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const markerWithPort = 'Check [REFERENCE_MEDIA:image:https://example.com:8080/image.png] out';
 
-      await sendFormattedMessageInDM(
-        mockChannel,
-        markerWithPort,
-        mockPersonality,
-        {},
-        mockDelayFn
-      );
+      await sendFormattedMessageInDM(mockChannel, markerWithPort, mockPersonality, {}, mockDelayFn);
 
       // Should correctly parse URL with port
       expect(mockChannel.send).toHaveBeenNthCalledWith(2, {

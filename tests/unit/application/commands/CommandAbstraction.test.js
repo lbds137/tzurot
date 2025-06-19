@@ -1,18 +1,18 @@
 /**
  * @jest-environment node
  * @testType unit
- * 
+ *
  * CommandAbstraction Test
  * Tests the platform-agnostic command abstraction layer
  */
 
-const { 
-  Command, 
-  CommandOption, 
-  CommandContext, 
+const {
+  Command,
+  CommandOption,
+  CommandContext,
   CommandRegistry,
   getCommandRegistry,
-  resetRegistry
+  resetRegistry,
 } = require('../../../../src/application/commands/CommandAbstraction');
 
 describe('CommandAbstraction', () => {
@@ -28,7 +28,7 @@ describe('CommandAbstraction', () => {
       const command = new Command({
         name: 'test',
         description: 'Test command',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       expect(command.name).toBe('test');
@@ -40,24 +40,33 @@ describe('CommandAbstraction', () => {
     });
 
     it('should require name', () => {
-      expect(() => new Command({
-        description: 'Test',
-        execute: jest.fn()
-      })).toThrow('Command name is required');
+      expect(
+        () =>
+          new Command({
+            description: 'Test',
+            execute: jest.fn(),
+          })
+      ).toThrow('Command name is required');
     });
 
     it('should require description', () => {
-      expect(() => new Command({
-        name: 'test',
-        execute: jest.fn()
-      })).toThrow('Command description is required');
+      expect(
+        () =>
+          new Command({
+            name: 'test',
+            execute: jest.fn(),
+          })
+      ).toThrow('Command description is required');
     });
 
     it('should require execute function', () => {
-      expect(() => new Command({
-        name: 'test',
-        description: 'Test command'
-      })).toThrow('Command execute function is required');
+      expect(
+        () =>
+          new Command({
+            name: 'test',
+            description: 'Test command',
+          })
+      ).toThrow('Command execute function is required');
     });
 
     it('should convert to Discord slash command format', () => {
@@ -69,10 +78,10 @@ describe('CommandAbstraction', () => {
             name: 'arg1',
             description: 'First argument',
             type: 'string',
-            required: true
-          })
+            required: true,
+          }),
         ],
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       const slashCommand = command.toDiscordSlashCommand();
@@ -80,12 +89,14 @@ describe('CommandAbstraction', () => {
       expect(slashCommand).toEqual({
         name: 'test',
         description: 'Test command',
-        options: [{
-          name: 'arg1',
-          description: 'First argument',
-          type: 3, // STRING
-          required: true
-        }]
+        options: [
+          {
+            name: 'arg1',
+            description: 'First argument',
+            type: 3, // STRING
+            required: true,
+          },
+        ],
       });
     });
 
@@ -98,15 +109,15 @@ describe('CommandAbstraction', () => {
           new CommandOption({
             name: 'arg1',
             description: 'First argument',
-            required: true
+            required: true,
           }),
           new CommandOption({
             name: 'arg2',
             description: 'Second argument',
-            required: false
-          })
+            required: false,
+          }),
         ],
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       const textCommand = command.toTextCommand();
@@ -116,7 +127,7 @@ describe('CommandAbstraction', () => {
         description: 'Test command',
         usage: '!tz test <arg1> [arg2]',
         aliases: ['t'],
-        permissions: ['USER']
+        permissions: ['USER'],
       });
       expect(typeof textCommand.execute).toBe('function');
     });
@@ -132,18 +143,18 @@ describe('CommandAbstraction', () => {
             type: 'string',
             choices: [
               { value: 'option1', label: 'Option 1' },
-              { value: 'option2', label: 'Option 2' }
-            ]
-          })
+              { value: 'option2', label: 'Option 2' },
+            ],
+          }),
         ],
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       const slashCommand = command.toDiscordSlashCommand();
 
       expect(slashCommand.options[0].choices).toEqual([
         { name: 'Option 1', value: 'option1' },
-        { name: 'Option 2', value: 'option2' }
+        { name: 'Option 2', value: 'option2' },
       ]);
     });
   });
@@ -152,7 +163,7 @@ describe('CommandAbstraction', () => {
     it('should create option with defaults', () => {
       const option = new CommandOption({
         name: 'test',
-        description: 'Test option'
+        description: 'Test option',
       });
 
       expect(option.name).toBe('test');
@@ -168,7 +179,7 @@ describe('CommandAbstraction', () => {
         description: 'Test option',
         type: 'integer',
         required: true,
-        choices: [{ value: 1, label: 'One' }]
+        choices: [{ value: 1, label: 'One' }],
       });
 
       expect(option.type).toBe('integer');
@@ -186,7 +197,7 @@ describe('CommandAbstraction', () => {
         author: { id: 'user123' },
         channel: { id: 'channel123' },
         guild: { id: 'guild123' },
-        args: ['arg1', 'arg2']
+        args: ['arg1', 'arg2'],
       });
 
       expect(context.platform).toBe('discord');
@@ -204,7 +215,7 @@ describe('CommandAbstraction', () => {
         isSlashCommand: true,
         interaction: { id: '123' },
         author: { id: 'user123' },
-        options: { name: 'test', count: 5 }
+        options: { name: 'test', count: 5 },
       });
 
       expect(context.isSlashCommand).toBe(true);
@@ -215,12 +226,12 @@ describe('CommandAbstraction', () => {
     it('should handle DM detection for Discord', () => {
       const dmContext = new CommandContext({
         platform: 'discord',
-        guild: null
+        guild: null,
       });
 
       const guildContext = new CommandContext({
         platform: 'discord',
-        guild: { id: 'guild123' }
+        guild: { id: 'guild123' },
       });
 
       expect(dmContext.isDM()).toBe(true);
@@ -230,12 +241,12 @@ describe('CommandAbstraction', () => {
     it('should handle DM detection for Revolt', () => {
       const dmContext = new CommandContext({
         platform: 'revolt',
-        channel: { channel_type: 'DirectMessage' }
+        channel: { channel_type: 'DirectMessage' },
       });
 
       const guildContext = new CommandContext({
         platform: 'revolt',
-        channel: { channel_type: 'TextChannel' }
+        channel: { channel_type: 'TextChannel' },
       });
 
       expect(dmContext.isDM()).toBe(true);
@@ -246,7 +257,7 @@ describe('CommandAbstraction', () => {
       const mockReply = jest.fn().mockResolvedValue({ id: 'msg123' });
       const context = new CommandContext({
         platform: 'discord',
-        reply: mockReply
+        reply: mockReply,
       });
 
       await context.respond('Hello');
@@ -258,7 +269,7 @@ describe('CommandAbstraction', () => {
       const mockMessageReply = jest.fn().mockResolvedValue({ id: 'msg123' });
       const context = new CommandContext({
         platform: 'discord',
-        message: { reply: mockMessageReply }
+        message: { reply: mockMessageReply },
       });
 
       await context.respond('Hello');
@@ -270,7 +281,7 @@ describe('CommandAbstraction', () => {
       const mockChannelSend = jest.fn().mockResolvedValue({ id: 'msg123' });
       const context = new CommandContext({
         platform: 'discord',
-        channel: { send: mockChannelSend }
+        channel: { send: mockChannelSend },
       });
 
       await context.respond('Hello');
@@ -283,10 +294,10 @@ describe('CommandAbstraction', () => {
       const context = new CommandContext({
         platform: 'discord',
         isSlashCommand: true,
-        interaction: { 
+        interaction: {
           reply: mockInteractionReply,
-          deferred: false 
-        }
+          deferred: false,
+        },
       });
 
       await context.respond('Hello');
@@ -299,10 +310,10 @@ describe('CommandAbstraction', () => {
       const context = new CommandContext({
         platform: 'discord',
         isSlashCommand: true,
-        interaction: { 
+        interaction: {
           editReply: mockEditReply,
-          deferred: true 
-        }
+          deferred: true,
+        },
       });
 
       await context.respond('Hello');
@@ -322,7 +333,7 @@ describe('CommandAbstraction', () => {
       const command = new Command({
         name: 'test',
         description: 'Test command',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(command);
@@ -335,7 +346,7 @@ describe('CommandAbstraction', () => {
         name: 'test',
         description: 'Test command',
         aliases: ['t', 'tst'],
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(command);
@@ -345,20 +356,19 @@ describe('CommandAbstraction', () => {
     });
 
     it('should require Command instance', () => {
-      expect(() => registry.register({ name: 'test' }))
-        .toThrow('Must register a Command instance');
+      expect(() => registry.register({ name: 'test' })).toThrow('Must register a Command instance');
     });
 
     it('should get all commands', () => {
       const cmd1 = new Command({
         name: 'test1',
         description: 'Test 1',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
       const cmd2 = new Command({
         name: 'test2',
         description: 'Test 2',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(cmd1);
@@ -375,13 +385,13 @@ describe('CommandAbstraction', () => {
         name: 'general',
         description: 'General command',
         category: 'general',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
       const adminCmd = new Command({
         name: 'admin',
         description: 'Admin command',
         category: 'admin',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(generalCmd);
@@ -396,7 +406,7 @@ describe('CommandAbstraction', () => {
       const command = new Command({
         name: 'test',
         description: 'Test command',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(command);
@@ -410,7 +420,7 @@ describe('CommandAbstraction', () => {
       const command = new Command({
         name: 'test',
         description: 'Test command',
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(command);
@@ -425,7 +435,7 @@ describe('CommandAbstraction', () => {
         name: 'test',
         description: 'Test command',
         aliases: ['t'],
-        execute: jest.fn()
+        execute: jest.fn(),
       });
 
       registry.register(command);

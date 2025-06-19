@@ -66,17 +66,20 @@ function createExecutor(_dependencies) {
         logger.info('[AuthCommand] Detected proxy system webhook for auth command');
         const proxyWarningEmbed = {
           title: '❌ Authentication with Proxy Systems',
-          description: "For security reasons, authentication commands can't be used through webhook systems like PluralKit.",
+          description:
+            "For security reasons, authentication commands can't be used through webhook systems like PluralKit.",
           color: 0xf44336, // Red color
           fields: [
             {
               name: 'Why is this blocked?',
-              value: 'Authentication requires direct verification of your Discord identity, which proxy systems bypass.',
+              value:
+                'Authentication requires direct verification of your Discord identity, which proxy systems bypass.',
               inline: false,
             },
             {
               name: 'What to do',
-              value: 'Please use your regular Discord account (without the proxy) to run authentication commands.',
+              value:
+                'Please use your regular Discord account (without the proxy) to run authentication commands.',
               inline: false,
             },
           ],
@@ -144,7 +147,8 @@ function createExecutor(_dependencies) {
           },
           {
             name: 'What to do',
-            value: '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
+            value:
+              '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
             inline: false,
           },
         ],
@@ -222,7 +226,8 @@ async function handleStart(context, auth) {
         fields: [
           {
             name: 'What to do',
-            value: '• Try again in a moment\n• Check if the bot is properly configured\n• Contact support if the issue persists',
+            value:
+              '• Try again in a moment\n• Check if the bot is properly configured\n• Contact support if the issue persists',
             inline: false,
           },
         ],
@@ -311,7 +316,8 @@ async function handleStart(context, auth) {
           fields: [
             {
               name: "Can't find the DM?",
-              value: '• Check your Message Requests\n• Make sure DMs are enabled\n• Look for a message from this bot',
+              value:
+                '• Check your Message Requests\n• Make sure DMs are enabled\n• Look for a message from this bot',
               inline: false,
             },
           ],
@@ -324,7 +330,7 @@ async function handleStart(context, auth) {
         );
         const dmFailedEmbed = {
           title: '❌ Unable to Send DM',
-          description: 'I couldn\'t send you a direct message with the authentication link.',
+          description: "I couldn't send you a direct message with the authentication link.",
           color: 0xf44336, // Red color
           fields: [
             {
@@ -334,7 +340,8 @@ async function handleStart(context, auth) {
             },
             {
               name: 'How to fix',
-              value: '1. Go to User Settings > Privacy & Safety\n2. Enable "Allow direct messages from server members"\n3. Try the command again',
+              value:
+                '1. Go to User Settings > Privacy & Safety\n2. Enable "Allow direct messages from server members"\n3. Try the command again',
               inline: false,
             },
             {
@@ -362,7 +369,8 @@ async function handleStart(context, auth) {
         },
         {
           name: 'What to do',
-          value: '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
+          value:
+            '• Try again in a moment\n• Check your internet connection\n• Contact support if the issue persists',
           inline: false,
         },
       ],
@@ -426,7 +434,8 @@ async function handleCode(context, auth, code) {
         },
         {
           name: 'What to do',
-          value: '1. Open a DM with this bot\n2. Run the auth code command there\n3. Your message with the code has been deleted for security',
+          value:
+            '1. Open a DM with this bot\n2. Run the auth code command there\n3. Your message with the code has been deleted for security',
           inline: false,
         },
       ],
@@ -486,12 +495,13 @@ async function handleCode(context, auth, code) {
         fields: [
           {
             name: 'What happened?',
-            value: 'The authorization was successful, but we couldn\'t save your token.',
+            value: "The authorization was successful, but we couldn't save your token.",
             inline: false,
           },
           {
             name: 'What to do',
-            value: '• Try the process again in a few minutes\n• Contact support if the issue persists',
+            value:
+              '• Try the process again in a few minutes\n• Contact support if the issue persists',
             inline: false,
           },
         ],
@@ -515,7 +525,8 @@ async function handleCode(context, auth, code) {
         },
         {
           name: 'Benefits',
-          value: '• Personalized AI responses\n• Your own usage limits\n• Private conversation history',
+          value:
+            '• Personalized AI responses\n• Your own usage limits\n• Private conversation history',
           inline: false,
         },
         {
@@ -589,7 +600,7 @@ async function handleStatus(context, auth) {
         value: `${tokenAge} day${tokenAge !== 1 ? 's' : ''}`,
         inline: true,
       });
-      
+
       fields.push({
         name: 'Expires In',
         value: `${expirationInfo.daysUntilExpiration} day${
@@ -597,7 +608,7 @@ async function handleStatus(context, auth) {
         }`,
         inline: true,
       });
-      
+
       fields.push({
         name: 'Time Remaining',
         value: `${expirationInfo.percentRemaining}%`,
@@ -616,7 +627,8 @@ async function handleStatus(context, auth) {
 
     const statusEmbed = {
       title: '🔐 Authentication Status',
-      description: 'Your authorization is active. The bot is using your personal AI account for all interactions.',
+      description:
+        'Your authorization is active. The bot is using your personal AI account for all interactions.',
       color: 0x4caf50, // Green color
       fields: fields,
       footer: {
@@ -650,7 +662,7 @@ async function handleStatus(context, auth) {
       ],
       timestamp: new Date().toISOString(),
     };
-    
+
     return await context.respond({ embeds: [notAuthorizedEmbed] });
   }
 }
@@ -828,7 +840,8 @@ async function handleCleanup(context, auth) {
         },
         {
           name: 'What to do',
-          value: '• Check the bot logs for more details\n• Try again in a moment\n• Contact the bot developer if the issue persists',
+          value:
+            '• Check the bot logs for more details\n• Try again in a moment\n• Contact the bot developer if the issue persists',
           inline: false,
         },
       ],

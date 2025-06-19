@@ -9,12 +9,13 @@
 function createLoggerMock(options = {}) {
   const logLevel = options.level || 'info';
   const shouldLog = options.shouldLog !== false;
-  
-  const createLogFunction = (level) => jest.fn().mockImplementation((...args) => {
-    if (shouldLog && options.debug) {
-      console.log(`[MOCK ${level.toUpperCase()}]`, ...args);
-    }
-  });
+
+  const createLogFunction = level =>
+    jest.fn().mockImplementation((...args) => {
+      if (shouldLog && options.debug) {
+        console.log(`[MOCK ${level.toUpperCase()}]`, ...args);
+      }
+    });
 
   return {
     error: createLogFunction('error'),
@@ -22,7 +23,7 @@ function createLoggerMock(options = {}) {
     info: createLogFunction('info'),
     debug: createLogFunction('debug'),
     verbose: createLogFunction('verbose'),
-    log: createLogFunction('log')
+    log: createLogFunction('log'),
   };
 }
 
@@ -34,7 +35,7 @@ function createPersonalityManagerMock(options = {}) {
     fullName: 'test-personality',
     displayName: 'Test Personality',
     avatarUrl: 'https://example.com/avatar.png',
-    ...options.defaultPersonality
+    ...options.defaultPersonality,
   };
 
   const personalities = new Map();
@@ -46,44 +47,46 @@ function createPersonalityManagerMock(options = {}) {
 
   return {
     // Core personality management
-    getPersonality: jest.fn().mockImplementation((name) => {
+    getPersonality: jest.fn().mockImplementation(name => {
       return personalities.get(name) || null;
     }),
-    
+
     addPersonality: jest.fn().mockImplementation(async (userId, personalityData) => {
       personalities.set(personalityData.fullName, personalityData);
       return { success: true };
     }),
-    
+
     removePersonality: jest.fn().mockImplementation(async (userId, personalityName) => {
       const removed = personalities.delete(personalityName);
       return { success: removed };
     }),
-    
-    listPersonalitiesForUser: jest.fn().mockImplementation((userId) => {
+
+    listPersonalitiesForUser: jest.fn().mockImplementation(userId => {
       return Array.from(personalities.values());
     }),
 
     // Register personality function (used by add command)
-    registerPersonality: jest.fn().mockImplementation(async (userId, fullName, data, fetchInfo = true) => {
-      const personality = {
-        fullName,
-        displayName: data?.displayName || fullName,
-        avatarUrl: data?.avatarUrl || 'https://example.com/avatar.png',
-        description: data?.description || '',
-        createdBy: userId,
-        createdAt: Date.now(),
-        ...data
-      };
-      personalities.set(fullName, personality);
-      return { personality };
-    }),
+    registerPersonality: jest
+      .fn()
+      .mockImplementation(async (userId, fullName, data, fetchInfo = true) => {
+        const personality = {
+          fullName,
+          displayName: data?.displayName || fullName,
+          avatarUrl: data?.avatarUrl || 'https://example.com/avatar.png',
+          description: data?.description || '',
+          createdBy: userId,
+          createdAt: Date.now(),
+          ...data,
+        };
+        personalities.set(fullName, personality);
+        return { personality };
+      }),
 
     // Alias management
-    getPersonalityByAlias: jest.fn().mockImplementation((alias) => {
+    getPersonalityByAlias: jest.fn().mockImplementation(alias => {
       return aliases.get(alias) || null;
     }),
-    
+
     setPersonalityAlias: jest.fn().mockImplementation(async (userId, personalityName, alias) => {
       aliases.set(alias, personalityName);
       return { success: true };
@@ -94,17 +97,17 @@ function createPersonalityManagerMock(options = {}) {
       activatedChannels.set(channelId, personalityName);
       return true;
     }),
-    
-    deactivatePersonality: jest.fn().mockImplementation((channelId) => {
+
+    deactivatePersonality: jest.fn().mockImplementation(channelId => {
       return activatedChannels.delete(channelId);
     }),
-    
-    getActivatedPersonality: jest.fn().mockImplementation((channelId) => {
+
+    getActivatedPersonality: jest.fn().mockImplementation(channelId => {
       return activatedChannels.get(channelId) || null;
     }),
 
     // Test utilities
-    _addTestPersonality: (personality) => {
+    _addTestPersonality: personality => {
       personalities.set(personality.fullName, personality);
     },
     _clearAll: () => {
@@ -112,7 +115,7 @@ function createPersonalityManagerMock(options = {}) {
       aliases.clear();
       activatedChannels.clear();
       personalities.set(defaultPersonality.fullName, defaultPersonality);
-    }
+    },
   };
 }
 
@@ -127,8 +130,8 @@ function createConversationManagerMock(options = {}) {
     recordConversation: jest.fn().mockImplementation((messageId, channelId, personalityName) => {
       conversations.set(messageId, { channelId, personalityName, timestamp: Date.now() });
     }),
-    
-    getActivePersonality: jest.fn().mockImplementation((channelId) => {
+
+    getActivePersonality: jest.fn().mockImplementation(channelId => {
       // Find the most recent conversation in this channel
       for (const [msgId, conv] of conversations.entries()) {
         if (conv.channelId === channelId) {
@@ -137,13 +140,13 @@ function createConversationManagerMock(options = {}) {
       }
       return null;
     }),
-    
-    getPersonalityFromMessage: jest.fn().mockImplementation((messageId) => {
+
+    getPersonalityFromMessage: jest.fn().mockImplementation(messageId => {
       const conv = conversations.get(messageId);
       return conv ? conv.personalityName : null;
     }),
-    
-    clearConversation: jest.fn().mockImplementation((channelId) => {
+
+    clearConversation: jest.fn().mockImplementation(channelId => {
       let cleared = false;
       for (const [msgId, conv] of conversations.entries()) {
         if (conv.channelId === channelId) {
@@ -155,45 +158,45 @@ function createConversationManagerMock(options = {}) {
     }),
 
     // Auto-response management
-    enableAutoResponse: jest.fn().mockImplementation((channelId) => {
+    enableAutoResponse: jest.fn().mockImplementation(channelId => {
       autoResponseChannels.add(channelId);
     }),
-    
-    disableAutoResponse: jest.fn().mockImplementation((channelId) => {
+
+    disableAutoResponse: jest.fn().mockImplementation(channelId => {
       return autoResponseChannels.delete(channelId);
     }),
-    
-    isAutoResponseEnabled: jest.fn().mockImplementation((channelId) => {
+
+    isAutoResponseEnabled: jest.fn().mockImplementation(channelId => {
       return autoResponseChannels.has(channelId);
     }),
 
     // Channel activation
     activatePersonality: jest.fn().mockImplementation((channelId, personalityName) => {
-      conversations.set(`activated-${channelId}`, { 
-        channelId, 
-        personalityName, 
+      conversations.set(`activated-${channelId}`, {
+        channelId,
+        personalityName,
         timestamp: Date.now(),
-        activated: true 
+        activated: true,
       });
     }),
-    
-    deactivatePersonality: jest.fn().mockImplementation((channelId) => {
+
+    deactivatePersonality: jest.fn().mockImplementation(channelId => {
       return conversations.delete(`activated-${channelId}`);
     }),
-    
-    getActivatedPersonality: jest.fn().mockImplementation((channelId) => {
+
+    getActivatedPersonality: jest.fn().mockImplementation(channelId => {
       const conv = conversations.get(`activated-${channelId}`);
       return conv ? conv.personalityName : null;
     }),
 
     // Utility methods
     saveAllData: jest.fn().mockResolvedValue(true),
-    
+
     // Test utilities
     _clearAll: () => {
       conversations.clear();
       autoResponseChannels.clear();
-    }
+    },
   };
 }
 
@@ -202,7 +205,7 @@ function createConversationManagerMock(options = {}) {
  */
 function createWebhookManagerMock(options = {}) {
   const webhooks = new Map();
-  
+
   return {
     sendWebhookMessage: jest.fn().mockImplementation(async (channel, content, personalityName) => {
       return {
@@ -211,29 +214,29 @@ function createWebhookManagerMock(options = {}) {
         embeds: content?.embeds || [],
         author: {
           username: personalityName || 'Mock Personality',
-          avatar: 'https://example.com/avatar.png'
-        }
+          avatar: 'https://example.com/avatar.png',
+        },
       };
     }),
-    
-    createWebhookForChannel: jest.fn().mockImplementation(async (channel) => {
+
+    createWebhookForChannel: jest.fn().mockImplementation(async channel => {
       const webhook = {
         id: `webhook-${Date.now()}`,
         url: `https://discord.com/api/webhooks/mock-webhook`,
-        send: jest.fn().mockResolvedValue({ id: 'mock-message' })
+        send: jest.fn().mockResolvedValue({ id: 'mock-message' }),
       };
       webhooks.set(channel.id, webhook);
       return webhook;
     }),
-    
-    getWebhookForChannel: jest.fn().mockImplementation((channelId) => {
+
+    getWebhookForChannel: jest.fn().mockImplementation(channelId => {
       return webhooks.get(channelId) || null;
     }),
 
     // Test utilities
     _clearWebhooks: () => {
       webhooks.clear();
-    }
+    },
   };
 }
 
@@ -245,39 +248,39 @@ function createAuthMock(options = {}) {
   const verifiedUsers = new Set();
 
   return {
-    hasValidToken: jest.fn().mockImplementation((userId) => {
+    hasValidToken: jest.fn().mockImplementation(userId => {
       return userTokens.has(userId);
     }),
-    
-    getUserToken: jest.fn().mockImplementation((userId) => {
+
+    getUserToken: jest.fn().mockImplementation(userId => {
       return userTokens.get(userId) || null;
     }),
-    
+
     storeUserToken: jest.fn().mockImplementation((userId, token) => {
       userTokens.set(userId, { token, timestamp: Date.now() });
     }),
-    
-    isNsfwVerified: jest.fn().mockImplementation((userId) => {
+
+    isNsfwVerified: jest.fn().mockImplementation(userId => {
       return verifiedUsers.has(userId);
     }),
-    
-    storeNsfwVerification: jest.fn().mockImplementation((userId) => {
+
+    storeNsfwVerification: jest.fn().mockImplementation(userId => {
       verifiedUsers.add(userId);
     }),
-    
+
     getAuthorizationUrl: jest.fn().mockReturnValue('https://example.com/auth'),
 
     // Test utilities
     _addTestUser: (userId, token = 'mock-token') => {
       userTokens.set(userId, { token, timestamp: Date.now() });
     },
-    _verifyTestUser: (userId) => {
+    _verifyTestUser: userId => {
       verifiedUsers.add(userId);
     },
     _clearAll: () => {
       userTokens.clear();
       verifiedUsers.clear();
-    }
+    },
   };
 }
 
@@ -289,11 +292,11 @@ function createCommandValidatorMock(options = {}) {
     isAdmin: jest.fn().mockReturnValue(options.isAdmin !== false),
     canManageMessages: jest.fn().mockReturnValue(options.canManageMessages !== false),
     isNsfwChannel: jest.fn().mockReturnValue(options.isNsfwChannel || false),
-    createDirectSend: jest.fn().mockImplementation((message) => {
-      return jest.fn().mockImplementation(async (content) => {
+    createDirectSend: jest.fn().mockImplementation(message => {
+      return jest.fn().mockImplementation(async content => {
         return message.channel.send(content);
       });
-    })
+    }),
   };
 }
 
@@ -304,12 +307,12 @@ function createCommandValidatorMock(options = {}) {
 function createRateLimiterMock(options = {}) {
   const queue = [];
   let isProcessing = false;
-  
+
   const mock = {
     // Execute function immediately - no delays!
-    enqueue: jest.fn().mockImplementation((fn) => {
+    enqueue: jest.fn().mockImplementation(fn => {
       if (options.simulateQueue) {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           queue.push({ fn, resolve });
           if (!isProcessing) {
             isProcessing = true;
@@ -326,7 +329,7 @@ function createRateLimiterMock(options = {}) {
       // Default: execute immediately
       return Promise.resolve(fn());
     }),
-    
+
     // Handle rate limit - return retry count
     handleRateLimit: jest.fn().mockImplementation(async (resourceId, retryAfter, retryCount) => {
       const newRetryCount = retryCount + 1;
@@ -335,27 +338,27 @@ function createRateLimiterMock(options = {}) {
       }
       return newRetryCount;
     }),
-    
+
     // Record successful request
     recordSuccess: jest.fn(),
-    
+
     // Properties
     maxRetries: options.maxRetries || 3,
     minRequestSpacing: options.minRequestSpacing || 0,
     maxConcurrent: options.maxConcurrent || 1,
-    
+
     // Test utilities
     _getQueueLength: () => queue.length,
     _clearQueue: () => {
       queue.length = 0;
       isProcessing = false;
-    }
+    },
   };
-  
+
   // Add constructor mock
   const RateLimiterConstructor = jest.fn().mockImplementation(() => mock);
   RateLimiterConstructor.mock = mock;
-  
+
   return RateLimiterConstructor;
 }
 
@@ -404,5 +407,5 @@ module.exports = {
   createAuthMock,
   createCommandValidatorMock,
   createRateLimiterMock,
-  createModuleEnvironment
+  createModuleEnvironment,
 };

@@ -17,11 +17,11 @@ describe('Error filtering functionality', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
-  
+
   test('ERROR_MESSAGES array contains expected error patterns', () => {
     // Verify ERROR_MESSAGES is an array
     expect(Array.isArray(ERROR_MESSAGES)).toBe(true);
-    
+
     // This should contain at least the basic error patterns we expect
     const expectedPatterns = [
       'Error:',
@@ -30,38 +30,38 @@ describe('Error filtering functionality', () => {
       'undefined',
       'null',
       'NaN',
-      '[object Object]'
+      '[object Object]',
     ];
-    
+
     // Check if ERROR_MESSAGES contains at least some of these patterns
     expectedPatterns.forEach(pattern => {
       // Either the exact pattern or something containing it should be present
-      const patternExists = ERROR_MESSAGES.some(errorMsg => 
-        errorMsg === pattern || errorMsg.includes(pattern)
+      const patternExists = ERROR_MESSAGES.some(
+        errorMsg => errorMsg === pattern || errorMsg.includes(pattern)
       );
-      
+
       // We expect at least some key error patterns to be blocked
       // This is a softer assertion - we're checking the general concept exists
       if (!patternExists) {
         logger.warn(`Expected error pattern '${pattern}' not found in ERROR_MESSAGES array`);
       }
     });
-    
+
     // Ensure we have at least some error patterns defined
     expect(ERROR_MESSAGES.length).toBeGreaterThan(0);
   });
-  
+
   test('Bot filters webhook messages containing error patterns', () => {
     // Create a mock Client
     const { Client } = require('discord.js');
-    
+
     // Get original emit method
     const originalEmit = jest.fn();
-    
+
     // Mock a client instance
     const mockClient = new Client();
     mockClient.emit = originalEmit;
-    
+
     // Manually call the patching code from src/bot.js
     // This simulates what happens in the bot.js initialization
     const errorFilteringCode = `
@@ -90,33 +90,35 @@ describe('Error filtering functionality', () => {
         return originalEmit.apply(this, [event, ...args]);
       };
     `;
-    
+
     // Test a mock message with an error pattern (using an actual pattern from constants.js)
     const mockErrorMessage = {
       webhookId: 'webhook-123',
-      content: 'I\'m having trouble connecting to my services right now',
+      content: "I'm having trouble connecting to my services right now",
       deletable: true,
-      delete: jest.fn().mockResolvedValue(undefined)
+      delete: jest.fn().mockResolvedValue(undefined),
     };
-    
+
     // Function that simulates the filtering behavior
-    const wouldBeFiltered = (message) => {
-      return message.webhookId && 
-            message.content && 
-            ERROR_MESSAGES.some(pattern => message.content.includes(pattern));
+    const wouldBeFiltered = message => {
+      return (
+        message.webhookId &&
+        message.content &&
+        ERROR_MESSAGES.some(pattern => message.content.includes(pattern))
+      );
     };
-    
+
     // Error message should be filtered
     expect(wouldBeFiltered(mockErrorMessage)).toBe(true);
-    
+
     // Create a non-error message
     const mockNormalMessage = {
       webhookId: 'webhook-123',
       content: 'This is a normal message without errors',
       deletable: true,
-      delete: jest.fn().mockResolvedValue(undefined)
+      delete: jest.fn().mockResolvedValue(undefined),
     };
-    
+
     // Normal message should not be filtered
     expect(wouldBeFiltered(mockNormalMessage)).toBe(false);
   });

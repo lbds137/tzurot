@@ -8,10 +8,16 @@ jest.mock('../../../../src/logger');
 jest.mock('../../../../src/application/eventHandlers/PersonalityEventLogger');
 jest.mock('../../../../src/application/eventHandlers/PersonalityCacheInvalidator');
 
-const { EventHandlerRegistry } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
+const {
+  EventHandlerRegistry,
+} = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
 const logger = require('../../../../src/logger');
-const { PersonalityEventLogger } = require('../../../../src/application/eventHandlers/PersonalityEventLogger');
-const { PersonalityCacheInvalidator } = require('../../../../src/application/eventHandlers/PersonalityCacheInvalidator');
+const {
+  PersonalityEventLogger,
+} = require('../../../../src/application/eventHandlers/PersonalityEventLogger');
+const {
+  PersonalityCacheInvalidator,
+} = require('../../../../src/application/eventHandlers/PersonalityCacheInvalidator');
 
 describe('EventHandlerRegistry', () => {
   let mockEventBus;
@@ -85,20 +91,39 @@ describe('EventHandlerRegistry', () => {
 
       // Verify all event subscriptions
       expect(mockEventBus.subscribe).toHaveBeenCalledTimes(9);
-      
+
       // Check specific event subscriptions
-      expect(mockEventBus.subscribe).toHaveBeenCalledWith('PersonalityCreated', expect.any(Function));
-      expect(mockEventBus.subscribe).toHaveBeenCalledWith('PersonalityProfileUpdated', expect.any(Function));
-      expect(mockEventBus.subscribe).toHaveBeenCalledWith('PersonalityRemoved', expect.any(Function));
-      expect(mockEventBus.subscribe).toHaveBeenCalledWith('PersonalityAliasAdded', expect.any(Function));
-      expect(mockEventBus.subscribe).toHaveBeenCalledWith('PersonalityAliasRemoved', expect.any(Function));
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+        'PersonalityCreated',
+        expect.any(Function)
+      );
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+        'PersonalityProfileUpdated',
+        expect.any(Function)
+      );
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+        'PersonalityRemoved',
+        expect.any(Function)
+      );
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+        'PersonalityAliasAdded',
+        expect.any(Function)
+      );
+      expect(mockEventBus.subscribe).toHaveBeenCalledWith(
+        'PersonalityAliasRemoved',
+        expect.any(Function)
+      );
 
       // Verify subscriptions are stored
       expect(registry.subscriptions).toHaveLength(9);
 
       // Verify logging
-      expect(logger.info).toHaveBeenCalledWith('[EventHandlerRegistry] Registering domain event handlers');
-      expect(logger.info).toHaveBeenCalledWith('[EventHandlerRegistry] Registered 9 event handlers');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[EventHandlerRegistry] Registering domain event handlers'
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        '[EventHandlerRegistry] Registered 9 event handlers'
+      );
     });
 
     it('should register PersonalityCreated event handlers', () => {
@@ -108,9 +133,9 @@ describe('EventHandlerRegistry', () => {
       const personalityCreatedCalls = mockEventBus.subscribe.mock.calls.filter(
         call => call[0] === 'PersonalityCreated'
       );
-      
+
       expect(personalityCreatedCalls).toHaveLength(1);
-      
+
       // Test the callback
       const event = { type: 'PersonalityCreated', payload: { name: 'test' } };
       personalityCreatedCalls[0][1](event);
@@ -125,15 +150,15 @@ describe('EventHandlerRegistry', () => {
       const profileUpdatedCalls = mockEventBus.subscribe.mock.calls.filter(
         call => call[0] === 'PersonalityProfileUpdated'
       );
-      
+
       expect(profileUpdatedCalls).toHaveLength(2); // Logger + cache invalidator
-      
+
       // Test both callbacks
       const event = { type: 'PersonalityProfileUpdated', payload: { name: 'test' } };
-      
+
       profileUpdatedCalls[0][1](event); // Logger
       expect(mockEventLogger.handlePersonalityProfileUpdated).toHaveBeenCalledWith(event);
-      
+
       profileUpdatedCalls[1][1](event); // Cache invalidator
       expect(mockCacheInvalidator.handlePersonalityProfileUpdated).toHaveBeenCalledWith(event);
     });
@@ -145,15 +170,15 @@ describe('EventHandlerRegistry', () => {
       const removedCalls = mockEventBus.subscribe.mock.calls.filter(
         call => call[0] === 'PersonalityRemoved'
       );
-      
+
       expect(removedCalls).toHaveLength(2); // Logger + cache invalidator
-      
+
       // Test both callbacks
       const event = { type: 'PersonalityRemoved', payload: { name: 'test' } };
-      
+
       removedCalls[0][1](event); // Logger
       expect(mockEventLogger.handlePersonalityRemoved).toHaveBeenCalledWith(event);
-      
+
       removedCalls[1][1](event); // Cache invalidator
       expect(mockCacheInvalidator.handlePersonalityRemoved).toHaveBeenCalledWith(event);
     });
@@ -165,15 +190,15 @@ describe('EventHandlerRegistry', () => {
       const aliasAddedCalls = mockEventBus.subscribe.mock.calls.filter(
         call => call[0] === 'PersonalityAliasAdded'
       );
-      
+
       expect(aliasAddedCalls).toHaveLength(2); // Logger + cache invalidator
-      
+
       // Test both callbacks
       const event = { type: 'PersonalityAliasAdded', payload: { alias: 'test-alias' } };
-      
+
       aliasAddedCalls[0][1](event); // Logger
       expect(mockEventLogger.handlePersonalityAliasAdded).toHaveBeenCalledWith(event);
-      
+
       aliasAddedCalls[1][1](event); // Cache invalidator
       expect(mockCacheInvalidator.handlePersonalityAliasAdded).toHaveBeenCalledWith(event);
     });
@@ -185,15 +210,15 @@ describe('EventHandlerRegistry', () => {
       const aliasRemovedCalls = mockEventBus.subscribe.mock.calls.filter(
         call => call[0] === 'PersonalityAliasRemoved'
       );
-      
+
       expect(aliasRemovedCalls).toHaveLength(2); // Logger + cache invalidator
-      
+
       // Test both callbacks
       const event = { type: 'PersonalityAliasRemoved', payload: { alias: 'test-alias' } };
-      
+
       aliasRemovedCalls[0][1](event); // Logger
       expect(mockEventLogger.handlePersonalityAliasRemoved).toHaveBeenCalledWith(event);
-      
+
       aliasRemovedCalls[1][1](event); // Cache invalidator
       expect(mockCacheInvalidator.handlePersonalityAliasRemoved).toHaveBeenCalledWith(event);
     });
@@ -221,7 +246,9 @@ describe('EventHandlerRegistry', () => {
       expect(registry.subscriptions).toEqual([]);
 
       // Verify logging
-      expect(logger.info).toHaveBeenCalledWith('[EventHandlerRegistry] Unregistering domain event handlers');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[EventHandlerRegistry] Unregistering domain event handlers'
+      );
     });
 
     it('should handle unregistration when no handlers are registered', () => {
@@ -230,7 +257,9 @@ describe('EventHandlerRegistry', () => {
       registry.unregisterHandlers();
 
       expect(registry.subscriptions).toEqual([]);
-      expect(logger.info).toHaveBeenCalledWith('[EventHandlerRegistry] Unregistering domain event handlers');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[EventHandlerRegistry] Unregistering domain event handlers'
+      );
     });
   });
 
@@ -238,7 +267,7 @@ describe('EventHandlerRegistry', () => {
     it('should properly register and unregister handlers', () => {
       // Register handlers
       registry.registerHandlers();
-      
+
       const initialSubscriptionCount = registry.subscriptions.length;
       expect(initialSubscriptionCount).toBe(9);
 
@@ -252,7 +281,7 @@ describe('EventHandlerRegistry', () => {
 
       // Unregister handlers
       registry.unregisterHandlers();
-      
+
       expect(registry.subscriptions).toHaveLength(0);
     });
 
@@ -290,7 +319,7 @@ describe('EventHandlerRegistry', () => {
 
     it('should handle errors during unregistration', () => {
       registry.registerHandlers();
-      
+
       // Mock one unsubscribe function to throw error
       const errorFunction = jest.fn().mockImplementation(() => {
         throw new Error('Unsubscribe failed');

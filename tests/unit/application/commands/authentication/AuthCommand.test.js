@@ -2,7 +2,9 @@
  * Tests for AuthCommand
  */
 
-const { createAuthCommand } = require('../../../../../src/application/commands/authentication/AuthCommand');
+const {
+  createAuthCommand,
+} = require('../../../../../src/application/commands/authentication/AuthCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
 

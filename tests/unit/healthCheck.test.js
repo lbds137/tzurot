@@ -13,64 +13,64 @@ describe('healthCheck', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock Date.now() for consistent time-based tests BEFORE requiring the module
     originalDateNow = Date.now;
     Date.now = jest.fn();
     Date.now.mockReturnValue(1000000); // Initial start time
-    
+
     // Clear the module cache and re-require after mocking Date.now
     jest.resetModules();
-    
+
     // Re-mock logger after resetModules
     jest.doMock('../../src/logger', () => ({
       info: jest.fn(),
       error: jest.fn(),
       warn: jest.fn(),
-      debug: jest.fn()
+      debug: jest.fn(),
     }));
-    
+
     // Mock os module before requiring healthCheck
     jest.doMock('os', () => ({
       cpus: jest.fn().mockReturnValue([{}, {}, {}, {}]), // 4 cores
       totalmem: jest.fn().mockReturnValue(8 * 1024 * 1024 * 1024), // 8GB
       freemem: jest.fn().mockReturnValue(4 * 1024 * 1024 * 1024), // 4GB
-      loadavg: jest.fn().mockReturnValue([1.5, 2.0, 1.75])
+      loadavg: jest.fn().mockReturnValue([1.5, 2.0, 1.75]),
     }));
-    
+
     os = require('os');
     logger = require('../../src/logger');
     healthCheck = require('../../src/healthCheck');
-    
+
     // Mock Discord client
     mockClient = {
       isReady: jest.fn().mockReturnValue(true),
       ws: { ping: 42 },
       guilds: { cache: { size: 5 } },
-      uptime: 3661000 // 1 hour, 1 minute, 1 second
+      uptime: 3661000, // 1 hour, 1 minute, 1 second
     };
-    
+
     // Mock process properties
     Object.defineProperty(process, 'platform', {
       value: 'linux',
       writable: true,
-      configurable: true
+      configurable: true,
     });
     Object.defineProperty(process, 'arch', {
       value: 'x64',
       writable: true,
-      configurable: true
+      configurable: true,
     });
     Object.defineProperty(process, 'version', {
       value: 'v16.0.0',
       writable: true,
-      configurable: true
+      configurable: true,
     });
     jest.spyOn(process, 'memoryUsage').mockReturnValue({
       rss: 100 * 1024 * 1024, // 100MB
       heapTotal: 80 * 1024 * 1024, // 80MB
       heapUsed: 60 * 1024 * 1024, // 60MB
-      external: 10 * 1024 * 1024 // 10MB
+      external: 10 * 1024 * 1024, // 10MB
     });
   });
 
@@ -141,7 +141,7 @@ describe('healthCheck', () => {
         heapTotal: '80 MB',
         heapUsed: '60 MB',
         external: '10 MB',
-        memoryUsagePercent: '75%'
+        memoryUsagePercent: '75%',
       });
     });
 
@@ -150,7 +150,7 @@ describe('healthCheck', () => {
         rss: 512 * 1024, // 0.5MB
         heapTotal: 1024 * 1024, // 1MB
         heapUsed: 256 * 1024, // 0.25MB
-        external: 0
+        external: 0,
       });
 
       const memory = healthCheck.getMemoryUsage();
@@ -159,7 +159,7 @@ describe('healthCheck', () => {
         heapTotal: '1 MB',
         heapUsed: '0 MB', // Rounds down
         external: '0 MB',
-        memoryUsagePercent: '25%'
+        memoryUsagePercent: '25%',
       });
     });
 
@@ -168,7 +168,7 @@ describe('healthCheck', () => {
         rss: 0,
         heapTotal: 100 * 1024 * 1024,
         heapUsed: 33 * 1024 * 1024,
-        external: 0
+        external: 0,
       });
 
       const memory = healthCheck.getMemoryUsage();
@@ -186,7 +186,7 @@ describe('healthCheck', () => {
         cpuCores: 4,
         totalMemory: '8192 MB',
         freeMemory: '4096 MB',
-        loadAverage: [1.5, 2.0, 1.75]
+        loadAverage: [1.5, 2.0, 1.75],
       });
     });
 
@@ -199,7 +199,7 @@ describe('healthCheck', () => {
     it('should handle different memory values', () => {
       os.totalmem.mockReturnValue(16 * 1024 * 1024 * 1024); // 16GB
       os.freemem.mockReturnValue(1 * 1024 * 1024 * 1024); // 1GB
-      
+
       const sysInfo = healthCheck.getSystemInfo();
       expect(sysInfo.totalMemory).toBe('16384 MB');
       expect(sysInfo.freeMemory).toBe('1024 MB');
@@ -214,12 +214,12 @@ describe('healthCheck', () => {
     beforeEach(() => {
       mockRequest = {
         url: '/health',
-        socket: { remoteAddress: '127.0.0.1' }
+        socket: { remoteAddress: '127.0.0.1' },
       };
-      
+
       mockResponse = {
         writeHead: jest.fn(),
-        end: jest.fn()
+        end: jest.fn(),
       };
 
       // Create a mock server
@@ -228,13 +228,13 @@ describe('healthCheck', () => {
           if (callback) callback();
         }),
         on: jest.fn(),
-        close: jest.fn((callback) => {
+        close: jest.fn(callback => {
           if (callback) callback();
-        })
+        }),
       };
 
       // Mock http.createServer
-      jest.spyOn(http, 'createServer').mockImplementation((handler) => {
+      jest.spyOn(http, 'createServer').mockImplementation(handler => {
         // Store the handler for testing
         mockServer._handler = handler;
         return mockServer;
@@ -247,7 +247,7 @@ describe('healthCheck', () => {
 
     it('should create HTTP server on specified port', () => {
       server = healthCheck.createHealthServer(mockClient, 3001);
-      
+
       expect(http.createServer).toHaveBeenCalled();
       expect(mockServer.listen).toHaveBeenCalledWith(3001, expect.any(Function));
       expect(logger.info).toHaveBeenCalledWith('Health check server running on port 3001');
@@ -256,14 +256,16 @@ describe('healthCheck', () => {
     it('should respond to /health endpoint with 200', () => {
       server = healthCheck.createHealthServer(mockClient, 3002);
       const handler = mockServer._handler;
-      
+
       // Simulate request
       Date.now.mockReturnValue(1010000); // 10 seconds later
       handler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
+        'Content-Type': 'application/json',
+      });
       expect(mockResponse.end).toHaveBeenCalled();
-      
+
       // Check the response data
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.status).toBe('ok');
@@ -274,21 +276,25 @@ describe('healthCheck', () => {
     it('should respond to /health/ endpoint (with trailing slash)', () => {
       server = healthCheck.createHealthServer(mockClient, 3003);
       const handler = mockServer._handler;
-      
+
       mockRequest.url = '/health/';
       handler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
+        'Content-Type': 'application/json',
+      });
     });
 
     it('should return 404 for non-health endpoints', () => {
       server = healthCheck.createHealthServer(mockClient, 3004);
       const handler = mockServer._handler;
-      
+
       mockRequest.url = '/other';
       handler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, {
+        'Content-Type': 'application/json',
+      });
       expect(mockResponse.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Not Found' }));
     });
 
@@ -296,10 +302,12 @@ describe('healthCheck', () => {
       mockClient.isReady.mockReturnValue(false);
       server = healthCheck.createHealthServer(mockClient, 3005);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
+        'Content-Type': 'application/json',
+      });
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.status).toBe('degraded');
     });
@@ -308,17 +316,19 @@ describe('healthCheck', () => {
       jest.spyOn(process, 'memoryUsage').mockImplementation(() => {
         throw new Error('Memory error');
       });
-      
+
       server = healthCheck.createHealthServer(mockClient, 3006);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, {
+        'Content-Type': 'application/json',
+      });
       expect(mockResponse.end).toHaveBeenCalledWith(
         JSON.stringify({
           error: 'Internal Server Error',
-          message: 'Memory error'
+          message: 'Memory error',
         })
       );
       expect(logger.error).toHaveBeenCalledWith(
@@ -330,9 +340,9 @@ describe('healthCheck', () => {
     it('should log health check requests', () => {
       server = healthCheck.createHealthServer(mockClient, 3007);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Health check request from 127.0.0.1')
       );
@@ -341,34 +351,31 @@ describe('healthCheck', () => {
     it('should handle server errors', () => {
       server = healthCheck.createHealthServer(mockClient, 3008);
       const error = new Error('Server error');
-      
+
       mockServer.on.mock.calls.find(call => call[0] === 'error')[1](error);
-      
-      expect(logger.error).toHaveBeenCalledWith(
-        'Health check server error: Server error',
-        error
-      );
+
+      expect(logger.error).toHaveBeenCalledWith('Health check server error: Server error', error);
     });
 
     it('should use default port when not specified', () => {
       server = healthCheck.createHealthServer(mockClient);
-      
+
       expect(mockServer.listen).toHaveBeenCalledWith(3000, expect.any(Function));
     });
 
     it('should check Discord status correctly when connected', () => {
       server = healthCheck.createHealthServer(mockClient, 3010);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.discord).toEqual({
         status: 'ok',
         message: 'Connected to Discord',
         ping: '42ms',
         servers: 5,
-        uptime: '0d 1h 1m 1s'
+        uptime: '0d 1h 1m 1s',
       });
     });
 
@@ -376,9 +383,9 @@ describe('healthCheck', () => {
       mockClient.isReady.mockReturnValue(false);
       server = healthCheck.createHealthServer(mockClient, 3011);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.discord.status).toBe('error');
       expect(responseData.components.discord.message).toBe('Not connected to Discord');
@@ -387,13 +394,13 @@ describe('healthCheck', () => {
     it('should handle missing Discord client', () => {
       server = healthCheck.createHealthServer(null, 3012);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.discord).toEqual({
         status: 'unavailable',
-        message: 'Discord client not initialized'
+        message: 'Discord client not initialized',
       });
     });
 
@@ -401,9 +408,9 @@ describe('healthCheck', () => {
       mockClient.ws.ping = undefined;
       server = healthCheck.createHealthServer(mockClient, 3013);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.discord.ping).toBe('Unknown');
     });
@@ -412,9 +419,9 @@ describe('healthCheck', () => {
       mockClient.uptime = undefined;
       server = healthCheck.createHealthServer(mockClient, 3014);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.discord.uptime).toBe('Unknown');
     });
@@ -422,13 +429,13 @@ describe('healthCheck', () => {
     it('should check AI status', () => {
       server = healthCheck.createHealthServer(mockClient, 3015);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.components.ai).toEqual({
         status: 'ok',
-        message: 'AI service assumed operational (no direct health check implemented)'
+        message: 'AI service assumed operational (no direct health check implemented)',
       });
     });
 
@@ -436,9 +443,9 @@ describe('healthCheck', () => {
       Date.now.mockReturnValue(1010000); // 10 seconds later
       server = healthCheck.createHealthServer(mockClient, 3016);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.status).toBe('ok');
       expect(responseData.timestamp).toBeDefined();
@@ -452,9 +459,9 @@ describe('healthCheck', () => {
       mockClient.isReady.mockReturnValue(false);
       server = healthCheck.createHealthServer(mockClient, 3017);
       const handler = mockServer._handler;
-      
+
       handler(mockRequest, mockResponse);
-      
+
       const responseData = JSON.parse(mockResponse.end.mock.calls[0][0]);
       expect(responseData.status).toBe('degraded');
     });

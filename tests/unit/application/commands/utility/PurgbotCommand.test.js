@@ -40,24 +40,33 @@ describe('PurgbotCommand', () => {
 
     // Mock messages
     mockMessages = new Map([
-      ['msg1', {
-        id: 'msg1',
-        content: 'System message',
-        author: { id: 'bot123', username: 'TestBot' },
-        delete: jest.fn().mockResolvedValue(undefined),
-      }],
-      ['msg2', {
-        id: 'msg2',
-        content: '**Personality:** Hello!',
-        author: { id: 'bot123', username: 'TestBot' },
-        delete: jest.fn().mockResolvedValue(undefined),
-      }],
-      ['msg3', {
-        id: 'msg3',
-        content: 'User message',
-        author: { id: 'user123', username: 'TestUser' },
-        delete: jest.fn().mockResolvedValue(undefined),
-      }],
+      [
+        'msg1',
+        {
+          id: 'msg1',
+          content: 'System message',
+          author: { id: 'bot123', username: 'TestBot' },
+          delete: jest.fn().mockResolvedValue(undefined),
+        },
+      ],
+      [
+        'msg2',
+        {
+          id: 'msg2',
+          content: '**Personality:** Hello!',
+          author: { id: 'bot123', username: 'TestBot' },
+          delete: jest.fn().mockResolvedValue(undefined),
+        },
+      ],
+      [
+        'msg3',
+        {
+          id: 'msg3',
+          content: 'User message',
+          author: { id: 'user123', username: 'TestUser' },
+          delete: jest.fn().mockResolvedValue(undefined),
+        },
+      ],
     ]);
 
     // Mock channel
@@ -235,13 +244,15 @@ describe('PurgbotCommand', () => {
 
       expect(mockStatusMessage.edit).toHaveBeenCalledWith({
         content: '',
-        embeds: [expect.objectContaining({
-          title: 'Bot Message Cleanup',
-          fields: expect.arrayContaining([
-            { name: 'Messages Deleted', value: '1', inline: true },
-            { name: 'Messages Failed', value: '0', inline: true },
-          ]),
-        })],
+        embeds: [
+          expect.objectContaining({
+            title: 'Bot Message Cleanup',
+            fields: expect.arrayContaining([
+              { name: 'Messages Deleted', value: '1', inline: true },
+              { name: 'Messages Failed', value: '0', inline: true },
+            ]),
+          }),
+        ],
       });
     });
 
@@ -259,11 +270,14 @@ describe('PurgbotCommand', () => {
     it('should handle no messages to delete', async () => {
       // Only user messages
       mockMessages = new Map([
-        ['msg1', {
-          id: 'msg1',
-          content: 'User message',
-          author: { id: 'user123', username: 'TestUser' },
-        }],
+        [
+          'msg1',
+          {
+            id: 'msg1',
+            content: 'User message',
+            author: { id: 'user123', username: 'TestUser' },
+          },
+        ],
       ]);
       mockChannel.messages.fetch.mockResolvedValue(mockMessages);
 
@@ -284,12 +298,14 @@ describe('PurgbotCommand', () => {
       );
       expect(mockStatusMessage.edit).toHaveBeenCalledWith({
         content: '',
-        embeds: [expect.objectContaining({
-          fields: expect.arrayContaining([
-            { name: 'Messages Deleted', value: '0', inline: true },
-            { name: 'Messages Failed', value: '1', inline: true },
-          ]),
-        })],
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              { name: 'Messages Deleted', value: '0', inline: true },
+              { name: 'Messages Failed', value: '1', inline: true },
+            ]),
+          }),
+        ],
       });
     });
 
@@ -297,10 +313,7 @@ describe('PurgbotCommand', () => {
       await purgbotCommand.execute(mockContext);
 
       // Check that scheduleFn was called
-      expect(mockDependencies.scheduleFn).toHaveBeenCalledWith(
-        expect.any(Function),
-        10000
-      );
+      expect(mockDependencies.scheduleFn).toHaveBeenCalledWith(expect.any(Function), 10000);
 
       // Fast-forward timers
       jest.runAllTimers();
@@ -323,9 +336,7 @@ describe('PurgbotCommand', () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to self-destruct')
-      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to self-destruct'));
     });
   });
 
@@ -348,9 +359,7 @@ describe('PurgbotCommand', () => {
 
       await purgbotCommand.execute(mockContext);
 
-      expect(logger.error).toHaveBeenCalledWith(
-        '[PurgBot] Error during Discord purge: API Error'
-      );
+      expect(logger.error).toHaveBeenCalledWith('[PurgBot] Error during Discord purge: API Error');
       expect(mockContext.respond).toHaveBeenCalledWith(
         '❌ An error occurred while purging messages: API Error'
       );
@@ -361,9 +370,7 @@ describe('PurgbotCommand', () => {
 
       await purgbotCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        'Unable to access channel information.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith('Unable to access channel information.');
     });
 
     it('should handle unexpected errors', async () => {
@@ -373,7 +380,7 @@ describe('PurgbotCommand', () => {
         isDM: undefined,
         respond: jest.fn(),
       };
-      
+
       // Force an error by making isDM access throw
       Object.defineProperty(errorContext, 'isDM', {
         get() {
@@ -408,14 +415,14 @@ describe('PurgbotCommand', () => {
   describe('factory function', () => {
     it('should create command with default dependencies', () => {
       const command = createPurgbotCommand();
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('purgbot');
     });
 
     it('should create command with custom dependencies', () => {
       const command = createPurgbotCommand({ custom: true });
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('purgbot');
     });

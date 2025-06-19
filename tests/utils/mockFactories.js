@@ -13,11 +13,11 @@ function createValidatorMock(options = {}) {
   const defaults = {
     isAdmin: false,
     canManageMessages: false,
-    isNsfwChannel: false
+    isNsfwChannel: false,
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   // Create the mock with the specified implementation
   return {
     createDirectSend: jest.fn().mockImplementation(message => {
@@ -25,16 +25,16 @@ function createValidatorMock(options = {}) {
         if (message && message.channel && message.channel.send) {
           return message.channel.send(content);
         }
-        return Promise.resolve({ 
+        return Promise.resolve({
           id: 'direct-send-123',
-          content: typeof content === 'string' ? content : 'embed message' 
+          content: typeof content === 'string' ? content : 'embed message',
         });
       };
     }),
     isAdmin: jest.fn().mockReturnValue(config.isAdmin),
     canManageMessages: jest.fn().mockReturnValue(config.canManageMessages),
     isNsfwChannel: jest.fn().mockReturnValue(config.isNsfwChannel),
-    getPermissionErrorMessage: jest.fn().mockReturnValue('Permission error message')
+    getPermissionErrorMessage: jest.fn().mockReturnValue('Permission error message'),
   };
 }
 
@@ -49,30 +49,30 @@ function createPersonalityManagerMock(options = {}) {
     defaultPersonality: {
       fullName: 'test-personality',
       displayName: 'Test Personality',
-      avatarUrl: 'https://example.com/avatar.png'
+      avatarUrl: 'https://example.com/avatar.png',
     },
     defaultAlias: null,
-    removeSuccess: true
+    removeSuccess: true,
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   return {
     getPersonality: jest.fn().mockReturnValue(config.defaultPersonality),
     getPersonalityByAlias: jest.fn().mockReturnValue(config.defaultAlias),
     removePersonality: jest.fn().mockResolvedValue({
-      success: config.removeSuccess
+      success: config.removeSuccess,
     }),
     addPersonality: jest.fn().mockResolvedValue({
-      success: true
+      success: true,
     }),
     addAlias: jest.fn().mockResolvedValue({
-      success: true
+      success: true,
     }),
     listPersonalitiesForUser: jest.fn().mockReturnValue([config.defaultPersonality]),
     activatePersonality: jest.fn().mockReturnValue(true),
     deactivatePersonality: jest.fn().mockReturnValue(true),
-    getActivatedPersonality: jest.fn().mockReturnValue(null)
+    getActivatedPersonality: jest.fn().mockReturnValue(null),
   };
 }
 
@@ -90,13 +90,13 @@ function createEmbedBuilderMock() {
     setImage: jest.fn().mockReturnThis(),
     setFooter: jest.fn().mockReturnThis(),
     addFields: jest.fn().mockReturnThis(),
-    toJSON: jest.fn().mockReturnValue({ 
+    toJSON: jest.fn().mockReturnValue({
       title: 'Test Embed',
       description: 'Test description',
-      color: 0x0099ff
-    })
+      color: 0x0099ff,
+    }),
   };
-  
+
   return jest.fn().mockImplementation(() => mockEmbed);
 }
 
@@ -110,11 +110,11 @@ function createConversationManagerMock(options = {}) {
   const defaults = {
     hasActiveConversation: false,
     autoRespondEnabled: false,
-    clearSuccess: true
+    clearSuccess: true,
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   return {
     hasActiveConversation: jest.fn().mockReturnValue(config.hasActiveConversation),
     isAutoRespondEnabled: jest.fn().mockReturnValue(config.autoRespondEnabled),
@@ -123,23 +123,23 @@ function createConversationManagerMock(options = {}) {
     clearConversation: jest.fn().mockReturnValue(config.clearSuccess),
     setAutoRespond: jest.fn().mockReturnValue(true),
     isReferencedMessageFromPersonality: jest.fn().mockReturnValue(false),
-    getPersonalityFromReferencedMessage: jest.fn().mockReturnValue(null)
+    getPersonalityFromReferencedMessage: jest.fn().mockReturnValue(null),
   };
 }
 
 /**
  * Setup mock implementations for common dependencies in a test file
  * Call this function before importing any modules
- * 
+ *
  * Usage example:
  * // At the top of your test file
  * jest.mock('discord.js');
  * jest.mock('../../../src/logger');
  * jest.mock('../../../config', () => ({ botPrefix: '!tz' }));
- * 
+ *
  * const mockValidator = require('../../utils/mockFactories').createValidatorMock();
  * jest.mock('../../../src/commands/utils/commandValidator', () => mockValidator);
- * 
+ *
  * const mockPersonalityManager = require('../../utils/mockFactories').createPersonalityManagerMock();
  * jest.mock('../../../src/personalityManager', () => mockPersonalityManager);
  */
@@ -148,5 +148,5 @@ module.exports = {
   createValidatorMock,
   createPersonalityManagerMock,
   createEmbedBuilderMock,
-  createConversationManagerMock
+  createConversationManagerMock,
 };

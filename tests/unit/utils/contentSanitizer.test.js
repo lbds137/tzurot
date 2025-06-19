@@ -2,13 +2,13 @@ const {
   sanitizeContent,
   sanitizeApiText,
   needsSanitization,
-  sanitizeWithInfo
+  sanitizeWithInfo,
 } = require('../../../src/utils/contentSanitizer');
 
 // Mock the logger
 jest.mock('../../../src/logger', () => ({
   warn: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 const logger = require('../../../src/logger');
@@ -62,15 +62,15 @@ describe('Content Sanitizer', () => {
     it('should log warning on sanitization error', () => {
       // Create an object that throws when toString is called
       const problematicContent = {
-        toString: () => { throw new Error('toString failed'); },
-        length: 10
+        toString: () => {
+          throw new Error('toString failed');
+        },
+        length: 10,
       };
 
       const result = sanitizeContent(problematicContent);
       expect(result).toBe('');
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Text sanitization failed')
-      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Text sanitization failed'));
     });
 
     it('should handle very long strings efficiently', () => {
@@ -153,7 +153,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: '',
         changed: false,
-        removedChars: 0
+        removedChars: 0,
       });
     });
 
@@ -163,7 +163,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: 'Hello World',
         changed: false,
-        removedChars: 0
+        removedChars: 0,
       });
     });
 
@@ -173,7 +173,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: 'HelloWorld!',
         changed: true,
-        removedChars: 3
+        removedChars: 3,
       });
     });
 
@@ -183,7 +183,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: 'TestMessage',
         changed: true,
-        removedChars: 12 // Removed "\\u0000\\u001F"
+        removedChars: 12, // Removed "\\u0000\\u001F"
       });
     });
 
@@ -193,7 +193,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: 'ABCD',
         changed: true,
-        removedChars: 9
+        removedChars: 9,
       });
     });
   });
@@ -213,7 +213,7 @@ describe('Content Sanitizer', () => {
       expect(result).toEqual({
         content: '',
         changed: true,
-        removedChars: 3
+        removedChars: 3,
       });
     });
 

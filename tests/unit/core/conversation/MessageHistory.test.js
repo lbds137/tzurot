@@ -6,7 +6,7 @@ jest.mock('../../../../src/logger');
 
 // Mock the personality module
 jest.mock('../../../../src/core/personality', () => ({
-  getAllPersonalities: jest.fn()
+  getAllPersonalities: jest.fn(),
 }));
 
 describe('MessageHistory', () => {
@@ -16,15 +16,15 @@ describe('MessageHistory', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Create mock conversation tracker
     mockConversationTracker = {
-      getConversationByMessageId: jest.fn()
+      getConversationByMessageId: jest.fn(),
     };
-    
+
     // Create new instance
     messageHistory = new MessageHistory(mockConversationTracker);
-    
+
     // Get the mocked personality module
     mockPersonalityModule = require('../../../../src/core/personality');
   });
@@ -35,7 +35,7 @@ describe('MessageHistory', () => {
       const messageId = '12345';
       const expectedPersonality = 'test-personality';
       mockConversationTracker.getConversationByMessageId.mockReturnValue({
-        personalityName: expectedPersonality
+        personalityName: expectedPersonality,
       });
 
       // Act
@@ -52,7 +52,7 @@ describe('MessageHistory', () => {
       const webhookUsername = 'TestPersonality';
       mockConversationTracker.getConversationByMessageId.mockReturnValue(null);
       mockPersonalityModule.getAllPersonalities.mockReturnValue([
-        { fullName: 'test-personality', displayName: 'TestPersonality' }
+        { fullName: 'test-personality', displayName: 'TestPersonality' },
       ]);
 
       // Act
@@ -82,7 +82,7 @@ describe('MessageHistory', () => {
         const webhookUsername = 'Desidara | תשב';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'desidara-123', displayName: 'Desidara' },
-          { fullName: 'other-456', displayName: 'Other' }
+          { fullName: 'other-456', displayName: 'Other' },
         ]);
 
         // Act
@@ -99,7 +99,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'TestName | System | Extra';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'TestName' }
+          { fullName: 'test-123', displayName: 'TestName' },
         ]);
 
         // Act
@@ -116,7 +116,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = '  SpacedName   |   Suffix  ';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'spaced-123', displayName: 'SpacedName' }
+          { fullName: 'spaced-123', displayName: 'SpacedName' },
         ]);
 
         // Act
@@ -130,7 +130,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'PersonalityName | SomeTag';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'personality-123', displayName: 'PersonalityName' }
+          { fullName: 'personality-123', displayName: 'PersonalityName' },
         ]);
 
         // Act
@@ -149,7 +149,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'ExactMatch';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'exact-123', displayName: 'ExactMatch' }
+          { fullName: 'exact-123', displayName: 'ExactMatch' },
         ]);
 
         // Act
@@ -163,7 +163,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'BaseName | Suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'base-123', displayName: 'BaseName' }
+          { fullName: 'base-123', displayName: 'BaseName' },
         ]);
 
         // Act
@@ -179,7 +179,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'UPPERCASE';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'upper-123', displayName: 'uppercase' }
+          { fullName: 'upper-123', displayName: 'uppercase' },
         ]);
 
         // Act
@@ -193,7 +193,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'MixedCase | suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'mixed-123', displayName: 'mixedcase' }
+          { fullName: 'mixed-123', displayName: 'mixedcase' },
         ]);
 
         // Act
@@ -207,7 +207,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'TestName | שלום';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'TestName' }
+          { fullName: 'test-123', displayName: 'TestName' },
         ]);
 
         // Act
@@ -251,7 +251,7 @@ describe('MessageHistory', () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'test-123' }, // No displayName
-          { fullName: 'valid-456', displayName: 'Valid' }
+          { fullName: 'valid-456', displayName: 'Valid' },
         ]);
 
         // Act
@@ -265,7 +265,7 @@ describe('MessageHistory', () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           null,
-          { fullName: 'valid-123', displayName: 'Valid' }
+          { fullName: 'valid-123', displayName: 'Valid' },
         ]);
 
         // Act
@@ -296,7 +296,7 @@ describe('MessageHistory', () => {
       it('should return null when no personalities match', () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'other-123', displayName: 'Other' }
+          { fullName: 'other-123', displayName: 'Other' },
         ]);
 
         // Act
@@ -312,7 +312,7 @@ describe('MessageHistory', () => {
       it('should return null for empty webhook username', () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'Test' }
+          { fullName: 'test-123', displayName: 'Test' },
         ]);
 
         // Act
@@ -339,7 +339,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'Test.Name* | suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'special-123', displayName: 'Test.Name*' }
+          { fullName: 'special-123', displayName: 'Test.Name*' },
         ]);
 
         // Act
@@ -353,7 +353,7 @@ describe('MessageHistory', () => {
         // Arrange
         const webhookUsername = 'Name (Test) | tag';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'paren-123', displayName: 'Name (Test)' }
+          { fullName: 'paren-123', displayName: 'Name (Test)' },
         ]);
 
         // Act
@@ -370,7 +370,7 @@ describe('MessageHistory', () => {
         const webhookUsername = 'TestName';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'exact-123', displayName: 'TestName' },
-          { fullName: 'case-456', displayName: 'testname' }
+          { fullName: 'case-456', displayName: 'testname' },
         ]);
 
         // Act
@@ -385,7 +385,7 @@ describe('MessageHistory', () => {
         const webhookUsername = 'TestName | Suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'pattern-123', displayName: 'Test' }, // Would match pattern
-          { fullName: 'base-456', displayName: 'TestName' } // Exact base name match
+          { fullName: 'base-456', displayName: 'TestName' }, // Exact base name match
         ]);
 
         // Act

@@ -19,7 +19,7 @@ class BackupMetadata {
     lastChatHistorySync = null,
     totalChatMessages = 0,
     oldestChatMessage = null,
-    newestChatMessage = null
+    newestChatMessage = null,
   } = {}) {
     this.lastBackup = lastBackup;
     this.lastMemoryTimestamp = lastMemoryTimestamp;
@@ -140,31 +140,34 @@ class PersonalityData {
 
     if (addedMemories.length > 0) {
       this.memories.push(...addedMemories);
-      
+
       // Sort by timestamp to maintain chronological order
       this.memories.sort((a, b) => {
-        const timeA = typeof a.created_at === 'number' 
-          ? a.created_at 
-          : new Date(a.created_at || a.timestamp || 0).getTime() / 1000;
-        const timeB = typeof b.created_at === 'number'
-          ? b.created_at
-          : new Date(b.created_at || b.timestamp || 0).getTime() / 1000;
+        const timeA =
+          typeof a.created_at === 'number'
+            ? a.created_at
+            : new Date(a.created_at || a.timestamp || 0).getTime() / 1000;
+        const timeB =
+          typeof b.created_at === 'number'
+            ? b.created_at
+            : new Date(b.created_at || b.timestamp || 0).getTime() / 1000;
         return timeA - timeB;
       });
 
       // Update metadata
       const lastMemory = this.memories[this.memories.length - 1];
-      const lastTimestamp = typeof lastMemory.created_at === 'number'
-        ? lastMemory.created_at
-        : new Date(lastMemory.created_at || lastMemory.timestamp || 0).getTime() / 1000;
-      
+      const lastTimestamp =
+        typeof lastMemory.created_at === 'number'
+          ? lastMemory.created_at
+          : new Date(lastMemory.created_at || lastMemory.timestamp || 0).getTime() / 1000;
+
       this.metadata.updateMemorySync(this.memories.length, lastTimestamp);
     }
 
     return {
       hasNewMemories: addedMemories.length > 0,
       newMemoryCount: addedMemories.length,
-      totalMemories: this.memories.length
+      totalMemories: this.memories.length,
     };
   }
 
@@ -179,7 +182,7 @@ class PersonalityData {
     }
 
     const hasChanges = JSON.stringify(this.knowledge) !== JSON.stringify(knowledgeData);
-    
+
     if (hasChanges) {
       this.knowledge = [...knowledgeData];
       this.metadata.updateKnowledgeSync(this.knowledge.length);
@@ -187,7 +190,7 @@ class PersonalityData {
 
     return {
       hasNewKnowledge: hasChanges,
-      knowledgeCount: this.knowledge.length
+      knowledgeCount: this.knowledge.length,
     };
   }
 
@@ -202,7 +205,7 @@ class PersonalityData {
     }
 
     const hasChanges = JSON.stringify(this.training) !== JSON.stringify(trainingData);
-    
+
     if (hasChanges) {
       this.training = [...trainingData];
       this.metadata.updateTrainingSync(this.training.length);
@@ -210,7 +213,7 @@ class PersonalityData {
 
     return {
       hasNewTraining: hasChanges,
-      trainingCount: this.training.length
+      trainingCount: this.training.length,
     };
   }
 
@@ -224,15 +227,16 @@ class PersonalityData {
       throw new Error('User personalization data must be an object');
     }
 
-    const hasChanges = JSON.stringify(this.userPersonalization) !== JSON.stringify(personalizationData);
-    
+    const hasChanges =
+      JSON.stringify(this.userPersonalization) !== JSON.stringify(personalizationData);
+
     if (hasChanges) {
       this.userPersonalization = { ...personalizationData };
       this.metadata.updateUserPersonalizationSync();
     }
 
     return {
-      hasNewUserPersonalization: hasChanges
+      hasNewUserPersonalization: hasChanges,
     };
   }
 
@@ -257,15 +261,15 @@ class PersonalityData {
 
     if (addedMessages.length > 0) {
       this.chatHistory.push(...addedMessages);
-      
+
       // Update metadata
-      const oldestTimestamp = this.chatHistory.length > 0 
-        ? new Date(this.chatHistory[0].ts * 1000).toISOString()
-        : null;
-      const newestTimestamp = this.chatHistory.length > 0
-        ? new Date(this.chatHistory[this.chatHistory.length - 1].ts * 1000).toISOString()
-        : null;
-      
+      const oldestTimestamp =
+        this.chatHistory.length > 0 ? new Date(this.chatHistory[0].ts * 1000).toISOString() : null;
+      const newestTimestamp =
+        this.chatHistory.length > 0
+          ? new Date(this.chatHistory[this.chatHistory.length - 1].ts * 1000).toISOString()
+          : null;
+
       this.metadata.updateChatHistorySync(
         this.chatHistory.length,
         oldestTimestamp,
@@ -276,7 +280,7 @@ class PersonalityData {
     return {
       hasNewMessages: addedMessages.length > 0,
       newMessageCount: addedMessages.length,
-      totalMessages: this.chatHistory.length
+      totalMessages: this.chatHistory.length,
     };
   }
 
@@ -295,12 +299,13 @@ class PersonalityData {
       chatMessagesCount: this.chatHistory.length,
       hasUserPersonalization: Object.keys(this.userPersonalization).length > 0,
       lastBackup: this.metadata.lastBackup,
-      dateRange: this.metadata.oldestChatMessage && this.metadata.newestChatMessage 
-        ? {
-            oldest: this.metadata.oldestChatMessage,
-            newest: this.metadata.newestChatMessage
-          }
-        : null
+      dateRange:
+        this.metadata.oldestChatMessage && this.metadata.newestChatMessage
+          ? {
+              oldest: this.metadata.oldestChatMessage,
+              newest: this.metadata.newestChatMessage,
+            }
+          : null,
     };
   }
 
@@ -314,5 +319,5 @@ class PersonalityData {
 
 module.exports = {
   PersonalityData,
-  BackupMetadata
+  BackupMetadata,
 };

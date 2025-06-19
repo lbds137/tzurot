@@ -1,6 +1,6 @@
 /**
  * Tests for Command Validation
- * 
+ *
  * Tests the command validation middleware including type checking,
  * required parameter validation, and custom validation rules.
  */
@@ -8,7 +8,7 @@
 const {
   validateCommand,
   validateCommandMiddleware,
-  validationRules
+  validationRules,
 } = require('../../src/commandValidation');
 const logger = require('../../src/logger');
 
@@ -24,7 +24,7 @@ describe('Command Validation', () => {
     describe('add command validation', () => {
       it('should validate valid add command', () => {
         const result = validateCommand('add', {
-          profileName: 'testProfile'
+          profileName: 'testProfile',
         });
 
         expect(result.isValid).toBe(true);
@@ -37,7 +37,7 @@ describe('Command Validation', () => {
       it('should validate add command with optional alias', () => {
         const result = validateCommand('add', {
           profileName: 'testProfile',
-          alias: 'testAlias'
+          alias: 'testAlias',
         });
 
         expect(result.isValid).toBe(true);
@@ -56,7 +56,7 @@ describe('Command Validation', () => {
 
       it('should fail when profileName is null', () => {
         const result = validateCommand('add', {
-          profileName: null
+          profileName: null,
         });
 
         expect(result.isValid).toBe(false);
@@ -65,7 +65,7 @@ describe('Command Validation', () => {
 
       it('should fail when profileName is empty string', () => {
         const result = validateCommand('add', {
-          profileName: ''
+          profileName: '',
         });
 
         expect(result.isValid).toBe(false);
@@ -75,7 +75,7 @@ describe('Command Validation', () => {
       it('should fail when alias is not a string', () => {
         const result = validateCommand('add', {
           profileName: 'test',
-          alias: 123
+          alias: 123,
         });
 
         expect(result.isValid).toBe(false);
@@ -87,7 +87,7 @@ describe('Command Validation', () => {
       it('should validate valid alias command', () => {
         const result = validateCommand('alias', {
           profileName: 'oldName',
-          newAlias: 'newName'
+          newAlias: 'newName',
         });
 
         expect(result.isValid).toBe(true);
@@ -96,7 +96,7 @@ describe('Command Validation', () => {
 
       it('should fail when profileName is missing', () => {
         const result = validateCommand('alias', {
-          newAlias: 'newName'
+          newAlias: 'newName',
         });
 
         expect(result.isValid).toBe(false);
@@ -105,7 +105,7 @@ describe('Command Validation', () => {
 
       it('should fail when newAlias is missing', () => {
         const result = validateCommand('alias', {
-          profileName: 'oldName'
+          profileName: 'oldName',
         });
 
         expect(result.isValid).toBe(false);
@@ -125,7 +125,7 @@ describe('Command Validation', () => {
     describe('remove command validation', () => {
       it('should validate valid remove command', () => {
         const result = validateCommand('remove', {
-          profileName: 'testProfile'
+          profileName: 'testProfile',
         });
 
         expect(result.isValid).toBe(true);
@@ -143,7 +143,7 @@ describe('Command Validation', () => {
     describe('info command validation', () => {
       it('should validate valid info command', () => {
         const result = validateCommand('info', {
-          profileName: 'testProfile'
+          profileName: 'testProfile',
         });
 
         expect(result.isValid).toBe(true);
@@ -161,7 +161,7 @@ describe('Command Validation', () => {
     describe('activate command validation', () => {
       it('should validate valid activate command', () => {
         const result = validateCommand('activate', {
-          personalityName: 'testPersonality'
+          personalityName: 'testPersonality',
         });
 
         expect(result.isValid).toBe(true);
@@ -179,7 +179,7 @@ describe('Command Validation', () => {
     describe('autorespond command validation', () => {
       it('should validate valid autorespond command with on', () => {
         const result = validateCommand('autorespond', {
-          status: 'on'
+          status: 'on',
         });
 
         expect(result.isValid).toBe(true);
@@ -188,7 +188,7 @@ describe('Command Validation', () => {
 
       it('should validate valid autorespond command with off', () => {
         const result = validateCommand('autorespond', {
-          status: 'off'
+          status: 'off',
         });
 
         expect(result.isValid).toBe(true);
@@ -197,7 +197,7 @@ describe('Command Validation', () => {
 
       it('should validate valid autorespond command with status', () => {
         const result = validateCommand('autorespond', {
-          status: 'status'
+          status: 'status',
         });
 
         expect(result.isValid).toBe(true);
@@ -206,7 +206,7 @@ describe('Command Validation', () => {
 
       it('should validate case-insensitive status values', () => {
         const result = validateCommand('autorespond', {
-          status: 'ON'
+          status: 'ON',
         });
 
         expect(result.isValid).toBe(true);
@@ -215,7 +215,7 @@ describe('Command Validation', () => {
 
       it('should fail with invalid status value', () => {
         const result = validateCommand('autorespond', {
-          status: 'invalid'
+          status: 'invalid',
         });
 
         expect(result.isValid).toBe(false);
@@ -236,7 +236,7 @@ describe('Command Validation', () => {
     describe('unknown command validation', () => {
       it('should pass validation for unknown commands', () => {
         const result = validateCommand('unknownCommand', {
-          anyParam: 'anyValue'
+          anyParam: 'anyValue',
         });
 
         expect(result.isValid).toBe(true);
@@ -250,7 +250,7 @@ describe('Command Validation', () => {
     describe('type validation', () => {
       it('should validate string types correctly', () => {
         const result = validateCommand('add', {
-          profileName: 'test'
+          profileName: 'test',
         });
 
         expect(result.isValid).toBe(true);
@@ -258,7 +258,7 @@ describe('Command Validation', () => {
 
       it('should fail for non-string when string expected', () => {
         const result = validateCommand('add', {
-          profileName: 123
+          profileName: 123,
         });
 
         expect(result.isValid).toBe(false);
@@ -268,7 +268,7 @@ describe('Command Validation', () => {
       it('should not validate type for undefined optional parameters', () => {
         const result = validateCommand('add', {
           profileName: 'test',
-          alias: undefined
+          alias: undefined,
         });
 
         expect(result.isValid).toBe(true);
@@ -277,7 +277,7 @@ describe('Command Validation', () => {
       it('should not validate type for null optional parameters', () => {
         const result = validateCommand('add', {
           profileName: 'test',
-          alias: null
+          alias: null,
         });
 
         expect(result.isValid).toBe(true);
@@ -304,7 +304,7 @@ describe('Command Validation', () => {
   describe('validateCommandMiddleware', () => {
     it('should return success for valid command', () => {
       const result = validateCommandMiddleware('add', {
-        profileName: 'test'
+        profileName: 'test',
       });
 
       expect(result.success).toBe(true);
@@ -324,16 +324,16 @@ describe('Command Validation', () => {
       // To test the error handling, we need to create a scenario that would cause
       // an error in the validateCommand function. Since validateCommand is robust,
       // we'll test that validateCommandMiddleware properly wraps any potential errors.
-      
+
       // We'll modify the validationRules to include a rule that throws an error
       const originalRules = validationRules.testError;
       validationRules.testError = {
         validation: {
           testParam: () => {
             throw new Error('Test error');
-          }
+          },
         },
-        errorMessages: {}
+        errorMessages: {},
       };
 
       const result = validateCommandMiddleware('testError', { testParam: 'value' });
@@ -357,13 +357,13 @@ describe('Command Validation', () => {
     it('should return processed args on success', () => {
       const result = validateCommandMiddleware('add', {
         profileName: 'test',
-        alias: 'testAlias'
+        alias: 'testAlias',
       });
 
       expect(result.success).toBe(true);
       expect(result.validatedArgs).toEqual({
         profileName: 'test',
-        alias: 'testAlias'
+        alias: 'testAlias',
       });
     });
 
@@ -405,7 +405,7 @@ describe('Command Validation', () => {
   describe('edge cases', () => {
     it('should handle objects as parameters', () => {
       const result = validateCommand('add', {
-        profileName: { name: 'test' }
+        profileName: { name: 'test' },
       });
 
       expect(result.isValid).toBe(false);
@@ -414,7 +414,7 @@ describe('Command Validation', () => {
 
     it('should handle arrays as parameters', () => {
       const result = validateCommand('add', {
-        profileName: ['test']
+        profileName: ['test'],
       });
 
       expect(result.isValid).toBe(false);
@@ -423,7 +423,7 @@ describe('Command Validation', () => {
 
     it('should handle boolean as parameters', () => {
       const result = validateCommand('add', {
-        profileName: true
+        profileName: true,
       });
 
       expect(result.isValid).toBe(false);

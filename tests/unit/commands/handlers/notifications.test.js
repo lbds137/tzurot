@@ -19,7 +19,7 @@ jest.mock('discord.js', () => ({
   })),
 }));
 jest.mock('../../../../src/commands/utils/commandValidator', () => ({
-  createDirectSend: jest.fn(() => jest.fn())
+  createDirectSend: jest.fn(() => jest.fn()),
 }));
 
 describe('notifications command', () => {
@@ -71,14 +71,14 @@ describe('notifications command', () => {
         updatedAt: '2024-01-02T00:00:00Z',
       });
 
-      await notificationsCommand.execute(mockMessage, [], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, [], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(mockMessage.reply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
-      
+
       const embed = EmbedBuilder.mock.results[0].value;
-      expect(embed.setColor).toHaveBeenCalledWith(0x00FF00); // Green for opted in
+      expect(embed.setColor).toHaveBeenCalledWith(0x00ff00); // Green for opted in
       expect(embed.setDescription).toHaveBeenCalledWith(
         '✅ You are **opted in** to release notifications.'
       );
@@ -93,12 +93,12 @@ describe('notifications command', () => {
         lastNotified: null,
       });
 
-      await notificationsCommand.execute(mockMessage, ['status'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['status'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       const embed = EmbedBuilder.mock.results[0].value;
-      expect(embed.setColor).toHaveBeenCalledWith(0xFF0000); // Red for opted out
+      expect(embed.setColor).toHaveBeenCalledWith(0xff0000); // Red for opted out
       expect(embed.setDescription).toHaveBeenCalledWith(
         '❌ You are **opted out** of release notifications.'
       );
@@ -109,8 +109,8 @@ describe('notifications command', () => {
         throw new Error('Database error');
       });
 
-      await notificationsCommand.execute(mockMessage, ['status'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['status'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error showing status'));
@@ -124,15 +124,17 @@ describe('notifications command', () => {
     it('should opt user out', async () => {
       mockReleaseNotificationManager.preferences.setOptOut.mockResolvedValue();
 
-      await notificationsCommand.execute(mockMessage, ['off'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['off'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
-      expect(mockReleaseNotificationManager.preferences.setOptOut)
-        .toHaveBeenCalledWith('user123', true);
-      
+      expect(mockReleaseNotificationManager.preferences.setOptOut).toHaveBeenCalledWith(
+        'user123',
+        true
+      );
+
       const embed = EmbedBuilder.mock.results[0].value;
-      expect(embed.setColor).toHaveBeenCalledWith(0xFF0000);
+      expect(embed.setColor).toHaveBeenCalledWith(0xff0000);
       expect(embed.setTitle).toHaveBeenCalledWith('🔕 Opted Out');
     });
 
@@ -141,8 +143,8 @@ describe('notifications command', () => {
         new Error('Save failed')
       );
 
-      await notificationsCommand.execute(mockMessage, ['off'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['off'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error opting out'));
@@ -159,15 +161,17 @@ describe('notifications command', () => {
         notificationLevel: 'minor',
       });
 
-      await notificationsCommand.execute(mockMessage, ['on'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['on'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
-      expect(mockReleaseNotificationManager.preferences.setOptOut)
-        .toHaveBeenCalledWith('user123', false);
-      
+      expect(mockReleaseNotificationManager.preferences.setOptOut).toHaveBeenCalledWith(
+        'user123',
+        false
+      );
+
       const embed = EmbedBuilder.mock.results[0].value;
-      expect(embed.setColor).toHaveBeenCalledWith(0x00FF00);
+      expect(embed.setColor).toHaveBeenCalledWith(0x00ff00);
       expect(embed.setTitle).toHaveBeenCalledWith('🔔 Opted In');
     });
   });
@@ -176,15 +180,17 @@ describe('notifications command', () => {
     it('should set notification level', async () => {
       mockReleaseNotificationManager.preferences.setNotificationLevel.mockResolvedValue();
 
-      await notificationsCommand.execute(mockMessage, ['level', 'major'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['level', 'major'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
-      expect(mockReleaseNotificationManager.preferences.setNotificationLevel)
-        .toHaveBeenCalledWith('user123', 'major');
-      
+      expect(mockReleaseNotificationManager.preferences.setNotificationLevel).toHaveBeenCalledWith(
+        'user123',
+        'major'
+      );
+
       const embed = EmbedBuilder.mock.results[0].value;
-      expect(embed.setColor).toHaveBeenCalledWith(0x0099FF);
+      expect(embed.setColor).toHaveBeenCalledWith(0x0099ff);
       expect(embed.setTitle).toHaveBeenCalledWith('⚙️ Notification Level Updated');
       expect(embed.setDescription).toHaveBeenCalledWith(
         'Your notification level has been set to **major**.'
@@ -192,8 +198,8 @@ describe('notifications command', () => {
     });
 
     it('should require level parameter', async () => {
-      await notificationsCommand.execute(mockMessage, ['level'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['level'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(mockMessage.reply).toHaveBeenCalledWith(
@@ -202,8 +208,8 @@ describe('notifications command', () => {
     });
 
     it('should validate level parameter', async () => {
-      await notificationsCommand.execute(mockMessage, ['level', 'invalid'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['level', 'invalid'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(mockMessage.reply).toHaveBeenCalledWith(
@@ -216,8 +222,8 @@ describe('notifications command', () => {
         new Error('Invalid level')
       );
 
-      await notificationsCommand.execute(mockMessage, ['level', 'major'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['level', 'major'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error setting level'));
@@ -232,8 +238,8 @@ describe('notifications command', () => {
       const mockDirectSend = jest.fn();
       commandValidator.createDirectSend.mockReturnValue(mockDirectSend);
 
-      await notificationsCommand.execute(mockMessage, ['invalid'], { 
-        releaseNotificationManager: mockReleaseNotificationManager 
+      await notificationsCommand.execute(mockMessage, ['invalid'], {
+        releaseNotificationManager: mockReleaseNotificationManager,
       });
 
       expect(mockDirectSend).toHaveBeenCalledWith(

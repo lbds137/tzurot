@@ -1,6 +1,6 @@
 /**
  * Tests for webhookManager.js message chunk delay functionality
- * 
+ *
  * These tests verify:
  * - Proper delay is applied between message chunks (750ms)
  * - Delay is configurable via setDelayFunction
@@ -14,15 +14,15 @@ jest.unmock('../../src/webhookManager');
 const mockActiveWebhooks = new Set();
 const mockDelayFn = jest.fn().mockResolvedValue();
 const mockWebhook = {
-  send: jest.fn().mockResolvedValue({ 
+  send: jest.fn().mockResolvedValue({
     id: 'mock-message-id',
-    content: 'test content'
+    content: 'test content',
   }),
-  destroy: jest.fn()
+  destroy: jest.fn(),
 };
 
 jest.mock('discord.js', () => ({
-  WebhookClient: jest.fn(() => mockWebhook)
+  WebhookClient: jest.fn(() => mockWebhook),
 }));
 
 jest.mock('../../src/logger');
@@ -30,14 +30,16 @@ jest.mock('../../src/logger');
 jest.mock('../../src/utils/errorTracker');
 
 jest.mock('../../src/utils/media', () => ({
-  processMediaForWebhook: jest.fn((content) => Promise.resolve({ 
-    content: content || 'processed', 
-    attachments: [],
-    // Explicitly no multimodal content
-    multimodalAudioUrl: undefined,
-    multimodalImageUrl: undefined
-  })),
-  prepareAttachmentOptions: jest.fn().mockReturnValue({})
+  processMediaForWebhook: jest.fn(content =>
+    Promise.resolve({
+      content: content || 'processed',
+      attachments: [],
+      // Explicitly no multimodal content
+      multimodalAudioUrl: undefined,
+      multimodalImageUrl: undefined,
+    })
+  ),
+  prepareAttachmentOptions: jest.fn().mockReturnValue({}),
 }));
 
 jest.mock('../../src/utils/webhookCache', () => ({
@@ -45,32 +47,32 @@ jest.mock('../../src/utils/webhookCache', () => ({
   getOrCreateWebhook: jest.fn().mockResolvedValue(mockWebhook),
   clearWebhookCache: jest.fn(),
   has: jest.fn().mockReturnValue(false),
-  _webhookCache: new Map()
+  _webhookCache: new Map(),
 }));
 
 jest.mock('../../src/utils/messageDeduplication', () => ({
   isDuplicateMessage: jest.fn().mockReturnValue(false),
-  hashMessage: jest.fn().mockReturnValue('hash')
+  hashMessage: jest.fn().mockReturnValue('hash'),
 }));
 
 jest.mock('../../src/utils/avatarManager', () => ({
   validateAvatarUrl: jest.fn().mockResolvedValue(true),
   getValidAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
   preloadPersonalityAvatar: jest.fn(),
-  warmupAvatar: jest.fn()
+  warmupAvatar: jest.fn(),
 }));
 
 jest.mock('../../src/utils/messageFormatter', () => ({
   formatContent: jest.fn(content => content),
   trimContent: jest.fn(content => content),
-  splitMessage: jest.fn(content => [content])
+  splitMessage: jest.fn(content => [content]),
 }));
 
 jest.mock('../../src/utils/avatarManager', () => ({
   warmupAvatarUrl: jest.fn(url => Promise.resolve(url)),
   validateAvatarUrl: jest.fn().mockReturnValue(true),
   getValidAvatarUrl: jest.fn(url => url),
-  preloadPersonalityAvatar: jest.fn()
+  preloadPersonalityAvatar: jest.fn(),
 }));
 
 jest.mock('../../src/utils/messageFormatter', () => ({
@@ -87,7 +89,7 @@ jest.mock('../../src/utils/messageFormatter', () => ({
     }
     return chunks;
   }),
-  markErrorContent: jest.fn(content => content || '')
+  markErrorContent: jest.fn(content => content || ''),
 }));
 
 // Need to reference the external mockWebhook
@@ -99,15 +101,17 @@ jest.mock('../../src/webhook', () => ({
     username,
     _personality: personality,
     threadId: isThread ? threadId : undefined,
-    ...options
+    ...options,
   })),
-  sendMessageChunk: jest.fn(async (webhook) => {
+  sendMessageChunk: jest.fn(async webhook => {
     // Use the webhook that was passed in (which should be our mockWebhook)
     return webhook.send();
   }),
   getStandardizedUsername: jest.fn().mockReturnValue('Test User'),
   generateMessageTrackingId: jest.fn().mockReturnValue('tracking-id-123'),
-  createVirtualResult: jest.fn().mockReturnValue({ message: { id: 'virtual-id' }, messageIds: ['virtual-id'] }),
+  createVirtualResult: jest
+    .fn()
+    .mockReturnValue({ message: { id: 'virtual-id' }, messageIds: ['virtual-id'] }),
   hasPersonalityPendingMessage: jest.fn().mockReturnValue(false),
   registerPendingMessage: jest.fn(),
   clearPendingMessage: jest.fn(),
@@ -116,111 +120,112 @@ jest.mock('../../src/webhook', () => ({
   minimizeConsoleOutput: jest.fn().mockReturnValue({}),
   restoreConsoleOutput: jest.fn(),
   sendDirectThreadMessage: jest.fn().mockResolvedValue({ message: { id: 'thread-message-id' } }),
-  sendFormattedMessageInDM: jest.fn().mockResolvedValue({ message: { id: 'dm-message-id' } })
+  sendFormattedMessageInDM: jest.fn().mockResolvedValue({ message: { id: 'dm-message-id' } }),
 }));
 
 jest.mock('../../src/profileInfoFetcher', () => ({
   getFetcher: jest.fn().mockReturnValue({
     fetchProfileInfo: jest.fn().mockResolvedValue({
       avatarUrl: 'https://example.com/avatar.png',
-      displayName: 'Test User'
-    })
+      displayName: 'Test User',
+    }),
   }),
   getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
   getProfileDisplayName: jest.fn().mockResolvedValue('Test Display'),
-  deleteFromCache: jest.fn()
+  deleteFromCache: jest.fn(),
 }));
 
 jest.mock('../../src/constants', () => ({
   TIME: {
     MIN_MESSAGE_DELAY: 3000,
-    MAX_ERROR_WAIT_TIME: 15000
+    MAX_ERROR_WAIT_TIME: 15000,
   },
   ERROR_MESSAGES: [],
   MARKERS: {
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY'
-  }
+    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
+  },
 }));
 
 describe('WebhookManager - Chunk Delay Tests', () => {
   let webhookManager;
   let mockChannel;
   let personality;
-  
+
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Reset the delay function
     mockDelayFn.mockClear();
     mockDelayFn.mockResolvedValue();
-    
+
     // Mock channel
     mockChannel = {
       id: 'test-channel-id',
       isDMBased: jest.fn().mockReturnValue(false),
       isThread: jest.fn().mockReturnValue(false),
-      send: jest.fn().mockResolvedValue({ id: 'direct-message-id' })
+      send: jest.fn().mockResolvedValue({ id: 'direct-message-id' }),
     };
-    
+
     // Mock personality
     personality = {
       fullName: 'test-personality',
       displayName: 'Test Personality',
-      avatarUrl: 'https://example.com/avatar.png'
+      avatarUrl: 'https://example.com/avatar.png',
     };
-    
+
     // Now require webhookManager after all mocks are set up
     jest.isolateModules(() => {
       webhookManager = require('../../src/webhookManager');
       // Set our mock delay function
       webhookManager.setDelayFunction(mockDelayFn);
-      
+
       // Mock calculateMessageDelay to return 0 (no initial delay)
       webhookManager.calculateMessageDelay = jest.fn().mockReturnValue(0);
     });
   });
-  
+
   afterEach(() => {
     jest.clearAllMocks();
   });
-  
+
   it('should not delay on the first chunk', async () => {
     const content = 'Short message';
-    
+
     await webhookManager.sendWebhookMessage(mockChannel, content, personality);
-    
+
     // Should not call delay function for single chunk or first chunk
     expect(mockDelayFn).not.toHaveBeenCalled();
     expect(mockWebhook.send).toHaveBeenCalledTimes(1);
   });
-  
+
   it('should delay 750ms between chunks for multi-chunk messages', async () => {
     // Create content that will be split into 3 chunks (150 chars)
     const content = 'This is a long message that will be split into multiple chunks. '.repeat(3);
-    
+
     await webhookManager.sendWebhookMessage(mockChannel, content, personality);
-    
+
     // The webhook manager may add extra sends for multimodal content
     // What's important is that delays are being applied between chunks
     const chunkDelays = mockDelayFn.mock.calls.filter(call => call[0] === 750);
-    
+
     // Should have delays between chunks
     expect(chunkDelays.length).toBeGreaterThanOrEqual(2);
     // Should send at least the expected 3 chunks
     expect(mockWebhook.send.mock.calls.length).toBeGreaterThanOrEqual(3);
   });
-  
+
   it('should use custom delay function when set', async () => {
     const customDelayFn = jest.fn().mockResolvedValue();
-    
+
     // Use isolateModules to get a fresh instance
     jest.isolateModules(() => {
       const freshWebhookManager = require('../../src/webhookManager');
       freshWebhookManager.setDelayFunction(customDelayFn);
-      
+
       // Create content that will be split into 2 chunks
-      const content = 'This is a message that will be split into exactly two chunks for testing purposes.';
-      
+      const content =
+        'This is a message that will be split into exactly two chunks for testing purposes.';
+
       freshWebhookManager.sendWebhookMessage(mockChannel, content, personality).then(() => {
         // Should use custom delay function
         expect(customDelayFn).toHaveBeenCalledTimes(1);
@@ -228,95 +233,96 @@ describe('WebhookManager - Chunk Delay Tests', () => {
       });
     });
   });
-  
+
   it('should apply delay for each chunk after the first', async () => {
     // Create content that will be split into 4 chunks
     const content = 'Chunk content '.repeat(15); // ~210 chars = 4 chunks of 50
-    
+
     await webhookManager.sendWebhookMessage(mockChannel, content, personality);
-    
+
     // Filter out any non-750ms delay calls (like initial message delay)
     const chunkDelays = mockDelayFn.mock.calls.filter(call => call[0] === 750);
-    
+
     // At least 3 delays should be present for chunks 2, 3, and 4
     expect(chunkDelays.length).toBeGreaterThanOrEqual(3);
-    
+
     // Should send at least 4 chunks
     expect(mockWebhook.send.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
-  
+
   it('should verify exact delay timing between chunks', async () => {
     // Create content for exactly 2 chunks
-    const content = 'First chunk of text that is exactly long enough. Second chunk of text for testing delays properly.';
-    
+    const content =
+      'First chunk of text that is exactly long enough. Second chunk of text for testing delays properly.';
+
     await webhookManager.sendWebhookMessage(mockChannel, content, personality);
-    
+
     // Should have exactly one delay call for 2 chunks
     expect(mockDelayFn).toHaveBeenCalledTimes(1);
     expect(mockDelayFn).toHaveBeenCalledWith(750);
-    
+
     // Verify send was called twice
     expect(mockWebhook.send).toHaveBeenCalledTimes(2);
   });
-  
+
   it('should handle empty content without delays', async () => {
     await webhookManager.sendWebhookMessage(mockChannel, '', personality);
-    
+
     // Should send one message with no delays
     expect(mockDelayFn).not.toHaveBeenCalled();
     expect(mockWebhook.send).toHaveBeenCalledTimes(1);
   });
-  
+
   it('should handle delay errors gracefully', async () => {
     // NOTE: This test may behave differently in CI due to message splitting variations
     // CI sometimes creates many small chunks instead of the expected 2 chunks
-    
+
     // Create simple content that will be split into 2 chunks
     const content = 'A'.repeat(2001); // Just over the limit to force a split
-    
+
     // Mock processMediaForWebhook to return the content
-    require('../../src/utils/media').processMediaForWebhook.mockResolvedValue({ 
+    require('../../src/utils/media').processMediaForWebhook.mockResolvedValue({
       content: content,
       attachments: [],
-      isMultimodal: false
+      isMultimodal: false,
     });
-    
+
     // Make the delay function throw an error
     let delayErrorThrown = false;
-    mockDelayFn.mockImplementation((ms) => {
+    mockDelayFn.mockImplementation(ms => {
       if (ms === 750) {
         delayErrorThrown = true;
         return Promise.reject(new Error('Delay failed'));
       }
       return Promise.resolve();
     });
-    
+
     // The webhook manager should throw the delay error
     let errorCaught = null;
     let result = null;
-    
+
     try {
       result = await webhookManager.sendWebhookMessage(mockChannel, content, personality);
     } catch (error) {
       errorCaught = error;
     }
-    
+
     // Always verify the delay was attempted
     expect(mockDelayFn).toHaveBeenCalledWith(750);
     expect(delayErrorThrown).toBe(true);
-    
+
     // At least one chunk should have been sent regardless of error handling
     expect(mockWebhook.send.mock.calls.length).toBeGreaterThanOrEqual(1);
-    
+
     // Test accepts both behaviors: error propagation or internal handling
     // In local env: errorCaught should be 'Delay failed'
     // In CI env: result should be defined (error handled internally)
     const errorPropagated = errorCaught !== null;
     const errorHandledInternally = result !== null;
-    
+
     // One of these must be true
     expect(errorPropagated || errorHandledInternally).toBe(true);
-    
+
     // Verify error message when propagated (non-conditional assertion)
     const errorMessage = errorCaught?.message || 'no error';
     const expectedMessage = errorPropagated ? 'Delay failed' : 'no error';

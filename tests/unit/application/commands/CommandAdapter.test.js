@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  * @testType unit
- * 
+ *
  * CommandAdapter Test
  * Tests the platform command adapters
  */
@@ -9,9 +9,14 @@
 const {
   DiscordCommandAdapter,
   RevoltCommandAdapter,
-  CommandAdapterFactory
+  CommandAdapterFactory,
 } = require('../../../../src/application/commands/CommandAdapter');
-const { Command, CommandOption, getCommandRegistry, resetRegistry } = require('../../../../src/application/commands/CommandAbstraction');
+const {
+  Command,
+  CommandOption,
+  getCommandRegistry,
+  resetRegistry,
+} = require('../../../../src/application/commands/CommandAbstraction');
 const { botPrefix } = require('../../../../config');
 
 // Mock Discord.js
@@ -20,15 +25,15 @@ jest.mock('discord.js', () => ({
     setTitle: jest.fn().mockReturnThis(),
     setColor: jest.fn().mockReturnThis(),
     addFields: jest.fn().mockReturnThis(),
-    setFooter: jest.fn().mockReturnThis()
-  }))
+    setFooter: jest.fn().mockReturnThis(),
+  })),
 }));
 
 // Mock logger
 jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
-  warn: jest.fn()
+  warn: jest.fn(),
 }));
 
 const logger = require('../../../../src/logger');
@@ -42,27 +47,27 @@ describe('CommandAdapter', () => {
     jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
-    
+
     resetRegistry();
     registry = getCommandRegistry();
-    
+
     // Create test command
     testCommand = new Command({
       name: 'test',
       description: 'Test command',
       category: 'testing',
-      execute: jest.fn().mockResolvedValue('Command executed')
+      execute: jest.fn().mockResolvedValue('Command executed'),
     });
     registry.register(testCommand);
-    
+
     // Mock application services
     mockApplicationServices = {
       personalityApplicationService: {
-        registerPersonality: jest.fn()
+        registerPersonality: jest.fn(),
       },
       featureFlags: {
-        isEnabled: jest.fn()
-      }
+        isEnabled: jest.fn(),
+      },
     };
   });
 
@@ -72,7 +77,7 @@ describe('CommandAdapter', () => {
     beforeEach(() => {
       adapter = new DiscordCommandAdapter({
         commandRegistry: registry,
-        applicationServices: mockApplicationServices
+        applicationServices: mockApplicationServices,
       });
     });
 
@@ -82,7 +87,7 @@ describe('CommandAdapter', () => {
           author: { id: 'user123', username: 'testuser' },
           channel: { id: 'channel123' },
           guild: { id: 'guild123' },
-          reply: jest.fn().mockResolvedValue({})
+          reply: jest.fn().mockResolvedValue({}),
         };
 
         const result = await adapter.handleTextCommand(mockMessage, 'test', ['arg1', 'arg2']);
@@ -96,7 +101,7 @@ describe('CommandAdapter', () => {
             author: mockMessage.author,
             channel: mockMessage.channel,
             guild: mockMessage.guild,
-            args: ['arg1', 'arg2']
+            args: ['arg1', 'arg2'],
           })
         );
       });
@@ -104,7 +109,7 @@ describe('CommandAdapter', () => {
       it('should return null for unknown command', async () => {
         const mockMessage = {
           author: { id: 'user123' },
-          reply: jest.fn()
+          reply: jest.fn(),
         };
 
         const result = await adapter.handleTextCommand(mockMessage, 'unknown', []);
@@ -117,12 +122,13 @@ describe('CommandAdapter', () => {
         testCommand.execute.mockRejectedValue(new Error('Command failed'));
         const mockMessage = {
           author: { id: 'user123' },
-          reply: jest.fn()
+          reply: jest.fn(),
         };
 
-        await expect(adapter.handleTextCommand(mockMessage, 'test', []))
-          .rejects.toThrow('Command failed');
-        
+        await expect(adapter.handleTextCommand(mockMessage, 'test', [])).rejects.toThrow(
+          'Command failed'
+        );
+
         expect(logger.error).toHaveBeenCalledWith(
           '[DiscordCommandAdapter] Error handling text command test:',
           expect.any(Error)
@@ -140,12 +146,12 @@ describe('CommandAdapter', () => {
           options: {
             data: [
               { name: 'arg1', value: 'value1' },
-              { name: 'arg2', value: 'value2' }
-            ]
+              { name: 'arg2', value: 'value2' },
+            ],
           },
           deferred: false,
           replied: false,
-          reply: jest.fn().mockResolvedValue({})
+          reply: jest.fn().mockResolvedValue({}),
         };
 
         const result = await adapter.handleSlashCommand(mockInteraction);
@@ -157,7 +163,7 @@ describe('CommandAdapter', () => {
             isSlashCommand: true,
             interaction: mockInteraction,
             author: mockInteraction.user,
-            options: { arg1: 'value1', arg2: 'value2' }
+            options: { arg1: 'value1', arg2: 'value2' },
           })
         );
       });
@@ -165,19 +171,19 @@ describe('CommandAdapter', () => {
       it('should handle unknown slash command', async () => {
         const mockInteraction = {
           commandName: 'unknown',
-          reply: jest.fn().mockResolvedValue({})
+          reply: jest.fn().mockResolvedValue({}),
         };
 
         await adapter.handleSlashCommand(mockInteraction);
 
         expect(mockInteraction.reply).toHaveBeenCalledWith({
           content: 'Unknown command',
-          ephemeral: true
+          ephemeral: true,
         });
       });
 
       it('should handle deferred interactions', async () => {
-        testCommand.execute.mockImplementation(async (ctx) => {
+        testCommand.execute.mockImplementation(async ctx => {
           return await ctx.respond('Response');
         });
 
@@ -186,7 +192,7 @@ describe('CommandAdapter', () => {
           user: { id: 'user123' },
           options: { data: [] },
           deferred: true,
-          editReply: jest.fn().mockResolvedValue({})
+          editReply: jest.fn().mockResolvedValue({}),
         };
 
         await adapter.handleSlashCommand(mockInteraction);
@@ -202,14 +208,14 @@ describe('CommandAdapter', () => {
           options: { data: [] },
           deferred: false,
           replied: false,
-          reply: jest.fn().mockResolvedValue({})
+          reply: jest.fn().mockResolvedValue({}),
         };
 
         await adapter.handleSlashCommand(mockInteraction);
 
         expect(mockInteraction.reply).toHaveBeenCalledWith({
           content: 'An error occurred while executing the command',
-          ephemeral: true
+          ephemeral: true,
         });
         expect(logger.error).toHaveBeenCalled();
       });
@@ -221,7 +227,7 @@ describe('CommandAdapter', () => {
           user: { id: 'user123' },
           options: { data: [] },
           deferred: true,
-          editReply: jest.fn().mockResolvedValue({})
+          editReply: jest.fn().mockResolvedValue({}),
         };
 
         await adapter.handleSlashCommand(mockInteraction);
@@ -236,13 +242,13 @@ describe('CommandAdapter', () => {
       it('should register commands to specific guild', async () => {
         const mockGuild = {
           commands: {
-            set: jest.fn().mockResolvedValue([])
-          }
+            set: jest.fn().mockResolvedValue([]),
+          },
         };
         const mockClient = {
           guilds: {
-            fetch: jest.fn().mockResolvedValue(mockGuild)
-          }
+            fetch: jest.fn().mockResolvedValue(mockGuild),
+          },
         };
 
         const result = await adapter.registerSlashCommands(mockClient, 'guild123');
@@ -252,8 +258,8 @@ describe('CommandAdapter', () => {
           {
             name: 'test',
             description: 'Test command',
-            options: []
-          }
+            options: [],
+          },
         ]);
         expect(result).toHaveLength(1);
         expect(logger.info).toHaveBeenCalledWith(
@@ -265,9 +271,9 @@ describe('CommandAdapter', () => {
         const mockClient = {
           application: {
             commands: {
-              set: jest.fn().mockResolvedValue([])
-            }
-          }
+              set: jest.fn().mockResolvedValue([]),
+            },
+          },
         };
 
         const result = await adapter.registerSlashCommands(mockClient);
@@ -276,8 +282,8 @@ describe('CommandAdapter', () => {
           {
             name: 'test',
             description: 'Test command',
-            options: []
-          }
+            options: [],
+          },
         ]);
         expect(logger.info).toHaveBeenCalledWith(
           '[DiscordCommandAdapter] Registered 1 slash commands globally'
@@ -287,13 +293,14 @@ describe('CommandAdapter', () => {
       it('should handle registration errors', async () => {
         const mockClient = {
           guilds: {
-            fetch: jest.fn().mockRejectedValue(new Error('Guild not found'))
-          }
+            fetch: jest.fn().mockRejectedValue(new Error('Guild not found')),
+          },
         };
 
-        await expect(adapter.registerSlashCommands(mockClient, 'guild123'))
-          .rejects.toThrow('Guild not found');
-        
+        await expect(adapter.registerSlashCommands(mockClient, 'guild123')).rejects.toThrow(
+          'Guild not found'
+        );
+
         expect(logger.error).toHaveBeenCalledWith(
           '[DiscordCommandAdapter] Error registering slash commands:',
           expect.any(Error)
@@ -308,17 +315,17 @@ describe('CommandAdapter', () => {
           name: 'admin',
           description: 'Admin command',
           category: 'admin',
-          execute: jest.fn()
+          execute: jest.fn(),
         });
         registry.register(adminCommand);
 
         const embed = adapter.createHelpEmbed();
 
         expect(embed.setTitle).toHaveBeenCalledWith('Available Commands');
-        expect(embed.setColor).toHaveBeenCalledWith(0x00AE86);
+        expect(embed.setColor).toHaveBeenCalledWith(0x00ae86);
         expect(embed.addFields).toHaveBeenCalledTimes(2); // Two categories
         expect(embed.setFooter).toHaveBeenCalledWith({
-          text: `Use ${botPrefix} <command> for text commands or /<command> for slash commands`
+          text: `Use ${botPrefix} <command> for text commands or /<command> for slash commands`,
         });
       });
     });
@@ -330,7 +337,7 @@ describe('CommandAdapter', () => {
     beforeEach(() => {
       adapter = new RevoltCommandAdapter({
         commandRegistry: registry,
-        applicationServices: mockApplicationServices
+        applicationServices: mockApplicationServices,
       });
     });
 
@@ -340,7 +347,7 @@ describe('CommandAdapter', () => {
           author: { id: 'user123', username: 'testuser' },
           channel: { id: 'channel123' },
           server: { id: 'server123' }, // Revolt uses 'server'
-          reply: jest.fn().mockResolvedValue({})
+          reply: jest.fn().mockResolvedValue({}),
         };
 
         const result = await adapter.handleTextCommand(mockMessage, 'test', ['arg1']);
@@ -354,7 +361,7 @@ describe('CommandAdapter', () => {
             author: mockMessage.author,
             channel: mockMessage.channel,
             guild: mockMessage.server,
-            args: ['arg1']
+            args: ['arg1'],
           })
         );
       });
@@ -362,7 +369,7 @@ describe('CommandAdapter', () => {
       it('should return null for unknown command', async () => {
         const mockMessage = {
           author: { id: 'user123' },
-          reply: jest.fn()
+          reply: jest.fn(),
         };
 
         const result = await adapter.handleTextCommand(mockMessage, 'unknown', []);
@@ -375,12 +382,13 @@ describe('CommandAdapter', () => {
         const mockMessage = {
           author: { id: 'user123' },
           server: { id: 'server123' },
-          reply: jest.fn()
+          reply: jest.fn(),
         };
 
-        await expect(adapter.handleTextCommand(mockMessage, 'test', []))
-          .rejects.toThrow('Command failed');
-        
+        await expect(adapter.handleTextCommand(mockMessage, 'test', [])).rejects.toThrow(
+          'Command failed'
+        );
+
         expect(logger.error).toHaveBeenCalledWith(
           '[RevoltCommandAdapter] Error handling text command test:',
           expect.any(Error)
@@ -395,10 +403,8 @@ describe('CommandAdapter', () => {
           name: 'example',
           description: 'Example command',
           category: 'general',
-          options: [
-            new CommandOption({ name: 'arg', required: true })
-          ],
-          execute: jest.fn()
+          options: [new CommandOption({ name: 'arg', required: true })],
+          execute: jest.fn(),
         });
         registry.register(commandWithUsage);
 
@@ -417,7 +423,7 @@ describe('CommandAdapter', () => {
     it('should create Discord adapter', () => {
       const adapter = CommandAdapterFactory.create('discord', {
         commandRegistry: registry,
-        applicationServices: mockApplicationServices
+        applicationServices: mockApplicationServices,
       });
 
       expect(adapter).toBeInstanceOf(DiscordCommandAdapter);
@@ -426,7 +432,7 @@ describe('CommandAdapter', () => {
     it('should create Revolt adapter', () => {
       const adapter = CommandAdapterFactory.create('revolt', {
         commandRegistry: registry,
-        applicationServices: mockApplicationServices
+        applicationServices: mockApplicationServices,
       });
 
       expect(adapter).toBeInstanceOf(RevoltCommandAdapter);
@@ -435,15 +441,16 @@ describe('CommandAdapter', () => {
     it('should handle case-insensitive platform names', () => {
       const adapter = CommandAdapterFactory.create('DISCORD', {
         commandRegistry: registry,
-        applicationServices: mockApplicationServices
+        applicationServices: mockApplicationServices,
       });
 
       expect(adapter).toBeInstanceOf(DiscordCommandAdapter);
     });
 
     it('should throw for unsupported platform', () => {
-      expect(() => CommandAdapterFactory.create('telegram', {}))
-        .toThrow('Unsupported platform: telegram');
+      expect(() => CommandAdapterFactory.create('telegram', {})).toThrow(
+        'Unsupported platform: telegram'
+      );
     });
   });
 });

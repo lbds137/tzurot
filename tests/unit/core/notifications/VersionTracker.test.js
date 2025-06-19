@@ -25,7 +25,7 @@ describe('VersionTracker', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     tracker = new VersionTracker();
-    
+
     // Set up logger mock
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -68,7 +68,9 @@ describe('VersionTracker', () => {
       const version = await tracker.getLastNotifiedVersion();
 
       expect(version).toBeNull();
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('No previous version file found'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('No previous version file found')
+      );
     });
 
     it('should return null on other errors', async () => {
@@ -77,7 +79,9 @@ describe('VersionTracker', () => {
       const version = await tracker.getLastNotifiedVersion();
 
       expect(version).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error reading version file'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error reading version file')
+      );
     });
   });
 
@@ -127,10 +131,10 @@ describe('VersionTracker', () => {
       expect(tracker.compareVersions('2.0.0', '1.0.0')).toBe(1);
       expect(tracker.compareVersions('1.0.0', '2.0.0')).toBe(-1);
       expect(tracker.compareVersions('1.0.0', '1.0.0')).toBe(0);
-      
+
       expect(tracker.compareVersions('1.2.0', '1.1.0')).toBe(1);
       expect(tracker.compareVersions('1.1.0', '1.2.0')).toBe(-1);
-      
+
       expect(tracker.compareVersions('1.0.2', '1.0.1')).toBe(1);
       expect(tracker.compareVersions('1.0.1', '1.0.2')).toBe(-1);
     });
@@ -139,7 +143,7 @@ describe('VersionTracker', () => {
   describe('checkForNewVersion', () => {
     beforeEach(() => {
       // Mock package.json to return current version
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.2.0' }));
         }
@@ -151,7 +155,7 @@ describe('VersionTracker', () => {
       // Simulate first run - no saved version file
       const error = new Error('ENOENT');
       error.code = 'ENOENT';
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.2.0' }));
         }
@@ -160,7 +164,7 @@ describe('VersionTracker', () => {
         }
         return Promise.reject(new Error('Unknown file'));
       });
-      
+
       fs.mkdir.mockResolvedValue();
       fs.writeFile.mockResolvedValue();
 
@@ -172,7 +176,9 @@ describe('VersionTracker', () => {
         lastVersion: null,
         changeType: 'minor',
       });
-      expect(logger.info).toHaveBeenCalledWith('[VersionTracker] First run detected, will notify about current version 1.2.0');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[VersionTracker] First run detected, will notify about current version 1.2.0'
+      );
       // Should NOT save version yet - let notification manager handle that
       expect(fs.writeFile).not.toHaveBeenCalled();
     });
@@ -181,7 +187,7 @@ describe('VersionTracker', () => {
       // Simulate first run with major version
       const error = new Error('ENOENT');
       error.code = 'ENOENT';
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '2.0.0' }));
         }
@@ -203,7 +209,7 @@ describe('VersionTracker', () => {
 
     it('should detect major version change', async () => {
       // Current version is 1.2.0, last notified was 0.9.0
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '2.0.0' }));
         }
@@ -224,7 +230,7 @@ describe('VersionTracker', () => {
     });
 
     it('should detect minor version change', async () => {
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.3.0' }));
         }
@@ -245,7 +251,7 @@ describe('VersionTracker', () => {
     });
 
     it('should detect patch version change', async () => {
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.2.1' }));
         }
@@ -266,7 +272,7 @@ describe('VersionTracker', () => {
     });
 
     it('should detect no change when versions are equal', async () => {
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.2.0' }));
         }
@@ -287,7 +293,7 @@ describe('VersionTracker', () => {
     });
 
     it('should detect no change when current version is older', async () => {
-      fs.readFile.mockImplementation((path) => {
+      fs.readFile.mockImplementation(path => {
         if (path.includes('package.json')) {
           return Promise.resolve(JSON.stringify({ version: '1.1.0' }));
         }
@@ -361,7 +367,9 @@ describe('VersionTracker', () => {
 
       await tracker.clearSavedVersion();
 
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error clearing version file'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error clearing version file')
+      );
     });
   });
 });

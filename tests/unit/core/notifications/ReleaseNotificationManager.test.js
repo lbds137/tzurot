@@ -30,19 +30,19 @@ describe('ReleaseNotificationManager', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Set up logger mock
     logger.info = jest.fn();
     logger.error = jest.fn();
     logger.warn = jest.fn();
-    
+
     // Mock Discord client
     mockClient = {
       users: {
         fetch: jest.fn(),
       },
     };
-    
+
     // Mock version tracker
     mockVersionTracker = {
       checkForNewVersion: jest.fn(),
@@ -51,14 +51,14 @@ describe('ReleaseNotificationManager', () => {
       getLastNotifiedVersion: jest.fn(),
       clearSavedVersion: jest.fn(),
     };
-    
+
     // Mock auth manager
     mockAuthManager = {
       userTokenManager: {
         getAllTokens: jest.fn().mockReturnValue({}),
       },
     };
-    
+
     // Mock preferences
     mockPreferences = {
       load: jest.fn().mockResolvedValue(),
@@ -68,11 +68,11 @@ describe('ReleaseNotificationManager', () => {
       getUserPreferences: jest.fn(),
       getStatistics: jest.fn(),
       preferences: {
-        get: jest.fn()
+        get: jest.fn(),
       },
       updateUserPreferences: jest.fn(),
     };
-    
+
     // Mock GitHub client
     mockGithubClient = {
       getReleaseByTag: jest.fn(),
@@ -81,7 +81,7 @@ describe('ReleaseNotificationManager', () => {
       owner: 'testowner',
       repo: 'testrepo',
     };
-    
+
     manager = new ReleaseNotificationManager({
       client: mockClient,
       versionTracker: mockVersionTracker,
@@ -103,7 +103,9 @@ describe('ReleaseNotificationManager', () => {
 
       expect(manager.initialized).toBe(true);
       expect(mockPreferences.load).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] Initialized successfully');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] Initialized successfully'
+      );
     });
 
     it('should accept client in initialize method', async () => {
@@ -124,13 +126,13 @@ describe('ReleaseNotificationManager', () => {
 
     it('should migrate authenticated users when authManager provided', async () => {
       const mockTokens = {
-        'user123': { token: 'token123', createdAt: Date.now() },
-        'user456': { token: 'token456', createdAt: Date.now() },
+        user123: { token: 'token123', createdAt: Date.now() },
+        user456: { token: 'token456', createdAt: Date.now() },
       };
       mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
-      
+
       // user123 already has preferences, user456 doesn't
-      mockPreferences.preferences.get.mockImplementation(userId => 
+      mockPreferences.preferences.get.mockImplementation(userId =>
         userId === 'user123' ? { optedOut: false } : undefined
       );
 
@@ -140,10 +142,12 @@ describe('ReleaseNotificationManager', () => {
       expect(mockPreferences.updateUserPreferences).toHaveBeenCalledWith('user456', {
         optedOut: false,
         notificationLevel: 'minor',
-        migratedFromAuth: true
+        migratedFromAuth: true,
       });
       expect(mockPreferences.updateUserPreferences).toHaveBeenCalledTimes(1); // Only for user456
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] Migrated 1 authenticated users to notification system');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] Migrated 1 authenticated users to notification system'
+      );
     });
 
     it('should handle error during user migration gracefully', async () => {
@@ -154,16 +158,18 @@ describe('ReleaseNotificationManager', () => {
       await manager.initialize(mockClient, mockAuthManager);
 
       expect(manager.initialized).toBe(true); // Should still initialize
-      expect(logger.error).toHaveBeenCalledWith('[ReleaseNotificationManager] Error migrating authenticated users: Failed to get tokens');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] Error migrating authenticated users: Failed to get tokens'
+      );
     });
 
     it('should not migrate users who already have preferences', async () => {
       const mockTokens = {
-        'user123': { token: 'token123', createdAt: Date.now() },
-        'user456': { token: 'token456', createdAt: Date.now() },
+        user123: { token: 'token123', createdAt: Date.now() },
+        user456: { token: 'token456', createdAt: Date.now() },
       };
       mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
-      
+
       // Both users already have preferences
       mockPreferences.preferences.get.mockReturnValue({ optedOut: false });
 
@@ -192,7 +198,9 @@ describe('ReleaseNotificationManager', () => {
       expect(mockVersionTracker.getLastNotifiedVersion).toHaveBeenCalled();
       expect(mockPreferences.hasAnyUserBeenNotified).toHaveBeenCalled();
       expect(mockVersionTracker.clearSavedVersion).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] Found saved version but no notifications sent, clearing for first-run'
+      );
     });
 
     it('should not clear saved version if notifications have been sent', async () => {
@@ -275,13 +283,15 @@ describe('ReleaseNotificationManager', () => {
     });
 
     it('should send notifications to opted-in users', async () => {
-      const mockReleases = [{
-        tag_name: 'v1.1.0',
-        name: 'Version 1.1.0',
-        body: '## Features\n- New feature',
-        html_url: 'https://example.com/test/test/releases/tag/v1.1.0',
-        published_at: '2024-01-01T00:00:00Z',
-      }];
+      const mockReleases = [
+        {
+          tag_name: 'v1.1.0',
+          name: 'Version 1.1.0',
+          body: '## Features\n- New feature',
+          html_url: 'https://example.com/test/test/releases/tag/v1.1.0',
+          published_at: '2024-01-01T00:00:00Z',
+        },
+      ];
 
       mockVersionTracker.checkForNewVersion.mockResolvedValue({
         hasNewVersion: true,
@@ -307,9 +317,7 @@ describe('ReleaseNotificationManager', () => {
 
       const mockUser1 = { send: jest.fn().mockResolvedValue() };
       const mockUser2 = { send: jest.fn().mockResolvedValue() };
-      mockClient.users.fetch
-        .mockResolvedValueOnce(mockUser1)
-        .mockResolvedValueOnce(mockUser2);
+      mockClient.users.fetch.mockResolvedValueOnce(mockUser1).mockResolvedValueOnce(mockUser2);
 
       const result = await manager.checkAndNotify();
 
@@ -335,11 +343,13 @@ describe('ReleaseNotificationManager', () => {
         lastVersion: '1.0.0',
         changeType: 'minor',
       });
-      mockGithubClient.getReleasesBetween.mockResolvedValue([{ 
-        tag_name: 'v1.1.0',
-        published_at: '2024-01-01T00:00:00Z',
-        html_url: 'https://example.com/releases/v1.1.0'
-      }]);
+      mockGithubClient.getReleasesBetween.mockResolvedValue([
+        {
+          tag_name: 'v1.1.0',
+          published_at: '2024-01-01T00:00:00Z',
+          html_url: 'https://example.com/releases/v1.1.0',
+        },
+      ]);
       mockGithubClient.parseReleaseChanges.mockReturnValue({
         features: [],
         fixes: [],
@@ -357,9 +367,7 @@ describe('ReleaseNotificationManager', () => {
 
       const mockUser1 = { send: jest.fn().mockResolvedValue() };
       const mockUser2 = { send: jest.fn().mockRejectedValue(new Error('DMs disabled')) };
-      mockClient.users.fetch
-        .mockResolvedValueOnce(mockUser1)
-        .mockResolvedValueOnce(mockUser2);
+      mockClient.users.fetch.mockResolvedValueOnce(mockUser1).mockResolvedValueOnce(mockUser2);
 
       const result = await manager.checkAndNotify();
 
@@ -375,7 +383,9 @@ describe('ReleaseNotificationManager', () => {
     it('should throw error if not initialized', async () => {
       manager.initialized = false;
 
-      await expect(manager.checkAndNotify()).rejects.toThrow('ReleaseNotificationManager not initialized');
+      await expect(manager.checkAndNotify()).rejects.toThrow(
+        'ReleaseNotificationManager not initialized'
+      );
     });
   });
 
@@ -398,8 +408,7 @@ describe('ReleaseNotificationManager', () => {
     it('should handle user not found', async () => {
       mockClient.users.fetch.mockResolvedValue(null);
 
-      await expect(manager.sendDMToUser('user123', {}))
-        .rejects.toThrow('User not found');
+      await expect(manager.sendDMToUser('user123', {})).rejects.toThrow('User not found');
     });
 
     it('should auto opt-out users with DMs disabled', async () => {
@@ -408,8 +417,7 @@ describe('ReleaseNotificationManager', () => {
       const mockUser = { send: jest.fn().mockRejectedValue(error) };
       mockClient.users.fetch.mockResolvedValue(mockUser);
 
-      await expect(manager.sendDMToUser('user123', {}))
-        .rejects.toThrow(error);
+      await expect(manager.sendDMToUser('user123', {})).rejects.toThrow(error);
 
       expect(mockPreferences.setOptOut).toHaveBeenCalledWith('user123', true);
       expect(logger.info).toHaveBeenCalledWith(
@@ -583,23 +591,25 @@ describe('ReleaseNotificationManager', () => {
 
   describe('getColorForChangeType', () => {
     it('should return correct colors', () => {
-      expect(manager.getColorForChangeType('major')).toBe(0xFF0000); // Red
-      expect(manager.getColorForChangeType('minor')).toBe(0x00FF00); // Green
-      expect(manager.getColorForChangeType('patch')).toBe(0x0099FF); // Blue
+      expect(manager.getColorForChangeType('major')).toBe(0xff0000); // Red
+      expect(manager.getColorForChangeType('minor')).toBe(0x00ff00); // Green
+      expect(manager.getColorForChangeType('patch')).toBe(0x0099ff); // Blue
       expect(manager.getColorForChangeType('unknown')).toBe(0x808080); // Gray
     });
   });
 
   describe('getChangeTypeDescription', () => {
     it('should return correct descriptions', () => {
-      expect(manager.getChangeTypeDescription('major'))
-        .toBe('This is a major release with significant changes and new features!');
-      expect(manager.getChangeTypeDescription('minor'))
-        .toBe('This release includes new features and improvements.');
-      expect(manager.getChangeTypeDescription('patch'))
-        .toBe('This release includes bug fixes and minor improvements.');
-      expect(manager.getChangeTypeDescription('unknown'))
-        .toBe('A new version has been released.');
+      expect(manager.getChangeTypeDescription('major')).toBe(
+        'This is a major release with significant changes and new features!'
+      );
+      expect(manager.getChangeTypeDescription('minor')).toBe(
+        'This release includes new features and improvements.'
+      );
+      expect(manager.getChangeTypeDescription('patch')).toBe(
+        'This release includes bug fixes and minor improvements.'
+      );
+      expect(manager.getChangeTypeDescription('unknown')).toBe('A new version has been released.');
     });
   });
 
@@ -650,20 +660,20 @@ describe('ReleaseNotificationManager', () => {
 
     it('should create embed with multiple releases', () => {
       const mockReleases = [
-        { 
-          tag_name: 'v1.3.0', 
+        {
+          tag_name: 'v1.3.0',
           published_at: '2024-01-03T00:00:00Z',
-          html_url: 'https://example.com/releases/v1.3.0'
+          html_url: 'https://example.com/releases/v1.3.0',
         },
-        { 
-          tag_name: 'v1.2.0', 
+        {
+          tag_name: 'v1.2.0',
           published_at: '2024-01-02T00:00:00Z',
-          html_url: 'https://example.com/releases/v1.2.0'
+          html_url: 'https://example.com/releases/v1.2.0',
         },
-        { 
-          tag_name: 'v1.1.0', 
+        {
+          tag_name: 'v1.1.0',
           published_at: '2024-01-01T00:00:00Z',
-          html_url: 'https://example.com/releases/v1.1.0'
+          html_url: 'https://example.com/releases/v1.1.0',
         },
       ];
 
@@ -682,9 +692,7 @@ describe('ReleaseNotificationManager', () => {
       );
 
       const mockEmbed = EmbedBuilder.mock.results[0].value;
-      expect(mockEmbed.setTitle).toHaveBeenCalledWith(
-        '🚀 Tzurot Multiple Releases (3 versions)'
-      );
+      expect(mockEmbed.setTitle).toHaveBeenCalledWith('🚀 Tzurot Multiple Releases (3 versions)');
       expect(mockEmbed.addFields).toHaveBeenCalledWith(
         expect.objectContaining({
           name: '📋 Included Versions',
@@ -726,19 +734,14 @@ describe('ReleaseNotificationManager', () => {
         { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
       ];
 
-      const description = manager.getMultiReleaseDescription(
-        { changeType: 'minor' },
-        mockReleases
-      );
+      const description = manager.getMultiReleaseDescription({ changeType: 'minor' }, mockReleases);
 
-      expect(description).toContain('You\'ve missed 2 releases');
+      expect(description).toContain("You've missed 2 releases");
       expect(description).toContain('over the past 2 days');
     });
 
     it('should handle single release in multi-release flow', () => {
-      const mockReleases = [
-        { tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' },
-      ];
+      const mockReleases = [{ tag_name: 'v1.1.0', published_at: '2024-01-01T00:00:00Z' }];
 
       mockGithubClient.parseReleaseChanges.mockReturnValue({
         features: ['Feature A'],
@@ -774,12 +777,12 @@ describe('ReleaseNotificationManager', () => {
         allReleases.push({
           tag_name: `v1.${i}.0`,
           published_at: `2024-01-${String(i + 1).padStart(2, '0')}T00:00:00Z`,
-          html_url: `https://example.com/releases/v1.${i}.0`
+          html_url: `https://example.com/releases/v1.${i}.0`,
         });
       }
       // getReleasesBetween should be called with '0.0.0' as start for first run
       mockGithubClient.getReleasesBetween.mockResolvedValue(allReleases);
-      
+
       // Mock version comparison
       mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
         const n1 = parseInt(v1.split('.')[1]);
@@ -791,14 +794,19 @@ describe('ReleaseNotificationManager', () => {
 
       mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
       mockGithubClient.parseReleaseChanges.mockReturnValue({
-        features: [], fixes: [], breaking: [], other: []
+        features: [],
+        fixes: [],
+        breaking: [],
+        other: [],
       });
       mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
 
       const result = await manager.checkAndNotify();
 
       expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('0.0.0', '1.3.0');
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 5 recent releases');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] First run - including 5 recent releases'
+      );
       expect(result.notified).toBe(true);
     });
 
@@ -817,7 +825,7 @@ describe('ReleaseNotificationManager', () => {
         { tag_name: 'v1.0.0', published_at: '2024-01-01T00:00:00Z' }, // Past - include
       ];
       mockGithubClient.getReleasesBetween.mockResolvedValue(filteredReleases);
-      
+
       mockVersionTracker.compareVersions.mockImplementation((v1, v2) => {
         const parts1 = v1.split('.').map(Number);
         const parts2 = v2.split('.').map(Number);
@@ -830,7 +838,10 @@ describe('ReleaseNotificationManager', () => {
 
       mockPreferences.getUsersToNotify.mockReturnValue(['user123']);
       mockGithubClient.parseReleaseChanges.mockReturnValue({
-        features: [], fixes: [], breaking: [], other: []
+        features: [],
+        fixes: [],
+        breaking: [],
+        other: [],
       });
       mockClient.users.fetch.mockResolvedValue({ send: jest.fn().mockResolvedValue() });
 
@@ -839,7 +850,9 @@ describe('ReleaseNotificationManager', () => {
       // Check that getReleasesBetween was called correctly
       expect(mockGithubClient.getReleasesBetween).toHaveBeenCalledWith('0.0.0', '1.2.0');
       expect(mockVersionTracker.compareVersions).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('[ReleaseNotificationManager] First run - including 3 recent releases');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ReleaseNotificationManager] First run - including 3 recent releases'
+      );
     });
 
     it('should use getReleasesBetween when lastVersion exists', async () => {

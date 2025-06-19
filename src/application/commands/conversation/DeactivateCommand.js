@@ -45,7 +45,8 @@ function createExecutor(_dependencies) {
       if (!hasPermission) {
         const errorEmbed = {
           title: '❌ Insufficient Permissions',
-          description: 'You need the "Manage Messages" permission to deactivate personalities in this channel.',
+          description:
+            'You need the "Manage Messages" permission to deactivate personalities in this channel.',
           color: 0xf44336,
           timestamp: new Date().toISOString(),
         };

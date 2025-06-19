@@ -19,12 +19,16 @@ jest.mock('../../../src/constants', () => ({
 }));
 
 const logger = require('../../../src/logger');
-const { isErrorContent, markErrorContent, isErrorWebhookMessage } = require('../../../src/webhook/errorUtils');
+const {
+  isErrorContent,
+  markErrorContent,
+  isErrorWebhookMessage,
+} = require('../../../src/webhook/errorUtils');
 
 describe('errorUtils', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock console methods
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
@@ -144,7 +148,9 @@ describe('errorUtils', () => {
         threadId: 'thread-123',
       };
       expect(isErrorWebhookMessage(threadMessage)).toBe(false);
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Allowing potential error message in thread'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Allowing potential error message in thread')
+      );
     });
 
     it('should allow thread messages with thread_id', () => {
@@ -199,7 +205,9 @@ describe('errorUtils', () => {
 
     it('should not flag messages with error words in different context', () => {
       expect(isErrorWebhookMessage({ content: 'I cannot wait to see you!' })).toBe(true); // Still triggers on 'cannot'
-      expect(isErrorWebhookMessage({ content: 'The movie was not found to be entertaining' })).toBe(true); // Triggers on 'not found'
+      expect(isErrorWebhookMessage({ content: 'The movie was not found to be entertaining' })).toBe(
+        true
+      ); // Triggers on 'not found'
       expect(isErrorWebhookMessage({ content: 'This is exceptionally good' })).toBe(true); // 'exception' is detected as substring
     });
 
@@ -218,7 +226,7 @@ describe('errorUtils', () => {
         threadId: 'thread-789',
       };
       expect(isErrorWebhookMessage(errorThreadMessage)).toBe(false);
-      
+
       // Same message without thread should be detected as error
       const errorNonThreadMessage = {
         content: '[error] Critical failure occurred!',

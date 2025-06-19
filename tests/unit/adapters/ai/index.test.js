@@ -1,6 +1,6 @@
 /**
  * @jest-environment node
- * 
+ *
  * AI Adapters Index Test
  * - Tests the exports from adapters/ai/index.js
  */

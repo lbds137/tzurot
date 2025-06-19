@@ -2,9 +2,16 @@
  * Tests for HelpCommand
  */
 
-const { createHelpCommand, getCategoryForCommand, getCommandSpecificHelp } = require('../../../../../src/application/commands/utility/HelpCommand');
+const {
+  createHelpCommand,
+  getCategoryForCommand,
+  getCommandSpecificHelp,
+} = require('../../../../../src/application/commands/utility/HelpCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
-const { Command, CommandOption } = require('../../../../../src/application/commands/CommandAbstraction');
+const {
+  Command,
+  CommandOption,
+} = require('../../../../../src/application/commands/CommandAbstraction');
 const logger = require('../../../../../src/logger');
 
 // Mock logger
@@ -29,8 +36,18 @@ describe('HelpCommand', () => {
         aliases: ['create'],
         permissions: ['USER'],
         options: [
-          new CommandOption({ name: 'name', description: 'Personality name', type: 'string', required: true }),
-          new CommandOption({ name: 'alias', description: 'Optional alias', type: 'string', required: false }),
+          new CommandOption({
+            name: 'name',
+            description: 'Personality name',
+            type: 'string',
+            required: true,
+          }),
+          new CommandOption({
+            name: 'alias',
+            description: 'Optional alias',
+            type: 'string',
+            required: false,
+          }),
         ],
         execute: jest.fn(),
       }),
@@ -41,7 +58,12 @@ describe('HelpCommand', () => {
         aliases: [],
         permissions: ['USER'],
         options: [
-          new CommandOption({ name: 'page', description: 'Page number', type: 'integer', required: false }),
+          new CommandOption({
+            name: 'page',
+            description: 'Page number',
+            type: 'integer',
+            required: false,
+          }),
         ],
         execute: jest.fn(),
       }),
@@ -52,10 +74,10 @@ describe('HelpCommand', () => {
         aliases: [],
         permissions: ['USER'],
         options: [
-          new CommandOption({ 
-            name: 'action', 
-            description: 'Action to perform', 
-            type: 'string', 
+          new CommandOption({
+            name: 'action',
+            description: 'Action to perform',
+            type: 'string',
             required: false,
             choices: [
               { value: 'start', label: 'Start authentication' },
@@ -87,7 +109,7 @@ describe('HelpCommand', () => {
 
     // Mock command registry
     mockRegistry = {
-      get: jest.fn((name) => {
+      get: jest.fn(name => {
         // Check main names and aliases
         for (const cmd of Object.values(testCommands)) {
           if (cmd.name === name || cmd.aliases.includes(name)) {
@@ -234,9 +256,15 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**TestBot Commands**'));
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**Personality Management**'));
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('• `add` (create): Add a new personality'));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**TestBot Commands**')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**Personality Management**')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('• `add` (create): Add a new personality')
+      );
     });
   });
 
@@ -252,9 +280,15 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**!tz add <name> [alias]**'));
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('Add a new personality'));
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**Aliases:** `create`'));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**!tz add <name> [alias]**')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Add a new personality')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**Aliases:** `create`')
+      );
       expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**Options:**'));
     });
 
@@ -269,8 +303,12 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**!tz list [page]**'));
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('List all personalities'));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**!tz list [page]**')
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('List all personalities')
+      );
     });
 
     it('should show unknown command message for non-existent command', async () => {
@@ -301,7 +339,9 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith('This command is only available to administrators.');
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        'This command is only available to administrators.'
+      );
     });
 
     it('should show command-specific detailed help', async () => {
@@ -347,7 +387,9 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**!tz add <name> [alias]**'));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**!tz add <name> [alias]**')
+      );
     });
   });
 
@@ -365,27 +407,46 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith('An error occurred while displaying help information.');
-      expect(logger.error).toHaveBeenCalledWith('[HelpCommand] Execution failed:', expect.any(Error));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        'An error occurred while displaying help information.'
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        '[HelpCommand] Execution failed:',
+        expect.any(Error)
+      );
     });
   });
 
   describe('Helper Functions', () => {
     describe('getCategoryForCommand', () => {
       it('should categorize personality commands correctly', () => {
-        expect(getCategoryForCommand({ name: 'add', permissions: ['USER'] })).toBe('Personality Management');
-        expect(getCategoryForCommand({ name: 'remove', permissions: ['USER'] })).toBe('Personality Management');
-        expect(getCategoryForCommand({ name: 'list', permissions: ['USER'] })).toBe('Personality Management');
+        expect(getCategoryForCommand({ name: 'add', permissions: ['USER'] })).toBe(
+          'Personality Management'
+        );
+        expect(getCategoryForCommand({ name: 'remove', permissions: ['USER'] })).toBe(
+          'Personality Management'
+        );
+        expect(getCategoryForCommand({ name: 'list', permissions: ['USER'] })).toBe(
+          'Personality Management'
+        );
       });
 
       it('should categorize conversation commands correctly', () => {
-        expect(getCategoryForCommand({ name: 'activate', permissions: ['USER'] })).toBe('Conversation');
-        expect(getCategoryForCommand({ name: 'reset', permissions: ['USER'] })).toBe('Conversation');
+        expect(getCategoryForCommand({ name: 'activate', permissions: ['USER'] })).toBe(
+          'Conversation'
+        );
+        expect(getCategoryForCommand({ name: 'reset', permissions: ['USER'] })).toBe(
+          'Conversation'
+        );
       });
 
       it('should categorize authentication commands correctly', () => {
-        expect(getCategoryForCommand({ name: 'auth', permissions: ['USER'] })).toBe('Authentication');
-        expect(getCategoryForCommand({ name: 'verify', permissions: ['USER'] })).toBe('Authentication');
+        expect(getCategoryForCommand({ name: 'auth', permissions: ['USER'] })).toBe(
+          'Authentication'
+        );
+        expect(getCategoryForCommand({ name: 'verify', permissions: ['USER'] })).toBe(
+          'Authentication'
+        );
       });
 
       it('should categorize admin commands correctly', () => {

@@ -29,11 +29,11 @@ describe('ProfileInfoClient', () => {
 
     // Mock scheduler functions
     mockScheduler = jest.fn((callback, delay) => setTimeout(callback, delay));
-    mockClearScheduler = jest.fn((id) => clearTimeout(id));
+    mockClearScheduler = jest.fn(id => clearTimeout(id));
 
     // Mock fetch implementation
     mockFetch = jest.fn();
-    
+
     // Create client with mocked dependencies
     client = new ProfileInfoClient({
       timeout: 5000,
@@ -51,7 +51,7 @@ describe('ProfileInfoClient', () => {
   describe('constructor', () => {
     it('should use default values when no options provided', () => {
       const defaultClient = new ProfileInfoClient();
-      
+
       expect(defaultClient.timeout).toBe(30000);
       expect(defaultClient.logPrefix).toBe('[ProfileInfoClient]');
       expect(defaultClient.fetchImplementation).toBe(nodeFetch);
@@ -63,7 +63,7 @@ describe('ProfileInfoClient', () => {
       const customFetch = jest.fn();
       const customScheduler = jest.fn();
       const customClearScheduler = jest.fn();
-      
+
       const customClient = new ProfileInfoClient({
         timeout: 10000,
         logPrefix: '[CustomClient]',
@@ -71,7 +71,7 @@ describe('ProfileInfoClient', () => {
         scheduler: customScheduler,
         clearScheduler: customClearScheduler,
       });
-      
+
       expect(customClient.timeout).toBe(10000);
       expect(customClient.logPrefix).toBe('[CustomClient]');
       expect(customClient.fetchImplementation).toBe(customFetch);
@@ -124,13 +124,13 @@ describe('ProfileInfoClient', () => {
 
       await client.fetch('https://api.example.com/profile', {
         'X-Custom-Header': 'custom-value',
-        'Authorization': 'Bearer token',
+        Authorization: 'Bearer token',
       });
 
       expect(mockFetch).toHaveBeenCalledWith('https://api.example.com/profile', {
         headers: expect.objectContaining({
           'X-Custom-Header': 'custom-value',
-          'Authorization': 'Bearer token',
+          Authorization: 'Bearer token',
           'Content-Type': 'application/json',
         }),
         signal: 'mock-signal',
@@ -165,10 +165,10 @@ describe('ProfileInfoClient', () => {
       // Create an error that looks like an abort error
       const abortError = new Error('The operation was aborted');
       abortError.name = 'AbortError';
-      
+
       // Mock fetch to reject with abort error
       mockFetch.mockRejectedValue(abortError);
-      
+
       // Also verify the abort was called via the scheduler
       let scheduledCallback;
       mockScheduler.mockImplementation((callback, delay) => {
@@ -177,13 +177,13 @@ describe('ProfileInfoClient', () => {
       });
 
       const resultPromise = client.fetch('https://api.example.com/profile');
-      
+
       // Verify scheduler was called with timeout
       expect(mockScheduler).toHaveBeenCalledWith(expect.any(Function), 5000);
-      
+
       // Execute the scheduled timeout callback
       scheduledCallback();
-      
+
       const result = await resultPromise;
 
       expect(result).toEqual({
@@ -316,10 +316,7 @@ describe('ProfileInfoClient', () => {
     });
 
     it('should return true for valid data with both fields', () => {
-      const result = client.validateProfileData(
-        { id: '123', name: 'Test' },
-        'TestProfile'
-      );
+      const result = client.validateProfileData({ id: '123', name: 'Test' }, 'TestProfile');
 
       expect(result).toBe(true);
       expect(logger.warn).not.toHaveBeenCalled();

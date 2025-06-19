@@ -22,14 +22,14 @@ describe('Profile Info Fetcher - Error Messages', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Reset the fetcher
     _testing.resetFetcher();
-    
+
     // Get the mock fetcher instance
     mockFetcher = new ProfileInfoFetcher();
     ProfileInfoFetcher.mockReturnValue(mockFetcher);
-    
+
     // Set up logger mocks
     logger.info = jest.fn();
     logger.debug = jest.fn();
@@ -42,7 +42,8 @@ describe('Profile Info Fetcher - Error Messages', () => {
       const mockProfileData = {
         name: 'Test Personality',
         avatar: 'https://example.com/avatar.png',
-        error_message: '*laughs darkly* The mysteries of existence sometimes exceed even my grasp... ||*(an error has occurred)*||',
+        error_message:
+          '*laughs darkly* The mysteries of existence sometimes exceed even my grasp... ||*(an error has occurred)*||',
       };
 
       mockFetcher.fetchProfileInfo.mockResolvedValue(mockProfileData);
@@ -124,7 +125,11 @@ describe('Profile Info Fetcher - Error Messages', () => {
       await getProfileErrorMessage('test-personality');
 
       expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('[ProfileInfoFetcher] Found error message for test-personality: ' + 'A'.repeat(100) + '...')
+        expect.stringContaining(
+          '[ProfileInfoFetcher] Found error message for test-personality: ' +
+            'A'.repeat(100) +
+            '...'
+        )
       );
     });
 

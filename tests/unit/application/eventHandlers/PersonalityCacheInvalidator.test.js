@@ -2,12 +2,14 @@
  * Tests for PersonalityCacheInvalidator
  */
 
-const { PersonalityCacheInvalidator } = require('../../../../src/application/eventHandlers/PersonalityCacheInvalidator');
-const { 
+const {
+  PersonalityCacheInvalidator,
+} = require('../../../../src/application/eventHandlers/PersonalityCacheInvalidator');
+const {
   PersonalityProfileUpdated,
   PersonalityRemoved,
   PersonalityAliasAdded,
-  PersonalityAliasRemoved
+  PersonalityAliasRemoved,
 } = require('../../../../src/domain/personality/PersonalityEvents');
 
 describe('PersonalityCacheInvalidator', () => {
@@ -17,20 +19,20 @@ describe('PersonalityCacheInvalidator', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock dependencies
     mockProfileInfoCache = {
-      deleteFromCache: jest.fn()
+      deleteFromCache: jest.fn(),
     };
-    
+
     mockMessageTracker = {
       // Add methods as needed
     };
-    
+
     // Create instance
     cacheInvalidator = new PersonalityCacheInvalidator({
       profileInfoCache: mockProfileInfoCache,
-      messageTracker: mockMessageTracker
+      messageTracker: mockMessageTracker,
     });
   });
 
@@ -39,9 +41,9 @@ describe('PersonalityCacheInvalidator', () => {
       const event = new PersonalityProfileUpdated('personality-123', {
         profile: {
           name: 'testpersonality',
-          prompt: 'Updated prompt'
+          prompt: 'Updated prompt',
         },
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityProfileUpdated(event);
@@ -52,7 +54,7 @@ describe('PersonalityCacheInvalidator', () => {
     it('should handle missing profile name gracefully', async () => {
       const event = new PersonalityProfileUpdated('personality-123', {
         profile: {},
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityProfileUpdated(event);
@@ -62,14 +64,13 @@ describe('PersonalityCacheInvalidator', () => {
 
     it('should handle missing profile info cache gracefully', async () => {
       cacheInvalidator.profileInfoCache = null;
-      
+
       const event = new PersonalityProfileUpdated('personality-123', {
         profile: { name: 'test' },
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
-      await expect(cacheInvalidator.handlePersonalityProfileUpdated(event))
-        .resolves.not.toThrow();
+      await expect(cacheInvalidator.handlePersonalityProfileUpdated(event)).resolves.not.toThrow();
     });
   });
 
@@ -78,7 +79,7 @@ describe('PersonalityCacheInvalidator', () => {
       const event = new PersonalityRemoved('personality-123', {
         personalityName: 'testpersonality',
         removedBy: 'user-123',
-        removedAt: new Date().toISOString()
+        removedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityRemoved(event);
@@ -89,7 +90,7 @@ describe('PersonalityCacheInvalidator', () => {
     it('should handle missing personality name gracefully', async () => {
       const event = new PersonalityRemoved('personality-123', {
         removedBy: 'user-123',
-        removedAt: new Date().toISOString()
+        removedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityRemoved(event);
@@ -104,7 +105,7 @@ describe('PersonalityCacheInvalidator', () => {
         personalityName: 'testpersonality',
         alias: 'testalias',
         addedBy: 'user-123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityAliasAdded(event);
@@ -119,7 +120,7 @@ describe('PersonalityCacheInvalidator', () => {
         personalityName: 'testpersonality',
         alias: 'testalias',
         removedBy: 'user-123',
-        removedAt: new Date().toISOString()
+        removedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityAliasRemoved(event);
@@ -133,7 +134,7 @@ describe('PersonalityCacheInvalidator', () => {
         personalityName: 'testpersonality',
         alias: 'testalias',
         removedBy: 'user-123',
-        removedAt: new Date().toISOString()
+        removedAt: new Date().toISOString(),
       });
 
       await cacheInvalidator.handlePersonalityAliasRemoved(event);
