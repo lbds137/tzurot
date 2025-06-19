@@ -448,6 +448,42 @@ git log --pretty=format:"%h %ad %s" --date=short
 
 ## Git Workflow and Branch Management
 
+### 🚨 CRITICAL BRANCH SAFETY RULES - NEVER DELETE BRANCHES!
+
+**NEVER delete ANY branch without explicit user permission!** This includes:
+- ❌ NEVER run `git branch -d` or `git branch -D` without asking
+- ❌ NEVER force push to branches without permission
+- ❌ NEVER assume a branch is safe to delete
+- ✅ ALWAYS ask before ANY destructive git operation
+- ✅ ALWAYS check branch contents before switching away
+- ✅ ALWAYS treat branches as precious until told otherwise
+
+**Before switching branches:**
+```bash
+# ALWAYS run these checks first:
+git status                    # Check for uncommitted changes
+git log --oneline -5         # See recent commits  
+git diff origin/branch       # Compare with remote
+git branch -vv               # Check tracking status
+```
+
+**If a branch already exists:**
+```bash
+# ❌ NEVER DO THIS:
+git branch -D existing-branch
+
+# ✅ ALWAYS DO THIS:
+# Option 1: Ask the user
+"The branch already exists. How would you like me to proceed?"
+
+# Option 2: Create a different branch name
+git checkout -b branch-name-v2
+
+# Option 3: Update the existing branch
+git checkout existing-branch
+git pull origin existing-branch
+```
+
 ### 🚨 CRITICAL PR RULES - READ THIS FIRST!
 
 **NEVER create PRs directly to main!** The only exceptions:
