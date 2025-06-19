@@ -43,7 +43,7 @@ function createAutorespondCommand(dependencies = {}) {
 /**
  * Create the command executor function
  */
-function createExecutor(dependencies) {
+function createExecutor(_dependencies) {
   return async function execute(context) {
     const { args, options } = context;
     const conversationManager = context.dependencies.conversationManager;

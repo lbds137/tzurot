@@ -61,7 +61,7 @@ function createResetCommand() {
                 },
                 {
                   name: 'Examples',
-                  value: `• \`${botPrefix} reset Claude\`\n• \`${botPrefix} reset aria\`\n• \`${botPrefix} reset "bambi prime\"\``,
+                  value: `• \`${botPrefix} reset Claude\`\n• \`${botPrefix} reset aria\`\n• \`${botPrefix} reset "bambi prime"\``,
                   inline: false,
                 },
                 {

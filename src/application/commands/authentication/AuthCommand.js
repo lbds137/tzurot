@@ -52,7 +52,7 @@ function createAuthCommand(dependencies = {}) {
 /**
  * Create the command executor function
  */
-function createExecutor(dependencies) {
+function createExecutor(_dependencies) {
   return async function execute(context) {
     const { args, options, dependencies, isWebhook } = context;
     const auth = dependencies.auth;
