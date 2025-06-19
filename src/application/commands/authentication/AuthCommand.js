@@ -182,10 +182,10 @@ async function showHelp(context) {
     {
       name: 'Available Commands',
       value:
-        `• \`${commandPrefix}auth start\` - Begin the authentication process\n` +
-        `• \`${commandPrefix}auth code <code>\` - Submit your authorization code (DM only)\n` +
-        `• \`${commandPrefix}auth status\` - Check your authentication status\n` +
-        `• \`${commandPrefix}auth revoke\` - Revoke your authorization`,
+        `• \`${commandPrefix} auth start\` - Begin the authentication process\n` +
+        `• \`${commandPrefix} auth code <code>\` - Submit your authorization code (DM only)\n` +
+        `• \`${commandPrefix} auth status\` - Check your authentication status\n` +
+        `• \`${commandPrefix} auth revoke\` - Revoke your authorization`,
       inline: false,
     },
     {
@@ -202,14 +202,14 @@ async function showHelp(context) {
   if (isAdmin || isBotOwner) {
     fields.push({
       name: '👨‍💼 Admin Commands',
-      value: `• \`${commandPrefix}auth cleanup\` - Clean up expired tokens`,
+      value: `• \`${commandPrefix} auth cleanup\` - Clean up expired tokens`,
       inline: false,
     });
   }
 
   const helpEmbed = {
     title: '🔐 Authentication Help',
-    description: `To get started, run: \`${commandPrefix}auth start\``,
+    description: `To get started, run: \`${commandPrefix} auth start\``,
     color: 0x2196f3, // Blue color
     fields: fields,
     footer: {
