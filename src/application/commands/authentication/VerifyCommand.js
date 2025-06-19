@@ -28,9 +28,9 @@ function createVerifyCommand(dependencies = {}) {
  */
 function createExecutor(dependencies) {
   return async function execute(context) {
-    const { services } = context;
-    const auth = services.auth;
-    const channelUtils = services.channelUtils;
+    const { dependencies } = context;
+    const auth = dependencies.auth;
+    const channelUtils = dependencies.channelUtils;
 
     logger.info(`[VerifyCommand] Executing for user ${context.userId}`);
 

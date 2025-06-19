@@ -65,14 +65,27 @@ function createExecutor(dependencies) {
           return await enableAutoResponse(context, conversationManager);
         case 'off':
           return await disableAutoResponse(context, conversationManager);
-        default:
-          return await context.respond(
-            `❌ Invalid action "${action}". Use \`on\`, \`off\`, or \`status\`.`
-          );
+        default: {
+          const invalidEmbed = {
+            title: '❌ Invalid Action',
+            description: `Invalid action "${action}". Use \`on\`, \`off\`, or \`status\`.`,
+            color: 0xf44336,
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [invalidEmbed] });
+        }
       }
     } catch (error) {
       logger.error('[AutorespondCommand] Unexpected error:', error);
-      return await context.respond('❌ An unexpected error occurred. Please try again later.');
+      
+      const errorEmbed = {
+        title: '❌ Error',
+        description: 'An unexpected error occurred. Please try again later.',
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      
+      return await context.respond({ embeds: [errorEmbed] });
     }
   };
 }
@@ -146,7 +159,15 @@ async function enableAutoResponse(context, conversationManager) {
     return await context.respond({ embeds: [embed] });
   } catch (error) {
     logger.error('[AutorespondCommand] Error enabling auto-response:', error);
-    return await context.respond('❌ Failed to enable auto-response. Please try again.');
+    
+    const errorEmbed = {
+      title: '❌ Error',
+      description: 'Failed to enable auto-response. Please try again.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -182,7 +203,15 @@ async function disableAutoResponse(context, conversationManager) {
     return await context.respond({ embeds: [embed] });
   } catch (error) {
     logger.error('[AutorespondCommand] Error disabling auto-response:', error);
-    return await context.respond('❌ Failed to disable auto-response. Please try again.');
+    
+    const errorEmbed = {
+      title: '❌ Error',
+      description: 'Failed to disable auto-response. Please try again.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
