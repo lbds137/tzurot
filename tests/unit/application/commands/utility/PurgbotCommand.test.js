@@ -94,7 +94,7 @@ describe('PurgbotCommand', () => {
     mockContext = {
       userId: 'user123',
       channelId: 'dm123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: jest.fn().mockReturnValue(true),
       platform: 'discord',
       args: [],

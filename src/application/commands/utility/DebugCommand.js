@@ -74,7 +74,7 @@ function createExecutor(dependencies = {}) {
             fields: [
               {
                 name: 'Help',
-                value: `Use \`${context.commandPrefix}debug\` to see available subcommands.`,
+                value: `Use \`${context.commandPrefix} debug\` to see available subcommands.`,
                 inline: false,
               },
             ],
@@ -99,7 +99,7 @@ function createExecutor(dependencies = {}) {
 async function showHelp(context) {
   const helpEmbed = {
     title: '🛠️ Debug Command Help',
-    description: `Usage: \`${context.commandPrefix}debug <subcommand>\``,
+    description: `Usage: \`${context.commandPrefix} debug <subcommand>\``,
     color: 0x2196f3,
     fields: [
       {

@@ -41,7 +41,7 @@ describe('VerifyCommand', () => {
       userId: 'user123',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: jest.fn().mockReturnValue(false),
       getGuildId: jest.fn().mockReturnValue('guild123'),
       args: [],

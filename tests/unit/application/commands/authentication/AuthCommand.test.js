@@ -47,7 +47,7 @@ describe('AuthCommand', () => {
       userId: 'user123',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: jest.fn().mockReturnValue(false),
       isWebhook: false,
       args: [],

@@ -23,13 +23,15 @@ class BackupJob {
    * @param {string} params.personalityName - Name of personality to backup
    * @param {string} params.userId - User ID requesting backup
    * @param {boolean} [params.isBulk=false] - Whether this is part of a bulk operation
+   * @param {boolean} [params.persistToFilesystem=true] - Whether to save backup to filesystem
    * @param {string} [params.id] - Unique job ID (auto-generated if not provided)
    */
-  constructor({ personalityName, userId, isBulk = false, id = null }) {
+  constructor({ personalityName, userId, isBulk = false, persistToFilesystem = true, id = null }) {
     this.id = id || this._generateId();
     this.personalityName = personalityName;
     this.userId = userId;
     this.isBulk = isBulk;
+    this.persistToFilesystem = persistToFilesystem;
     this.status = BackupStatus.PENDING;
     this.createdAt = new Date();
     this.startedAt = null;
@@ -156,6 +158,7 @@ class BackupJob {
       personalityName: this.personalityName,
       userId: this.userId,
       isBulk: this.isBulk,
+      persistToFilesystem: this.persistToFilesystem,
       status: this.status,
       createdAt: this.createdAt.toISOString(),
       startedAt: this.startedAt?.toISOString() || null,
@@ -175,6 +178,7 @@ class BackupJob {
       personalityName: data.personalityName,
       userId: data.userId,
       isBulk: data.isBulk,
+      persistToFilesystem: data.persistToFilesystem,
       id: data.id,
     });
 

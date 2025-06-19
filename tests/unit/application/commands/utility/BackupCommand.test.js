@@ -48,11 +48,14 @@ describe('BackupCommand', () => {
 
     mockApiClientService = {
       fetchPersonalityProfile: jest.fn(),
+      fetchCurrentUser: jest.fn(),
     };
 
     mockZipArchiveService = {
       createPersonalityArchive: jest.fn(),
+      createPersonalityArchiveFromMemory: jest.fn(),
       createBulkArchive: jest.fn(),
+      createBulkArchiveFromMemory: jest.fn(),
       isWithinDiscordLimits: jest.fn(),
       formatBytes: jest.fn(),
     };
@@ -71,11 +74,12 @@ describe('BackupCommand', () => {
       userId: 'user123',
       channelId: 'channel123',
       guildId: 'guild123',
-      commandPrefix: '!tz ',
+      commandPrefix: '!tz',
       isDM: jest.fn().mockReturnValue(false),
       args: [],
       options: {},
       respond: jest.fn().mockResolvedValue(undefined),
+      respondWithEmbed: jest.fn().mockResolvedValue(undefined),
     };
 
     // Mock environment
@@ -84,6 +88,7 @@ describe('BackupCommand', () => {
 
   afterEach(() => {
     delete process.env.SERVICE_WEBSITE;
+    delete process.env.BOT_OWNER_ID;
     // Ensure clean state between tests
     userSessions.clear();
   });
@@ -92,11 +97,11 @@ describe('BackupCommand', () => {
     it('should have correct command metadata', () => {
       expect(backupCommand.name).toBe('backup');
       expect(backupCommand.description).toBe(
-        'Backup personality data from the AI service (Requires Administrator permission)'
+        'Backup personality data from the AI service'
       );
       expect(backupCommand.category).toBe('Utility');
       expect(backupCommand.aliases).toEqual([]);
-      expect(backupCommand.adminOnly).toBe(true);
+      expect(backupCommand.permissions).toEqual(['USER']);
       expect(backupCommand.options).toHaveLength(3);
     });
 
@@ -121,16 +126,14 @@ describe('BackupCommand', () => {
 
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Configuration Error',
-            description:
-              'Backup API URL not configured. Please set SERVICE_WEBSITE in environment.',
-            color: 0xf44336,
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ Configuration Error',
+          description:
+            'Backup API URL not configured. Please set SERVICE_WEBSITE in environment.',
+          color: 0xf44336,
+        })
+      );
     });
   });
 
@@ -141,25 +144,23 @@ describe('BackupCommand', () => {
 
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '📦 Backup Command Help',
-            description: 'Backup personality data from the AI service',
-            color: 0x2196f3,
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'Usage',
-                value: expect.stringContaining('backup <personality-name>'),
-              }),
-              expect.objectContaining({
-                name: 'Data Types Backed Up',
-                value: expect.stringContaining('Profile configuration'),
-              }),
-            ]),
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '📦 Backup Command Help',
+          description: 'Backup personality data from the AI service',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Usage',
+              value: expect.stringContaining('backup <personality-name>'),
+            }),
+            expect.objectContaining({
+              name: 'Data Types Backed Up',
+              value: expect.stringContaining('Profile configuration'),
+            }),
+          ]),
+        })
+      );
     });
   });
 
@@ -178,15 +179,13 @@ describe('BackupCommand', () => {
         setAt: expect.any(Number),
       });
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '✅ Cookie Saved',
-            description: 'Session cookie saved! You can now use the backup command.',
-            color: 0x4caf50,
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '✅ Cookie Saved',
+          description: 'Session cookie saved! You can now use the backup command.',
+          color: 0x4caf50,
+        })
+      );
     });
 
     it('should use options.cookie if provided', async () => {
@@ -203,21 +202,19 @@ describe('BackupCommand', () => {
 
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Missing Cookie',
-            description: 'Please provide your session cookie.',
-            color: 0xf44336,
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'How to get your session cookie:',
-                value: expect.stringContaining('Open the service website'),
-              }),
-            ]),
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ Missing Cookie',
+          description: 'Please provide your session cookie.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'How to get your session cookie:',
+              value: expect.stringContaining('Open the service website'),
+            }),
+          ]),
+        })
+      );
     });
 
     it('should reject cookie setting in non-DM channels', async () => {
@@ -226,16 +223,14 @@ describe('BackupCommand', () => {
 
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Security Restriction',
-            description:
-              'For security, please set your session cookie via DM, not in a public channel.',
-            color: 0xf44336,
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ Security Restriction',
+          description:
+            'For security, please set your session cookie via DM, not in a public channel.',
+          color: 0xf44336,
+        })
+      );
 
       expect(userSessions.has('user123')).toBe(false);
     });
@@ -247,21 +242,19 @@ describe('BackupCommand', () => {
 
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Authentication Required',
-            description: 'Session cookie required for backup operations.',
-            color: 0xf44336,
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'How to set your session cookie:',
-                value: expect.stringContaining('backup set-cookie'),
-              }),
-            ]),
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ Authentication Required',
+          description: 'Session cookie required for backup operations.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'How to set your session cookie:',
+              value: expect.stringContaining('backup set-cookie'),
+            }),
+          ]),
+        })
+      );
     });
   });
 
@@ -270,14 +263,37 @@ describe('BackupCommand', () => {
       // Set up auth data
       userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
 
-      // Mock successful backup
-      const completedJob = new BackupJob({
-        personalityName: 'TestPersonality',
-        userId: 'user123',
+      // Mock successful backup with proper personalityData setup
+      mockBackupService.executeBackup.mockImplementation(async (job, authData, progressCallback) => {
+        job.start();
+        
+        // Simulate the backup service setting personalityData and userDisplayPrefix
+        job.personalityData = {
+          name: 'testpersonality',
+          profile: { id: 'test-id', name: 'TestPersonality' },
+          memories: [{ id: 'mem1', content: 'Test memory' }],
+          knowledge: [],
+          training: [],
+          userPersonalization: {},
+          chatHistory: [],
+          metadata: { lastBackup: new Date().toISOString() }
+        };
+        
+        job.userDisplayPrefix = 'test-user';
+        
+        const results = {
+          profile: { updated: true },
+          memories: { newCount: 1, totalCount: 1, updated: true },
+          knowledge: { updated: true, entryCount: 0 },
+          training: { updated: true, entryCount: 0 },
+          userPersonalization: { updated: true },
+          chatHistory: { newMessageCount: 1, totalMessages: 1, updated: true }
+        };
+        
+        job.complete(results);
+        
+        return job;
       });
-      completedJob.start();
-      completedJob.complete({});
-      mockBackupService.executeBackup.mockResolvedValue(completedJob);
     });
 
     it('should execute single personality backup', async () => {
@@ -306,12 +322,51 @@ describe('BackupCommand', () => {
         '[BackupCommand] Single backup error: Backup failed'
       );
     });
+
+    it('should set persistToFilesystem based on bot owner status for single backup', async () => {
+      // Test as bot owner
+      process.env.BOT_OWNER_ID = 'user123';
+      mockContext.args = ['TestPersonality'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBackup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityName: 'testpersonality',
+          userId: 'user123',
+          isBulk: false,
+          persistToFilesystem: true, // Should be true for bot owner
+        }),
+        { cookie: 'session=test' },
+        expect.any(Function)
+      );
+
+      // Clear mocks and test as non-owner
+      jest.clearAllMocks();
+      process.env.BOT_OWNER_ID = 'different-user-id';
+      
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBackup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityName: 'testpersonality',
+          userId: 'user123',
+          isBulk: false,
+          persistToFilesystem: false, // Should be false for non-owner
+        }),
+        { cookie: 'session=test' },
+        expect.any(Function)
+      );
+    });
   });
 
   describe('execute - bulk backup', () => {
     beforeEach(() => {
       // Set up auth data
       userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      // Set user as bot owner for bulk backup tests
+      process.env.BOT_OWNER_ID = 'user123';
 
       // Mock successful bulk backup
       const jobs = [
@@ -335,7 +390,8 @@ describe('BackupCommand', () => {
         ['Personality1', 'Personality2', 'Personality3'],
         'user123',
         { cookie: 'session=test' },
-        expect.any(Function) // Progress callback
+        expect.any(Function), // Progress callback
+        true // persistToFilesystem (bot owner)
       );
     });
 
@@ -356,15 +412,13 @@ describe('BackupCommand', () => {
       mockContext.args = ['all'];
       await backupCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ No Personalities',
-            description: 'No owner personalities configured.',
-            color: 0xf44336,
-          }),
-        ],
-      });
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ No Personalities',
+          description: 'No owner personalities configured.',
+          color: 0xf44336,
+        })
+      );
 
       // Restore original value
       USER_CONFIG.OWNER_PERSONALITIES_LIST = originalList;
@@ -379,6 +433,28 @@ describe('BackupCommand', () => {
       expect(logger.error).toHaveBeenCalledWith(
         '[BackupCommand] Bulk backup error: Bulk backup failed'
       );
+    });
+
+    it('should deny bulk backup for non-owner users', async () => {
+      // Override to make user not the bot owner
+      process.env.BOT_OWNER_ID = 'different-user-id';
+      
+      // Set up auth data for non-owner user
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      mockContext.args = ['all'];
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: '❌ Access Denied',
+          description: 'Bulk backup is only available to the bot owner. Use single personality backup instead.',
+          color: 0xf44336,
+        })
+      );
+
+      // Should not call backup service
+      expect(mockBackupService.executeBulkBackup).not.toHaveBeenCalled();
     });
   });
 
@@ -426,9 +502,12 @@ describe('BackupCommand', () => {
     });
 
     it('should pass progress messages for bulk backup', async () => {
+      // Set user as bot owner for bulk backup
+      process.env.BOT_OWNER_ID = 'user123';
+      
       let progressCallback;
       mockBackupService.executeBulkBackup.mockImplementation(
-        (personalities, userId, authData, callback) => {
+        (personalities, userId, authData, callback, persistToFilesystem) => {
           progressCallback = callback;
           return Promise.resolve([]);
         }
@@ -450,7 +529,7 @@ describe('BackupCommand', () => {
 
       expect(command).toBeDefined();
       expect(command.name).toBe('backup');
-      expect(command.adminOnly).toBe(true);
+      expect(command.permissions).toEqual(['USER']);
     });
 
     it('should create command with custom dependencies', () => {
@@ -537,30 +616,44 @@ describe('BackupCommand', () => {
     beforeEach(() => {
       userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
       
-      // Mock successful backup job
-      const successfulJob = new BackupJob({
-        personalityName: 'testpersonality',
-        userId: 'user123',
-        isBulk: false,
+      // Mock successful backup with proper personalityData setup
+      mockBackupService.executeBackup.mockImplementation(async (job, authData, progressCallback) => {
+        job.start();
+        
+        // Simulate the backup service setting personalityData and userDisplayPrefix
+        job.personalityData = {
+          name: 'testpersonality',
+          profile: { id: 'test-id', name: 'TestPersonality' },
+          memories: [{ id: 'mem1', content: 'Test memory' }],
+          knowledge: [],
+          training: [],
+          userPersonalization: {},
+          chatHistory: [],
+          metadata: { lastBackup: new Date().toISOString() }
+        };
+        
+        job.userDisplayPrefix = 'test-user';
+        
+        const results = {
+          profile: { updated: true },
+          memories: { newCount: 5, totalCount: 10, updated: true },
+          knowledge: { updated: false, entryCount: 3 },
+          training: { updated: true, entryCount: 7 },
+          userPersonalization: { updated: false },
+          chatHistory: { newMessageCount: 15, totalMessages: 100, updated: true }
+        };
+        
+        job.complete(results);
+        
+        return job;
       });
-      successfulJob.start();
-      successfulJob.complete({
-        profile: { updated: true },
-        memories: { newCount: 5, totalCount: 10, updated: true },
-        knowledge: { updated: false, entryCount: 3 },
-        training: { updated: true, entryCount: 7 },
-        userPersonalization: { updated: false },
-        chatHistory: { newMessageCount: 15, totalMessages: 100, updated: true },
-      });
-      
-      mockBackupService.executeBackup.mockResolvedValue(successfulJob);
     });
 
     describe('single personality backup', () => {
       const mockZipBuffer = Buffer.from('mock-zip-content');
 
       beforeEach(() => {
-        mockZipArchiveService.createPersonalityArchive.mockResolvedValue(mockZipBuffer);
+        mockZipArchiveService.createPersonalityArchiveFromMemory.mockResolvedValue(mockZipBuffer);
         mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
         mockZipArchiveService.formatBytes.mockReturnValue('1.5 MB');
       });
@@ -570,9 +663,26 @@ describe('BackupCommand', () => {
         await backupCommand.execute(mockContext);
 
         // Verify ZIP creation
-        expect(mockZipArchiveService.createPersonalityArchive).toHaveBeenCalledWith(
+        expect(mockZipArchiveService.createPersonalityArchiveFromMemory).toHaveBeenCalledWith(
           'testpersonality',
-          expect.stringContaining('testpersonality')
+          expect.objectContaining({
+            name: 'testpersonality',
+            profile: expect.any(Object),
+            memories: expect.any(Array),
+            knowledge: expect.any(Array),
+            training: expect.any(Array),
+            userPersonalization: expect.any(Object),
+            chatHistory: expect.any(Array),
+            metadata: expect.any(Object)
+          }),
+          expect.objectContaining({
+            profile: expect.any(Object),
+            memories: expect.any(Object),
+            knowledge: expect.any(Object),
+            training: expect.any(Object),
+            userPersonalization: expect.any(Object),
+            chatHistory: expect.any(Object)
+          })
         );
 
         // Verify Discord limit check
@@ -585,7 +695,7 @@ describe('BackupCommand', () => {
         expect(embedCall).toBeDefined();
         expect(embedCall[0].files[0]).toEqual({
           attachment: mockZipBuffer,
-          name: expect.stringMatching(/^testpersonality_backup_\d{4}-\d{2}-\d{2}\.zip$/),
+          name: expect.stringMatching(/^test-user_testpersonality_backup_\d{4}-\d{2}-\d{2}\.zip$/),
         });
         expect(embedCall[0].embeds[0].title).toBe('✅ Backup Complete');
         expect(embedCall[0].embeds[0].fields).toContainEqual({
@@ -597,7 +707,7 @@ describe('BackupCommand', () => {
 
       it('should handle ZIP files that exceed Discord limits', async () => {
         const largeBuffer = Buffer.alloc(10 * 1024 * 1024); // 10MB
-        mockZipArchiveService.createPersonalityArchive.mockResolvedValue(largeBuffer);
+        mockZipArchiveService.createPersonalityArchiveFromMemory.mockResolvedValue(largeBuffer);
         mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(false);
         mockZipArchiveService.formatBytes.mockReturnValue('10 MB');
 
@@ -611,16 +721,16 @@ describe('BackupCommand', () => {
         expect(attachmentCall).toBeUndefined();
 
         // Should send warning embed
-        const warningCall = mockContext.respond.mock.calls.find(
-          call => call[0].embeds && call[0].embeds[0].title === '⚠️ File Too Large'
+        const warningCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '⚠️ File Too Large'
         );
         expect(warningCall).toBeDefined();
-        expect(warningCall[0].embeds[0].description).toContain('10 MB');
-        expect(warningCall[0].embeds[0].description).toContain('Maximum file size is 8MB');
+        expect(warningCall[0].description).toContain('10 MB');
+        expect(warningCall[0].description).toContain('Maximum file size is 8MB');
       });
 
       it('should handle ZIP creation errors gracefully', async () => {
-        mockZipArchiveService.createPersonalityArchive.mockRejectedValue(
+        mockZipArchiveService.createPersonalityArchiveFromMemory.mockRejectedValue(
           new Error('ZIP creation failed')
         );
 
@@ -633,11 +743,11 @@ describe('BackupCommand', () => {
         );
 
         // Should send warning embed
-        const warningCall = mockContext.respond.mock.calls.find(
-          call => call[0].embeds && call[0].embeds[0].title === '⚠️ Archive Creation Failed'
+        const warningCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '⚠️ Archive Creation Failed'
         );
         expect(warningCall).toBeDefined();
-        expect(warningCall[0].embeds[0].description).toContain(
+        expect(warningCall[0].description).toContain(
           'The backup was successful but failed to create ZIP archive'
         );
       });
@@ -648,7 +758,10 @@ describe('BackupCommand', () => {
       const personalities = ['Personality1', 'Personality2', 'Personality3'];
 
       beforeEach(() => {
-        mockZipArchiveService.createBulkArchive.mockResolvedValue(mockBulkZipBuffer);
+        // Set user as bot owner for bulk backup tests
+        process.env.BOT_OWNER_ID = 'user123';
+        
+        mockZipArchiveService.createBulkArchiveFromMemory.mockResolvedValue(mockBulkZipBuffer);
         mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
         mockZipArchiveService.formatBytes.mockReturnValue('3.2 MB');
         
@@ -661,6 +774,22 @@ describe('BackupCommand', () => {
           });
           job.start();
           job.complete({});
+          
+          // Add mock personality data for ZIP creation
+          job.personalityData = {
+            name: name.toLowerCase(),
+            profile: { id: 'test-id', name: name },
+            memories: [{ id: 'mem1', content: 'Test memory' }],
+            knowledge: [],
+            training: [],
+            userPersonalization: {},
+            chatHistory: [],
+            metadata: { lastBackup: new Date().toISOString() }
+          };
+          
+          // Add user display prefix for bulk ZIP naming
+          job.userDisplayPrefix = 'test-user';
+          
           return job;
         });
         
@@ -672,11 +801,20 @@ describe('BackupCommand', () => {
         await backupCommand.execute(mockContext);
 
         // Verify bulk ZIP creation
-        expect(mockZipArchiveService.createBulkArchive).toHaveBeenCalledWith(
+        expect(mockZipArchiveService.createBulkArchiveFromMemory).toHaveBeenCalledWith(
           expect.arrayContaining([
-            expect.objectContaining({ name: 'personality1' }),
-            expect.objectContaining({ name: 'personality2' }),
-            expect.objectContaining({ name: 'personality3' }),
+            expect.objectContaining({ 
+              personalityName: 'personality1',
+              personalityData: expect.any(Object) 
+            }),
+            expect.objectContaining({ 
+              personalityName: 'personality2',
+              personalityData: expect.any(Object) 
+            }),
+            expect.objectContaining({ 
+              personalityName: 'personality3',
+              personalityData: expect.any(Object) 
+            }),
           ])
         );
 
@@ -687,7 +825,7 @@ describe('BackupCommand', () => {
         expect(embedCall).toBeDefined();
         expect(embedCall[0].files[0]).toEqual({
           attachment: mockBulkZipBuffer,
-          name: expect.stringMatching(/^tzurot_bulk_backup_\d{4}-\d{2}-\d{2}\.zip$/),
+          name: expect.stringMatching(/^test-user_tzurot_bulk_backup_\d{4}-\d{2}-\d{2}\.zip$/),
         });
         expect(embedCall[0].embeds[0].title).toBe('✅ Bulk Backup Complete');
         expect(embedCall[0].embeds[0].fields).toContainEqual({
@@ -699,7 +837,7 @@ describe('BackupCommand', () => {
 
       it('should handle bulk ZIP files that exceed Discord limits', async () => {
         const largeBulkBuffer = Buffer.alloc(20 * 1024 * 1024); // 20MB
-        mockZipArchiveService.createBulkArchive.mockResolvedValue(largeBulkBuffer);
+        mockZipArchiveService.createBulkArchiveFromMemory.mockResolvedValue(largeBulkBuffer);
         mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(false);
         mockZipArchiveService.formatBytes.mockReturnValue('20 MB');
 
@@ -713,15 +851,15 @@ describe('BackupCommand', () => {
         expect(attachmentCall).toBeUndefined();
 
         // Should send warning embed
-        const warningCall = mockContext.respond.mock.calls.find(
-          call => call[0].embeds && call[0].embeds[0].title === '⚠️ File Too Large'
+        const warningCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '⚠️ File Too Large'
         );
         expect(warningCall).toBeDefined();
-        expect(warningCall[0].embeds[0].description).toContain('20 MB');
+        expect(warningCall[0].description).toContain('20 MB');
       });
 
       it('should handle bulk ZIP creation errors gracefully', async () => {
-        mockZipArchiveService.createBulkArchive.mockRejectedValue(
+        mockZipArchiveService.createBulkArchiveFromMemory.mockRejectedValue(
           new Error('Bulk ZIP creation failed')
         );
 
@@ -734,25 +872,33 @@ describe('BackupCommand', () => {
         );
 
         // Should send warning embed
-        const warningCall = mockContext.respond.mock.calls.find(
-          call => call[0].embeds && call[0].embeds[0].title === '⚠️ Archive Creation Failed'
+        const warningCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '⚠️ Archive Creation Failed'
         );
         expect(warningCall).toBeDefined();
       });
     });
 
     describe('path construction', () => {
-      it('should use correct paths for personality data', async () => {
+      it('should use correct in-memory data for ZIP creation', async () => {
         mockContext.args = ['TestPersonality'];
         await backupCommand.execute(mockContext);
 
-        expect(mockZipArchiveService.createPersonalityArchive).toHaveBeenCalledWith(
+        expect(mockZipArchiveService.createPersonalityArchiveFromMemory).toHaveBeenCalledWith(
           'testpersonality',
-          expect.stringMatching(/data[/\\]personalities[/\\]testpersonality$/)
+          expect.objectContaining({
+            name: 'testpersonality',
+            profile: expect.any(Object),
+            memories: expect.any(Array)
+          }),
+          expect.any(Object) // job.results
         );
       });
 
       it('should handle empty owner personality list', async () => {
+        // Set user as bot owner for bulk backup access
+        process.env.BOT_OWNER_ID = 'user123';
+        
         // Mock empty personality list
         jest.resetModules();
         jest.doMock('../../../../../src/constants', () => ({
@@ -777,11 +923,11 @@ describe('BackupCommand', () => {
         mockContext.args = ['all'];
         await emptyCommand.execute(mockContext);
 
-        const errorCall = mockContext.respond.mock.calls.find(
-          call => call[0].embeds && call[0].embeds[0].title === '❌ No Personalities'
+        const errorCall = mockContext.respondWithEmbed.mock.calls.find(
+          call => call[0].title === '❌ No Personalities'
         );
         expect(errorCall).toBeDefined();
-        expect(mockZipArchiveService.createBulkArchive).not.toHaveBeenCalled();
+        expect(mockZipArchiveService.createBulkArchiveFromMemory).not.toHaveBeenCalled();
       });
     });
   });

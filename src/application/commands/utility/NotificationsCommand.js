@@ -36,9 +36,8 @@ function getLevelDescription(level) {
 function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
-      const {
-        releaseNotificationManager = require('../../../core/notifications').getReleaseNotificationManager(),
-      } = dependencies;
+      const { releaseNotificationManager = require('../../../core/notifications').getInstance() } =
+        dependencies;
 
       // Get subcommand from args or options
       const subcommand = context.options.action || context.args[0]?.toLowerCase();
@@ -96,7 +95,7 @@ async function showStatus(context, userId, manager) {
             inline: true,
           },
         ],
-        footer: { text: `Use ${context.commandPrefix}help notifications for more options` },
+        footer: { text: `Use ${context.commandPrefix} help notifications for more options` },
       };
 
       await context.respondWithEmbed(embed);
@@ -126,7 +125,7 @@ async function optOut(context, userId, manager) {
         color: 0xff0000,
         title: '🔕 Opted Out',
         description: 'You have been opted out of release notifications.',
-        footer: { text: `Use ${context.commandPrefix}notifications on to opt back in` },
+        footer: { text: `Use ${context.commandPrefix} notifications on to opt back in` },
       };
 
       await context.respondWithEmbed(embed);
@@ -157,7 +156,7 @@ async function optIn(context, userId, manager) {
           },
         ],
         footer: {
-          text: `Use ${context.commandPrefix}notifications level <type> to change notification level`,
+          text: `Use ${context.commandPrefix} notifications level <type> to change notification level`,
         },
       };
 
