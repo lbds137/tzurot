@@ -161,7 +161,7 @@ function createAliasCommand() {
           const personality = await personalityService.addAlias({
             personalityName: personalityNameOrAlias,
             alias: newAlias,
-            requesterId: userId
+            requesterId: userId,
           });
 
           const displayName = personality.profile.displayName || personality.profile.name;
@@ -212,7 +212,7 @@ function createAliasCommand() {
           return await context.respond({ embeds: [embedData] });
         } catch (error) {
           logger.error('[AliasCommand] Error adding alias:', error);
-          
+
           // Handle specific errors
           if (error.message.includes('not found')) {
             const errorEmbed = {
@@ -237,7 +237,7 @@ function createAliasCommand() {
           if (error.message.includes('owner')) {
             const errorEmbed = {
               title: '❌ Permission Denied',
-              description: "You can only add aliases to personalities you own.",
+              description: 'You can only add aliases to personalities you own.',
               color: 0xf44336, // Red color
               fields: [
                 {

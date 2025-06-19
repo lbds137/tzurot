@@ -42,11 +42,11 @@ function createExecutor(dependencies) {
     const personalityService = context.dependencies.personalityApplicationService;
     const conversationManager = context.dependencies.conversationManager;
 
-    logger.info(`[ActivateCommand] Executing for channel ${context.channelId}`);
+    logger.info(`[ActivateCommand] Executing for channel ${context.getChannelId()}`);
 
     try {
       // Validate this is a guild channel
-      if (!context.guildId) {
+      if (!context.getGuildId()) {
         return await context.respond(
           '❌ The activate command can only be used in server channels, not DMs.'
         );
@@ -99,9 +99,9 @@ function createExecutor(dependencies) {
 
       // Activate the personality in this channel
       try {
-        await conversationManager.activatePersonality(context.channelId, personality.name);
+        await conversationManager.activatePersonality(context.getChannelId(), personality.name);
         logger.info(
-          `[ActivateCommand] Successfully activated ${personality.name} in channel ${context.channelId}`
+          `[ActivateCommand] Successfully activated ${personality.name} in channel ${context.getChannelId()}`
         );
       } catch (error) {
         logger.error('[ActivateCommand] Error activating personality:', error);
@@ -121,7 +121,7 @@ function createExecutor(dependencies) {
           },
           {
             name: 'Channel',
-            value: `<#${context.channelId}>`,
+            value: `<#${context.getChannelId()}>`,
             inline: true,
           },
           {

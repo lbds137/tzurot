@@ -30,11 +30,11 @@ function createExecutor(dependencies) {
   return async function execute(context) {
     const conversationManager = context.dependencies.conversationManager;
 
-    logger.info(`[DeactivateCommand] Executing for channel ${context.channelId}`);
+    logger.info(`[DeactivateCommand] Executing for channel ${context.getChannelId()}`);
 
     try {
       // Validate this is a guild channel
-      if (!context.guildId) {
+      if (!context.getGuildId()) {
         return await context.respond(
           '❌ The deactivate command can only be used in server channels, not DMs.'
         );
@@ -49,16 +49,16 @@ function createExecutor(dependencies) {
       }
 
       // Check if there's an active personality
-      const activePersonality = conversationManager.getActivatedPersonality(context.channelId);
+      const activePersonality = conversationManager.getActivatedPersonality(context.getChannelId());
       if (!activePersonality) {
         return await context.respond('❌ There is no active personality in this channel.');
       }
 
       // Deactivate the personality
       try {
-        conversationManager.deactivatePersonality(context.channelId);
+        conversationManager.deactivatePersonality(context.getChannelId());
         logger.info(
-          `[DeactivateCommand] Successfully deactivated ${activePersonality} in channel ${context.channelId}`
+          `[DeactivateCommand] Successfully deactivated ${activePersonality} in channel ${context.getChannelId()}`
         );
       } catch (error) {
         logger.error('[DeactivateCommand] Error deactivating personality:', error);
@@ -78,7 +78,7 @@ function createExecutor(dependencies) {
           },
           {
             name: 'Channel',
-            value: `<#${context.channelId}>`,
+            value: `<#${context.getChannelId()}>`,
             inline: true,
           },
           {

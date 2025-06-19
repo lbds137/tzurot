@@ -255,10 +255,11 @@ class PersonalityRouter {
   _convertDDDToLegacyFormat(dddPersonality) {
     // Handle both the direct personality object and the result from repository
     const personality = dddPersonality.profile ? dddPersonality : dddPersonality;
-    
+
     return {
       fullName: personality.profile?.name || personality.name,
-      displayName: personality.profile?.displayName || personality.profile?.name || personality.name,
+      displayName:
+        personality.profile?.displayName || personality.profile?.name || personality.name,
       owner: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
       aliases: personality.aliases?.map(a => a.value || a.alias || a) || [],
       avatarUrl: personality.profile?.avatarUrl,
