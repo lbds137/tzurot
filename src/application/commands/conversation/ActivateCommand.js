@@ -38,9 +38,9 @@ function createActivateCommand(dependencies = {}) {
  */
 function createExecutor(dependencies) {
   return async function execute(context) {
-    const { args, options, services } = context;
-    const personalityService = services.personalityApplicationService;
-    const conversationManager = services.conversationManager;
+    const { args, options } = context;
+    const personalityService = context.dependencies.personalityApplicationService;
+    const conversationManager = context.dependencies.conversationManager;
 
     logger.info(`[ActivateCommand] Executing for channel ${context.channelId}`);
 
@@ -93,7 +93,7 @@ function createExecutor(dependencies) {
 
       if (!personality) {
         return await context.respond(
-          `❌ Personality "${personalityInput}" not found. Use \`${services.botPrefix} list\` to see available personalities.`
+          `❌ Personality "${personalityInput}" not found. Use \`${context.dependencies.botPrefix} list\` to see available personalities.`
         );
       }
 
@@ -126,7 +126,7 @@ function createExecutor(dependencies) {
           },
           {
             name: 'How to Deactivate',
-            value: `Use \`${services.botPrefix} deactivate\` to stop ${personality.name} from responding.`,
+            value: `Use \`${context.dependencies.botPrefix} deactivate\` to stop ${personality.name} from responding.`,
             inline: false,
           },
         ],

@@ -28,8 +28,7 @@ function createDeactivateCommand(dependencies = {}) {
  */
 function createExecutor(dependencies) {
   return async function execute(context) {
-    const { services } = context;
-    const conversationManager = services.conversationManager;
+    const conversationManager = context.dependencies.conversationManager;
 
     logger.info(`[DeactivateCommand] Executing for channel ${context.channelId}`);
 
