@@ -253,17 +253,21 @@ class PersonalityRouter {
    * @returns {Object} Legacy format personality
    */
   _convertDDDToLegacyFormat(dddPersonality) {
+    // Handle both the direct personality object and the result from repository
+    const personality = dddPersonality.profile ? dddPersonality : dddPersonality;
+    
     return {
-      fullName: dddPersonality.name,
-      displayName: dddPersonality.profile.displayName || dddPersonality.name,
-      owner: dddPersonality.ownerId,
-      aliases: dddPersonality.aliases.map(a => a.alias),
-      avatarUrl: dddPersonality.profile.avatarUrl,
-      nsfwContent: dddPersonality.profile.isNSFW,
-      temperature: dddPersonality.profile.temperature,
-      maxWordCount: dddPersonality.profile.maxWordCount,
-      createdAt: dddPersonality.createdAt?.toISOString(),
-      updatedAt: dddPersonality.updatedAt?.toISOString(),
+      fullName: personality.profile?.name || personality.name,
+      displayName: personality.profile?.displayName || personality.profile?.name || personality.name,
+      owner: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
+      aliases: personality.aliases?.map(a => a.value || a.alias || a) || [],
+      avatarUrl: personality.profile?.avatarUrl,
+      nsfwContent: personality.profile?.isNSFW,
+      temperature: personality.profile?.temperature,
+      maxWordCount: personality.profile?.maxWordCount,
+      // createdAt and updatedAt are already ISO strings in DDD
+      createdAt: personality.createdAt,
+      updatedAt: personality.updatedAt,
     };
   }
 }
