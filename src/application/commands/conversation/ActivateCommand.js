@@ -100,7 +100,8 @@ function createExecutor(dependencies) {
       // Activate the personality in this channel
       try {
         // Use the correct property based on the format (DDD uses profile.name, legacy uses fullName)
-        const personalityName = personality.profile?.name || personality.fullName || personality.name;
+        const personalityName =
+          personality.profile?.name || personality.fullName || personality.name;
         await conversationManager.activatePersonality(context.getChannelId(), personalityName);
         logger.info(
           `[ActivateCommand] Successfully activated ${personalityName} in channel ${context.getChannelId()}`
@@ -118,7 +119,11 @@ function createExecutor(dependencies) {
         fields: [
           {
             name: 'Personality',
-            value: personality.profile?.displayName || personality.profile?.name || personality.displayName || personality.fullName,
+            value:
+              personality.profile?.displayName ||
+              personality.profile?.name ||
+              personality.displayName ||
+              personality.fullName,
             inline: true,
           },
           {
@@ -132,7 +137,10 @@ function createExecutor(dependencies) {
             inline: false,
           },
         ],
-        thumbnail: (personality.profile?.avatarUrl || personality.avatarUrl) ? { url: personality.profile?.avatarUrl || personality.avatarUrl } : undefined,
+        thumbnail:
+          personality.profile?.avatarUrl || personality.avatarUrl
+            ? { url: personality.profile?.avatarUrl || personality.avatarUrl }
+            : undefined,
         timestamp: new Date().toISOString(),
       };
 

@@ -49,9 +49,33 @@ function createResetCommand() {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
             const botPrefix = context.dependencies.botPrefix || '!tz';
-            return await context.respond(
-              `You need to provide a personality name or alias. Usage: \`${botPrefix} reset <personality>\``
-            );
+            const usageEmbed = {
+              title: '❌ Missing Personality Name',
+              description: 'Please provide a personality name or alias to reset.',
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Usage',
+                  value: `\`${botPrefix} reset <personality>\``,
+                  inline: false,
+                },
+                {
+                  name: 'Examples',
+                  value: `• \`${botPrefix} reset Claude\`\n• \`${botPrefix} reset aria\`\n• \`${botPrefix} reset "bambi prime\"\``,
+                  inline: false,
+                },
+                {
+                  name: 'What does reset do?',
+                  value:
+                    'Clears all conversation history with the personality in this channel, starting fresh.',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Use the list command to see available personalities',
+              },
+            };
+            return await context.respond({ embeds: [usageEmbed] });
           }
 
           personalityNameOrAlias = context.args[0].toLowerCase();
@@ -59,7 +83,13 @@ function createResetCommand() {
 
         // Validate input
         if (!personalityNameOrAlias || personalityNameOrAlias.length === 0) {
-          return await context.respond('Please provide a personality name or alias.');
+          const validationEmbed = {
+            title: '❌ Invalid Input',
+            description: 'Please provide a valid personality name or alias.',
+            color: 0xf44336, // Red color
+            timestamp: new Date().toISOString(),
+          };
+          return await context.respond({ embeds: [validationEmbed] });
         }
 
         // Check if using new system for personality lookup
@@ -74,35 +104,95 @@ function createResetCommand() {
           const personality = await personalityService.getPersonality(personalityNameOrAlias);
 
           if (!personality) {
-            return await context.respond(
-              `Personality "${personalityNameOrAlias}" not found. Please check the name or alias and try again.`
-            );
+            const notFoundEmbed = {
+              title: '❌ Personality Not Found',
+              description: `Could not find a personality named **${personalityNameOrAlias}**.`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Search term',
+                  value: personalityNameOrAlias,
+                  inline: true,
+                },
+                {
+                  name: 'What to do',
+                  value: `• Check the spelling and try again\n• Use \`${context.dependencies.botPrefix || '!tz'} list\` to see available personalities\n• Personality names are case-insensitive`,
+                  inline: false,
+                },
+              ],
+              timestamp: new Date().toISOString(),
+            };
+            return await context.respond({ embeds: [notFoundEmbed] });
           }
 
           // Clear the conversation for this personality in this channel
           // Note: This uses the legacy conversation system for now
           // In the future, this will use ConversationApplicationService
+          const personalityName =
+            personality.profile?.name || personality.fullName || personality.name;
           const cleared = conversationManager.clearConversation(
             context.getUserId(),
             context.getChannelId(),
-            personality.profile.name
+            personalityName
           );
 
           if (!cleared) {
-            return await context.respond(
-              `No active conversation found with **${personality.profile.displayName || personality.profile.name}** in this channel.`
-            );
+            const noConversationEmbed = {
+              title: '❌ No Active Conversation',
+              description: `No active conversation found with **${personality.profile?.displayName || personality.profile?.name || personality.displayName || personality.fullName}** in this channel.`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'How to start a conversation',
+                  value: `• Mention @${personalityName} to start chatting\n• Reply to a personality message\n• Use activate command for channel-wide responses`,
+                  inline: false,
+                },
+              ],
+              timestamp: new Date().toISOString(),
+            };
+            return await context.respond({ embeds: [noConversationEmbed] });
           }
 
-          // Create response message
-          const displayName = personality.profile.displayName || personality.profile.name;
-          let response = `✅ Conversation with **${displayName}** has been reset in this channel.`;
+          // Create success embed
+          const displayName =
+            personality.profile?.displayName ||
+            personality.profile?.name ||
+            personality.displayName ||
+            personality.fullName;
+          const successEmbed = {
+            title: '✅ Conversation Reset',
+            description: `Your conversation with **${displayName}** has been reset in this channel.`,
+            color: 0x4caf50, // Green color
+            fields: [
+              {
+                name: 'Personality',
+                value: displayName,
+                inline: true,
+              },
+              {
+                name: 'Channel',
+                value: `<#${context.getChannelId()}>`,
+                inline: true,
+              },
+              {
+                name: 'What happened?',
+                value:
+                  'All conversation history and context has been cleared. The next message will start a fresh conversation.',
+                inline: false,
+              },
+            ],
+            thumbnail:
+              personality.profile?.avatarUrl || personality.avatarUrl
+                ? { url: personality.profile?.avatarUrl || personality.avatarUrl }
+                : undefined,
+            timestamp: new Date().toISOString(),
+          };
 
           if (useNewSystem) {
-            response += '\n*(Using new DDD system for personality lookup)*';
+            successEmbed.footer = { text: 'Using new DDD system' };
           }
 
-          return await context.respond(response);
+          return await context.respond({ embeds: [successEmbed] });
         } catch (error) {
           logger.error('[ResetCommand] Error resetting conversation:', error);
           throw error;
@@ -110,10 +200,29 @@ function createResetCommand() {
       } catch (error) {
         logger.error('[ResetCommand] Error:', error);
 
-        return await context.respond(
-          '❌ An error occurred while resetting the conversation. ' +
-            'Please try again later or contact support if the issue persists.'
-        );
+        const errorEmbed = {
+          title: '❌ Error Resetting Conversation',
+          description: 'An error occurred while trying to reset the conversation.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'Error details',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value:
+                '• Try again in a moment\n• Check if the personality exists\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
     },
   });
