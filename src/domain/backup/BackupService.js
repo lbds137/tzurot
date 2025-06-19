@@ -40,6 +40,18 @@ class BackupService {
    * @returns {Promise<BackupJob>} Completed job
    */
   async executeBackup(job, authData, progressCallback = null) {
+    return this.executeBackupWithCachedUser(job, authData, progressCallback, null);
+  }
+
+  /**
+   * Execute backup for a single personality with optional cached user data
+   * @param {BackupJob} job - Backup job to execute
+   * @param {Object} authData - Authentication data
+   * @param {Function} [progressCallback] - Callback for progress updates
+   * @param {Object} [cachedCurrentUser] - Pre-fetched current user data (for bulk operations)
+   * @returns {Promise<BackupJob>} Completed job
+   */
+  async executeBackupWithCachedUser(job, authData, progressCallback = null, cachedCurrentUser = null) {
     if (!(job instanceof BackupJob)) {
       throw new Error('Invalid job: must be BackupJob instance');
     }
@@ -66,8 +78,14 @@ class BackupService {
       let userDisplayPrefix = null;
 
       try {
-        // Fetch current user
-        currentUser = await this.apiClientService.fetchCurrentUser(authData);
+        // Use cached user if available (for bulk operations), otherwise fetch current user
+        if (cachedCurrentUser) {
+          currentUser = cachedCurrentUser;
+          logger.debug(`[BackupService] Using cached current user for ${job.personalityName}: ${currentUser.id}`);
+        } else {
+          currentUser = await this.apiClientService.fetchCurrentUser(authData);
+          logger.debug(`[BackupService] Fetched current user for ${job.personalityName}: ${currentUser?.id}`);
+        }
 
         // Extract user display name for file prefixing
         if (currentUser && currentUser.displayName) {
@@ -82,7 +100,24 @@ class BackupService {
         );
 
         if (currentUser && currentUser.id && personalityProfile && personalityProfile.user_id) {
-          isOwner = currentUser.id === personalityProfile.user_id;
+          // Convert both IDs to strings for comparison to handle type differences
+          const currentUserId = String(currentUser.id);
+          const profileUserId = String(personalityProfile.user_id);
+          isOwner = currentUserId === profileUserId;
+          
+          logger.debug(
+            `[BackupService] Ownership comparison for ${job.personalityName}: currentUser.id="${currentUserId}" (type: ${typeof currentUser.id}) vs personalityProfile.user_id="${profileUserId}" (type: ${typeof personalityProfile.user_id})`
+          );
+          
+          if (!isOwner) {
+            logger.warn(
+              `[BackupService] IDs don't match for ${job.personalityName}: "${currentUserId}" !== "${profileUserId}"`
+            );
+          }
+        } else {
+          logger.debug(
+            `[BackupService] Missing data for ownership check: currentUser=${!!currentUser} (id: ${currentUser?.id}), personalityProfile=${!!personalityProfile} (user_id: ${personalityProfile?.user_id})`
+          );
         }
 
         logger.info(
@@ -294,6 +329,15 @@ class BackupService {
       throw new Error('Invalid personality names: must be non-empty array');
     }
 
+    // Fetch current user once for the entire bulk operation to avoid repeated API calls
+    let cachedCurrentUser = null;
+    try {
+      cachedCurrentUser = await this.apiClientService.fetchCurrentUser(authData);
+      logger.info(`[BackupService] Cached current user for bulk backup: ${cachedCurrentUser?.id}`);
+    } catch (error) {
+      logger.warn(`[BackupService] Failed to fetch current user for bulk backup: ${error.message}`);
+    }
+
     // Create all jobs upfront
     const jobs = personalityNames.map(
       personalityName =>
@@ -318,7 +362,7 @@ class BackupService {
       const job = jobs[i];
 
       try {
-        await this.executeBackup(job, authData, progressCallback);
+        await this.executeBackupWithCachedUser(job, authData, progressCallback, cachedCurrentUser);
         successCount++;
 
         // Delay between personalities
