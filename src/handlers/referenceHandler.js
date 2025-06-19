@@ -9,9 +9,40 @@
 
 const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../core/personality');
+const { getPersonality: getLegacyPersonality, getPersonalityByAlias: getLegacyPersonalityByAlias } = require('../core/personality');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');
+const { getFeatureFlags } = require('../application/services/FeatureFlags');
+const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+
+/**
+ * Get personality by name, using DDD system if enabled
+ * @param {string} name - Personality name
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonality(name) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    const router = getPersonalityRouter();
+    return await router.getPersonality(name);
+  }
+  return await getLegacyPersonality(name);
+}
+
+/**
+ * Get personality by alias, using DDD system if enabled
+ * @param {string} alias - Personality alias
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonalityByAlias(alias) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    // DDD system searches by name or alias in one method
+    const router = getPersonalityRouter();
+    return await router.getPersonality(alias);
+  }
+  return getLegacyPersonalityByAlias(alias);
+}
 
 /**
  * The regex pattern for matching Discord message links
@@ -109,7 +140,7 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
           logger.debug(
             `Attempting alias lookup with userId: ${message.author.id} and name: ${personalityName}`
           );
-          personality = getPersonalityByAlias(personalityName);
+          personality = await getPersonalityByAlias(personalityName);
           logger.debug(`Alias lookup result: ${personality ? 'found' : 'not found'}`);
         }
 
