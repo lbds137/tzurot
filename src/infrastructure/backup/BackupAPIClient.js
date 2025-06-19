@@ -54,15 +54,18 @@ class BackupAPIClient {
     const personalityJargon = getPersonalityJargonTerm();
     const url = `${this.apiBaseUrl}/${personalityJargon}?category=${category}`;
     logger.info(`[BackupAPIClient] Fetching ${category} personalities from: ${url}`);
-    
+
     try {
       const personalities = await this._makeAuthenticatedRequest(url, authData);
-      
+
       if (!Array.isArray(personalities)) {
-        logger.error(`[BackupAPIClient] Expected array of personalities, got:`, typeof personalities);
+        logger.error(
+          `[BackupAPIClient] Expected array of personalities, got:`,
+          typeof personalities
+        );
         return [];
       }
-      
+
       logger.info(`[BackupAPIClient] Retrieved ${personalities.length} ${category} personalities`);
       return personalities;
     } catch (error) {
