@@ -19,13 +19,43 @@ const {
   isAutoResponseEnabled,
 } = require('../core/conversation');
 const {
-  getPersonalityByAlias,
-  getPersonality,
+  getPersonalityByAlias: getLegacyPersonalityByAlias,
+  getPersonality: getLegacyPersonality,
   getMaxAliasWordCount,
 } = require('../core/personality');
+const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../application/services/FeatureFlags');
+
+/**
+ * Get personality by name, using DDD system if enabled
+ * @param {string} name - Personality name
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonality(name) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    const router = getPersonalityRouter();
+    return await router.getPersonality(name);
+  }
+  return await getLegacyPersonality(name);
+}
+
+/**
+ * Get personality by alias, using DDD system if enabled
+ * @param {string} alias - Personality alias
+ * @returns {Promise<Object|null>} Personality object or null
+ */
+async function getPersonalityByAlias(alias) {
+  const featureFlags = getFeatureFlags();
+  if (featureFlags.isEnabled('ddd.personality.read')) {
+    // DDD system searches by name or alias in one method
+    const router = getPersonalityRouter();
+    return await router.getPersonality(alias);
+  }
+  return getLegacyPersonalityByAlias(alias);
+}
 
 /**
  * Check if a message contains any personality mentions (without processing them)
