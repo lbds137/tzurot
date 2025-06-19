@@ -297,6 +297,51 @@ class CommandContext {
   }
 
   /**
+   * Check if user has a specific permission in the current context
+   * @param {string} permission - The permission to check
+   * @returns {Promise<boolean>} Whether the user has the permission
+   */
+  async hasPermission(permission) {
+    if (this.platform === 'discord') {
+      // For DMs, no permissions apply
+      if (!this.guild) {
+        return false;
+      }
+
+      // Check if we have member permissions
+      if (this.message && this.message.member) {
+        const { PermissionFlagsBits } = require('discord.js');
+        // Map permission names to Discord permission flags
+        const permissionMap = {
+          ManageMessages: PermissionFlagsBits.ManageMessages,
+          Administrator: PermissionFlagsBits.Administrator,
+          ManageGuild: PermissionFlagsBits.ManageGuild,
+          ManageChannels: PermissionFlagsBits.ManageChannels,
+        };
+
+        const permissionFlag = permissionMap[permission];
+        if (permissionFlag) {
+          return this.message.member.permissions.has(permissionFlag);
+        }
+      }
+    }
+    // For other platforms or unknown permissions, default to false for safety
+    return false;
+  }
+
+  /**
+   * Check if the current channel is marked as NSFW
+   * @returns {Promise<boolean>} Whether the channel is NSFW
+   */
+  async isChannelNSFW() {
+    if (this.platform === 'discord' && this.channel) {
+      return this.channel.nsfw || false;
+    }
+    // For other platforms, default to false
+    return false;
+  }
+
+  /**
    * Convert embed to text representation
    * @private
    */
