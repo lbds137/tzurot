@@ -419,7 +419,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
   if (successfulBackups.length > 0) {
     summaryEmbed.fields.push({
       name: '✅ Successful Backups',
-      value: successfulBackups.map(p => `• ${p}`).join('\n'),
+      value: _formatPersonalityList(successfulBackups),
       inline: true,
     });
   }
@@ -427,7 +427,7 @@ async function handleBulkBackup(context, backupService, authData, zipArchiveServ
   if (failedBackups.length > 0) {
     summaryEmbed.fields.push({
       name: '❌ Failed Backups',
-      value: failedBackups.map(p => `• ${p}`).join('\n'),
+      value: _formatPersonalityList(failedBackups),
       inline: true,
     });
   }
@@ -645,6 +645,33 @@ function createBackupCommand(dependencies = {}) {
   return command;
 }
 
+/**
+ * Format personality list with truncation for Discord embed limits
+ * @private
+ * @param {Array<string>} personalities - List of personality names
+ * @returns {string} Formatted list that fits within Discord's 1024 char limit
+ */
+function _formatPersonalityList(personalities) {
+  const MAX_LENGTH = 1000; // Leave some buffer for safety
+  let result = '';
+  let truncated = 0;
+  
+  for (const personality of personalities) {
+    const line = `• ${personality}\n`;
+    if (result.length + line.length > MAX_LENGTH) {
+      truncated = personalities.length - personalities.indexOf(personality);
+      break;
+    }
+    result += line;
+  }
+  
+  if (truncated > 0) {
+    result += `\n*...and ${truncated} more*`;
+  }
+  
+  return result.trim() || 'None';
+}
+
 module.exports = {
   createBackupCommand,
   userSessions, // Export for testing
@@ -654,4 +681,5 @@ module.exports = {
   handleBulkBackup,
   handleSingleBackup,
   showHelp,
+  _formatPersonalityList, // Export for testing
 };

@@ -5,6 +5,7 @@
 const {
   createBackupCommand,
   userSessions,
+  _formatPersonalityList,
 } = require('../../../../../src/application/commands/utility/BackupCommand');
 const { BackupJob, BackupStatus } = require('../../../../../src/domain/backup/BackupJob');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
@@ -38,6 +39,7 @@ describe('BackupCommand', () => {
     // Mock services
     mockBackupService = {
       executeBackup: jest.fn(),
+      delayFn: jest.fn().mockResolvedValue(undefined),
     };
 
     mockPersonalityDataRepository = {
@@ -573,6 +575,103 @@ describe('BackupCommand', () => {
       userSessions.clear();
 
       expect(userSessions.size).toBe(0);
+    });
+  });
+
+  describe('personality list formatting', () => {
+    describe('_formatPersonalityList', () => {
+      it('should format short lists normally', () => {
+        const personalities = ['Alpha', 'Beta', 'Gamma'];
+        const result = _formatPersonalityList(personalities);
+        
+        expect(result).toBe('• Alpha\n• Beta\n• Gamma');
+      });
+      
+      it('should truncate long lists with many items', () => {
+        const personalities = Array.from({ length: 100 }, (_, i) => `VeryLongPersonalityNameNumber${i}`);
+        const result = _formatPersonalityList(personalities);
+        
+        expect(result.length).toBeLessThanOrEqual(1024);
+        expect(result).toContain('...and');
+        expect(result).toContain('more');
+      });
+      
+      it('should handle empty list', () => {
+        const result = _formatPersonalityList([]);
+        expect(result).toBe('None');
+      });
+      
+      it('should handle single item', () => {
+        const result = _formatPersonalityList(['OnlyOne']);
+        expect(result).toBe('• OnlyOne');
+      });
+    });
+    it('should handle bulk backup with many personalities without exceeding embed limits', async () => {
+      // Set up auth data
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      process.env.BOT_OWNER_ID = 'user123';
+      
+      // Create a large list of personalities
+      const manyPersonalities = Array.from({ length: 100 }, (_, i) => `VeryLongPersonalityName${i}`);
+      jest.resetModules();
+      jest.doMock('../../../../../src/constants', () => ({
+        USER_CONFIG: {
+          OWNER_PERSONALITIES_LIST: manyPersonalities.join(','),
+        },
+      }));
+      
+      // Re-import after mocking
+      const { createBackupCommand: createBackupCommandLarge, userSessions: largeUserSessions } = require('../../../../../src/application/commands/utility/BackupCommand');
+      const largeCommand = createBackupCommandLarge({
+        backupService: mockBackupService,
+        personalityDataRepository: mockPersonalityDataRepository,
+        apiClientService: mockApiClientService,
+        zipArchiveService: mockZipArchiveService,
+        delayFn: jest.fn().mockResolvedValue(undefined),
+      });
+      
+      // Set up user session for the new command instance
+      largeUserSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      // Mock successful backups
+      mockBackupService.executeBackup.mockImplementation(async (job) => {
+        job.start();
+        job.personalityData = {
+          name: job.personalityName,
+          profile: { id: 'test-id', name: job.personalityName },
+          memories: [],
+          knowledge: [],
+          training: [],
+          userPersonalization: {},
+          chatHistory: [],
+          metadata: { lastBackup: new Date().toISOString() }
+        };
+        job.userDisplayPrefix = 'test-user';
+        job.complete({});
+        return job;
+      });
+      
+      // Mock ZIP creation
+      mockZipArchiveService.createPersonalityArchiveFromMemory.mockResolvedValue(Buffer.from('zip'));
+      mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
+      mockZipArchiveService.formatBytes.mockReturnValue('1 KB');
+      
+      mockContext.args = ['all'];
+      await largeCommand.execute(mockContext);
+      
+      // Find the summary embed
+      const summaryCall = mockContext.respondWithEmbed.mock.calls.find(
+        call => call[0].title === '📦 Bulk Backup Complete'
+      );
+      
+      expect(summaryCall).toBeDefined();
+      
+      // Check that the successful backups field exists and is under the limit
+      const successField = summaryCall[0].fields.find(f => f.name === '✅ Successful Backups');
+      expect(successField).toBeDefined();
+      expect(successField.value.length).toBeLessThanOrEqual(1024);
+      expect(successField.value).toContain('...and');
+      expect(successField.value).toContain('more');
     });
   });
 
