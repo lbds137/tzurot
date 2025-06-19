@@ -51,9 +51,37 @@ function createAliasCommand() {
           // Text command - parse positional arguments
           if (context.args.length < 2) {
             const botPrefix = context.dependencies.botPrefix || '!tz';
-            return await context.respond(
-              `You need to provide a personality name and an alias. Usage: \`${botPrefix} alias <personality-name> <new-alias>\``
-            );
+            const usageEmbed = {
+              title: 'How to Add an Alias',
+              description: 'Add a nickname or shortcut for an existing personality.',
+              color: 0x2196f3, // Blue color
+              fields: [
+                {
+                  name: 'Basic Usage',
+                  value: `\`${botPrefix} alias <personality-name> <new-alias>\``,
+                  inline: false,
+                },
+                {
+                  name: 'Examples',
+                  value:
+                    `• \`${botPrefix} alias Claude cl\` - Add "cl" as alias for Claude\n` +
+                    `• \`${botPrefix} alias "Assistant Bot" helper\` - Add "helper" as alias\n` +
+                    `• \`${botPrefix} alias MyAI ai-buddy\` - Add "ai-buddy" as alias`,
+                  inline: false,
+                },
+                {
+                  name: 'Parameters',
+                  value:
+                    '• **personality-name**: Name or existing alias of the personality\n' +
+                    '• **new-alias**: The new shortcut to add (letters, numbers, underscores, hyphens only)',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Aliases make it easier to mention personalities quickly',
+              },
+            };
+            return await context.respond({ embeds: [usageEmbed] });
           }
 
           personalityNameOrAlias = context.args[0].toLowerCase();
@@ -62,18 +90,60 @@ function createAliasCommand() {
 
         // Validate inputs
         if (!personalityNameOrAlias || personalityNameOrAlias.length === 0) {
-          return await context.respond('Please provide a personality name or alias.');
+          const errorEmbed = {
+            title: '❌ Missing Personality Name',
+            description: 'Please provide a personality name or existing alias.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'What to provide',
+                value:
+                  '• The personality\'s name (e.g., "Claude")\n• Or an existing alias (e.g., "cl")',
+                inline: false,
+              },
+            ],
+          };
+          return await context.respond({ embeds: [errorEmbed] });
         }
 
         if (!newAlias || newAlias.length === 0) {
-          return await context.respond('Please provide a new alias.');
+          const errorEmbed = {
+            title: '❌ Missing Alias',
+            description: 'Please provide a new alias to add.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'What to provide',
+                value:
+                  'A short nickname for the personality (e.g., "helper", "ai-bot", "assistant")',
+                inline: false,
+              },
+            ],
+          };
+          return await context.respond({ embeds: [errorEmbed] });
         }
 
         // Validate alias format
         if (!/^[a-zA-Z0-9_-]+$/.test(newAlias)) {
-          return await context.respond(
-            'Aliases can only contain letters, numbers, underscores, and hyphens.'
-          );
+          const aliasErrorEmbed = {
+            title: '❌ Invalid Alias Format',
+            description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'Valid characters',
+                value: '• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Underscores (_)\n• Hyphens (-)',
+                inline: false,
+              },
+              {
+                name: 'Examples',
+                value:
+                  '✅ `claude-ai`\n✅ `helper_bot`\n✅ `AI2024`\n❌ `claude.ai`\n❌ `helper bot`\n❌ `AI@2024`',
+                inline: false,
+              },
+            ],
+          };
+          return await context.respond({ embeds: [aliasErrorEmbed] });
         }
 
         logger.info(
@@ -95,35 +165,77 @@ function createAliasCommand() {
           );
 
           if (!result.success) {
-            return await context.respond(result.error || 'Failed to add alias.');
+            const errorEmbed = {
+              title: '❌ Failed to Add Alias',
+              description: result.error || 'Unable to add the alias.',
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Common Issues',
+                  value:
+                    "• Personality not found\n• You don't own this personality\n• Alias already exists\n• Personality name conflicts",
+                  inline: false,
+                },
+                {
+                  name: 'What to do',
+                  value:
+                    `• Check the personality name with \`${context.dependencies.botPrefix || '!tz'} list\`\n` +
+                    `• Make sure you own the personality\n` +
+                    `• Try a different alias`,
+                  inline: false,
+                },
+              ],
+            };
+            return await context.respond({ embeds: [errorEmbed] });
           }
 
           const personality = result.personality;
           const displayName = personality.profile.displayName || personality.profile.name;
 
-          // Create response with embed if supported
-          if (context.canEmbed()) {
-            const embed = {
-              title: 'Alias Added',
-              description: `An alias has been set for **${displayName}**.`,
-              color: 0x4caf50,
-              fields: [
-                { name: 'Full Name', value: personality.profile.name, inline: true },
-                { name: 'New Alias', value: newAlias, inline: true },
-              ],
-            };
+          // Create embed fields
+          const fields = [
+            { name: 'Personality', value: displayName, inline: true },
+            { name: 'New Alias', value: newAlias, inline: true },
+          ];
 
-            // Add avatar if available
-            if (personality.profile.avatarUrl) {
-              embed.thumbnail = { url: personality.profile.avatarUrl };
-            }
-
-            return await context.respondWithEmbed(embed);
-          } else {
-            // Plain text response
-            const response = `✅ Alias "${newAlias}" has been added to **${displayName}**.`;
-            return await context.respond(response);
+          // Add all aliases
+          if (personality.aliases && personality.aliases.length > 0) {
+            const allAliases = personality.aliases.map(a => a.value || a.alias).join(', ');
+            fields.push({
+              name: 'All Aliases',
+              value: allAliases,
+              inline: false,
+            });
           }
+
+          // Add system indicator if using new system
+          const featureFlags = context.dependencies.featureFlags;
+          if (featureFlags?.isEnabled('ddd.personality.write')) {
+            fields.push({
+              name: 'System',
+              value: '🆕 Updated with new DDD system',
+              inline: false,
+            });
+          }
+
+          // Create the embed response
+          const embedData = {
+            title: '✅ Alias Added Successfully!',
+            description: `The alias **${newAlias}** has been added to **${displayName}**.`,
+            color: 0x4caf50, // Green color
+            fields: fields,
+            footer: {
+              text: 'You can now use this alias to mention the personality',
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // Add avatar if available
+          if (personality.profile.avatarUrl) {
+            embedData.thumbnail = { url: personality.profile.avatarUrl };
+          }
+
+          return await context.respond({ embeds: [embedData] });
         } catch (error) {
           logger.error('[AliasCommand] Error adding alias:', error);
           throw error;
@@ -131,10 +243,30 @@ function createAliasCommand() {
       } catch (error) {
         logger.error('[AliasCommand] Error:', error);
 
-        return await context.respond(
-          '❌ An error occurred while adding the alias. ' +
-            'Please try again later or contact support if the issue persists.'
-        );
+        const genericErrorEmbed = {
+          title: '❌ Something Went Wrong',
+          description: 'An error occurred while adding the alias.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'What happened',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value:
+                '• Try again in a moment\n• Check your command syntax\n• Verify the personality exists\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        return await context.respond({ embeds: [genericErrorEmbed] });
       }
     },
   });
