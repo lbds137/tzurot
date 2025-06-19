@@ -17,12 +17,38 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const { botConfig = require('../../../../config').botConfig } = dependencies;
+      const startTime = Date.now();
 
-      // Simply respond with pong and bot name
-      await context.respond(`Pong! ${botConfig.name} is operational.`);
+      // Create ping response embed
+      const pingEmbed = {
+        title: '🏓 Pong!',
+        description: `${botConfig.name} is operational.`,
+        color: 0x4caf50,
+        fields: [
+          {
+            name: 'Status',
+            value: '✅ Online',
+            inline: true,
+          },
+          {
+            name: 'Response Time',
+            value: `${Date.now() - startTime}ms`,
+            inline: true,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+
+      await context.respond({ embeds: [pingEmbed] });
     } catch (error) {
       logger.error('[PingCommand] Execution failed:', error);
-      await context.respond('An error occurred while checking bot status.');
+      const errorEmbed = {
+        title: '❌ Ping Failed',
+        description: 'An error occurred while checking bot status.',
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
     }
   };
 }

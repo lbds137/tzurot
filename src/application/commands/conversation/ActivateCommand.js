@@ -47,31 +47,49 @@ function createExecutor(_dependencies) {
     try {
       // Validate this is a guild channel
       if (!context.getGuildId()) {
-        return await context.respond(
-          '❌ The activate command can only be used in server channels, not DMs.'
-        );
+        const errorEmbed = {
+          title: '❌ Server Channels Only',
+          description: 'The activate command can only be used in server channels, not DMs.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Check if user has required permissions
       const hasPermission = await context.hasPermission('ManageMessages');
       if (!hasPermission) {
-        return await context.respond(
-          '❌ You need the "Manage Messages" permission to activate personalities in this channel.'
-        );
+        const errorEmbed = {
+          title: '❌ Insufficient Permissions',
+          description: 'You need the "Manage Messages" permission to activate personalities in this channel.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Check if channel is NSFW
       const isNSFW = await context.isChannelNSFW();
       if (!isNSFW) {
-        return await context.respond(
-          '⚠️ For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.'
-        );
+        const errorEmbed = {
+          title: '⚠️ NSFW Channel Required',
+          description: 'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
+          color: 0xff9800,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Get personality name from args or options
       const personalityInput = options.personality || args.join(' ');
       if (!personalityInput) {
-        return await context.respond('❌ Please specify a personality to activate.');
+        const errorEmbed = {
+          title: '❌ Missing Personality',
+          description: 'Please specify a personality to activate.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       logger.debug(`[ActivateCommand] Looking up personality: "${personalityInput}"`);
@@ -88,13 +106,30 @@ function createExecutor(_dependencies) {
         }
       } catch (error) {
         logger.error('[ActivateCommand] Error looking up personality:', error);
-        return await context.respond('❌ Error looking up personality. Please try again.');
+        const errorEmbed = {
+          title: '❌ Lookup Error',
+          description: 'Error looking up personality. Please try again.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       if (!personality) {
-        return await context.respond(
-          `❌ Personality "${personalityInput}" not found. Use \`${context.dependencies.botPrefix} list\` to see available personalities.`
-        );
+        const errorEmbed = {
+          title: '❌ Personality Not Found',
+          description: `Personality "${personalityInput}" not found.`,
+          color: 0xf44336,
+          fields: [
+            {
+              name: 'Need help?',
+              value: `Use \`${context.dependencies.botPrefix} list\` to see available personalities.`,
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Activate the personality in this channel

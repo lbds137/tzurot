@@ -18,7 +18,13 @@ function createExecutor(dependencies = {}) {
     try {
       // Admin check
       if (!context.isAdmin) {
-        await context.respond('This command requires administrator permissions.');
+        const errorEmbed = {
+          title: '❌ Access Denied',
+          description: 'This command requires administrator permissions.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        await context.respond({ embeds: [errorEmbed] });
         return;
       }
 
@@ -60,36 +66,74 @@ function createExecutor(dependencies = {}) {
             authManager,
           });
 
-        default:
-          await context.respond(
-            `Unknown debug subcommand: \`${subcommand}\`. Use \`${context.commandPrefix}debug\` to see available subcommands.`
-          );
+        default: {
+          const errorEmbed = {
+            title: '❌ Unknown Subcommand',
+            description: `Unknown debug subcommand: \`${subcommand}\`.`,
+            color: 0xf44336,
+            fields: [
+              {
+                name: 'Help',
+                value: `Use \`${context.commandPrefix}debug\` to see available subcommands.`,
+                inline: false,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+          };
+          await context.respond({ embeds: [errorEmbed] });
+        }
       }
     } catch (error) {
       logger.error('[DebugCommand] Execution failed:', error);
-      await context.respond('An error occurred while executing the debug command.');
+      const errorEmbed = {
+        title: '❌ Command Error',
+        description: 'An error occurred while executing the debug command.',
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
     }
   };
 }
 
 async function showHelp(context) {
-  const helpText = `You need to provide a subcommand. Usage: \`${context.commandPrefix}debug <subcommand>\`
+  const helpEmbed = {
+    title: '🛠️ Debug Command Help',
+    description: `Usage: \`${context.commandPrefix}debug <subcommand>\``,
+    color: 0x2196f3,
+    fields: [
+      {
+        name: 'Available Subcommands',
+        value: [
+          '• `clearwebhooks` - Clear cached webhook identifications',
+          '• `unverify` - Clear your NSFW verification status',
+          '• `clearconversation` - Clear your conversation history',
+          '• `clearauth` - Clear your authentication tokens',
+          '• `clearmessages` - Clear message tracking history',
+          '• `stats` - Show debug statistics',
+        ].join('\n'),
+        inline: false,
+      },
+    ],
+    footer: {
+      text: 'Administrator permissions required',
+    },
+    timestamp: new Date().toISOString(),
+  };
 
-Available subcommands:
-• \`clearwebhooks\` - Clear cached webhook identifications
-• \`unverify\` - Clear your NSFW verification status
-• \`clearconversation\` - Clear your conversation history
-• \`clearauth\` - Clear your authentication tokens
-• \`clearmessages\` - Clear message tracking history
-• \`stats\` - Show debug statistics`;
-
-  await context.respond(helpText);
+  await context.respond({ embeds: [helpEmbed] });
 }
 
 async function clearWebhooks(context, webhookUserTracker) {
   webhookUserTracker.clearAllCachedWebhooks();
   logger.info(`[Debug] Webhook cache cleared by ${context.userTag}`);
-  await context.respond('✅ Cleared all cached webhook identifications.');
+  const successEmbed = {
+    title: '✅ Webhooks Cleared',
+    description: 'Cleared all cached webhook identifications.',
+    color: 0x4caf50,
+    timestamp: new Date().toISOString(),
+  };
+  await context.respond({ embeds: [successEmbed] });
 }
 
 async function unverify(context, nsfwVerificationManager) {
@@ -97,9 +141,21 @@ async function unverify(context, nsfwVerificationManager) {
 
   if (cleared) {
     logger.info(`[Debug] NSFW verification cleared for ${context.userTag}`);
-    await context.respond('✅ Your NSFW verification has been cleared. You are now unverified.');
+    const successEmbed = {
+      title: '✅ Verification Cleared',
+      description: 'Your NSFW verification has been cleared. You are now unverified.',
+      color: 0x4caf50,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [successEmbed] });
   } else {
-    await context.respond('❌ You were not verified, so nothing was cleared.');
+    const infoEmbed = {
+      title: 'ℹ️ No Change',
+      description: 'You were not verified, so nothing was cleared.',
+      color: 0x2196f3,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [infoEmbed] });
   }
 }
 
@@ -110,10 +166,22 @@ async function clearConversation(context, conversationManager) {
     logger.info(
       `[Debug] Conversation history cleared for ${context.userTag} in channel ${context.channelId}`
     );
-    await context.respond('✅ Cleared your conversation history in this channel.');
+    const successEmbed = {
+      title: '✅ Conversation Cleared',
+      description: 'Cleared your conversation history in this channel.',
+      color: 0x4caf50,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [successEmbed] });
   } catch (error) {
     logger.error(`[Debug] Error clearing conversation: ${error.message}`);
-    await context.respond('❌ Failed to clear conversation history.');
+    const errorEmbed = {
+      title: '❌ Clear Failed',
+      description: 'Failed to clear conversation history.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -122,10 +190,22 @@ async function clearAuth(context, authManager) {
     // Clean up expired auth tokens
     await authManager.cleanupExpiredTokens();
     logger.info(`[Debug] Authentication tokens cleaned up for ${context.userTag}`);
-    await context.respond('✅ Cleaned up authentication tokens. You may need to re-authenticate.');
+    const successEmbed = {
+      title: '✅ Authentication Cleared',
+      description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
+      color: 0x4caf50,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [successEmbed] });
   } catch (error) {
     logger.error(`[Debug] Error clearing auth: ${error.message}`);
-    await context.respond('❌ Failed to clear authentication.');
+    const errorEmbed = {
+      title: '❌ Clear Failed',
+      description: 'Failed to clear authentication.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -133,10 +213,22 @@ async function clearMessages(context, messageTracker) {
   try {
     messageTracker.clear();
     logger.info(`[Debug] Message tracking history cleared by ${context.userTag}`);
-    await context.respond('✅ Cleared message tracking history.');
+    const successEmbed = {
+      title: '✅ Messages Cleared',
+      description: 'Cleared message tracking history.',
+      color: 0x4caf50,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [successEmbed] });
   } catch (error) {
     logger.error(`[Debug] Error clearing message tracker: ${error.message}`);
-    await context.respond('❌ Failed to clear message tracking.');
+    const errorEmbed = {
+      title: '❌ Clear Failed',
+      description: 'Failed to clear message tracking.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -157,15 +249,44 @@ async function showStats(context, dependencies) {
       },
     };
 
-    const statsText = `📊 **Debug Statistics**\n\`\`\`json\n${JSON.stringify(
-      stats,
-      null,
-      2
-    )}\n\`\`\``;
-    await context.respond(statsText);
+    const statsEmbed = {
+      title: '📊 Debug Statistics',
+      description: 'Current system debug information',
+      color: 0x2196f3,
+      fields: [
+        {
+          name: 'Webhooks',
+          value: `Tracked: ${stats.webhooks.tracked}`,
+          inline: true,
+        },
+        {
+          name: 'Messages',
+          value: `Tracked: ${stats.messages.tracked}`,
+          inline: true,
+        },
+        {
+          name: 'Authentication',
+          value: `Manager: ${stats.auth.hasManager ? '✅' : '❌'}`,
+          inline: true,
+        },
+        {
+          name: 'Raw Data',
+          value: `\`\`\`json\n${JSON.stringify(stats, null, 2)}\n\`\`\``,
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [statsEmbed] });
   } catch (error) {
     logger.error(`[Debug] Error gathering stats: ${error.message}`);
-    await context.respond('❌ Failed to gather statistics.');
+    const errorEmbed = {
+      title: '❌ Stats Failed',
+      description: 'Failed to gather statistics.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
   }
 }
 

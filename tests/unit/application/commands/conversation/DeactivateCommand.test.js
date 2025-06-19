@@ -120,9 +120,13 @@ describe('DeactivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ You need the "Manage Messages" permission to deactivate personalities in this channel.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Insufficient Permissions',
+          description: 'You need the "Manage Messages" permission to deactivate personalities in this channel.',
+          color: 0xf44336
+        })]
+      });
       expect(mockConversationManager.deactivatePersonality).not.toHaveBeenCalled();
     });
 
@@ -135,9 +139,13 @@ describe('DeactivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ There is no active personality in this channel.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ No Active Personality',
+          description: 'There is no active personality in this channel.',
+          color: 0xf44336
+        })]
+      });
       expect(mockConversationManager.deactivatePersonality).not.toHaveBeenCalled();
     });
 
@@ -153,9 +161,13 @@ describe('DeactivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Failed to deactivate personality. Please try again.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Deactivation Failed',
+          description: 'Failed to deactivate personality. Please try again.',
+          color: 0xf44336
+        })]
+      });
       expect(logger.error).toHaveBeenCalledWith(
         '[DeactivateCommand] Error deactivating personality:',
         expect.any(Error)

@@ -188,9 +188,13 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ The activate command can only be used in server channels, not DMs.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Server Channels Only',
+          description: 'The activate command can only be used in server channels, not DMs.',
+          color: 0xf44336
+        })]
+      });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
 
@@ -203,9 +207,13 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ You need the "Manage Messages" permission to activate personalities in this channel.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Insufficient Permissions',
+          description: 'You need the "Manage Messages" permission to activate personalities in this channel.',
+          color: 0xf44336
+        })]
+      });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
 
@@ -219,9 +227,13 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '⚠️ For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '⚠️ NSFW Channel Required',
+          description: 'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
+          color: 0xff9800
+        })]
+      });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
 
@@ -235,9 +247,13 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Please specify a personality to activate.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Missing Personality',
+          description: 'Please specify a personality to activate.',
+          color: 0xf44336
+        })]
+      });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
 
@@ -253,9 +269,19 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Personality "NonExistent" not found. Use `!tz list` to see available personalities.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Personality Not Found',
+          description: 'Personality "NonExistent" not found.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Need help?',
+              value: expect.stringContaining('!tz list')
+            })
+          ])
+        })]
+      });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
 
@@ -270,9 +296,13 @@ describe('ActivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Error looking up personality. Please try again.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Lookup Error',
+          description: 'Error looking up personality. Please try again.',
+          color: 0xf44336
+        })]
+      });
       expect(logger.error).toHaveBeenCalledWith(
         '[ActivateCommand] Error looking up personality:',
         expect.any(Error)
