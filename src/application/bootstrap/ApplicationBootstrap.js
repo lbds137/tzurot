@@ -151,26 +151,20 @@ class ApplicationBootstrap {
       this.initialized = true;
       logger.info('[ApplicationBootstrap] ✅ DDD application layer initialization complete');
 
-      // Skip legacy seeding if DDD personality system is enabled
-      if (!getFeatureFlags().isEnabled('ddd.personality.write')) {
-        // Schedule personality seeding in background after a delay
-        const seedingDelay = 5000; // 5 seconds to let bot fully start
+      // Schedule personality seeding in background after a delay
+      // The _seedOwnerPersonalities method will check feature flags internally
+      const seedingDelay = 5000; // 5 seconds to let bot fully start
 
-        // Create a promise-based delay and execute seeding after it
-        this.delay(seedingDelay).then(async () => {
-          try {
-            logger.info('[ApplicationBootstrap] Starting background owner personality seeding...');
-            await this._seedOwnerPersonalities();
-            logger.info('[ApplicationBootstrap] Background owner personality seeding completed');
-          } catch (error) {
-            logger.error('[ApplicationBootstrap] Error in background personality seeding:', error);
-          }
-        });
-      } else {
-        logger.info(
-          '[ApplicationBootstrap] Skipping legacy personality seeding - DDD personality system is enabled'
-        );
-      }
+      // Create a promise-based delay and execute seeding after it
+      this.delay(seedingDelay).then(async () => {
+        try {
+          logger.info('[ApplicationBootstrap] Starting background owner personality seeding...');
+          await this._seedOwnerPersonalities();
+          logger.info('[ApplicationBootstrap] Background owner personality seeding completed');
+        } catch (error) {
+          logger.error('[ApplicationBootstrap] Error in background personality seeding:', error);
+        }
+      });
 
       // Log active feature flags
       this._logActiveFeatures();
