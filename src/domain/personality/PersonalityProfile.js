@@ -179,7 +179,10 @@ class PersonalityProfile extends ValueObject {
   }
 
   static createEmpty() {
-    return new PersonalityProfile({});
+    // Create a truly empty profile without lastFetched for equality
+    const profile = new PersonalityProfile({});
+    profile.lastFetched = null; // Override to ensure equality
+    return profile;
   }
 
   static fromJSON(data) {
