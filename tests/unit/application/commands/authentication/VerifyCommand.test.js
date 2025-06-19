@@ -78,12 +78,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Age Verification Required')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('must be run in a server channel marked as NSFW')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '⚠️ Age Verification Required',
+            description: expect.stringContaining('must be run in a server channel marked as NSFW'),
+            color: 0xff9800,
+          }),
+        ],
+      });
     });
   });
 
@@ -93,9 +96,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Already Verified')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Already Verified',
+            description: expect.stringContaining('already verified to access AI personalities'),
+            color: 0x4caf50,
+          }),
+        ],
+      });
       expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
     });
   });
@@ -107,9 +116,15 @@ describe('VerifyCommand', () => {
       await verifyCommand.execute(mockContext);
 
       expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Successful')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Verification Successful',
+            description: expect.stringContaining('successfully verified to use AI personalities'),
+            color: 0x4caf50,
+          }),
+        ],
+      });
     });
 
     it('should handle verification storage failure', async () => {
@@ -118,12 +133,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Error')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('error storing your verification status')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Verification Error',
+            description: expect.stringContaining('error storing your verification status'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
   });
 
@@ -157,12 +175,21 @@ describe('VerifyCommand', () => {
       await verifyCommand.execute(mockContext);
 
       expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Successful')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('<#nsfw-channel-123>')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Verification Successful',
+            description: expect.stringContaining('successfully verified to use AI personalities'),
+            color: 0x4caf50,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'NSFW channels you can access',
+                value: expect.stringContaining('<#nsfw-channel-123>'),
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should deny verification when no NSFW channels accessible', async () => {
@@ -180,12 +207,15 @@ describe('VerifyCommand', () => {
       await verifyCommand.execute(mockContext);
 
       expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Unable to Verify')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining("don't have access to any NSFW channels")
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '⚠️ Unable to Verify',
+            description: expect.stringContaining('Age verification requires access to NSFW channels'),
+            color: 0xff9800,
+          }),
+        ],
+      });
     });
 
     it('should handle missing guild information', async () => {
@@ -193,12 +223,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Error')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Unable to verify server information')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Verification Error',
+            description: expect.stringContaining('Unable to verify server information'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
 
     it('should handle channel permission check errors', async () => {
@@ -215,9 +248,14 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Error')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Verification Error',
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
   });
 
@@ -238,12 +276,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Verification Error')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('error storing your verification status')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Verification Error',
+            description: expect.stringContaining('error storing your verification status'),
+            color: 0xf44336,
+          }),
+        ],
+      });
     });
   });
 
@@ -255,9 +296,15 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('An unexpected error occurred')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Unexpected Error',
+            description: expect.stringContaining('An unexpected error occurred'),
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(logger.error).toHaveBeenCalled();
     });
 
@@ -300,12 +347,30 @@ describe('VerifyCommand', () => {
 
       // Should succeed because user has access to at least one NSFW channel
       expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('<#visible-nsfw-123>')
-      );
-      expect(mockContext.respond).not.toHaveBeenCalledWith(
-        expect.stringContaining('<#hidden-nsfw-123>')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Verification Successful',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'NSFW channels you can access',
+                value: expect.stringContaining('<#visible-nsfw-123>'),
+              }),
+            ]),
+          }),
+        ],
+      });
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.not.arrayContaining([
+              expect.objectContaining({
+                value: expect.stringContaining('<#hidden-nsfw-123>'),
+              }),
+            ]),
+          }),
+        ],
+      });
     });
 
     it('should only check text-based channels', async () => {
@@ -325,9 +390,15 @@ describe('VerifyCommand', () => {
 
       // Should not find any NSFW channels since voice channels don't count
       expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Unable to Verify')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '⚠️ Unable to Verify',
+            description: expect.stringContaining('Age verification requires access to NSFW channels'),
+            color: 0xff9800,
+          }),
+        ],
+      });
     });
   });
 });
