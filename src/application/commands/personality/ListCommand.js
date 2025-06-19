@@ -59,9 +59,27 @@ function createListCommand() {
 
           if (!personalities || personalities.length === 0) {
             const botPrefix = context.dependencies.botPrefix || '!tz';
-            return await context.respond(
-              `You haven't added any personalities yet. Use \`${botPrefix} add <personality-name>\` to add one.`
-            );
+            const emptyEmbed = {
+              title: '📋 No Personalities Yet',
+              description: "You haven't added any personalities.",
+              color: 0xff9800, // Orange color
+              fields: [
+                {
+                  name: 'Get Started',
+                  value: `Use \`${botPrefix} add <personality-name>\` to create your first personality!`,
+                  inline: false,
+                },
+                {
+                  name: 'Example',
+                  value: `\`${botPrefix} add Claude "You are Claude, a helpful AI assistant"\``,
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personalities allow you to create custom AI assistants',
+              },
+            };
+            return await context.respond({ embeds: [emptyEmbed] });
           }
 
           // Pagination logic
@@ -70,9 +88,29 @@ function createListCommand() {
 
           // Validate page number
           if (page < 1 || page > totalPages) {
-            return await context.respond(
-              `Invalid page number. Please specify a page between 1 and ${totalPages}.`
-            );
+            const pageErrorEmbed = {
+              title: '❌ Invalid Page Number',
+              description: 'The page number you specified is out of range.',
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Valid Range',
+                  value: `Pages 1 to ${totalPages}`,
+                  inline: true,
+                },
+                {
+                  name: 'You Entered',
+                  value: page.toString(),
+                  inline: true,
+                },
+                {
+                  name: 'Total Personalities',
+                  value: personalities.length.toString(),
+                  inline: true,
+                },
+              ],
+            };
+            return await context.respond({ embeds: [pageErrorEmbed] });
           }
 
           // Calculate slice indices
@@ -80,72 +118,54 @@ function createListCommand() {
           const endIdx = Math.min(startIdx + pageSize, personalities.length);
           const pagePersonalities = personalities.slice(startIdx, endIdx);
 
-          // Create response with embed if supported
-          if (context.canEmbed()) {
-            // Build the embed
-            const fields = pagePersonalities.map((personality, index) => {
-              const displayName = personality.profile.displayName || personality.profile.name;
-              const aliases =
-                personality.aliases && personality.aliases.length > 0
-                  ? personality.aliases.map(a => a.value || a.alias).join(', ')
-                  : 'None';
+          // Build the embed fields
+          const fields = pagePersonalities.map((personality, index) => {
+            const displayName = personality.profile.displayName || personality.profile.name;
+            const aliases =
+              personality.aliases && personality.aliases.length > 0
+                ? personality.aliases.map(a => a.value || a.alias).join(', ')
+                : 'None';
 
-              return {
-                name: `${startIdx + index + 1}. ${displayName}`,
-                value: `Name: \`${personality.profile.name}\`\nAliases: ${aliases}`,
-                inline: false,
-              };
-            });
-
-            const embed = {
-              title: `Your Personalities (Page ${page}/${totalPages})`,
-              description: `You have added ${personalities.length} ${
-                personalities.length === 1 ? 'personality' : 'personalities'
-              }.`,
-              color: 0x00bcd4,
-              fields: fields,
-              footer: {
-                text: `Page ${page} of ${totalPages}`,
-                icon_url: context.getAuthorAvatarUrl(),
-              },
-              author: {
-                name: context.getAuthorDisplayName(),
-                icon_url: context.getAuthorAvatarUrl(),
-              },
+            return {
+              name: `${startIdx + index + 1}. ${displayName}`,
+              value: `**Name:** \`${personality.profile.name}\`\n**Aliases:** ${aliases}`,
+              inline: false,
             };
+          });
 
-            if (totalPages > 1) {
-              const botPrefix = context.dependencies.botPrefix || '!tz';
-              embed.description += `\n\nUse \`${botPrefix} list <page>\` to view other pages.`;
-            }
-
-            return await context.respondWithEmbed(embed);
-          } else {
-            // Plain text response
-            let response = `**Your Personalities (Page ${page}/${totalPages})**\n`;
-            response += `You have added ${personalities.length} ${
-              personalities.length === 1 ? 'personality' : 'personalities'
-            }.\n\n`;
-
-            pagePersonalities.forEach((personality, index) => {
-              const displayName = personality.profile.displayName || personality.profile.name;
-              const aliases =
-                personality.aliases && personality.aliases.length > 0
-                  ? personality.aliases.map(a => a.value || a.alias).join(', ')
-                  : 'None';
-
-              response += `**${startIdx + index + 1}. ${displayName}**\n`;
-              response += `   Name: \`${personality.profile.name}\`\n`;
-              response += `   Aliases: ${aliases}\n\n`;
+          // Add system indicator if using new system
+          const featureFlags = context.dependencies.featureFlags;
+          if (featureFlags?.isEnabled('ddd.personality.read')) {
+            fields.push({
+              name: 'System',
+              value: '🆕 Loaded from new DDD system',
+              inline: false,
             });
-
-            if (totalPages > 1) {
-              const botPrefix = context.dependencies.botPrefix || '!tz';
-              response += `\nUse \`${botPrefix} list <page>\` to view other pages.`;
-            }
-
-            return await context.respond(response);
           }
+
+          // Create the list embed
+          const embedData = {
+            title: `📋 Your Personalities`,
+            description: `Showing ${pagePersonalities.length} of ${personalities.length} personalities`,
+            color: 0x2196f3, // Blue color
+            fields: fields,
+            footer: {
+              text: `Page ${page} of ${totalPages}`,
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // Add navigation help if multiple pages
+          if (totalPages > 1) {
+            const botPrefix = context.dependencies.botPrefix || '!tz';
+            embedData.fields.push({
+              name: 'Navigation',
+              value: `Use \`${botPrefix} list <page>\` to view other pages`,
+              inline: false,
+            });
+          }
+
+          return await context.respond({ embeds: [embedData] });
         } catch (error) {
           logger.error('[ListCommand] Error listing personalities:', error);
           throw error;
@@ -153,10 +173,30 @@ function createListCommand() {
       } catch (error) {
         logger.error('[ListCommand] Error:', error);
 
-        return await context.respond(
-          '❌ An error occurred while listing personalities. ' +
-            'Please try again later or contact support if the issue persists.'
-        );
+        const genericErrorEmbed = {
+          title: '❌ Something Went Wrong',
+          description: 'An error occurred while listing personalities.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'What happened',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value:
+                '• Try again in a moment\n• Use the command without a page number\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        return await context.respond({ embeds: [genericErrorEmbed] });
       }
     },
   });

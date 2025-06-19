@@ -76,7 +76,11 @@ function createInfoCommand() {
           // Create embed fields
           const fields = [
             { name: 'Full Name', value: personality.profile.name, inline: true },
-            { name: 'Display Name', value: personality.profile.displayName || 'Not set', inline: true },
+            {
+              name: 'Display Name',
+              value: personality.profile.displayName || 'Not set',
+              inline: true,
+            },
           ];
 
           // Add user's aliases (in new system, aliases are global not per-user)

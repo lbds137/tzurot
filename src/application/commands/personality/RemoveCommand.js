@@ -46,9 +46,37 @@ function createRemoveCommand() {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
             const botPrefix = context.dependencies.botPrefix || '!tz';
-            return await context.respond(
-              `You need to provide a personality name. Usage: \`${botPrefix} remove <name>\``
-            );
+            const usageEmbed = {
+              title: 'How to Remove a Personality',
+              description: 'Remove a personality from your collection.',
+              color: 0x2196f3, // Blue color
+              fields: [
+                {
+                  name: 'Basic Usage',
+                  value: `\`${botPrefix} remove <name>\``,
+                  inline: false,
+                },
+                {
+                  name: 'Examples',
+                  value:
+                    `• \`${botPrefix} remove Claude\` - Remove by name\n` +
+                    `• \`${botPrefix} remove cl\` - Remove by alias\n` +
+                    `• \`${botPrefix} remove "My Assistant"\` - Remove with spaces`,
+                  inline: false,
+                },
+                {
+                  name: 'Important',
+                  value:
+                    '⚠️ You can only remove personalities you created\n' +
+                    '⚠️ This action cannot be undone',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Removed personalities can be recreated with the same name',
+              },
+            };
+            return await context.respond({ embeds: [usageEmbed] });
           }
 
           personalityName = context.args[0];
@@ -59,7 +87,19 @@ function createRemoveCommand() {
 
         // Validate input
         if (!personalityName || personalityName.length === 0) {
-          return await context.respond('Please provide a personality name to remove.');
+          const errorEmbed = {
+            title: '❌ Missing Personality Name',
+            description: 'Please provide a personality name to remove.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'What to provide',
+                value: '• The personality\'s name (e.g., "Claude")\n• Or an alias (e.g., "cl")',
+                inline: false,
+              },
+            ],
+          };
+          return await context.respond({ embeds: [errorEmbed] });
         }
 
         logger.info(
@@ -71,9 +111,23 @@ function createRemoveCommand() {
           const personality = await personalityService.getPersonality(personalityName);
 
           if (!personality) {
-            return await context.respond(
-              `Personality "${personalityName}" not found. Please check the name or alias and try again.`
-            );
+            const notFoundEmbed = {
+              title: '❌ Personality Not Found',
+              description: `No personality found with the name or alias "${personalityName}".`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What to check',
+                  value:
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `list` command to see your personalities',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personality names are case-insensitive',
+              },
+            };
+            return await context.respond({ embeds: [notFoundEmbed] });
           }
 
           // Remove the personality
@@ -112,36 +166,124 @@ function createRemoveCommand() {
 
           // Create response message
           const displayName = personality.profile.displayName || personality.profile.name;
-          const response = `✅ **${displayName}** has been removed from your collection.`;
 
-          return await context.respond({
-            content: response,
-            embeds: [
-              {
-                title: 'Personality Removed',
-                description: `**${displayName}** has been removed from your collection.`,
-                color: 0xf44336,
-              },
-            ],
+          // Build fields for the embed
+          const fields = [
+            {
+              name: 'Removed Personality',
+              value: displayName,
+              inline: true,
+            },
+          ];
+
+          // Add alias info if any existed
+          if (personality.aliases && personality.aliases.length > 0) {
+            const aliases = personality.aliases.map(a => a.value || a.alias).join(', ');
+            fields.push({
+              name: 'Aliases Removed',
+              value: aliases,
+              inline: true,
+            });
+          }
+
+          // Add system indicator if using new system
+          const featureFlags = context.dependencies.featureFlags;
+          if (featureFlags?.isEnabled('ddd.personality.write')) {
+            fields.push({
+              name: 'System',
+              value: '🆕 Removed from new DDD system',
+              inline: false,
+            });
+          }
+
+          // Add next steps
+          fields.push({
+            name: 'What Now?',
+            value:
+              '• You can recreate this personality with the same name\n' +
+              '• Use `list` to see your remaining personalities\n' +
+              "• The personality's conversation history has been preserved",
+            inline: false,
           });
+
+          const successEmbed = {
+            title: '✅ Personality Removed Successfully',
+            description: `**${displayName}** has been removed from your collection.`,
+            color: 0xf44336, // Red color for removal
+            fields: fields,
+            footer: {
+              text: 'This action cannot be undone',
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          return await context.respond({ embeds: [successEmbed] });
         } catch (error) {
           // Handle specific errors
           if (error.message.includes('not found')) {
-            return await context.respond(
-              `Personality "${personalityName}" not found. Please check the name or alias and try again.`
-            );
+            const notFoundEmbed = {
+              title: '❌ Personality Not Found',
+              description: `No personality found with the name or alias "${personalityName}".`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What to check',
+                  value:
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `list` command to see your personalities',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personality names are case-insensitive',
+              },
+            };
+            return await context.respond({ embeds: [notFoundEmbed] });
           }
 
           if (error.message.includes('owner') || error.message.includes('permission')) {
-            return await context.respond(`You cannot remove a personality that you didn't create.`);
+            const permissionEmbed = {
+              title: '❌ Permission Denied',
+              description: "You cannot remove a personality that you didn't create.",
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Why this happened',
+                  value:
+                    '• You are not the owner of this personality\n• Only the creator can remove a personality',
+                  inline: false,
+                },
+                {
+                  name: 'What you can do',
+                  value:
+                    '• Use `list` to see personalities you own\n• Ask the owner to remove it\n• Create your own version with a different name',
+                  inline: false,
+                },
+              ],
+            };
+            return await context.respond({ embeds: [permissionEmbed] });
           }
 
           if (error.message.includes('Authentication failed')) {
             const botPrefix = context.dependencies.botPrefix || '!tz';
-            return await context.respond(
-              '❌ Authentication failed. Please make sure you have authenticated with the bot first.\n' +
-                `Use \`${botPrefix} auth\` to authenticate.`
-            );
+            const authEmbed = {
+              title: '❌ Authentication Required',
+              description: 'You need to authenticate before removing personalities.',
+              color: 0xff9800, // Orange color
+              fields: [
+                {
+                  name: 'How to authenticate',
+                  value:
+                    `1. Use \`${botPrefix} auth\` to start authentication\n` +
+                    '2. Follow the instructions in the DM\n' +
+                    '3. Try removing the personality again',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Authentication ensures secure personality management',
+              },
+            };
+            return await context.respond({ embeds: [authEmbed] });
           }
 
           // Handle exceptions
@@ -151,10 +293,30 @@ function createRemoveCommand() {
       } catch (error) {
         logger.error('[RemoveCommand] Error:', error);
 
-        return await context.respond(
-          '❌ An error occurred while removing the personality. ' +
-            'Please try again later or contact support if the issue persists.'
-        );
+        const genericErrorEmbed = {
+          title: '❌ Something Went Wrong',
+          description: 'An error occurred while removing the personality.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'What happened',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value:
+                '• Try again in a moment\n• Check the personality name\n• Verify you own the personality\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        return await context.respond({ embeds: [genericErrorEmbed] });
       }
     },
   });

@@ -108,9 +108,15 @@ class HttpAIServiceAdapter extends AIService {
     };
 
     // Check for duplicate request
-    const existingPromise = await this.deduplicator.checkDuplicate(personalityName, content, context);
+    const existingPromise = await this.deduplicator.checkDuplicate(
+      personalityName,
+      content,
+      context
+    );
     if (existingPromise) {
-      logger.info(`[HttpAIServiceAdapter] Returning existing promise for duplicate request ${requestId}`);
+      logger.info(
+        `[HttpAIServiceAdapter] Returning existing promise for duplicate request ${requestId}`
+      );
       return existingPromise;
     }
 

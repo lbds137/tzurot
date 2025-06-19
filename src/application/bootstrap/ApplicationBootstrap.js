@@ -157,7 +157,9 @@ class ApplicationBootstrap {
           }
         }, seedingDelay);
       } else {
-        logger.info('[ApplicationBootstrap] Skipping legacy personality seeding - DDD personality system is enabled');
+        logger.info(
+          '[ApplicationBootstrap] Skipping legacy personality seeding - DDD personality system is enabled'
+        );
       }
 
       // Log active feature flags
