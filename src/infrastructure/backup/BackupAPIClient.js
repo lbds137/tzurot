@@ -21,7 +21,7 @@ class BackupAPIClient {
    */
   constructor({
     apiBaseUrl = null,
-    timeout = 30000,
+    timeout = 120000, // 2 minutes for backup operations with large datasets
     scheduler = null,
     clearScheduler = null,
     fetch = null,

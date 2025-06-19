@@ -51,7 +51,12 @@ class BackupService {
    * @param {Object} [cachedCurrentUser] - Pre-fetched current user data (for bulk operations)
    * @returns {Promise<BackupJob>} Completed job
    */
-  async executeBackupWithCachedUser(job, authData, progressCallback = null, cachedCurrentUser = null) {
+  async executeBackupWithCachedUser(
+    job,
+    authData,
+    progressCallback = null,
+    cachedCurrentUser = null
+  ) {
     if (!(job instanceof BackupJob)) {
       throw new Error('Invalid job: must be BackupJob instance');
     }
@@ -81,10 +86,14 @@ class BackupService {
         // Use cached user if available (for bulk operations), otherwise fetch current user
         if (cachedCurrentUser) {
           currentUser = cachedCurrentUser;
-          logger.debug(`[BackupService] Using cached current user for ${job.personalityName}: ${currentUser.id}`);
+          logger.debug(
+            `[BackupService] Using cached current user for ${job.personalityName}: ${currentUser.id}`
+          );
         } else {
           currentUser = await this.apiClientService.fetchCurrentUser(authData);
-          logger.debug(`[BackupService] Fetched current user for ${job.personalityName}: ${currentUser?.id}`);
+          logger.debug(
+            `[BackupService] Fetched current user for ${job.personalityName}: ${currentUser?.id}`
+          );
         }
 
         // Extract user display name for file prefixing
@@ -104,11 +113,11 @@ class BackupService {
           const currentUserId = String(currentUser.id);
           const profileUserId = String(personalityProfile.user_id);
           isOwner = currentUserId === profileUserId;
-          
+
           logger.debug(
             `[BackupService] Ownership comparison for ${job.personalityName}: currentUser.id="${currentUserId}" (type: ${typeof currentUser.id}) vs personalityProfile.user_id="${profileUserId}" (type: ${typeof personalityProfile.user_id})`
           );
-          
+
           if (!isOwner) {
             logger.warn(
               `[BackupService] IDs don't match for ${job.personalityName}: "${currentUserId}" !== "${profileUserId}"`
@@ -576,8 +585,9 @@ class BackupService {
    * @private
    */
   _createDefaultDelayFn() {
-    // eslint-disable-next-line no-restricted-syntax
-    return ms => new Promise(resolve => setTimeout(resolve, ms));
+    // Use globalThis for cross-platform compatibility
+    const timer = globalThis.setTimeout;
+    return ms => new Promise(resolve => timer(resolve, ms));
   }
 
   /**
