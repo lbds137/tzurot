@@ -10,8 +10,10 @@ const {
   PersonalityDataRepository,
 } = require('../../../infrastructure/backup/PersonalityDataRepository');
 const { BackupAPIClient } = require('../../../infrastructure/backup/BackupAPIClient');
+const { ZipArchiveService } = require('../../../infrastructure/backup/ZipArchiveService');
 const logger = require('../../../logger');
 const { USER_CONFIG } = require('../../../constants');
+const path = require('path');
 
 /**
  * Session storage for user authentication cookies
@@ -31,6 +33,7 @@ function createExecutor(dependencies = {}) {
         backupService = null,
         personalityDataRepository = new PersonalityDataRepository(),
         apiClientService = new BackupAPIClient(),
+        zipArchiveService = new ZipArchiveService(),
         delayFn = null,
       } = dependencies;
 
@@ -74,9 +77,15 @@ function createExecutor(dependencies = {}) {
       if (!subcommand) {
         return await showHelp(context);
       } else if (subcommand === 'all') {
-        return await handleBulkBackup(context, backupServiceInstance, authData);
+        return await handleBulkBackup(context, backupServiceInstance, authData, zipArchiveService);
       } else {
-        return await handleSingleBackup(context, subcommand, backupServiceInstance, authData);
+        return await handleSingleBackup(
+          context,
+          subcommand,
+          backupServiceInstance,
+          authData,
+          zipArchiveService
+        );
       }
     } catch (error) {
       logger.error('[BackupCommand] Execution failed:', error);
@@ -268,8 +277,9 @@ async function getAuthData(context) {
  * @param {Object} context - Command context
  * @param {BackupService} backupService - Backup service instance
  * @param {Object} authData - Authentication data
+ * @param {ZipArchiveService} zipArchiveService - ZIP archive service
  */
-async function handleBulkBackup(context, backupService, authData) {
+async function handleBulkBackup(context, backupService, authData, zipArchiveService) {
   const ownerPersonalities = USER_CONFIG.OWNER_PERSONALITIES_LIST.split(',')
     .map(p => p.trim())
     .filter(p => p);
@@ -297,6 +307,77 @@ async function handleBulkBackup(context, backupService, authData) {
       authData,
       progressCallback
     );
+
+    // Create bulk ZIP archive after successful backups
+    const backupDir = path.join(__dirname, '..', '..', '..', '..', 'data', 'personalities');
+    const personalityPaths = ownerPersonalities.map(name => ({
+      name: name.toLowerCase(),
+      path: path.join(backupDir, name.toLowerCase()),
+    }));
+
+    try {
+      const zipBuffer = await zipArchiveService.createBulkArchive(personalityPaths);
+
+      // Check if ZIP is within Discord limits
+      if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
+        const errorEmbed = {
+          title: '⚠️ File Too Large',
+          description: `The bulk backup ZIP file is too large to send via Discord (${zipArchiveService.formatBytes(zipBuffer.length)}). Maximum file size is 8MB.`,
+          color: 0xff9800,
+          fields: [
+            {
+              name: 'Alternative',
+              value:
+                'The backup data has been saved locally on the bot server. Contact the bot administrator for manual retrieval.',
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        await context.respond({ embeds: [errorEmbed] });
+        return;
+      }
+
+      // Send ZIP file as attachment
+      const successEmbed = {
+        title: '✅ Bulk Backup Complete',
+        description: `Successfully created backup archive for ${ownerPersonalities.length} personalities.`,
+        color: 0x4caf50,
+        fields: [
+          {
+            name: '👥 Personalities Included',
+            value: ownerPersonalities.map(p => `• ${p}`).join('\n'),
+            inline: false,
+          },
+          {
+            name: '💾 Archive Size',
+            value: zipArchiveService.formatBytes(zipBuffer.length),
+            inline: true,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+
+      await context.respond({
+        embeds: [successEmbed],
+        files: [
+          {
+            attachment: zipBuffer,
+            name: `tzurot_bulk_backup_${new Date().toISOString().split('T')[0]}.zip`,
+          },
+        ],
+      });
+    } catch (zipError) {
+      logger.error(`[BackupCommand] Bulk ZIP creation error: ${zipError.message}`);
+      const errorEmbed = {
+        title: '⚠️ Archive Creation Failed',
+        description:
+          'The bulk backup was successful but failed to create ZIP archive. Data is saved locally.',
+        color: 0xff9800,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
+    }
   } catch (error) {
     logger.error(`[BackupCommand] Bulk backup error: ${error.message}`);
   }
@@ -308,8 +389,15 @@ async function handleBulkBackup(context, backupService, authData) {
  * @param {string} personalityName - Name of personality to backup
  * @param {BackupService} backupService - Backup service instance
  * @param {Object} authData - Authentication data
+ * @param {ZipArchiveService} zipArchiveService - ZIP archive service
  */
-async function handleSingleBackup(context, personalityName, backupService, authData) {
+async function handleSingleBackup(
+  context,
+  personalityName,
+  backupService,
+  authData,
+  zipArchiveService
+) {
   const job = new BackupJob({
     personalityName: personalityName.toLowerCase(),
     userId: context.userId,
@@ -323,6 +411,83 @@ async function handleSingleBackup(context, personalityName, backupService, authD
 
   try {
     await backupService.executeBackup(job, authData, progressCallback);
+
+    // Create ZIP archive after successful backup
+    const backupDir = path.join(__dirname, '..', '..', '..', '..', 'data', 'personalities');
+    const personalityPath = path.join(backupDir, personalityName.toLowerCase());
+
+    try {
+      const zipBuffer = await zipArchiveService.createPersonalityArchive(
+        personalityName.toLowerCase(),
+        personalityPath
+      );
+
+      // Check if ZIP is within Discord limits
+      if (!zipArchiveService.isWithinDiscordLimits(zipBuffer.length)) {
+        const errorEmbed = {
+          title: '⚠️ File Too Large',
+          description: `The backup ZIP file is too large to send via Discord (${zipArchiveService.formatBytes(zipBuffer.length)}). Maximum file size is 8MB.`,
+          color: 0xff9800,
+          fields: [
+            {
+              name: 'Alternative',
+              value:
+                'The backup data has been saved locally on the bot server. Contact the bot administrator for manual retrieval.',
+              inline: false,
+            },
+          ],
+          timestamp: new Date().toISOString(),
+        };
+        await context.respond({ embeds: [errorEmbed] });
+        return;
+      }
+
+      // Send ZIP file as attachment
+      const successEmbed = {
+        title: '✅ Backup Complete',
+        description: `Successfully created backup archive for **${personalityName}**.`,
+        color: 0x4caf50,
+        fields: [
+          {
+            name: '📦 Archive Contents',
+            value: [
+              '• Profile configuration',
+              '• Memories & chat history',
+              '• Knowledge & training data',
+              '• User personalization',
+              '• Backup metadata',
+            ].join('\n'),
+            inline: false,
+          },
+          {
+            name: '💾 Archive Size',
+            value: zipArchiveService.formatBytes(zipBuffer.length),
+            inline: true,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+
+      await context.respond({
+        embeds: [successEmbed],
+        files: [
+          {
+            attachment: zipBuffer,
+            name: `${personalityName.toLowerCase()}_backup_${new Date().toISOString().split('T')[0]}.zip`,
+          },
+        ],
+      });
+    } catch (zipError) {
+      logger.error(`[BackupCommand] ZIP creation error: ${zipError.message}`);
+      const errorEmbed = {
+        title: '⚠️ Archive Creation Failed',
+        description:
+          'The backup was successful but failed to create ZIP archive. Data is saved locally.',
+        color: 0xff9800,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
+    }
   } catch (error) {
     logger.error(`[BackupCommand] Single backup error: ${error.message}`);
   }
