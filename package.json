@@ -34,6 +34,7 @@
   "dependencies": {
     "discord.js": "14.19.3",
     "dotenv": "16.5.0",
+    "jszip": "^3.10.1",
     "node-fetch": "2.7.0",
     "openai": "4.100.0",
     "winston": "3.17.0"

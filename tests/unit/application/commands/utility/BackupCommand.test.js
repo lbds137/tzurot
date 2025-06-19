@@ -24,6 +24,7 @@ describe('BackupCommand', () => {
   let mockBackupService;
   let mockPersonalityDataRepository;
   let mockApiClientService;
+  let mockZipArchiveService;
   let migrationHelper;
 
   beforeEach(() => {
@@ -49,11 +50,19 @@ describe('BackupCommand', () => {
       fetchPersonalityProfile: jest.fn(),
     };
 
+    mockZipArchiveService = {
+      createPersonalityArchive: jest.fn(),
+      createBulkArchive: jest.fn(),
+      isWithinDiscordLimits: jest.fn(),
+      formatBytes: jest.fn(),
+    };
+
     // Create command with mocked dependencies
     backupCommand = createBackupCommand({
       backupService: mockBackupService,
       personalityDataRepository: mockPersonalityDataRepository,
       apiClientService: mockApiClientService,
+      zipArchiveService: mockZipArchiveService,
       delayFn: jest.fn().mockResolvedValue(undefined),
     });
 
@@ -521,6 +530,259 @@ describe('BackupCommand', () => {
         authData,
         expect.any(Function) // progress callback
       );
+    });
+  });
+
+  describe('ZIP file creation and attachment', () => {
+    beforeEach(() => {
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      // Mock successful backup job
+      const successfulJob = new BackupJob({
+        personalityName: 'testpersonality',
+        userId: 'user123',
+        isBulk: false,
+      });
+      successfulJob.start();
+      successfulJob.complete({
+        profile: { updated: true },
+        memories: { newCount: 5, totalCount: 10, updated: true },
+        knowledge: { updated: false, entryCount: 3 },
+        training: { updated: true, entryCount: 7 },
+        userPersonalization: { updated: false },
+        chatHistory: { newMessageCount: 15, totalMessages: 100, updated: true },
+      });
+      
+      mockBackupService.executeBackup.mockResolvedValue(successfulJob);
+    });
+
+    describe('single personality backup', () => {
+      const mockZipBuffer = Buffer.from('mock-zip-content');
+
+      beforeEach(() => {
+        mockZipArchiveService.createPersonalityArchive.mockResolvedValue(mockZipBuffer);
+        mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
+        mockZipArchiveService.formatBytes.mockReturnValue('1.5 MB');
+      });
+
+      it('should create and send ZIP file after successful backup', async () => {
+        mockContext.args = ['TestPersonality'];
+        await backupCommand.execute(mockContext);
+
+        // Verify ZIP creation
+        expect(mockZipArchiveService.createPersonalityArchive).toHaveBeenCalledWith(
+          'testpersonality',
+          expect.stringContaining('testpersonality')
+        );
+
+        // Verify Discord limit check
+        expect(mockZipArchiveService.isWithinDiscordLimits).toHaveBeenCalledWith(mockZipBuffer.length);
+
+        // Verify response includes ZIP attachment
+        const embedCall = mockContext.respond.mock.calls.find(
+          call => call[0].files && call[0].files.length > 0
+        );
+        expect(embedCall).toBeDefined();
+        expect(embedCall[0].files[0]).toEqual({
+          attachment: mockZipBuffer,
+          name: expect.stringMatching(/^testpersonality_backup_\d{4}-\d{2}-\d{2}\.zip$/),
+        });
+        expect(embedCall[0].embeds[0].title).toBe('✅ Backup Complete');
+        expect(embedCall[0].embeds[0].fields).toContainEqual({
+          name: '💾 Archive Size',
+          value: '1.5 MB',
+          inline: true,
+        });
+      });
+
+      it('should handle ZIP files that exceed Discord limits', async () => {
+        const largeBuffer = Buffer.alloc(10 * 1024 * 1024); // 10MB
+        mockZipArchiveService.createPersonalityArchive.mockResolvedValue(largeBuffer);
+        mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(false);
+        mockZipArchiveService.formatBytes.mockReturnValue('10 MB');
+
+        mockContext.args = ['TestPersonality'];
+        await backupCommand.execute(mockContext);
+
+        // Should not send file attachment
+        const attachmentCall = mockContext.respond.mock.calls.find(
+          call => call[0].files && call[0].files.length > 0
+        );
+        expect(attachmentCall).toBeUndefined();
+
+        // Should send warning embed
+        const warningCall = mockContext.respond.mock.calls.find(
+          call => call[0].embeds && call[0].embeds[0].title === '⚠️ File Too Large'
+        );
+        expect(warningCall).toBeDefined();
+        expect(warningCall[0].embeds[0].description).toContain('10 MB');
+        expect(warningCall[0].embeds[0].description).toContain('Maximum file size is 8MB');
+      });
+
+      it('should handle ZIP creation errors gracefully', async () => {
+        mockZipArchiveService.createPersonalityArchive.mockRejectedValue(
+          new Error('ZIP creation failed')
+        );
+
+        mockContext.args = ['TestPersonality'];
+        await backupCommand.execute(mockContext);
+
+        // Should log error
+        expect(logger.error).toHaveBeenCalledWith(
+          '[BackupCommand] ZIP creation error: ZIP creation failed'
+        );
+
+        // Should send warning embed
+        const warningCall = mockContext.respond.mock.calls.find(
+          call => call[0].embeds && call[0].embeds[0].title === '⚠️ Archive Creation Failed'
+        );
+        expect(warningCall).toBeDefined();
+        expect(warningCall[0].embeds[0].description).toContain(
+          'The backup was successful but failed to create ZIP archive'
+        );
+      });
+    });
+
+    describe('bulk backup', () => {
+      const mockBulkZipBuffer = Buffer.from('mock-bulk-zip-content');
+      const personalities = ['Personality1', 'Personality2', 'Personality3'];
+
+      beforeEach(() => {
+        mockZipArchiveService.createBulkArchive.mockResolvedValue(mockBulkZipBuffer);
+        mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(true);
+        mockZipArchiveService.formatBytes.mockReturnValue('3.2 MB');
+        
+        // Mock successful bulk backup
+        const bulkJobs = personalities.map(name => {
+          const job = new BackupJob({
+            personalityName: name.toLowerCase(),
+            userId: 'user123',
+            isBulk: true,
+          });
+          job.start();
+          job.complete({});
+          return job;
+        });
+        
+        mockBackupService.executeBulkBackup.mockResolvedValue(bulkJobs);
+      });
+
+      it('should create and send bulk ZIP file after successful backups', async () => {
+        mockContext.args = ['all'];
+        await backupCommand.execute(mockContext);
+
+        // Verify bulk ZIP creation
+        expect(mockZipArchiveService.createBulkArchive).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({ name: 'personality1' }),
+            expect.objectContaining({ name: 'personality2' }),
+            expect.objectContaining({ name: 'personality3' }),
+          ])
+        );
+
+        // Verify response includes ZIP attachment
+        const embedCall = mockContext.respond.mock.calls.find(
+          call => call[0].files && call[0].files.length > 0
+        );
+        expect(embedCall).toBeDefined();
+        expect(embedCall[0].files[0]).toEqual({
+          attachment: mockBulkZipBuffer,
+          name: expect.stringMatching(/^tzurot_bulk_backup_\d{4}-\d{2}-\d{2}\.zip$/),
+        });
+        expect(embedCall[0].embeds[0].title).toBe('✅ Bulk Backup Complete');
+        expect(embedCall[0].embeds[0].fields).toContainEqual({
+          name: '💾 Archive Size',
+          value: '3.2 MB',
+          inline: true,
+        });
+      });
+
+      it('should handle bulk ZIP files that exceed Discord limits', async () => {
+        const largeBulkBuffer = Buffer.alloc(20 * 1024 * 1024); // 20MB
+        mockZipArchiveService.createBulkArchive.mockResolvedValue(largeBulkBuffer);
+        mockZipArchiveService.isWithinDiscordLimits.mockReturnValue(false);
+        mockZipArchiveService.formatBytes.mockReturnValue('20 MB');
+
+        mockContext.args = ['all'];
+        await backupCommand.execute(mockContext);
+
+        // Should not send file attachment
+        const attachmentCall = mockContext.respond.mock.calls.find(
+          call => call[0].files && call[0].files.length > 0
+        );
+        expect(attachmentCall).toBeUndefined();
+
+        // Should send warning embed
+        const warningCall = mockContext.respond.mock.calls.find(
+          call => call[0].embeds && call[0].embeds[0].title === '⚠️ File Too Large'
+        );
+        expect(warningCall).toBeDefined();
+        expect(warningCall[0].embeds[0].description).toContain('20 MB');
+      });
+
+      it('should handle bulk ZIP creation errors gracefully', async () => {
+        mockZipArchiveService.createBulkArchive.mockRejectedValue(
+          new Error('Bulk ZIP creation failed')
+        );
+
+        mockContext.args = ['all'];
+        await backupCommand.execute(mockContext);
+
+        // Should log error
+        expect(logger.error).toHaveBeenCalledWith(
+          '[BackupCommand] Bulk ZIP creation error: Bulk ZIP creation failed'
+        );
+
+        // Should send warning embed
+        const warningCall = mockContext.respond.mock.calls.find(
+          call => call[0].embeds && call[0].embeds[0].title === '⚠️ Archive Creation Failed'
+        );
+        expect(warningCall).toBeDefined();
+      });
+    });
+
+    describe('path construction', () => {
+      it('should use correct paths for personality data', async () => {
+        mockContext.args = ['TestPersonality'];
+        await backupCommand.execute(mockContext);
+
+        expect(mockZipArchiveService.createPersonalityArchive).toHaveBeenCalledWith(
+          'testpersonality',
+          expect.stringMatching(/data[/\\]personalities[/\\]testpersonality$/)
+        );
+      });
+
+      it('should handle empty owner personality list', async () => {
+        // Mock empty personality list
+        jest.resetModules();
+        jest.doMock('../../../../../src/constants', () => ({
+          USER_CONFIG: {
+            OWNER_PERSONALITIES_LIST: '',
+          },
+        }));
+
+        const { createBackupCommand: createBackupCommandEmpty } = require('../../../../../src/application/commands/utility/BackupCommand');
+        const emptyCommand = createBackupCommandEmpty({
+          backupService: mockBackupService,
+          personalityDataRepository: mockPersonalityDataRepository,
+          apiClientService: mockApiClientService,
+          zipArchiveService: mockZipArchiveService,
+          delayFn: jest.fn().mockResolvedValue(undefined),
+        });
+
+        // Need to set up user session for the empty command instance
+        const { userSessions: emptyUserSessions } = require('../../../../../src/application/commands/utility/BackupCommand');
+        emptyUserSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+
+        mockContext.args = ['all'];
+        await emptyCommand.execute(mockContext);
+
+        const errorCall = mockContext.respond.mock.calls.find(
+          call => call[0].embeds && call[0].embeds[0].title === '❌ No Personalities'
+        );
+        expect(errorCall).toBeDefined();
+        expect(mockZipArchiveService.createBulkArchive).not.toHaveBeenCalled();
+      });
     });
   });
 });
