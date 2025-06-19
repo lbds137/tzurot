@@ -109,6 +109,8 @@ describe('CommandAdapter', () => {
       it('should return null for unknown command', async () => {
         const mockMessage = {
           author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          guild: null,
           reply: jest.fn(),
         };
 
@@ -122,6 +124,8 @@ describe('CommandAdapter', () => {
         testCommand.execute.mockRejectedValue(new Error('Command failed'));
         const mockMessage = {
           author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          guild: null,
           reply: jest.fn(),
         };
 
@@ -369,6 +373,8 @@ describe('CommandAdapter', () => {
       it('should return null for unknown command', async () => {
         const mockMessage = {
           author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          server: null,
           reply: jest.fn(),
         };
 
@@ -381,6 +387,7 @@ describe('CommandAdapter', () => {
         testCommand.execute.mockRejectedValue(new Error('Command failed'));
         const mockMessage = {
           author: { id: 'user123' },
+          channel: { id: 'channel123' },
           server: { id: 'server123' },
           reply: jest.fn(),
         };

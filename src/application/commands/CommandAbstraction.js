@@ -153,7 +153,7 @@ class CommandContext {
     userId, // User ID
     channelId, // Channel ID
     guildId, // Guild ID
-    isDirectMessage = false, // Whether this is a DM
+    isDirectMessage, // Whether this is a DM (undefined means auto-detect)
     commandPrefix, // Command prefix used
     originalMessage, // Original message object (same as message, for compatibility)
   }) {
