@@ -15,9 +15,9 @@
  * - Consider implementing webhook rotation for high-volume channels
  */
 
-const { WebhookClient } = require('discord.js');
+const { WebhookClient: _WebhookClient } = require('discord.js');
 const logger = require('./logger');
-const errorTracker = require('./utils/errorTracker');
+const _errorTracker = require('./utils/errorTracker');
 const {
   mediaHandler: _mediaHandler,
   processMediaForWebhook,
@@ -30,10 +30,10 @@ const messageFormatter = require('./utils/messageFormatter');
 
 // Import extracted modules
 const webhookModules = require('./webhook');
-const { TIME } = require('./constants');
+const { TIME: _TIME } = require('./constants');
 
 // Get activeWebhooks from the webhookCache module (this is a Set)
-const activeWebhooks = webhookCache.getActiveWebhooks();
+const _activeWebhooks = webhookCache.getActiveWebhooks();
 
 // Map to track active webhook messages (channel id -> message info)
 const activeWebhookMessages = new Map();
@@ -81,7 +81,7 @@ const {
   // Error utilities
   isErrorContent,
   markErrorContent,
-  isErrorWebhookMessage,
+  isErrorWebhookMessage: _isErrorWebhookMessage,
 
   // Message utilities
   getStandardizedUsername,
@@ -93,8 +93,8 @@ const {
   restoreConsoleOutput,
 
   // Constants
-  MAX_ERROR_WAIT_TIME,
-  MIN_MESSAGE_DELAY,
+  MAX_ERROR_WAIT_TIME: _MAX_ERROR_WAIT_TIME,
+  MIN_MESSAGE_DELAY: _MIN_MESSAGE_DELAY,
 } = webhookModules;
 
 // Avatar URL validation moved to avatarManager module
@@ -199,7 +199,7 @@ function isDuplicateMessage(content, username, channelId) {
  * @param {Object} webhook - The webhook client
  * @returns {string|null} - The channel ID if found
  */
-function findChannelIdForWebhook(webhook) {
+function _findChannelIdForWebhook(webhook) {
   // Search through the webhook cache using the exposed cache for testing
   const cache = webhookCache._webhookCache || new Map();
   for (const [channelId, cachedWebhook] of cache.entries()) {

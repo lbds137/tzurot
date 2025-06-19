@@ -528,7 +528,7 @@ class FilePersonalityRepository extends PersonalityRepository {
       logger.info(
         `[FilePersonalityRepository] Found legacy aliases file with ${Object.keys(legacyAliases).length} aliases`
       );
-    } catch (error) {
+    } catch (_error) {
       logger.info('[FilePersonalityRepository] No legacy aliases file found');
     }
 

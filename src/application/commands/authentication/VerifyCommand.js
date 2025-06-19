@@ -26,7 +26,7 @@ function createVerifyCommand(dependencies = {}) {
 /**
  * Create the command executor function
  */
-function createExecutor(dependencies) {
+function createExecutor(_dependencies) {
   return async function execute(context) {
     const { dependencies } = context;
     const auth = dependencies.auth;
