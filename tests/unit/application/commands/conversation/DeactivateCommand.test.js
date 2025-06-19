@@ -6,7 +6,9 @@
  * Tests the deactivate command functionality for DDD architecture
  */
 
-const { createDeactivateCommand } = require('../../../../../src/application/commands/conversation/DeactivateCommand');
+const {
+  createDeactivateCommand,
+} = require('../../../../../src/application/commands/conversation/DeactivateCommand');
 const { Command } = require('../../../../../src/application/commands/CommandAbstraction');
 const logger = require('../../../../../src/logger');
 
@@ -59,7 +61,9 @@ describe('DeactivateCommand', () => {
   describe('command metadata', () => {
     it('should have correct metadata', () => {
       expect(command.name).toBe('deactivate');
-      expect(command.description).toBe('Deactivate the currently active personality in this channel');
+      expect(command.description).toBe(
+        'Deactivate the currently active personality in this channel'
+      );
       expect(command.category).toBe('Conversation');
       expect(command.aliases).toEqual(['deact']);
       expect(command.options).toHaveLength(0);
@@ -76,8 +80,12 @@ describe('DeactivateCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockConversationManager.getActivatedPersonality).toHaveBeenCalledWith(mockContext.channelId);
-      expect(mockConversationManager.deactivatePersonality).toHaveBeenCalledWith(mockContext.channelId);
+      expect(mockConversationManager.getActivatedPersonality).toHaveBeenCalledWith(
+        mockContext.channelId
+      );
+      expect(mockConversationManager.deactivatePersonality).toHaveBeenCalledWith(
+        mockContext.channelId
+      );
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -87,9 +95,9 @@ describe('DeactivateCommand', () => {
             fields: expect.arrayContaining([
               expect.objectContaining({ name: 'Deactivated Personality', value: 'Aria' }),
               expect.objectContaining({ name: 'Channel', value: `<#${mockContext.channelId}>` }),
-              expect.objectContaining({ 
-                name: 'Note', 
-                value: 'The personality can still be mentioned directly or respond to replies.' 
+              expect.objectContaining({
+                name: 'Note',
+                value: 'The personality can still be mentioned directly or respond to replies.',
               }),
             ]),
           }),
@@ -121,11 +129,14 @@ describe('DeactivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Insufficient Permissions',
-          description: 'You need the "Manage Messages" permission to deactivate personalities in this channel.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Insufficient Permissions',
+            description:
+              'You need the "Manage Messages" permission to deactivate personalities in this channel.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockConversationManager.deactivatePersonality).not.toHaveBeenCalled();
     });
@@ -140,11 +151,13 @@ describe('DeactivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ No Active Personality',
-          description: 'There is no active personality in this channel.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ No Active Personality',
+            description: 'There is no active personality in this channel.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockConversationManager.deactivatePersonality).not.toHaveBeenCalled();
     });
@@ -162,11 +175,13 @@ describe('DeactivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Deactivation Failed',
-          description: 'Failed to deactivate personality. Please try again.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Deactivation Failed',
+            description: 'Failed to deactivate personality. Please try again.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(logger.error).toHaveBeenCalledWith(
         '[DeactivateCommand] Error deactivating personality:',

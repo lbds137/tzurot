@@ -11,12 +11,12 @@ class MockFileSystem {
   constructor() {
     this.files = new Map();
     this.directories = new Set();
-    
+
     // Initialize with default directories
     this.directories.add('/');
     this.directories.add('/data');
   }
-  
+
   /**
    * Write data to a file
    * @param {string} filePath - Path to the file
@@ -30,16 +30,16 @@ class MockFileSystem {
       const dir = filePath.substring(0, lastSlash);
       await this.mkdir(dir);
     }
-    
+
     // Store the data
     this.files.set(filePath, {
       content: data,
-      mtime: new Date()
+      mtime: new Date(),
     });
-    
+
     return true;
   }
-  
+
   /**
    * Read data from a file
    * @param {string} filePath - Path to the file
@@ -49,10 +49,10 @@ class MockFileSystem {
     if (!this.files.has(filePath)) {
       throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
     }
-    
+
     return this.files.get(filePath).content;
   }
-  
+
   /**
    * Check if a file exists
    * @param {string} filePath - Path to the file
@@ -61,7 +61,7 @@ class MockFileSystem {
   async fileExists(filePath) {
     return this.files.has(filePath);
   }
-  
+
   /**
    * Create a directory
    * @param {string} dirPath - Path to the directory
@@ -71,15 +71,15 @@ class MockFileSystem {
     // Split the path by slashes and create each directory in sequence
     const parts = dirPath.split('/').filter(p => p);
     let currentPath = '';
-    
+
     for (const part of parts) {
       currentPath += '/' + part;
       this.directories.add(currentPath);
     }
-    
+
     return true;
   }
-  
+
   /**
    * Check if a directory exists
    * @param {string} dirPath - Path to the directory
@@ -88,7 +88,7 @@ class MockFileSystem {
   async directoryExists(dirPath) {
     return this.directories.has(dirPath);
   }
-  
+
   /**
    * List files in a directory
    * @param {string} dirPath - Path to the directory
@@ -98,7 +98,7 @@ class MockFileSystem {
     if (!this.directories.has(dirPath)) {
       throw new Error(`ENOENT: no such file or directory, scandir '${dirPath}'`);
     }
-    
+
     const filesInDir = Array.from(this.files.keys())
       .filter(filePath => {
         // Check if the file is directly in this directory
@@ -106,10 +106,10 @@ class MockFileSystem {
         return dir === dirPath;
       })
       .map(filePath => filePath.substring(filePath.lastIndexOf('/') + 1));
-    
+
     return filesInDir;
   }
-  
+
   /**
    * Delete a file
    * @param {string} filePath - Path to the file
@@ -119,11 +119,11 @@ class MockFileSystem {
     if (!this.files.has(filePath)) {
       throw new Error(`ENOENT: no such file or directory, unlink '${filePath}'`);
     }
-    
+
     this.files.delete(filePath);
     return true;
   }
-  
+
   /**
    * Get file stats
    * @param {string} filePath - Path to the file
@@ -136,24 +136,25 @@ class MockFileSystem {
         isFile: () => true,
         isDirectory: () => false,
         mtime: fileData.mtime,
-        size: typeof fileData.content === 'string' 
-          ? fileData.content.length 
-          : JSON.stringify(fileData.content).length
+        size:
+          typeof fileData.content === 'string'
+            ? fileData.content.length
+            : JSON.stringify(fileData.content).length,
       };
     }
-    
+
     if (this.directories.has(filePath)) {
       return {
         isFile: () => false,
         isDirectory: () => true,
         mtime: new Date(),
-        size: 0
+        size: 0,
       };
     }
-    
+
     throw new Error(`ENOENT: no such file or directory, stat '${filePath}'`);
   }
-  
+
   /**
    * Clear all files and reset to initial state
    */
@@ -210,14 +211,14 @@ function createMockFsModule(mockFs = new MockFileSystem()) {
           throw error;
         }
       }),
-      unlink: jest.fn().mockImplementation(async (path) => {
+      unlink: jest.fn().mockImplementation(async path => {
         try {
           return await mockFs.unlink(path);
         } catch (error) {
           throw error;
         }
       }),
-      stat: jest.fn().mockImplementation(async (path) => {
+      stat: jest.fn().mockImplementation(async path => {
         try {
           return await mockFs.stat(path);
         } catch (error) {
@@ -226,14 +227,14 @@ function createMockFsModule(mockFs = new MockFileSystem()) {
       }),
       access: jest.fn().mockImplementation(async (path, mode) => {
         try {
-          if (await mockFs.fileExists(path) || await mockFs.directoryExists(path)) {
+          if ((await mockFs.fileExists(path)) || (await mockFs.directoryExists(path))) {
             return undefined;
           }
           throw new Error(`ENOENT: no such file or directory, access '${path}'`);
         } catch (error) {
           throw error;
         }
-      })
+      }),
     },
     // Also provide synchronous versions for compatibility
     readFileSync: jest.fn().mockImplementation((path, options) => {
@@ -273,21 +274,21 @@ function createMockFsModule(mockFs = new MockFileSystem()) {
         throw error;
       }
     }),
-    unlinkSync: jest.fn().mockImplementation((path) => {
+    unlinkSync: jest.fn().mockImplementation(path => {
       try {
         return mockFs.unlink(path);
       } catch (error) {
         throw error;
       }
     }),
-    statSync: jest.fn().mockImplementation((path) => {
+    statSync: jest.fn().mockImplementation(path => {
       try {
         return mockFs.stat(path);
       } catch (error) {
         throw error;
       }
     }),
-    existsSync: jest.fn().mockImplementation((path) => {
+    existsSync: jest.fn().mockImplementation(path => {
       try {
         return mockFs.fileExists(path) || mockFs.directoryExists(path);
       } catch (error) {
@@ -295,11 +296,11 @@ function createMockFsModule(mockFs = new MockFileSystem()) {
       }
     }),
     // Provide the mock file system instance for direct manipulation in tests
-    _mockFs: mockFs
+    _mockFs: mockFs,
   };
 }
 
 module.exports = {
   MockFileSystem,
-  createMockFsModule
+  createMockFsModule,
 };

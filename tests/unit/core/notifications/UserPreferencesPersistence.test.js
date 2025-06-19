@@ -25,17 +25,17 @@ describe('UserPreferencesPersistence', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Mock timer functions
     mockScheduler = jest.fn((fn, delay) => setTimeout(fn, delay));
-    mockClearScheduler = jest.fn((timer) => clearTimeout(timer));
-    
+    mockClearScheduler = jest.fn(timer => clearTimeout(timer));
+
     persistence = new UserPreferencesPersistence({
       scheduler: mockScheduler,
       clearScheduler: mockClearScheduler,
       saveDebounceDelay: 100, // Short delay for tests
     });
-    
+
     // Set up logger mock
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -49,14 +49,14 @@ describe('UserPreferencesPersistence', () => {
   describe('load', () => {
     it('should load preferences from file', async () => {
       const mockData = {
-        'user123': {
+        user123: {
           optedOut: true,
           notificationLevel: 'major',
           lastNotified: '1.0.0',
           createdAt: '2024-01-01T00:00:00.000Z',
           updatedAt: '2024-01-02T00:00:00.000Z',
         },
-        'user456': {
+        user456: {
           optedOut: false,
           notificationLevel: 'minor',
           lastNotified: null,
@@ -64,7 +64,7 @@ describe('UserPreferencesPersistence', () => {
           updatedAt: '2024-01-01T00:00:00.000Z',
         },
       };
-      
+
       fs.readFile.mockResolvedValue(JSON.stringify(mockData));
 
       await persistence.load();
@@ -72,7 +72,9 @@ describe('UserPreferencesPersistence', () => {
       expect(persistence.preferences.size).toBe(2);
       expect(persistence.preferences.get('user123')).toEqual(mockData.user123);
       expect(persistence.preferences.get('user456')).toEqual(mockData.user456);
-      expect(logger.info).toHaveBeenCalledWith('[UserPreferencesPersistence] Loaded 2 user preferences');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[UserPreferencesPersistence] Loaded 2 user preferences'
+      );
     });
 
     it('should start fresh if file does not exist', async () => {
@@ -83,14 +85,18 @@ describe('UserPreferencesPersistence', () => {
       await persistence.load();
 
       expect(persistence.preferences.size).toBe(0);
-      expect(logger.info).toHaveBeenCalledWith('[UserPreferencesPersistence] No preferences file found, starting fresh');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[UserPreferencesPersistence] No preferences file found, starting fresh'
+      );
     });
 
     it('should throw error for other file read errors', async () => {
       fs.readFile.mockRejectedValue(new Error('Permission denied'));
 
       await expect(persistence.load()).rejects.toThrow('Permission denied');
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error loading preferences'));
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error loading preferences')
+      );
     });
   });
 
@@ -286,8 +292,9 @@ describe('UserPreferencesPersistence', () => {
     });
 
     it('should reject invalid notification levels', async () => {
-      await expect(persistence.setNotificationLevel('user123', 'invalid'))
-        .rejects.toThrow('Invalid notification level: invalid');
+      await expect(persistence.setNotificationLevel('user123', 'invalid')).rejects.toThrow(
+        'Invalid notification level: invalid'
+      );
     });
   });
 

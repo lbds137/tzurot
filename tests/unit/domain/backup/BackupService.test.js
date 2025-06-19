@@ -47,7 +47,7 @@ describe('BackupService', () => {
       personalityDataRepository: mockPersonalityDataRepository,
       apiClientService: mockApiClientService,
       authenticationService: mockAuthenticationService,
-      delayFn: mockDelayFn
+      delayFn: mockDelayFn,
     });
   });
 
@@ -64,7 +64,7 @@ describe('BackupService', () => {
       const serviceWithDefaults = new BackupService({
         personalityDataRepository: mockPersonalityDataRepository,
         apiClientService: mockApiClientService,
-        authenticationService: mockAuthenticationService
+        authenticationService: mockAuthenticationService,
       });
 
       expect(typeof serviceWithDefaults.delayFn).toBe('function');
@@ -79,7 +79,7 @@ describe('BackupService', () => {
     beforeEach(() => {
       job = new BackupJob({
         personalityName: 'TestPersonality',
-        userId: 'user123'
+        userId: 'user123',
       });
 
       authData = { cookie: 'session-cookie' };
@@ -92,27 +92,27 @@ describe('BackupService', () => {
       mockApiClientService.fetchPersonalityProfile.mockResolvedValue({
         id: 'personality-id-123',
         name: 'TestPersonality',
-        description: 'Test description'
+        description: 'Test description',
       });
-      
+
       mockApiClientService.fetchAllMemories.mockResolvedValue([
-        { id: 'mem1', content: 'Memory 1', created_at: 1609459200 }
+        { id: 'mem1', content: 'Memory 1', created_at: 1609459200 },
       ]);
-      
+
       mockApiClientService.fetchKnowledgeData.mockResolvedValue([
-        { id: 'know1', content: 'Knowledge 1' }
+        { id: 'know1', content: 'Knowledge 1' },
       ]);
-      
+
       mockApiClientService.fetchTrainingData.mockResolvedValue([
-        { id: 'train1', input: 'Input 1', output: 'Output 1' }
+        { id: 'train1', input: 'Input 1', output: 'Output 1' },
       ]);
-      
+
       mockApiClientService.fetchUserPersonalizationData.mockResolvedValue({
-        preferences: { theme: 'dark' }
+        preferences: { theme: 'dark' },
       });
-      
+
       mockApiClientService.fetchChatHistory.mockResolvedValue([
-        { ts: 1609459200, content: 'Chat message 1' }
+        { ts: 1609459200, content: 'Chat message 1' },
       ]);
     });
 
@@ -133,12 +133,35 @@ describe('BackupService', () => {
       expect(job.results.chatHistory.totalMessages).toBe(1);
 
       // Verify API calls were made
-      expect(mockApiClientService.fetchPersonalityProfile).toHaveBeenCalledWith('TestPersonality', authData);
-      expect(mockApiClientService.fetchAllMemories).toHaveBeenCalledWith('personality-id-123', 'TestPersonality', authData);
-      expect(mockApiClientService.fetchKnowledgeData).toHaveBeenCalledWith('personality-id-123', 'TestPersonality', authData);
-      expect(mockApiClientService.fetchTrainingData).toHaveBeenCalledWith('personality-id-123', 'TestPersonality', authData);
-      expect(mockApiClientService.fetchUserPersonalizationData).toHaveBeenCalledWith('personality-id-123', 'TestPersonality', authData);
-      expect(mockApiClientService.fetchChatHistory).toHaveBeenCalledWith('personality-id-123', 'TestPersonality', authData);
+      expect(mockApiClientService.fetchPersonalityProfile).toHaveBeenCalledWith(
+        'TestPersonality',
+        authData
+      );
+      expect(mockApiClientService.fetchAllMemories).toHaveBeenCalledWith(
+        'personality-id-123',
+        'TestPersonality',
+        authData
+      );
+      expect(mockApiClientService.fetchKnowledgeData).toHaveBeenCalledWith(
+        'personality-id-123',
+        'TestPersonality',
+        authData
+      );
+      expect(mockApiClientService.fetchTrainingData).toHaveBeenCalledWith(
+        'personality-id-123',
+        'TestPersonality',
+        authData
+      );
+      expect(mockApiClientService.fetchUserPersonalizationData).toHaveBeenCalledWith(
+        'personality-id-123',
+        'TestPersonality',
+        authData
+      );
+      expect(mockApiClientService.fetchChatHistory).toHaveBeenCalledWith(
+        'personality-id-123',
+        'TestPersonality',
+        authData
+      );
 
       // Verify delays were applied
       expect(mockDelayFn).toHaveBeenCalledTimes(5);
@@ -148,19 +171,23 @@ describe('BackupService', () => {
       expect(mockPersonalityDataRepository.save).toHaveBeenCalledWith(personalityData);
 
       // Verify progress callbacks
-      expect(mockProgressCallback).toHaveBeenCalledWith('🔄 Starting backup for **TestPersonality**...');
-      expect(mockProgressCallback).toHaveBeenCalledWith(expect.stringContaining('✅ Backup complete for **TestPersonality**'));
+      expect(mockProgressCallback).toHaveBeenCalledWith(
+        '🔄 Starting backup for **TestPersonality**...'
+      );
+      expect(mockProgressCallback).toHaveBeenCalledWith(
+        expect.stringContaining('✅ Backup complete for **TestPersonality**')
+      );
     });
 
     it('should handle personality without ID (profile only)', async () => {
       // Create a fresh personality data without ID for this test
       const personalityDataNoId = new PersonalityData('TestPersonality');
       mockPersonalityDataRepository.load.mockResolvedValueOnce(personalityDataNoId);
-      
+
       // Mock profile without ID
       mockApiClientService.fetchPersonalityProfile.mockResolvedValue({
         name: 'TestPersonality',
-        description: 'Test description'
+        description: 'Test description',
         // No ID field
       });
 
@@ -168,7 +195,7 @@ describe('BackupService', () => {
 
       expect(result.status).toBe(BackupStatus.COMPLETED);
       expect(result.results.profile.updated).toBe(true);
-      
+
       // Other API methods should not be called for personality without ID
       expect(mockApiClientService.fetchAllMemories).not.toHaveBeenCalled();
       expect(mockApiClientService.fetchKnowledgeData).not.toHaveBeenCalled();
@@ -181,15 +208,17 @@ describe('BackupService', () => {
       const apiError = new Error('API request failed');
       mockApiClientService.fetchPersonalityProfile.mockRejectedValue(apiError);
 
-      await expect(backupService.executeBackup(job, authData, mockProgressCallback)).rejects.toThrow('API request failed');
+      await expect(
+        backupService.executeBackup(job, authData, mockProgressCallback)
+      ).rejects.toThrow('API request failed');
 
       expect(job.status).toBe(BackupStatus.FAILED);
       expect(job.error.message).toBe('API request failed');
-      
+
       expect(logger.error).toHaveBeenCalledWith(
         '[BackupService] Backup failed for TestPersonality: API request failed'
       );
-      
+
       expect(mockProgressCallback).toHaveBeenCalledWith(
         '❌ Failed to backup **TestPersonality**: API request failed'
       );
@@ -224,9 +253,9 @@ describe('BackupService', () => {
 
     beforeEach(() => {
       authData = { cookie: 'session-cookie' };
-      
+
       // Mock successful single backup execution
-      jest.spyOn(backupService, 'executeBackup').mockImplementation(async (job) => {
+      jest.spyOn(backupService, 'executeBackup').mockImplementation(async job => {
         job.start();
         job.complete({});
         return job;
@@ -234,6 +263,7 @@ describe('BackupService', () => {
     });
 
     afterEach(() => {
+      // Clean up any spies to avoid test pollution
       jest.restoreAllMocks();
     });
 
@@ -250,7 +280,7 @@ describe('BackupService', () => {
 
       expect(jobs).toHaveLength(3);
       expect(backupService.executeBackup).toHaveBeenCalledTimes(3);
-      
+
       // Verify each job was created correctly
       jobs.forEach((job, index) => {
         expect(job.personalityName).toBe(personalityNames[index]);
@@ -276,7 +306,8 @@ describe('BackupService', () => {
       authError.status = 401;
 
       // Mock first backup to succeed, second to fail with auth error
-      jest.spyOn(backupService, 'executeBackup')
+      jest
+        .spyOn(backupService, 'executeBackup')
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED })
         .mockRejectedValueOnce(authError);
 
@@ -304,7 +335,8 @@ describe('BackupService', () => {
       const generalError = new Error('Network error');
 
       // Mock second backup to fail with non-auth error
-      jest.spyOn(backupService, 'executeBackup')
+      jest
+        .spyOn(backupService, 'executeBackup')
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED })
         .mockRejectedValueOnce(generalError)
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED });
@@ -331,19 +363,15 @@ describe('BackupService', () => {
       );
 
       // Non-array input
-      await expect(backupService.executeBulkBackup('not-array', 'user123', authData)).rejects.toThrow(
-        'Invalid personality names: must be non-empty array'
-      );
+      await expect(
+        backupService.executeBulkBackup('not-array', 'user123', authData)
+      ).rejects.toThrow('Invalid personality names: must be non-empty array');
     });
 
     it('should work without progress callback', async () => {
       const personalityNames = ['Personality1'];
 
-      const jobs = await backupService.executeBulkBackup(
-        personalityNames,
-        'user123',
-        authData
-      );
+      const jobs = await backupService.executeBulkBackup(personalityNames, 'user123', authData);
 
       expect(jobs).toHaveLength(1);
       // Should not throw errors when progress callback is null
@@ -399,7 +427,10 @@ describe('BackupService', () => {
 
         await backupService._backupProfile(personalityData, authData);
 
-        expect(mockApiClientService.fetchPersonalityProfile).toHaveBeenCalledWith('TestPersonality', authData);
+        expect(mockApiClientService.fetchPersonalityProfile).toHaveBeenCalledWith(
+          'TestPersonality',
+          authData
+        );
         expect(personalityData.profile).toEqual(profileData);
       });
     });
@@ -411,7 +442,11 @@ describe('BackupService', () => {
 
         const result = await backupService._backupMemories(personalityData, authData);
 
-        expect(mockApiClientService.fetchAllMemories).toHaveBeenCalledWith('test-id', 'TestPersonality', authData);
+        expect(mockApiClientService.fetchAllMemories).toHaveBeenCalledWith(
+          'test-id',
+          'TestPersonality',
+          authData
+        );
         expect(result.hasNewMemories).toBe(true);
         expect(result.newMemoryCount).toBe(1);
       });
@@ -424,7 +459,11 @@ describe('BackupService', () => {
 
         const result = await backupService._backupKnowledge(personalityData, authData);
 
-        expect(mockApiClientService.fetchKnowledgeData).toHaveBeenCalledWith('test-id', 'TestPersonality', authData);
+        expect(mockApiClientService.fetchKnowledgeData).toHaveBeenCalledWith(
+          'test-id',
+          'TestPersonality',
+          authData
+        );
         expect(result.hasNewKnowledge).toBe(true);
         expect(result.knowledgeCount).toBe(1);
       });
@@ -437,7 +476,11 @@ describe('BackupService', () => {
 
         const result = await backupService._backupTraining(personalityData, authData);
 
-        expect(mockApiClientService.fetchTrainingData).toHaveBeenCalledWith('test-id', 'TestPersonality', authData);
+        expect(mockApiClientService.fetchTrainingData).toHaveBeenCalledWith(
+          'test-id',
+          'TestPersonality',
+          authData
+        );
         expect(result.hasNewTraining).toBe(true);
         expect(result.trainingCount).toBe(1);
       });
@@ -450,7 +493,11 @@ describe('BackupService', () => {
 
         const result = await backupService._backupUserPersonalization(personalityData, authData);
 
-        expect(mockApiClientService.fetchUserPersonalizationData).toHaveBeenCalledWith('test-id', 'TestPersonality', authData);
+        expect(mockApiClientService.fetchUserPersonalizationData).toHaveBeenCalledWith(
+          'test-id',
+          'TestPersonality',
+          authData
+        );
         expect(result.hasNewUserPersonalization).toBe(true);
       });
     });
@@ -462,7 +509,11 @@ describe('BackupService', () => {
 
         const result = await backupService._backupChatHistory(personalityData, authData);
 
-        expect(mockApiClientService.fetchChatHistory).toHaveBeenCalledWith('test-id', 'TestPersonality', authData);
+        expect(mockApiClientService.fetchChatHistory).toHaveBeenCalledWith(
+          'test-id',
+          'TestPersonality',
+          authData
+        );
         expect(result.hasNewMessages).toBe(true);
         expect(result.newMessageCount).toBe(1);
       });

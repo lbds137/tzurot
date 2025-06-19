@@ -10,7 +10,7 @@ jest.mock('../../src/logger', () => ({
   debug: jest.fn(),
   info: jest.fn(),
   warn: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
 }));
 
 const webhookUserTracker = require('../../src/utils/webhookUserTracker');
@@ -23,7 +23,7 @@ describe('Proxy System Webhook Identification', () => {
     // Clear the webhook cache to prevent test interference
     webhookUserTracker.clearAllCachedWebhooks();
   });
-  
+
   // Clean up timers after tests
   afterAll(() => {
     jest.clearAllTimers();
@@ -35,13 +35,13 @@ describe('Proxy System Webhook Identification', () => {
       webhookId: '987654321',
       applicationId: '466378653216014359', // PluralKit bot ID
       author: {
-        username: 'Alice | System Name'
-      }
+        username: 'Alice | System Name',
+      },
     };
 
     // Check if the webhook is properly identified as a proxy system
     const result = webhookUserTracker.isProxySystemWebhook(mockMessage);
-    
+
     // Should identify this as a proxy system webhook
     expect(result).toBe(true);
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -55,13 +55,13 @@ describe('Proxy System Webhook Identification', () => {
       webhookId: '987654321',
       applicationId: '510016054391734273', // Tupperbox bot ID
       author: {
-        username: 'Character Name'
-      }
+        username: 'Character Name',
+      },
     };
 
     // Check if the webhook is properly identified as a proxy system
     const result = webhookUserTracker.isProxySystemWebhook(mockMessage);
-    
+
     // Should identify this as a proxy system webhook
     expect(result).toBe(true);
   });
@@ -74,13 +74,13 @@ describe('Proxy System Webhook Identification', () => {
       webhookId: 'different-webhook-456', // Use a different webhook ID
       applicationId: '123456789012345678', // Some other bot's ID
       author: {
-        username: 'Some Bot'
-      }
+        username: 'Some Bot',
+      },
     };
 
     // Check if the webhook is identified as a proxy system
     const result = webhookUserTracker.isProxySystemWebhook(mockMessage);
-    
+
     // Should NOT identify this as a proxy system (it's not PluralKit or Tupperbox)
     expect(result).toBe(false);
   });
@@ -91,13 +91,13 @@ describe('Proxy System Webhook Identification', () => {
       webhookId: '987654321',
       applicationId: '466378653216014359', // PluralKit bot ID
       author: {
-        username: 'Alice | System Name'
-      }
+        username: 'Alice | System Name',
+      },
     };
 
     // Check if NSFW verification is bypassed
     const result = webhookUserTracker.shouldBypassNsfwVerification(mockMessage);
-    
+
     // Should bypass verification for proxy systems
     expect(result).toBe(true);
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -111,13 +111,13 @@ describe('Proxy System Webhook Identification', () => {
       webhookId: '987654321',
       applicationId: '466378653216014359', // PluralKit bot ID
       author: {
-        username: 'Alice | System Name'
-      }
+        username: 'Alice | System Name',
+      },
     };
 
     // Check if authentication is allowed
     const result = webhookUserTracker.isAuthenticationAllowed(mockMessage);
-    
+
     // Should NOT allow authentication for proxy systems
     expect(result).toBe(false);
     expect(mockLogger.info).toHaveBeenCalledWith(
@@ -130,8 +130,8 @@ describe('Proxy System Webhook Identification', () => {
     const mockMessage = {
       webhookId: '999999999',
       author: {
-        username: 'Test User'
-      }
+        username: 'Test User',
+      },
       // Missing applicationId and other fields
     };
 
@@ -142,7 +142,7 @@ describe('Proxy System Webhook Identification', () => {
     } catch (error) {
       errorThrown = true;
     }
-    
+
     // Verify no error was thrown
     expect(errorThrown).toBe(false);
   });
@@ -154,17 +154,17 @@ describe('Proxy System Webhook Identification', () => {
       applicationId: '466378653216014359', // PluralKit bot ID
       content: 'Test message',
       channel: {
-        id: 'test-channel-id'
+        id: 'test-channel-id',
       },
       author: {
         username: 'Alice | System Name',
-        id: 'webhook-user-id'
-      }
+        id: 'webhook-user-id',
+      },
     };
 
     // Get the real user ID
     const result = webhookUserTracker.getRealUserId(mockMessage);
-    
+
     // Should return special proxy-system-user ID
     expect(result).toBe('proxy-system-user');
     expect(mockLogger.info).toHaveBeenCalledWith(

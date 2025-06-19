@@ -7,7 +7,7 @@ jest.mock('../../../src/logger', () => ({
   info: jest.fn(),
   debug: jest.fn(),
   warn: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
 }));
 
 const logger = require('../../../src/logger');
@@ -84,7 +84,7 @@ describe('messageDeduplication', () => {
       expect(hash1).toBeTruthy();
       expect(hash2).toBeTruthy();
       expect(hash3).toBeTruthy();
-      
+
       // All should be the same since they're all empty
       expect(hash1).toBe(hash2);
       expect(hash2).toBe(hash3);
@@ -93,7 +93,7 @@ describe('messageDeduplication', () => {
     it('should create different hashes for messages with different endings', () => {
       const username = 'TestUser';
       const channelId = 'channel-123';
-      
+
       const longContent1 = 'A'.repeat(100) + 'different ending 1';
       const longContent2 = 'A'.repeat(100) + 'different ending 2';
 
@@ -123,8 +123,12 @@ describe('messageDeduplication', () => {
     });
 
     it('should return false for first occurrence of a message', () => {
-      const result = messageDeduplication.isDuplicateMessage('Test message', 'TestUser', 'channel-123');
-      
+      const result = messageDeduplication.isDuplicateMessage(
+        'Test message',
+        'TestUser',
+        'channel-123'
+      );
+
       expect(result).toBe(false);
       expect(messageDeduplication.getCacheSize()).toBe(1);
     });
@@ -136,10 +140,10 @@ describe('messageDeduplication', () => {
 
       // First message
       expect(messageDeduplication.isDuplicateMessage(content, username, channelId)).toBe(false);
-      
+
       // Duplicate message immediately after
       expect(messageDeduplication.isDuplicateMessage(content, username, channelId)).toBe(true);
-      
+
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('Detected duplicate message')
       );
@@ -149,23 +153,21 @@ describe('messageDeduplication', () => {
       const content = 'Test message';
       const username = 'TestUser';
       const channelId = 'channel-123';
-      
+
       // Mock time
       let currentTime = 1000000;
       Date.now = jest.fn(() => currentTime);
 
       // First message
       expect(messageDeduplication.isDuplicateMessage(content, username, channelId)).toBe(false);
-      
+
       // Advance time beyond duplicate timeout (5 seconds)
       currentTime += 6000;
-      
+
       // Same message should not be considered duplicate
       expect(messageDeduplication.isDuplicateMessage(content, username, channelId)).toBe(false);
-      
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('have passed')
-      );
+
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('have passed'));
     });
 
     it('should handle multiple different messages', () => {
@@ -187,7 +189,7 @@ describe('messageDeduplication', () => {
       // Add some messages
       messageDeduplication.isDuplicateMessage('Old message 1', 'user', 'channel');
       messageDeduplication.isDuplicateMessage('Old message 2', 'user', 'channel');
-      
+
       expect(messageDeduplication.getCacheSize()).toBe(2);
 
       // Advance time beyond cleanup timeout (10 seconds)
@@ -209,7 +211,7 @@ describe('messageDeduplication', () => {
       // Add some messages
       messageDeduplication.isDuplicateMessage('Message 1', 'user', 'channel');
       messageDeduplication.isDuplicateMessage('Message 2', 'user', 'channel');
-      
+
       expect(messageDeduplication.getCacheSize()).toBe(2);
 
       messageDeduplication.clearCache();
@@ -247,7 +249,7 @@ describe('messageDeduplication', () => {
       const content = 'Test message';
       const username = 'TestUser';
       const channelId = 'channel-123';
-      
+
       const hash = messageDeduplication.hashMessage(content, username, channelId);
 
       expect(messageDeduplication.hasHash(hash)).toBe(false);
@@ -262,7 +264,7 @@ describe('messageDeduplication', () => {
       messageDeduplication.isDuplicateMessage('Message 2', 'user2', 'channel2');
 
       const hashes = messageDeduplication.getAllHashes();
-      
+
       expect(hashes).toHaveLength(2);
       expect(hashes).toContain('channel1_user1_Message1');
       expect(hashes).toContain('channel2_user2_Message2');
@@ -275,7 +277,7 @@ describe('messageDeduplication', () => {
 
       // Add an old message
       messageDeduplication.addToCache('Old message', 'user', 'channel', currentTime - 15000);
-      
+
       expect(messageDeduplication.getCacheSize()).toBe(1);
 
       // Manual cleanup

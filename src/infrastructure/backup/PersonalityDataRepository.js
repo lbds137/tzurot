@@ -55,9 +55,10 @@ class PersonalityDataRepository {
 
       logger.debug(`[PersonalityDataRepository] Loaded data for ${personalityName}`);
       return personalityData;
-
     } catch (error) {
-      logger.error(`[PersonalityDataRepository] Error loading ${personalityName}: ${error.message}`);
+      logger.error(
+        `[PersonalityDataRepository] Error loading ${personalityName}: ${error.message}`
+      );
       // Return empty personality data if loading fails
       return personalityData;
     }
@@ -99,17 +100,25 @@ class PersonalityDataRepository {
       }
 
       if (Object.keys(personalityData.userPersonalization).length > 0) {
-        await this._saveUserPersonalization(personalityData.name, personalityData.userPersonalization);
+        await this._saveUserPersonalization(
+          personalityData.name,
+          personalityData.userPersonalization
+        );
       }
 
       if (personalityData.chatHistory.length > 0) {
-        await this._saveChatHistory(personalityData.name, personalityData.chatHistory, personalityData.id);
+        await this._saveChatHistory(
+          personalityData.name,
+          personalityData.chatHistory,
+          personalityData.id
+        );
       }
 
       logger.info(`[PersonalityDataRepository] Saved data for ${personalityData.name}`);
-
     } catch (error) {
-      logger.error(`[PersonalityDataRepository] Error saving ${personalityData.name}: ${error.message}`);
+      logger.error(
+        `[PersonalityDataRepository] Error saving ${personalityData.name}: ${error.message}`
+      );
       throw error;
     }
   }
@@ -194,7 +203,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _loadMemories(personalityName) {
-    const memoryPath = path.join(this.backupDir, personalityName, `${personalityName}_memories.json`);
+    const memoryPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_memories.json`
+    );
     try {
       const data = await this.fs.readFile(memoryPath, 'utf8');
       return JSON.parse(data);
@@ -208,9 +221,15 @@ class PersonalityDataRepository {
    * @private
    */
   async _saveMemories(personalityName, memories) {
-    const memoryPath = path.join(this.backupDir, personalityName, `${personalityName}_memories.json`);
+    const memoryPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_memories.json`
+    );
     await this.fs.writeFile(memoryPath, JSON.stringify(memories, null, 2));
-    logger.info(`[PersonalityDataRepository] Saved ${memories.length} memories for ${personalityName}`);
+    logger.info(
+      `[PersonalityDataRepository] Saved ${memories.length} memories for ${personalityName}`
+    );
   }
 
   /**
@@ -218,7 +237,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _loadKnowledge(personalityName) {
-    const knowledgePath = path.join(this.backupDir, personalityName, `${personalityName}_knowledge.json`);
+    const knowledgePath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_knowledge.json`
+    );
     try {
       const data = await this.fs.readFile(knowledgePath, 'utf8');
       return JSON.parse(data);
@@ -232,7 +255,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _saveKnowledge(personalityName, knowledge) {
-    const knowledgePath = path.join(this.backupDir, personalityName, `${personalityName}_knowledge.json`);
+    const knowledgePath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_knowledge.json`
+    );
     await this.fs.writeFile(knowledgePath, JSON.stringify(knowledge, null, 2));
     logger.info(`[PersonalityDataRepository] Saved knowledge/story data for ${personalityName}`);
   }
@@ -242,7 +269,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _loadTraining(personalityName) {
-    const trainingPath = path.join(this.backupDir, personalityName, `${personalityName}_training.json`);
+    const trainingPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_training.json`
+    );
     try {
       const data = await this.fs.readFile(trainingPath, 'utf8');
       return JSON.parse(data);
@@ -256,7 +287,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _saveTraining(personalityName, training) {
-    const trainingPath = path.join(this.backupDir, personalityName, `${personalityName}_training.json`);
+    const trainingPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_training.json`
+    );
     await this.fs.writeFile(trainingPath, JSON.stringify(training, null, 2));
     logger.info(`[PersonalityDataRepository] Saved training data for ${personalityName}`);
   }
@@ -266,7 +301,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _loadUserPersonalization(personalityName) {
-    const userPath = path.join(this.backupDir, personalityName, `${personalityName}_user_personalization.json`);
+    const userPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_user_personalization.json`
+    );
     try {
       const data = await this.fs.readFile(userPath, 'utf8');
       return JSON.parse(data);
@@ -280,9 +319,15 @@ class PersonalityDataRepository {
    * @private
    */
   async _saveUserPersonalization(personalityName, userPersonalization) {
-    const userPath = path.join(this.backupDir, personalityName, `${personalityName}_user_personalization.json`);
+    const userPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_user_personalization.json`
+    );
     await this.fs.writeFile(userPath, JSON.stringify(userPersonalization, null, 2));
-    logger.info(`[PersonalityDataRepository] Saved user personalization data for ${personalityName}`);
+    logger.info(
+      `[PersonalityDataRepository] Saved user personalization data for ${personalityName}`
+    );
   }
 
   /**
@@ -290,7 +335,11 @@ class PersonalityDataRepository {
    * @private
    */
   async _loadChatHistory(personalityName) {
-    const chatPath = path.join(this.backupDir, personalityName, `${personalityName}_chat_history.json`);
+    const chatPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_chat_history.json`
+    );
     try {
       const data = await this.fs.readFile(chatPath, 'utf8');
       const chatData = JSON.parse(data);
@@ -311,18 +360,27 @@ class PersonalityDataRepository {
       message_count: messages.length,
       date_range: {
         earliest: messages.length > 0 ? new Date(messages[0].ts * 1000).toISOString() : null,
-        latest: messages.length > 0 ? new Date(messages[messages.length - 1].ts * 1000).toISOString() : null,
+        latest:
+          messages.length > 0
+            ? new Date(messages[messages.length - 1].ts * 1000).toISOString()
+            : null,
       },
       export_date: new Date().toISOString(),
       messages: messages,
     };
 
-    const chatPath = path.join(this.backupDir, personalityName, `${personalityName}_chat_history.json`);
+    const chatPath = path.join(
+      this.backupDir,
+      personalityName,
+      `${personalityName}_chat_history.json`
+    );
     await this.fs.writeFile(chatPath, JSON.stringify(chatData, null, 2));
-    logger.info(`[PersonalityDataRepository] Saved ${messages.length} chat messages for ${personalityName}`);
+    logger.info(
+      `[PersonalityDataRepository] Saved ${messages.length} chat messages for ${personalityName}`
+    );
   }
 }
 
 module.exports = {
-  PersonalityDataRepository
+  PersonalityDataRepository,
 };

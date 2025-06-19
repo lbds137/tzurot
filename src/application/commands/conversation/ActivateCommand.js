@@ -61,7 +61,8 @@ function createExecutor(_dependencies) {
       if (!hasPermission) {
         const errorEmbed = {
           title: '❌ Insufficient Permissions',
-          description: 'You need the "Manage Messages" permission to activate personalities in this channel.',
+          description:
+            'You need the "Manage Messages" permission to activate personalities in this channel.',
           color: 0xf44336,
           timestamp: new Date().toISOString(),
         };
@@ -73,7 +74,8 @@ function createExecutor(_dependencies) {
       if (!isNSFW) {
         const errorEmbed = {
           title: '⚠️ NSFW Channel Required',
-          description: 'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
+          description:
+            'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
           color: 0xff9800,
           timestamp: new Date().toISOString(),
         };

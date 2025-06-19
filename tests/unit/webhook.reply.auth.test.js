@@ -18,17 +18,17 @@ describe('Webhook Reply Authentication', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock getPersonalityFromMessage
     conversationManager.getPersonalityFromMessage.mockReturnValue('test-personality');
-    
+
     // Mock getAiResponse
     aiService.getAiResponse.mockResolvedValue('AI response');
-    
+
     // Mock auth functions
-    auth.hasValidToken.mockImplementation((userId) => userId === '9999');
-    auth.getUserToken.mockImplementation((userId) => userId === '9999' ? 'valid-token-9999' : null);
-    
+    auth.hasValidToken.mockImplementation(userId => userId === '9999');
+    auth.getUserToken.mockImplementation(userId => (userId === '9999' ? 'valid-token-9999' : null));
+
     // Mock webhook message sending
     webhookManager.sendWebhookMessage.mockResolvedValue({
       messageIds: ['mock-message-id'],

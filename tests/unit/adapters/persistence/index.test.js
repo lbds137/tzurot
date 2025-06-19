@@ -1,15 +1,23 @@
 /**
  * @jest-environment node
- * 
+ *
  * Persistence Adapters Index Test
  * - Tests the exports from adapters/persistence/index.js
  */
 
 const persistenceAdapters = require('../../../../src/adapters/persistence');
-const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
-const { FileConversationRepository } = require('../../../../src/adapters/persistence/FileConversationRepository');
-const { FileAuthenticationRepository } = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
-const { MemoryConversationRepository } = require('../../../../src/adapters/persistence/MemoryConversationRepository');
+const {
+  FilePersonalityRepository,
+} = require('../../../../src/adapters/persistence/FilePersonalityRepository');
+const {
+  FileConversationRepository,
+} = require('../../../../src/adapters/persistence/FileConversationRepository');
+const {
+  FileAuthenticationRepository,
+} = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
+const {
+  MemoryConversationRepository,
+} = require('../../../../src/adapters/persistence/MemoryConversationRepository');
 
 describe('Persistence Adapters Index', () => {
   it('should export FilePersonalityRepository', () => {
@@ -36,9 +44,9 @@ describe('Persistence Adapters Index', () => {
     const exportedKeys = Object.keys(persistenceAdapters).sort();
     expect(exportedKeys).toEqual([
       'FileAuthenticationRepository',
-      'FileConversationRepository', 
+      'FileConversationRepository',
       'FilePersonalityRepository',
-      'MemoryConversationRepository'
+      'MemoryConversationRepository',
     ]);
   });
 });

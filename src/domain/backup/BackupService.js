@@ -23,12 +23,12 @@ class BackupService {
     personalityDataRepository,
     apiClientService,
     authenticationService,
-    delayFn = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+    delayFn = null,
   }) {
     this.personalityDataRepository = personalityDataRepository;
     this.apiClientService = apiClientService;
     this.authenticationService = authenticationService;
-    this.delayFn = delayFn;
+    this.delayFn = delayFn || this._createDefaultDelayFn();
     this.delayBetweenRequests = 1000; // 1 second between API requests
   }
 
@@ -67,27 +67,46 @@ class BackupService {
         // Backup memories
         await this.delayFn(this.delayBetweenRequests);
         const memoryResult = await this._backupMemories(personalityData, authData);
-        job.updateResults('memories', memoryResult);
+        job.updateResults('memories', {
+          newCount: memoryResult.newMemoryCount,
+          totalCount: memoryResult.totalMemories,
+          updated: memoryResult.hasNewMemories,
+        });
 
         // Backup knowledge
         await this.delayFn(this.delayBetweenRequests);
         const knowledgeResult = await this._backupKnowledge(personalityData, authData);
-        job.updateResults('knowledge', knowledgeResult);
+        job.updateResults('knowledge', {
+          updated: knowledgeResult.hasNewKnowledge,
+          entryCount: knowledgeResult.knowledgeCount,
+        });
 
         // Backup training
         await this.delayFn(this.delayBetweenRequests);
         const trainingResult = await this._backupTraining(personalityData, authData);
-        job.updateResults('training', trainingResult);
+        job.updateResults('training', {
+          updated: trainingResult.hasNewTraining,
+          entryCount: trainingResult.trainingCount,
+        });
 
         // Backup user personalization
         await this.delayFn(this.delayBetweenRequests);
-        const userPersonalizationResult = await this._backupUserPersonalization(personalityData, authData);
-        job.updateResults('userPersonalization', userPersonalizationResult);
+        const userPersonalizationResult = await this._backupUserPersonalization(
+          personalityData,
+          authData
+        );
+        job.updateResults('userPersonalization', {
+          updated: userPersonalizationResult.hasNewUserPersonalization,
+        });
 
         // Backup chat history
         await this.delayFn(this.delayBetweenRequests);
         const chatResult = await this._backupChatHistory(personalityData, authData);
-        job.updateResults('chatHistory', chatResult);
+        job.updateResults('chatHistory', {
+          newMessageCount: chatResult.newMessageCount,
+          totalMessages: chatResult.totalMessages,
+          updated: chatResult.hasNewMessages,
+        });
       }
 
       // Mark backup complete and save
@@ -102,15 +121,14 @@ class BackupService {
       }
 
       return job;
-
     } catch (error) {
       logger.error(`[BackupService] Backup failed for ${job.personalityName}: ${error.message}`);
       job.fail(error);
-      
+
       if (progressCallback) {
         await progressCallback(`❌ Failed to backup **${job.personalityName}**: ${error.message}`);
       }
-      
+
       throw error;
     }
   }
@@ -128,51 +146,61 @@ class BackupService {
       throw new Error('Invalid personality names: must be non-empty array');
     }
 
-    const jobs = [];
+    // Create all jobs upfront
+    const jobs = personalityNames.map(
+      personalityName =>
+        new BackupJob({
+          personalityName,
+          userId,
+          isBulk: true,
+        })
+    );
+
     let successCount = 0;
 
     if (progressCallback) {
       await progressCallback(
         `📦 Starting bulk backup of ${personalityNames.length} personalities...\n` +
-        `This may take a few minutes.`
+          `This may take a few minutes.`
       );
     }
 
-    for (const personalityName of personalityNames) {
-      const job = new BackupJob({
-        personalityName,
-        userId,
-        isBulk: true
-      });
-      jobs.push(job);
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i];
 
       try {
         await this.executeBackup(job, authData, progressCallback);
         successCount++;
 
         // Delay between personalities
-        if (successCount < personalityNames.length) {
+        if (i < jobs.length - 1) {
           await this.delayFn(this.delayBetweenRequests * 2);
         }
-
       } catch (error) {
         // Check for authentication errors that should stop the bulk operation
         if (this._isAuthenticationError(error)) {
           if (progressCallback) {
             await progressCallback(
               `\n❌ Authentication failed! Your session cookie may have expired.\n` +
-              `Successfully backed up ${successCount} of ${personalityNames.length} personalities before failure.\n\n` +
-              `Please update your session cookie with the backup --set-cookie command.`
+                `Successfully backed up ${successCount} of ${personalityNames.length} personalities before failure.\n\n` +
+                `Please update your session cookie with the backup --set-cookie command.`
             );
           }
           break;
         }
         // For other errors, continue with next personality
-        logger.error(`[BackupService] Error in bulk backup for ${personalityName}: ${error.message}`);
+        logger.error(
+          `[BackupService] Error in bulk backup for ${job.personalityName}: ${error.message}`
+        );
       }
     }
 
-    if (progressCallback && jobs.every(job => job.status !== BackupStatus.FAILED || !this._isAuthenticationError(job.error))) {
+    if (
+      progressCallback &&
+      jobs.every(
+        job => job.status !== BackupStatus.FAILED || !this._isAuthenticationError(job.error)
+      )
+    ) {
       await progressCallback(`\n✅ Bulk backup complete! Backed up ${successCount} personalities.`);
     }
 
@@ -184,7 +212,10 @@ class BackupService {
    * @private
    */
   async _backupProfile(personalityData, authData) {
-    const profile = await this.apiClientService.fetchPersonalityProfile(personalityData.name, authData);
+    const profile = await this.apiClientService.fetchPersonalityProfile(
+      personalityData.name,
+      authData
+    );
     personalityData.updateProfile(profile);
   }
 
@@ -193,7 +224,11 @@ class BackupService {
    * @private
    */
   async _backupMemories(personalityData, authData) {
-    const memories = await this.apiClientService.fetchAllMemories(personalityData.id, personalityData.name, authData);
+    const memories = await this.apiClientService.fetchAllMemories(
+      personalityData.id,
+      personalityData.name,
+      authData
+    );
     return personalityData.syncMemories(memories);
   }
 
@@ -202,7 +237,11 @@ class BackupService {
    * @private
    */
   async _backupKnowledge(personalityData, authData) {
-    const knowledge = await this.apiClientService.fetchKnowledgeData(personalityData.id, personalityData.name, authData);
+    const knowledge = await this.apiClientService.fetchKnowledgeData(
+      personalityData.id,
+      personalityData.name,
+      authData
+    );
     return personalityData.updateKnowledge(knowledge);
   }
 
@@ -211,7 +250,11 @@ class BackupService {
    * @private
    */
   async _backupTraining(personalityData, authData) {
-    const training = await this.apiClientService.fetchTrainingData(personalityData.id, personalityData.name, authData);
+    const training = await this.apiClientService.fetchTrainingData(
+      personalityData.id,
+      personalityData.name,
+      authData
+    );
     return personalityData.updateTraining(training);
   }
 
@@ -221,8 +264,8 @@ class BackupService {
    */
   async _backupUserPersonalization(personalityData, authData) {
     const userPersonalization = await this.apiClientService.fetchUserPersonalizationData(
-      personalityData.id, 
-      personalityData.name, 
+      personalityData.id,
+      personalityData.name,
       authData
     );
     return personalityData.updateUserPersonalization(userPersonalization);
@@ -233,7 +276,11 @@ class BackupService {
    * @private
    */
   async _backupChatHistory(personalityData, authData) {
-    const chatHistory = await this.apiClientService.fetchChatHistory(personalityData.id, personalityData.name, authData);
+    const chatHistory = await this.apiClientService.fetchChatHistory(
+      personalityData.id,
+      personalityData.name,
+      authData
+    );
     return personalityData.syncChatHistory(chatHistory);
   }
 
@@ -244,8 +291,9 @@ class BackupService {
   async _sendCompletionMessage(job, progressCallback) {
     const { results } = job;
     const { personalityName } = job;
-    
-    let message = `✅ Backup complete for **${personalityName}**\n` +
+
+    let message =
+      `✅ Backup complete for **${personalityName}**\n` +
       `• Profile: Updated\n` +
       `• New memories: ${results.memories.newCount}\n` +
       `• Total memories: ${results.memories.totalCount}\n` +
@@ -263,13 +311,24 @@ class BackupService {
    */
   _isAuthenticationError(error) {
     if (!error) return false;
-    return error.status === 401 || 
-           error.message.includes('401') || 
-           error.message.includes('Authentication') ||
-           error.message.includes('Session cookie');
+    return (
+      error.status === 401 ||
+      error.message.includes('401') ||
+      error.message.includes('Authentication') ||
+      error.message.includes('Session cookie')
+    );
+  }
+
+  /**
+   * Create default delay function (injectable pattern)
+   * @private
+   */
+  _createDefaultDelayFn() {
+    // eslint-disable-next-line no-restricted-syntax
+    return ms => new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 
 module.exports = {
-  BackupService
+  BackupService,
 };

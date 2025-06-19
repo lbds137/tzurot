@@ -25,7 +25,7 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
       registry.personalities.set('test-1', { fullName: 'test-1' });
       registry.aliases.set('single', 'test-1');
       registry.aliases.set('two words', 'test-1');
-      
+
       // Clear the internal value to trigger lazy calculation
       registry._maxAliasWordCount = null;
 
@@ -135,7 +135,7 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
     it('should recalculate max when removing personality with longest alias', () => {
       registry.personalities.set('test-1', { fullName: 'test-1' });
       registry.personalities.set('test-2', { fullName: 'test-2' });
-      
+
       registry.setAlias('short', 'test-1');
       registry.setAlias('medium alias', 'test-1');
       registry.setAlias('very long alias name', 'test-2');
@@ -150,7 +150,7 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
     it('should not recalculate when removing personality with shorter aliases', () => {
       registry.personalities.set('test-1', { fullName: 'test-1' });
       registry.personalities.set('test-2', { fullName: 'test-2' });
-      
+
       registry.setAlias('short', 'test-1');
       registry.setAlias('very long alias name', 'test-2');
       expect(registry.maxAliasWordCount).toBe(4);
@@ -166,27 +166,25 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
     it('should calculate max word count when loading data', () => {
       const personalities = {
         'test-1': { fullName: 'test-1', addedBy: 'user1' },
-        'test-2': { fullName: 'test-2', addedBy: 'user2' }
+        'test-2': { fullName: 'test-2', addedBy: 'user2' },
       };
-      
+
       const aliases = {
-        'single': 'test-1',
+        single: 'test-1',
         'two words': 'test-1',
         'three word alias': 'test-2',
-        'another single': 'test-2'
+        'another single': 'test-2',
       };
 
       registry.loadFromObjects(personalities, aliases);
 
       expect(registry.maxAliasWordCount).toBe(3);
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('(max 3 words)')
-      );
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('(max 3 words)'));
     });
 
     it('should handle empty aliases gracefully', () => {
       const personalities = {
-        'test-1': { fullName: 'test-1', addedBy: 'user1' }
+        'test-1': { fullName: 'test-1', addedBy: 'user1' },
       };
 
       registry.loadFromObjects(personalities, {});
@@ -196,13 +194,13 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
 
     it('should skip invalid aliases during load', () => {
       const personalities = {
-        'test-1': { fullName: 'test-1', addedBy: 'user1' }
+        'test-1': { fullName: 'test-1', addedBy: 'user1' },
       };
-      
+
       const aliases = {
         'valid alias': 'test-1',
         'invalid alias': 'non-existent-personality',
-        'another valid': 'test-1'
+        'another valid': 'test-1',
       };
 
       registry.loadFromObjects(personalities, aliases);
@@ -243,7 +241,9 @@ describe('PersonalityRegistry - Max Word Count Tracking', () => {
       registry.updateMaxWordCount();
 
       expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('Multi-word aliases found: "two words" (2 words), "another two" (2 words), "three word alias" (3 words)')
+        expect.stringContaining(
+          'Multi-word aliases found: "two words" (2 words), "another two" (2 words), "three word alias" (3 words)'
+        )
       );
     });
 

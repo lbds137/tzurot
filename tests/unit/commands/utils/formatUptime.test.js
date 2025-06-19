@@ -37,7 +37,7 @@ describe('Uptime Formatting Utility', () => {
 
   test('correctly formats mixed uptime values', () => {
     // 2 days, 5 hours, 30 minutes, 15 seconds
-    const ms = (2 * 24 * 60 * 60 * 1000) + (5 * 60 * 60 * 1000) + (30 * 60 * 1000) + (15 * 1000);
+    const ms = 2 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000 + 30 * 60 * 1000 + 15 * 1000;
     const result = formatUptime(ms);
     expect(result).toBe('2d 5h 30m 15s');
   });

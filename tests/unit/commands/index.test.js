@@ -35,38 +35,38 @@ describe('Command System', () => {
     // Reset all mocks
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Mock console to keep test output clean
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
-    
+
     // Setup middleware mocks
     authMiddleware.mockResolvedValue({ authenticated: true });
     deduplicationMiddleware.mockReturnValue({ shouldProcess: true });
     permissionsMiddleware.mockReturnValue({ hasPermission: true });
-    
+
     // Mock command loader
     commandLoader.loadCommands.mockReturnValue({
       count: 1,
       loaded: [{ name: 'test' }],
-      failed: []
+      failed: [],
     });
-    
+
     // Create mock author
     mockAuthor = {
       id: 'user-123',
       tag: 'User#1234',
-      send: jest.fn().mockResolvedValue({ id: 'dm-123' })
+      send: jest.fn().mockResolvedValue({ id: 'dm-123' }),
     };
 
     // Create mock permissions
     mockPermissions = {
-      has: jest.fn().mockReturnValue(true)
+      has: jest.fn().mockReturnValue(true),
     };
 
     // Create mock member
     mockMember = {
-      permissions: mockPermissions
+      permissions: mockPermissions,
     };
 
     // Create mock channel
@@ -74,7 +74,7 @@ describe('Command System', () => {
       id: 'channel-123',
       send: jest.fn().mockResolvedValue({ id: 'sent-message-123' }),
       isDMBased: jest.fn().mockReturnValue(false),
-      sendTyping: jest.fn().mockResolvedValue(undefined)
+      sendTyping: jest.fn().mockResolvedValue(undefined),
     };
 
     // Create mock message
@@ -84,11 +84,10 @@ describe('Command System', () => {
       channel: mockChannel,
       member: mockMember,
       reply: jest.fn().mockResolvedValue({ id: 'reply-123' }),
-      content: `${botPrefix} test`
+      content: `${botPrefix} test`,
     };
 
     // Auth is now mocked through middleware above
-
 
     // Import the command system
     commandSystem = require('../../../src/commands/index');
@@ -101,9 +100,9 @@ describe('Command System', () => {
         description: 'Test command',
         usage: 'test',
         aliases: ['t'],
-        permissions: []
+        permissions: [],
       },
-      execute: jest.fn().mockResolvedValue({ id: 'test-result' })
+      execute: jest.fn().mockResolvedValue({ id: 'test-result' }),
     };
 
     // Register the test command
@@ -119,9 +118,9 @@ describe('Command System', () => {
           description: 'New command',
           usage: 'new',
           aliases: ['n'],
-          permissions: []
+          permissions: [],
         },
-        execute: jest.fn()
+        execute: jest.fn(),
       };
 
       // Register the command
@@ -151,7 +150,7 @@ describe('Command System', () => {
     it('should process valid commands', async () => {
       // Get the test command
       const testCommand = commandRegistry.get('test');
-      
+
       // Process the command
       await commandSystem.processCommand(mockMessage, 'test', []);
 
@@ -163,7 +162,7 @@ describe('Command System', () => {
           scheduler: expect.any(Function),
           clearScheduler: expect.any(Function),
           interval: expect.any(Function),
-          clearInterval: expect.any(Function)
+          clearInterval: expect.any(Function),
         })
       );
     });
@@ -181,7 +180,7 @@ describe('Command System', () => {
     it('should process commands by alias', async () => {
       // Get the test command
       const testCommand = commandRegistry.get('test');
-      
+
       // Process the command by alias
       await commandSystem.processCommand(mockMessage, 't', []);
 
@@ -193,7 +192,7 @@ describe('Command System', () => {
           scheduler: expect.any(Function),
           clearScheduler: expect.any(Function),
           interval: expect.any(Function),
-          clearInterval: expect.any(Function)
+          clearInterval: expect.any(Function),
         })
       );
     });
@@ -204,7 +203,7 @@ describe('Command System', () => {
       // This test verifies that commands can be registered with permission requirements
       // The actual permission checking logic is tested through integration tests
       // since it requires complex mocking of Discord.js permission system
-      
+
       // Create an admin-only command
       const adminCommand = {
         meta: {
@@ -212,19 +211,19 @@ describe('Command System', () => {
           description: 'Admin command',
           usage: 'admin',
           aliases: [],
-          permissions: ['ADMINISTRATOR']
+          permissions: ['ADMINISTRATOR'],
         },
-        execute: jest.fn()
+        execute: jest.fn(),
       };
 
       // Register the command
       commandRegistry.register(adminCommand);
-      
+
       // Verify the command was registered with permissions
       const registeredCommand = commandRegistry.get('admin');
       expect(registeredCommand).toBeDefined();
       expect(registeredCommand.meta.permissions).toEqual(['ADMINISTRATOR']);
-      
+
       // Create a command that requires manage messages permission
       const modCommand = {
         meta: {
@@ -232,19 +231,19 @@ describe('Command System', () => {
           description: 'Moderator command',
           usage: 'mod',
           aliases: [],
-          permissions: ['MANAGE_MESSAGES']
+          permissions: ['MANAGE_MESSAGES'],
         },
-        execute: jest.fn()
+        execute: jest.fn(),
       };
-      
+
       // Register the mod command
       commandRegistry.register(modCommand);
-      
+
       // Verify it was registered with correct permissions
       const registeredModCommand = commandRegistry.get('mod');
       expect(registeredModCommand).toBeDefined();
       expect(registeredModCommand.meta.permissions).toEqual(['MANAGE_MESSAGES']);
-      
+
       // Test that commands without permissions can also be registered
       const publicCommand = {
         meta: {
@@ -252,11 +251,11 @@ describe('Command System', () => {
           description: 'Public command',
           usage: 'public',
           aliases: [],
-          permissions: []
+          permissions: [],
         },
-        execute: jest.fn()
+        execute: jest.fn(),
       };
-      
+
       commandRegistry.register(publicCommand);
       const registeredPublicCommand = commandRegistry.get('public');
       expect(registeredPublicCommand).toBeDefined();

@@ -2,7 +2,10 @@
  * Tests for StatusCommand
  */
 
-const { createStatusCommand, formatUptime } = require('../../../../../src/application/commands/utility/StatusCommand');
+const {
+  createStatusCommand,
+  formatUptime,
+} = require('../../../../../src/application/commands/utility/StatusCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
 
@@ -179,7 +182,11 @@ describe('StatusCommand', () => {
       expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
         expect.objectContaining({
           fields: expect.arrayContaining([
-            { name: 'Activated Channels', value: '3 channels have active personalities', inline: true },
+            {
+              name: 'Activated Channels',
+              value: '3 channels have active personalities',
+              inline: true,
+            },
           ]),
         })
       );
@@ -225,7 +232,11 @@ describe('StatusCommand', () => {
       expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
         expect.objectContaining({
           fields: expect.arrayContaining([
-            { name: 'Activated Channels', value: '1 channel has active personalities', inline: true },
+            {
+              name: 'Activated Channels',
+              value: '1 channel has active personalities',
+              inline: true,
+            },
           ]),
         })
       );
@@ -240,15 +251,11 @@ describe('StatusCommand', () => {
     it('should fall back to text response', async () => {
       await statusCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('**Bot Status**')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**Bot Status**'));
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('Uptime: 1 hour, 1 minute, 1 second')
       );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Ping: 42ms')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('Ping: 42ms'));
       expect(mockContext.respond).toHaveBeenCalledWith(
         expect.stringContaining('Authenticated: No')
       );
@@ -315,7 +322,7 @@ describe('StatusCommand', () => {
 
     it('should handle missing conversation manager methods', async () => {
       const limitedConversationManager = {};
-      
+
       const command = createStatusCommand({
         auth: mockAuth,
         personalityRegistry: mockPersonalityRegistry,
@@ -333,7 +340,7 @@ describe('StatusCommand', () => {
   describe('factory function', () => {
     it('should create command with default dependencies', () => {
       const command = createStatusCommand();
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('status');
     });
@@ -341,7 +348,7 @@ describe('StatusCommand', () => {
     it('should create command with custom dependencies', () => {
       const customAuth = { hasValidToken: jest.fn() };
       const command = createStatusCommand({ auth: customAuth });
-      
+
       expect(command).toBeDefined();
       expect(command.name).toBe('status');
     });

@@ -15,18 +15,18 @@ describe('PersonalityValidator', () => {
         addedAt: new Date().toISOString(),
         displayName: 'Test',
         avatarUrl: 'https://example.com/avatar.png',
-        activatedChannels: ['channel1', 'channel2']
+        activatedChannels: ['channel1', 'channel2'],
       };
 
       const result = validator.validatePersonalityData(data);
-      
+
       expect(result.isValid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
 
     it('should reject invalid personality data', () => {
       const result = validator.validatePersonalityData(null);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('Personality data must be an object');
     });
@@ -34,11 +34,11 @@ describe('PersonalityValidator', () => {
     it('should require fullName', () => {
       const data = {
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validatePersonalityData(data);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('fullName is required and must be a string');
     });
@@ -46,11 +46,11 @@ describe('PersonalityValidator', () => {
     it('should require addedBy', () => {
       const data = {
         fullName: 'test-personality',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validatePersonalityData(data);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('addedBy is required and must be a string');
     });
@@ -62,11 +62,11 @@ describe('PersonalityValidator', () => {
         addedAt: new Date().toISOString(),
         displayName: 123, // Should be string
         avatarUrl: true, // Should be string
-        activatedChannels: 'not-array' // Should be array
+        activatedChannels: 'not-array', // Should be array
       };
 
       const result = validator.validatePersonalityData(data);
-      
+
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain('displayName must be a string if provided');
       expect(result.errors).toContain('avatarUrl must be a string if provided');
@@ -76,13 +76,7 @@ describe('PersonalityValidator', () => {
 
   describe('validatePersonalityName', () => {
     it('should validate valid names', () => {
-      const validNames = [
-        'claude-3-opus',
-        'Assistant_2024',
-        'Test Personality',
-        'Bot.v1',
-        'AI'
-      ];
+      const validNames = ['claude-3-opus', 'Assistant_2024', 'Test Personality', 'Bot.v1', 'AI'];
 
       validNames.forEach(name => {
         const result = validator.validatePersonalityName(name);
@@ -174,14 +168,14 @@ describe('PersonalityValidator', () => {
 
   describe('validateRegistration', () => {
     const existingPersonalities = new Map([
-      ['existing-personality', { fullName: 'existing-personality' }]
+      ['existing-personality', { fullName: 'existing-personality' }],
     ]);
 
     it('should validate valid registration', () => {
       const personalityData = {
         fullName: 'new-personality',
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validateRegistration(
@@ -189,7 +183,7 @@ describe('PersonalityValidator', () => {
         personalityData,
         existingPersonalities
       );
-      
+
       expect(result.isValid).toBe(true);
     });
 
@@ -197,7 +191,7 @@ describe('PersonalityValidator', () => {
       const personalityData = {
         fullName: 'existing-personality',
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validateRegistration(
@@ -205,7 +199,7 @@ describe('PersonalityValidator', () => {
         personalityData,
         existingPersonalities
       );
-      
+
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('already exists');
     });
@@ -214,7 +208,7 @@ describe('PersonalityValidator', () => {
       const personalityData = {
         fullName: 'system',
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validateRegistration(
@@ -222,7 +216,7 @@ describe('PersonalityValidator', () => {
         personalityData,
         existingPersonalities
       );
-      
+
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('reserved');
     });
@@ -231,7 +225,7 @@ describe('PersonalityValidator', () => {
       const personalityData = {
         fullName: 'different-name',
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = validator.validateRegistration(
@@ -239,7 +233,7 @@ describe('PersonalityValidator', () => {
         personalityData,
         existingPersonalities
       );
-      
+
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('must match');
     });
@@ -249,52 +243,36 @@ describe('PersonalityValidator', () => {
     const personality = {
       fullName: 'test-personality',
       addedBy: '123456789',
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
     };
 
     it('should allow owner to remove their personality', () => {
-      const result = validator.validateRemoval(
-        'test-personality',
-        '123456789',
-        personality
-      );
-      
+      const result = validator.validateRemoval('test-personality', '123456789', personality);
+
       expect(result.isValid).toBe(true);
     });
 
     it('should prevent non-owner from removing personality', () => {
-      const result = validator.validateRemoval(
-        'test-personality',
-        '987654321',
-        personality
-      );
-      
+      const result = validator.validateRemoval('test-personality', '987654321', personality);
+
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('you added');
     });
 
     it('should reject if personality not found', () => {
-      const result = validator.validateRemoval(
-        'non-existent',
-        '123456789',
-        null
-      );
-      
+      const result = validator.validateRemoval('non-existent', '123456789', null);
+
       expect(result.isValid).toBe(false);
       expect(result.error).toContain('not found');
     });
 
     it('should allow bot owner to remove any personality', () => {
       process.env.BOT_OWNER_ID = '999999999';
-      
-      const result = validator.validateRemoval(
-        'test-personality',
-        '999999999',
-        personality
-      );
-      
+
+      const result = validator.validateRemoval('test-personality', '999999999', personality);
+
       expect(result.isValid).toBe(true);
-      
+
       delete process.env.BOT_OWNER_ID;
     });
   });
@@ -306,11 +284,11 @@ describe('PersonalityValidator', () => {
         displayName: '  Test  ',
         avatarUrl: '  https://example.com/avatar.png  ',
         addedBy: '123456789',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const sanitized = validator.sanitizePersonalityData(data);
-      
+
       expect(sanitized.fullName).toBe('test-personality');
       expect(sanitized.displayName).toBe('Test');
       expect(sanitized.avatarUrl).toBe('https://example.com/avatar.png');
@@ -321,11 +299,11 @@ describe('PersonalityValidator', () => {
         fullName: 'test-personality',
         addedBy: '123456789',
         addedAt: new Date().toISOString(),
-        activatedChannels: 'not-an-array'
+        activatedChannels: 'not-an-array',
       };
 
       const sanitized = validator.sanitizePersonalityData(data);
-      
+
       expect(Array.isArray(sanitized.activatedChannels)).toBe(true);
       expect(sanitized.activatedChannels).toHaveLength(0);
     });
@@ -336,11 +314,11 @@ describe('PersonalityValidator', () => {
         addedBy: '123456789',
         addedAt: new Date().toISOString(),
         unexpectedField: 'should be removed',
-        anotherField: 123
+        anotherField: 123,
       };
 
       const sanitized = validator.sanitizePersonalityData(data);
-      
+
       expect(sanitized.unexpectedField).toBeUndefined();
       expect(sanitized.anotherField).toBeUndefined();
     });

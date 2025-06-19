@@ -39,29 +39,29 @@ describe('PersonalityRegistry - Null Alias Handling', () => {
       const personalityData = {
         fullName: 'cold-kerach-batuach',
         displayName: 'Cold',
-        addedBy: 'test-user'
+        addedBy: 'test-user',
       };
-      
+
       registry.register('cold-kerach-batuach', personalityData);
       registry.setAlias('cold', 'cold-kerach-batuach');
-      
+
       // Verify normal lookup works
       const found = registry.getByAlias('cold');
       expect(found).toEqual(personalityData);
-      
+
       // Verify null lookup doesn't throw
       const notFound = registry.getByAlias(null);
       expect(notFound).toBeNull();
     });
 
     it('should handle the message handler bug scenario', () => {
-      // This simulates the bug where multi-word mention processing 
+      // This simulates the bug where multi-word mention processing
       // passes null as the first parameter to getPersonalityByAlias
-      
+
       // The old API was getPersonalityByAlias(userId, alias)
       // In message handler it's called as getPersonalityByAlias(null, mentionText)
       // But our new API only takes one parameter: getPersonalityByAlias(alias)
-      
+
       // Ensure that even if null is passed, it doesn't throw
       const result = registry.getByAlias(null);
       expect(result).toBeNull();

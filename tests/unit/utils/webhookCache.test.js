@@ -4,15 +4,15 @@
 
 // Mock discord.js
 jest.mock('discord.js', () => ({
-  WebhookClient: jest.fn().mockImplementation((options) => ({
+  WebhookClient: jest.fn().mockImplementation(options => ({
     id: options.id || 'mock-webhook-id',
     token: options.token || 'mock-webhook-token',
     send: jest.fn().mockResolvedValue({
       id: 'mock-message-id',
-      webhookId: options.id || 'mock-webhook-id'
+      webhookId: options.id || 'mock-webhook-id',
     }),
-    destroy: jest.fn()
-  }))
+    destroy: jest.fn(),
+  })),
 }));
 
 // Mock logger
@@ -20,7 +20,7 @@ jest.mock('../../../src/logger', () => ({
   info: jest.fn(),
   debug: jest.fn(),
   warn: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
 }));
 
 const { WebhookClient } = require('discord.js');
@@ -31,8 +31,8 @@ const webhookCache = require('../../../src/utils/webhookCache');
 beforeAll(() => {
   global.tzurotClient = {
     user: {
-      username: 'TestBot | Suffix'
-    }
+      username: 'TestBot | Suffix',
+    },
   };
 });
 
@@ -45,7 +45,7 @@ describe('webhookCache', () => {
   const createMockWebhook = (id = 'webhook-123', name = 'TestBot') => ({
     id,
     token: `token-${id}`,
-    name
+    name,
   });
 
   const createMockChannel = (id = 'channel-123', name = 'test-channel', isThread = false) => ({
@@ -54,22 +54,24 @@ describe('webhookCache', () => {
     isThread: jest.fn().mockReturnValue(isThread),
     fetchWebhooks: jest.fn(),
     createWebhook: jest.fn(),
-    parent: isThread ? { 
-      id: 'parent-channel-123', 
-      name: 'parent-channel',
-      fetchWebhooks: jest.fn(),
-      createWebhook: jest.fn()
-    } : null
+    parent: isThread
+      ? {
+          id: 'parent-channel-123',
+          name: 'parent-channel',
+          fetchWebhooks: jest.fn(),
+          createWebhook: jest.fn(),
+        }
+      : null,
   });
 
   // Helper to create a Map-like webhooks collection
   const createWebhooksCollection = (webhooks = []) => {
     const map = new Map();
     webhooks.forEach(wh => map.set(wh.id, wh));
-    
+
     return {
       size: webhooks.length,
-      find: (predicate) => webhooks.find(predicate)
+      find: predicate => webhooks.find(predicate),
     };
   };
 
@@ -84,7 +86,7 @@ describe('webhookCache', () => {
     it('should create a new webhook if none exists', async () => {
       const mockChannel = createMockChannel();
       const mockWebhook = createMockWebhook();
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockChannel.createWebhook.mockResolvedValue(mockWebhook);
 
@@ -94,11 +96,11 @@ describe('webhookCache', () => {
       expect(mockChannel.createWebhook).toHaveBeenCalledWith({
         name: 'TestBot', // Using dynamic name from global client
         avatar: null,
-        reason: 'Bot webhook for personality messages'
+        reason: 'Bot webhook for personality messages',
       });
       expect(WebhookClient).toHaveBeenCalledWith({
         id: mockWebhook.id,
-        token: mockWebhook.token
+        token: mockWebhook.token,
       });
       expect(result).toBeDefined();
       expect(result.id).toBe(mockWebhook.id);
@@ -107,7 +109,7 @@ describe('webhookCache', () => {
     it('should use existing webhook if one exists', async () => {
       const mockChannel = createMockChannel();
       const mockWebhook = createMockWebhook();
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection([mockWebhook]));
 
       const result = await webhookCache.getOrCreateWebhook(mockChannel);
@@ -116,7 +118,7 @@ describe('webhookCache', () => {
       expect(mockChannel.createWebhook).not.toHaveBeenCalled();
       expect(WebhookClient).toHaveBeenCalledWith({
         id: mockWebhook.id,
-        token: mockWebhook.token
+        token: mockWebhook.token,
       });
       expect(result).toBeDefined();
     });
@@ -124,7 +126,7 @@ describe('webhookCache', () => {
     it('should use dynamic webhook name from global client', async () => {
       const mockChannel = createMockChannel();
       const mockWebhook = createMockWebhook('webhook-123', 'TestBot');
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection([mockWebhook]));
 
       const result = await webhookCache.getOrCreateWebhook(mockChannel);
@@ -139,19 +141,17 @@ describe('webhookCache', () => {
       const invalidWebhook = {
         id: 'webhook-123',
         token: null, // Missing token
-        name: 'TestBot'
+        name: 'TestBot',
       };
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockChannel.createWebhook.mockResolvedValue(invalidWebhook);
 
       await expect(webhookCache.getOrCreateWebhook(mockChannel)).rejects.toThrow(
         'Webhook missing required id or token'
       );
-      
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid webhook data')
-      );
+
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Invalid webhook data'));
     });
 
     it('should throw error when webhook has no id', async () => {
@@ -159,9 +159,9 @@ describe('webhookCache', () => {
       const invalidWebhook = {
         id: null, // Missing id
         token: 'token-123',
-        name: 'TestBot'
+        name: 'TestBot',
       };
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockChannel.createWebhook.mockResolvedValue(invalidWebhook);
 
@@ -174,13 +174,13 @@ describe('webhookCache', () => {
       const mockChannel = createMockChannel();
       const permissionError = new Error('Missing Access');
       permissionError.code = 50013;
-      
+
       mockChannel.fetchWebhooks.mockRejectedValue(permissionError);
 
       await expect(webhookCache.getOrCreateWebhook(mockChannel)).rejects.toThrow(
         `Missing permissions to manage webhooks in channel ${mockChannel.name}`
       );
-      
+
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('Failed to fetch/create webhook')
       );
@@ -189,13 +189,13 @@ describe('webhookCache', () => {
     it('should return cached webhook on subsequent calls', async () => {
       const mockChannel = createMockChannel();
       const mockWebhook = createMockWebhook();
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockChannel.createWebhook.mockResolvedValue(mockWebhook);
 
       // First call - creates webhook
       const result1 = await webhookCache.getOrCreateWebhook(mockChannel);
-      
+
       // Second call - should use cache
       const result2 = await webhookCache.getOrCreateWebhook(mockChannel);
 
@@ -208,18 +208,20 @@ describe('webhookCache', () => {
       it('should handle threads by using parent channel webhook', async () => {
         const mockThread = createMockChannel('thread-123', 'test-thread', true);
         const mockParentWebhook = createMockWebhook('parent-webhook-123');
-        
-        mockThread.parent.fetchWebhooks.mockResolvedValue(createWebhooksCollection([mockParentWebhook]));
+
+        mockThread.parent.fetchWebhooks.mockResolvedValue(
+          createWebhooksCollection([mockParentWebhook])
+        );
 
         const result = await webhookCache.getOrCreateWebhook(mockThread);
 
         expect(mockThread.parent.fetchWebhooks).toHaveBeenCalledTimes(1);
         expect(WebhookClient).toHaveBeenCalledWith({
           id: mockParentWebhook.id,
-          token: mockParentWebhook.token
+          token: mockParentWebhook.token,
         });
         expect(result).toBeDefined();
-        
+
         // Should cache with thread-specific key
         expect(webhookCache.hasWebhook('thread-123')).toBe(true);
       });
@@ -236,13 +238,13 @@ describe('webhookCache', () => {
       it('should use cached thread webhook on subsequent calls', async () => {
         const mockThread = createMockChannel('thread-123', 'test-thread', true);
         const mockParentWebhook = createMockWebhook('parent-webhook-123');
-        
+
         mockThread.parent.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
         mockThread.parent.createWebhook.mockResolvedValue(mockParentWebhook);
 
         // First call
         const result1 = await webhookCache.getOrCreateWebhook(mockThread);
-        
+
         // Second call - should use thread-specific cache
         const result2 = await webhookCache.getOrCreateWebhook(mockThread);
 
@@ -255,16 +257,16 @@ describe('webhookCache', () => {
         const invalidParentWebhook = {
           id: 'parent-webhook-123',
           token: null, // Missing token
-          name: 'TestBot'
+          name: 'TestBot',
         };
-        
+
         mockThread.parent.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
         mockThread.parent.createWebhook.mockResolvedValue(invalidParentWebhook);
 
         await expect(webhookCache.getOrCreateWebhook(mockThread)).rejects.toThrow(
           'Webhook missing required id or token'
         );
-        
+
         expect(logger.error).toHaveBeenCalledWith(
           expect.stringContaining('Invalid webhook data for parent channel')
         );
@@ -276,7 +278,7 @@ describe('webhookCache', () => {
     it('should clear webhook for specific channel', async () => {
       const mockChannel = createMockChannel();
       const mockWebhook = createMockWebhook();
-      
+
       mockChannel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockChannel.createWebhook.mockResolvedValue(mockWebhook);
 
@@ -294,7 +296,7 @@ describe('webhookCache', () => {
     it('should clear thread webhook cache', async () => {
       const mockThread = createMockChannel('thread-123', 'test-thread', true);
       const mockParentWebhook = createMockWebhook('parent-webhook-123');
-      
+
       mockThread.parent.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
       mockThread.parent.createWebhook.mockResolvedValue(mockParentWebhook);
 
@@ -312,7 +314,7 @@ describe('webhookCache', () => {
     it('should handle clearing non-existent webhook gracefully', () => {
       // Clear a non-existent webhook and verify no errors occur
       webhookCache.clearWebhookCache('non-existent');
-      
+
       // Verify no clearing message was logged since nothing was cleared
       expect(logger.info).not.toHaveBeenCalledWith(
         expect.stringContaining('Cleared webhook cache')
@@ -326,14 +328,14 @@ describe('webhookCache', () => {
       const channels = [
         createMockChannel('channel-1', 'channel-1'),
         createMockChannel('channel-2', 'channel-2'),
-        createMockChannel('thread-1', 'thread-1', true)
+        createMockChannel('thread-1', 'thread-1', true),
       ];
 
       const webhooks = [];
-      
+
       for (const channel of channels) {
         const mockWebhook = createMockWebhook(`webhook-${channel.id}`);
-        
+
         if (channel.isThread()) {
           channel.parent.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
           channel.parent.createWebhook.mockResolvedValue(mockWebhook);
@@ -341,7 +343,7 @@ describe('webhookCache', () => {
           channel.fetchWebhooks.mockResolvedValue(createWebhooksCollection());
           channel.createWebhook.mockResolvedValue(mockWebhook);
         }
-        
+
         const webhook = await webhookCache.getOrCreateWebhook(channel);
         webhooks.push(webhook);
       }
@@ -379,9 +381,9 @@ describe('webhookCache', () => {
       mockChannel.createWebhook.mockResolvedValue(createMockWebhook());
 
       expect(webhookCache.hasWebhook(mockChannel.id)).toBe(false);
-      
+
       await webhookCache.getOrCreateWebhook(mockChannel);
-      
+
       expect(webhookCache.hasWebhook(mockChannel.id)).toBe(true);
     });
 

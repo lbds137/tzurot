@@ -6,7 +6,7 @@ jest.mock('../../../src/logger', () => ({
   error: jest.fn(),
   warn: jest.fn(),
   info: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 describe('errorTracker', () => {
@@ -31,7 +31,7 @@ describe('errorTracker', () => {
           errorId,
           category: 'unknown',
           operation: 'unknown',
-          metadata: {}
+          metadata: {},
         })
       );
     });
@@ -42,7 +42,7 @@ describe('errorTracker', () => {
         category: errorTracker.ErrorCategory.DISCORD_API,
         operation: 'sendMessage',
         metadata: { channelId: '123456' },
-        isCritical: true
+        isCritical: true,
       };
 
       const errorId = errorTracker.trackError(error, context);
@@ -54,7 +54,7 @@ describe('errorTracker', () => {
           errorId,
           category: 'discord_api',
           operation: 'sendMessage',
-          metadata: { channelId: '123456' }
+          metadata: { channelId: '123456' },
         })
       );
     });
@@ -63,7 +63,7 @@ describe('errorTracker', () => {
       const error = new Error('Frequent error');
       const context = {
         category: errorTracker.ErrorCategory.WEBHOOK,
-        operation: 'send'
+        operation: 'send',
       };
 
       // Track the same error 6 times
@@ -86,23 +86,23 @@ describe('errorTracker', () => {
 
       // Track first error
       errorTracker.trackError(error1);
-      
+
       // Advance time by 25 minutes
       jest.advanceTimersByTime(25 * 60 * 1000);
-      
+
       // Track second error
       errorTracker.trackError(error2);
-      
+
       // Advance time by another 10 minutes (total 35 minutes)
       jest.advanceTimersByTime(10 * 60 * 1000);
-      
+
       // Track a new error to trigger cleanup
       const error3 = new Error('New error');
       errorTracker.trackError(error3);
-      
+
       // Now track the first error again - should be treated as new (not frequent)
       errorTracker.trackError(error1);
-      
+
       // Should have 4 warnings total (no frequent error detection)
       expect(logger.warn).toHaveBeenCalledTimes(4);
       expect(logger.error).not.toHaveBeenCalled();
@@ -110,14 +110,16 @@ describe('errorTracker', () => {
 
     it('should handle errors with all error categories', () => {
       const categories = Object.values(errorTracker.ErrorCategory);
-      
+
       categories.forEach(category => {
         const error = new Error(`Error for ${category}`);
         const errorId = errorTracker.trackError(error, { category });
-        
+
         expect(errorId).toMatch(/^ERR-[a-z_]{3}-unk-[a-z0-9]+-[a-z0-9]+$/);
         expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining(`[ErrorTracker] ${category.toUpperCase()}: Error for ${category}`),
+          expect.stringContaining(
+            `[ErrorTracker] ${category.toUpperCase()}: Error for ${category}`
+          ),
           expect.any(Object)
         );
       });
@@ -129,9 +131,9 @@ describe('errorTracker', () => {
       for (let i = 0; i < 5; i++) {
         const error = new Error(`Error ${i}`);
         errors.push(error);
-        errorTracker.trackError(error, { 
+        errorTracker.trackError(error, {
           category: errorTracker.ErrorCategory.MESSAGE,
-          operation: `operation${i}`
+          operation: `operation${i}`,
         });
       }
 
@@ -145,7 +147,7 @@ describe('errorTracker', () => {
       // Track one of the old errors again
       errorTracker.trackError(errors[0], {
         category: errorTracker.ErrorCategory.MESSAGE,
-        operation: 'operation0'
+        operation: 'operation0',
       });
 
       // Should have tracked 7 errors total (5 initial + 1 trigger + 1 re-track)
@@ -160,7 +162,7 @@ describe('errorTracker', () => {
       const mockWebhookClient = {
         send: jest.fn().mockResolvedValue({ id: '123' }),
         edit: jest.fn().mockResolvedValue({ id: '456' }),
-        nonMethodProperty: 'value'
+        nonMethodProperty: 'value',
       };
 
       const metadata = { channelId: '789' };
@@ -179,13 +181,15 @@ describe('errorTracker', () => {
     it('should track errors when webhook methods fail', async () => {
       const webhookError = new Error('Webhook send failed');
       const mockWebhookClient = {
-        send: jest.fn().mockRejectedValue(webhookError)
+        send: jest.fn().mockRejectedValue(webhookError),
       };
 
       const metadata = { webhookId: 'test-webhook' };
       const enhancedClient = errorTracker.createEnhancedWebhookClient(mockWebhookClient, metadata);
 
-      await expect(enhancedClient.send({ content: 'Test message' })).rejects.toThrow('Webhook send failed');
+      await expect(enhancedClient.send({ content: 'Test message' })).rejects.toThrow(
+        'Webhook send failed'
+      );
 
       expect(logger.error).toHaveBeenCalledWith(
         expect.stringContaining('[ErrorTracker] CRITICAL WEBHOOK: Webhook send failed'),
@@ -194,8 +198,8 @@ describe('errorTracker', () => {
           operation: 'send',
           metadata: expect.objectContaining({
             webhookId: 'test-webhook',
-            args: [{ content: 'Test message' }]
-          })
+            args: [{ content: 'Test message' }],
+          }),
         })
       );
 
@@ -205,7 +209,7 @@ describe('errorTracker', () => {
 
     it('should truncate long message content in error metadata', async () => {
       const mockWebhookClient = {
-        send: jest.fn().mockRejectedValue(new Error('Send failed'))
+        send: jest.fn().mockRejectedValue(new Error('Send failed')),
       };
 
       const enhancedClient = errorTracker.createEnhancedWebhookClient(mockWebhookClient);
@@ -217,17 +221,19 @@ describe('errorTracker', () => {
         expect.any(String),
         expect.objectContaining({
           metadata: expect.objectContaining({
-            args: [expect.objectContaining({
-              content: expect.stringMatching(/^a{50}\.\.\. \(100 chars\)$/)
-            })]
-          })
+            args: [
+              expect.objectContaining({
+                content: expect.stringMatching(/^a{50}\.\.\. \(100 chars\)$/),
+              }),
+            ],
+          }),
         })
       );
     });
 
     it('should handle non-object arguments correctly', async () => {
       const mockWebhookClient = {
-        delete: jest.fn().mockRejectedValue(new Error('Delete failed'))
+        delete: jest.fn().mockRejectedValue(new Error('Delete failed')),
       };
 
       const enhancedClient = errorTracker.createEnhancedWebhookClient(mockWebhookClient);
@@ -238,8 +244,8 @@ describe('errorTracker', () => {
         expect.any(String),
         expect.objectContaining({
           metadata: expect.objectContaining({
-            args: ['message-id']
-          })
+            args: ['message-id'],
+          }),
         })
       );
     });
@@ -269,7 +275,7 @@ describe('errorTracker', () => {
           errorId: error.errorId,
           category: 'avatar',
           operation: 'fetchAvatar',
-          metadata: { userId: '12345' }
+          metadata: { userId: '12345' },
         })
       );
     });
@@ -297,7 +303,7 @@ describe('errorTracker', () => {
         RATE_LIMIT: 'rate_limit',
         AI_SERVICE: 'ai_service',
         API_CONTENT: 'api_content',
-        UNKNOWN: 'unknown'
+        UNKNOWN: 'unknown',
       });
     });
   });
@@ -308,16 +314,16 @@ describe('errorTracker', () => {
       delete error.stack;
 
       const errorId = errorTracker.trackError(error);
-      
+
       expect(errorId).toBeDefined();
       expect(logger.warn).toHaveBeenCalled();
     });
 
     it('should handle errors with empty messages', () => {
       const error = new Error('');
-      
+
       const errorId = errorTracker.trackError(error);
-      
+
       expect(errorId).toBeDefined();
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('[ErrorTracker] UNKNOWN:'),
@@ -328,7 +334,7 @@ describe('errorTracker', () => {
     it('should handle very long operation names in error ID generation', () => {
       const error = new Error('Test');
       const errorId = errorTracker.trackError(error, {
-        operation: 'veryLongOperationNameThatExceedsNormalLength'
+        operation: 'veryLongOperationNameThatExceedsNormalLength',
       });
 
       // Should only use first 3 characters of operation
@@ -356,14 +362,14 @@ describe('errorTracker', () => {
 
     it('should handle null and undefined in context metadata', () => {
       const error = new Error('Test error');
-      
+
       // Test with null metadata
       const errorId1 = errorTracker.trackError(error, {
         category: errorTracker.ErrorCategory.WEBHOOK,
         operation: 'test',
-        metadata: null
+        metadata: null,
       });
-      
+
       expect(errorId1).toBeDefined();
       expect(logger.warn).toHaveBeenCalled();
     });
@@ -371,12 +377,12 @@ describe('errorTracker', () => {
     it('should handle errors with undefined properties', () => {
       const error = new Error('Test error');
       error.stack = undefined;
-      
+
       const errorId = errorTracker.trackError(error, {
         category: undefined,
-        operation: undefined
+        operation: undefined,
       });
-      
+
       expect(errorId).toMatch(/^ERR-unk-unk-[a-z0-9]+-[a-z0-9]+$/);
       expect(logger.warn).toHaveBeenCalled();
     });

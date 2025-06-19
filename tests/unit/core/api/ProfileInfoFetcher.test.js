@@ -2,15 +2,14 @@
  * Tests for ProfileInfoFetcher with proper timing and new mock system
  */
 
-// Mock all dependencies before imports  
+// Mock all dependencies before imports
 jest.mock('../../../../config', () => ({
-  getProfileInfoEndpoint: jest.fn((profileName) => 
-    `https://api.example.com/profiles/${profileName}`),
+  getProfileInfoEndpoint: jest.fn(profileName => `https://api.example.com/profiles/${profileName}`),
   botConfig: {
     mentionChar: '@',
     isDevelopment: false,
-    environment: 'production'
-  }
+    environment: 'production',
+  },
 }));
 jest.mock('node-fetch');
 jest.mock('../../../../src/logger');
@@ -44,7 +43,7 @@ describe('ProfileInfoFetcher (core/api)', () => {
     // Use fake timers for speed
     jest.useFakeTimers();
     jest.clearAllMocks();
-    
+
     // Mock console to keep test output clean
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
@@ -55,14 +54,13 @@ describe('ProfileInfoFetcher (core/api)', () => {
     logger.warn = jest.fn();
     logger.error = jest.fn();
 
-
     // Mock fetch with immediate success
     mockFetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
       statusText: 'OK',
       json: jest.fn().mockResolvedValue(mockProfileData),
-      headers: new Map()
+      headers: new Map(),
     });
     nodeFetch.mockImplementation(mockFetch);
 
@@ -71,35 +69,35 @@ describe('ProfileInfoFetcher (core/api)', () => {
       get: jest.fn().mockReturnValue(null),
       set: jest.fn(),
       has: jest.fn().mockReturnValue(false),
-      clear: jest.fn()
+      clear: jest.fn(),
     };
     ProfileInfoCache.mockImplementation(() => mockCache);
 
-    // Mock client 
+    // Mock client
     mockClient = {
       fetch: jest.fn().mockResolvedValue({
         success: true,
         data: mockProfileData,
-        status: 200
+        status: 200,
       }),
-      validateProfileData: jest.fn().mockReturnValue(true)
+      validateProfileData: jest.fn().mockReturnValue(true),
     };
     ProfileInfoClient.mockImplementation(() => mockClient);
 
     // Mock rate limiter - execute immediately without delays
     mockRateLimiter = {
-      enqueue: jest.fn().mockImplementation(async (fn) => await fn()),
+      enqueue: jest.fn().mockImplementation(async fn => await fn()),
       handleRateLimit: jest.fn().mockResolvedValue(0),
       recordSuccess: jest.fn(),
       maxRetries: 0,
       minRequestSpacing: 0,
-      cooldownPeriod: 0
+      cooldownPeriod: 0,
     };
     RateLimiter.mockImplementation(() => mockRateLimiter);
 
     // Create fetcher instance
     fetcher = new ProfileInfoFetcher({
-      delay: jest.fn().mockResolvedValue(undefined) // Instant delays
+      delay: jest.fn().mockResolvedValue(undefined), // Instant delays
     });
   });
 
@@ -110,7 +108,7 @@ describe('ProfileInfoFetcher (core/api)', () => {
   describe('Basic functionality', () => {
     test('should fetch profile info successfully', async () => {
       const result = await fetcher.fetchProfileInfo(mockProfileName);
-      
+
       expect(result).toEqual(mockProfileData);
       expect(mockClient.fetch).toHaveBeenCalledWith(
         'https://api.example.com/profiles/test-profile',
@@ -122,15 +120,15 @@ describe('ProfileInfoFetcher (core/api)', () => {
     test('should use cache on second call', async () => {
       // First call - cache miss, should fetch
       await fetcher.fetchProfileInfo(mockProfileName);
-      
+
       // Setup cache hit for second call
       mockCache.get.mockReturnValue(mockProfileData);
       mockCache.has.mockReturnValue(true);
       mockClient.fetch.mockClear();
-      
+
       // Second call should use cache
       const result = await fetcher.fetchProfileInfo(mockProfileName);
-      
+
       expect(result).toEqual(mockProfileData);
       expect(mockClient.fetch).not.toHaveBeenCalled();
     });
@@ -139,7 +137,7 @@ describe('ProfileInfoFetcher (core/api)', () => {
       mockClient.fetch.mockResolvedValue({
         success: false,
         status: 500,
-        error: 'Internal server error'
+        error: 'Internal server error',
       });
 
       const result = await fetcher.fetchProfileInfo(mockProfileName);
@@ -151,16 +149,16 @@ describe('ProfileInfoFetcher (core/api)', () => {
   describe('Rate limiting behavior', () => {
     test('should use rate limiter for requests', async () => {
       await fetcher.fetchProfileInfo(mockProfileName);
-      
+
       expect(mockRateLimiter.enqueue).toHaveBeenCalled();
     });
 
     test('should handle rate limit retries', async () => {
       // Setup rate limiter to indicate retry needed
       mockRateLimiter.handleRateLimit.mockResolvedValue(1);
-      
+
       const result = await fetcher.fetchProfileInfo(mockProfileName);
-      
+
       expect(result).toEqual(mockProfileData);
     });
   });
@@ -173,15 +171,13 @@ describe('ProfileInfoFetcher (core/api)', () => {
       const result = await fetcher.fetchProfileInfo(mockProfileName);
 
       expect(result).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Error fetching profile')
-      );
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error fetching profile'));
     });
 
     test('should handle rate limiter errors', async () => {
       const error = new Error('Rate limiter error');
       // Make the enqueue function call its callback which then throws
-      mockRateLimiter.enqueue.mockImplementation(async (fn) => {
+      mockRateLimiter.enqueue.mockImplementation(async fn => {
         await fn(); // This will cause the error inside the callback
       });
       mockClient.fetch.mockRejectedValue(error);
@@ -189,16 +185,14 @@ describe('ProfileInfoFetcher (core/api)', () => {
       const result = await fetcher.fetchProfileInfo(mockProfileName);
 
       expect(result).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Error fetching profile')
-      );
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error fetching profile'));
     });
   });
 
   describe('Concurrent requests', () => {
     test('should handle multiple concurrent requests', async () => {
       const profiles = ['profile1', 'profile2', 'profile3'];
-      
+
       // Make concurrent requests
       const promises = profiles.map(name => fetcher.fetchProfileInfo(name));
       const results = await Promise.all(promises);
@@ -212,9 +206,9 @@ describe('ProfileInfoFetcher (core/api)', () => {
       const promises = [
         fetcher.fetchProfileInfo(mockProfileName),
         fetcher.fetchProfileInfo(mockProfileName),
-        fetcher.fetchProfileInfo(mockProfileName)
+        fetcher.fetchProfileInfo(mockProfileName),
       ];
-      
+
       const results = await Promise.all(promises);
 
       // All should return the same data

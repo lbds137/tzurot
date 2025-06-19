@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  * @testType unit
- * 
+ *
  * CommandIntegration Test
  * Tests the command integration module
  */
@@ -9,7 +9,7 @@
 const {
   CommandIntegration,
   getCommandIntegration,
-  resetCommandIntegration
+  resetCommandIntegration,
 } = require('../../../../src/application/commands/CommandIntegration');
 const { getCommandRegistry } = require('../../../../src/application/commands/CommandAbstraction');
 const { createAddCommand } = require('../../../../src/application/commands/personality/AddCommand');
@@ -18,33 +18,36 @@ const { createAddCommand } = require('../../../../src/application/commands/perso
 jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
-  warn: jest.fn()
+  warn: jest.fn(),
 }));
 
 jest.mock('../../../../src/application/services/FeatureFlags', () => ({
   getFeatureFlags: jest.fn().mockReturnValue({
-    isEnabled: jest.fn().mockReturnValue(false)
-  })
+    isEnabled: jest.fn().mockReturnValue(false),
+  }),
 }));
 
 jest.mock('../../../../src/application/routers/PersonalityRouter', () => ({
   getPersonalityRouter: jest.fn().mockReturnValue({
     registerPersonality: jest.fn(),
     getPersonality: jest.fn(),
-    removePersonality: jest.fn()
-  })
+    removePersonality: jest.fn(),
+  }),
 }));
 
 jest.mock('../../../../src/application/commands/personality/AddCommand', () => {
   const { Command } = require('../../../../src/application/commands/CommandAbstraction');
   return {
-    createAddCommand: jest.fn().mockImplementation(() => new Command({
-      name: 'add',
-      description: 'Add personality',
-      category: 'personality',
-      aliases: ['create'],
-      execute: jest.fn().mockResolvedValue('Add command executed')
-    }))
+    createAddCommand: jest.fn().mockImplementation(
+      () =>
+        new Command({
+          name: 'add',
+          description: 'Add personality',
+          category: 'personality',
+          aliases: ['create'],
+          execute: jest.fn().mockResolvedValue('Add command executed'),
+        })
+    ),
   };
 });
 
@@ -78,7 +81,7 @@ describe('CommandIntegration', () => {
     it('should initialize with custom services', async () => {
       const customServices = {
         customService: { test: true },
-        featureFlags: { custom: true }
+        featureFlags: { custom: true },
       };
 
       await integration.initialize(customServices);
@@ -107,9 +110,7 @@ describe('CommandIntegration', () => {
       await integration.initialize();
       await integration.initialize();
 
-      expect(logger.warn).toHaveBeenCalledWith(
-        '[CommandIntegration] Already initialized'
-      );
+      expect(logger.warn).toHaveBeenCalledWith('[CommandIntegration] Already initialized');
     });
 
     it('should handle initialization errors', async () => {
@@ -123,7 +124,7 @@ describe('CommandIntegration', () => {
         '[CommandIntegration] Failed to initialize:',
         expect.any(Error)
       );
-      
+
       // Restore original implementation for other tests
       createAddCommand.mockImplementation(originalImpl);
     });
@@ -150,24 +151,26 @@ describe('CommandIntegration', () => {
     });
 
     it('should throw for unknown platform', () => {
-      expect(() => integration.getAdapter('telegram'))
-        .toThrow('No adapter found for platform: telegram');
+      expect(() => integration.getAdapter('telegram')).toThrow(
+        'No adapter found for platform: telegram'
+      );
     });
 
     it('should throw if not initialized', () => {
       const newIntegration = new CommandIntegration();
-      expect(() => newIntegration.getAdapter('discord'))
-        .toThrow('CommandIntegration not initialized');
+      expect(() => newIntegration.getAdapter('discord')).toThrow(
+        'CommandIntegration not initialized'
+      );
     });
   });
 
   describe('handleDiscordTextCommand', () => {
     it('should delegate to Discord adapter', async () => {
       await integration.initialize();
-      
+
       const mockMessage = { id: 'msg123' };
       const mockAdapter = {
-        handleTextCommand: jest.fn().mockResolvedValue('Result')
+        handleTextCommand: jest.fn().mockResolvedValue('Result'),
       };
       integration.adapters.set('discord', mockAdapter);
 
@@ -181,10 +184,10 @@ describe('CommandIntegration', () => {
   describe('handleDiscordSlashCommand', () => {
     it('should delegate to Discord adapter', async () => {
       await integration.initialize();
-      
+
       const mockInteraction = { id: 'int123' };
       const mockAdapter = {
-        handleSlashCommand: jest.fn().mockResolvedValue('Result')
+        handleSlashCommand: jest.fn().mockResolvedValue('Result'),
       };
       integration.adapters.set('discord', mockAdapter);
 
@@ -198,10 +201,10 @@ describe('CommandIntegration', () => {
   describe('handleRevoltTextCommand', () => {
     it('should delegate to Revolt adapter', async () => {
       await integration.initialize();
-      
+
       const mockMessage = { id: 'msg123' };
       const mockAdapter = {
-        handleTextCommand: jest.fn().mockResolvedValue('Result')
+        handleTextCommand: jest.fn().mockResolvedValue('Result'),
       };
       integration.adapters.set('revolt', mockAdapter);
 
@@ -215,10 +218,10 @@ describe('CommandIntegration', () => {
   describe('registerDiscordSlashCommands', () => {
     it('should delegate to Discord adapter', async () => {
       await integration.initialize();
-      
+
       const mockClient = { id: 'client123' };
       const mockAdapter = {
-        registerSlashCommands: jest.fn().mockResolvedValue(['cmd1', 'cmd2'])
+        registerSlashCommands: jest.fn().mockResolvedValue(['cmd1', 'cmd2']),
       };
       integration.adapters.set('discord', mockAdapter);
 
@@ -250,10 +253,29 @@ describe('CommandIntegration', () => {
   describe('getAllCommands', () => {
     it('should return all registered commands', async () => {
       await integration.initialize();
-      
+
       const commands = integration.getAllCommands();
       expect(commands).toHaveLength(18);
-      expect(commands.map(c => c.name)).toEqual(['add', 'remove', 'info', 'alias', 'list', 'reset', 'activate', 'deactivate', 'autorespond', 'auth', 'verify', 'ping', 'status', 'notifications', 'debug', 'purgbot', 'volumetest', 'help']);
+      expect(commands.map(c => c.name)).toEqual([
+        'add',
+        'remove',
+        'info',
+        'alias',
+        'list',
+        'reset',
+        'activate',
+        'deactivate',
+        'autorespond',
+        'auth',
+        'verify',
+        'ping',
+        'status',
+        'notifications',
+        'debug',
+        'purgbot',
+        'volumetest',
+        'help',
+      ]);
     });
   });
 

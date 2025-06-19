@@ -57,12 +57,12 @@ describe('messageFormatter', () => {
     it('should split long text at word boundaries', () => {
       const longText = 'word '.repeat(500); // 2500 characters
       const result = splitByCharacterLimit(longText);
-      
+
       expect(result.length).toBeGreaterThan(1);
       result.forEach(chunk => {
         expect(chunk.length).toBeLessThanOrEqual(MESSAGE_CHAR_LIMIT);
       });
-      
+
       // Should split at spaces, not in the middle of words
       expect(result[0].endsWith('word')).toBe(true);
     });
@@ -70,7 +70,7 @@ describe('messageFormatter', () => {
     it('should handle text without spaces', () => {
       const longText = 'a'.repeat(MESSAGE_CHAR_LIMIT + 500);
       const result = splitByCharacterLimit(longText);
-      
+
       expect(result).toHaveLength(2);
       expect(result[0].length).toBe(MESSAGE_CHAR_LIMIT);
       expect(result[1].length).toBe(500);
@@ -79,7 +79,7 @@ describe('messageFormatter', () => {
     it('should trim whitespace between chunks', () => {
       const longText = 'a'.repeat(1999) + '   ' + 'b'.repeat(10);
       const result = splitByCharacterLimit(longText);
-      
+
       expect(result).toHaveLength(2);
       expect(result[1]).toBe('b'.repeat(10));
     });
@@ -89,7 +89,7 @@ describe('messageFormatter', () => {
     it('should add sentence to current chunk when within limit', () => {
       const chunks = [];
       const result = processSentence('This is a sentence.', chunks, 'Current chunk');
-      
+
       expect(result).toBe('Current chunk This is a sentence.');
       expect(chunks).toHaveLength(0);
     });
@@ -98,7 +98,7 @@ describe('messageFormatter', () => {
       const chunks = [];
       const currentChunk = 'a'.repeat(1990);
       const result = processSentence('This is a sentence.', chunks, currentChunk);
-      
+
       expect(chunks).toHaveLength(1);
       expect(chunks[0]).toBe(currentChunk);
       expect(result).toBe('This is a sentence.');
@@ -108,7 +108,7 @@ describe('messageFormatter', () => {
       const chunks = [];
       const longSentence = 'a'.repeat(MESSAGE_CHAR_LIMIT + 100);
       const result = processSentence(longSentence, chunks, 'Current');
-      
+
       expect(chunks.length).toBeGreaterThan(1);
       expect(chunks[0]).toBe('Current');
       expect(result).toBe('');
@@ -117,7 +117,7 @@ describe('messageFormatter', () => {
     it('should handle empty current chunk', () => {
       const chunks = [];
       const result = processSentence('First sentence.', chunks, '');
-      
+
       expect(result).toBe('First sentence.');
       expect(chunks).toHaveLength(0);
     });
@@ -127,16 +127,16 @@ describe('messageFormatter', () => {
     it('should add line to current chunk with newline', () => {
       const chunks = [];
       const result = processLine('New line', chunks, 'Current chunk');
-      
+
       expect(result).toBe('Current chunk\nNew line');
       expect(chunks).toHaveLength(0);
     });
 
     it('should start new chunk when line would exceed limit', () => {
       const chunks = [];
-      const currentChunk = 'a'.repeat(1995);  // 1995 + 8 + 1 = 2004, which exceeds 2000
+      const currentChunk = 'a'.repeat(1995); // 1995 + 8 + 1 = 2004, which exceeds 2000
       const result = processLine('New line', chunks, currentChunk);
-      
+
       expect(chunks).toHaveLength(1);
       expect(chunks[0]).toBe(currentChunk);
       expect(result).toBe('New line');
@@ -146,7 +146,7 @@ describe('messageFormatter', () => {
       const chunks = [];
       const longLine = 'First sentence. ' + 'a'.repeat(MESSAGE_CHAR_LIMIT) + '. Last sentence.';
       const result = processLine(longLine, chunks, '');
-      
+
       expect(chunks.length).toBeGreaterThan(0);
       expect(result).toBe('');
     });
@@ -154,7 +154,7 @@ describe('messageFormatter', () => {
     it('should handle empty current chunk', () => {
       const chunks = [];
       const result = processLine('First line', chunks, '');
-      
+
       expect(result).toBe('First line');
       expect(chunks).toHaveLength(0);
     });
@@ -164,7 +164,7 @@ describe('messageFormatter', () => {
     it('should add paragraph to current chunk with double newline', () => {
       const chunks = [];
       const result = processParagraph('New paragraph', chunks, 'Current chunk');
-      
+
       expect(result).toBe('Current chunk\n\nNew paragraph');
       expect(chunks).toHaveLength(0);
     });
@@ -173,7 +173,7 @@ describe('messageFormatter', () => {
       const chunks = [];
       const currentChunk = 'a'.repeat(1990);
       const result = processParagraph('New paragraph', chunks, currentChunk);
-      
+
       expect(chunks).toHaveLength(1);
       expect(chunks[0]).toBe(currentChunk);
       expect(result).toBe('New paragraph');
@@ -183,14 +183,14 @@ describe('messageFormatter', () => {
       const chunks = [];
       const longParagraph = Array(10).fill('a'.repeat(300)).join('\n');
       const result = processParagraph(longParagraph, chunks, '');
-      
+
       expect(chunks.length).toBeGreaterThan(0);
     });
 
     it('should handle empty current chunk', () => {
       const chunks = [];
       const result = processParagraph('First paragraph', chunks, '');
-      
+
       expect(result).toBe('First paragraph');
       expect(chunks).toHaveLength(0);
     });
@@ -211,7 +211,7 @@ describe('messageFormatter', () => {
     it('should split by paragraphs first', () => {
       const content = 'First paragraph\n\nSecond paragraph\n\nThird paragraph';
       const result = splitMessage(content);
-      
+
       expect(result).toHaveLength(1);
       expect(result[0]).toContain('First paragraph');
       expect(result[0]).toContain('Second paragraph');
@@ -222,7 +222,7 @@ describe('messageFormatter', () => {
       const longParagraph = 'a'.repeat(MESSAGE_CHAR_LIMIT + 100);
       const content = `Short intro\n\n${longParagraph}\n\nShort outro`;
       const result = splitMessage(content);
-      
+
       expect(result.length).toBeGreaterThan(1);
       expect(result[0]).toContain('Short intro');
     });
@@ -232,7 +232,7 @@ describe('messageFormatter', () => {
       const para2 = 'b'.repeat(300);
       const content = `${para1}\n\n${para2}`;
       const result = splitMessage(content);
-      
+
       expect(result).toHaveLength(2);
       expect(result[0]).toBe(para1);
       expect(result[1]).toBe(para2);
@@ -249,10 +249,10 @@ describe('messageFormatter', () => {
         
         Final paragraph here.
       `.trim();
-      
+
       const result = splitMessage(content);
       expect(result.length).toBeGreaterThan(0);
-      
+
       // Verify all content is preserved
       const joined = result.join('');
       expect(joined.replace(/\s+/g, '')).toBe(content.replace(/\s+/g, ''));
@@ -297,7 +297,7 @@ describe('messageFormatter', () => {
         false,
         null
       );
-      
+
       expect(result).toEqual({
         content: 'Hello world',
         username: 'TestUser',
@@ -307,14 +307,8 @@ describe('messageFormatter', () => {
     });
 
     it('should handle thread messages', () => {
-      const result = prepareMessageData(
-        'Thread message',
-        'TestUser',
-        null,
-        true,
-        'thread123'
-      );
-      
+      const result = prepareMessageData('Thread message', 'TestUser', null, true, 'thread123');
+
       expect(result).toEqual({
         content: 'Thread message',
         username: 'TestUser',
@@ -328,59 +322,40 @@ describe('messageFormatter', () => {
 
     it('should handle options with embed', () => {
       const embedData = { title: 'Test Embed', description: 'Test Description' };
-      const result = prepareMessageData(
-        'Message with embed',
-        'TestUser',
-        null,
-        false,
-        null,
-        { embed: embedData }
-      );
-      
+      const result = prepareMessageData('Message with embed', 'TestUser', null, false, null, {
+        embed: embedData,
+      });
+
       expect(result.embeds).toHaveLength(1);
       expect(result.embeds[0]).toBeInstanceOf(EmbedBuilder);
     });
 
     it('should handle options with files', () => {
       const files = ['file1.txt', 'file2.png'];
-      const result = prepareMessageData(
-        'Message with files',
-        'TestUser',
-        null,
-        false,
-        null,
-        { files }
-      );
-      
+      const result = prepareMessageData('Message with files', 'TestUser', null, false, null, {
+        files,
+      });
+
       expect(result.files).toEqual(files);
     });
 
     it('should handle options with attachments', () => {
       const attachments = [{ attachment: 'audio.mp3' }];
-      const result = prepareMessageData(
-        'Message with audio',
-        'TestUser',
-        null,
-        false,
-        null,
-        { attachments }
-      );
-      
+      const result = prepareMessageData('Message with audio', 'TestUser', null, false, null, {
+        attachments,
+      });
+
       expect(result.files).toEqual(attachments);
     });
 
     it('should merge files and attachments', () => {
       const files = ['file1.txt'];
       const attachments = [{ attachment: 'audio.mp3' }];
-      const result = prepareMessageData(
-        'Message with both',
-        'TestUser',
-        null,
-        false,
-        null,
-        { files, attachments }
-      );
-      
+      const result = prepareMessageData('Message with both', 'TestUser', null, false, null, {
+        files,
+        attachments,
+      });
+
       expect(result.files).toHaveLength(2);
       expect(result.files).toContain('file1.txt');
       expect(result.files).toContainEqual({ attachment: 'audio.mp3' });
@@ -388,15 +363,10 @@ describe('messageFormatter', () => {
 
     it('should preserve original channel for threads', () => {
       const originalChannel = { id: 'channel123', name: 'test-channel' };
-      const result = prepareMessageData(
-        'Thread message',
-        'TestUser',
-        null,
-        true,
-        'thread123',
-        { _originalChannel: originalChannel }
-      );
-      
+      const result = prepareMessageData('Thread message', 'TestUser', null, true, 'thread123', {
+        _originalChannel: originalChannel,
+      });
+
       expect(result._originalChannel).toBe(originalChannel);
     });
   });

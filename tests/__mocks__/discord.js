@@ -35,41 +35,41 @@ class MockChannel {
     this.nsfw = options.nsfw || false;
     this.guild = options.guild || null;
     this.parentId = options.parentId || null;
-    
+
     // Mock methods
-    this.send = jest.fn().mockImplementation(async (content) => {
+    this.send = jest.fn().mockImplementation(async content => {
       return new MockMessage({
         id: `msg-${Date.now()}`,
         content: typeof content === 'string' ? content : '',
         channel: this,
-        embeds: content?.embeds || []
+        embeds: content?.embeds || [],
       });
     });
-    
+
     this.sendTyping = jest.fn().mockResolvedValue(true);
     this.isTextBased = () => true;
     this.isDMBased = () => this.type === 1;
-    
+
     this.permissionsFor = jest.fn().mockReturnValue({
-      has: jest.fn().mockReturnValue(true)
+      has: jest.fn().mockReturnValue(true),
     });
-    
+
     this.messages = {
       fetch: jest.fn().mockImplementation(async (options = {}) => {
         const messages = new Map();
         const limit = options.limit || 50;
-        
+
         for (let i = 0; i < Math.min(limit, 5); i++) {
           const msg = new MockMessage({
             id: `fetched-msg-${i}`,
             content: `Mock message ${i}`,
-            channel: this
+            channel: this,
           });
           messages.set(msg.id, msg);
         }
-        
+
         return messages;
-      })
+      }),
     };
   }
 
@@ -94,35 +94,35 @@ class MockMessage {
     this.attachments = new Map();
     this.reactions = { cache: new Map() };
     this.createdTimestamp = Date.now();
-    
+
     // Mock member if in a guild
     if (this.guild) {
       this.member = options.member || {
         id: this.author.id,
         user: this.author,
         permissions: {
-          has: jest.fn().mockReturnValue(true)
-        }
+          has: jest.fn().mockReturnValue(true),
+        },
       };
     }
-    
+
     // Mock methods
-    this.reply = jest.fn().mockImplementation(async (content) => {
+    this.reply = jest.fn().mockImplementation(async content => {
       return new MockMessage({
         id: `reply-${Date.now()}`,
         content: typeof content === 'string' ? content : '',
         author: this.channel.guild ? { id: 'bot-id', bot: true } : this.author,
         channel: this.channel,
         reference: { messageId: this.id },
-        embeds: content?.embeds || []
+        embeds: content?.embeds || [],
       });
     });
-    
+
     this.delete = jest.fn().mockImplementation(async () => {
       return this;
     });
-    
-    this.edit = jest.fn().mockImplementation(async (content) => {
+
+    this.edit = jest.fn().mockImplementation(async content => {
       this.content = typeof content === 'string' ? content : this.content;
       return this;
     });
@@ -152,45 +152,45 @@ class MockGuild {
 class MockClient extends EventEmitter {
   constructor(options = {}) {
     super();
-    
+
     this.user = new MockUser({
       id: 'bot-user-id',
       username: 'MockBot',
       bot: true,
-      ...options.user
+      ...options.user,
     });
-    
+
     this.channels = {
       cache: new Map(),
-      fetch: jest.fn().mockImplementation(async (id) => {
+      fetch: jest.fn().mockImplementation(async id => {
         if (this.channels.cache.has(id)) {
           return this.channels.cache.get(id);
         }
         const channel = new MockChannel({ id });
         this.channels.cache.set(id, channel);
         return channel;
-      })
+      }),
     };
-    
+
     this.guilds = {
       cache: new Map(),
-      fetch: jest.fn().mockImplementation(async (id) => {
+      fetch: jest.fn().mockImplementation(async id => {
         if (this.guilds.cache.has(id)) {
           return this.guilds.cache.get(id);
         }
         const guild = new MockGuild({ id });
         this.guilds.cache.set(id, guild);
         return guild;
-      })
+      }),
     };
-    
-    this.login = jest.fn().mockImplementation(async (token) => {
+
+    this.login = jest.fn().mockImplementation(async token => {
       this.token = token;
       // Simulate ready event
       setImmediate(() => this.emit('ready'));
       return token;
     });
-    
+
     this.destroy = jest.fn().mockResolvedValue(true);
   }
 }
@@ -206,26 +206,26 @@ class MockWebhook {
     this.channelId = options.channelId || 'mock-channel-id';
     this.guildId = options.guildId || 'mock-guild-id';
     this.url = `https://discord.com/api/webhooks/${this.id}/mock-token`;
-    
-    this.send = jest.fn().mockImplementation(async (content) => {
+
+    this.send = jest.fn().mockImplementation(async content => {
       return new MockMessage({
         id: `webhook-msg-${Date.now()}`,
         content: typeof content === 'string' ? content : '',
         author: new MockUser({
           id: 'webhook-user-id',
           username: this.name,
-          bot: true
+          bot: true,
         }),
         webhookId: this.id,
-        embeds: content?.embeds || []
+        embeds: content?.embeds || [],
       });
     });
-    
-    this.edit = jest.fn().mockImplementation(async (options) => {
+
+    this.edit = jest.fn().mockImplementation(async options => {
       Object.assign(this, options);
       return this;
     });
-    
+
     this.delete = jest.fn().mockResolvedValue(true);
   }
 }
@@ -244,7 +244,7 @@ class MockEmbedBuilder {
       thumbnail: null,
       image: null,
       timestamp: null,
-      ...data
+      ...data,
     };
   }
 
@@ -299,31 +299,31 @@ class MockEmbedBuilder {
 class MockWebhookClient {
   constructor(url) {
     this.url = url;
-    this.send = jest.fn().mockImplementation(async (options) => {
+    this.send = jest.fn().mockImplementation(async options => {
       return new MockMessage({
         id: `webhook-msg-${Date.now()}`,
         content: options.content || '',
         author: new MockUser({ username: options.username || 'Webhook' }),
         embeds: options.embeds || [],
-        attachments: options.files || []
+        attachments: options.files || [],
       });
     });
-    
-    this.thread = jest.fn().mockImplementation((threadId) => {
+
+    this.thread = jest.fn().mockImplementation(threadId => {
       return {
-        send: jest.fn().mockImplementation(async (options) => {
+        send: jest.fn().mockImplementation(async options => {
           return new MockMessage({
             id: `thread-msg-${Date.now()}`,
             content: options.content || '',
             author: new MockUser({ username: options.username || 'Webhook' }),
             embeds: options.embeds || [],
             attachments: options.files || [],
-            channelId: threadId
+            channelId: threadId,
           });
-        })
+        }),
       };
     });
-    
+
     this.edit = jest.fn().mockResolvedValue({});
     this.delete = jest.fn().mockResolvedValue({});
   }
@@ -351,27 +351,27 @@ class MockREST {
  */
 function createDiscordEnvironment(options = {}) {
   const client = new MockClient(options.client);
-  
+
   // Add some default channels and guilds if requested
   if (options.setupDefaults !== false) {
     const defaultGuild = new MockGuild({ id: 'default-guild' });
-    const defaultChannel = new MockChannel({ 
-      id: 'default-channel', 
+    const defaultChannel = new MockChannel({
+      id: 'default-channel',
       guild: defaultGuild,
-      nsfw: options.nsfw || false
+      nsfw: options.nsfw || false,
     });
-    
+
     client.guilds.cache.set(defaultGuild.id, defaultGuild);
     client.channels.cache.set(defaultChannel.id, defaultChannel);
   }
-  
+
   return {
     client,
-    createChannel: (opts) => new MockChannel(opts),
-    createMessage: (opts) => new MockMessage(opts),
-    createUser: (opts) => new MockUser(opts),
-    createWebhook: (opts) => new MockWebhook(opts),
-    createEmbed: (opts) => new MockEmbedBuilder(opts)
+    createChannel: opts => new MockChannel(opts),
+    createMessage: opts => new MockMessage(opts),
+    createUser: opts => new MockUser(opts),
+    createWebhook: opts => new MockWebhook(opts),
+    createEmbed: opts => new MockEmbedBuilder(opts),
   };
 }
 
@@ -388,30 +388,30 @@ module.exports = {
   WebhookClient: MockWebhookClient,
   EmbedBuilder: MockEmbedBuilder,
   REST: MockREST,
-  
+
   // Constants
   GatewayIntentBits: {
     Guilds: 1 << 0,
     GuildMessages: 1 << 9,
     MessageContent: 1 << 15,
     GuildWebhooks: 1 << 5,
-    DirectMessages: 1 << 12
+    DirectMessages: 1 << 12,
   },
-  
+
   Partials: {
     Channel: 'CHANNEL',
     Message: 'MESSAGE',
-    Reaction: 'REACTION'
+    Reaction: 'REACTION',
   },
-  
+
   PermissionFlagsBits: {
     Administrator: 1n << 3n,
     ManageMessages: 1n << 13n,
     ViewChannel: 1n << 10n,
     ReadMessageHistory: 1n << 16n,
-    ManageWebhooks: 1n << 29n
+    ManageWebhooks: 1n << 29n,
   },
-  
+
   // Factory function
-  createDiscordEnvironment
+  createDiscordEnvironment,
 };

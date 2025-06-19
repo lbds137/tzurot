@@ -2,7 +2,9 @@
  * Tests for RemoveCommand
  */
 
-const { createRemoveCommand } = require('../../../../../src/application/commands/personality/RemoveCommand');
+const {
+  createRemoveCommand,
+} = require('../../../../../src/application/commands/personality/RemoveCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 
 describe('RemoveCommand', () => {
@@ -16,36 +18,36 @@ describe('RemoveCommand', () => {
 
   beforeEach(() => {
     migrationHelper = createMigrationHelper();
-    
+
     // Create the command
     command = createRemoveCommand();
-    
+
     // Mock personality service
     mockPersonalityService = {
       getPersonality: jest.fn().mockResolvedValue({
         profile: {
           name: 'testpersonality',
-          displayName: 'Test Personality'
-        }
+          displayName: 'Test Personality',
+        },
       }),
-      removePersonality: jest.fn().mockResolvedValue(undefined)
+      removePersonality: jest.fn().mockResolvedValue(undefined),
     };
-    
+
     // Mock profile info cache
     mockProfileInfoCache = {
-      deleteFromCache: jest.fn()
+      deleteFromCache: jest.fn(),
     };
-    
+
     // Mock message tracker
     mockMessageTracker = {
-      removeCompletedAddCommand: jest.fn()
+      removeCompletedAddCommand: jest.fn(),
     };
-    
+
     // Mock feature flags
     mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false)
+      isEnabled: jest.fn().mockReturnValue(false),
     };
-    
+
     // Mock context
     mockContext = {
       isSlashCommand: false,
@@ -58,8 +60,8 @@ describe('RemoveCommand', () => {
         featureFlags: mockFeatureFlags,
         profileInfoCache: mockProfileInfoCache,
         messageTracker: mockMessageTracker,
-        botPrefix: '!tz'
-      }
+        botPrefix: '!tz',
+      },
     };
   });
 
@@ -87,43 +89,49 @@ describe('RemoveCommand', () => {
   describe('execute', () => {
     it('should remove personality successfully', async () => {
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('testpersonality');
       expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
-      
+
       expect(mockProfileInfoCache.deleteFromCache).toHaveBeenCalledWith('testpersonality');
-      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'testpersonality');
-      
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith(
+        '123456789',
+        'testpersonality'
+      );
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '✅ Personality Removed Successfully',
-          description: '**Test Personality** has been removed from your collection.',
-          color: 0xf44336,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Removed Personality',
-              value: 'Test Personality'
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Removed Successfully',
+            description: '**Test Personality** has been removed from your collection.',
+            color: 0xf44336,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Removed Personality',
+                value: 'Test Personality',
+              }),
+            ]),
+          }),
+        ],
       });
     });
 
-
     it('should handle missing personality name', async () => {
       mockContext.args = [];
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: 'How to Remove a Personality',
-          description: 'Remove a personality from your collection.',
-          color: 0x2196f3
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: 'How to Remove a Personality',
+            description: 'Remove a personality from your collection.',
+            color: 0x2196f3,
+          }),
+        ],
       });
       expect(mockPersonalityService.removePersonality).not.toHaveBeenCalled();
     });
@@ -131,27 +139,29 @@ describe('RemoveCommand', () => {
     it('should handle slash command format', async () => {
       mockContext.isSlashCommand = true;
       mockContext.options = { name: 'SlashPersonality' }; // Test case normalization
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('slashpersonality'); // Should be normalized
       expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
         personalityName: 'testpersonality',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
     });
 
     it('should handle personality not found error', async () => {
       mockPersonalityService.getPersonality.mockResolvedValue(null);
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Personality Not Found',
-          description: expect.stringContaining('No personality found'),
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Personality Not Found',
+            description: expect.stringContaining('No personality found'),
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockPersonalityService.removePersonality).not.toHaveBeenCalled();
     });
@@ -160,15 +170,17 @@ describe('RemoveCommand', () => {
       mockPersonalityService.removePersonality.mockRejectedValue(
         new Error('Only the owner can remove a personality')
       );
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Permission Denied',
-          description: 'You cannot remove a personality that you didn\'t create.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Permission Denied',
+            description: "You cannot remove a personality that you didn't create.",
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
@@ -176,45 +188,49 @@ describe('RemoveCommand', () => {
       mockPersonalityService.removePersonality.mockRejectedValue(
         new Error('Authentication failed')
       );
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Authentication Required',
-          description: 'You need to authenticate before removing personalities.',
-          color: 0xff9800
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Authentication Required',
+            description: 'You need to authenticate before removing personalities.',
+            color: 0xff9800,
+          }),
+        ],
       });
     });
 
     it('should handle general errors', async () => {
-      mockPersonalityService.removePersonality.mockRejectedValue(
-        new Error('Database error')
-      );
-      
+      mockPersonalityService.removePersonality.mockRejectedValue(new Error('Database error'));
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: 'An error occurred while removing the personality.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: 'An error occurred while removing the personality.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
     it('should handle missing personality service', async () => {
       mockContext.dependencies.personalityApplicationService = null;
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Something Went Wrong',
-          description: 'An error occurred while removing the personality.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Something Went Wrong',
+            description: 'An error occurred while removing the personality.',
+            color: 0xf44336,
+          }),
+        ],
       });
     });
 
@@ -224,21 +240,27 @@ describe('RemoveCommand', () => {
       mockPersonalityService.getPersonality.mockResolvedValue({
         profile: {
           name: 'actualpersonality',
-          displayName: 'Actual Personality'
-        }
+          displayName: 'Actual Personality',
+        },
       });
-      
+
       await command.execute(mockContext);
-      
+
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('testalias');
       expect(mockPersonalityService.removePersonality).toHaveBeenCalledWith({
         personalityName: 'actualpersonality',
-        requesterId: '123456789'
+        requesterId: '123456789',
       });
-      
+
       // Should clear cache for both alias and actual name
-      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'testalias');
-      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith('123456789', 'actualpersonality');
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith(
+        '123456789',
+        'testalias'
+      );
+      expect(mockMessageTracker.removeCompletedAddCommand).toHaveBeenCalledWith(
+        '123456789',
+        'actualpersonality'
+      );
     });
   });
 });

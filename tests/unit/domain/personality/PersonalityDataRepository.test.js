@@ -1,5 +1,9 @@
-const { PersonalityDataRepository } = require('../../../../src/domain/personality/PersonalityDataRepository');
-const { ExtendedPersonalityProfile } = require('../../../../src/domain/personality/ExtendedPersonalityProfile');
+const {
+  PersonalityDataRepository,
+} = require('../../../../src/domain/personality/PersonalityDataRepository');
+const {
+  ExtendedPersonalityProfile,
+} = require('../../../../src/domain/personality/ExtendedPersonalityProfile');
 const path = require('path');
 
 // Mock fs and logger
@@ -22,10 +26,10 @@ describe('PersonalityDataRepository', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     mockDataDir = '/mock/data/ddd_personality_data';
     mockBackupDir = '/mock/data/personalities';
-    
+
     repository = new PersonalityDataRepository(mockDataDir);
     repository.backupDir = mockBackupDir;
   });
@@ -36,11 +40,11 @@ describe('PersonalityDataRepository', () => {
         name: 'test-personality',
         mode: 'local',
       });
-      
+
       repository.cache.set('test-personality', mockProfile);
-      
+
       const result = await repository.getExtendedProfile('test-personality');
-      
+
       expect(result).toBe(mockProfile);
       expect(fs.readFile).not.toHaveBeenCalled();
     });
@@ -52,11 +56,11 @@ describe('PersonalityDataRepository', () => {
         displayName: 'Test Personality',
         userPrompt: 'I am a test personality',
       };
-      
+
       fs.readFile.mockResolvedValueOnce(JSON.stringify(mockMigratedData));
-      
+
       const result = await repository.getExtendedProfile('test-personality');
-      
+
       expect(result).toBeInstanceOf(ExtendedPersonalityProfile);
       expect(result.name).toBe('test-personality');
       expect(result.userPrompt).toBe('I am a test personality');
@@ -69,43 +73,43 @@ describe('PersonalityDataRepository', () => {
     it('should auto-migrate from backup data when no migrated data exists', async () => {
       // First read fails (no migrated data)
       fs.readFile.mockRejectedValueOnce(new Error('ENOENT'));
-      
+
       // Check if backup dir exists
       fs.access.mockResolvedValueOnce();
-      
+
       // Read backup files
       const mockBackupMain = {
         name: 'test-personality',
         user_prompt: 'I am a test personality',
         voice_id: 'test-voice',
       };
-      
+
       const mockBackupMemories = [
         { content: 'Memory 1', created_at: 123456 },
         { content: 'Memory 2', created_at: 123457 },
       ];
-      
+
       const mockBackupChatHistory = {
         messages: [
           { ts: 123456, message: 'Hello', reply: 'Hi there' },
           { ts: 123457, message: 'How are you?', reply: 'I am fine' },
         ],
       };
-      
+
       // Mock reading backup files
       fs.readFile
         .mockResolvedValueOnce(JSON.stringify(mockBackupMain)) // main profile
         .mockResolvedValueOnce(JSON.stringify(mockBackupMemories)) // memories
         .mockRejectedValueOnce(new Error('ENOENT')) // no training
-        .mockRejectedValueOnce(new Error('ENOENT')) // no user personalization  
+        .mockRejectedValueOnce(new Error('ENOENT')) // no user personalization
         .mockResolvedValueOnce(JSON.stringify(mockBackupChatHistory)); // chat history
-      
+
       // Mock saving migrated data
       fs.mkdir.mockResolvedValueOnce();
       fs.writeFile.mockResolvedValueOnce();
-      
+
       const result = await repository.getExtendedProfile('test-personality');
-      
+
       expect(result).toBeInstanceOf(ExtendedPersonalityProfile);
       expect(result.name).toBe('test-personality');
       expect(result.voiceConfig).toEqual({
@@ -118,21 +122,20 @@ describe('PersonalityDataRepository', () => {
         style: 0,
         transcriptionEnabled: true,
       });
-      
+
       // Verify migration was saved
-      expect(fs.mkdir).toHaveBeenCalledWith(
-        path.join(mockDataDir, 'test-personality'),
-        { recursive: true }
-      );
+      expect(fs.mkdir).toHaveBeenCalledWith(path.join(mockDataDir, 'test-personality'), {
+        recursive: true,
+      });
       expect(fs.writeFile).toHaveBeenCalled();
     });
 
     it('should return null when no data exists', async () => {
       fs.readFile.mockRejectedValue(new Error('ENOENT'));
       fs.access.mockRejectedValue(new Error('ENOENT'));
-      
+
       const result = await repository.getExtendedProfile('non-existent');
-      
+
       expect(result).toBeNull();
     });
   });
@@ -140,9 +143,9 @@ describe('PersonalityDataRepository', () => {
   describe('hasExtendedData', () => {
     it('should return true if migrated data exists', async () => {
       fs.access.mockResolvedValueOnce();
-      
+
       const result = await repository.hasExtendedData('test-personality');
-      
+
       expect(result).toBe(true);
       expect(fs.access).toHaveBeenCalledWith(
         path.join(mockDataDir, 'test-personality', 'profile.json')
@@ -153,20 +156,18 @@ describe('PersonalityDataRepository', () => {
       fs.access
         .mockRejectedValueOnce(new Error('ENOENT')) // No migrated data
         .mockResolvedValueOnce(); // Backup exists
-      
+
       const result = await repository.hasExtendedData('test-personality');
-      
+
       expect(result).toBe(true);
-      expect(fs.access).toHaveBeenCalledWith(
-        path.join(mockBackupDir, 'test-personality')
-      );
+      expect(fs.access).toHaveBeenCalledWith(path.join(mockBackupDir, 'test-personality'));
     });
 
     it('should return false if no data exists', async () => {
       fs.access.mockRejectedValue(new Error('ENOENT'));
-      
+
       const result = await repository.hasExtendedData('non-existent');
-      
+
       expect(result).toBe(false);
     });
   });
@@ -177,9 +178,9 @@ describe('PersonalityDataRepository', () => {
         name: 'test-personality',
         mode: 'local',
       });
-      
+
       repository.cache.set('test-personality', mockProfile);
-      
+
       const mockChatData = {
         messages: [
           { ts: 100, user_id: 'user1', message: 'Hello' },
@@ -188,15 +189,15 @@ describe('PersonalityDataRepository', () => {
           { ts: 400, user_id: 'user1', message: 'Good' },
         ],
       };
-      
+
       fs.readFile.mockResolvedValueOnce(JSON.stringify(mockChatData));
-      
+
       const result = await repository.getChatHistory('test-personality', {
         userId: 'user1',
         beforeTimestamp: 350,
         limit: 2,
       });
-      
+
       expect(result).toHaveLength(2);
       expect(result[0].ts).toBe(300);
       expect(result[1].ts).toBe(100);
@@ -207,9 +208,9 @@ describe('PersonalityDataRepository', () => {
     it('should clear cache for specific personality', () => {
       repository.cache.set('personality1', {});
       repository.cache.set('personality2', {});
-      
+
       repository.clearCache('personality1');
-      
+
       expect(repository.cache.has('personality1')).toBe(false);
       expect(repository.cache.has('personality2')).toBe(true);
     });
@@ -217,9 +218,9 @@ describe('PersonalityDataRepository', () => {
     it('should clear entire cache when no personality specified', () => {
       repository.cache.set('personality1', {});
       repository.cache.set('personality2', {});
-      
+
       repository.clearCache();
-      
+
       expect(repository.cache.size).toBe(0);
     });
   });

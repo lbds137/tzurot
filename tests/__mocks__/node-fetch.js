@@ -18,15 +18,17 @@ const createMockResponse = (options = {}) => ({
   status: options.status || 200,
   statusText: options.statusText || 'OK',
   headers: {
-    get: jest.fn().mockImplementation((header) => {
+    get: jest.fn().mockImplementation(header => {
       if (header === 'content-type') return options.contentType || 'image/jpeg';
       return 'application/json';
-    })
+    }),
   },
   json: jest.fn().mockResolvedValue(options.json || {}),
   text: jest.fn().mockResolvedValue(options.text || ''),
   buffer: jest.fn().mockResolvedValue(options.buffer || Buffer.from('mock image data')),
-  arrayBuffer: jest.fn().mockResolvedValue(options.arrayBuffer || createArrayBuffer('mock image data'))
+  arrayBuffer: jest
+    .fn()
+    .mockResolvedValue(options.arrayBuffer || createArrayBuffer('mock image data')),
 });
 
 // Create a pure Jest mock function but with better defaults

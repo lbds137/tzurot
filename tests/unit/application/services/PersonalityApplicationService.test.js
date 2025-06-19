@@ -9,14 +9,16 @@ jest.unmock('../../../../src/application/services/PersonalityApplicationService'
 jest.mock('../../../../src/logger');
 jest.mock('../../../../src/profileInfoFetcher');
 
-const { PersonalityApplicationService } = require('../../../../src/application/services/PersonalityApplicationService');
-const { 
+const {
+  PersonalityApplicationService,
+} = require('../../../../src/application/services/PersonalityApplicationService');
+const {
   Personality,
   PersonalityId,
   PersonalityProfile,
   UserId,
   Alias,
-  PersonalityCreated
+  PersonalityCreated,
 } = require('../../../../src/domain/personality');
 const { AIModel } = require('../../../../src/domain/ai');
 const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
@@ -35,7 +37,7 @@ describe('PersonalityApplicationService', () => {
   let mockAuthenticationRepository;
   let mockEventBus;
   let mockProfileFetcher;
-  
+
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
@@ -43,7 +45,7 @@ describe('PersonalityApplicationService', () => {
     jest.spyOn(console, 'error').mockImplementation();
     jest.spyOn(console, 'info').mockImplementation();
     jest.spyOn(console, 'warn').mockImplementation();
-    
+
     // Create mocks
     mockPersonalityRepository = {
       findByName: jest.fn(),
@@ -52,83 +54,92 @@ describe('PersonalityApplicationService', () => {
       findAll: jest.fn(),
       save: jest.fn(),
       delete: jest.fn(),
-      exists: jest.fn()
+      exists: jest.fn(),
     };
-    
+
     mockAiService = {
       getModelInfo: jest.fn().mockResolvedValue({
         name: 'gpt-4',
         capabilities: {
           maxTokens: 8192,
           supportsImages: true,
-          supportsAudio: true
-        }
-      })
+          supportsAudio: true,
+        },
+      }),
     };
-    
+
     mockAuthenticationRepository = {
-      findByUserId: jest.fn()
+      findByUserId: jest.fn(),
     };
-    
+
     mockEventBus = new DomainEventBus();
     jest.spyOn(mockEventBus, 'publish').mockResolvedValue(undefined);
-    
+
     mockProfileFetcher = {
       fetchProfileInfo: jest.fn().mockResolvedValue({
         name: 'TestBot',
         avatar: 'https://api.example.com/avatar.png',
-        error_message: 'Test error message'
-      })
+        error_message: 'Test error message',
+      }),
     };
-    
+
     service = new PersonalityApplicationService({
       personalityRepository: mockPersonalityRepository,
       aiService: mockAiService,
       authenticationRepository: mockAuthenticationRepository,
       eventBus: mockEventBus,
-      profileFetcher: mockProfileFetcher
+      profileFetcher: mockProfileFetcher,
     });
   });
-  
+
   afterEach(() => {
     jest.useRealTimers();
   });
-  
+
   describe('constructor', () => {
     it('should require personalityRepository', () => {
-      expect(() => new PersonalityApplicationService({
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository
-      })).toThrow('PersonalityRepository is required');
+      expect(
+        () =>
+          new PersonalityApplicationService({
+            aiService: mockAiService,
+            authenticationRepository: mockAuthenticationRepository,
+          })
+      ).toThrow('PersonalityRepository is required');
     });
-    
+
     it('should require aiService', () => {
-      expect(() => new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        authenticationRepository: mockAuthenticationRepository
-      })).toThrow('AIService is required');
+      expect(
+        () =>
+          new PersonalityApplicationService({
+            personalityRepository: mockPersonalityRepository,
+            authenticationRepository: mockAuthenticationRepository,
+          })
+      ).toThrow('AIService is required');
     });
-    
+
     it('should require authenticationRepository', () => {
-      expect(() => new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService
-      })).toThrow('AuthenticationRepository is required');
+      expect(
+        () =>
+          new PersonalityApplicationService({
+            personalityRepository: mockPersonalityRepository,
+            aiService: mockAiService,
+          })
+      ).toThrow('AuthenticationRepository is required');
     });
-    
+
     it('should use default event bus if not provided', () => {
       const serviceWithDefaultBus = new PersonalityApplicationService({
         personalityRepository: mockPersonalityRepository,
         aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository
+        authenticationRepository: mockAuthenticationRepository,
       });
-      
+
       expect(serviceWithDefaultBus.eventBus).toBeDefined();
       expect(serviceWithDefaultBus.eventBus.publish).toBeDefined();
       expect(typeof serviceWithDefaultBus.eventBus.publish).toBe('function');
     });
   });
-  
+
   describe('registerPersonality', () => {
     describe('local mode', () => {
       const validLocalCommand = {
@@ -138,15 +149,15 @@ describe('PersonalityApplicationService', () => {
         prompt: 'You are a helpful test bot',
         modelPath: '/models/gpt-4',
         maxWordCount: 1000,
-        aliases: ['TB', 'TestB']
+        aliases: ['TB', 'TestB'],
       };
-      
+
       it('should successfully register a new local personality', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(null);
         mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-        
+
         const result = await service.registerPersonality(validLocalCommand);
-        
+
         // Verify the result has the expected structure and values
         expect(result).toBeDefined();
         expect(result.personalityId).toBeDefined();
@@ -158,32 +169,33 @@ describe('PersonalityApplicationService', () => {
         expect(mockPersonalityRepository.save).toHaveBeenCalledWith(result);
         expect(mockEventBus.publish).toHaveBeenCalled();
       });
-      
+
       it('should reject local personality without prompt', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(null);
-        
+
         const invalidCommand = { ...validLocalCommand };
         delete invalidCommand.prompt;
-        
-        await expect(service.registerPersonality(invalidCommand))
-          .rejects.toThrow('Local personalities require prompt and modelPath');
+
+        await expect(service.registerPersonality(invalidCommand)).rejects.toThrow(
+          'Local personalities require prompt and modelPath'
+        );
       });
     });
-    
+
     describe('external mode', () => {
       const validExternalCommand = {
         name: 'TestBot',
         ownerId: '123456789012345678',
         mode: 'external',
-        aliases: ['TB', 'TestB']
+        aliases: ['TB', 'TestB'],
       };
-      
+
       it('should successfully register a new external personality', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(null);
         mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-        
+
         const result = await service.registerPersonality(validExternalCommand);
-        
+
         // Verify the result has the expected structure
         expect(result).toBeDefined();
         expect(result.personalityId).toBeDefined();
@@ -194,22 +206,22 @@ describe('PersonalityApplicationService', () => {
         expect(mockPersonalityRepository.save).toHaveBeenCalledWith(result);
         expect(mockEventBus.publish).toHaveBeenCalled();
       });
-      
+
       it('should default to external mode when not specified', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(null);
         mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-        
+
         const commandWithoutMode = {
           name: 'TestBot',
-          ownerId: '123456789012345678'
+          ownerId: '123456789012345678',
         };
-        
+
         const result = await service.registerPersonality(commandWithoutMode);
-        
+
         expect(result.profile.mode).toBe('external');
       });
     });
-    
+
     it('should reject if personality name already exists', async () => {
       const existingPersonality = Personality.create(
         PersonalityId.generate(),
@@ -219,30 +231,31 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Existing',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
-      
+
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       const command = {
         name: 'TestBot',
         ownerId: '123456789012345678',
         mode: 'local',
         prompt: 'Test prompt',
-        modelPath: '/model'
+        modelPath: '/model',
       };
-      
-      await expect(service.registerPersonality(command))
-        .rejects.toThrow('Personality "TestBot" already exists');
-      
+
+      await expect(service.registerPersonality(command)).rejects.toThrow(
+        'Personality "TestBot" already exists'
+      );
+
       expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
     });
-    
+
     it('should reject if alias conflicts with existing personality', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
+
       const conflictingPersonality = Personality.create(
         PersonalityId.generate(),
         new UserId('999999999999999999'),
@@ -251,78 +264,81 @@ describe('PersonalityApplicationService', () => {
           name: 'OtherBot',
           user_prompt: 'Other',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
-      
+
       mockPersonalityRepository.findByAlias
         .mockResolvedValueOnce(null) // First alias check
         .mockResolvedValueOnce(conflictingPersonality); // Second alias conflicts
-      
+
       const command = {
         name: 'TestBot',
         ownerId: '123456789012345678',
         mode: 'local',
         prompt: 'Test prompt',
         modelPath: '/model',
-        aliases: ['TB', 'TestB']
+        aliases: ['TB', 'TestB'],
       };
-      
-      await expect(service.registerPersonality(command))
-        .rejects.toThrow('Alias "TestB" is already in use by OtherBot');
+
+      await expect(service.registerPersonality(command)).rejects.toThrow(
+        'Alias "TestB" is already in use by OtherBot'
+      );
     });
-    
+
     it('should handle AI service errors gracefully', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockAiService.getModelInfo.mockRejectedValue(new Error('AI service unavailable'));
-      
+
       const command = {
         name: 'TestBot',
         ownerId: '123456789012345678',
         mode: 'local',
         prompt: 'Test prompt',
-        modelPath: '/model'
+        modelPath: '/model',
       };
-      
+
       const result = await service.registerPersonality(command);
-      
+
       // Should still create personality with default model capabilities
       expect(result).toBeInstanceOf(Personality);
       expect(result.model.capabilities.maxTokens).toBe(4096);
       expect(mockPersonalityRepository.save).toHaveBeenCalled();
     });
-    
+
     it('should work without aliases', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
+
       const command = {
         name: 'TestBot',
         ownerId: '123456789012345678',
-        mode: 'external'
+        mode: 'external',
       };
-      
+
       const result = await service.registerPersonality(command);
-      
+
       expect(result).toBeInstanceOf(Personality);
       expect(result.aliases).toHaveLength(0);
     });
   });
-  
+
   describe('updatePersonalityProfile', () => {
     let existingPersonality;
     let localService;
-    
+
     beforeEach(() => {
       // Ensure we have a service instance for these tests
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
       existingPersonality = Personality.create(
         PersonalityId.generate(),
         new UserId('123456789012345678'),
@@ -331,81 +347,85 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Original prompt',
           engine_model: '/models/gpt-3.5',
-          maxWordCount: 500
+          maxWordCount: 500,
         }),
         new AIModel('gpt-3.5', '/models/gpt-3.5', { maxTokens: 4096 })
       );
       existingPersonality.markEventsAsCommitted(); // Clear creation event
     });
-    
+
     it('should update prompt successfully', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       const result = await localService.updatePersonalityProfile({
         personalityName: 'TestBot',
         requesterId: '123456789012345678',
-        prompt: 'Updated prompt'
+        prompt: 'Updated prompt',
       });
-      
+
       expect(result.profile.prompt).toBe('Updated prompt');
       expect(mockPersonalityRepository.save).toHaveBeenCalledWith(result);
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
-    
+
     it('should update model path and resolve new model', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       const result = await localService.updatePersonalityProfile({
         personalityName: 'TestBot',
         requesterId: '123456789012345678',
-        modelPath: '/models/gpt-4'
+        modelPath: '/models/gpt-4',
       });
-      
+
       expect(result.profile.modelPath).toBe('/models/gpt-4');
       expect(result.model.name).toBe('gpt-4');
       expect(mockAiService.getModelInfo).toHaveBeenCalledWith('/models/gpt-4');
     });
-    
+
     it('should update multiple fields at once', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       const result = await localService.updatePersonalityProfile({
         personalityName: 'TestBot',
         requesterId: '123456789012345678',
         prompt: 'New prompt',
         modelPath: '/models/gpt-4',
-        maxWordCount: 2000
+        maxWordCount: 2000,
       });
-      
+
       expect(result.profile.prompt).toBe('New prompt');
       expect(result.profile.modelPath).toBe('/models/gpt-4');
       expect(result.profile.maxWordCount).toBe(2000);
     });
-    
+
     it('should reject if personality not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
-      await expect(localService.updatePersonalityProfile({
-        personalityName: 'NonExistent',
-        requesterId: '123456789012345678',
-        prompt: 'New prompt'
-      })).rejects.toThrow('Personality "NonExistent" not found');
+
+      await expect(
+        localService.updatePersonalityProfile({
+          personalityName: 'NonExistent',
+          requesterId: '123456789012345678',
+          prompt: 'New prompt',
+        })
+      ).rejects.toThrow('Personality "NonExistent" not found');
     });
-    
+
     it('should reject if requester is not the owner', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
-      await expect(localService.updatePersonalityProfile({
-        personalityName: 'TestBot',
-        requesterId: '999999999999999999', // Different user
-        prompt: 'New prompt'
-      })).rejects.toThrow('Only the owner can update a personality');
+
+      await expect(
+        localService.updatePersonalityProfile({
+          personalityName: 'TestBot',
+          requesterId: '999999999999999999', // Different user
+          prompt: 'New prompt',
+        })
+      ).rejects.toThrow('Only the owner can update a personality');
     });
   });
-  
+
   describe('addAlias', () => {
     let existingPersonality;
-    
+
     beforeEach(() => {
       existingPersonality = Personality.create(
         PersonalityId.generate(),
@@ -414,48 +434,52 @@ describe('PersonalityApplicationService', () => {
           mode: 'local',
           name: 'TestBot',
           user_prompt: 'Test prompt',
-          engine_model: '/model'
+          engine_model: '/model',
         }),
         new AIModel('gpt-4', '/model', {})
       );
       existingPersonality.markEventsAsCommitted();
     });
-    
+
     it('should add alias successfully', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const result = await service.addAlias({
         personalityName: 'TestBot',
         alias: 'NewAlias',
-        requesterId: '123456789012345678'
+        requesterId: '123456789012345678',
       });
-      
+
       expect(result.aliases).toContainEqual(expect.objectContaining({ name: 'NewAlias' }));
       expect(mockPersonalityRepository.save).toHaveBeenCalled();
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
-    
+
     it('should reject if personality not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
-      await expect(service.addAlias({
-        personalityName: 'NonExistent',
-        alias: 'NewAlias',
-        requesterId: '123456789012345678'
-      })).rejects.toThrow('Personality "NonExistent" not found');
+
+      await expect(
+        service.addAlias({
+          personalityName: 'NonExistent',
+          alias: 'NewAlias',
+          requesterId: '123456789012345678',
+        })
+      ).rejects.toThrow('Personality "NonExistent" not found');
     });
-    
+
     it('should reject if requester is not the owner', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
-      await expect(service.addAlias({
-        personalityName: 'TestBot',
-        alias: 'NewAlias',
-        requesterId: '999999999999999999'
-      })).rejects.toThrow('Only the owner can add aliases');
+
+      await expect(
+        service.addAlias({
+          personalityName: 'TestBot',
+          alias: 'NewAlias',
+          requesterId: '999999999999999999',
+        })
+      ).rejects.toThrow('Only the owner can add aliases');
     });
-    
+
     it('should reassign alias if already in use by another personality', async () => {
       const otherPersonality = Personality.create(
         PersonalityId.generate(),
@@ -465,64 +489,68 @@ describe('PersonalityApplicationService', () => {
           name: 'OtherBot',
           user_prompt: 'Other',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
       otherPersonality.addAlias(new Alias('TakenAlias'));
       otherPersonality.markEventsAsCommitted();
-      
+
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(otherPersonality);
-      
+
       const result = await service.addAlias({
         personalityName: 'TestBot',
         alias: 'TakenAlias',
-        requesterId: '123456789012345678'
+        requesterId: '123456789012345678',
       });
-      
+
       // Verify alias was added to new personality
       expect(result.aliases).toContainEqual(expect.objectContaining({ value: 'takenalias' }));
-      
+
       // Verify both personalities were saved
       expect(mockPersonalityRepository.save).toHaveBeenCalledTimes(2);
       expect(mockPersonalityRepository.save).toHaveBeenCalledWith(otherPersonality);
       expect(mockPersonalityRepository.save).toHaveBeenCalledWith(existingPersonality);
-      
+
       // Verify alias was removed from other personality
-      expect(otherPersonality.aliases).not.toContainEqual(expect.objectContaining({ value: 'takenalias' }));
+      expect(otherPersonality.aliases).not.toContainEqual(
+        expect.objectContaining({ value: 'takenalias' })
+      );
     });
-    
+
     it('should no-op if alias already points to same personality', async () => {
       existingPersonality.addAlias(new Alias('ExistingAlias'));
-      
+
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(existingPersonality);
-      
+
       const result = await service.addAlias({
         personalityName: 'TestBot',
         alias: 'ExistingAlias',
-        requesterId: '123456789012345678'
+        requesterId: '123456789012345678',
       });
-      
+
       expect(result).toBe(existingPersonality);
       // Should not save when alias already exists for same personality
       expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
     });
   });
-  
+
   describe('removeAlias', () => {
     let existingPersonality;
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
       existingPersonality = Personality.create(
         PersonalityId.generate(),
         new UserId('123456789012345678'),
@@ -531,7 +559,7 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Test prompt',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
@@ -539,35 +567,37 @@ describe('PersonalityApplicationService', () => {
       existingPersonality.addAlias(new Alias('TestB'));
       existingPersonality.markEventsAsCommitted();
     });
-    
+
     it('should remove alias successfully', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       const result = await localService.removeAlias({
         personalityName: 'TestBot',
         alias: 'TB',
-        requesterId: '123456789012345678'
+        requesterId: '123456789012345678',
       });
-      
+
       expect(result.aliases).not.toContainEqual(expect.objectContaining({ name: 'TB' }));
       expect(result.aliases).toContainEqual(expect.objectContaining({ name: 'TestB' }));
       expect(mockPersonalityRepository.save).toHaveBeenCalled();
     });
-    
+
     it('should reject if requester is not the owner', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
-      await expect(localService.removeAlias({
-        personalityName: 'TestBot',
-        alias: 'TB',
-        requesterId: '999999999999999999'
-      })).rejects.toThrow('Only the owner can remove aliases');
+
+      await expect(
+        localService.removeAlias({
+          personalityName: 'TestBot',
+          alias: 'TB',
+          requesterId: '999999999999999999',
+        })
+      ).rejects.toThrow('Only the owner can remove aliases');
     });
   });
-  
+
   describe('removePersonality', () => {
     let existingPersonality;
-    
+
     beforeEach(() => {
       existingPersonality = Personality.create(
         PersonalityId.generate(),
@@ -577,49 +607,55 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Test prompt',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
       existingPersonality.markEventsAsCommitted();
     });
-    
+
     it('should remove personality successfully', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
+
       await service.removePersonality({
         personalityName: 'TestBot',
-        requesterId: '123456789012345678'
+        requesterId: '123456789012345678',
       });
-      
+
       expect(existingPersonality.isRemoved).toBe(true);
       expect(mockPersonalityRepository.save).toHaveBeenCalled();
-      expect(mockPersonalityRepository.delete).toHaveBeenCalledWith(existingPersonality.id.toString());
+      expect(mockPersonalityRepository.delete).toHaveBeenCalledWith(
+        existingPersonality.id.toString()
+      );
       expect(mockEventBus.publish).toHaveBeenCalled();
     });
-    
+
     it('should reject if personality not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
-      await expect(service.removePersonality({
-        personalityName: 'NonExistent',
-        requesterId: '123456789012345678'
-      })).rejects.toThrow('Personality "NonExistent" not found');
+
+      await expect(
+        service.removePersonality({
+          personalityName: 'NonExistent',
+          requesterId: '123456789012345678',
+        })
+      ).rejects.toThrow('Personality "NonExistent" not found');
     });
-    
+
     it('should reject if requester is not the owner', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
-      
-      await expect(service.removePersonality({
-        personalityName: 'TestBot',
-        requesterId: '999999999999999999'
-      })).rejects.toThrow('Only the owner can remove a personality');
+
+      await expect(
+        service.removePersonality({
+          personalityName: 'TestBot',
+          requesterId: '999999999999999999',
+        })
+      ).rejects.toThrow('Only the owner can remove a personality');
     });
   });
-  
+
   describe('getPersonality', () => {
     let personality;
-    
+
     beforeEach(() => {
       personality = Personality.create(
         PersonalityId.generate(),
@@ -629,54 +665,56 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Test prompt',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
       personality.addAlias(new Alias('TB'));
     });
-    
+
     it('should find personality by name', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(personality);
-      
+
       const result = await service.getPersonality('TestBot');
-      
+
       expect(result).toBe(personality);
       expect(mockPersonalityRepository.findByName).toHaveBeenCalledWith('TestBot');
       expect(mockPersonalityRepository.findByAlias).not.toHaveBeenCalled();
     });
-    
+
     it('should find personality by alias if not found by name', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(personality);
-      
+
       const result = await service.getPersonality('TB');
-      
+
       expect(result).toBe(personality);
       expect(mockPersonalityRepository.findByAlias).toHaveBeenCalledWith('TB');
     });
-    
+
     it('should return null if not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const result = await service.getPersonality('Unknown');
-      
+
       expect(result).toBeNull();
     });
   });
-  
+
   describe('listPersonalities', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
     it('should return all personalities', async () => {
       const personalities = [
@@ -688,7 +726,7 @@ describe('PersonalityApplicationService', () => {
             name: 'Bot1',
             user_prompt: 'Prompt1',
             engine_model: '/model',
-            maxWordCount: 1000
+            maxWordCount: 1000,
           }),
           new AIModel('gpt-4', '/model', {})
         ),
@@ -700,34 +738,36 @@ describe('PersonalityApplicationService', () => {
             name: 'Bot2',
             user_prompt: 'Prompt2',
             engine_model: '/model',
-            maxWordCount: 1000
+            maxWordCount: 1000,
           }),
           new AIModel('gpt-4', '/model', {})
-        )
+        ),
       ];
-      
+
       mockPersonalityRepository.findAll.mockResolvedValue(personalities);
-      
+
       const result = await localService.listPersonalities();
-      
+
       expect(result).toEqual(personalities);
       expect(mockPersonalityRepository.findAll).toHaveBeenCalled();
     });
   });
-  
+
   describe('listPersonalitiesByOwner', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
-    
+
     it('should return personalities for specific owner', async () => {
       const ownerId = '123456789012345678';
       const personalities = [
@@ -739,7 +779,7 @@ describe('PersonalityApplicationService', () => {
             name: 'Bot1',
             user_prompt: 'Prompt1',
             engine_model: '/model',
-            maxWordCount: 1000
+            maxWordCount: 1000,
           }),
           new AIModel('gpt-4', '/model', {})
         ),
@@ -751,38 +791,42 @@ describe('PersonalityApplicationService', () => {
             name: 'Bot2',
             user_prompt: 'Prompt2',
             engine_model: '/model',
-            maxWordCount: 1000
+            maxWordCount: 1000,
           }),
           new AIModel('gpt-4', '/model', {})
-        )
+        ),
       ];
-      
+
       mockPersonalityRepository.findByOwner.mockResolvedValue(personalities);
-      
+
       const result = await localService.listPersonalitiesByOwner(ownerId);
-      
+
       expect(result).toEqual(personalities);
-      expect(mockPersonalityRepository.findByOwner).toHaveBeenCalledWith(expect.objectContaining({
-        value: ownerId
-      }));
+      expect(mockPersonalityRepository.findByOwner).toHaveBeenCalledWith(
+        expect.objectContaining({
+          value: ownerId,
+        })
+      );
     });
   });
-  
+
   describe('checkPermission', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
     let personality;
     const ownerId = '123456789012345678';
-    
+
     beforeEach(() => {
       personality = Personality.create(
         PersonalityId.generate(),
@@ -792,117 +836,119 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Test prompt',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
     });
-    
+
     it('should grant permission to owner', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(personality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
-        personalityName: 'TestBot'
+        personalityName: 'TestBot',
       });
-      
+
       expect(hasPermission).toBe(true);
       expect(mockAuthenticationRepository.findByUserId).not.toHaveBeenCalled();
     });
-    
+
     it('should grant permission to authenticated user', async () => {
       const otherUserId = '999999999999999999';
       mockPersonalityRepository.findByName.mockResolvedValue(personality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const mockUserAuth = {
-        isAuthenticated: jest.fn().mockReturnValue(true)
+        isAuthenticated: jest.fn().mockReturnValue(true),
       };
       mockAuthenticationRepository.findByUserId.mockResolvedValue(mockUserAuth);
-      
+
       const hasPermission = await localService.checkPermission({
         userId: otherUserId,
-        personalityName: 'TestBot'
+        personalityName: 'TestBot',
       });
-      
+
       expect(hasPermission).toBe(true);
       expect(mockAuthenticationRepository.findByUserId).toHaveBeenCalledWith(otherUserId);
     });
-    
+
     it('should deny permission to unauthenticated user', async () => {
       const otherUserId = '999999999999999999';
       mockPersonalityRepository.findByName.mockResolvedValue(personality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const mockUserAuth = {
-        isAuthenticated: jest.fn().mockReturnValue(false)
+        isAuthenticated: jest.fn().mockReturnValue(false),
       };
       mockAuthenticationRepository.findByUserId.mockResolvedValue(mockUserAuth);
-      
+
       const hasPermission = await localService.checkPermission({
         userId: otherUserId,
-        personalityName: 'TestBot'
+        personalityName: 'TestBot',
       });
-      
+
       expect(hasPermission).toBe(false);
     });
-    
+
     it('should deny permission if personality not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
-      
+
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
-        personalityName: 'NonExistent'
+        personalityName: 'NonExistent',
       });
-      
+
       expect(hasPermission).toBe(false);
     });
-    
+
     it('should deny permission if no user auth found', async () => {
       const otherUserId = '999999999999999999';
       mockPersonalityRepository.findByName.mockResolvedValue(personality);
       mockPersonalityRepository.findByAlias.mockResolvedValue(null);
       mockAuthenticationRepository.findByUserId.mockResolvedValue(null);
-      
+
       const hasPermission = await localService.checkPermission({
         userId: otherUserId,
-        personalityName: 'TestBot'
+        personalityName: 'TestBot',
       });
-      
+
       expect(hasPermission).toBe(false);
     });
-    
+
     it('should handle errors gracefully', async () => {
       mockPersonalityRepository.findByName.mockRejectedValue(new Error('DB error'));
-      
+
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
-        personalityName: 'TestBot'
+        personalityName: 'TestBot',
       });
-      
+
       expect(hasPermission).toBe(false);
     });
   });
-  
+
   describe('_resolveAIModel', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
     it('should create model with AI service info', async () => {
       const modelPath = '/models/gpt-4';
-      
+
       const model = await localService._resolveAIModel(modelPath);
-      
+
       expect(model).toBeDefined();
       expect(model.name).toBeDefined();
       expect(model.path).toBeDefined();
@@ -910,13 +956,13 @@ describe('PersonalityApplicationService', () => {
       expect(model.path).toBe(modelPath);
       expect(model.capabilities.maxTokens).toBe(8192);
     });
-    
+
     it('should create default model if AI service fails', async () => {
       const modelPath = '/models/unknown';
       mockAiService.getModelInfo.mockRejectedValue(new Error('Model not found'));
-      
+
       const model = await localService._resolveAIModel(modelPath);
-      
+
       expect(model).toBeDefined();
       expect(model.name).toBeDefined();
       expect(model.path).toBeDefined();
@@ -924,22 +970,24 @@ describe('PersonalityApplicationService', () => {
       expect(model.capabilities.maxTokens).toBe(4096);
     });
   });
-  
+
   describe('getPersonalityWithProfile', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
     describe('external mode personalities', () => {
       let externalPersonality;
-      
+
       beforeEach(() => {
         externalPersonality = Personality.create(
           PersonalityId.fromString('test-bot'),
@@ -950,58 +998,66 @@ describe('PersonalityApplicationService', () => {
             displayName: 'Test Bot',
             avatarUrl: 'https://old.example.com/avatar.png',
             errorMessage: 'Old error',
-            lastFetched: new Date(Date.now() - 7200000) // 2 hours ago
+            lastFetched: new Date(Date.now() - 7200000), // 2 hours ago
           }),
           AIModel.createDefault()
         );
       });
-      
+
       it('should return personality without refresh if still fresh', async () => {
         // Set lastFetched to 30 minutes ago
         externalPersonality.profile.lastFetched = new Date(Date.now() - 1800000);
         mockPersonalityRepository.findByName.mockResolvedValue(externalPersonality);
-        
+
         const result = await localService.getPersonalityWithProfile('test-bot');
-        
+
         expect(result).toBe(externalPersonality);
         expect(mockProfileFetcher.fetchProfileInfo).not.toHaveBeenCalled();
       });
-      
+
       it('should refresh profile from API if stale', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(externalPersonality);
         mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
           name: 'Test Bot Updated',
           avatar: 'https://new.example.com/avatar.png',
-          error_message: 'New error message'
+          error_message: 'New error message',
         });
-        
-        const result = await localService.getPersonalityWithProfile('test-bot', '123456789012345678');
-        
+
+        const result = await localService.getPersonalityWithProfile(
+          'test-bot',
+          '123456789012345678'
+        );
+
         // Verify the result has the expected structure
         expect(result).toBeDefined();
         expect(result.personalityId).toBeDefined();
         expect(result.profile.displayName).toBe('Test Bot Updated');
         expect(result.profile.avatarUrl).toBe('https://new.example.com/avatar.png');
         expect(result.profile.errorMessage).toBe('New error message');
-        expect(mockProfileFetcher.fetchProfileInfo).toHaveBeenCalledWith('test-bot', '123456789012345678');
+        expect(mockProfileFetcher.fetchProfileInfo).toHaveBeenCalledWith(
+          'test-bot',
+          '123456789012345678'
+        );
         expect(mockPersonalityRepository.save).toHaveBeenCalledWith(result);
       });
-      
+
       it('should handle API fetch failure gracefully', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(externalPersonality);
         mockProfileFetcher.fetchProfileInfo.mockResolvedValue(null);
-        
+
         const result = await localService.getPersonalityWithProfile('test-bot');
-        
+
         expect(result).toBe(externalPersonality);
         expect(result.profile.displayName).toBe('Test Bot'); // Original values unchanged
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to fetch profile'));
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Failed to fetch profile')
+        );
       });
     });
-    
+
     describe('local mode personalities', () => {
       let localPersonality;
-      
+
       beforeEach(() => {
         localPersonality = Personality.create(
           PersonalityId.fromString('local-bot'),
@@ -1012,53 +1068,58 @@ describe('PersonalityApplicationService', () => {
             name: 'Local Bot',
             user_prompt: 'I am a local bot',
             engine_model: 'gpt-4',
-            avatar: 'https://local.example.com/avatar.png'
+            avatar: 'https://local.example.com/avatar.png',
           }),
           new AIModel('gpt-4', 'gpt-4', {})
         );
       });
-      
+
       it('should return local personality without API refresh', async () => {
         mockPersonalityRepository.findByName.mockResolvedValue(localPersonality);
-        
+
         const result = await localService.getPersonalityWithProfile('local-bot');
-        
+
         expect(result).toBe(localPersonality);
         expect(mockProfileFetcher.fetchProfileInfo).not.toHaveBeenCalled();
         expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
       });
     });
-    
+
     it('should return null if personality not found', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
-      
+
       const result = await localService.getPersonalityWithProfile('non-existent');
-      
+
       expect(result).toBeNull();
       expect(mockProfileFetcher.fetchProfileInfo).not.toHaveBeenCalled();
     });
-    
+
     it('should handle errors and re-throw them', async () => {
       mockPersonalityRepository.findByName.mockRejectedValue(new Error('Database error'));
-      
-      await expect(localService.getPersonalityWithProfile('test-bot'))
-        .rejects.toThrow('Database error');
-      
-      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error getting personality'));
+
+      await expect(localService.getPersonalityWithProfile('test-bot')).rejects.toThrow(
+        'Database error'
+      );
+
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error getting personality')
+      );
     });
   });
-  
+
   describe('_publishEvents', () => {
     let localService;
-    
+
     beforeEach(() => {
-      localService = service || new PersonalityApplicationService({
-        personalityRepository: mockPersonalityRepository,
-        aiService: mockAiService,
-        authenticationRepository: mockAuthenticationRepository,
-        eventBus: mockEventBus,
-        profileFetcher: mockProfileFetcher
-      });
+      localService =
+        service ||
+        new PersonalityApplicationService({
+          personalityRepository: mockPersonalityRepository,
+          aiService: mockAiService,
+          authenticationRepository: mockAuthenticationRepository,
+          eventBus: mockEventBus,
+          profileFetcher: mockProfileFetcher,
+        });
     });
     it('should publish all uncommitted events', async () => {
       const personality = Personality.create(
@@ -1069,16 +1130,16 @@ describe('PersonalityApplicationService', () => {
           name: 'TestBot',
           user_prompt: 'Test',
           engine_model: '/model',
-          maxWordCount: 1000
+          maxWordCount: 1000,
         }),
         new AIModel('gpt-4', '/model', {})
       );
-      
+
       // Personality should have a creation event
       expect(personality.getUncommittedEvents()).toHaveLength(1);
-      
+
       await localService._publishEvents(personality);
-      
+
       expect(mockEventBus.publish).toHaveBeenCalledTimes(1);
       expect(mockEventBus.publish).toHaveBeenCalledWith(
         expect.objectContaining({ eventType: 'PersonalityCreated' })

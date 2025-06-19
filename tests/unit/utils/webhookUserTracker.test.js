@@ -9,32 +9,32 @@ describe('webhookUserTracker', () => {
   let mockLogger;
   let mockConfig;
   let dateNowSpy;
-  
+
   // Clear all timer mocks before each test to prevent interference
   beforeEach(() => {
     jest.clearAllTimers();
     jest.clearAllMocks();
     jest.resetModules();
     jest.useFakeTimers();
-    
+
     // Mock logger
     mockLogger = {
       debug: jest.fn(),
       info: jest.fn(),
       warn: jest.fn(),
-      error: jest.fn()
+      error: jest.fn(),
     };
     jest.doMock('../../../src/logger', () => mockLogger);
-    
+
     // Mock config
     mockConfig = {
-      botPrefix
+      botPrefix,
     };
     jest.doMock('../../../config', () => mockConfig);
-    
+
     // Mock Date.now for consistent timestamps
     dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000000);
-    
+
     // Import after mocking
     webhookUserTracker = require('../../../src/utils/webhookUserTracker');
   });
@@ -48,7 +48,7 @@ describe('webhookUserTracker', () => {
   describe('associateWebhookWithUser', () => {
     it('should associate webhook with user', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       expect(mockLogger.debug).toHaveBeenCalledWith(
         '[WebhookUserTracker] Associated webhook webhook123 with user user456'
       );
@@ -67,7 +67,7 @@ describe('webhookUserTracker', () => {
     it('should update existing association', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user789');
-      
+
       const result = webhookUserTracker.getRealUserIdFromWebhook('webhook123');
       expect(result).toBe('user789');
     });
@@ -92,23 +92,23 @@ describe('webhookUserTracker', () => {
 
     it('should update timestamp when retrieving association', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       // Initial timestamp is 1000000
       // Advance time but not past expiration
       dateNowSpy.mockReturnValue(1500000);
-      
+
       // Retrieve association - this should update timestamp to 1500000
       const firstResult = webhookUserTracker.getRealUserIdFromWebhook('webhook123');
       expect(firstResult).toBe('user456');
-      
+
       // Now advance time to just before the original would expire
       // Original timestamp + expiration would be 1000000 + 3600000 = 4600000
       // But since we updated to 1500000, new expiration is 5100000
       dateNowSpy.mockReturnValue(4700000);
-      
+
       // Run cleanup
       jest.advanceTimersByTime(15 * 60 * 1000);
-      
+
       // Should still exist because timestamp was updated to 1500000
       const result = webhookUserTracker.getRealUserIdFromWebhook('webhook123');
       expect(result).toBe('user456');
@@ -131,9 +131,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359', // PluralKit ID
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -145,9 +145,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '510016054391734273', // Tupperbox ID
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
     });
@@ -156,14 +156,14 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       // First call
       webhookUserTracker.isProxySystemWebhook(message);
       mockLogger.info.mockClear();
       mockLogger.debug.mockClear();
-      
+
       // Second call should use cache
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
@@ -176,9 +176,9 @@ describe('webhookUserTracker', () => {
     it('should identify by username containing PluralKit', () => {
       const message = {
         webhookId: 'webhook123',
-        author: { username: 'Test | PluralKit' }
+        author: { username: 'Test | PluralKit' },
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -190,9 +190,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Test' },
-        member: { nickname: 'Test | Tupperbox' }
+        member: { nickname: 'Test | Tupperbox' },
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
     });
@@ -201,14 +201,16 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Test' },
-        embeds: [{
-          fields: [
-            { name: 'System ID', value: 'abcde' },
-            { name: 'Member ID', value: 'fghij' }
-          ]
-        }]
+        embeds: [
+          {
+            fields: [
+              { name: 'System ID', value: 'abcde' },
+              { name: 'Member ID', value: 'fghij' },
+            ],
+          },
+        ],
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -220,13 +222,13 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Test' },
-        embeds: [{
-          fields: [
-            { name: 'Info', value: 'pk:abcde' }
-          ]
-        }]
+        embeds: [
+          {
+            fields: [{ name: 'Info', value: 'pk:abcde' }],
+          },
+        ],
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
     });
@@ -235,9 +237,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Test' },
-        content: 'Hello! My System ID: abcde'
+        content: 'Hello! My System ID: abcde',
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -249,9 +251,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Test' },
-        content: 'pk:switch alice'
+        content: 'pk:switch alice',
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(true);
     });
@@ -260,9 +262,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         author: { username: 'Regular Webhook' },
-        applicationId: '999999999'
+        applicationId: '999999999',
       };
-      
+
       const result = webhookUserTracker.isProxySystemWebhook(message);
       expect(result).toBe(false);
     });
@@ -288,12 +290,12 @@ describe('webhookUserTracker', () => {
 
     it('should return cached user ID for known webhook', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       const message = {
         webhookId: 'webhook123',
-        author: { id: 'webhook-user' }
+        author: { id: 'webhook-user' },
       };
-      
+
       const result = webhookUserTracker.getRealUserId(message);
       expect(result).toBe('user456');
       expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -307,9 +309,9 @@ describe('webhookUserTracker', () => {
         applicationId: '466378653216014359', // PluralKit
         author: { username: 'Alice', id: 'webhook-user' },
         content: 'Test message',
-        channel: { id: 'test-channel-123' }
+        channel: { id: 'test-channel-123' },
       };
-      
+
       const result = webhookUserTracker.getRealUserId(message);
       expect(result).toBe('proxy-system-user');
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -320,9 +322,9 @@ describe('webhookUserTracker', () => {
     it('should return author ID for unknown webhook', () => {
       const message = {
         webhookId: 'webhook123',
-        author: { id: 'webhook-user' }
+        author: { id: 'webhook-user' },
       };
-      
+
       const result = webhookUserTracker.getRealUserId(message);
       expect(result).toBe('webhook-user');
     });
@@ -344,9 +346,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359', // PluralKit
-        author: { username: 'Alice' }
+        author: { username: 'Alice' },
       };
-      
+
       const result = webhookUserTracker.shouldBypassNsfwVerification(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -358,9 +360,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         content: `${botPrefix} add personality`,
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.shouldBypassNsfwVerification(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -372,13 +374,13 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         content: `${botPrefix} auth start`,
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.shouldBypassNsfwVerification(message);
       expect(result).toBe(false);
       expect(mockLogger.info).toHaveBeenCalledWith(
-        '[WebhookUserTracker] Restricted command \'auth\' detected from webhook, not bypassing'
+        "[WebhookUserTracker] Restricted command 'auth' detected from webhook, not bypassing"
       );
     });
 
@@ -386,9 +388,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         content: `${botPrefix}`,
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.shouldBypassNsfwVerification(message);
       expect(result).toBe(true);
     });
@@ -397,9 +399,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         content: 'Hello world',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.shouldBypassNsfwVerification(message);
       expect(result).toBe(false);
     });
@@ -421,9 +423,9 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359', // PluralKit
-        author: { username: 'Alice' }
+        author: { username: 'Alice' },
       };
-      
+
       const result = webhookUserTracker.isAuthenticationAllowed(message);
       expect(result).toBe(false);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -433,12 +435,12 @@ describe('webhookUserTracker', () => {
 
     it('should allow auth for webhook with known user', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       const message = {
         webhookId: 'webhook123',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.isAuthenticationAllowed(message);
       expect(result).toBe(true);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -449,9 +451,9 @@ describe('webhookUserTracker', () => {
     it('should not allow auth for unknown webhook', () => {
       const message = {
         webhookId: 'webhook123',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
-      
+
       const result = webhookUserTracker.isAuthenticationAllowed(message);
       expect(result).toBe(false);
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -466,16 +468,16 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
       webhookUserTracker.isProxySystemWebhook(message);
-      
+
       // Clear it
       webhookUserTracker.clearCachedWebhook('webhook123');
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[WebhookUserTracker] Cleared cached webhook: webhook123'
       );
-      
+
       // Verify it's no longer cached
       mockLogger.info.mockClear();
       mockLogger.debug.mockClear();
@@ -498,22 +500,22 @@ describe('webhookUserTracker', () => {
       const message1 = {
         webhookId: 'webhook1',
         applicationId: '466378653216014359',
-        author: { username: 'Test1' }
+        author: { username: 'Test1' },
       };
       const message2 = {
         webhookId: 'webhook2',
-        author: { username: 'Test2 | PluralKit' }
+        author: { username: 'Test2 | PluralKit' },
       };
-      
+
       webhookUserTracker.isProxySystemWebhook(message1);
       webhookUserTracker.isProxySystemWebhook(message2);
-      
+
       // Clear all
       webhookUserTracker.clearAllCachedWebhooks();
       expect(mockLogger.info).toHaveBeenCalledWith(
         '[WebhookUserTracker] Cleared all 2 cached webhooks'
       );
-      
+
       // Verify they're no longer cached
       mockLogger.info.mockClear();
       mockLogger.debug.mockClear();
@@ -534,13 +536,13 @@ describe('webhookUserTracker', () => {
     it('should clean up old webhook user associations', () => {
       // Add an association
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       // Advance time past expiration
       dateNowSpy.mockReturnValue(1000000 + 60 * 60 * 1000 + 1);
-      
+
       // Manually trigger cleanup since intervals are disabled in tests
       webhookUserTracker.cleanupOldEntries();
-      
+
       // Verify it's been cleaned up
       const result = webhookUserTracker.getRealUserIdFromWebhook('webhook123');
       expect(result).toBeNull();
@@ -551,16 +553,16 @@ describe('webhookUserTracker', () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
       webhookUserTracker.isProxySystemWebhook(message);
-      
+
       // Advance time past expiration
       dateNowSpy.mockReturnValue(1000000 + 60 * 60 * 1000 + 1);
-      
+
       // Manually trigger cleanup since intervals are disabled in tests
       webhookUserTracker.cleanupProxyWebhookCache();
-      
+
       // Verify cache was cleared by checking if it identifies again
       mockLogger.info.mockClear();
       mockLogger.debug.mockClear();
@@ -573,25 +575,25 @@ describe('webhookUserTracker', () => {
 
     it('should not clean up fresh entries', () => {
       webhookUserTracker.associateWebhookWithUser('webhook123', 'user456');
-      
+
       // Add proxy cache
       const message = {
         webhookId: 'webhook789',
         applicationId: '466378653216014359',
-        author: { username: 'Test' }
+        author: { username: 'Test' },
       };
       webhookUserTracker.isProxySystemWebhook(message);
-      
+
       // Advance time but not past expiration
       dateNowSpy.mockReturnValue(1000000 + 30 * 60 * 1000);
-      
+
       // Manually trigger cleanup since intervals are disabled in tests
       webhookUserTracker.cleanupOldEntries();
       webhookUserTracker.cleanupProxyWebhookCache();
-      
+
       // Verify entries still exist
       expect(webhookUserTracker.getRealUserIdFromWebhook('webhook123')).toBe('user456');
-      
+
       mockLogger.debug.mockClear();
       webhookUserTracker.isProxySystemWebhook(message);
       expect(mockLogger.debug).toHaveBeenCalledWith(
@@ -607,19 +609,19 @@ describe('webhookUserTracker', () => {
     beforeEach(() => {
       // Mock the auth module
       mockAuth = {
-        hasValidToken: jest.fn()
+        hasValidToken: jest.fn(),
       };
       jest.doMock('../../../src/auth', () => mockAuth);
 
       // Mock the pluralkit message store
       mockPluralKitStore = {
         findByContent: jest.fn(),
-        findDeletedMessage: jest.fn()
+        findDeletedMessage: jest.fn(),
       };
       // Make findByContent delegate to findDeletedMessage for backward compatibility
       mockPluralKitStore.findByContent = mockPluralKitStore.findDeletedMessage;
       jest.doMock('../../../src/utils/pluralkitMessageStore', () => ({
-        instance: mockPluralKitStore
+        instance: mockPluralKitStore,
       }));
 
       // Clear the module cache to ensure fresh mocks
@@ -636,7 +638,7 @@ describe('webhookUserTracker', () => {
       const message = {
         author: { id: 'user123' },
         content: 'Test message',
-        channel: { id: 'channel123' }
+        channel: { id: 'channel123' },
       };
       const result = webhookUserTracker.checkProxySystemAuthentication(message);
       expect(result).toEqual({ isAuthenticated: false, userId: null });
@@ -647,7 +649,7 @@ describe('webhookUserTracker', () => {
         webhookId: 'webhook123',
         author: { id: 'webhook-user' },
         content: 'Test message',
-        channel: { id: 'channel123' }
+        channel: { id: 'channel123' },
       };
       const result = webhookUserTracker.checkProxySystemAuthentication(message);
       expect(result).toEqual({ isAuthenticated: false, userId: null });
@@ -659,26 +661,29 @@ describe('webhookUserTracker', () => {
         applicationId: '466378653216014359', // PluralKit
         author: { username: 'Alice', id: 'webhook-user' },
         content: 'Test message',
-        channel: { id: 'channel123' }
+        channel: { id: 'channel123' },
       };
 
       mockPluralKitStore.findByContent.mockReturnValue({
         userId: 'real-user-123',
         username: 'RealUser',
         channelId: 'channel123',
-        content: 'Test message'
+        content: 'Test message',
       });
 
       mockAuth.hasValidToken.mockReturnValue(true);
 
       const result = webhookUserTracker.checkProxySystemAuthentication(message);
-      
-      expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith('Test message', 'channel123');
+
+      expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith(
+        'Test message',
+        'channel123'
+      );
       expect(mockAuth.hasValidToken).toHaveBeenCalledWith('real-user-123');
       expect(result).toEqual({
         isAuthenticated: true,
         userId: 'real-user-123',
-        username: 'RealUser'
+        username: 'RealUser',
       });
     });
 
@@ -688,14 +693,17 @@ describe('webhookUserTracker', () => {
         applicationId: '466378653216014359', // PluralKit
         author: { username: 'Alice', id: 'webhook-user' },
         content: 'Test message',
-        channel: { id: 'channel123' }
+        channel: { id: 'channel123' },
       };
 
       mockPluralKitStore.findByContent.mockReturnValue(null);
 
       const result = webhookUserTracker.checkProxySystemAuthentication(message);
-      
-      expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith('Test message', 'channel123');
+
+      expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith(
+        'Test message',
+        'channel123'
+      );
       expect(result).toEqual({ isAuthenticated: false, userId: null });
     });
   });

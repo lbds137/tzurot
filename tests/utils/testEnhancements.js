@@ -1,8 +1,8 @@
 /**
  * Test Enhancement Utilities
- * 
+ *
  * These utilities enhance the existing test patterns without replacing them completely.
- * They provide shortcuts and standardization while maintaining compatibility with 
+ * They provide shortcuts and standardization while maintaining compatibility with
  * the current Jest mocking approach.
  */
 
@@ -15,10 +15,11 @@ function getCommandTestMocks() {
   return {
     discord: () => jest.mock('discord.js'),
     logger: () => jest.mock('../../../../src/logger'),
-    config: () => jest.mock('../../../../config', () => ({
-      botPrefix: '!tz'
-    })),
-    commandValidator: () => jest.mock('../../../../src/commands/utils/commandValidator')
+    config: () =>
+      jest.mock('../../../../config', () => ({
+        botPrefix: '!tz',
+      })),
+    commandValidator: () => jest.mock('../../../../src/commands/utils/commandValidator'),
   };
 }
 
@@ -51,17 +52,17 @@ function createUtilityTest() {
           info: jest.fn(),
           debug: jest.fn(),
           warn: jest.fn(),
-          error: jest.fn()
+          error: jest.fn(),
         },
         personalityManager: {
           listPersonalitiesForUser: jest.fn(),
           personalityAliases: new Map(),
           getPersonality: jest.fn(),
-          registerPersonality: jest.fn()
+          registerPersonality: jest.fn(),
         },
         dataStorage: {
           saveData: jest.fn().mockResolvedValue(),
-          loadData: jest.fn().mockResolvedValue({})
+          loadData: jest.fn().mockResolvedValue({}),
         },
         discord: {
           EmbedBuilder: jest.fn().mockImplementation(() => ({
@@ -74,13 +75,13 @@ function createUtilityTest() {
             data: {
               title: '',
               description: '',
-              fields: []
-            }
-          }))
-        }
+              fields: [],
+            },
+          })),
+        },
       };
     },
-    
+
     /**
      * Console mocking for utility tests
      */
@@ -89,23 +90,23 @@ function createUtilityTest() {
         error: console.error,
         log: console.log,
         debug: console.debug,
-        warn: console.warn
+        warn: console.warn,
       };
-      
+
       console.error = jest.fn();
       console.log = jest.fn();
       console.debug = jest.fn();
       console.warn = jest.fn();
-      
+
       return {
         restore: () => {
           console.error = originalConsole.error;
           console.log = originalConsole.log;
           console.debug = originalConsole.debug;
           console.warn = originalConsole.warn;
-        }
+        },
       };
-    }
+    },
   };
 }
 
@@ -120,47 +121,47 @@ function createBotIntegrationTest() {
      */
     createBotEnvironment: () => {
       const mockAiService = {
-        getAiResponse: jest.fn().mockResolvedValue('This is a mock AI response')
+        getAiResponse: jest.fn().mockResolvedValue('This is a mock AI response'),
       };
-      
+
       const mockWebhookManager = {
         getOrCreateWebhook: jest.fn().mockResolvedValue({
-          send: jest.fn().mockResolvedValue({ id: 'mock-webhook-message' })
+          send: jest.fn().mockResolvedValue({ id: 'mock-webhook-message' }),
         }),
         sendWebhookMessage: jest.fn().mockResolvedValue({
           message: { id: 'mock-webhook-message' },
-          messageIds: ['mock-webhook-message']
+          messageIds: ['mock-webhook-message'],
         }),
-        registerEventListeners: jest.fn()
+        registerEventListeners: jest.fn(),
       };
-      
+
       const mockConversationManager = {
         recordConversation: jest.fn(),
         getActivePersonality: jest.fn(),
         getPersonalityFromMessage: jest.fn(),
-        getActivatedPersonality: jest.fn()
+        getActivatedPersonality: jest.fn(),
       };
-      
+
       const mockCommandLoader = {
         processCommand: jest.fn().mockResolvedValue({
           success: true,
-          message: 'Command processed successfully'
-        })
+          message: 'Command processed successfully',
+        }),
       };
-      
+
       const mockPersonalityManager = {
         getPersonalityByAlias: jest.fn(),
         getPersonality: jest.fn(),
-        registerPersonality: jest.fn()
+        registerPersonality: jest.fn(),
       };
-      
+
       const mockLogger = {
         info: jest.fn(),
         debug: jest.fn(),
         warn: jest.fn(),
-        error: jest.fn()
+        error: jest.fn(),
       };
-      
+
       return {
         aiService: mockAiService,
         webhookManager: mockWebhookManager,
@@ -168,10 +169,10 @@ function createBotIntegrationTest() {
         commandLoader: mockCommandLoader,
         personalityManager: mockPersonalityManager,
         logger: mockLogger,
-        config: { botPrefix: '!tz' }
+        config: { botPrefix: '!tz' },
       };
     },
-    
+
     /**
      * Create enhanced Discord message mock for bot tests
      */
@@ -183,32 +184,32 @@ function createBotIntegrationTest() {
         channelId = 'channel-123',
         isBot = false,
         embeds = [],
-        isDM = false
+        isDM = false,
       } = options;
-      
+
       const mockMessage = {
         id,
         content,
         author: {
           id: authorId,
           bot: isBot,
-          username: isBot ? 'MockBot' : 'TestUser'
+          username: isBot ? 'MockBot' : 'TestUser',
         },
         channel: {
           id: channelId,
           type: isDM ? 1 : 0, // 1 = DM, 0 = Guild Text
           send: jest.fn().mockResolvedValue({ id: 'sent-message-123' }),
-          sendTyping: jest.fn().mockResolvedValue(undefined)
+          sendTyping: jest.fn().mockResolvedValue(undefined),
         },
         guild: isDM ? null : { id: 'guild-123' },
         embeds,
         delete: jest.fn().mockResolvedValue(),
-        reply: jest.fn().mockResolvedValue({ id: 'reply-message-123' })
+        reply: jest.fn().mockResolvedValue({ id: 'reply-message-123' }),
       };
-      
+
       return mockMessage;
     },
-    
+
     /**
      * Setup global state for bot tests
      */
@@ -218,7 +219,7 @@ function createBotIntegrationTest() {
       global.processedBotMessages = new Set();
       global.seenBotMessages = new Set();
     },
-    
+
     /**
      * Cleanup global state after bot tests
      */
@@ -228,7 +229,7 @@ function createBotIntegrationTest() {
       delete global.processedBotMessages;
       delete global.seenBotMessages;
     },
-    
+
     /**
      * Console mocking utilities for bot tests
      */
@@ -237,23 +238,23 @@ function createBotIntegrationTest() {
         log: console.log,
         error: console.error,
         warn: console.warn,
-        debug: console.debug
+        debug: console.debug,
       };
-      
+
       console.log = jest.fn();
       console.error = jest.fn();
       console.warn = jest.fn();
       console.debug = jest.fn();
-      
+
       return {
         restore: () => {
           console.log = original.log;
           console.error = original.error;
           console.warn = original.warn;
           console.debug = original.debug;
-        }
+        },
       };
-    }
+    },
   };
 }
 
@@ -263,25 +264,28 @@ function createBotIntegrationTest() {
  */
 function createStandardCommandTest() {
   const helpers = require('./commandTestHelpers');
-  
+
   return {
     /**
      * Create a standard mock message for command testing
      */
     createMockMessage: (options = {}) => {
       const mockMessage = helpers.createMockMessage(options);
-      
+
       // Ensure standard methods are available
-      mockMessage.channel.send = mockMessage.channel.send || jest.fn().mockResolvedValue({
-        id: 'sent-message-123',
-        content: 'Mock response'
-      });
-      
-      mockMessage.channel.sendTyping = mockMessage.channel.sendTyping || jest.fn().mockResolvedValue(undefined);
-      
+      mockMessage.channel.send =
+        mockMessage.channel.send ||
+        jest.fn().mockResolvedValue({
+          id: 'sent-message-123',
+          content: 'Mock response',
+        });
+
+      mockMessage.channel.sendTyping =
+        mockMessage.channel.sendTyping || jest.fn().mockResolvedValue(undefined);
+
       return mockMessage;
     },
-    
+
     /**
      * Create a standard command validator mock
      */
@@ -289,18 +293,18 @@ function createStandardCommandTest() {
       const mockDirectSend = jest.fn().mockImplementation(content => {
         return Promise.resolve({
           id: 'direct-send-123',
-          content: typeof content === 'string' ? content : JSON.stringify(content)
+          content: typeof content === 'string' ? content : JSON.stringify(content),
         });
       });
-      
+
       return {
         createDirectSend: jest.fn().mockReturnValue(mockDirectSend),
         isAdmin: jest.fn().mockReturnValue(false),
         canManageMessages: jest.fn().mockReturnValue(false),
-        isNsfwChannel: jest.fn().mockReturnValue(false)
+        isNsfwChannel: jest.fn().mockReturnValue(false),
       };
     },
-    
+
     /**
      * Create standard module mocks for commands
      */
@@ -312,13 +316,13 @@ function createStandardCommandTest() {
             personality: {
               fullName: 'test-personality',
               displayName: 'Test Personality',
-              avatarUrl: 'https://example.com/avatar.png'
-            }
+              avatarUrl: 'https://example.com/avatar.png',
+            },
           }),
-          personalityAliases: new Map()
+          personalityAliases: new Map(),
         },
         webhookManager: {
-          preloadPersonalityAvatar: jest.fn().mockResolvedValue(true)
+          preloadPersonalityAvatar: jest.fn().mockResolvedValue(true),
         },
         messageTracker: {
           isAddCommandProcessed: jest.fn().mockReturnValue(false),
@@ -326,10 +330,10 @@ function createStandardCommandTest() {
           isAddCommandCompleted: jest.fn().mockReturnValue(false),
           markAddCommandCompleted: jest.fn(),
           hasFirstEmbed: jest.fn().mockReturnValue(false),
-          markGeneratedFirstEmbed: jest.fn()
-        }
+          markGeneratedFirstEmbed: jest.fn(),
+        },
       };
-    }
+    },
   };
 }
 
@@ -348,10 +352,10 @@ function createStandardAssertions() {
         description: expect.any(String),
         usage: expect.any(String),
         aliases: expect.any(Array),
-        permissions: expect.any(Array)
+        permissions: expect.any(Array),
       });
     },
-    
+
     /**
      * Assert that a message was sent successfully
      */
@@ -361,14 +365,14 @@ function createStandardAssertions() {
         expect(mockMessage.channel.send).toHaveBeenCalledWith(expectedContent);
       }
     },
-    
+
     /**
      * Assert that an error was handled gracefully
      */
     assertErrorHandled: (mockLogger, mockMessage) => {
       expect(mockLogger.error).toHaveBeenCalled();
       // Could also check that error message was sent to user
-    }
+    },
   };
 }
 
@@ -381,7 +385,7 @@ function createMigrationHelper(testType = 'command') {
   const botTest = testType === 'bot' ? createBotIntegrationTest() : null;
   const utilityTest = testType === 'utility' ? createUtilityTest() : null;
   const assertions = createStandardAssertions();
-  
+
   // Bridge utilities for connecting new and old systems
   const bridge = {
     getMockEnvironment: (options = {}) => {
@@ -389,25 +393,25 @@ function createMigrationHelper(testType = 'command') {
         return {
           modules: botTest.createBotEnvironment(),
           discord: {
-            createMessage: botTest.createBotMessage
-          }
+            createMessage: botTest.createBotMessage,
+          },
         };
       } else if (testType === 'utility') {
         return {
           modules: utilityTest.createUtilityMocks(),
-          discord: null // Utility tests don't typically need Discord mocks
+          discord: null, // Utility tests don't typically need Discord mocks
         };
       } else {
         // Command test environment
         return {
           modules: standardTest.createModuleMocks(),
           discord: {
-            createMessage: standardTest.createMockMessage
-          }
+            createMessage: standardTest.createMockMessage,
+          },
         };
       }
     },
-    
+
     createCompatibleMockMessage: (options = {}) => {
       if (testType === 'bot') {
         return botTest.createBotMessage(options);
@@ -415,64 +419,80 @@ function createMigrationHelper(testType = 'command') {
         return standardTest.createMockMessage(options);
       }
     },
-    
+
     setupCommonMocks: (mockEnv, customMocks = {}) => {
       // Setup common Jest mocks for migration
       return mockEnv;
     },
-    
+
     // Bot-specific utilities
     setupBotGlobals: botTest ? botTest.setupBotGlobals : undefined,
     cleanupBotGlobals: botTest ? botTest.cleanupBotGlobals : undefined,
-    mockConsole: testType === 'bot' ? botTest.mockConsole : 
-                testType === 'utility' ? utilityTest.mockConsole : undefined,
-    
+    mockConsole:
+      testType === 'bot'
+        ? botTest.mockConsole
+        : testType === 'utility'
+          ? utilityTest.mockConsole
+          : undefined,
+
     // Utility for getting modules with proper Jest mocking
-    getModule: (modulePath) => {
+    getModule: modulePath => {
       // Reset modules to ensure fresh mocks
       jest.resetModules();
       return require(modulePath);
-    }
+    },
   };
-  
+
   // Enhanced assertions with additional helpful methods
   const enhancedAssertions = {
     ...assertions,
-    
+
     assertFunctionCalled: (mockFn, description) => {
       expect(mockFn).toHaveBeenCalled();
     },
-    
+
     assertFunctionCalledWith: (mockFn, expectedArgs, description) => {
       expect(mockFn).toHaveBeenCalledWith(...expectedArgs);
     },
-    
+
     assertFunctionNotCalled: (mockFn, description) => {
       expect(mockFn).not.toHaveBeenCalled();
-    }
+    },
   };
-  
+
   return {
     // Bridge utilities
     bridge,
-    
+
     // New enhanced methods
     enhanced: {
-      createMessage: testType === 'bot' ? botTest.createBotMessage : 
-                   testType === 'utility' ? null : standardTest.createMockMessage,
-      createValidator: testType === 'bot' || testType === 'utility' ? null : standardTest.createValidatorMock,
-      createMocks: testType === 'bot' ? botTest.createBotEnvironment : 
-                  testType === 'utility' ? utilityTest.createUtilityMocks : standardTest.createModuleMocks,
-      assert: enhancedAssertions
+      createMessage:
+        testType === 'bot'
+          ? botTest.createBotMessage
+          : testType === 'utility'
+            ? null
+            : standardTest.createMockMessage,
+      createValidator:
+        testType === 'bot' || testType === 'utility' ? null : standardTest.createValidatorMock,
+      createMocks:
+        testType === 'bot'
+          ? botTest.createBotEnvironment
+          : testType === 'utility'
+            ? utilityTest.createUtilityMocks
+            : standardTest.createModuleMocks,
+      assert: enhancedAssertions,
     },
-    
+
     // Legacy compatibility
     legacy: {
-      createMockMessage: testType === 'bot' ? botTest.createBotMessage : require('./commandTestHelpers').createMockMessage
+      createMockMessage:
+        testType === 'bot'
+          ? botTest.createBotMessage
+          : require('./commandTestHelpers').createMockMessage,
     },
-    
+
     // Utilities
-    getMocks: testType === 'command' ? getCommandTestMocks : undefined
+    getMocks: testType === 'command' ? getCommandTestMocks : undefined,
   };
 }
 
@@ -483,5 +503,5 @@ module.exports = {
   createBotIntegrationTest,
   createUtilityTest,
   createStandardAssertions,
-  createMigrationHelper
+  createMigrationHelper,
 };

@@ -4,13 +4,15 @@ jest.mock('openai', () => ({
     chat: {
       completions: {
         create: jest.fn().mockResolvedValue({
-          choices: [{
-            message: { content: 'Test response' }
-          }]
-        })
-      }
-    }
-  }))
+          choices: [
+            {
+              message: { content: 'Test response' },
+            },
+          ],
+        }),
+      },
+    },
+  })),
 }));
 
 // Mock aiAuth before requiring aiService
@@ -20,14 +22,16 @@ jest.mock('../../src/utils/aiAuth', () => ({
     chat: {
       completions: {
         create: jest.fn().mockResolvedValue({
-          choices: [{
-            message: { content: 'Test response' }
-          }]
-        })
-      }
-    }
+          choices: [
+            {
+              message: { content: 'Test response' },
+            },
+          ],
+        }),
+      },
+    },
   }),
-  getAiClientForUser: jest.fn().mockImplementation(async (userId) => {
+  getAiClientForUser: jest.fn().mockImplementation(async userId => {
     const auth = require('../../src/auth');
     // Return different clients based on auth status
     if (auth.hasValidToken(userId)) {
@@ -35,12 +39,14 @@ jest.mock('../../src/utils/aiAuth', () => ({
         chat: {
           completions: {
             create: jest.fn().mockResolvedValue({
-              choices: [{
-                message: { content: 'Authenticated response' }
-              }]
-            })
-          }
-        }
+              choices: [
+                {
+                  message: { content: 'Authenticated response' },
+                },
+              ],
+            }),
+          },
+        },
       };
     }
     // Return default client for unauthenticated users
@@ -48,14 +54,16 @@ jest.mock('../../src/utils/aiAuth', () => ({
       chat: {
         completions: {
           create: jest.fn().mockResolvedValue({
-            choices: [{
-              message: { content: 'Default response' }
-            }]
-          })
-        }
-      }
+            choices: [
+              {
+                message: { content: 'Default response' },
+              },
+            ],
+          }),
+        },
+      },
     };
-  })
+  }),
 }));
 
 const aiService = require('../../src/aiService');
@@ -71,7 +79,7 @@ jest.mock('../../src/auth', () => ({
   isNsfwVerified: jest.fn().mockReturnValue(true),
   getAuthManager: jest.fn().mockReturnValue(null),
   userTokens: {},
-  nsfwVerified: {}
+  nsfwVerified: {},
 }));
 
 describe('Authentication Enforcement', () => {
@@ -124,7 +132,7 @@ describe('Authentication Enforcement', () => {
       // We expect this to potentially fail in test environment,
       // but we just want to verify authentication was checked
     }
-    
+
     // The most important verification: hasValidToken was called correctly
     expect(auth.hasValidToken).toHaveBeenCalledWith('authenticated-user');
   });

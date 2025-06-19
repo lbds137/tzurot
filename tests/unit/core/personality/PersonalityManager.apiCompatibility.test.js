@@ -18,23 +18,23 @@ describe('PersonalityManager API Compatibility', () => {
     // Mock the persistence layer to return empty data
     PersonalityPersistence.prototype.load = jest.fn().mockResolvedValue({
       personalities: {},
-      aliases: {}
+      aliases: {},
     });
     PersonalityPersistence.prototype.save = jest.fn().mockResolvedValue(true);
-    
+
     personalityManager = new PersonalityManager({
-      delay: () => Promise.resolve() // Mock delay for tests
+      delay: () => Promise.resolve(), // Mock delay for tests
     });
-    
+
     // Initialize with test data (fast with mocked persistence)
     await personalityManager.initialize(false, { skipBackgroundSeeding: true });
-    
+
     // Add a test personality with an alias
     await personalityManager.registerPersonality('test-personality', 'test-user', {
       displayName: 'Test',
-      fetchInfo: false // Skip profile fetching
+      fetchInfo: false, // Skip profile fetching
     });
-    
+
     await personalityManager.setPersonalityAlias('testalias', 'test-personality', true); // Skip save
   });
 
@@ -42,11 +42,11 @@ describe('PersonalityManager API Compatibility', () => {
     it('should accept only one parameter (alias)', () => {
       // Get the function reference
       const fn = personalityManager.getPersonalityByAlias;
-      
+
       // Check that the function exists
       expect(fn).toBeDefined();
       expect(typeof fn).toBe('function');
-      
+
       // Check the function signature - it should have exactly 1 parameter
       expect(fn.length).toBe(1);
     });
@@ -54,7 +54,7 @@ describe('PersonalityManager API Compatibility', () => {
     it('should return personality when called with just alias', () => {
       // Call with just the alias (correct API)
       const result = personalityManager.getPersonalityByAlias('testalias');
-      
+
       expect(result).toBeDefined();
       expect(result.fullName).toBe('test-personality');
       expect(result.displayName).toBe('Test');
@@ -62,7 +62,7 @@ describe('PersonalityManager API Compatibility', () => {
 
     it('should return null for unknown alias', () => {
       const result = personalityManager.getPersonalityByAlias('unknown');
-      
+
       expect(result).toBeNull();
     });
 
@@ -70,20 +70,20 @@ describe('PersonalityManager API Compatibility', () => {
       // Even if called with extra parameters, it should still work
       // This tests backward compatibility
       const result = personalityManager.getPersonalityByAlias('testalias', 'ignored-param');
-      
+
       expect(result).toBeDefined();
       expect(result.fullName).toBe('test-personality');
     });
 
     it('should handle null alias gracefully', () => {
       const result = personalityManager.getPersonalityByAlias(null);
-      
+
       expect(result).toBeNull();
     });
 
     it('should handle undefined alias gracefully', () => {
       const result = personalityManager.getPersonalityByAlias(undefined);
-      
+
       expect(result).toBeNull();
     });
   });
@@ -92,15 +92,15 @@ describe('PersonalityManager API Compatibility', () => {
     it('should demonstrate the API mismatch issue', () => {
       // This test documents why the bug occurred
       // The old API expected (userId, alias) but the new API only takes (alias)
-      
+
       // Mock a scenario where code passes userId as first param
       const userId = 'user123';
       const alias = 'testalias';
-      
+
       // Wrong usage (passing userId as alias)
       const wrongResult = personalityManager.getPersonalityByAlias(userId);
       expect(wrongResult).toBeNull(); // Returns null because 'user123' is not an alias
-      
+
       // Correct usage
       const correctResult = personalityManager.getPersonalityByAlias(alias);
       expect(correctResult).toBeDefined();
@@ -112,7 +112,7 @@ describe('PersonalityManager API Compatibility', () => {
     it('should export getPersonalityByAlias as a static method', () => {
       // Test the module-level export
       const { getPersonalityByAlias } = require('../../../../src/core/personality');
-      
+
       expect(getPersonalityByAlias).toBeDefined();
       expect(typeof getPersonalityByAlias).toBe('function');
       // The exported function is a wrapper with ...args, so length is 0

@@ -8,9 +8,9 @@
  */
 const BackupStatus = {
   PENDING: 'pending',
-  IN_PROGRESS: 'in_progress', 
+  IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
-  FAILED: 'failed'
+  FAILED: 'failed',
 };
 
 /**
@@ -35,7 +35,7 @@ class BackupJob {
     this.startedAt = null;
     this.completedAt = null;
     this.error = null;
-    
+
     // Backup results
     this.results = {
       profile: { updated: false },
@@ -43,7 +43,7 @@ class BackupJob {
       knowledge: { updated: false, entryCount: 0 },
       training: { updated: false, entryCount: 0 },
       userPersonalization: { updated: false },
-      chatHistory: { newMessageCount: 0, totalMessages: 0 }
+      chatHistory: { newMessageCount: 0, totalMessages: 0 },
     };
   }
 
@@ -84,7 +84,7 @@ class BackupJob {
     this.error = {
       message: error.message,
       stack: error.stack,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
   }
 
@@ -161,7 +161,7 @@ class BackupJob {
       startedAt: this.startedAt?.toISOString() || null,
       completedAt: this.completedAt?.toISOString() || null,
       error: this.error,
-      results: this.results
+      results: this.results,
     };
   }
 
@@ -175,7 +175,7 @@ class BackupJob {
       personalityName: data.personalityName,
       userId: data.userId,
       isBulk: data.isBulk,
-      id: data.id
+      id: data.id,
     });
 
     job.status = data.status;
@@ -191,5 +191,5 @@ class BackupJob {
 
 module.exports = {
   BackupJob,
-  BackupStatus
+  BackupStatus,
 };

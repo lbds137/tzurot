@@ -20,11 +20,11 @@ global.tzurotClient = null;
 describe('messageUtils', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Mock console methods
     jest.spyOn(console, 'log').mockImplementation();
     jest.spyOn(console, 'error').mockImplementation();
-    
+
     // Reset global client
     global.tzurotClient = null;
   });
@@ -67,11 +67,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot | Dev#1234',
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test | Dev');
     });
 
@@ -81,11 +81,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot#1234',
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
 
@@ -95,11 +95,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot | Production #9876',
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test | Production');
     });
 
@@ -107,7 +107,7 @@ describe('messageUtils', () => {
       const personality = {
         displayName: 'This Is A Very Long Display Name That Exceeds Limit',
       };
-      
+
       const result = getStandardizedUsername(personality);
       expect(result.length).toBeLessThanOrEqual(32);
       expect(result).toContain('...');
@@ -119,11 +119,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot | Development#1234',
         },
       };
-      
+
       const personality = {
         displayName: 'This Is A Very Long Display Name',
       };
-      
+
       const result = getStandardizedUsername(personality);
       expect(result.length).toBeLessThanOrEqual(32);
       expect(result).toContain('...');
@@ -136,11 +136,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot | This Is An Extremely Long Environment Name#1234',
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       const result = getStandardizedUsername(personality);
       expect(result.length).toBeLessThanOrEqual(32);
     });
@@ -149,7 +149,7 @@ describe('messageUtils', () => {
       const personality = {
         fullName: 'test-personality-name',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
 
@@ -157,7 +157,7 @@ describe('messageUtils', () => {
       const personality = {
         fullName: 'lowercase-name',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Lowercase');
     });
 
@@ -165,7 +165,7 @@ describe('messageUtils', () => {
       const personality = {
         fullName: 'shortname',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Shortname');
     });
 
@@ -175,11 +175,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot | VeryLongEnvironmentName#1234',
         },
       };
-      
+
       const personality = {
         fullName: 'verylongpersonalitynamethatneedstruncation',
       };
-      
+
       const result = getStandardizedUsername(personality);
       expect(result.length).toBeLessThanOrEqual(32);
       expect(result).toContain('...');
@@ -187,11 +187,11 @@ describe('messageUtils', () => {
 
     it('should handle missing global client', () => {
       global.tzurotClient = undefined;
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
 
@@ -199,11 +199,11 @@ describe('messageUtils', () => {
       global.tzurotClient = {
         user: null,
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
 
@@ -213,11 +213,11 @@ describe('messageUtils', () => {
           tag: null,
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
 
@@ -228,7 +228,7 @@ describe('messageUtils', () => {
         displayName: null,
         fullName: null,
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Bot');
     });
 
@@ -238,7 +238,7 @@ describe('messageUtils', () => {
           tag: 'Tzurot | Dev#1234',
         },
       };
-      
+
       const result = getStandardizedUsername({});
       expect(result).toBe('Bot | Dev');
     });
@@ -248,7 +248,7 @@ describe('messageUtils', () => {
         fullName: '',
         displayName: '',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Bot');
     });
 
@@ -258,11 +258,11 @@ describe('messageUtils', () => {
           tag: 'Tzurot |  Dev#1234', // Extra space
         },
       };
-      
+
       const personality = {
         displayName: 'Test',
       };
-      
+
       expect(getStandardizedUsername(personality)).toBe('Test | Dev');
     });
   });
@@ -271,7 +271,7 @@ describe('messageUtils', () => {
     it('should generate unique IDs', () => {
       const id1 = generateMessageTrackingId({ fullName: 'test' }, 'channel-123');
       const id2 = generateMessageTrackingId({ fullName: 'test' }, 'channel-123');
-      
+
       expect(id1).not.toBe(id2);
     });
 
@@ -300,11 +300,11 @@ describe('messageUtils', () => {
       const before = Date.now();
       const id = generateMessageTrackingId({ fullName: 'test' }, 'channel-123');
       const after = Date.now();
-      
+
       // ID format: personalityName-channelId-timestamp-random
       // Example: test-channel-123-1234567890123-abc123
       expect(id).toMatch(/^test-channel-123-\d+-[a-z0-9]+$/);
-      
+
       // Extract and verify timestamp
       const match = id.match(/^test-channel-123-(\d+)-[a-z0-9]+$/);
       expect(match).toBeTruthy();
@@ -318,7 +318,7 @@ describe('messageUtils', () => {
     it('should create basic message data', () => {
       const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
       const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123');
-      
+
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
@@ -329,7 +329,7 @@ describe('messageUtils', () => {
     it('should add threadId for thread messages', () => {
       const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
       const data = prepareMessageData('Hello', 'TestUser', personality, true, 'thread-123');
-      
+
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
@@ -344,7 +344,7 @@ describe('messageUtils', () => {
       const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {
         embed: embed,
       });
-      
+
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
@@ -359,7 +359,7 @@ describe('messageUtils', () => {
         files: ['file1'],
         allowedMentions: { parse: [] },
       });
-      
+
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
@@ -375,7 +375,7 @@ describe('messageUtils', () => {
         embed: { title: 'Test' },
         otherOption: 'value',
       });
-      
+
       expect(data).not.toHaveProperty('embed');
       expect(data).toHaveProperty('embeds');
       expect(data).toHaveProperty('otherOption');
@@ -384,7 +384,7 @@ describe('messageUtils', () => {
     it('should handle null avatar URL', () => {
       const personality = null;
       const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123');
-      
+
       // Test the behavior, not the internal property
       expect(data.username).toBe('TestUser');
       expect(data.content).toBe('Hello');
@@ -394,7 +394,7 @@ describe('messageUtils', () => {
     it('should handle empty additional options', () => {
       const personality = { fullName: 'test-bot', avatarUrl: 'https://avatar.url' };
       const data = prepareMessageData('Hello', 'TestUser', personality, false, 'channel-123', {});
-      
+
       expect(data).toEqual({
         content: 'Hello',
         username: 'TestUser',
@@ -409,9 +409,9 @@ describe('messageUtils', () => {
         fullName: 'test-personality',
         displayName: 'Test',
       };
-      
+
       const result = createVirtualResult(personality, 'channel-123');
-      
+
       expect(result).toMatchObject({
         message: {
           id: expect.stringContaining('virtual-'),
@@ -433,7 +433,7 @@ describe('messageUtils', () => {
 
     it('should handle null personality', () => {
       const result = createVirtualResult(null, 'channel-123');
-      
+
       expect(result.personalityName).toBe('unknown');
       expect(result.message.author.username).toBe('Bot');
     });
@@ -441,7 +441,7 @@ describe('messageUtils', () => {
     it('should generate unique virtual IDs', () => {
       const result1 = createVirtualResult({ fullName: 'test' }, 'channel-123');
       const result2 = createVirtualResult({ fullName: 'test' }, 'channel-123');
-      
+
       expect(result1.message.id).not.toBe(result2.message.id);
     });
 
@@ -451,14 +451,14 @@ describe('messageUtils', () => {
           tag: 'Tzurot | Dev#1234',
         },
       };
-      
+
       const personality = {
         fullName: 'test-personality',
         displayName: 'Test Display',
       };
-      
+
       const result = createVirtualResult(personality, 'channel-123');
-      
+
       expect(result.message.author.username).toBe('Test Display | Dev');
     });
   });
@@ -479,11 +479,11 @@ describe('messageUtils', () => {
         content: 'Test message',
         username: 'TestUser',
       };
-      
+
       mockWebhook.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const result = await sendMessageChunk(mockWebhook, messageData, 0, 1);
-      
+
       expect(mockWebhook.send).toHaveBeenCalledWith({
         content: 'Test message',
         username: 'TestUser',
@@ -498,16 +498,21 @@ describe('messageUtils', () => {
         username: 'TestUser',
         _personality: {
           fullName: 'test-bot',
-          avatarUrl: 'https://example.com/avatar.png'
-        }
+          avatarUrl: 'https://example.com/avatar.png',
+        },
       };
-      
-      avatarStorage.getLocalAvatarUrl = jest.fn().mockResolvedValue('http://localhost:3000/avatars/test-bot-123.png');
+
+      avatarStorage.getLocalAvatarUrl = jest
+        .fn()
+        .mockResolvedValue('http://localhost:3000/avatars/test-bot-123.png');
       mockWebhook.send.mockResolvedValue({ id: 'message-123' });
-      
+
       const result = await sendMessageChunk(mockWebhook, messageData, 0, 1);
-      
-      expect(avatarStorage.getLocalAvatarUrl).toHaveBeenCalledWith('test-bot', 'https://example.com/avatar.png');
+
+      expect(avatarStorage.getLocalAvatarUrl).toHaveBeenCalledWith(
+        'test-bot',
+        'https://example.com/avatar.png'
+      );
       expect(mockWebhook.send).toHaveBeenCalledWith({
         content: 'Test message',
         username: 'TestUser',
@@ -518,11 +523,13 @@ describe('messageUtils', () => {
 
     it('should log chunk information', async () => {
       mockWebhook.send.mockResolvedValue({ id: 'message-123' });
-      
+
       await sendMessageChunk(mockWebhook, { content: 'Test' }, 2, 5);
-      
+
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Sending chunk 3/5'));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Successfully sent chunk 3/5'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Successfully sent chunk 3/5')
+      );
     });
 
     it('should retry without thread_id if thread error occurs', async () => {
@@ -532,13 +539,13 @@ describe('messageUtils', () => {
         threadId: 'thread-123',
         otherData: 'value',
       };
-      
+
       mockWebhook.send
         .mockRejectedValueOnce(new Error('Invalid thread_id parameter'))
         .mockResolvedValueOnce({ id: 'message-123' });
-      
+
       const result = await sendMessageChunk(mockWebhook, messageData, 0, 1);
-      
+
       expect(mockWebhook.send).toHaveBeenCalledTimes(2);
       expect(mockWebhook.send).toHaveBeenLastCalledWith({
         content: 'Test',
@@ -552,16 +559,14 @@ describe('messageUtils', () => {
         content: 'Very long content',
         username: 'TestUser',
       };
-      
+
       const error = new Error('Invalid form body');
       error.code = 50035;
-      
-      mockWebhook.send
-        .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce({ id: 'error-msg' });
-      
+
+      mockWebhook.send.mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'error-msg' });
+
       await expect(sendMessageChunk(mockWebhook, messageData, 0, 1)).rejects.toThrow(error);
-      
+
       expect(mockWebhook.send).toHaveBeenCalledTimes(2);
       expect(mockWebhook.send).toHaveBeenLastCalledWith({
         content: expect.stringContaining('Error:'),
@@ -572,29 +577,27 @@ describe('messageUtils', () => {
     it('should throw original error if error message also fails', async () => {
       const error = new Error('Invalid form body');
       error.code = 50035;
-      
+
       mockWebhook.send.mockRejectedValue(error);
-      
+
       await expect(sendMessageChunk(mockWebhook, { content: 'Test' }, 0, 1)).rejects.toThrow(error);
     });
 
     it('should throw error for non-form body errors', async () => {
       const error = new Error('Network error');
       mockWebhook.send.mockRejectedValue(error);
-      
+
       await expect(sendMessageChunk(mockWebhook, { content: 'Test' }, 0, 1)).rejects.toThrow(error);
     });
 
     it('should handle missing username in error retry', async () => {
       const error = new Error('Invalid form body');
       error.code = 50035;
-      
-      mockWebhook.send
-        .mockRejectedValueOnce(error)
-        .mockResolvedValueOnce({ id: 'error-msg' });
-      
+
+      mockWebhook.send.mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'error-msg' });
+
       await expect(sendMessageChunk(mockWebhook, { content: 'Test' }, 0, 1)).rejects.toThrow(error);
-      
+
       expect(mockWebhook.send).toHaveBeenLastCalledWith({
         content: expect.stringContaining('Error:'),
         username: 'Bot',

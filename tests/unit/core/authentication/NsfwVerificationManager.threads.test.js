@@ -6,19 +6,19 @@ jest.mock('../../../../src/logger', () => ({
   info: jest.fn(),
   debug: jest.fn(),
   warn: jest.fn(),
-  error: jest.fn()
+  error: jest.fn(),
 }));
 
 jest.mock('../../../../src/utils/webhookUserTracker', () => ({
-  findRealUserId: jest.fn()
+  findRealUserId: jest.fn(),
 }));
 
 jest.mock('../../../../config', () => ({
-  botPrefix: '!tz'
+  botPrefix: '!tz',
 }));
 
 jest.mock('../../../../src/utils/channelUtils', () => ({
-  isChannelNSFW: jest.fn()
+  isChannelNSFW: jest.fn(),
 }));
 
 const NsfwVerificationManager = require('../../../../src/core/authentication/NsfwVerificationManager');
@@ -39,7 +39,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
       const thread = {
         guild: { id: 'guild123' },
         isThread: () => true,
-        parentId: 'nsfw-channel-123'
+        parentId: 'nsfw-channel-123',
       };
 
       // Mock channelUtils to return true for NSFW thread
@@ -55,7 +55,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
       const thread = {
         guild: { id: 'guild123' },
         isThread: () => true,
-        parentId: 'sfw-channel-123'
+        parentId: 'sfw-channel-123',
       };
 
       // Mock channelUtils to return false for SFW thread
@@ -70,7 +70,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
     it('should not require verification for DM threads', () => {
       const dmThread = {
         guild: null,
-        isThread: () => true
+        isThread: () => true,
       };
 
       const result = manager.requiresNsfwVerification(dmThread);
@@ -86,7 +86,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild123' },
         isThread: () => true,
         parentId: 'nsfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
       const userId = 'user123';
 
@@ -106,7 +106,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild123' },
         isThread: () => true,
         parentId: 'sfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
       const userId = 'user123';
 
@@ -128,7 +128,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'nsfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       // Mock channelUtils to return true for NSFW thread
@@ -150,7 +150,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'sfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       // Mock channelUtils to return false for SFW thread
@@ -168,7 +168,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'nsfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       // Pre-verify the user
@@ -188,7 +188,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'sfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       // Pre-verify the user
@@ -200,7 +200,9 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
       const result = manager.verifyAccess(sfwThread, mockUserId);
 
       expect(result.isAllowed).toBe(false);
-      expect(result.reason).toBe('NSFW-verified users can only use personalities in NSFW channels or DMs');
+      expect(result.reason).toBe(
+        'NSFW-verified users can only use personalities in NSFW channels or DMs'
+      );
     });
   });
 
@@ -213,7 +215,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         isThread: () => true,
         parentId: 'nsfw-forum-123', // Forum channel ID
         id: 'forum-thread-123',
-        type: 11 // Public thread type
+        type: 11, // Public thread type
       };
 
       // Mock channelUtils to return true for NSFW forum thread
@@ -233,7 +235,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         isThread: () => true,
         parentId: 'sfw-forum-123',
         id: 'forum-thread-123',
-        type: 11
+        type: 11,
       };
 
       // Mock channelUtils to return false for SFW forum thread
@@ -255,7 +257,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'nsfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       const proxyMessage = {
@@ -263,13 +265,13 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
           bot: true,
           username: 'pk; System[APP]',
           discriminator: '0000',
-          id: 'webhook123'
-        }
+          id: 'webhook123',
+        },
       };
 
       // Mock channelUtils to return true for NSFW thread
       channelUtils.isChannelNSFW.mockReturnValue(true);
-      
+
       // Mock webhook tracker to return real user
       webhookUserTracker.findRealUserId.mockReturnValue(mockUserId);
 
@@ -288,7 +290,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         parentId: 'sfw-channel-123',
-        id: 'thread-123'
+        id: 'thread-123',
       };
 
       const proxyMessage = {
@@ -296,13 +298,13 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
           bot: true,
           username: 'pk; System[APP]',
           discriminator: '0000',
-          id: 'webhook123'
-        }
+          id: 'webhook123',
+        },
       };
 
       // Mock channelUtils to return false for SFW thread
       channelUtils.isChannelNSFW.mockReturnValue(false);
-      
+
       // Mock webhook tracker to return real user
       webhookUserTracker.findRealUserId.mockReturnValue(mockUserId);
 
@@ -321,7 +323,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
         guild: { id: 'guild-123' },
         isThread: () => true,
         // No parentId or parent reference
-        id: 'broken-thread-123'
+        id: 'broken-thread-123',
       };
 
       // Mock channelUtils to handle broken thread gracefully
@@ -337,7 +339,7 @@ describe('NsfwVerificationManager - Thread and Forum Support', () => {
       const regularChannel = {
         guild: { id: 'guild-123' },
         nsfw: true,
-        id: 'channel-123'
+        id: 'channel-123',
       };
 
       // Mock channelUtils to return true for NSFW channel

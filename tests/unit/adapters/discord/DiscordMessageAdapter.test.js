@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  * @testType adapter
- * 
+ *
  * DiscordMessageAdapter Test
  * - Tests adapter for converting Discord messages to domain messages
  * - Mocks external dependencies (logger)
@@ -41,8 +41,8 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const personalityId = { value: 'test-personality' };
@@ -67,8 +67,8 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const message = DiscordMessageAdapter.toDomainMessage(discordMessage);
@@ -86,20 +86,22 @@ describe('DiscordMessageAdapter', () => {
         createdTimestamp: Date.now(),
         channel: { id: 'channel123' },
         guild: null,
-        embeds: [{
-          title: 'Embed Title',
-          description: 'Embed description',
-          fields: [
-            { name: 'Field 1', value: 'Value 1' },
-            { name: 'Field 2', value: 'Value 2' }
-          ]
-        }],
+        embeds: [
+          {
+            title: 'Embed Title',
+            description: 'Embed description',
+            fields: [
+              { name: 'Field 1', value: 'Value 1' },
+              { name: 'Field 2', value: 'Value 2' },
+            ],
+          },
+        ],
         attachments: { size: 0 },
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const message = DiscordMessageAdapter.toDomainMessage(discordMessage);
@@ -124,8 +126,8 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const message = DiscordMessageAdapter.toDomainMessage(discordMessage);
@@ -143,18 +145,20 @@ describe('DiscordMessageAdapter', () => {
         guild: null,
         embeds: [],
         attachments: { size: 0 },
-        messageSnapshots: [{
-          message: {
-            id: 'forward1',
-            content: 'This is a forwarded message',
-            author: { username: 'OriginalUser' }
-          }
-        }],
+        messageSnapshots: [
+          {
+            message: {
+              id: 'forward1',
+              content: 'This is a forwarded message',
+              author: { username: 'OriginalUser' },
+            },
+          },
+        ],
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const message = DiscordMessageAdapter.toDomainMessage(discordMessage);
@@ -180,22 +184,22 @@ describe('DiscordMessageAdapter', () => {
             message: {
               id: 'forward1',
               content: 'First forwarded message',
-              author: { username: 'User1' }
-            }
+              author: { username: 'User1' },
+            },
           },
           {
             message: {
               id: 'forward2',
               content: 'Second forwarded message',
-              author: { username: 'User2' }
-            }
-          }
+              author: { username: 'User2' },
+            },
+          },
         ],
         mentions: {
           users: { size: 0, values: () => [] },
           roles: { size: 0, values: () => [] },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const message = DiscordMessageAdapter.toDomainMessage(discordMessage);
@@ -211,7 +215,7 @@ describe('DiscordMessageAdapter', () => {
     it('should create ConversationId for guild message', () => {
       const discordMessage = {
         channel: { id: 'channel123' },
-        guild: { id: 'guild123' }
+        guild: { id: 'guild123' },
       };
       const userId = 'user123';
 
@@ -225,7 +229,7 @@ describe('DiscordMessageAdapter', () => {
     it('should create ConversationId for DM', () => {
       const discordMessage = {
         channel: { id: 'dm123' },
-        guild: null
+        guild: null,
       };
       const userId = 'user123';
 
@@ -245,36 +249,39 @@ describe('DiscordMessageAdapter', () => {
         webhookId: 'webhook123',
         attachments: {
           size: 1,
-          forEach: (cb) => cb({
-            id: 'attach1',
-            url: 'https://example.com/image.png',
-            proxyURL: 'https://proxy.example.com/image.png',
-            name: 'image.png',
-            size: 1024,
-            contentType: 'image/png',
-            width: 100,
-            height: 100,
-            ephemeral: false
-          })
+          forEach: cb =>
+            cb({
+              id: 'attach1',
+              url: 'https://example.com/image.png',
+              proxyURL: 'https://proxy.example.com/image.png',
+              name: 'image.png',
+              size: 1024,
+              contentType: 'image/png',
+              width: 100,
+              height: 100,
+              ephemeral: false,
+            }),
         },
         reference: {
           messageId: 'ref123',
           channelId: 'channel123',
-          guildId: 'guild123'
+          guildId: 'guild123',
         },
         stickers: { size: 0 },
         mentions: {
           users: {
             size: 1,
-            values: () => [{
-              id: 'mentioned123',
-              username: 'mentioneduser',
-              tag: 'mentioned#5678'
-            }]
+            values: () => [
+              {
+                id: 'mentioned123',
+                username: 'mentioneduser',
+                tag: 'mentioned#5678',
+              },
+            ],
           },
           roles: { size: 0 },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const metadata = DiscordMessageAdapter.extractMetadata(discordMessage);
@@ -286,30 +293,34 @@ describe('DiscordMessageAdapter', () => {
         authorUsername: 'testuser',
         channelName: 'general',
         guildName: 'Test Guild',
-        attachments: [{
-          id: 'attach1',
-          url: 'https://example.com/image.png',
-          proxyUrl: 'https://proxy.example.com/image.png',
-          filename: 'image.png',
-          size: 1024,
-          contentType: 'image/png',
-          width: 100,
-          height: 100,
-          ephemeral: false
-        }],
+        attachments: [
+          {
+            id: 'attach1',
+            url: 'https://example.com/image.png',
+            proxyUrl: 'https://proxy.example.com/image.png',
+            filename: 'image.png',
+            size: 1024,
+            contentType: 'image/png',
+            width: 100,
+            height: 100,
+            ephemeral: false,
+          },
+        ],
         references: {
           messageId: 'ref123',
           channelId: 'channel123',
-          guildId: 'guild123'
+          guildId: 'guild123',
         },
         isFromWebhook: true,
         mentions: {
-          users: [{
-            id: 'mentioned123',
-            username: 'mentioneduser',
-            tag: 'mentioned#5678'
-          }]
-        }
+          users: [
+            {
+              id: 'mentioned123',
+              username: 'mentioneduser',
+              tag: 'mentioned#5678',
+            },
+          ],
+        },
       });
     });
 
@@ -324,8 +335,8 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           users: { size: 0 },
           roles: { size: 0 },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const metadata = DiscordMessageAdapter.extractMetadata(discordMessage);
@@ -347,25 +358,27 @@ describe('DiscordMessageAdapter', () => {
           messageId: 'ref123',
           channelId: 'channel123',
           guildId: 'guild123',
-          type: 1 // Forwarded message type
+          type: 1, // Forwarded message type
         },
-        messageSnapshots: [{
-          message: {
-            id: 'forward1',
-            channel_id: 'channel456',
-            guild_id: 'guild456',
-            content: 'Forwarded content',
-            author: { id: 'user456', username: 'ForwardedUser' },
-            timestamp: '2024-01-01T00:00:00.000Z',
-            attachments: []
-          }
-        }],
+        messageSnapshots: [
+          {
+            message: {
+              id: 'forward1',
+              channel_id: 'channel456',
+              guild_id: 'guild456',
+              content: 'Forwarded content',
+              author: { id: 'user456', username: 'ForwardedUser' },
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          },
+        ],
         stickers: { size: 0 },
         mentions: {
           users: { size: 0 },
           roles: { size: 0 },
-          everyone: false
-        }
+          everyone: false,
+        },
       };
 
       const metadata = DiscordMessageAdapter.extractMetadata(discordMessage);
@@ -382,7 +395,7 @@ describe('DiscordMessageAdapter', () => {
         authorId: 'user456',
         authorUsername: 'ForwardedUser',
         timestamp: '2024-01-01T00:00:00.000Z',
-        attachments: []
+        attachments: [],
       });
     });
   });
@@ -390,31 +403,31 @@ describe('DiscordMessageAdapter', () => {
   describe('isForwardedMessage', () => {
     it('should detect forwarded messages by reference type', () => {
       const forwardedMessage = {
-        reference: { type: 1 }
+        reference: { type: 1 },
       };
-      
+
       expect(DiscordMessageAdapter.isForwardedMessage(forwardedMessage)).toBe(true);
     });
 
     it('should detect forwarded messages by message snapshots', () => {
       const forwardedMessage = {
-        messageSnapshots: [{ message: { id: '123' } }]
+        messageSnapshots: [{ message: { id: '123' } }],
       };
-      
+
       expect(DiscordMessageAdapter.isForwardedMessage(forwardedMessage)).toBe(true);
     });
 
     it('should return false for regular replies', () => {
       const replyMessage = {
-        reference: { type: 0 }
+        reference: { type: 0 },
       };
-      
+
       expect(DiscordMessageAdapter.isForwardedMessage(replyMessage)).toBe(false);
     });
 
     it('should return false for messages without references', () => {
       const regularMessage = {};
-      
+
       expect(DiscordMessageAdapter.isForwardedMessage(regularMessage)).toBe(false);
     });
   });
@@ -429,17 +442,17 @@ describe('DiscordMessageAdapter', () => {
           everyone: true,
           users: {
             size: 1,
-            keys: () => ['user123']
+            keys: () => ['user123'],
           },
           roles: {
             size: 1,
-            keys: () => ['role123']
-          }
+            keys: () => ['role123'],
+          },
         },
         channel: { type: 0 },
         type: 0,
         pinned: false,
-        system: false
+        system: false,
       };
 
       const context = DiscordMessageAdapter.extractAIContext(discordMessage);
@@ -456,7 +469,7 @@ describe('DiscordMessageAdapter', () => {
         messageType: 0,
         isPinned: false,
         isSystemMessage: false,
-        forwardedMessageCount: 0
+        forwardedMessageCount: 0,
       });
     });
 
@@ -468,12 +481,12 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           everyone: false,
           users: { keys: () => [] },
-          roles: { keys: () => [] }
+          roles: { keys: () => [] },
         },
         channel: { type: 1 },
         type: 0,
         pinned: false,
-        system: false
+        system: false,
       };
 
       const context = DiscordMessageAdapter.extractAIContext(discordMessage);
@@ -488,19 +501,16 @@ describe('DiscordMessageAdapter', () => {
         guild: { id: 'guild123' },
         reference: { messageId: 'ref123', type: 1 }, // type 1 = forwarded
         attachments: { size: 0 },
-        messageSnapshots: [
-          { message: { id: 'forward1' } },
-          { message: { id: 'forward2' } }
-        ],
+        messageSnapshots: [{ message: { id: 'forward1' } }, { message: { id: 'forward2' } }],
         mentions: {
           everyone: false,
           users: { keys: () => [] },
-          roles: { keys: () => [] }
+          roles: { keys: () => [] },
         },
         channel: { type: 0 },
         type: 0,
         pinned: false,
-        system: false
+        system: false,
       };
 
       const context = DiscordMessageAdapter.extractAIContext(forwardedMessage);
@@ -518,12 +528,12 @@ describe('DiscordMessageAdapter', () => {
         mentions: {
           everyone: false,
           users: { keys: () => [] },
-          roles: { keys: () => [] }
+          roles: { keys: () => [] },
         },
         channel: { type: 0 },
         type: 0,
         pinned: false,
-        system: false
+        system: false,
       };
 
       const context = DiscordMessageAdapter.extractAIContext(replyMessage);
@@ -540,7 +550,7 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: true },
         system: false,
         content: 'Bot message',
-        attachments: { size: 0 }
+        attachments: { size: 0 },
       };
 
       expect(DiscordMessageAdapter.shouldProcess(discordMessage)).toBe(false);
@@ -551,10 +561,12 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: true },
         system: false,
         content: 'Webhook message',
-        attachments: { size: 0 }
+        attachments: { size: 0 },
       };
 
-      expect(DiscordMessageAdapter.shouldProcess(discordMessage, { allowWebhooks: true })).toBe(true);
+      expect(DiscordMessageAdapter.shouldProcess(discordMessage, { allowWebhooks: true })).toBe(
+        true
+      );
     });
 
     it('should skip system messages', () => {
@@ -562,7 +574,7 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: false },
         system: true,
         content: 'System message',
-        attachments: { size: 0 }
+        attachments: { size: 0 },
       };
 
       expect(DiscordMessageAdapter.shouldProcess(discordMessage)).toBe(false);
@@ -573,7 +585,7 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: false },
         system: false,
         content: '',
-        attachments: { size: 0 }
+        attachments: { size: 0 },
       };
 
       expect(DiscordMessageAdapter.shouldProcess(discordMessage)).toBe(false);
@@ -584,7 +596,7 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: false },
         system: false,
         content: '',
-        attachments: { size: 1 }
+        attachments: { size: 1 },
       };
 
       expect(DiscordMessageAdapter.shouldProcess(discordMessage)).toBe(true);
@@ -595,14 +607,13 @@ describe('DiscordMessageAdapter', () => {
         author: { bot: false },
         system: false,
         content: 'Test message',
-        attachments: { size: 0 }
+        attachments: { size: 0 },
       };
 
       const filter = jest.fn().mockReturnValue(false);
-      
+
       expect(DiscordMessageAdapter.shouldProcess(discordMessage, { filter })).toBe(false);
       expect(filter).toHaveBeenCalledWith(discordMessage);
     });
   });
-
 });

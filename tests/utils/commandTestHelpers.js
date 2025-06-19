@@ -1,12 +1,12 @@
 /**
  * Command Test Helpers
  * Utilities for testing command handlers
- * 
+ *
  * UPDATED: Cleaned up implementation while maintaining backward compatibility
  * This version is more maintainable and follows DRY principles without depending
  * on the consolidated mock system at runtime (which requires Jest globals)
  */
- 
+
 /**
  * Creates a mock Discord message object for testing
  * @param {Object} options - Options for the mock message
@@ -24,21 +24,21 @@ function createMockMessage(options = {}) {
     canManageMessages: false,
     isNSFW: false,
     guildId: 'guild-123',
-    replyContent: null
+    replyContent: null,
   };
-  
+
   // Merge provided options with defaults
   const config = { ...defaults, ...options };
-  
+
   // Create mock author
   const mockAuthor = {
     id: config.authorId,
     tag: config.authorTag,
     username: config.authorTag.split('#')[0],
     discriminator: config.authorTag.split('#')[1],
-    send: jest.fn().mockResolvedValue({ id: 'dm-message-123' })
+    send: jest.fn().mockResolvedValue({ id: 'dm-message-123' }),
   };
-  
+
   // Create mock channel with improved structure
   const mockChannel = {
     id: config.channelId,
@@ -49,18 +49,18 @@ function createMockMessage(options = {}) {
     send: jest.fn().mockImplementation(content => {
       return Promise.resolve({
         id: 'sent-message-123',
-        content: typeof content === 'string' ? content : JSON.stringify(content)
+        content: typeof content === 'string' ? content : JSON.stringify(content),
       });
     }),
     sendTyping: jest.fn().mockResolvedValue(undefined),
     messages: {
       fetch: jest.fn().mockResolvedValue({
         id: 'fetched-message-123',
-        content: 'Fetched message content'
-      })
-    }
+        content: 'Fetched message content',
+      }),
+    },
   };
-  
+
   // Create permissions with specified permissions
   const mockPermissions = {
     has: jest.fn().mockImplementation(permission => {
@@ -68,28 +68,32 @@ function createMockMessage(options = {}) {
       if (permission === 'MANAGE_MESSAGES') return config.canManageMessages;
       if (permission === 'ViewChannel') return true;
       return false;
-    })
+    }),
   };
-  
+
   // Create mock guild (only for non-DM channels)
-  const mockGuild = config.isDM ? null : {
-    id: config.guildId,
-    channels: {
-      cache: new Map([[config.channelId, mockChannel]]),
-      fetch: jest.fn().mockResolvedValue(mockChannel)
-    }
-  };
-  
+  const mockGuild = config.isDM
+    ? null
+    : {
+        id: config.guildId,
+        channels: {
+          cache: new Map([[config.channelId, mockChannel]]),
+          fetch: jest.fn().mockResolvedValue(mockChannel),
+        },
+      };
+
   // Create mock member with permissions (only for guild channels)
-  const mockMember = config.isDM ? null : {
-    permissions: mockPermissions,
-    id: config.authorId,
-    guild: mockGuild
-  };
-  
+  const mockMember = config.isDM
+    ? null
+    : {
+        permissions: mockPermissions,
+        id: config.authorId,
+        guild: mockGuild,
+      };
+
   // Set up channel permissions method
   mockChannel.permissionsFor = jest.fn().mockReturnValue(mockPermissions);
-  
+
   // Create mock message
   const mockMessage = {
     id: config.id,
@@ -104,17 +108,17 @@ function createMockMessage(options = {}) {
       if (config.replyContent) {
         return Promise.resolve({
           id: 'reply-123',
-          content: config.replyContent
+          content: config.replyContent,
         });
       }
       return Promise.resolve({
         id: 'reply-123',
-        content: typeof content === 'string' ? content : JSON.stringify(content)
+        content: typeof content === 'string' ? content : JSON.stringify(content),
       });
     }),
-    delete: jest.fn().mockResolvedValue(true)
+    delete: jest.fn().mockResolvedValue(true),
   };
-  
+
   return mockMessage;
 }
 
@@ -127,7 +131,7 @@ function createDirectSend(mockMessage) {
   return jest.fn().mockImplementation(content => {
     return Promise.resolve({
       id: 'direct-sent-123',
-      content: typeof content === 'string' ? content : JSON.stringify(content)
+      content: typeof content === 'string' ? content : JSON.stringify(content),
     });
   });
 }
@@ -141,11 +145,11 @@ function mockValidator(options = {}) {
   const defaults = {
     isAdmin: false,
     canManageMessages: false,
-    isNsfwChannel: false
+    isNsfwChannel: false,
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   return {
     isAdmin: jest.fn().mockReturnValue(config.isAdmin),
     canManageMessages: jest.fn().mockReturnValue(config.canManageMessages),
@@ -153,7 +157,7 @@ function mockValidator(options = {}) {
     createDirectSend: jest.fn().mockImplementation(mockMessage => {
       return createDirectSend(mockMessage);
     }),
-    getPermissionErrorMessage: jest.fn().mockReturnValue('Permission error message')
+    getPermissionErrorMessage: jest.fn().mockReturnValue('Permission error message'),
   };
 }
 
@@ -169,22 +173,22 @@ function verifySuccessResponse(mockDirectSend, options = {}) {
   const defaults = {
     isEmbed: false,
     title: null,
-    contains: null
+    contains: null,
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   // Basic verification that directSend was called
   expect(mockDirectSend).toHaveBeenCalled();
-  
+
   // Get call arguments
   const callArgs = mockDirectSend.mock.calls[0][0];
-  
+
   // Check if this is an embed or text response
   if (config.isEmbed) {
     expect(callArgs).toHaveProperty('embeds');
     expect(callArgs.embeds[0]).toBeDefined();
-    
+
     if (config.title) {
       const embed = callArgs.embeds[0];
       if (typeof embed.toJSON === 'function') {
@@ -208,17 +212,17 @@ function verifySuccessResponse(mockDirectSend, options = {}) {
  */
 function verifyErrorResponse(mockDirectSend, options = {}) {
   const defaults = {
-    contains: 'error'
+    contains: 'error',
   };
-  
+
   const config = { ...defaults, ...options };
-  
+
   // Basic verification that directSend was called
   expect(mockDirectSend).toHaveBeenCalled();
-  
+
   // Get call arguments
   const callArgs = mockDirectSend.mock.calls[0][0];
-  
+
   // Check if the error message contains expected text
   if (typeof callArgs === 'string') {
     expect(callArgs.toLowerCase()).toContain(config.contains.toLowerCase());
@@ -233,5 +237,5 @@ module.exports = {
   createDirectSend,
   mockValidator,
   verifySuccessResponse,
-  verifyErrorResponse
+  verifyErrorResponse,
 };

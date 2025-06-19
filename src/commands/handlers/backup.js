@@ -75,7 +75,6 @@ async function loadBackupMetadata(personalityName) {
     const data = await fs.readFile(metadataPath, 'utf8');
     return JSON.parse(data);
   } catch (_error) {
-     
     // No existing metadata
     return {
       lastBackup: null,
@@ -126,7 +125,6 @@ async function loadMemories(personalityName) {
     const data = await fs.readFile(memoryPath, 'utf8');
     return JSON.parse(data);
   } catch (_error) {
-     
     // No existing memories
     return [];
   }
@@ -157,7 +155,6 @@ async function loadKnowledge(personalityName) {
     const data = await fs.readFile(knowledgePath, 'utf8');
     return JSON.parse(data);
   } catch (_error) {
-     
     // No existing knowledge
     return [];
   }
@@ -188,7 +185,6 @@ async function loadTraining(personalityName) {
     const data = await fs.readFile(trainingPath, 'utf8');
     return JSON.parse(data);
   } catch (_error) {
-     
     // No existing training
     return [];
   }
@@ -219,7 +215,6 @@ async function loadUserPersonalization(personalityName) {
     const data = await fs.readFile(userPersonalizationPath, 'utf8');
     return JSON.parse(data);
   } catch (_error) {
-     
     // No existing user personalization
     return {};
   }
@@ -254,7 +249,6 @@ async function loadChatHistory(personalityName) {
     const chatData = JSON.parse(data);
     return chatData.messages || [];
   } catch (_error) {
-     
     return [];
   }
 }
@@ -973,7 +967,6 @@ async function handleSetCookie(message, args, directSend) {
     try {
       await message.delete();
     } catch (_error) {
-       
       // Ignore delete errors
     }
     return await directSend(

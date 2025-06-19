@@ -1,4 +1,8 @@
-const { calculateSimilarity, areContentsSimilar, getProxyDelayTime } = require('../../../src/utils/contentSimilarity');
+const {
+  calculateSimilarity,
+  areContentsSimilar,
+  getProxyDelayTime,
+} = require('../../../src/utils/contentSimilarity');
 const logger = require('../../../src/logger');
 
 // Mock the logger
@@ -38,7 +42,7 @@ describe('contentSimilarity', () => {
       // Short strings (< 5 chars) use inclusion logic, return 0.9
       expect(calculateSimilarity('TEST', 'test')).toBe(0.9);
       expect(calculateSimilarity('Hi', 'hi')).toBe(0.9);
-      
+
       // Longer strings use Levenshtein distance
       expect(calculateSimilarity('HELLO', 'hello')).toBe(1);
       expect(calculateSimilarity('Hello World', 'hello world')).toBe(1);
@@ -143,7 +147,7 @@ describe('contentSimilarity', () => {
       // Very similar strings (>0.8 similarity)
       expect(areContentsSimilar('hello world', 'hello world!')).toBe(true);
       expect(areContentsSimilar('test message', 'test messages')).toBe(true);
-      
+
       // Less similar strings (<0.8 similarity)
       expect(areContentsSimilar('hello world', 'goodbye world')).toBe(false);
       expect(areContentsSimilar('completely', 'different')).toBe(false);
@@ -152,13 +156,13 @@ describe('contentSimilarity', () => {
     it('should respect custom threshold', () => {
       const content1 = 'hello world';
       const content2 = 'hello worlds';
-      
+
       // With high threshold
       expect(areContentsSimilar(content1, content2, 0.95)).toBe(false);
-      
+
       // With low threshold
       expect(areContentsSimilar(content1, content2, 0.5)).toBe(true);
-      
+
       // With threshold of 1 (exact match only)
       expect(areContentsSimilar('exact', 'exact', 1)).toBe(true);
       expect(areContentsSimilar('exact', 'exac', 1)).toBe(false);
@@ -166,13 +170,11 @@ describe('contentSimilarity', () => {
 
     it('should log debug information', () => {
       areContentsSimilar('test', 'test', 0.8);
-      
+
       expect(logger.debug).toHaveBeenCalledWith(
         expect.stringContaining('[ContentSimilarity] Similarity score:')
       );
-      expect(logger.debug).toHaveBeenCalledWith(
-        expect.stringContaining('threshold: 0.8')
-      );
+      expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('threshold: 0.8'));
     });
 
     it('should handle edge cases', () => {
@@ -184,34 +186,19 @@ describe('contentSimilarity', () => {
 
     it('should work with typical proxy message variations', () => {
       // Common proxy message patterns
-      expect(areContentsSimilar(
-        'Hello from the bot!',
-        'Hello from the bot!'
-      )).toBe(true);
+      expect(areContentsSimilar('Hello from the bot!', 'Hello from the bot!')).toBe(true);
 
       // Slight variations that should still match
-      expect(areContentsSimilar(
-        'This is a test message',
-        'This is a test message.'
-      )).toBe(true);
+      expect(areContentsSimilar('This is a test message', 'This is a test message.')).toBe(true);
 
       // Case differences
-      expect(areContentsSimilar(
-        'Important Message',
-        'important message'
-      )).toBe(true);
+      expect(areContentsSimilar('Important Message', 'important message')).toBe(true);
     });
 
     it('should differentiate between actually different messages', () => {
-      expect(areContentsSimilar(
-        'Hello, how are you?',
-        'Goodbye, see you later!'
-      )).toBe(false);
+      expect(areContentsSimilar('Hello, how are you?', 'Goodbye, see you later!')).toBe(false);
 
-      expect(areContentsSimilar(
-        'First message',
-        'Second message'
-      )).toBe(false);
+      expect(areContentsSimilar('First message', 'Second message')).toBe(false);
     });
   });
 
@@ -226,7 +213,7 @@ describe('contentSimilarity', () => {
       const delay1 = getProxyDelayTime();
       const delay2 = getProxyDelayTime();
       const delay3 = getProxyDelayTime();
-      
+
       expect(delay1).toBe(delay2);
       expect(delay2).toBe(delay3);
     });

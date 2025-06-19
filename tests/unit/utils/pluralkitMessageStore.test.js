@@ -8,21 +8,21 @@ describe('PluralKitMessageStore', () => {
     jest.clearAllMocks();
     jest.clearAllTimers();
     jest.useFakeTimers();
-    
+
     // Mock logger
     mockLogger = {
       info: jest.fn(),
       debug: jest.fn(),
       error: jest.fn(),
-      warn: jest.fn()
+      warn: jest.fn(),
     };
-    
+
     // Mock the logger module
     jest.doMock('../../../src/logger', () => mockLogger);
-    
+
     // Reset modules to get a fresh instance
     jest.resetModules();
-    
+
     // Re-require the store to get a fresh instance
     const PluralKitMessageStore = require('../../../src/utils/pluralkitMessageStore');
     store = new PluralKitMessageStore();
@@ -49,7 +49,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store(messageId, messageData);
@@ -64,7 +64,7 @@ describe('PluralKitMessageStore', () => {
       const messageData = {
         userId: 'user-456',
         channelId: 'channel-789',
-        content: 'Test message'
+        content: 'Test message',
         // Missing guildId and username
       };
 
@@ -82,12 +82,12 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       // Store the message first
       store.store(messageId, messageData);
-      
+
       // Get initial sizes
       const initialSizes = store.size();
       const initialPending = initialSizes.pending;
@@ -107,7 +107,7 @@ describe('PluralKitMessageStore', () => {
 
     it('should handle non-existent message gracefully', () => {
       store.markAsDeleted('non-existent-id');
-      
+
       // Should not throw and should not log
       expect(mockLogger.debug).not.toHaveBeenCalled();
     });
@@ -119,14 +119,14 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store(messageId, messageData);
-      
+
       // Advance time
       dateNowSpy.mockReturnValue(1005000);
-      
+
       store.markAsDeleted(messageId);
 
       // Find the deleted message
@@ -143,7 +143,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       // Store and mark as deleted
@@ -152,7 +152,7 @@ describe('PluralKitMessageStore', () => {
 
       // Find it
       const found = store.findDeletedMessage('Test message', 'channel-789');
-      
+
       expect(found).toBeTruthy();
       expect(found.userId).toBe('user-456');
       expect(found.username).toBe('TestUser');
@@ -167,7 +167,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store('msg-123', messageData);
@@ -183,7 +183,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store('msg-123', messageData);
@@ -199,11 +199,11 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store('msg-123', messageData);
-      
+
       // Set initial time
       dateNowSpy.mockReturnValue(1000000);
       store.markAsDeleted('msg-123');
@@ -221,7 +221,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store('msg-123', messageData);
@@ -244,7 +244,7 @@ describe('PluralKitMessageStore', () => {
         channelId: 'channel-789',
         content: 'Test message',
         guildId: 'guild-123',
-        username: 'TestUser'
+        username: 'TestUser',
       };
 
       store.store('msg-123', messageData);
@@ -252,7 +252,7 @@ describe('PluralKitMessageStore', () => {
 
       // Use legacy method
       const found = store.findByContent('Test message', 'channel-789');
-      
+
       expect(found).toBeTruthy();
       expect(found.userId).toBe('user-456');
     });
@@ -264,11 +264,11 @@ describe('PluralKitMessageStore', () => {
       const messageData = {
         userId: 'user-456',
         channelId: 'channel-789',
-        content: 'Test message'
+        content: 'Test message',
       };
 
       store.store(messageId, messageData);
-      
+
       const beforeSizes = store.size();
       store.remove(messageId);
       const afterSizes = store.size();
@@ -292,7 +292,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: 'Message 1'
+        content: 'Message 1',
       });
 
       // Store second message at time 1003000
@@ -300,7 +300,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-2', {
         userId: 'user-2',
         channelId: 'channel-2',
-        content: 'Message 2'
+        content: 'Message 2',
       });
 
       // Advance time past expiration for first message only
@@ -321,7 +321,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: 'Message 1'
+        content: 'Message 1',
       });
       store.markAsDeleted('msg-1');
 
@@ -348,7 +348,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: 'Message 1'
+        content: 'Message 1',
       });
 
       // Verify message exists
@@ -360,7 +360,7 @@ describe('PluralKitMessageStore', () => {
 
       // Manually trigger cleanup (in production this would be done by interval)
       store.cleanup();
-      
+
       // Check that cleanup removed the expired message
       sizes = store.size();
       expect(sizes.pending).toBe(0);
@@ -376,7 +376,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: 'Message 1'
+        content: 'Message 1',
       });
 
       const afterStoreSizes = store.size();
@@ -398,7 +398,7 @@ describe('PluralKitMessageStore', () => {
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: 'Message 1'
+        content: 'Message 1',
       });
       store.markAsDeleted('msg-1');
 
@@ -418,18 +418,18 @@ describe('PluralKitMessageStore', () => {
   describe('edge cases', () => {
     it('should handle multiple messages with same content in different channels', () => {
       const content = 'Same message';
-      
+
       // Store messages with same content in different channels
       store.store('msg-1', {
         userId: 'user-1',
         channelId: 'channel-1',
-        content: content
+        content: content,
       });
-      
+
       store.store('msg-2', {
         userId: 'user-2',
         channelId: 'channel-2',
-        content: content
+        content: content,
       });
 
       // Mark both as deleted
@@ -451,7 +451,7 @@ describe('PluralKitMessageStore', () => {
       const messageData = {
         userId: 'user-rapid',
         channelId: 'channel-rapid',
-        content: 'Rapid message'
+        content: 'Rapid message',
       };
 
       // Store and immediately delete

@@ -6,7 +6,7 @@ jest.mock('../../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
 }));
 
 describe('channelUtils', () => {
@@ -36,7 +36,7 @@ describe('channelUtils', () => {
         id: 'thread123',
         nsfw: false,
         isThread: () => true,
-        parent: parentChannel
+        parent: parentChannel,
       };
 
       expect(isChannelNSFW(threadChannel)).toBe(true);
@@ -51,7 +51,7 @@ describe('channelUtils', () => {
         id: 'thread123',
         nsfw: false,
         isThread: () => true,
-        parentChannel: parentChannel
+        parentChannel: parentChannel,
       };
 
       expect(isChannelNSFW(threadChannel)).toBe(true);
@@ -63,7 +63,7 @@ describe('channelUtils', () => {
         id: 'thread123',
         nsfw: false,
         isThread: () => true,
-        parentTextChannel: parentChannel
+        parentTextChannel: parentChannel,
       };
 
       expect(isChannelNSFW(threadChannel)).toBe(true);
@@ -75,7 +75,7 @@ describe('channelUtils', () => {
         id: 'thread123',
         nsfw: false,
         isThread: () => true,
-        parent: parentChannel
+        parent: parentChannel,
       };
 
       expect(isChannelNSFW(threadChannel)).toBe(false);
@@ -88,7 +88,7 @@ describe('channelUtils', () => {
         isThread: () => true,
         get parent() {
           throw new Error('Parent access error');
-        }
+        },
       };
 
       expect(isChannelNSFW(threadChannel)).toBe(false);
@@ -102,16 +102,16 @@ describe('channelUtils', () => {
       const mockGuild = {
         channels: {
           cache: {
-            get: jest.fn().mockReturnValue(mockParent)
-          }
-        }
+            get: jest.fn().mockReturnValue(mockParent),
+          },
+        },
       };
 
       const forumThread = {
         id: 'forum123',
         nsfw: false,
         parentId: 'parent456',
-        guild: mockGuild
+        guild: mockGuild,
       };
 
       expect(isChannelNSFW(forumThread)).toBe(true);
@@ -125,16 +125,16 @@ describe('channelUtils', () => {
       const mockGuild = {
         channels: {
           cache: {
-            get: jest.fn().mockReturnValue(null)
-          }
-        }
+            get: jest.fn().mockReturnValue(null),
+          },
+        },
       };
 
       const forumThread = {
         id: 'forum123',
         nsfw: false,
         parentId: 'parent456',
-        guild: mockGuild
+        guild: mockGuild,
       };
 
       expect(isChannelNSFW(forumThread)).toBe(false);
@@ -147,7 +147,7 @@ describe('channelUtils', () => {
         parentId: 'parent456',
         get guild() {
           throw new Error('Guild access error');
-        }
+        },
       };
 
       expect(isChannelNSFW(forumThread)).toBe(false);
@@ -171,7 +171,7 @@ describe('channelUtils', () => {
         id: 'channel123',
         nsfw: false,
         isThread: () => false,
-        parent: { nsfw: true }
+        parent: { nsfw: true },
       };
 
       expect(isChannelNSFW(channel)).toBe(false);
@@ -182,7 +182,7 @@ describe('channelUtils', () => {
         id: 'forum123',
         nsfw: false,
         parentId: 'parent456',
-        guild: null
+        guild: null,
       };
 
       expect(isChannelNSFW(forumThread)).toBe(false);

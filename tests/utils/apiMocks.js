@@ -13,18 +13,18 @@ class MockAIClient {
       shouldError: false,
       errorRate: 0.1, // 10% chance of error by default
       responseDelay: 50, // Simulate network delay (milliseconds)
-      ...options
+      ...options,
     };
-    
+
     this.problemProfiles = new Set([
       'problematic-personality',
       'error-prone-personality',
-      'rate-limited-personality'
+      'rate-limited-personality',
     ]);
-    
+
     this.requestHistory = [];
   }
-  
+
   /**
    * Mock function to create a chat completion
    * @param {Object} params - Chat completion parameters
@@ -35,25 +35,25 @@ class MockAIClient {
     this.requestHistory.push({
       timestamp: Date.now(),
       params,
-      type: 'chat'
+      type: 'chat',
     });
-    
+
     // Simulate network delay
     if (this.options.responseDelay > 0) {
       await new Promise(resolve => setTimeout(resolve, this.options.responseDelay));
     }
-    
+
     // Check if we should return an error
-    if (this.options.shouldError || (Math.random() < this.options.errorRate)) {
+    if (this.options.shouldError || Math.random() < this.options.errorRate) {
       throw this._createRandomError();
     }
-    
+
     // If the personality is in the problem list, return an error sometimes
     const personality = this._extractPersonalityFromParams(params);
     if (this.problemProfiles.has(personality) && Math.random() < 0.7) {
       throw this._createErrorForPersonality(personality);
     }
-    
+
     // Return a successful response
     return {
       id: `chatcmpl-${Date.now()}`,
@@ -65,19 +65,21 @@ class MockAIClient {
           index: 0,
           message: {
             role: 'assistant',
-            content: this._generateResponseContent(params)
+            content: this._generateResponseContent(params),
           },
-          finish_reason: 'stop'
-        }
+          finish_reason: 'stop',
+        },
       ],
       usage: {
-        prompt_tokens: params.messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) / 4,
+        prompt_tokens:
+          params.messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) / 4,
         completion_tokens: 200,
-        total_tokens: params.messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) / 4 + 200
-      }
+        total_tokens:
+          params.messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0) / 4 + 200,
+      },
     };
   }
-  
+
   /**
    * Mock function to create a completion
    * @param {Object} params - Completion parameters
@@ -88,19 +90,19 @@ class MockAIClient {
     this.requestHistory.push({
       timestamp: Date.now(),
       params,
-      type: 'completion'
+      type: 'completion',
     });
-    
+
     // Simulate network delay
     if (this.options.responseDelay > 0) {
       await new Promise(resolve => setTimeout(resolve, this.options.responseDelay));
     }
-    
+
     // Check if we should return an error
-    if (this.options.shouldError || (Math.random() < this.options.errorRate)) {
+    if (this.options.shouldError || Math.random() < this.options.errorRate) {
       throw this._createRandomError();
     }
-    
+
     // Return a successful response
     return {
       id: `cmpl-${Date.now()}`,
@@ -112,24 +114,24 @@ class MockAIClient {
           text: this._generateResponseContent(params),
           index: 0,
           logprobs: null,
-          finish_reason: 'stop'
-        }
+          finish_reason: 'stop',
+        },
       ],
       usage: {
         prompt_tokens: (params.prompt?.length || 0) / 4,
         completion_tokens: 200,
-        total_tokens: (params.prompt?.length || 0) / 4 + 200
-      }
+        total_tokens: (params.prompt?.length || 0) / 4 + 200,
+      },
     };
   }
-  
+
   /**
    * Clear request history
    */
   clearHistory() {
     this.requestHistory = [];
   }
-  
+
   /**
    * Set whether requests should error
    * @param {boolean} shouldError - Whether requests should error
@@ -137,7 +139,7 @@ class MockAIClient {
   setShouldError(shouldError) {
     this.options.shouldError = shouldError;
   }
-  
+
   /**
    * Add a problematic personality
    * @param {string} personalityName - Name of the problematic personality
@@ -145,7 +147,7 @@ class MockAIClient {
   addProblematicPersonality(personalityName) {
     this.problemProfiles.add(personalityName);
   }
-  
+
   /**
    * Extract personality name from params
    * @param {Object} params - Request parameters
@@ -164,7 +166,7 @@ class MockAIClient {
         }
       }
     }
-    
+
     // Try to extract from prompt
     if (params.prompt) {
       const match = params.prompt.match(/personality:\s*([a-zA-Z0-9-]+)/i);
@@ -172,10 +174,10 @@ class MockAIClient {
         return match[1].toLowerCase();
       }
     }
-    
+
     return null;
   }
-  
+
   /**
    * Generate a mock response
    * @param {Object} params - Request parameters
@@ -185,14 +187,14 @@ class MockAIClient {
   _generateResponseContent(params) {
     // Extract personality from params
     const personality = this._extractPersonalityFromParams(params);
-    
+
     if (personality) {
       return `This is a mock response from the AI for personality: ${personality}. I am responding to your message about ${this._extractTopic(params)}.`;
     }
-    
+
     return `This is a mock response from the AI. I am responding to your message about ${this._extractTopic(params)}.`;
   }
-  
+
   /**
    * Extract topic from params
    * @param {Object} params - Request parameters
@@ -210,16 +212,16 @@ class MockAIClient {
         }
       }
     }
-    
+
     if (params.prompt) {
       // Extract first 3 words
       const words = params.prompt.split(' ').slice(0, 3).join(' ');
       return words || 'unknown topic';
     }
-    
+
     return 'unknown topic';
   }
-  
+
   /**
    * Create a random error
    * @returns {Error} Random error
@@ -232,18 +234,18 @@ class MockAIClient {
       { message: 'Internal server error', code: 500 },
       { message: 'Bad gateway', code: 502 },
       { message: 'Gateway timeout', code: 504 },
-      { message: 'Service unavailable', code: 503 }
+      { message: 'Service unavailable', code: 503 },
     ];
-    
+
     const randomError = errors[Math.floor(Math.random() * errors.length)];
     const error = new Error(randomError.message);
     error.status = randomError.code;
     error.statusCode = randomError.code;
     error.code = randomError.code;
-    
+
     return error;
   }
-  
+
   /**
    * Create an error for a specific personality
    * @param {string} personality - Personality name
@@ -252,7 +254,7 @@ class MockAIClient {
    */
   _createErrorForPersonality(personality) {
     const error = new Error(`Error processing request for personality: ${personality}`);
-    
+
     if (personality === 'rate-limited-personality') {
       error.status = 429;
       error.statusCode = 429;
@@ -269,7 +271,7 @@ class MockAIClient {
       error.code = 400;
       error.message = 'Bad request: This personality is problematic';
     }
-    
+
     return error;
   }
 }
@@ -284,56 +286,50 @@ function createMockFetch(options = {}) {
     responses: new Map(),
     statusCodes: new Map(),
     shouldThrow: new Map(),
-    defaultResponse: { success: true, message: 'Mock response' }
+    defaultResponse: { success: true, message: 'Mock response' },
   };
-  
+
   const settings = { ...defaults, ...options };
-  
+
   return jest.fn().mockImplementation(async (url, requestOptions = {}) => {
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     // Check if this URL should throw an error
     if (settings.shouldThrow.has(url)) {
       throw new Error(`Network error for URL: ${url}`);
     }
-    
+
     // Get the status code for this URL
     const status = settings.statusCodes.get(url) || 200;
-    
+
     // Get the response for this URL
     let responseData;
     if (settings.responses.has(url)) {
       responseData = settings.responses.get(url);
     } else {
       // Try to match by URL pattern (start with)
-      const matchingUrl = Array.from(settings.responses.keys())
-        .find(key => url.startsWith(key));
-      
+      const matchingUrl = Array.from(settings.responses.keys()).find(key => url.startsWith(key));
+
       if (matchingUrl) {
         responseData = settings.responses.get(matchingUrl);
       } else {
         responseData = settings.defaultResponse;
       }
     }
-    
+
     // Create a mock Response object
     return {
       ok: status >= 200 && status < 300,
       status,
       json: async () => responseData,
-      text: async () => typeof responseData === 'string' 
-        ? responseData 
-        : JSON.stringify(responseData),
-      blob: async () => new Blob([typeof responseData === 'string' 
-        ? responseData 
-        : JSON.stringify(responseData)]),
-      buffer: async () => Buffer.from(typeof responseData === 'string' 
-        ? responseData 
-        : JSON.stringify(responseData)),
-      headers: new Map([
-        ['content-type', 'application/json']
-      ])
+      text: async () =>
+        typeof responseData === 'string' ? responseData : JSON.stringify(responseData),
+      blob: async () =>
+        new Blob([typeof responseData === 'string' ? responseData : JSON.stringify(responseData)]),
+      buffer: async () =>
+        Buffer.from(typeof responseData === 'string' ? responseData : JSON.stringify(responseData)),
+      headers: new Map([['content-type', 'application/json']]),
     };
   });
 }
@@ -366,14 +362,14 @@ function setMockThrow(mockFetch, url, shouldThrow = true) {
  */
 function createMockOpenAI() {
   const mockAIClient = new MockAIClient();
-  
+
   return {
     OpenAIApi: jest.fn().mockImplementation(() => mockAIClient),
     Configuration: jest.fn().mockImplementation(() => ({
       apiKey: 'mock-api-key',
-      organization: 'mock-org'
+      organization: 'mock-org',
     })),
-    _mockClient: mockAIClient
+    _mockClient: mockAIClient,
   };
 }
 
@@ -382,5 +378,5 @@ module.exports = {
   createMockFetch,
   setMockResponse,
   setMockThrow,
-  createMockOpenAI
+  createMockOpenAI,
 };

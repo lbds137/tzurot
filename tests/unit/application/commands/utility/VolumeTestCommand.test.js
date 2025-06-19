@@ -2,7 +2,9 @@
  * Tests for VolumeTestCommand
  */
 
-const { createVolumeTestCommand } = require('../../../../../src/application/commands/utility/VolumeTestCommand');
+const {
+  createVolumeTestCommand,
+} = require('../../../../../src/application/commands/utility/VolumeTestCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
 
@@ -18,7 +20,7 @@ describe('VolumeTestCommand', () => {
   beforeEach(() => {
     // Clear mocks
     jest.clearAllMocks();
-    
+
     migrationHelper = createMigrationHelper();
     // Mock file system
     mockFs = {
@@ -34,7 +36,7 @@ describe('VolumeTestCommand', () => {
     // Mock path module
     mockPath = {
       join: jest.fn((...parts) => parts.join('/')),
-      resolve: jest.fn((p) => `/absolute/${p}`),
+      resolve: jest.fn(p => `/absolute/${p}`),
     };
 
     // Mock process
@@ -45,7 +47,6 @@ describe('VolumeTestCommand', () => {
       },
       cwd: jest.fn().mockReturnValue('/home/test'),
     };
-
   });
 
   afterEach(() => {
@@ -305,9 +306,13 @@ describe('VolumeTestCommand', () => {
 
       await command.execute(context);
 
-      expect(context.respond).toHaveBeenCalledWith(expect.stringContaining('**📁 Persistent Volume Test**'));
+      expect(context.respond).toHaveBeenCalledWith(
+        expect.stringContaining('**📁 Persistent Volume Test**')
+      );
       expect(context.respond).toHaveBeenCalledWith(expect.stringContaining('Environment: Local'));
-      expect(context.respond).toHaveBeenCalledWith(expect.stringContaining('Directory Status: ✅ Exists'));
+      expect(context.respond).toHaveBeenCalledWith(
+        expect.stringContaining('Directory Status: ✅ Exists')
+      );
     });
 
     it('should handle many files gracefully', async () => {

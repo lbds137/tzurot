@@ -5,12 +5,12 @@
 /**
  * Sets up fake timers for tests that involve timeouts or delays
  * This prevents tests from actually waiting for real time to pass
- * 
+ *
  * @example
  * beforeEach(() => {
  *   setupFakeTimers();
  * });
- * 
+ *
  * afterEach(() => {
  *   cleanupFakeTimers();
  * });
@@ -36,15 +36,18 @@ function cleanupFakeTimers() {
 function mockTimeoutFetch(mockFetch, delay = 60000) {
   let rejectFn;
   let timeoutId;
-  
+
   const abortError = new Error('The operation was aborted');
   abortError.name = 'AbortError';
-  
-  mockFetch.mockImplementationOnce(() => new Promise((resolve, reject) => {
-    rejectFn = reject;
-    timeoutId = setTimeout(() => reject(abortError), delay);
-  }));
-  
+
+  mockFetch.mockImplementationOnce(
+    () =>
+      new Promise((resolve, reject) => {
+        rejectFn = reject;
+        timeoutId = setTimeout(() => reject(abortError), delay);
+      })
+  );
+
   return {
     abort: () => {
       if (rejectFn) {
@@ -54,39 +57,42 @@ function mockTimeoutFetch(mockFetch, delay = 60000) {
     },
     advanceToTimeout: () => {
       jest.advanceTimersByTime(delay);
-    }
+    },
   };
 }
 
 /**
  * Mocks a slow operation that would eventually succeed
  * Useful for testing timeout behavior without waiting
- * 
+ *
  * @param {Function} mockFn - The function to mock
  * @param {*} resolveValue - The value to resolve with
  * @param {number} delay - The delay before resolving (default: 60000ms)
  */
 function mockSlowOperation(mockFn, resolveValue, delay = 60000) {
-  mockFn.mockImplementationOnce(() => new Promise(resolve => {
-    setTimeout(() => resolve(resolveValue), delay);
-  }));
+  mockFn.mockImplementationOnce(
+    () =>
+      new Promise(resolve => {
+        setTimeout(() => resolve(resolveValue), delay);
+      })
+  );
 }
 
 /**
  * Helper to test operations with AbortController
  * Sets up the mock to properly handle abort signals
- * 
+ *
  * @param {Function} mockFetch - The mocked fetch function
  * @param {Object} options - Options for the mock
  * @returns {Object} - Controller and promise for the operation
  */
 function setupAbortableOperation(mockFetch, options = {}) {
   const { shouldSucceed = false, successValue = null, delay = 30000 } = options;
-  
+
   let abortListener;
   const abortError = new Error('The operation was aborted');
   abortError.name = 'AbortError';
-  
+
   const promise = new Promise((resolve, reject) => {
     mockFetch.mockImplementationOnce((url, fetchOptions) => {
       // Set up abort listener if signal is provided
@@ -94,7 +100,7 @@ function setupAbortableOperation(mockFetch, options = {}) {
         abortListener = () => reject(abortError);
         fetchOptions.signal.addEventListener('abort', abortListener);
       }
-      
+
       if (shouldSucceed) {
         // Simulate successful completion before timeout
         setTimeout(() => resolve(successValue), delay / 2);
@@ -102,7 +108,7 @@ function setupAbortableOperation(mockFetch, options = {}) {
         // Simulate operation that takes longer than timeout
         setTimeout(() => resolve(successValue), delay * 2);
       }
-      
+
       return new Promise((innerResolve, innerReject) => {
         if (fetchOptions && fetchOptions.signal) {
           fetchOptions.signal.addEventListener('abort', () => innerReject(abortError));
@@ -110,7 +116,7 @@ function setupAbortableOperation(mockFetch, options = {}) {
       });
     });
   });
-  
+
   return { promise, abortListener };
 }
 
@@ -137,5 +143,5 @@ module.exports = {
   mockSlowOperation,
   setupAbortableOperation,
   DEFAULT_TEST_TIMEOUT,
-  testWithTimeout
+  testWithTimeout,
 };

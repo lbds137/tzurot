@@ -6,7 +6,9 @@
  * Tests the activate command functionality for DDD architecture
  */
 
-const { createActivateCommand } = require('../../../../../src/application/commands/conversation/ActivateCommand');
+const {
+  createActivateCommand,
+} = require('../../../../../src/application/commands/conversation/ActivateCommand');
 const { Command } = require('../../../../../src/application/commands/CommandAbstraction');
 const logger = require('../../../../../src/logger');
 
@@ -68,7 +70,9 @@ describe('ActivateCommand', () => {
   describe('command metadata', () => {
     it('should have correct metadata', () => {
       expect(command.name).toBe('activate');
-      expect(command.description).toBe('Activate a personality to respond to all messages in this channel');
+      expect(command.description).toBe(
+        'Activate a personality to respond to all messages in this channel'
+      );
       expect(command.category).toBe('Conversation');
       expect(command.aliases).toEqual(['act']);
       expect(command.options).toHaveLength(1);
@@ -189,11 +193,13 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Server Channels Only',
-          description: 'The activate command can only be used in server channels, not DMs.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Server Channels Only',
+            description: 'The activate command can only be used in server channels, not DMs.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
@@ -208,11 +214,14 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Insufficient Permissions',
-          description: 'You need the "Manage Messages" permission to activate personalities in this channel.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Insufficient Permissions',
+            description:
+              'You need the "Manage Messages" permission to activate personalities in this channel.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
@@ -228,11 +237,14 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '⚠️ NSFW Channel Required',
-          description: 'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
-          color: 0xff9800
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '⚠️ NSFW Channel Required',
+            description:
+              'For safety and compliance reasons, personalities can only be activated in channels marked as NSFW.',
+            color: 0xff9800,
+          }),
+        ],
       });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
@@ -248,11 +260,13 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Missing Personality',
-          description: 'Please specify a personality to activate.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Missing Personality',
+            description: 'Please specify a personality to activate.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
@@ -270,17 +284,19 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Personality Not Found',
-          description: 'Personality "NonExistent" not found.',
-          color: 0xf44336,
-          fields: expect.arrayContaining([
-            expect.objectContaining({
-              name: 'Need help?',
-              value: expect.stringContaining('!tz list')
-            })
-          ])
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Personality Not Found',
+            description: 'Personality "NonExistent" not found.',
+            color: 0xf44336,
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Need help?',
+                value: expect.stringContaining('!tz list'),
+              }),
+            ]),
+          }),
+        ],
       });
       expect(mockConversationManager.activatePersonality).not.toHaveBeenCalled();
     });
@@ -297,11 +313,13 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [expect.objectContaining({
-          title: '❌ Lookup Error',
-          description: 'Error looking up personality. Please try again.',
-          color: 0xf44336
-        })]
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Lookup Error',
+            description: 'Error looking up personality. Please try again.',
+            color: 0xf44336,
+          }),
+        ],
       });
       expect(logger.error).toHaveBeenCalledWith(
         '[ActivateCommand] Error looking up personality:',
@@ -314,7 +332,7 @@ describe('ActivateCommand', () => {
       mockContext.args = ['Aria'];
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
-      mockPersonalityService.getPersonality.mockResolvedValue({ 
+      mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
@@ -381,7 +399,7 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
         name: 'Aria',
-        fullName: 'Aria', 
+        fullName: 'Aria',
         displayName: 'Aria',
         avatarUrl: 'https://example.com/aria.png',
       });

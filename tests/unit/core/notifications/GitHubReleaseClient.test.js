@@ -16,13 +16,13 @@ describe('GitHubReleaseClient', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     client = new GitHubReleaseClient({
       owner: 'testowner',
       repo: 'testrepo',
       cacheTTL: 1000, // 1 second for tests
     });
-    
+
     // Set up logger mock
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -55,7 +55,7 @@ describe('GitHubReleaseClient', () => {
         'https://api.github.com/repos/testowner/testrepo/releases/tags/v1.2.0',
         {
           headers: {
-            'Accept': 'application/vnd.github.v3+json',
+            Accept: 'application/vnd.github.v3+json',
             'User-Agent': 'Tzurot-Bot',
           },
         }
@@ -71,7 +71,10 @@ describe('GitHubReleaseClient', () => {
 
       // Test without v prefix
       await client.getReleaseByTag('1.2.0');
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/tags/v1.2.0'), expect.any(Object));
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tags/v1.2.0'),
+        expect.any(Object)
+      );
 
       // Clear cache and mocks
       client.clearCache();
@@ -80,10 +83,13 @@ describe('GitHubReleaseClient', () => {
         ok: true,
         json: jest.fn().mockResolvedValue(mockRelease),
       });
-      
+
       // Test with v prefix - should still use v prefix
       await client.getReleaseByTag('v1.2.0');
-      expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/tags/v1.2.0'), expect.any(Object));
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/tags/v1.2.0'),
+        expect.any(Object)
+      );
     });
 
     it('should cache release data', async () => {
@@ -100,7 +106,9 @@ describe('GitHubReleaseClient', () => {
       const release2 = await client.getReleaseByTag('1.2.0');
       expect(fetch).toHaveBeenCalledTimes(1); // Still only 1 call
       expect(release2).toEqual(release1);
-      expect(logger.info).toHaveBeenCalledWith('[GitHubReleaseClient] Using cached release data for v1.2.0');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[GitHubReleaseClient] Using cached release data for v1.2.0'
+      );
     });
 
     it('should refetch after cache expires', async () => {
@@ -138,7 +146,9 @@ describe('GitHubReleaseClient', () => {
       const release = await client.getReleaseByTag('nonexistent');
 
       expect(release).toBeNull();
-      expect(logger.warn).toHaveBeenCalledWith('[GitHubReleaseClient] No release found for tag vnonexistent');
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[GitHubReleaseClient] No release found for tag vnonexistent'
+      );
     });
 
     it('should throw error for other HTTP errors', async () => {
@@ -148,16 +158,16 @@ describe('GitHubReleaseClient', () => {
         statusText: 'Internal Server Error',
       });
 
-      await expect(client.getReleaseByTag('1.2.0'))
-        .rejects.toThrow('GitHub API error: 500 Internal Server Error');
+      await expect(client.getReleaseByTag('1.2.0')).rejects.toThrow(
+        'GitHub API error: 500 Internal Server Error'
+      );
     });
 
     it('should handle network errors', async () => {
       fetch.mockRejectedValue(new Error('Network error'));
 
-      await expect(client.getReleaseByTag('1.2.0'))
-        .rejects.toThrow('Network error');
-      
+      await expect(client.getReleaseByTag('1.2.0')).rejects.toThrow('Network error');
+
       expect(logger.error).toHaveBeenCalledWith(
         '[GitHubReleaseClient] Error fetching release v1.2.0: Network error'
       );
@@ -191,7 +201,9 @@ describe('GitHubReleaseClient', () => {
       expect(formatted).toContain('Released:');
       expect(formatted).toContain('**Release Notes:**');
       expect(formatted).toContain('## New Features');
-      expect(formatted).toContain('[View on GitHub](https://example.com/test/test/releases/tag/v1.2.0)');
+      expect(formatted).toContain(
+        '[View on GitHub](https://example.com/test/test/releases/tag/v1.2.0)'
+      );
     });
 
     it('should truncate long release notes', () => {
@@ -269,7 +281,7 @@ describe('GitHubReleaseClient', () => {
         published_at: '2023-12-31T00:00:00Z',
         draft: false,
         prerelease: false,
-      }
+      },
     ];
 
     it('should fetch releases between two versions', async () => {
@@ -343,9 +355,7 @@ describe('GitHubReleaseClient', () => {
       const releases = await client.getReleasesBetween('1.0.0', '1.2.0');
 
       expect(releases).toEqual([]);
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('Error fetching releases')
-      );
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error fetching releases'));
     });
 
     it('should fetch single release if end version not found in list', async () => {
@@ -492,11 +502,7 @@ Some other text that's not in a section`,
 
       const changes = client.parseReleaseChanges(release);
 
-      expect(changes.features).toEqual([
-        'Dash bullet',
-        'Star bullet',
-        'Another dash bullet',
-      ]);
+      expect(changes.features).toEqual(['Dash bullet', 'Star bullet', 'Another dash bullet']);
     });
 
     it('should categorize Changed section as other, not breaking', () => {

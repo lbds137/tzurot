@@ -33,7 +33,9 @@ jest.mock('../src/adapters/persistence/FilePersonalityRepository', () => ({
     remove: jest.fn().mockResolvedValue(true),
     findAll: jest.fn().mockResolvedValue([]),
     findByOwner: jest.fn().mockResolvedValue([]),
-    getStatistics: jest.fn().mockResolvedValue({ totalPersonalities: 0, totalAliases: 0, owners: 0 }),
+    getStatistics: jest
+      .fn()
+      .mockResolvedValue({ totalPersonalities: 0, totalAliases: 0, owners: 0 }),
   })),
 }));
 
@@ -78,7 +80,6 @@ beforeEach(() => {
 
 // Clean up after each test
 afterEach(() => {
-  
   // Restore console methods but keep our timer mocks
   console.log.mockRestore?.();
   console.warn.mockRestore?.();
@@ -98,14 +99,14 @@ process.env.NODE_NO_WARNINGS = '1';
 // Note: With fake timers enabled globally, tests should run much faster
 
 // Helper to detect common timeout patterns in test code
-global.detectTimeoutPatterns = (testFn) => {
+global.detectTimeoutPatterns = testFn => {
   const fnString = testFn.toString();
   const patterns = [
-    /setTimeout.*\d{4,}/,  // setTimeout with 4+ digit delays
-    /new Promise.*setTimeout/,  // Promise with setTimeout
-    /await.*Promise.*resolve.*setTimeout/  // Awaiting setTimeout promises
+    /setTimeout.*\d{4,}/, // setTimeout with 4+ digit delays
+    /new Promise.*setTimeout/, // Promise with setTimeout
+    /await.*Promise.*resolve.*setTimeout/, // Awaiting setTimeout promises
   ];
-  
+
   for (const pattern of patterns) {
     if (pattern.test(fnString)) {
       console.warn('⚠️  Test contains timeout anti-pattern. Use jest.useFakeTimers()');

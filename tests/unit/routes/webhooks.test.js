@@ -8,8 +8,8 @@ jest.mock('crypto');
 jest.mock('../../../src/core/notifications', () => ({
   releaseNotificationManager: {
     initialized: true,
-    checkAndNotify: jest.fn().mockResolvedValue({ notified: false, reason: 'Test' })
-  }
+    checkAndNotify: jest.fn().mockResolvedValue({ notified: false, reason: 'Test' }),
+  },
 }));
 
 const webhooksRoute = require('../../../src/routes/webhooks');
@@ -25,7 +25,7 @@ describe('Webhooks Route', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Set up logger mocks
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -82,7 +82,7 @@ describe('Webhooks Route', () => {
       const webhookRouteConfig = webhooksRoute.routes.find(
         route => route.method === 'POST' && route.path === '/webhook/github'
       );
-      
+
       expect(webhookRouteConfig).toBeDefined();
       expect(typeof webhookRouteConfig.handler).toBe('function');
     });
@@ -100,9 +100,9 @@ describe('Webhooks Route', () => {
     // Helper function to simulate webhook request with body parsing (async version)
     function simulateWebhookRequestAsync(payload, headers = {}) {
       Object.assign(mockRequest.headers, headers);
-      
+
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -111,8 +111,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
@@ -120,7 +120,7 @@ describe('Webhooks Route', () => {
       githubHandler(mockRequest, mockResponse);
       dataCallback(payload);
       endCallback();
-      
+
       return responsePromise;
     }
 
@@ -138,21 +138,23 @@ describe('Webhooks Route', () => {
 
       const actualResponse = mockResponse.end.mock.calls[0][0];
       const parsedResponse = JSON.parse(actualResponse);
-      
+
       expect(parsedResponse.error).toBe('Webhook secret not configured');
-      expect(logger.warn).toHaveBeenCalledWith('[Webhooks] GITHUB_WEBHOOK_SECRET not set - rejecting webhook');
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[Webhooks] GITHUB_WEBHOOK_SECRET not set - rejecting webhook'
+      );
     });
 
     it('should reject requests without GitHub signature', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(false);
-      
+
       const payload = JSON.stringify({ action: 'published' });
       mockRequest.headers['x-github-event'] = 'release';
       // No x-hub-signature-256 header
-      
+
       let dataCallback, endCallback;
-      
+
       // Set up request body simulation - store callbacks for later
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
@@ -162,21 +164,21 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
 
       // Call the handler - this sets up the event listeners
       githubHandler(mockRequest, mockResponse);
-      
+
       // Simulate the request data flow
       dataCallback(payload);
       endCallback();
 
       const parsedResponse = await responsePromise;
-      
+
       expect(mockResponse.writeHead).toHaveBeenCalledWith(401, {
         'Content-Type': 'application/json',
       });
@@ -186,7 +188,7 @@ describe('Webhooks Route', () => {
 
     it('should reject requests with invalid signature', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
-      
+
       const payload = JSON.stringify({ action: 'published' });
       mockRequest.headers['x-github-event'] = 'release';
       mockRequest.headers['x-hub-signature-256'] = 'sha256=invalid-signature';
@@ -196,7 +198,7 @@ describe('Webhooks Route', () => {
       crypto.timingSafeEqual = jest.fn().mockReturnValue(false);
 
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -205,8 +207,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
@@ -216,7 +218,7 @@ describe('Webhooks Route', () => {
       endCallback();
 
       const parsedResponse = await responsePromise;
-      
+
       expect(mockResponse.writeHead).toHaveBeenCalledWith(401, {
         'Content-Type': 'application/json',
       });
@@ -226,10 +228,10 @@ describe('Webhooks Route', () => {
 
     it('should accept valid release webhook', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
-      
-      const payload = JSON.stringify({ 
+
+      const payload = JSON.stringify({
         action: 'published',
-        release: { tag_name: 'v1.2.0' }
+        release: { tag_name: 'v1.2.0' },
       });
 
       // Set up crypto to match the expected signature and pass timing comparison
@@ -237,43 +239,39 @@ describe('Webhooks Route', () => {
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
       const expectedSignature = 'sha256=mocked-signature';
 
-      const responsePromise = simulateWebhookRequestAsync(
-        payload,
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': expectedSignature
-        }
-      );
+      const responsePromise = simulateWebhookRequestAsync(payload, {
+        'x-github-event': 'release',
+        'x-hub-signature-256': expectedSignature,
+      });
 
       const parsedResponse = await responsePromise;
-      
+
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
       });
       expect(parsedResponse.status).toBe('accepted');
       expect(parsedResponse.release).toBe('v1.2.0');
-      expect(logger.info).toHaveBeenCalledWith('[Webhooks] Received GitHub release webhook for: v1.2.0');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[Webhooks] Received GitHub release webhook for: v1.2.0'
+      );
     });
 
     it('should ignore non-release events', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
+
       const payload = JSON.stringify({ ref: 'refs/heads/main' });
-      const responsePromise = simulateWebhookRequestAsync(
-        payload,
-        {
-          'x-github-event': 'push',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+      const responsePromise = simulateWebhookRequestAsync(payload, {
+        'x-github-event': 'push',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       const parsedResponse = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
       });
-      
+
       expect(parsedResponse.status).toBe('ignored');
       expect(parsedResponse.reason).toBe('Not a release event');
       expect(logger.info).toHaveBeenCalledWith('[Webhooks] Ignoring GitHub event: push');
@@ -282,59 +280,55 @@ describe('Webhooks Route', () => {
     it('should accept prerelease releases (no filtering implemented)', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const payload = JSON.stringify({ 
+
+      const payload = JSON.stringify({
         action: 'published',
-        release: { 
+        release: {
           tag_name: 'v1.2.0-beta',
           draft: false,
-          prerelease: true
-        }
+          prerelease: true,
+        },
       });
 
-      const responsePromise = simulateWebhookRequestAsync(
-        payload,
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+      const responsePromise = simulateWebhookRequestAsync(payload, {
+        'x-github-event': 'release',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       const parsedResponse = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
       });
-      
+
       // Current implementation accepts all published releases, including prereleases
       expect(parsedResponse.status).toBe('accepted');
       expect(parsedResponse.release).toBe('v1.2.0-beta');
-      expect(logger.info).toHaveBeenCalledWith('[Webhooks] Received GitHub release webhook for: v1.2.0-beta');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[Webhooks] Received GitHub release webhook for: v1.2.0-beta'
+      );
     });
 
     it('should ignore non-published release actions', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const payload = JSON.stringify({ 
+
+      const payload = JSON.stringify({
         action: 'created',
-        release: { tag_name: 'v1.2.0' }
+        release: { tag_name: 'v1.2.0' },
       });
 
-      const responsePromise = simulateWebhookRequestAsync(
-        payload,
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+      const responsePromise = simulateWebhookRequestAsync(payload, {
+        'x-github-event': 'release',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       const parsedResponse = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
       });
-      
+
       expect(parsedResponse.status).toBe('ignored');
       expect(parsedResponse.reason).toBe('Not a published release');
       expect(logger.info).toHaveBeenCalledWith('[Webhooks] Ignoring release action: created');
@@ -343,16 +337,13 @@ describe('Webhooks Route', () => {
     it('should verify signature correctly', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
+
       const payload = JSON.stringify({ action: 'published' });
-      
-      const responsePromise = simulateWebhookRequestAsync(
-        payload,
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+
+      const responsePromise = simulateWebhookRequestAsync(payload, {
+        'x-github-event': 'release',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       await responsePromise;
 
@@ -364,21 +355,18 @@ describe('Webhooks Route', () => {
     it('should handle malformed JSON gracefully', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const responsePromise = simulateWebhookRequestAsync(
-        'invalid json',
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+
+      const responsePromise = simulateWebhookRequestAsync('invalid json', {
+        'x-github-event': 'release',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       const parsedResponse = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(500, {
         'Content-Type': 'application/json',
       });
-      
+
       expect(parsedResponse.error).toBe('Internal server error');
       expect(logger.error).toHaveBeenCalledWith(
         '[Webhooks] Error processing webhook:',
@@ -389,21 +377,18 @@ describe('Webhooks Route', () => {
     it('should handle missing request body', async () => {
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const responsePromise = simulateWebhookRequestAsync(
-        '',
-        {
-          'x-github-event': 'release',
-          'x-hub-signature-256': 'sha256=mocked-signature'
-        }
-      );
+
+      const responsePromise = simulateWebhookRequestAsync('', {
+        'x-github-event': 'release',
+        'x-hub-signature-256': 'sha256=mocked-signature',
+      });
 
       const parsedResponse = await responsePromise;
 
       expect(mockResponse.writeHead).toHaveBeenCalledWith(500, {
         'Content-Type': 'application/json',
       });
-      
+
       expect(parsedResponse.error).toBe('Internal server error');
     });
 
@@ -411,7 +396,7 @@ describe('Webhooks Route', () => {
       const mockNotificationManager = {
         checkAndNotify: jest.fn().mockResolvedValue({ notified: true }),
       };
-      
+
       const context = {
         notificationManager: mockNotificationManager,
       };
@@ -422,14 +407,14 @@ describe('Webhooks Route', () => {
 
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const payload = JSON.stringify({ 
+
+      const payload = JSON.stringify({
         action: 'published',
-        release: { tag_name: 'v1.2.0' }
+        release: { tag_name: 'v1.2.0' },
       });
 
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -438,8 +423,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
@@ -454,14 +439,16 @@ describe('Webhooks Route', () => {
       await responsePromise;
 
       expect(mockNotificationManager.checkAndNotify).toHaveBeenCalled();
-      expect(logger.info).toHaveBeenCalledWith('[Webhooks] Triggered notification check for release v1.2.0');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[Webhooks] Triggered notification check for release v1.2.0'
+      );
     });
 
     it('should handle notification manager errors', async () => {
       const mockNotificationManager = {
         checkAndNotify: jest.fn().mockRejectedValue(new Error('Notification failed')),
       };
-      
+
       const context = {
         notificationManager: mockNotificationManager,
       };
@@ -471,14 +458,14 @@ describe('Webhooks Route', () => {
 
       process.env.GITHUB_WEBHOOK_SECRET = 'test-secret';
       crypto.timingSafeEqual = jest.fn().mockReturnValue(true);
-      
-      const payload = JSON.stringify({ 
+
+      const payload = JSON.stringify({
         action: 'published',
-        release: { tag_name: 'v1.2.0' }
+        release: { tag_name: 'v1.2.0' },
       });
 
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -487,8 +474,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
@@ -508,7 +495,7 @@ describe('Webhooks Route', () => {
       expect(logger.error).toHaveBeenCalledWith(
         '[Webhooks] Error processing release notification: Notification failed'
       );
-      
+
       // Should still return success to GitHub
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
         'Content-Type': 'application/json',
@@ -529,11 +516,11 @@ describe('Webhooks Route', () => {
 
     it('should handle signature without sha256 prefix', async () => {
       crypto.timingSafeEqual = jest.fn().mockReturnValue(false);
-      
+
       const payload = JSON.stringify({ action: 'published' });
-      
+
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -542,8 +529,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });
@@ -566,13 +553,13 @@ describe('Webhooks Route', () => {
     it('should use timing-safe comparison for signatures', async () => {
       // This is more of a code review check - ensure we use crypto.timingSafeEqual
       const payload = JSON.stringify({ action: 'published' });
-      
+
       // Mock timingSafeEqual to verify it's called
       const mockTimingSafeEqual = jest.fn().mockReturnValue(true);
       crypto.timingSafeEqual = mockTimingSafeEqual;
-      
+
       let dataCallback, endCallback;
-      
+
       mockRequest.on.mockImplementation((event, callback) => {
         if (event === 'data') {
           dataCallback = callback;
@@ -581,8 +568,8 @@ describe('Webhooks Route', () => {
         }
       });
 
-      const responsePromise = new Promise((resolve) => {
-        mockResponse.end.mockImplementation((data) => {
+      const responsePromise = new Promise(resolve => {
+        mockResponse.end.mockImplementation(data => {
           resolve(JSON.parse(data));
         });
       });

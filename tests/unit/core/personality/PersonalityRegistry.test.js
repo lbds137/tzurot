@@ -12,11 +12,11 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       const result = registry.register('test-personality', personality);
-      
+
       expect(result).toBe(true);
       expect(registry.size).toBe(1);
       expect(registry.get('test-personality')).toEqual(personality);
@@ -26,12 +26,12 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       registry.register('test-personality', personality);
       const result = registry.register('test-personality', personality);
-      
+
       expect(result).toBe(false);
       expect(registry.size).toBe(1);
     });
@@ -42,12 +42,12 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       registry.register('test-personality', personality);
       const retrieved = registry.get('test-personality');
-      
+
       expect(retrieved).toEqual(personality);
     });
 
@@ -62,14 +62,14 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       registry.register('test-personality', personality);
       registry.setAlias('test-alias', 'test-personality');
-      
+
       const result = registry.remove('test-personality');
-      
+
       expect(result).toBe(true);
       expect(registry.size).toBe(0);
       expect(registry.get('test-personality')).toBeNull();
@@ -87,21 +87,21 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       registry.register('test-personality', personality);
     });
 
     it('should set an alias for a personality', () => {
       const result = registry.setAlias('test-alias', 'test-personality');
-      
+
       expect(result).toBe(true);
       expect(registry.getByAlias('test-alias')).toBeTruthy();
     });
 
     it('should not set alias for non-existent personality', () => {
       const result = registry.setAlias('test-alias', 'non-existent');
-      
+
       expect(result).toBe(false);
       expect(registry.getByAlias('test-alias')).toBeNull();
     });
@@ -110,13 +110,13 @@ describe('PersonalityRegistry', () => {
       const personality2 = {
         fullName: 'test-personality-2',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       registry.register('test-personality-2', personality2);
-      
+
       registry.setAlias('test-alias', 'test-personality');
       registry.setAlias('test-alias', 'test-personality-2');
-      
+
       const retrieved = registry.getByAlias('test-alias');
       expect(retrieved.fullName).toBe('test-personality-2');
     });
@@ -125,9 +125,9 @@ describe('PersonalityRegistry', () => {
       registry.setAlias('alias1', 'test-personality');
       registry.setAlias('alias2', 'test-personality');
       registry.setAlias('alias3', 'test-personality');
-      
+
       const aliases = registry.getAliases('test-personality');
-      
+
       expect(aliases).toHaveLength(3);
       expect(aliases).toContain('alias1');
       expect(aliases).toContain('alias2');
@@ -136,9 +136,9 @@ describe('PersonalityRegistry', () => {
 
     it('should remove an alias', () => {
       registry.setAlias('test-alias', 'test-personality');
-      
+
       const result = registry.removeAlias('test-alias');
-      
+
       expect(result).toBe(true);
       expect(registry.getByAlias('test-alias')).toBeNull();
     });
@@ -149,25 +149,25 @@ describe('PersonalityRegistry', () => {
       const personality1 = {
         fullName: 'personality-1',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       const personality2 = {
         fullName: 'personality-2',
         addedBy: 'user456',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       const personality3 = {
         fullName: 'personality-3',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       registry.register('personality-1', personality1);
       registry.register('personality-2', personality2);
       registry.register('personality-3', personality3);
-      
+
       const userPersonalities = registry.getByUser('user123');
-      
+
       expect(userPersonalities).toHaveLength(2);
       expect(userPersonalities[0].fullName).toBe('personality-1');
       expect(userPersonalities[1].fullName).toBe('personality-3');
@@ -179,13 +179,13 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       registry.register('test-personality', personality);
       registry.setAlias('test-alias', 'test-personality');
-      
+
       const exported = registry.exportToObjects();
-      
+
       expect(exported.personalities['test-personality']).toEqual(personality);
       expect(exported.aliases['test-alias']).toBe('test-personality');
     });
@@ -195,21 +195,21 @@ describe('PersonalityRegistry', () => {
         'personality-1': {
           fullName: 'personality-1',
           addedBy: 'user123',
-          addedAt: new Date().toISOString()
+          addedAt: new Date().toISOString(),
         },
         'personality-2': {
           fullName: 'personality-2',
           addedBy: 'user456',
-          addedAt: new Date().toISOString()
-        }
+          addedAt: new Date().toISOString(),
+        },
       };
       const aliases = {
         'alias-1': 'personality-1',
-        'alias-2': 'personality-2'
+        'alias-2': 'personality-2',
       };
-      
+
       registry.loadFromObjects(personalities, aliases);
-      
+
       expect(registry.size).toBe(2);
       expect(registry.get('personality-1')).toEqual(personalities['personality-1']);
       expect(registry.getByAlias('alias-1')).toEqual(personalities['personality-1']);
@@ -220,17 +220,17 @@ describe('PersonalityRegistry', () => {
         'wrong-key': {
           fullName: 'correct-name',
           addedBy: 'user123',
-          addedAt: new Date().toISOString()
+          addedAt: new Date().toISOString(),
         },
         'correct-key': {
           fullName: 'correct-key',
           addedBy: 'user456',
-          addedAt: new Date().toISOString()
-        }
+          addedAt: new Date().toISOString(),
+        },
       };
-      
+
       registry.loadFromObjects(personalities, {});
-      
+
       expect(registry.size).toBe(1);
       expect(registry.get('correct-key')).toBeTruthy();
       expect(registry.get('wrong-key')).toBeNull();
@@ -241,16 +241,16 @@ describe('PersonalityRegistry', () => {
         'personality-1': {
           fullName: 'personality-1',
           addedBy: 'user123',
-          addedAt: new Date().toISOString()
-        }
+          addedAt: new Date().toISOString(),
+        },
       };
       const aliases = {
         'alias-1': 'personality-1',
-        'alias-2': 'non-existent'
+        'alias-2': 'non-existent',
       };
-      
+
       registry.loadFromObjects(personalities, aliases);
-      
+
       expect(registry.aliases.size).toBe(1);
       expect(registry.getByAlias('alias-1')).toBeTruthy();
       expect(registry.getByAlias('alias-2')).toBeNull();
@@ -262,13 +262,13 @@ describe('PersonalityRegistry', () => {
       const personality = {
         fullName: 'test-personality',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       registry.register('test-personality', personality);
       registry.setAlias('test-alias', 'test-personality');
-      
+
       registry.clear();
-      
+
       expect(registry.size).toBe(0);
       expect(registry.aliases.size).toBe(0);
     });
@@ -279,19 +279,19 @@ describe('PersonalityRegistry', () => {
       const personality1 = {
         fullName: 'personality-1',
         addedBy: 'user123',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
       const personality2 = {
         fullName: 'personality-2',
         addedBy: 'user456',
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
       };
 
       registry.register('personality-1', personality1);
       registry.register('personality-2', personality2);
-      
+
       const all = registry.getAll();
-      
+
       expect(all).toHaveLength(2);
       expect(all[0].fullName).toBe('personality-1');
       expect(all[1].fullName).toBe('personality-2');

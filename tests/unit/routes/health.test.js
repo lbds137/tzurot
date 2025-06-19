@@ -17,7 +17,7 @@ describe('Health Route', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Set up logger mocks
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -72,7 +72,7 @@ describe('Health Route', () => {
       const healthRouteConfig = healthRoute.routes.find(
         route => route.method === 'GET' && route.path === '/health'
       );
-      
+
       expect(healthRouteConfig).toBeDefined();
       expect(typeof healthRouteConfig.handler).toBe('function');
     });
@@ -81,7 +81,7 @@ describe('Health Route', () => {
       const healthRouteConfig = healthRoute.routes.find(
         route => route.method === 'GET' && route.path === '/health/'
       );
-      
+
       expect(healthRouteConfig).toBeDefined();
       expect(typeof healthRouteConfig.handler).toBe('function');
     });
@@ -106,12 +106,14 @@ describe('Health Route', () => {
 
       await healthHandler(mockRequest, mockResponse);
 
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
-      
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
+        'Content-Type': 'application/json',
+      });
+
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.status).toBe('healthy');
       expect(healthData.timestamp).toBeDefined();
       expect(healthData.uptime).toEqual({
@@ -122,10 +124,8 @@ describe('Health Route', () => {
       expect(healthData.system).toBeDefined();
       expect(healthData.components.discord.connected).toBe(true);
       expect(healthData.components.ai.available).toBe(true);
-      
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Health check request')
-      );
+
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Health check request'));
     });
 
     it('should return critical status with 503 code when Discord disconnected', async () => {
@@ -138,12 +138,14 @@ describe('Health Route', () => {
 
       await healthHandler(mockRequest, mockResponse);
 
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(503, { 'Content-Type': 'application/json' });
-      
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(503, {
+        'Content-Type': 'application/json',
+      });
+
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.status).toBe('critical');
       expect(healthData.components.discord.connected).toBe(false);
       expect(healthData.components.discord.status).toBe('DISCONNECTED');
@@ -154,12 +156,14 @@ describe('Health Route', () => {
 
       await healthHandler(mockRequest, mockResponse);
 
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(503, { 'Content-Type': 'application/json' });
-      
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(503, {
+        'Content-Type': 'application/json',
+      });
+
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.status).toBe('critical');
       expect(healthData.components.discord.connected).toBe(false);
       expect(healthData.components.discord.status).toBe('No client provided');
@@ -179,7 +183,7 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.uptime).toEqual({
         seconds: expect.any(Number),
         formatted: expect.stringMatching(/\d+d \d+h \d+m \d+s/),
@@ -201,7 +205,7 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.memory).toEqual({
         rss: expect.stringMatching(/\d+ MB/),
         heapTotal: expect.stringMatching(/\d+ MB/),
@@ -224,7 +228,7 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.system).toEqual({
         platform: expect.any(String),
         nodeVersion: expect.any(String),
@@ -247,7 +251,7 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.components.discord).toEqual({
         connected: true,
         status: 'READY',
@@ -271,13 +275,13 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.components.ai).toEqual({
         available: true,
         status: 'operational',
         lastCheck: expect.any(String),
       });
-      
+
       // Verify lastCheck is a valid ISO date string
       expect(new Date(healthData.components.ai.lastCheck)).toBeInstanceOf(Date);
     });
@@ -291,7 +295,9 @@ describe('Health Route', () => {
 
       await healthHandler(mockRequest, mockResponse);
 
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, {
+        'Content-Type': 'application/json',
+      });
       expect(mockResponse.end).toHaveBeenCalledWith(
         JSON.stringify({
           error: 'Internal Server Error',
@@ -321,7 +327,7 @@ describe('Health Route', () => {
       // Parse the JSON response to check the content
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.timestamp).toBeDefined();
       expect(typeof healthData.timestamp).toBe('string');
       // Verify it's a valid ISO date string
@@ -345,11 +351,13 @@ describe('Health Route', () => {
 
       await healthSlashHandler(mockRequest, mockResponse);
 
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(200, {
+        'Content-Type': 'application/json',
+      });
 
       const responseCall = mockResponse.end.mock.calls[0][0];
       const healthData = JSON.parse(responseCall);
-      
+
       expect(healthData.status).toBe('healthy');
     });
   });
@@ -385,7 +393,7 @@ describe('Health Route', () => {
 
         const responseCall = mockResponse.end.mock.calls[0][0];
         const healthData = JSON.parse(responseCall);
-        
+
         expect(healthData.components.discord.status).toBe(expected);
         expect(healthData.components.discord.connected).toBe(connected);
       });

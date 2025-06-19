@@ -24,12 +24,12 @@ jest.mock('../../src/profileInfoFetcher', () => ({
   getFetcher: jest.fn().mockReturnValue({
     fetchProfileInfo: jest.fn().mockResolvedValue({
       avatarUrl: 'https://example.com/avatar.png',
-      displayName: 'Test User'
-    })
+      displayName: 'Test User',
+    }),
   }),
   getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
   getProfileDisplayName: jest.fn().mockResolvedValue(null),
-  deleteFromCache: jest.fn()
+  deleteFromCache: jest.fn(),
 }));
 
 // Mock other dependencies
@@ -40,20 +40,20 @@ jest.mock('../../src/utils/webhookCache', () => ({
   getActiveWebhooks: jest.fn(() => new Set()),
   clearWebhookCache: jest.fn(),
   clearAllWebhookCaches: jest.fn(),
-  registerEventListeners: jest.fn()
+  registerEventListeners: jest.fn(),
 }));
 
 jest.mock('../../src/utils/messageDeduplication', () => ({
   isDuplicate: jest.fn(() => false),
   addMessage: jest.fn(),
   hashMessage: jest.fn(() => 'mock-hash'),
-  isDuplicateMessage: jest.fn(() => false)
+  isDuplicateMessage: jest.fn(() => false),
 }));
 
 jest.mock('../../src/utils/messageFormatter', () => ({
   formatContent: jest.fn(content => content),
   trimContent: jest.fn(content => content),
-  splitMessage: jest.fn(content => [content])
+  splitMessage: jest.fn(content => [content]),
 }));
 
 jest.mock('../../src/utils/avatarManager', () => {
@@ -63,37 +63,37 @@ jest.mock('../../src/utils/avatarManager', () => {
     getValidAvatarUrl: jest.fn(),
     preloadPersonalityAvatar: jest.fn(),
     warmupAvatar: jest.fn(),
-    avatarWarmupCache: new Set()
+    avatarWarmupCache: new Set(),
   };
-  
+
   // Set default implementations
-  mocks.validateAvatarUrl.mockImplementation(async (url) => {
+  mocks.validateAvatarUrl.mockImplementation(async url => {
     if (!url || url === 'not-a-url') return false;
     // For test purposes, check the URL extension
     if (url.includes('.html')) return false;
     return true;
   });
-  
-  mocks.getValidAvatarUrl.mockImplementation(async (url) => {
+
+  mocks.getValidAvatarUrl.mockImplementation(async url => {
     if (!url) return null;
     const isValid = await mocks.validateAvatarUrl(url);
     return isValid ? url : null;
   });
-  
-  mocks.preloadPersonalityAvatar.mockImplementation(async (personality) => {
+
+  mocks.preloadPersonalityAvatar.mockImplementation(async personality => {
     if (!personality) return;
     if (!personality.avatarUrl) {
       personality.avatarUrl = null;
     }
   });
-  
-  mocks.warmupAvatar.mockImplementation(async (url) => {
+
+  mocks.warmupAvatar.mockImplementation(async url => {
     if (!url) return null;
     if (mocks.avatarWarmupCache.has(url)) return url;
     mocks.avatarWarmupCache.add(url);
     return url;
   });
-  
+
   return mocks;
 });
 
@@ -101,15 +101,15 @@ jest.mock('../../src/utils/errorTracker', () => ({
   trackError: jest.fn(),
   ErrorCategory: {
     WEBHOOK: 'webhook',
-    AVATAR: 'avatar'
-  }
+    AVATAR: 'avatar',
+  },
 }));
 
 jest.mock('../../src/utils/media', () => ({
   isMediaUrl: jest.fn(() => false),
   formatMediaUrls: jest.fn(() => []),
   processMediaForWebhook: jest.fn(),
-  prepareAttachmentOptions: jest.fn(() => ({}))
+  prepareAttachmentOptions: jest.fn(() => ({})),
 }));
 
 jest.mock('../../src/webhook', () => ({
@@ -133,30 +133,30 @@ jest.mock('../../src/webhook', () => ({
   isErrorContent: jest.fn(() => false),
   markErrorContent: jest.fn(),
   isErrorWebhookMessage: jest.fn(() => false),
-  getStandardizedUsername: jest.fn((personality) => {
+  getStandardizedUsername: jest.fn(personality => {
     if (!personality) return 'Bot';
     return personality.displayName || 'Bot';
   }),
   generateMessageTrackingId: jest.fn(() => 'mock-tracking-id'),
-  prepareMessageData: jest.fn((data) => data),
+  prepareMessageData: jest.fn(data => data),
   createVirtualResult: jest.fn(() => {
     const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     return {
       message: { id: virtualId },
       messageIds: [virtualId],
-      isDuplicate: true
+      isDuplicate: true,
     };
   }),
   sendMessageChunk: jest.fn(),
   minimizeConsoleOutput: jest.fn(),
-  restoreConsoleOutput: jest.fn()
+  restoreConsoleOutput: jest.fn(),
 }));
 
 jest.mock('../../src/constants', () => ({
   TIME: {
     SECOND: 1000,
-    MINUTE: 60000
-  }
+    MINUTE: 60000,
+  },
 }));
 
 // Mock discord.js
@@ -166,17 +166,17 @@ jest.mock('discord.js', () => {
       id: 'mock-webhook-id',
       send: jest.fn().mockResolvedValue({
         id: 'mock-message-id',
-        webhookId: 'mock-webhook-id'
+        webhookId: 'mock-webhook-id',
       }),
-      destroy: jest.fn()
+      destroy: jest.fn(),
     })),
     EmbedBuilder: jest.fn().mockImplementation(data => ({
       ...data,
       setTitle: jest.fn().mockReturnThis(),
-      setDescription: jest.fn().mockReturnThis(), 
+      setDescription: jest.fn().mockReturnThis(),
       setColor: jest.fn().mockReturnThis(),
-      addFields: jest.fn().mockReturnThis()
-    }))
+      addFields: jest.fn().mockReturnThis(),
+    })),
   };
 });
 
@@ -185,84 +185,88 @@ const FALLBACK_AVATAR_URL = 'https://cdn.discordapp.com/embed/avatars/0.png';
 
 describe('WebhookManager Avatar URL Handling', () => {
   let webhookManager;
-  
+
   // Original console methods to restore later
   const originalConsoleLog = console.log;
   const originalConsoleWarn = console.warn;
   const originalConsoleError = console.error;
-  
+
   // Mock data
   const mockBuffer = Buffer.from('fake image data');
   const validUrl = 'https://example.com/valid.png';
-  
+
   beforeEach(() => {
     // Reset module & mocks
     jest.resetModules();
     jest.clearAllMocks();
-    
+
     // Mock console methods
     console.log = jest.fn();
     console.warn = jest.fn();
     console.error = jest.fn();
-    
+
     // Set up standard mock response for fetch
-    nodeFetch.mockImplementation(() => Promise.resolve({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      headers: {
-        get: (header) => header === 'content-type' ? 'image/png' : null
-      },
-      buffer: () => Promise.resolve(mockBuffer)
-    }));
-    
+    nodeFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: {
+          get: header => (header === 'content-type' ? 'image/png' : null),
+        },
+        buffer: () => Promise.resolve(mockBuffer),
+      })
+    );
+
     // Mock setTimeout to run callbacks immediately
-    jest.spyOn(global, 'setTimeout').mockImplementation((callback) => {
+    jest.spyOn(global, 'setTimeout').mockImplementation(callback => {
       if (typeof callback === 'function') callback();
       return 123; // Return a timeout ID
     });
-    
+
     // Import webhookManager module - must be after mocks are set up
     webhookManager = require('../../src/webhookManager');
   });
-  
+
   afterEach(() => {
     // Restore console methods
     console.log = originalConsoleLog;
     console.warn = originalConsoleWarn;
     console.error = originalConsoleError;
-    
+
     // Clean up mocks
     if (global.setTimeout.mockRestore) {
       global.setTimeout.mockRestore();
     }
   });
-  
+
   describe('Basic Avatar URL Validation', () => {
     test('should return false for null or empty URLs', async () => {
       expect(await webhookManager.validateAvatarUrl(null)).toBe(false);
       expect(await webhookManager.validateAvatarUrl('')).toBe(false);
       expect(await webhookManager.validateAvatarUrl(undefined)).toBe(false);
     });
-    
+
     test('should return false for invalid URL formats', async () => {
       expect(await webhookManager.validateAvatarUrl('not-a-url')).toBe(false);
     });
-    
+
     test('should handle non-200 responses', async () => {
       // Set the process.env.NODE_ENV to 'test' for this test
       const origNodeEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'test';
-      
-      nodeFetch.mockImplementationOnce(() => Promise.resolve({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        headers: {
-          get: () => 'image/png'
-        }
-      }));
-      
+
+      nodeFetch.mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          headers: {
+            get: () => 'image/png',
+          },
+        })
+      );
+
       try {
         // In the updated code, we treat image extensions specially in the test for CDN compatibility
         // When running in tests, all we care about is that the function completes without errors
@@ -272,27 +276,29 @@ describe('WebhookManager Avatar URL Handling', () => {
         process.env.NODE_ENV = origNodeEnv;
       }
     });
-    
+
     test('should return false for non-image content types', async () => {
-      nodeFetch.mockImplementationOnce(() => Promise.resolve({
-        ok: true,
-        status: 200,
-        statusText: 'OK',
-        headers: {
-          get: () => 'text/html'
-        }
-      }));
-      
+      nodeFetch.mockImplementationOnce(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          headers: {
+            get: () => 'text/html',
+          },
+        })
+      );
+
       expect(await webhookManager.validateAvatarUrl('https://example.com/page.html')).toBe(false);
     });
-    
+
     test('should handle network errors gracefully', async () => {
       // Set the process.env.NODE_ENV to 'test' for this test
       const origNodeEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'test';
-      
+
       nodeFetch.mockImplementationOnce(() => Promise.reject(new Error('Network error')));
-      
+
       try {
         // Just check that it completes without throwing
         await webhookManager.validateAvatarUrl('https://example.com/error.png');
@@ -302,19 +308,19 @@ describe('WebhookManager Avatar URL Handling', () => {
       }
     });
   });
-  
+
   describe('getValidAvatarUrl function', () => {
     test('should return null for null or empty URLs', async () => {
       expect(await webhookManager.getValidAvatarUrl(null)).toBe(null);
       expect(await webhookManager.getValidAvatarUrl('')).toBe(null);
       expect(await webhookManager.getValidAvatarUrl(undefined)).toBe(null);
     });
-    
+
     test('should return original URL when validation passes', async () => {
       // Override validateAvatarUrl to always return true
       const original = webhookManager.validateAvatarUrl;
       webhookManager.validateAvatarUrl = jest.fn().mockResolvedValue(true);
-      
+
       try {
         const result = await webhookManager.getValidAvatarUrl(validUrl);
         expect(result).toBe(validUrl);
@@ -323,12 +329,12 @@ describe('WebhookManager Avatar URL Handling', () => {
         webhookManager.validateAvatarUrl = original;
       }
     });
-    
+
     test('should handle validation failures', async () => {
       // Override validateAvatarUrl to always return false
       const original = webhookManager.validateAvatarUrl;
       webhookManager.validateAvatarUrl = jest.fn().mockResolvedValue(false);
-      
+
       try {
         // Just verify it completes - the exact return value may change based on our implementation
         await webhookManager.getValidAvatarUrl(validUrl);
@@ -338,27 +344,27 @@ describe('WebhookManager Avatar URL Handling', () => {
       }
     });
   });
-  
+
   describe('preloadPersonalityAvatar function', () => {
     test('should delegate to avatarManager', async () => {
       // Create personality
       const personality = {
         fullName: 'test-personality',
         displayName: 'Test Personality',
-        avatarUrl: 'https://example.com/avatar.png'
+        avatarUrl: 'https://example.com/avatar.png',
       };
-      
+
       // Call the function
       await webhookManager.preloadPersonalityAvatar(personality);
-      
+
       // Should delegate to avatarManager
       const avatarManager = require('../../src/utils/avatarManager');
       expect(avatarManager.preloadPersonalityAvatar).toHaveBeenCalledWith(personality);
     });
-    
+
     test('should handle null personality gracefully', async () => {
       await expect(webhookManager.preloadPersonalityAvatar(null)).resolves.not.toThrow();
-      
+
       // Should still delegate to avatarManager
       const avatarManager = require('../../src/utils/avatarManager');
       expect(avatarManager.preloadPersonalityAvatar).toHaveBeenCalledWith(null);

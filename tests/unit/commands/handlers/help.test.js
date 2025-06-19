@@ -10,13 +10,13 @@ jest.mock('discord.js', () => {
     mockEmbed.setFooter = jest.fn().mockReturnValue(mockEmbed);
     return mockEmbed;
   };
-  
+
   return {
     EmbedBuilder: jest.fn().mockImplementation(createMockEmbed),
     PermissionFlagsBits: {
       Administrator: 8n,
-      ManageMessages: 8192n
-    }
+      ManageMessages: 8192n,
+    },
   };
 });
 jest.mock('../../../../src/logger');
@@ -25,8 +25,8 @@ jest.mock('../../../../config', () => ({
   botConfig: {
     mentionChar: '@',
     isDevelopment: false,
-    environment: 'production'
-  }
+    environment: 'production',
+  },
 }));
 
 // Import test helpers
@@ -37,51 +37,57 @@ describe('Help Command', () => {
   let helpCommand;
   let mockMessage;
   let mockDirectSend;
-  
+
   beforeEach(() => {
     // Reset all mocks
     jest.clearAllMocks();
-    
+
     // Reset modules
     jest.resetModules();
-    
+
     // Set up mocks for utils
     jest.mock('../../../../src/utils', () => ({
-      createDirectSend: jest.fn().mockImplementation(() => mockDirectSend)
+      createDirectSend: jest.fn().mockImplementation(() => mockDirectSend),
     }));
-    
+
     // Create mock message
     mockMessage = helpers.createMockMessage();
-    
+
     // Mock direct send function
     mockDirectSend = jest.fn().mockResolvedValue({
-      id: 'direct-sent-123'
+      id: 'direct-sent-123',
     });
-    
+
     // Mock command registry
     const mockCommands = new Map([
-      ['add', { 
-        meta: { 
-          name: 'add', 
-          description: 'Add a new personality', 
-          usage: 'add <personality> [alias]', 
-          aliases: ['create'], 
-          permissions: [] 
-        }
-      }],
-      ['debug', { 
-        meta: { 
-          name: 'debug', 
-          description: 'Debug commands', 
-          usage: 'debug <subcommand>', 
-          aliases: [], 
-          permissions: [8n] // PermissionFlagsBits.Administrator
-        }
-      }]
+      [
+        'add',
+        {
+          meta: {
+            name: 'add',
+            description: 'Add a new personality',
+            usage: 'add <personality> [alias]',
+            aliases: ['create'],
+            permissions: [],
+          },
+        },
+      ],
+      [
+        'debug',
+        {
+          meta: {
+            name: 'debug',
+            description: 'Debug commands',
+            usage: 'debug <subcommand>',
+            aliases: [],
+            permissions: [8n], // PermissionFlagsBits.Administrator
+          },
+        },
+      ],
     ]);
 
     jest.mock('../../../../src/commands/utils/commandRegistry', () => ({
-      get: jest.fn((name) => {
+      get: jest.fn(name => {
         if (name === 'add') {
           return {
             meta: {
@@ -89,8 +95,8 @@ describe('Help Command', () => {
               description: 'Add a new personality',
               usage: 'add <personality> [alias]',
               aliases: ['create'],
-              permissions: []
-            }
+              permissions: [],
+            },
           };
         } else if (name === 'debug') {
           return {
@@ -99,8 +105,8 @@ describe('Help Command', () => {
               description: 'Debug commands',
               usage: 'debug <subcommand>',
               aliases: [],
-              permissions: [8n] // PermissionFlagsBits.Administrator
-            }
+              permissions: [8n], // PermissionFlagsBits.Administrator
+            },
           };
         } else if (name === 'auth') {
           return {
@@ -109,8 +115,8 @@ describe('Help Command', () => {
               description: 'Authenticate with the service',
               usage: 'auth <subcommand>',
               aliases: [],
-              permissions: []
-            }
+              permissions: [],
+            },
           };
         } else if (name === 'list') {
           return {
@@ -119,175 +125,175 @@ describe('Help Command', () => {
               description: 'List your personalities',
               usage: 'list [page]',
               aliases: [],
-              permissions: []
-            }
+              permissions: [],
+            },
           };
         } else {
           return null;
         }
       }),
       getAllCommands: jest.fn().mockReturnValue(mockCommands),
-      has: jest.fn()
+      has: jest.fn(),
     }));
-    
+
     // Mock validator
     jest.mock('../../../../src/commands/utils/commandValidator', () => ({
       createDirectSend: jest.fn().mockReturnValue(mockDirectSend),
-      isAdmin: jest.fn().mockReturnValue(false)
+      isAdmin: jest.fn().mockReturnValue(false),
     }));
-    
+
     // Import the help command after setting up mocks
     helpCommand = require('../../../../src/commands/handlers/help');
   });
-  
+
   it('should have the correct metadata', () => {
     expect(helpCommand.meta).toEqual({
       name: 'help',
       description: expect.any(String),
       usage: expect.any(String),
       aliases: expect.any(Array),
-      permissions: expect.any(Array)
+      permissions: expect.any(Array),
     });
   });
-  
+
   describe('General Help Command', () => {
     it('should display help for regular users', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
       const validator = require('../../../../src/commands/utils/commandValidator');
-      
+
       await helpCommand.execute(mockMessage, []);
-      
+
       // Should have fetched all commands
       expect(cmdRegistry.getAllCommands).toHaveBeenCalled();
-      
+
       // Should have checked admin status
       expect(validator.isAdmin).toHaveBeenCalledWith(mockMessage);
-      
+
       // Should have sent a response
       expect(mockDirectSend).toHaveBeenCalled();
     });
-    
+
     it('should include admin commands for admin users', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
       const validator = require('../../../../src/commands/utils/commandValidator');
-      
+
       // Make the user an admin
       validator.isAdmin.mockReturnValue(true);
-      
+
       await helpCommand.execute(mockMessage, []);
-      
+
       // Check that admin status was checked
       expect(validator.isAdmin).toHaveBeenCalledWith(mockMessage);
-      
+
       // Should have sent a response
       expect(mockDirectSend).toHaveBeenCalled();
     });
-    
+
     it('should handle errors gracefully', async () => {
       // Make directSend throw an error to trigger error handling
       mockDirectSend.mockRejectedValueOnce(new Error('Direct send failed'));
-      
+
       // Execute help command - it should handle the error gracefully
       await helpCommand.execute(mockMessage, []);
-      
+
       // Since directSend failed, there's no easy way to verify the error handling
       // without complex module mocking. The important thing is that the command
       // doesn't throw an unhandled error.
-      
+
       // At minimum, verify the command was attempted
       expect(mockDirectSend).toHaveBeenCalled();
     });
   });
-  
+
   describe('Command-Specific Help', () => {
     it('should display help for a specific command', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
-      
+
       await helpCommand.execute(mockMessage, ['add']);
-      
+
       // Check that we looked up the right command
       expect(cmdRegistry.get).toHaveBeenCalledWith('add');
-      
+
       // Verify response
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('Add a new personality');
     });
-    
+
     it('should show error for non-existent command', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
-      
+
       await helpCommand.execute(mockMessage, ['nonexistent']);
-      
+
       // Check that we looked up the command
       expect(cmdRegistry.get).toHaveBeenCalledWith('nonexistent');
-      
+
       // Verify error response
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('Unknown command');
     });
-    
+
     it('should deny help for admin commands to regular users', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
       const validator = require('../../../../src/commands/utils/commandValidator');
-      
+
       await helpCommand.execute(mockMessage, ['debug']);
-      
+
       // Verify that we checked admin status
       expect(validator.isAdmin).toHaveBeenCalled();
-      
+
       // Verify error response
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('only available to administrators');
     });
-    
+
     it('should allow help for admin commands to admin users', async () => {
       const cmdRegistry = require('../../../../src/commands/utils/commandRegistry');
       const validator = require('../../../../src/commands/utils/commandValidator');
-      
+
       // Make user an admin
       validator.isAdmin.mockReturnValueOnce(true);
-      
+
       await helpCommand.execute(mockMessage, ['debug']);
-      
+
       // Verify response
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('Debug commands');
     });
   });
-  
+
   describe('Special Command Help', () => {
     it('should display special help for the auth command', async () => {
       await helpCommand.execute(mockMessage, ['auth']);
-      
+
       // Verify response contains auth-specific help
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('authorization');
     });
-    
+
     it('should display special help for the add command', async () => {
       await helpCommand.execute(mockMessage, ['add']);
-      
+
       // Verify response contains add-specific help
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('profile_name');
     });
-    
+
     it('should display special help for the list command', async () => {
       await helpCommand.execute(mockMessage, ['list']);
-      
+
       // Verify response contains list-specific help
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('pagination');
     });
-    
+
     it('should display special help for the debug command', async () => {
       const validator = require('../../../../src/commands/utils/commandValidator');
-      
+
       // Make user an admin
       validator.isAdmin.mockReturnValueOnce(true);
-      
+
       await helpCommand.execute(mockMessage, ['debug']);
-      
+
       // Verify response contains debug-specific help
       expect(mockDirectSend).toHaveBeenCalled();
       expect(mockDirectSend.mock.calls[0][0]).toContain('subcommands');

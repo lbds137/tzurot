@@ -2,7 +2,10 @@
  * Tests for PersonalityData domain entity
  */
 
-const { PersonalityData, BackupMetadata } = require('../../../../src/domain/backup/PersonalityData');
+const {
+  PersonalityData,
+  BackupMetadata,
+} = require('../../../../src/domain/backup/PersonalityData');
 
 describe('BackupMetadata', () => {
   let metadata;
@@ -31,11 +34,11 @@ describe('BackupMetadata', () => {
       const initialData = {
         lastBackup: '2023-01-01T00:00:00.000Z',
         totalMemories: 5,
-        totalKnowledge: 3
+        totalKnowledge: 3,
       };
-      
+
       const customMetadata = new BackupMetadata(initialData);
-      
+
       expect(customMetadata.lastBackup).toBe('2023-01-01T00:00:00.000Z');
       expect(customMetadata.totalMemories).toBe(5);
       expect(customMetadata.totalKnowledge).toBe(3);
@@ -48,7 +51,7 @@ describe('BackupMetadata', () => {
       const beforeTime = new Date();
       metadata.markBackupComplete();
       const afterTime = new Date();
-      
+
       expect(metadata.lastBackup).toBeDefined();
       const backupTime = new Date(metadata.lastBackup);
       expect(backupTime.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -80,7 +83,7 @@ describe('BackupMetadata', () => {
       const beforeTime = new Date();
       metadata.updateKnowledgeSync(7);
       const afterTime = new Date();
-      
+
       expect(metadata.totalKnowledge).toBe(7);
       expect(metadata.lastKnowledgeSync).toBeDefined();
       const syncTime = new Date(metadata.lastKnowledgeSync);
@@ -94,7 +97,7 @@ describe('BackupMetadata', () => {
       const beforeTime = new Date();
       metadata.updateTrainingSync(3);
       const afterTime = new Date();
-      
+
       expect(metadata.totalTraining).toBe(3);
       expect(metadata.lastTrainingSync).toBeDefined();
       const syncTime = new Date(metadata.lastTrainingSync);
@@ -108,7 +111,7 @@ describe('BackupMetadata', () => {
       const beforeTime = new Date();
       metadata.updateUserPersonalizationSync();
       const afterTime = new Date();
-      
+
       expect(metadata.lastUserPersonalizationSync).toBeDefined();
       const syncTime = new Date(metadata.lastUserPersonalizationSync);
       expect(syncTime.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());
@@ -121,7 +124,7 @@ describe('BackupMetadata', () => {
       const beforeTime = new Date();
       metadata.updateChatHistorySync(100, '2023-01-01T00:00:00.000Z', '2023-12-31T23:59:59.999Z');
       const afterTime = new Date();
-      
+
       expect(metadata.totalChatMessages).toBe(100);
       expect(metadata.oldestChatMessage).toBe('2023-01-01T00:00:00.000Z');
       expect(metadata.newestChatMessage).toBe('2023-12-31T23:59:59.999Z');
@@ -134,9 +137,9 @@ describe('BackupMetadata', () => {
     it('should update only total messages if timestamps not provided', () => {
       metadata.oldestChatMessage = 'existing-oldest';
       metadata.newestChatMessage = 'existing-newest';
-      
+
       metadata.updateChatHistorySync(50);
-      
+
       expect(metadata.totalChatMessages).toBe(50);
       expect(metadata.oldestChatMessage).toBe('existing-oldest');
       expect(metadata.newestChatMessage).toBe('existing-newest');
@@ -176,28 +179,28 @@ describe('PersonalityData', () => {
       const profileData = {
         id: 'profile-id-456',
         name: 'TestPersonality',
-        description: 'A test personality'
+        description: 'A test personality',
       };
-      
+
       personalityData.updateProfile(profileData);
-      
+
       expect(personalityData.profile).toEqual(profileData);
     });
 
     it('should set ID from profile if not already set', () => {
       const dataWithoutId = new PersonalityData('TestPersonality');
       const profileData = { id: 'profile-id-789', name: 'TestPersonality' };
-      
+
       dataWithoutId.updateProfile(profileData);
-      
+
       expect(dataWithoutId.id).toBe('profile-id-789');
     });
 
     it('should not overwrite existing ID', () => {
       const profileData = { id: 'different-id', name: 'TestPersonality' };
-      
+
       personalityData.updateProfile(profileData);
-      
+
       expect(personalityData.id).toBe('test-id-123'); // Original ID preserved
     });
   });
@@ -207,7 +210,7 @@ describe('PersonalityData', () => {
       // Add some existing memories
       personalityData.memories = [
         { id: 'mem1', content: 'Memory 1', created_at: 1609459200 },
-        { id: 'mem2', content: 'Memory 2', created_at: 1609459300 }
+        { id: 'mem2', content: 'Memory 2', created_at: 1609459300 },
       ];
       personalityData.metadata.totalMemories = 2;
     });
@@ -215,16 +218,16 @@ describe('PersonalityData', () => {
     it('should add new memories and sort chronologically', () => {
       const newMemories = [
         { id: 'mem3', content: 'Memory 3', created_at: 1609459400 },
-        { id: 'mem0', content: 'Memory 0', created_at: 1609459100 } // Earlier than existing
+        { id: 'mem0', content: 'Memory 0', created_at: 1609459100 }, // Earlier than existing
       ];
-      
+
       const result = personalityData.syncMemories(newMemories);
-      
+
       expect(result.hasNewMemories).toBe(true);
       expect(result.newMemoryCount).toBe(2);
       expect(result.totalMemories).toBe(4);
       expect(personalityData.memories).toHaveLength(4);
-      
+
       // Check chronological order
       const timestamps = personalityData.memories.map(m => m.created_at);
       expect(timestamps).toEqual([1609459100, 1609459200, 1609459300, 1609459400]);
@@ -233,11 +236,11 @@ describe('PersonalityData', () => {
     it('should filter out duplicate memories', () => {
       const duplicateMemories = [
         { id: 'mem1', content: 'Duplicate Memory 1', created_at: 1609459200 },
-        { id: 'mem4', content: 'New Memory 4', created_at: 1609459500 }
+        { id: 'mem4', content: 'New Memory 4', created_at: 1609459500 },
       ];
-      
+
       const result = personalityData.syncMemories(duplicateMemories);
-      
+
       expect(result.hasNewMemories).toBe(true);
       expect(result.newMemoryCount).toBe(1);
       expect(result.totalMemories).toBe(3);
@@ -247,11 +250,11 @@ describe('PersonalityData', () => {
     it('should handle no new memories', () => {
       const existingMemories = [
         { id: 'mem1', content: 'Memory 1', created_at: 1609459200 },
-        { id: 'mem2', content: 'Memory 2', created_at: 1609459300 }
+        { id: 'mem2', content: 'Memory 2', created_at: 1609459300 },
       ];
-      
+
       const result = personalityData.syncMemories(existingMemories);
-      
+
       expect(result.hasNewMemories).toBe(false);
       expect(result.newMemoryCount).toBe(0);
       expect(result.totalMemories).toBe(2);
@@ -259,22 +262,20 @@ describe('PersonalityData', () => {
 
     it('should handle memories with ISO string timestamps', () => {
       const newMemories = [
-        { id: 'mem3', content: 'Memory 3', created_at: '2021-01-01T01:00:00.000Z' }
+        { id: 'mem3', content: 'Memory 3', created_at: '2021-01-01T01:00:00.000Z' },
       ];
-      
+
       const result = personalityData.syncMemories(newMemories);
-      
+
       expect(result.hasNewMemories).toBe(true);
       expect(personalityData.memories).toHaveLength(3);
     });
 
     it('should update metadata with latest timestamp', () => {
-      const newMemories = [
-        { id: 'mem3', content: 'Memory 3', created_at: 1609459500 }
-      ];
-      
+      const newMemories = [{ id: 'mem3', content: 'Memory 3', created_at: 1609459500 }];
+
       personalityData.syncMemories(newMemories);
-      
+
       expect(personalityData.metadata.totalMemories).toBe(3);
       expect(personalityData.metadata.lastMemoryTimestamp).toBe(1609459500);
     });
@@ -290,11 +291,11 @@ describe('PersonalityData', () => {
     it('should update knowledge and metadata when data changes', () => {
       const knowledgeData = [
         { id: 'know1', content: 'Knowledge 1' },
-        { id: 'know2', content: 'Knowledge 2' }
+        { id: 'know2', content: 'Knowledge 2' },
       ];
-      
+
       const result = personalityData.updateKnowledge(knowledgeData);
-      
+
       expect(result.hasNewKnowledge).toBe(true);
       expect(result.knowledgeCount).toBe(2);
       expect(personalityData.knowledge).toEqual(knowledgeData);
@@ -304,13 +305,13 @@ describe('PersonalityData', () => {
 
     it('should detect no changes when data is identical', () => {
       const knowledgeData = [{ id: 'know1', content: 'Knowledge 1' }];
-      
+
       // Set initial data
       personalityData.updateKnowledge(knowledgeData);
-      
+
       // Update with same data
       const result = personalityData.updateKnowledge(knowledgeData);
-      
+
       expect(result.hasNewKnowledge).toBe(false);
       expect(result.knowledgeCount).toBe(1);
     });
@@ -326,11 +327,11 @@ describe('PersonalityData', () => {
     it('should update training and metadata when data changes', () => {
       const trainingData = [
         { id: 'train1', input: 'Input 1', output: 'Output 1' },
-        { id: 'train2', input: 'Input 2', output: 'Output 2' }
+        { id: 'train2', input: 'Input 2', output: 'Output 2' },
       ];
-      
+
       const result = personalityData.updateTraining(trainingData);
-      
+
       expect(result.hasNewTraining).toBe(true);
       expect(result.trainingCount).toBe(2);
       expect(personalityData.training).toEqual(trainingData);
@@ -340,13 +341,13 @@ describe('PersonalityData', () => {
 
     it('should detect no changes when data is identical', () => {
       const trainingData = [{ id: 'train1', input: 'Input 1', output: 'Output 1' }];
-      
+
       // Set initial data
       personalityData.updateTraining(trainingData);
-      
+
       // Update with same data
       const result = personalityData.updateTraining(trainingData);
-      
+
       expect(result.hasNewTraining).toBe(false);
       expect(result.trainingCount).toBe(1);
     });
@@ -362,11 +363,11 @@ describe('PersonalityData', () => {
     it('should update user personalization when data changes', () => {
       const personalizationData = {
         preferences: { theme: 'dark' },
-        settings: { notifications: true }
+        settings: { notifications: true },
       };
-      
+
       const result = personalityData.updateUserPersonalization(personalizationData);
-      
+
       expect(result.hasNewUserPersonalization).toBe(true);
       expect(personalityData.userPersonalization).toEqual(personalizationData);
       expect(personalityData.metadata.lastUserPersonalizationSync).toBeDefined();
@@ -374,13 +375,13 @@ describe('PersonalityData', () => {
 
     it('should detect no changes when data is identical', () => {
       const personalizationData = { preferences: { theme: 'dark' } };
-      
+
       // Set initial data
       personalityData.updateUserPersonalization(personalizationData);
-      
+
       // Update with same data
       const result = personalityData.updateUserPersonalization(personalizationData);
-      
+
       expect(result.hasNewUserPersonalization).toBe(false);
     });
 
@@ -388,7 +389,7 @@ describe('PersonalityData', () => {
       expect(() => {
         personalityData.updateUserPersonalization('not an object');
       }).toThrow('User personalization data must be an object');
-      
+
       expect(() => {
         personalityData.updateUserPersonalization(null);
       }).toThrow('User personalization data must be an object');
@@ -400,7 +401,7 @@ describe('PersonalityData', () => {
       // Add some existing chat history
       personalityData.chatHistory = [
         { ts: 1609459200, content: 'Message 1' },
-        { ts: 1609459300, content: 'Message 2' }
+        { ts: 1609459300, content: 'Message 2' },
       ];
     });
 
@@ -408,16 +409,16 @@ describe('PersonalityData', () => {
       const newMessages = [
         { ts: 1609459250, content: 'Message between' }, // Should be filtered out (older)
         { ts: 1609459400, content: 'Message 3' },
-        { ts: 1609459500, content: 'Message 4' }
+        { ts: 1609459500, content: 'Message 4' },
       ];
-      
+
       const result = personalityData.syncChatHistory(newMessages);
-      
+
       expect(result.hasNewMessages).toBe(true);
       expect(result.newMessageCount).toBe(2);
       expect(result.totalMessages).toBe(4);
       expect(personalityData.chatHistory).toHaveLength(4);
-      
+
       // Check that only messages newer than existing were added
       const lastTwoMessages = personalityData.chatHistory.slice(-2);
       expect(lastTwoMessages[0].content).toBe('Message 3');
@@ -427,23 +428,21 @@ describe('PersonalityData', () => {
     it('should handle no new messages', () => {
       const oldMessages = [
         { ts: 1609459100, content: 'Old Message' },
-        { ts: 1609459200, content: 'Duplicate Message' }
+        { ts: 1609459200, content: 'Duplicate Message' },
       ];
-      
+
       const result = personalityData.syncChatHistory(oldMessages);
-      
+
       expect(result.hasNewMessages).toBe(false);
       expect(result.newMessageCount).toBe(0);
       expect(result.totalMessages).toBe(2); // Original count unchanged
     });
 
     it('should update metadata with date range', () => {
-      const newMessages = [
-        { ts: 1609459400, content: 'Message 3' }
-      ];
-      
+      const newMessages = [{ ts: 1609459400, content: 'Message 3' }];
+
       personalityData.syncChatHistory(newMessages);
-      
+
       expect(personalityData.metadata.totalChatMessages).toBe(3);
       expect(personalityData.metadata.lastChatHistorySync).toBeDefined();
       expect(personalityData.metadata.oldestChatMessage).toBe('2021-01-01T00:00:00.000Z');
@@ -466,9 +465,9 @@ describe('PersonalityData', () => {
       personalityData.updateUserPersonalization({ theme: 'dark' });
       personalityData.syncChatHistory([{ ts: 1609459200 }]);
       personalityData.markBackupComplete();
-      
+
       const summary = personalityData.getSummary();
-      
+
       expect(summary).toEqual({
         name: 'TestPersonality',
         id: 'test-id-123',
@@ -481,14 +480,14 @@ describe('PersonalityData', () => {
         lastBackup: expect.any(String),
         dateRange: {
           oldest: '2021-01-01T00:00:00.000Z',
-          newest: '2021-01-01T00:00:00.000Z'
-        }
+          newest: '2021-01-01T00:00:00.000Z',
+        },
       });
     });
 
     it('should handle empty data', () => {
       const summary = personalityData.getSummary();
-      
+
       expect(summary).toEqual({
         name: 'TestPersonality',
         id: 'test-id-123',
@@ -499,7 +498,7 @@ describe('PersonalityData', () => {
         chatMessagesCount: 0,
         hasUserPersonalization: false,
         lastBackup: null,
-        dateRange: null
+        dateRange: null,
       });
     });
   });
@@ -509,7 +508,7 @@ describe('PersonalityData', () => {
       const beforeTime = new Date();
       personalityData.markBackupComplete();
       const afterTime = new Date();
-      
+
       expect(personalityData.metadata.lastBackup).toBeDefined();
       const backupTime = new Date(personalityData.metadata.lastBackup);
       expect(backupTime.getTime()).toBeGreaterThanOrEqual(beforeTime.getTime());

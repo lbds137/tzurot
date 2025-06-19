@@ -1,6 +1,6 @@
 /**
  * Tests for Command Processor
- * 
+ *
  * Tests the command processing pipeline including middleware integration,
  * error handling, and command registration.
  */
@@ -15,14 +15,14 @@ jest.mock('../../src/logger');
 jest.mock('../../src/middleware', () => {
   const mockMiddlewareManager = {
     use: jest.fn(),
-    execute: jest.fn()
+    execute: jest.fn(),
   };
-  
+
   return {
     middlewareManager: mockMiddlewareManager,
     createLoggingMiddleware: jest.fn(() => jest.fn()),
     createPermissionMiddleware: jest.fn(() => jest.fn()),
-    createRateLimitMiddleware: jest.fn(() => jest.fn())
+    createRateLimitMiddleware: jest.fn(() => jest.fn()),
   };
 });
 
@@ -34,22 +34,22 @@ describe('Command Processor', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     // Setup mock Discord objects
     mockAuthor = {
       id: '123456789',
       username: 'testuser',
-      tag: 'testuser#1234'
+      tag: 'testuser#1234',
     };
 
     mockChannel = {
       id: '987654321',
-      send: jest.fn().mockResolvedValue({ id: 'sent-message-id' })
+      send: jest.fn().mockResolvedValue({ id: 'sent-message-id' }),
     };
 
     mockGuild = {
       id: '555666777',
-      name: 'Test Guild'
+      name: 'Test Guild',
     };
 
     mockMessage = {
@@ -57,13 +57,13 @@ describe('Command Processor', () => {
       channel: mockChannel,
       guild: mockGuild,
       content: '!tzurot test command',
-      id: 'message-123'
+      id: 'message-123',
     };
 
     // Default middleware manager behavior
     middlewareManager.execute = jest.fn().mockResolvedValue({
       earlyReturn: false,
-      validated: true
+      validated: true,
     });
 
     middlewareManager.use = jest.fn();
@@ -71,17 +71,13 @@ describe('Command Processor', () => {
 
   describe('processCommand', () => {
     it('should process a valid command successfully', async () => {
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        ['arg1', 'arg2']
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'test', ['arg1', 'arg2']);
 
       expect(result.success).toBe(true);
       expect(result.command).toBe('test');
       expect(result.args).toEqual(['arg1', 'arg2']);
       expect(result.validated).toBe(true);
-      
+
       expect(middlewareManager.execute).toHaveBeenCalledWith({
         message: mockMessage,
         command: 'test',
@@ -90,7 +86,7 @@ describe('Command Processor', () => {
         userId: '123456789',
         channelId: '987654321',
         guildId: '555666777',
-        timestamp: expect.any(Number)
+        timestamp: expect.any(Number),
       });
     });
 
@@ -99,14 +95,10 @@ describe('Command Processor', () => {
         earlyReturn: true,
         error: true,
         message: 'Validation failed',
-        validationErrors: ['Invalid argument format', 'Missing required parameter']
+        validationErrors: ['Invalid argument format', 'Missing required parameter'],
       });
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        []
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'test', []);
 
       expect(result.success).toBe(false);
       expect(result.shouldReply).toBe(true);
@@ -119,14 +111,10 @@ describe('Command Processor', () => {
       middlewareManager.execute.mockResolvedValue({
         earlyReturn: true,
         error: false,
-        message: 'Rate limit exceeded'
+        message: 'Rate limit exceeded',
       });
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        []
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'test', []);
 
       expect(result.success).toBe(false);
       expect(result.earlyReturn).toBe(true);
@@ -138,14 +126,10 @@ describe('Command Processor', () => {
       middlewareManager.execute.mockResolvedValue({
         earlyReturn: true,
         error: true,
-        message: 'Something went wrong'
+        message: 'Something went wrong',
       });
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        []
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'test', []);
 
       expect(result.success).toBe(false);
       expect(result.message).toBe('Something went wrong');
@@ -156,11 +140,7 @@ describe('Command Processor', () => {
       const error = new Error('Unexpected error');
       middlewareManager.execute.mockRejectedValue(error);
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        []
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'test', []);
 
       expect(result.success).toBe(false);
       expect(result.error).toBe(error);
@@ -174,20 +154,15 @@ describe('Command Processor', () => {
     it('should pass additional options to middleware context', async () => {
       const options = {
         requiresAuth: true,
-        customFlag: 'test'
+        customFlag: 'test',
       };
 
-      await commandProcessor.processCommand(
-        mockMessage,
-        'test',
-        [],
-        options
-      );
+      await commandProcessor.processCommand(mockMessage, 'test', [], options);
 
       expect(middlewareManager.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           requiresAuth: true,
-          customFlag: 'test'
+          customFlag: 'test',
         })
       );
     });
@@ -196,14 +171,10 @@ describe('Command Processor', () => {
       middlewareManager.execute.mockResolvedValue({
         earlyReturn: false,
         validated: true,
-        namedArgs: { target: 'user123', reason: 'test' }
+        namedArgs: { target: 'user123', reason: 'test' },
       });
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'ban',
-        ['user123', 'test']
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'ban', ['user123', 'test']);
 
       expect(result.success).toBe(true);
       expect(result.args).toEqual({ target: 'user123', reason: 'test' });
@@ -212,15 +183,11 @@ describe('Command Processor', () => {
     it('should handle DM messages without guild', async () => {
       mockMessage.guild = null;
 
-      const result = await commandProcessor.processCommand(
-        mockMessage,
-        'help',
-        []
-      );
+      const result = await commandProcessor.processCommand(mockMessage, 'help', []);
 
       expect(middlewareManager.execute).toHaveBeenCalledWith(
         expect.objectContaining({
-          guildId: undefined
+          guildId: undefined,
         })
       );
       expect(result.success).toBe(true);
@@ -230,7 +197,7 @@ describe('Command Processor', () => {
   describe('registerCommandHandler', () => {
     it('should register a valid command handler', () => {
       const handler = jest.fn();
-      
+
       expect(() => {
         commandProcessor.registerCommandHandler('test', {}, handler);
       }).not.toThrow();
@@ -242,7 +209,7 @@ describe('Command Processor', () => {
 
     it('should throw error for missing command name', () => {
       const handler = jest.fn();
-      
+
       expect(() => {
         commandProcessor.registerCommandHandler(null, {}, handler);
       }).toThrow('Command name is required and must be a string');
@@ -250,7 +217,7 @@ describe('Command Processor', () => {
 
     it('should throw error for non-string command name', () => {
       const handler = jest.fn();
-      
+
       expect(() => {
         commandProcessor.registerCommandHandler(123, {}, handler);
       }).toThrow('Command name is required and must be a string');
@@ -265,28 +232,24 @@ describe('Command Processor', () => {
     it('should register permission middleware for commands with permissions', () => {
       const handler = jest.fn();
       const mockPermissionMiddleware = jest.fn(context => context);
-      
+
       // Mock createPermissionMiddleware
       const { createPermissionMiddleware } = require('../../src/middleware');
       createPermissionMiddleware.mockReturnValue(mockPermissionMiddleware);
 
-      commandProcessor.registerCommandHandler(
-        'admin',
-        { permissions: ['ADMINISTRATOR'] },
-        handler
-      );
+      commandProcessor.registerCommandHandler('admin', { permissions: ['ADMINISTRATOR'] }, handler);
 
       expect(createPermissionMiddleware).toHaveBeenCalledWith(['ADMINISTRATOR']);
       expect(middlewareManager.use).toHaveBeenCalled();
-      
+
       // Test that the middleware only applies to the specific command
       const registeredMiddleware = middlewareManager.use.mock.calls[0][0];
       const testContext = { command: 'admin' };
       const otherContext = { command: 'other' };
-      
+
       registeredMiddleware(testContext);
       expect(mockPermissionMiddleware).toHaveBeenCalledWith(testContext);
-      
+
       mockPermissionMiddleware.mockClear();
       const result = registeredMiddleware(otherContext);
       expect(mockPermissionMiddleware).not.toHaveBeenCalled();
@@ -297,19 +260,19 @@ describe('Command Processor', () => {
   describe('createDirectSend', () => {
     it('should create a function that sends messages', async () => {
       const sendFn = commandProcessor.createDirectSend(mockMessage);
-      
+
       const result = await sendFn('Hello world');
-      
+
       expect(mockChannel.send).toHaveBeenCalledWith('Hello world');
       expect(result).toEqual({ id: 'sent-message-id' });
     });
 
     it('should handle send errors gracefully', async () => {
       mockChannel.send.mockRejectedValue(new Error('Send failed'));
-      
+
       const sendFn = commandProcessor.createDirectSend(mockMessage);
       const result = await sendFn('Hello world');
-      
+
       expect(result).toBeNull();
       expect(logger.error).toHaveBeenCalledWith(
         '[CommandProcessor] Error sending message:',
@@ -320,9 +283,9 @@ describe('Command Processor', () => {
     it('should handle embed objects', async () => {
       const embed = { title: 'Test', description: 'Test embed' };
       const sendFn = commandProcessor.createDirectSend(mockMessage);
-      
+
       await sendFn(embed);
-      
+
       expect(mockChannel.send).toHaveBeenCalledWith(embed);
     });
   });
@@ -330,7 +293,7 @@ describe('Command Processor', () => {
   describe('handleUnknownCommand', () => {
     it('should send unknown command message', async () => {
       const result = await commandProcessor.handleUnknownCommand(mockMessage, 'invalid');
-      
+
       expect(result.success).toBe(false);
       expect(result.message).toContain('Unknown command: `invalid`');
       expect(result.message).toContain(`${botPrefix} help`);
@@ -341,9 +304,9 @@ describe('Command Processor', () => {
     it('should handle send errors', async () => {
       const error = new Error('Send failed');
       mockChannel.send.mockRejectedValue(error);
-      
+
       const result = await commandProcessor.handleUnknownCommand(mockMessage, 'invalid');
-      
+
       expect(result.success).toBe(false);
       expect(result.error).toBe(error);
       expect(logger.error).toHaveBeenCalledWith(
@@ -356,32 +319,32 @@ describe('Command Processor', () => {
   describe('createHelpText', () => {
     it('should create basic help text', () => {
       const helpText = commandProcessor.createHelpText('test');
-      
+
       expect(helpText).toBe(`**${botPrefix} test**`);
     });
 
     it('should include usage if provided', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        usage: `Usage: ${botPrefix} test <arg>`
+        usage: `Usage: ${botPrefix} test <arg>`,
       });
-      
+
       expect(helpText).toContain(`**${botPrefix} test**`);
       expect(helpText).toContain(`Usage: ${botPrefix} test <arg>`);
     });
 
     it('should include description if provided', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        description: 'This is a test command'
+        description: 'This is a test command',
       });
-      
+
       expect(helpText).toContain('This is a test command');
     });
 
     it('should include examples if provided', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        examples: ['test hello', 'test world']
+        examples: ['test hello', 'test world'],
       });
-      
+
       expect(helpText).toContain('Examples:');
       expect(helpText).toContain(`\`${botPrefix} test hello\``);
       expect(helpText).toContain(`\`${botPrefix} test world\``);
@@ -391,9 +354,9 @@ describe('Command Processor', () => {
       const helpText = commandProcessor.createHelpText('test', {
         usage: `Usage: ${botPrefix} test <arg>`,
         description: 'This is a test command',
-        examples: ['test hello', 'test world']
+        examples: ['test hello', 'test world'],
       });
-      
+
       expect(helpText).toContain(`**${botPrefix} test**`);
       expect(helpText).toContain(`Usage: ${botPrefix} test <arg>`);
       expect(helpText).toContain('This is a test command');
@@ -404,9 +367,9 @@ describe('Command Processor', () => {
 
     it('should handle empty examples array', () => {
       const helpText = commandProcessor.createHelpText('test', {
-        examples: []
+        examples: [],
       });
-      
+
       expect(helpText).toBe(`**${botPrefix} test**`);
       expect(helpText).not.toContain('Examples:');
     });

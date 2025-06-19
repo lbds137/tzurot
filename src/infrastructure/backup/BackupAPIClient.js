@@ -5,10 +5,7 @@
 
 const nodeFetch = require('node-fetch');
 const logger = require('../../logger');
-const {
-  getPersonalityJargonTerm,
-  getPrivateProfileInfoPath,
-} = require('../../../config');
+const { getPersonalityJargonTerm, getPrivateProfileInfoPath } = require('../../../config');
 
 /**
  * API client for backup operations
@@ -26,12 +23,13 @@ class BackupAPIClient {
     apiBaseUrl = null,
     timeout = 30000,
     scheduler = null,
-    fetch = null
+    clearScheduler = null,
+    fetch = null,
   } = {}) {
     this.apiBaseUrl = apiBaseUrl || this._getDefaultApiBaseUrl();
     this.timeout = timeout;
     this.scheduler = scheduler || globalThis.setTimeout || setTimeout;
-    this.clearScheduler = globalThis.clearTimeout || clearTimeout;
+    this.clearScheduler = clearScheduler || globalThis.clearTimeout || clearTimeout;
     this.fetch = fetch || nodeFetch;
   }
 
@@ -87,12 +85,14 @@ class BackupAPIClient {
 
     // Sort memories by created_at timestamp (oldest first)
     allMemories.sort((a, b) => {
-      const timeA = typeof a.created_at === 'number'
-        ? a.created_at
-        : new Date(a.created_at || a.timestamp || 0).getTime() / 1000;
-      const timeB = typeof b.created_at === 'number'
-        ? b.created_at
-        : new Date(b.created_at || b.timestamp || 0).getTime() / 1000;
+      const timeA =
+        typeof a.created_at === 'number'
+          ? a.created_at
+          : new Date(a.created_at || a.timestamp || 0).getTime() / 1000;
+      const timeB =
+        typeof b.created_at === 'number'
+          ? b.created_at
+          : new Date(b.created_at || b.timestamp || 0).getTime() / 1000;
       return timeA - timeB;
     });
 
@@ -132,7 +132,9 @@ class BackupAPIClient {
       logger.info(`[BackupAPIClient] Fetched ${knowledge.length} knowledge/story entries`);
       return knowledge;
     } catch (error) {
-      logger.error(`[BackupAPIClient] Error fetching knowledge for ${personalityName}: ${error.message}`);
+      logger.error(
+        `[BackupAPIClient] Error fetching knowledge for ${personalityName}: ${error.message}`
+      );
       return [];
     }
   }
@@ -169,7 +171,9 @@ class BackupAPIClient {
       logger.info(`[BackupAPIClient] Fetched ${training.length} training entries`);
       return training;
     } catch (error) {
-      logger.error(`[BackupAPIClient] Error fetching training for ${personalityName}: ${error.message}`);
+      logger.error(
+        `[BackupAPIClient] Error fetching training for ${personalityName}: ${error.message}`
+      );
       return [];
     }
   }
@@ -200,7 +204,9 @@ class BackupAPIClient {
         return {};
       }
     } catch (error) {
-      logger.error(`[BackupAPIClient] Error fetching user personalization for ${personalityName}: ${error.message}`);
+      logger.error(
+        `[BackupAPIClient] Error fetching user personalization for ${personalityName}: ${error.message}`
+      );
       return {};
     }
   }
@@ -245,7 +251,9 @@ class BackupAPIClient {
         }
 
         allMessages.push(...messages);
-        logger.info(`[BackupAPIClient] Retrieved ${messages.length} messages (total: ${allMessages.length})`);
+        logger.info(
+          `[BackupAPIClient] Retrieved ${messages.length} messages (total: ${allMessages.length})`
+        );
 
         // Find earliest timestamp for next batch
         beforeTs = Math.min(...messages.map(m => m.ts));
@@ -322,5 +330,5 @@ class BackupAPIClient {
 }
 
 module.exports = {
-  BackupAPIClient
+  BackupAPIClient,
 };

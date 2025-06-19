@@ -16,7 +16,7 @@ describe('HTTP Server', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    
+
     // Set up logger mocks
     logger.info = jest.fn();
     logger.error = jest.fn();
@@ -58,16 +58,18 @@ describe('HTTP Server', () => {
   describe('createHTTPServer', () => {
     it('should create server and register default routes', () => {
       server = createHTTPServer();
-      
+
       expect(server).toBeDefined();
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: GET:/health');
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: GET:/health/');
-      expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: POST:/webhook/github');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[HTTPServer] Registered route: POST:/webhook/github'
+      );
     });
 
     it('should create server with custom port', () => {
       server = createHTTPServer(8080);
-      
+
       expect(server).toBeDefined();
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: GET:/health');
     });
@@ -75,7 +77,7 @@ describe('HTTP Server', () => {
     it('should create server with context', () => {
       const context = { version: '1.0.0' };
       server = createHTTPServer(3000, context);
-      
+
       expect(server).toBeDefined();
       expect(global.httpServerContext).toEqual(context);
     });
@@ -89,21 +91,21 @@ describe('HTTP Server', () => {
     it('should register a GET route', () => {
       const handler = jest.fn();
       registerRoute('GET', '/test', handler);
-      
+
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: GET:/test');
     });
 
     it('should register a POST route', () => {
       const handler = jest.fn();
       registerRoute('POST', '/webhook', handler);
-      
+
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: POST:/webhook');
     });
 
     it('should handle case-insensitive methods', () => {
       const handler = jest.fn();
       registerRoute('get', '/test', handler);
-      
+
       expect(logger.info).toHaveBeenCalledWith('[HTTPServer] Registered route: GET:/test');
     });
   });
@@ -121,56 +123,64 @@ describe('HTTP Server', () => {
 
     it('should handle registered routes', async () => {
       registerRoute('GET', '/test', handler);
-      
+
       // Simulate the HTTP server's request handler
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'GET';
       mockRequest.url = '/test';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       expect(handler).toHaveBeenCalledWith(mockRequest, mockResponse);
     });
 
     it('should handle routes with query parameters via prefix matching', async () => {
       registerRoute('GET', '/test', handler);
-      
+
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'GET';
       mockRequest.url = '/test?param=value';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       // Server now uses prefix matching, so /test?param=value matches /test
       expect(handler).toHaveBeenCalledWith(mockRequest, mockResponse);
     });
 
     it('should return 404 for unregistered routes', async () => {
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'GET';
       mockRequest.url = '/nonexistent';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
-      expect(mockResponse.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Not Found', path: '/nonexistent' }));
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, {
+        'Content-Type': 'application/json',
+      });
+      expect(mockResponse.end).toHaveBeenCalledWith(
+        JSON.stringify({ error: 'Not Found', path: '/nonexistent' })
+      );
     });
 
     it('should return 404 for unsupported methods (routes are method-specific)', async () => {
       registerRoute('GET', '/test', handler);
-      
+
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'DELETE';
       mockRequest.url = '/test';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
-      expect(mockResponse.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Not Found', path: '/test' }));
+
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(404, {
+        'Content-Type': 'application/json',
+      });
+      expect(mockResponse.end).toHaveBeenCalledWith(
+        JSON.stringify({ error: 'Not Found', path: '/test' })
+      );
     });
 
     it('should handle POST requests with body parsing', async () => {
@@ -178,15 +188,15 @@ describe('HTTP Server', () => {
         res.writeHead(200);
         res.end('OK');
       });
-      
+
       registerRoute('POST', '/webhook', postHandler);
-      
+
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'POST';
       mockRequest.url = '/webhook';
       mockRequest.headers['content-type'] = 'application/json';
-      
+
       // Mock POST data
       const postData = JSON.stringify({ test: 'data' });
       mockRequest.on.mockImplementation((event, callback) => {
@@ -196,9 +206,9 @@ describe('HTTP Server', () => {
           setImmediate(callback);
         }
       });
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       expect(postHandler).toHaveBeenCalledWith(mockRequest, mockResponse);
     });
 
@@ -206,43 +216,54 @@ describe('HTTP Server', () => {
       const errorHandler = jest.fn(() => {
         throw new Error('Handler error');
       });
-      
+
       registerRoute('GET', '/error', errorHandler);
-      
+
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'GET';
       mockRequest.url = '/error';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       expect(logger.error).toHaveBeenCalledWith(
-        '[HTTPServer] Error handling GET:/error:', expect.any(Error)
+        '[HTTPServer] Error handling GET:/error:',
+        expect.any(Error)
       );
-      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
-      expect(mockResponse.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error', message: 'Handler error' }));
+      expect(mockResponse.writeHead).toHaveBeenCalledWith(500, {
+        'Content-Type': 'application/json',
+      });
+      expect(mockResponse.end).toHaveBeenCalledWith(
+        JSON.stringify({ error: 'Internal Server Error', message: 'Handler error' })
+      );
     });
 
     it('should set CORS headers on responses', async () => {
       registerRoute('GET', '/test', handler);
-      
+
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       expect(mockResponse.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-      expect(mockResponse.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      expect(mockResponse.setHeader).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Content-Type, X-Hub-Signature-256, X-GitHub-Event');
+      expect(mockResponse.setHeader).toHaveBeenCalledWith(
+        'Access-Control-Allow-Methods',
+        'GET, POST, OPTIONS'
+      );
+      expect(mockResponse.setHeader).toHaveBeenCalledWith(
+        'Access-Control-Allow-Headers',
+        'Content-Type, X-Hub-Signature-256, X-GitHub-Event'
+      );
     });
 
     it('should handle OPTIONS preflight requests', async () => {
       const serverHandler = server._events.request || server.listeners('request')[0];
-      
+
       mockRequest.method = 'OPTIONS';
       mockRequest.url = '/test';
-      
+
       await serverHandler(mockRequest, mockResponse);
-      
+
       expect(mockResponse.writeHead).toHaveBeenCalledWith(200);
       expect(mockResponse.end).toHaveBeenCalledWith();
     });
@@ -251,7 +272,7 @@ describe('HTTP Server', () => {
   describe('server lifecycle', () => {
     it('should create HTTP server instance', () => {
       server = createHTTPServer(4000);
-      
+
       expect(server).toBeDefined();
       expect(typeof server.listen).toBe('function');
       expect(typeof server.on).toBe('function');

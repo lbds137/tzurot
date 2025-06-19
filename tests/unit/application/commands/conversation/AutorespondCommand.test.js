@@ -6,7 +6,9 @@
  * Tests the autorespond command functionality for DDD architecture
  */
 
-const { createAutorespondCommand } = require('../../../../../src/application/commands/conversation/AutorespondCommand');
+const {
+  createAutorespondCommand,
+} = require('../../../../../src/application/commands/conversation/AutorespondCommand');
 const { Command } = require('../../../../../src/application/commands/CommandAbstraction');
 const logger = require('../../../../../src/logger');
 
@@ -76,7 +78,9 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockConversationManager.isAutoResponseEnabled).toHaveBeenCalledWith(mockContext.userId);
+      expect(mockConversationManager.isAutoResponseEnabled).toHaveBeenCalledWith(
+        mockContext.userId
+      );
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -169,13 +173,13 @@ describe('AutorespondCommand', () => {
             description: expect.stringContaining('will now continue responding'),
             color: 0x00ff00,
             fields: expect.arrayContaining([
-              expect.objectContaining({ 
-                name: 'What changed?', 
-                value: expect.stringContaining('no longer need to mention') 
+              expect.objectContaining({
+                name: 'What changed?',
+                value: expect.stringContaining('no longer need to mention'),
               }),
-              expect.objectContaining({ 
-                name: 'How to stop a conversation', 
-                value: expect.stringContaining('reset command') 
+              expect.objectContaining({
+                name: 'How to stop a conversation',
+                value: expect.stringContaining('reset command'),
               }),
             ]),
           }),
@@ -240,13 +244,13 @@ describe('AutorespondCommand', () => {
             description: expect.stringContaining('will no longer automatically respond'),
             color: 0xff0000,
             fields: expect.arrayContaining([
-              expect.objectContaining({ 
-                name: 'What changed?', 
-                value: expect.stringContaining('need to mention') 
+              expect.objectContaining({
+                name: 'What changed?',
+                value: expect.stringContaining('need to mention'),
               }),
-              expect.objectContaining({ 
-                name: 'Why disable?', 
-                value: expect.stringContaining('more control') 
+              expect.objectContaining({
+                name: 'Why disable?',
+                value: expect.stringContaining('more control'),
               }),
             ]),
           }),

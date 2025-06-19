@@ -35,15 +35,27 @@ const {
 
 const logger = require('../../../../src/logger');
 const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
-const { PersonalityApplicationService } = require('../../../../src/application/services/PersonalityApplicationService');
-const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
-const { FileAuthenticationRepository } = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
+const {
+  PersonalityApplicationService,
+} = require('../../../../src/application/services/PersonalityApplicationService');
+const {
+  FilePersonalityRepository,
+} = require('../../../../src/adapters/persistence/FilePersonalityRepository');
+const {
+  FileAuthenticationRepository,
+} = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
 const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServiceAdapter');
-const { EventHandlerRegistry } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
+const {
+  EventHandlerRegistry,
+} = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
 const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
 const { getPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
-const { getCommandIntegration } = require('../../../../src/application/commands/CommandIntegration');
-const { getCommandIntegrationAdapter } = require('../../../../src/adapters/CommandIntegrationAdapter');
+const {
+  getCommandIntegration,
+} = require('../../../../src/application/commands/CommandIntegration');
+const {
+  getCommandIntegrationAdapter,
+} = require('../../../../src/adapters/CommandIntegrationAdapter');
 
 describe('ApplicationBootstrap', () => {
   let mockEventBus;
@@ -100,7 +112,9 @@ describe('ApplicationBootstrap', () => {
     mockConversationManager = {
       getInstance: jest.fn(),
     };
-    require('../../../../src/core/conversation').getInstance.mockReturnValue(mockConversationManager);
+    require('../../../../src/core/conversation').getInstance.mockReturnValue(
+      mockConversationManager
+    );
 
     // Mock repositories and services
     FilePersonalityRepository.mockImplementation(() => ({
@@ -185,7 +199,9 @@ describe('ApplicationBootstrap', () => {
       await bootstrap.initialize();
 
       expect(mockPersonalityRouter.personalityService).toBeDefined();
-      expect(logger.info).toHaveBeenCalledWith('[ApplicationBootstrap] Configured PersonalityRouter');
+      expect(logger.info).toHaveBeenCalledWith(
+        '[ApplicationBootstrap] Configured PersonalityRouter'
+      );
     });
 
     it('should initialize command components', async () => {
@@ -195,7 +211,7 @@ describe('ApplicationBootstrap', () => {
 
       // CommandIntegration should only be initialized through the adapter (no direct initialization)
       expect(mockCommandIntegration.initialize).not.toHaveBeenCalled();
-      
+
       // CommandIntegrationAdapter should be initialized with application services
       expect(mockCommandAdapter.initialize).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -223,7 +239,10 @@ describe('ApplicationBootstrap', () => {
       const bootstrap = new ApplicationBootstrap();
 
       await expect(bootstrap.initialize()).rejects.toThrow('Initialization failed');
-      expect(logger.error).toHaveBeenCalledWith('[ApplicationBootstrap] Failed to initialize:', error);
+      expect(logger.error).toHaveBeenCalledWith(
+        '[ApplicationBootstrap] Failed to initialize:',
+        error
+      );
       expect(bootstrap.initialized).toBe(false);
     });
   });
@@ -261,7 +280,9 @@ describe('ApplicationBootstrap', () => {
     it('should throw error when accessing services before initialization', () => {
       const bootstrap = new ApplicationBootstrap();
 
-      expect(() => bootstrap.getApplicationServices()).toThrow('ApplicationBootstrap not initialized');
+      expect(() => bootstrap.getApplicationServices()).toThrow(
+        'ApplicationBootstrap not initialized'
+      );
       expect(() => bootstrap.getEventBus()).toThrow('ApplicationBootstrap not initialized');
     });
   });
