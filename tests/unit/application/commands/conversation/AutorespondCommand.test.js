@@ -31,7 +31,8 @@ describe('AutorespondCommand', () => {
     // Create mock services
     mockConversationManager = {
       isAutoResponseEnabled: jest.fn(),
-      setAutoResponse: jest.fn(),
+      enableAutoResponse: jest.fn(),
+      disableAutoResponse: jest.fn(),
     };
 
     // Create mock context
@@ -42,7 +43,8 @@ describe('AutorespondCommand', () => {
       channelId: '987654321098765432',
       guildId: '111222333444555666',
       commandPrefix: '!tz',
-      services: {
+      getUserId: jest.fn().mockReturnValue('123456789012345678'),
+      dependencies: {
         conversationManager: mockConversationManager,
       },
       respond: jest.fn(),
@@ -159,7 +161,7 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockConversationManager.setAutoResponse).toHaveBeenCalledWith(mockContext.userId, true);
+      expect(mockConversationManager.enableAutoResponse).toHaveBeenCalledWith(mockContext.userId);
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -184,7 +186,7 @@ describe('AutorespondCommand', () => {
     it('should handle enable errors', async () => {
       // Arrange
       mockContext.args = ['on'];
-      mockConversationManager.setAutoResponse.mockImplementation(() => {
+      mockConversationManager.enableAutoResponse.mockImplementation(() => {
         throw new Error('Failed to save preference');
       });
 
@@ -192,9 +194,15 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Failed to enable auto-response. Please try again.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error',
+            description: 'Failed to enable auto-response. Please try again.',
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(logger.error).toHaveBeenCalledWith(
         '[AutorespondCommand] Error enabling auto-response:',
         expect.any(Error)
@@ -224,7 +232,7 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockConversationManager.setAutoResponse).toHaveBeenCalledWith(mockContext.userId, false);
+      expect(mockConversationManager.disableAutoResponse).toHaveBeenCalledWith(mockContext.userId);
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -249,7 +257,7 @@ describe('AutorespondCommand', () => {
     it('should handle disable errors', async () => {
       // Arrange
       mockContext.args = ['off'];
-      mockConversationManager.setAutoResponse.mockImplementation(() => {
+      mockConversationManager.disableAutoResponse.mockImplementation(() => {
         throw new Error('Failed to save preference');
       });
 
@@ -257,9 +265,15 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Failed to disable auto-response. Please try again.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error',
+            description: 'Failed to disable auto-response. Please try again.',
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(logger.error).toHaveBeenCalledWith(
         '[AutorespondCommand] Error disabling auto-response:',
         expect.any(Error)
@@ -289,10 +303,17 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ Invalid action "invalid". Use `on`, `off`, or `status`.'
-      );
-      expect(mockConversationManager.setAutoResponse).not.toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Action',
+            description: 'Invalid action "invalid". Use `on`, `off`, or `status`.',
+            color: 0xf44336,
+          }),
+        ],
+      });
+      expect(mockConversationManager.enableAutoResponse).not.toHaveBeenCalled();
+      expect(mockConversationManager.disableAutoResponse).not.toHaveBeenCalled();
     });
 
     it('should handle case insensitive actions', async () => {
@@ -303,7 +324,7 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockConversationManager.setAutoResponse).toHaveBeenCalledWith(mockContext.userId, true);
+      expect(mockConversationManager.enableAutoResponse).toHaveBeenCalledWith(mockContext.userId);
     });
   });
 
@@ -319,9 +340,15 @@ describe('AutorespondCommand', () => {
       await command.execute(mockContext);
 
       // Assert
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ An unexpected error occurred. Please try again later.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Error',
+            description: 'An unexpected error occurred. Please try again later.',
+            color: 0xf44336,
+          }),
+        ],
+      });
       expect(logger.error).toHaveBeenCalledWith(
         '[AutorespondCommand] Unexpected error:',
         expect.any(Error)
@@ -359,7 +386,7 @@ describe('AutorespondCommand', () => {
       // Assert
       const embedCall = mockContext.respond.mock.calls[0][0];
       expect(embedCall.embeds[0].footer).toEqual({
-        text: expect.stringContaining('!tzautorespond on/off'),
+        text: expect.stringContaining('!tz autorespond on/off'),
       });
     });
   });

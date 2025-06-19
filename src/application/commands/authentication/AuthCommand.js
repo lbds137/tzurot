@@ -54,9 +54,9 @@ function createAuthCommand(dependencies = {}) {
  */
 function createExecutor(dependencies) {
   return async function execute(context) {
-    const { args, options, services, isWebhook } = context;
-    const auth = services.auth;
-    const webhookUserTracker = services.webhookUserTracker;
+    const { args, options, dependencies, isWebhook } = context;
+    const auth = dependencies.auth;
+    const webhookUserTracker = dependencies.webhookUserTracker;
 
     logger.info(`[AuthCommand] Executing for user ${context.userId}`);
 

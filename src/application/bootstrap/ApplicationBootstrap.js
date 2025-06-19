@@ -98,6 +98,11 @@ class ApplicationBootstrap {
       };
       const conversationManager = getConversationManager();
 
+      // Import legacy auth service for commands
+      const auth = require('../../auth');
+      const webhookUserTracker = require('../../utils/webhookUserTracker');
+      const channelUtils = require('../../utils/channelUtils');
+
       this.applicationServices = {
         personalityApplicationService,
         conversationManager, // Legacy for now
@@ -105,6 +110,10 @@ class ApplicationBootstrap {
         messageTracker, // Legacy for now
         featureFlags: getFeatureFlags(),
         botPrefix: require('../../../config').botPrefix,
+        auth, // Legacy auth service for authentication commands
+        webhookUserTracker, // Legacy webhook tracker for authentication commands
+        channelUtils, // Legacy channel utilities for verification commands
+        authenticationRepository, // DDD repository for future use
       };
 
       logger.info('[ApplicationBootstrap] Created application services');
