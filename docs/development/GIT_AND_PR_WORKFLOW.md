@@ -37,6 +37,24 @@ This guide consolidates all git workflow, PR rules, and branch management docume
 - **Create a merge commit**: Disabled
 - **Allow rebase merging**: Enabled (only option)
 
+### 🚨 Release Merge Strategy
+
+**IMPORTANT**: For release branches merging to main, use **rebase** strategy, NOT squash:
+
+```bash
+# When GitHub UI fails with "merge conflicts" (false positive)
+git checkout main
+git pull origin main
+git rebase release/vX.Y.Z
+git push origin main
+```
+
+**Why rebase for releases?**
+- Preserves complete commit history for the release
+- Maintains individual feature commit messages
+- Avoids losing valuable development context
+- Required by our branch protection rules (no merge commits)
+
 ## Quick Command Reference
 
 ```bash
@@ -303,6 +321,53 @@ jobs:
           git rebase origin/main
           git push --force-with-lease origin develop
 ```
+
+## Release Workflow
+
+### Creating a Release
+
+1. **Create Release Branch**
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b release/vX.Y.Z
+   ```
+
+2. **Update Version and Changelog**
+   ```bash
+   # Edit package.json version
+   # Update CHANGELOG.md
+   git commit -m "chore: bump version to X.Y.Z and update changelog"
+   ```
+
+3. **Create PR to Main**
+   ```bash
+   gh pr create --base main --title "chore: release vX.Y.Z"
+   ```
+
+4. **Handle Merge Issues**
+   - If GitHub UI shows false merge conflicts
+   - Use command line rebase strategy (see above)
+   - Never use squash for releases
+
+5. **Create GitHub Release**
+   ```bash
+   # After successful merge to main
+   git checkout main && git pull origin main
+   ./scripts/create-release.sh vX.Y.Z
+   ```
+
+6. **Sync Develop**
+   ```bash
+   git sync-develop
+   ```
+
+### Release Branch Protection
+
+- Release branches are NOT protected
+- Can be force-pushed during preparation
+- Must target main branch for final merge
+- Should be deleted after successful release
 
 ## CI/CD and Deployment
 
