@@ -43,15 +43,25 @@ function createExecutor(_dependencies) {
       // Check if user has required permissions
       const hasPermission = await context.hasPermission('ManageMessages');
       if (!hasPermission) {
-        return await context.respond(
-          '❌ You need the "Manage Messages" permission to deactivate personalities in this channel.'
-        );
+        const errorEmbed = {
+          title: '❌ Insufficient Permissions',
+          description: 'You need the "Manage Messages" permission to deactivate personalities in this channel.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Check if there's an active personality
       const activePersonality = conversationManager.getActivatedPersonality(context.getChannelId());
       if (!activePersonality) {
-        return await context.respond('❌ There is no active personality in this channel.');
+        const errorEmbed = {
+          title: '❌ No Active Personality',
+          description: 'There is no active personality in this channel.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Deactivate the personality
@@ -62,7 +72,13 @@ function createExecutor(_dependencies) {
         );
       } catch (error) {
         logger.error('[DeactivateCommand] Error deactivating personality:', error);
-        return await context.respond('❌ Failed to deactivate personality. Please try again.');
+        const errorEmbed = {
+          title: '❌ Deactivation Failed',
+          description: 'Failed to deactivate personality. Please try again.',
+          color: 0xf44336,
+          timestamp: new Date().toISOString(),
+        };
+        return await context.respond({ embeds: [errorEmbed] });
       }
 
       // Send success response with embed

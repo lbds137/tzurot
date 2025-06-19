@@ -52,7 +52,17 @@ describe('PingCommand', () => {
     it('should respond with pong message', async () => {
       await pingCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith('Pong! TestBot is operational.');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '🏓 Pong!',
+          description: 'TestBot is operational.',
+          color: 0x4caf50,
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: 'Status', value: '✅ Online' }),
+            expect.objectContaining({ name: 'Response Time', value: expect.stringMatching(/\d+ms/) })
+          ])
+        })]
+      });
       expect(mockContext.respond).toHaveBeenCalledTimes(1);
     });
 
@@ -61,7 +71,17 @@ describe('PingCommand', () => {
 
       await pingCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith('Pong! TestBot is operational.');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '🏓 Pong!',
+          description: 'TestBot is operational.',
+          color: 0x4caf50,
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: 'Status', value: '✅ Online' }),
+            expect.objectContaining({ name: 'Response Time', value: expect.stringMatching(/\d+ms/) })
+          ])
+        })]
+      });
     });
 
     it('should work in guild channels', async () => {
@@ -69,7 +89,17 @@ describe('PingCommand', () => {
 
       await pingCommand.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith('Pong! TestBot is operational.');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '🏓 Pong!',
+          description: 'TestBot is operational.',
+          color: 0x4caf50,
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: 'Status', value: '✅ Online' }),
+            expect.objectContaining({ name: 'Response Time', value: expect.stringMatching(/\d+ms/) })
+          ])
+        })]
+      });
     });
 
     it('should handle missing bot config gracefully', async () => {
@@ -79,9 +109,12 @@ describe('PingCommand', () => {
       // Should fall back to require statement
       await commandWithoutConfig.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Pong!')
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: expect.stringContaining('Pong!'),
+          description: expect.stringContaining('operational')
+        })]
+      });
     });
 
     it('should handle errors gracefully', async () => {
@@ -94,9 +127,13 @@ describe('PingCommand', () => {
         expect.any(Error)
       );
       expect(mockContext.respond).toHaveBeenCalledTimes(2);
-      expect(mockContext.respond).toHaveBeenLastCalledWith(
-        'An error occurred while checking bot status.'
-      );
+      expect(mockContext.respond).toHaveBeenLastCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Ping Failed',
+          description: 'An error occurred while checking bot status.',
+          color: 0xf44336
+        })]
+      });
     });
 
     it('should handle unexpected errors', async () => {
@@ -111,9 +148,13 @@ describe('PingCommand', () => {
         '[PingCommand] Execution failed:',
         expect.any(Error)
       );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        'An error occurred while checking bot status.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Ping Failed',
+          description: 'An error occurred while checking bot status.',
+          color: 0xf44336
+        })]
+      });
     });
   });
 
