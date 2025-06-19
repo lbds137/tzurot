@@ -20,7 +20,7 @@ class ProfileInfoFetcher {
     // If rateLimiter options are provided, create a new instance with those options
     if (options.rateLimiter && !(options.rateLimiter instanceof RateLimiter)) {
       this.rateLimiter = new RateLimiter({
-        minRequestSpacing: 3000,
+        minRequestSpacing: 6000,
         maxConcurrent: 1,
         maxConsecutiveRateLimits: 3,
         cooldownPeriod: 60000,
@@ -32,7 +32,7 @@ class ProfileInfoFetcher {
       this.rateLimiter =
         options.rateLimiter ||
         new RateLimiter({
-          minRequestSpacing: 3000,
+          minRequestSpacing: 6000,
           maxConcurrent: 1,
           maxConsecutiveRateLimits: 3,
           cooldownPeriod: 60000,
