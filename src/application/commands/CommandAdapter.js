@@ -37,6 +37,13 @@ class DiscordCommandAdapter {
         args: args,
         reply: (content, options) => message.reply(content),
         dependencies: this.applicationServices,
+        // Add these missing properties for better context
+        userId: message.author.id,
+        channelId: message.channel.id,
+        guildId: message.guild?.id || null,
+        isDM: !message.guild,
+        commandPrefix: botPrefix,
+        originalMessage: message,
       });
 
       // Execute the command

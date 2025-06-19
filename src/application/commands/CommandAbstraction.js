@@ -341,21 +341,34 @@ class CommandContext {
       }
 
       // If this is a thread, check its parent channel
-      if (this.channel.isThread && this.channel.isThread()) {
-        // Some thread types might have different parent access methods
-        const parent =
-          this.channel.parent || this.channel.parentChannel || this.channel.parentTextChannel;
-        if (parent) {
-          return parent.nsfw === true;
+      // Discord.js v14 uses channel.type to check for threads
+      const { ChannelType } = require('discord.js');
+      const isThread =
+        this.channel.type === ChannelType.PublicThread ||
+        this.channel.type === ChannelType.PrivateThread ||
+        this.channel.type === ChannelType.AnnouncementThread;
+
+      if (isThread) {
+        // Try different ways to access the parent channel
+        const parent = this.channel.parent || this.channel.parentChannel;
+        if (parent && parent.nsfw === true) {
+          return true;
+        }
+
+        // If parent is not directly available, try using parentId
+        if (this.channel.parentId && this.guild) {
+          const parentFromCache = this.guild.channels.cache.get(this.channel.parentId);
+          if (parentFromCache && parentFromCache.nsfw === true) {
+            return true;
+          }
         }
       }
 
-      // For forum threads, try a different approach
+      // For forum posts, also check parent
       if (this.channel.parentId && this.guild) {
-        // Try to get the parent channel from the guild cache
         const parent = this.guild.channels.cache.get(this.channel.parentId);
-        if (parent) {
-          return parent.nsfw === true;
+        if (parent && parent.nsfw === true) {
+          return true;
         }
       }
     }
