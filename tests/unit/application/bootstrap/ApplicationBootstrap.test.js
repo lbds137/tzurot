@@ -413,16 +413,15 @@ describe('ApplicationBootstrap', () => {
   describe('Owner Personality Seeding', () => {
     let mockPersonalityService;
     let mockLegacyManager;
-    let mockTimer;
+    let mockDelayFunction;
 
     beforeEach(() => {
       // Mock environment variables
       delete process.env.BOT_OWNER_ID;
       delete process.env.BOT_OWNER_PERSONALITIES;
 
-      // Mock timer for seeding delay
-      mockTimer = jest.fn();
-      global.setTimeout = mockTimer;
+      // Mock delay function that will be injected
+      mockDelayFunction = jest.fn().mockResolvedValue();
 
       // Mock personality service for DDD
       mockPersonalityService = {
@@ -441,46 +440,45 @@ describe('ApplicationBootstrap', () => {
       PersonalityManager.getInstance.mockReturnValue(mockLegacyManager);
     });
 
-    it('should skip seeding when DDD personality write is enabled', async () => {
+    it('should schedule seeding when DDD personality write is enabled', async () => {
       // Enable DDD personality write
       mockFeatureFlags.isEnabled.mockImplementation(flag => flag === 'ddd.personality.write');
       
       process.env.BOT_OWNER_ID = '123456789012345678';
       process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
 
-      const bootstrap = new ApplicationBootstrap();
+      const bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
       await bootstrap.initialize();
 
-      // Seeding should be skipped entirely when DDD write is enabled
+      // Seeding should now be scheduled regardless of DDD flag
       expect(logger.info).toHaveBeenCalledWith(
         '[ApplicationBootstrap] ✅ DDD application layer initialization complete'
       );
-      expect(mockTimer).not.toHaveBeenCalled();
+      expect(mockDelayFunction).toHaveBeenCalledWith(5000);
     });
 
-    it('should schedule legacy seeding when DDD personality write is disabled', async () => {
+    it('should schedule seeding when DDD personality write is disabled', async () => {
       // Disable DDD personality write
       mockFeatureFlags.isEnabled.mockImplementation(flag => flag !== 'ddd.personality.write');
       
       process.env.BOT_OWNER_ID = '123456789012345678';
       process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
 
-      const bootstrap = new ApplicationBootstrap();
+      const bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
       await bootstrap.initialize();
 
-      // Verify timer was set for background seeding
-      expect(mockTimer).toHaveBeenCalledWith(expect.any(Function), 5000);
+      // Verify delay was called for background seeding
+      expect(mockDelayFunction).toHaveBeenCalledWith(5000);
     });
 
     describe('_seedOwnerPersonalities', () => {
       let bootstrap;
 
       beforeEach(() => {
-        bootstrap = new ApplicationBootstrap();
+        bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
         bootstrap.applicationServices = {
           personalityApplicationService: mockPersonalityService,
         };
-        bootstrap.delay = jest.fn().mockResolvedValue();
       });
 
       it('should skip seeding when BOT_OWNER_ID is not configured', async () => {
@@ -532,11 +530,10 @@ describe('ApplicationBootstrap', () => {
       let bootstrap;
 
       beforeEach(() => {
-        bootstrap = new ApplicationBootstrap();
+        bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
         bootstrap.applicationServices = {
           personalityApplicationService: mockPersonalityService,
         };
-        bootstrap.delay = jest.fn().mockResolvedValue();
       });
 
       it('should skip when all personalities exist', async () => {
@@ -609,11 +606,10 @@ describe('ApplicationBootstrap', () => {
       let bootstrap;
 
       beforeEach(() => {
-        bootstrap = new ApplicationBootstrap();
+        bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
         bootstrap.applicationServices = {
           personalityApplicationService: mockPersonalityService,
         };
-        bootstrap.delay = jest.fn().mockResolvedValue();
       });
 
       it('should initialize legacy manager if needed', async () => {
