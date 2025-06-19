@@ -221,7 +221,7 @@ class CommandIntegrationAdapter {
     const commands = [];
 
     // Get legacy commands (if still enabled)
-    if (!this.featureFlags.isEnabled('ddd.commands.hideGacy')) {
+    if (!this.featureFlags.isEnabled('ddd.commands.hideLegacy')) {
       // TODO: Get from legacy system
     }
 
