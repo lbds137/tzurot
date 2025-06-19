@@ -1127,8 +1127,8 @@ describe('BackupCommand', () => {
       
       it('should backup self personalities', async () => {
         const selfPersonalities = [
-          { id: '123456789012345678', name: 'MyPersonality1' },
-          { id: '223456789012345678', name: 'MyPersonality2' }
+          { id: '123456789012345678', username: 'MyPersonality1' },
+          { id: '223456789012345678', username: 'MyPersonality2' }
         ];
         mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(selfPersonalities);
         
@@ -1164,9 +1164,9 @@ describe('BackupCommand', () => {
       
       it('should backup recent personalities', async () => {
         const recentPersonalities = [
-          { id: '323456789012345678', name: 'RecentPersonality1' },
-          { id: '423456789012345678', name: 'RecentPersonality2' },
-          { id: '523456789012345678', name: 'RecentPersonality3' }
+          { id: '323456789012345678', username: 'RecentPersonality1' },
+          { id: '423456789012345678', username: 'RecentPersonality2' },
+          { id: '523456789012345678', username: 'RecentPersonality3' }
         ];
         mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(recentPersonalities);
         
@@ -1223,7 +1223,7 @@ describe('BackupCommand', () => {
         // Create 100 personalities to test truncation
         const manyPersonalities = Array.from({ length: 100 }, (_, i) => ({
           id: `id${i}`,
-          name: `VeryLongPersonalityNameForTesting${i}`
+          username: `VeryLongPersonalityNameForTesting${i}`
         }));
         mockApiClientService.fetchPersonalitiesByCategory.mockResolvedValue(manyPersonalities);
         

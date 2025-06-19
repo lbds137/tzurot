@@ -14,6 +14,44 @@ const { ZipArchiveService } = require('../../../infrastructure/backup/ZipArchive
 const logger = require('../../../logger');
 const { USER_CONFIG } = require('../../../constants');
 const path = require('path');
+const { getPersonality, getPersonalityByAlias } = require('../../../core/personality');
+
+/**
+ * Resolve a personality name/alias to the actual full name
+ * @param {string} input - User input (could be full name, alias, or display name)
+ * @returns {Promise<{fullName: string, displayName: string} | null>} Resolved personality info or null if not found
+ */
+async function resolvePersonalityName(input) {
+  logger.debug(`[BackupCommand] Resolving personality name for input: "${input}"`);
+
+  try {
+    // First try as full name
+    const personality = await getPersonality(input);
+    if (personality) {
+      logger.debug(`[BackupCommand] Found personality by full name: ${personality.fullName}`);
+      return {
+        fullName: personality.fullName,
+        displayName: personality.displayName || personality.fullName,
+      };
+    }
+
+    // Try as alias
+    const personalityByAlias = getPersonalityByAlias(input);
+    if (personalityByAlias) {
+      logger.debug(`[BackupCommand] Found personality by alias: ${personalityByAlias.fullName}`);
+      return {
+        fullName: personalityByAlias.fullName,
+        displayName: personalityByAlias.displayName || personalityByAlias.fullName,
+      };
+    }
+
+    logger.debug(`[BackupCommand] No personality found for input: "${input}"`);
+    return null;
+  } catch (error) {
+    logger.error(`[BackupCommand] Error resolving personality name: ${error.message}`);
+    return null;
+  }
+}
 
 /**
  * Session storage for user authentication cookies
@@ -322,8 +360,11 @@ async function handleCategoryBackup(
       return;
     }
 
-    // Extract personality names from the API response
-    const personalityNames = personalities.map(p => p.name);
+    // Extract personality usernames from the API response
+    const personalityNames = personalities.map(p => p.username);
+    logger.debug(
+      `[BackupCommand] Extracted ${personalityNames.length} personality usernames: ${personalityNames.join(', ')}`
+    );
 
     // Create progress callback
     const progressCallback = async message => {
@@ -639,8 +680,20 @@ async function handleSingleBackup(
   // Check if user is bot owner
   const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
 
+  // Resolve personality name to full name before creating backup job
+  const resolvedName = await resolvePersonalityName(personalityName);
+  const actualPersonalityName = resolvedName ? resolvedName.fullName : personalityName;
+
+  if (!resolvedName) {
+    logger.warn(
+      `[BackupCommand] Could not resolve personality name: ${personalityName}, using as-is`
+    );
+  } else {
+    logger.debug(`[BackupCommand] Resolved ${personalityName} to ${actualPersonalityName}`);
+  }
+
   const job = new BackupJob({
-    personalityName: personalityName.toLowerCase(),
+    personalityName: actualPersonalityName.toLowerCase(),
     userId: context.userId,
     isBulk: false,
     persistToFilesystem: isBotOwner, // Only persist for bot owner

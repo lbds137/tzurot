@@ -9,7 +9,10 @@
 
 const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../core/conversation');
-const { getPersonality: getLegacyPersonality, getPersonalityByAlias: getLegacyPersonalityByAlias } = require('../core/personality');
+const {
+  getPersonality: getLegacyPersonality,
+  getPersonalityByAlias: getLegacyPersonalityByAlias,
+} = require('../core/personality');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');
 const { getFeatureFlags } = require('../application/services/FeatureFlags');

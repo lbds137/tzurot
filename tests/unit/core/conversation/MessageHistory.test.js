@@ -9,10 +9,16 @@ jest.mock('../../../../src/core/personality', () => ({
   getAllPersonalities: jest.fn(),
 }));
 
+// Mock DDD modules
+jest.mock('../../../../src/application/services/FeatureFlags');
+jest.mock('../../../../src/application/routers/PersonalityRouter');
+
 describe('MessageHistory', () => {
   let messageHistory;
   let mockConversationTracker;
   let mockPersonalityModule;
+  let mockFeatureFlags;
+  let mockPersonalityRouter;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -27,10 +33,24 @@ describe('MessageHistory', () => {
 
     // Get the mocked personality module
     mockPersonalityModule = require('../../../../src/core/personality');
+
+    // Mock DDD modules to use legacy system by default
+    const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
+    const { getPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
+    
+    mockFeatureFlags = {
+      isEnabled: jest.fn().mockReturnValue(false), // Use legacy system
+    };
+    getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+    mockPersonalityRouter = {
+      getPersonality: jest.fn().mockResolvedValue(null),
+    };
+    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
   });
 
   describe('getPersonalityFromMessage', () => {
-    it('should return personality from conversation tracker if found', () => {
+    it('should return personality from conversation tracker if found', async () => {
       // Arrange
       const messageId = '12345';
       const expectedPersonality = 'test-personality';
@@ -39,14 +59,14 @@ describe('MessageHistory', () => {
       });
 
       // Act
-      const result = messageHistory.getPersonalityFromMessage(messageId);
+      const result = await messageHistory.getPersonalityFromMessage(messageId);
 
       // Assert
       expect(result).toBe(expectedPersonality);
       expect(mockConversationTracker.getConversationByMessageId).toHaveBeenCalledWith(messageId);
     });
 
-    it('should fallback to webhook username lookup if not in tracker', () => {
+    it('should fallback to webhook username lookup if not in tracker', async () => {
       // Arrange
       const messageId = '12345';
       const webhookUsername = 'TestPersonality';
@@ -56,19 +76,19 @@ describe('MessageHistory', () => {
       ]);
 
       // Act
-      const result = messageHistory.getPersonalityFromMessage(messageId, { webhookUsername });
+      const result = await messageHistory.getPersonalityFromMessage(messageId, { webhookUsername });
 
       // Assert
       expect(result).toBe('test-personality');
     });
 
-    it('should return null if no personality found', () => {
+    it('should return null if no personality found', async () => {
       // Arrange
       const messageId = '12345';
       mockConversationTracker.getConversationByMessageId.mockReturnValue(null);
 
       // Act
-      const result = messageHistory.getPersonalityFromMessage(messageId);
+      const result = await messageHistory.getPersonalityFromMessage(messageId);
 
       // Assert
       expect(result).toBeNull();
@@ -77,7 +97,7 @@ describe('MessageHistory', () => {
 
   describe('_getPersonalityFromWebhookUsername', () => {
     describe('webhook username with pipe character', () => {
-      it('should extract base name before pipe and match personality', () => {
+      it('should extract base name before pipe and match personality', async () => {
         // Arrange
         const webhookUsername = 'Desidara | תשב';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -86,7 +106,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('desidara-123');
@@ -95,7 +115,7 @@ describe('MessageHistory', () => {
         );
       });
 
-      it('should handle webhook username with multiple pipes', () => {
+      it('should handle webhook username with multiple pipes', async () => {
         // Arrange
         const webhookUsername = 'TestName | System | Extra';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -103,7 +123,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('test-123');
@@ -112,7 +132,7 @@ describe('MessageHistory', () => {
         );
       });
 
-      it('should trim whitespace around extracted base name', () => {
+      it('should trim whitespace around extracted base name', async () => {
         // Arrange
         const webhookUsername = '  SpacedName   |   Suffix  ';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -120,13 +140,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('spaced-123');
       });
 
-      it('should match using webhook pattern regex', () => {
+      it('should match using webhook pattern regex', async () => {
         // Arrange
         const webhookUsername = 'PersonalityName | SomeTag';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -134,7 +154,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('personality-123');
@@ -145,7 +165,7 @@ describe('MessageHistory', () => {
     });
 
     describe('exact matching', () => {
-      it('should find exact match with full webhook username', () => {
+      it('should find exact match with full webhook username', async () => {
         // Arrange
         const webhookUsername = 'ExactMatch';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -153,13 +173,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('exact-123');
       });
 
-      it('should find exact match with extracted base name', () => {
+      it('should find exact match with extracted base name', async () => {
         // Arrange
         const webhookUsername = 'BaseName | Suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -167,7 +187,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('base-123');
@@ -175,7 +195,7 @@ describe('MessageHistory', () => {
     });
 
     describe('case-insensitive matching', () => {
-      it('should match case-insensitively with full username', () => {
+      it('should match case-insensitively with full username', async () => {
         // Arrange
         const webhookUsername = 'UPPERCASE';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -183,13 +203,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('upper-123');
       });
 
-      it('should match case-insensitively with base name', () => {
+      it('should match case-insensitively with base name', async () => {
         // Arrange
         const webhookUsername = 'MixedCase | suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -197,13 +217,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('mixed-123');
       });
 
-      it('should handle Hebrew characters in webhook username', () => {
+      it('should handle Hebrew characters in webhook username', async () => {
         // Arrange
         const webhookUsername = 'TestName | שלום';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -211,7 +231,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('test-123');
@@ -219,12 +239,12 @@ describe('MessageHistory', () => {
     });
 
     describe('error handling', () => {
-      it('should handle getAllPersonalities returning null', () => {
+      it('should handle getAllPersonalities returning null', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue(null);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Test');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
 
         // Assert
         expect(result).toBeNull();
@@ -233,12 +253,12 @@ describe('MessageHistory', () => {
         );
       });
 
-      it('should handle getAllPersonalities returning non-array', () => {
+      it('should handle getAllPersonalities returning non-array', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue('not-an-array');
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Test');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
 
         // Assert
         expect(result).toBeNull();
@@ -247,7 +267,7 @@ describe('MessageHistory', () => {
         );
       });
 
-      it('should handle personalities with missing displayName', () => {
+      it('should handle personalities with missing displayName', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'test-123' }, // No displayName
@@ -255,13 +275,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Valid');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Valid');
 
         // Assert
         expect(result).toBe('valid-456');
       });
 
-      it('should handle null personality entries', () => {
+      it('should handle null personality entries', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           null,
@@ -269,20 +289,20 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Valid');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Valid');
 
         // Assert
         expect(result).toBe('valid-123');
       });
 
-      it('should handle personality module throwing error', () => {
+      it('should handle personality module throwing error', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockImplementation(() => {
           throw new Error('Module error');
         });
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Test');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
 
         // Assert
         expect(result).toBeNull();
@@ -293,14 +313,14 @@ describe('MessageHistory', () => {
     });
 
     describe('no matches found', () => {
-      it('should return null when no personalities match', () => {
+      it('should return null when no personalities match', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'other-123', displayName: 'Other' },
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('NonExistent');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('NonExistent');
 
         // Assert
         expect(result).toBeNull();
@@ -309,25 +329,25 @@ describe('MessageHistory', () => {
         );
       });
 
-      it('should return null for empty webhook username', () => {
+      it('should return null for empty webhook username', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
           { fullName: 'test-123', displayName: 'Test' },
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('');
 
         // Assert
         expect(result).toBeNull();
       });
 
-      it('should return null when no personalities exist', () => {
+      it('should return null when no personalities exist', async () => {
         // Arrange
         mockPersonalityModule.getAllPersonalities.mockReturnValue([]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername('Test');
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
 
         // Assert
         expect(result).toBeNull();
@@ -335,7 +355,7 @@ describe('MessageHistory', () => {
     });
 
     describe('special characters in personality names', () => {
-      it('should escape special regex characters in display name', () => {
+      it('should escape special regex characters in display name', async () => {
         // Arrange
         const webhookUsername = 'Test.Name* | suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -343,13 +363,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('special-123');
       });
 
-      it('should handle display names with parentheses', () => {
+      it('should handle display names with parentheses', async () => {
         // Arrange
         const webhookUsername = 'Name (Test) | tag';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -357,7 +377,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('paren-123');
@@ -365,7 +385,7 @@ describe('MessageHistory', () => {
     });
 
     describe('priority of matching strategies', () => {
-      it('should prefer exact match over case-insensitive match', () => {
+      it('should prefer exact match over case-insensitive match', async () => {
         // Arrange
         const webhookUsername = 'TestName';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -374,13 +394,13 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('exact-123');
       });
 
-      it('should prefer base name match over pattern match', () => {
+      it('should prefer base name match over pattern match', async () => {
         // Arrange
         const webhookUsername = 'TestName | Suffix';
         mockPersonalityModule.getAllPersonalities.mockReturnValue([
@@ -389,7 +409,7 @@ describe('MessageHistory', () => {
         ]);
 
         // Act
-        const result = messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
         expect(result).toBe('base-456');

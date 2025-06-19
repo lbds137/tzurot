@@ -223,7 +223,7 @@ async function handlePersonalityInteraction(
               const personalityRouter = getPersonalityRouter();
 
               // Try to look up by message ID first
-              const personalityName = getPersonalityFromMessage(repliedToMessage.id, {
+              const personalityName = await getPersonalityFromMessage(repliedToMessage.id, {
                 webhookUsername: referencedWebhookName,
               });
 

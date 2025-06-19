@@ -190,7 +190,7 @@ describe('Conversation Manager', () => {
       expect(activePersonality).toBe(testPersonalityName);
     });
 
-    it('should record a conversation with multiple message IDs', () => {
+    it('should record a conversation with multiple message IDs', async () => {
       // Create an array of message IDs
       const messageIds = ['message-1', 'message-2', 'message-3'];
 
@@ -206,7 +206,7 @@ describe('Conversation Manager', () => {
 
       // Verify that each message ID can be used to retrieve the personality
       for (const msgId of messageIds) {
-        const personality = getPersonalityFromMessage(msgId);
+        const personality = await getPersonalityFromMessage(msgId);
         expect(personality).toBe(testPersonalityName);
       }
     });
@@ -310,45 +310,45 @@ describe('Conversation Manager', () => {
 
   // Test getPersonalityFromMessage
   describe('getPersonalityFromMessage', () => {
-    it('should get a personality from a recorded message ID', () => {
+    it('should get a personality from a recorded message ID', async () => {
       // Record a conversation
       recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName);
 
       // Verify the personality can be retrieved
-      const personality = getPersonalityFromMessage(testMessageId);
+      const personality = await getPersonalityFromMessage(testMessageId);
       expect(personality).toBe(testPersonalityName);
     });
 
-    it('should fallback to webhook username if message ID is not found', () => {
+    it('should fallback to webhook username if message ID is not found', async () => {
       // Verify that a webhook username can be used as fallback
-      const personality = getPersonalityFromMessage('unknown-message-id', {
+      const personality = await getPersonalityFromMessage('unknown-message-id', {
         webhookUsername: 'Test Personality One', // Matches one of the mock personalities
       });
 
       expect(personality).toBe('test-personality-one');
     });
 
-    it('should handle case-insensitive webhook username matching', () => {
+    it('should handle case-insensitive webhook username matching', async () => {
       // Verify case-insensitive matching
-      const personality = getPersonalityFromMessage('unknown-message-id', {
+      const personality = await getPersonalityFromMessage('unknown-message-id', {
         webhookUsername: 'test personality one', // Lowercase version
       });
 
       expect(personality).toBe('test-personality-one');
     });
 
-    it('should handle webhook naming pattern matching', () => {
+    it('should handle webhook naming pattern matching', async () => {
       // Verify webhook pattern matching (DisplayName | suffix)
-      const personality = getPersonalityFromMessage('unknown-message-id', {
+      const personality = await getPersonalityFromMessage('unknown-message-id', {
         webhookUsername: 'Test Personality One | Bot', // Webhook naming pattern
       });
 
       expect(personality).toBe('test-personality-one');
     });
 
-    it('should return null if no matches are found', () => {
+    it('should return null if no matches are found', async () => {
       // Verify null return for no matches
-      const personality = getPersonalityFromMessage('unknown-message-id', {
+      const personality = await getPersonalityFromMessage('unknown-message-id', {
         webhookUsername: 'Non-existent Personality',
       });
 
@@ -358,7 +358,7 @@ describe('Conversation Manager', () => {
 
   // Test clearConversation
   describe('clearConversation', () => {
-    it('should clear a conversation for a user in a channel', () => {
+    it('should clear a conversation for a user in a channel', async () => {
       // Record a conversation
       recordConversation(testUserId, testChannelId, testMessageId, testPersonalityName);
 
@@ -380,7 +380,7 @@ describe('Conversation Manager', () => {
       expect(getActivePersonality(testUserId, testChannelId, false, true)).toBeNull();
 
       // Verify the message ID mapping is cleared
-      expect(getPersonalityFromMessage(testMessageId)).toBeNull();
+      expect(await getPersonalityFromMessage(testMessageId)).toBeNull();
     });
 
     it('should return false if no conversation exists', () => {
@@ -391,7 +391,7 @@ describe('Conversation Manager', () => {
       expect(result).toBe(false);
     });
 
-    it('should handle multiple message IDs when clearing a conversation', () => {
+    it('should handle multiple message IDs when clearing a conversation', async () => {
       // Create an array of message IDs
       const messageIds = ['message-1', 'message-2', 'message-3'];
 
@@ -403,7 +403,7 @@ describe('Conversation Manager', () => {
 
       // Verify all message ID mappings are cleared
       for (const msgId of messageIds) {
-        expect(getPersonalityFromMessage(msgId)).toBeNull();
+        expect(await getPersonalityFromMessage(msgId)).toBeNull();
       }
     });
   });
@@ -481,7 +481,7 @@ describe('Conversation Manager', () => {
     // For these tests, we need to mock the internal saveAllData function since it's
     // being executed inside our method calls but our mocks are not being called
 
-    it('should save data when recording a conversation', () => {
+    it('should save data when recording a conversation', async () => {
       // We can't effectively test file persistence directly without more complex mocking
       // Instead, we'll verify the correct functions are called and data is stored in memory
 
@@ -493,7 +493,7 @@ describe('Conversation Manager', () => {
       expect(getActivePersonality(testUserId, testChannelId, false, true)).toBe(
         testPersonalityName
       );
-      expect(getPersonalityFromMessage(testMessageId)).toBe(testPersonalityName);
+      expect(await getPersonalityFromMessage(testMessageId)).toBe(testPersonalityName);
     });
 
     it('should save data when setting auto-response', () => {
@@ -655,7 +655,7 @@ describe('Conversation Manager', () => {
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error loading'));
     });
 
-    it('should handle invalid personality data gracefully', () => {
+    it('should handle invalid personality data gracefully', async () => {
       // Re-require modules after jest.resetModules()
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       const personalityManager = require('../../src/core/personality');
@@ -668,7 +668,7 @@ describe('Conversation Manager', () => {
       personalityManager.getAllPersonalities.mockReturnValueOnce(null);
 
       // Try to get personality from webhook username
-      const result = getPersonalityFromMessage('unknown-id', {
+      const result = await getPersonalityFromMessage('unknown-id', {
         webhookUsername: 'Test Bot',
       });
 
@@ -679,7 +679,7 @@ describe('Conversation Manager', () => {
       );
     });
 
-    it('should handle errors in personality lookup', () => {
+    it('should handle errors in personality lookup', async () => {
       // Re-require modules after jest.resetModules()
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       const personalityManager = require('../../src/core/personality');
@@ -694,7 +694,7 @@ describe('Conversation Manager', () => {
       });
 
       // Try to get personality from webhook username
-      const result = getPersonalityFromMessage('unknown-id', {
+      const result = await getPersonalityFromMessage('unknown-id', {
         webhookUsername: 'Test Bot',
       });
 
@@ -738,7 +738,7 @@ describe('Conversation Manager', () => {
       conversationManager.enableAutoResponse(testUserId);
 
       // Should be able to get personality from legacy message ID
-      const personality = conversationManager.getPersonalityFromMessage('legacy-message-123');
+      const personality = await conversationManager.getPersonalityFromMessage('legacy-message-123');
       expect(personality).toBe(testPersonalityName);
     });
 
@@ -772,7 +772,7 @@ describe('Conversation Manager', () => {
 
       // Should return true and clean up legacy message ID
       expect(result).toBe(true);
-      expect(conversationManager.getPersonalityFromMessage('legacy-message-456')).toBeNull();
+      expect(await conversationManager.getPersonalityFromMessage('legacy-message-456')).toBeNull();
     });
   });
 });

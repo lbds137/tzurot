@@ -6,6 +6,7 @@
 const nodeFetch = require('node-fetch');
 const logger = require('../../logger');
 const { getPersonalityJargonTerm, getPrivateProfileInfoPath } = require('../../../config');
+const { getPersonality, getPersonalityByAlias } = require('../../core/personality');
 
 /**
  * API client for backup operations
@@ -75,8 +76,47 @@ class BackupAPIClient {
   }
 
   /**
+   * Resolve a personality name/alias to the actual full name
+   * @param {string} input - User input (could be full name, alias, or display name)
+   * @returns {Promise<{fullName: string, displayName: string} | null>} Resolved personality info or null if not found
+   */
+  async resolvePersonalityName(input) {
+    logger.debug(`[BackupAPIClient] Resolving personality name for input: "${input}"`);
+
+    try {
+      // First try as full name
+      const personality = await getPersonality(input);
+      if (personality) {
+        logger.debug(`[BackupAPIClient] Found personality by full name: ${personality.fullName}`);
+        return {
+          fullName: personality.fullName,
+          displayName: personality.displayName || personality.fullName,
+        };
+      }
+
+      // Try as alias
+      const personalityByAlias = getPersonalityByAlias(input);
+      if (personalityByAlias) {
+        logger.debug(
+          `[BackupAPIClient] Found personality by alias: ${personalityByAlias.fullName}`
+        );
+        return {
+          fullName: personalityByAlias.fullName,
+          displayName: personalityByAlias.displayName || personalityByAlias.fullName,
+        };
+      }
+
+      logger.debug(`[BackupAPIClient] No personality found for input: "${input}"`);
+      return null;
+    } catch (error) {
+      logger.error(`[BackupAPIClient] Error resolving personality name: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Fetch personality profile data
-   * @param {string} personalityName - Name of personality
+   * @param {string} personalityName - Full name of personality (should be resolved first)
    * @param {Object} authData - Authentication data
    * @returns {Promise<Object>} Profile data
    */
