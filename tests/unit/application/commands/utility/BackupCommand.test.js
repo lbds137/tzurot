@@ -1,0 +1,510 @@
+/**
+ * Tests for BackupCommand
+ */
+
+const { createBackupCommand, userSessions } = require('../../../../../src/application/commands/utility/BackupCommand');
+const { BackupJob, BackupStatus } = require('../../../../../src/domain/backup/BackupJob');
+const { createMigrationHelper } = require('../../../../utils/testEnhancements');
+const logger = require('../../../../../src/logger');
+
+// Mock dependencies
+jest.mock('../../../../../src/logger');
+jest.mock('../../../../../src/constants', () => ({
+  USER_CONFIG: {
+    OWNER_PERSONALITIES_LIST: 'Personality1,Personality2,Personality3'
+  }
+}));
+
+describe('BackupCommand', () => {
+  let backupCommand;
+  let mockContext;
+  let mockBackupService;
+  let mockPersonalityDataRepository;
+  let mockApiClientService;
+  let migrationHelper;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Clear user sessions
+    userSessions.clear();
+
+    migrationHelper = createMigrationHelper();
+
+    // Mock services
+    mockBackupService = {
+      executeBackup: jest.fn(),
+      executeBulkBackup: jest.fn()
+    };
+
+    mockPersonalityDataRepository = {
+      load: jest.fn(),
+      save: jest.fn()
+    };
+
+    mockApiClientService = {
+      fetchPersonalityProfile: jest.fn()
+    };
+
+    // Create command with mocked dependencies
+    backupCommand = createBackupCommand({
+      backupService: mockBackupService,
+      personalityDataRepository: mockPersonalityDataRepository,
+      apiClientService: mockApiClientService,
+      delayFn: jest.fn().mockResolvedValue(undefined)
+    });
+
+    // Mock context
+    mockContext = {
+      userId: 'user123',
+      channelId: 'channel123',
+      guildId: 'guild123',
+      commandPrefix: '!tz ',
+      isDM: false,
+      args: [],
+      options: {},
+      respond: jest.fn().mockResolvedValue(undefined),
+    };
+
+    // Mock environment
+    process.env.SERVICE_WEBSITE = 'https://api.example.com';
+  });
+
+  afterEach(() => {
+    delete process.env.SERVICE_WEBSITE;
+  });
+
+  describe('metadata', () => {
+    it('should have correct command metadata', () => {
+      expect(backupCommand.name).toBe('backup');
+      expect(backupCommand.description).toBe('Backup personality data from the AI service (Requires Administrator permission)');
+      expect(backupCommand.category).toBe('Utility');
+      expect(backupCommand.aliases).toEqual([]);
+      expect(backupCommand.adminOnly).toBe(true);
+      expect(backupCommand.options).toHaveLength(3);
+    });
+
+    it('should have correct command options', () => {
+      const options = backupCommand.options;
+      
+      expect(options[0].name).toBe('subcommand');
+      expect(options[0].required).toBe(false);
+      expect(options[0].choices).toHaveLength(3);
+
+      expect(options[1].name).toBe('personality');
+      expect(options[1].required).toBe(false);
+
+      expect(options[2].name).toBe('cookie');
+      expect(options[2].required).toBe(false);
+    });
+  });
+
+  describe('execute - configuration checks', () => {
+    it('should show error when SERVICE_WEBSITE not configured', async () => {
+      delete process.env.SERVICE_WEBSITE;
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Configuration Error',
+          description: 'Backup API URL not configured. Please set SERVICE_WEBSITE in environment.',
+          color: 0xf44336
+        })]
+      });
+    });
+  });
+
+  describe('execute - help display', () => {
+    it('should show help when no subcommand provided', async () => {
+      // Set up auth data so we get to the help display
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '📦 Backup Command Help',
+          description: 'Backup personality data from the AI service',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Usage',
+              value: expect.stringContaining('backup <personality-name>')
+            }),
+            expect.objectContaining({
+              name: 'Data Types Backed Up',
+              value: expect.stringContaining('Profile configuration')
+            })
+          ])
+        })]
+      });
+    });
+  });
+
+  describe('execute - set-cookie subcommand', () => {
+    beforeEach(() => {
+      mockContext.isDM = true; // Required for cookie setting
+    });
+
+    it('should set session cookie successfully', async () => {
+      mockContext.args = ['set-cookie', 'test-cookie-value'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(userSessions.get('user123')).toEqual({
+        cookie: 'appSession=test-cookie-value',
+        setAt: expect.any(Number)
+      });
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '✅ Cookie Saved',
+          description: 'Session cookie saved! You can now use the backup command.',
+          color: 0x4caf50
+        })]
+      });
+    });
+
+    it('should use options.cookie if provided', async () => {
+      mockContext.options.subcommand = 'set-cookie';
+      mockContext.options.cookie = 'option-cookie-value';
+
+      await backupCommand.execute(mockContext);
+
+      expect(userSessions.get('user123').cookie).toBe('appSession=option-cookie-value');
+    });
+
+    it('should show error when no cookie provided', async () => {
+      mockContext.args = ['set-cookie'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Missing Cookie',
+          description: 'Please provide your session cookie.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'How to get your session cookie:',
+              value: expect.stringContaining('Open the service website')
+            })
+          ])
+        })]
+      });
+    });
+
+    it('should reject cookie setting in non-DM channels', async () => {
+      mockContext.isDM = false;
+      mockContext.args = ['set-cookie', 'test-cookie'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Security Restriction',
+          description: 'For security, please set your session cookie via DM, not in a public channel.',
+          color: 0xf44336
+        })]
+      });
+
+      expect(userSessions.has('user123')).toBe(false);
+    });
+  });
+
+  describe('execute - authentication checks', () => {
+    it('should show error when no session cookie set', async () => {
+      mockContext.args = ['TestPersonality'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Authentication Required',
+          description: 'Session cookie required for backup operations.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'How to set your session cookie:',
+              value: expect.stringContaining('backup set-cookie')
+            })
+          ])
+        })]
+      });
+    });
+  });
+
+  describe('execute - single personality backup', () => {
+    beforeEach(() => {
+      // Set up auth data
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      // Mock successful backup
+      const completedJob = new BackupJob({
+        personalityName: 'TestPersonality',
+        userId: 'user123'
+      });
+      completedJob.start();
+      completedJob.complete({});
+      mockBackupService.executeBackup.mockResolvedValue(completedJob);
+    });
+
+    it('should execute single personality backup', async () => {
+      mockContext.args = ['TestPersonality'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBackup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          personalityName: 'testpersonality', // Should be lowercased
+          userId: 'user123',
+          isBulk: false
+        }),
+        { cookie: 'session=test' },
+        expect.any(Function) // Progress callback
+      );
+    });
+
+    it('should handle backup service errors', async () => {
+      mockBackupService.executeBackup.mockRejectedValue(new Error('Backup failed'));
+      mockContext.args = ['TestPersonality'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[BackupCommand] Single backup error: Backup failed'
+      );
+    });
+  });
+
+  describe('execute - bulk backup', () => {
+    beforeEach(() => {
+      // Set up auth data
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+      
+      // Mock successful bulk backup
+      const jobs = [
+        new BackupJob({ personalityName: 'Personality1', userId: 'user123', isBulk: true }),
+        new BackupJob({ personalityName: 'Personality2', userId: 'user123', isBulk: true }),
+        new BackupJob({ personalityName: 'Personality3', userId: 'user123', isBulk: true })
+      ];
+      jobs.forEach(job => {
+        job.start();
+        job.complete({});
+      });
+      mockBackupService.executeBulkBackup.mockResolvedValue(jobs);
+    });
+
+    it('should execute bulk backup', async () => {
+      mockContext.args = ['all'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBulkBackup).toHaveBeenCalledWith(
+        ['Personality1', 'Personality2', 'Personality3'],
+        'user123',
+        { cookie: 'session=test' },
+        expect.any(Function) // Progress callback
+      );
+    });
+
+    it('should use options.subcommand for bulk backup', async () => {
+      mockContext.options.subcommand = 'all';
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBulkBackup).toHaveBeenCalled();
+    });
+
+    it('should handle empty owner personalities list', async () => {
+      // Mock empty personalities list
+      jest.doMock('../../../../../src/constants', () => ({
+        USER_CONFIG: {
+          OWNER_PERSONALITIES_LIST: ''
+        }
+      }));
+
+      // Re-create command with updated mock
+      const { createBackupCommand } = require('../../../../../src/application/commands/utility/BackupCommand');
+      const updatedCommand = createBackupCommand({
+        backupService: mockBackupService
+      });
+
+      mockContext.args = ['all'];
+      await updatedCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ No Personalities',
+          description: 'No owner personalities configured.',
+          color: 0xf44336
+        })]
+      });
+    });
+
+    it('should handle bulk backup service errors', async () => {
+      mockBackupService.executeBulkBackup.mockRejectedValue(new Error('Bulk backup failed'));
+      mockContext.args = ['all'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[BackupCommand] Bulk backup error: Bulk backup failed'
+      );
+    });
+  });
+
+  describe('execute - error handling', () => {
+    beforeEach(() => {
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+    });
+
+    it('should handle unexpected errors gracefully', async () => {
+      // Mock backup service to throw an error
+      mockBackupService.executeBackup.mockImplementation(() => {
+        throw new Error('Unexpected error');
+      });
+
+      mockContext.args = ['TestPersonality'];
+      await backupCommand.execute(mockContext);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[BackupCommand] Execution failed:',
+        expect.any(Error)
+      );
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Command Error',
+          description: 'An error occurred while executing the backup command.',
+          color: 0xf44336
+        })]
+      });
+    });
+  });
+
+  describe('progress callback functionality', () => {
+    beforeEach(() => {
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+    });
+
+    it('should pass progress messages to context.respond', async () => {
+      let progressCallback;
+      mockBackupService.executeBackup.mockImplementation((job, authData, callback) => {
+        progressCallback = callback;
+        return Promise.resolve(job);
+      });
+
+      mockContext.args = ['TestPersonality'];
+      await backupCommand.execute(mockContext);
+
+      // Simulate progress callback
+      await progressCallback('Test progress message');
+
+      expect(mockContext.respond).toHaveBeenCalledWith('Test progress message');
+    });
+
+    it('should pass progress messages for bulk backup', async () => {
+      let progressCallback;
+      mockBackupService.executeBulkBackup.mockImplementation((personalities, userId, authData, callback) => {
+        progressCallback = callback;
+        return Promise.resolve([]);
+      });
+
+      mockContext.args = ['all'];
+      await backupCommand.execute(mockContext);
+
+      // Simulate progress callback
+      await progressCallback('Bulk progress message');
+
+      expect(mockContext.respond).toHaveBeenCalledWith('Bulk progress message');
+    });
+  });
+
+  describe('factory function', () => {
+    it('should create command with default dependencies', () => {
+      const command = createBackupCommand();
+      
+      expect(command).toBeDefined();
+      expect(command.name).toBe('backup');
+      expect(command.adminOnly).toBe(true);
+    });
+
+    it('should create command with custom dependencies', () => {
+      const customBackupService = { executeBackup: jest.fn() };
+      const command = createBackupCommand({
+        backupService: customBackupService
+      });
+      
+      expect(command).toBeDefined();
+      expect(command.name).toBe('backup');
+    });
+  });
+
+  describe('userSessions management', () => {
+    it('should store session data correctly', () => {
+      const sessionData = {
+        cookie: 'appSession=test123',
+        setAt: Date.now()
+      };
+
+      userSessions.set('user456', sessionData);
+
+      expect(userSessions.get('user456')).toEqual(sessionData);
+    });
+
+    it('should clear sessions', () => {
+      userSessions.set('user1', { cookie: 'test1', setAt: Date.now() });
+      userSessions.set('user2', { cookie: 'test2', setAt: Date.now() });
+
+      expect(userSessions.size).toBe(2);
+
+      userSessions.clear();
+
+      expect(userSessions.size).toBe(0);
+    });
+  });
+
+  describe('integration with BackupService', () => {
+    beforeEach(() => {
+      userSessions.set('user123', { cookie: 'session=test', setAt: Date.now() });
+    });
+
+    it('should create BackupService when not provided', async () => {
+      // Create command without backup service
+      const commandWithoutService = createBackupCommand({
+        personalityDataRepository: mockPersonalityDataRepository,
+        apiClientService: mockApiClientService
+      });
+
+      // Mock the actual backup execution to avoid real API calls
+      jest.spyOn(require('../../../../../src/domain/backup/BackupService'), 'BackupService')
+        .mockImplementation(() => ({
+          executeBackup: jest.fn().mockResolvedValue(new BackupJob({
+            personalityName: 'Test',
+            userId: 'user123'
+          }))
+        }));
+
+      mockContext.args = ['TestPersonality'];
+      await commandWithoutService.execute(mockContext);
+
+      // Should not throw error - service should be created internally
+      expect(mockContext.respond).toHaveBeenCalled();
+    });
+
+    it('should pass correct auth data to backup service', async () => {
+      const authData = { cookie: 'session=test' };
+      mockContext.args = ['TestPersonality'];
+
+      await backupCommand.execute(mockContext);
+
+      expect(mockBackupService.executeBackup).toHaveBeenCalledWith(
+        expect.any(Object), // job
+        authData,
+        expect.any(Function) // progress callback
+      );
+    });
+  });
+});
