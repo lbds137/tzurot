@@ -99,9 +99,11 @@ function createExecutor(dependencies) {
 
       // Activate the personality in this channel
       try {
-        await conversationManager.activatePersonality(context.getChannelId(), personality.name);
+        // Use the correct property based on the format (DDD uses profile.name, legacy uses fullName)
+        const personalityName = personality.profile?.name || personality.fullName || personality.name;
+        await conversationManager.activatePersonality(context.getChannelId(), personalityName);
         logger.info(
-          `[ActivateCommand] Successfully activated ${personality.name} in channel ${context.getChannelId()}`
+          `[ActivateCommand] Successfully activated ${personalityName} in channel ${context.getChannelId()}`
         );
       } catch (error) {
         logger.error('[ActivateCommand] Error activating personality:', error);
@@ -111,12 +113,12 @@ function createExecutor(dependencies) {
       // Send success response with embed
       const embed = {
         title: '✅ Personality Activated',
-        description: `**${personality.name}** is now active in this channel and will respond to all messages.`,
+        description: `**${personality.profile?.displayName || personality.profile?.name || personality.displayName || personality.fullName}** is now active in this channel and will respond to all messages.`,
         color: 0x00ff00,
         fields: [
           {
             name: 'Personality',
-            value: personality.name,
+            value: personality.profile?.displayName || personality.profile?.name || personality.displayName || personality.fullName,
             inline: true,
           },
           {
@@ -126,11 +128,11 @@ function createExecutor(dependencies) {
           },
           {
             name: 'How to Deactivate',
-            value: `Use \`${context.dependencies.botPrefix} deactivate\` to stop ${personality.name} from responding.`,
+            value: `Use \`${context.dependencies.botPrefix} deactivate\` to stop ${personality.profile?.displayName || personality.profile?.name || personality.displayName || personality.fullName} from responding.`,
             inline: false,
           },
         ],
-        thumbnail: personality.profileUrl ? { url: personality.profileUrl } : undefined,
+        thumbnail: (personality.profile?.avatarUrl || personality.avatarUrl) ? { url: personality.profile?.avatarUrl || personality.avatarUrl } : undefined,
         timestamp: new Date().toISOString(),
       };
 
