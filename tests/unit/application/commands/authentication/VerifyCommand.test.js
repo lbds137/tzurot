@@ -43,7 +43,7 @@ describe('VerifyCommand', () => {
       isDM: false,
       args: [],
       options: {},
-      services: {
+      dependencies: {
         auth: mockAuth,
         channelUtils: mockChannelUtils,
       },

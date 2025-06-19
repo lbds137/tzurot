@@ -50,7 +50,7 @@ describe('AuthCommand', () => {
       isWebhook: false,
       args: [],
       options: {},
-      services: {
+      dependencies: {
         auth: mockAuth,
         webhookUserTracker: mockWebhookUserTracker,
       },

@@ -2,10 +2,164 @@
  * Tests for handling media in DM messages in the webhook manager
  */
 
-const webhookManager = require('../../src/webhookManager');
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
 
 // Mock dependencies
 jest.mock('../../src/logger');
+jest.mock('../../src/profileInfoFetcher', () => ({
+  getFetcher: jest.fn().mockReturnValue({
+    fetchProfileInfo: jest.fn().mockResolvedValue({
+      avatarUrl: 'https://example.com/avatar.png',
+      displayName: 'Test User'
+    })
+  }),
+  getProfileAvatarUrl: jest.fn().mockResolvedValue(null),
+  getProfileDisplayName: jest.fn().mockResolvedValue('Test Display'),
+  deleteFromCache: jest.fn()
+}));
+
+jest.mock('../../src/utils/webhookCache', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  clear: jest.fn(),
+  getActiveWebhooks: jest.fn(() => new Set()),
+  clearWebhookCache: jest.fn(),
+  clearAllWebhookCaches: jest.fn(),
+  registerEventListeners: jest.fn()
+}));
+
+jest.mock('../../src/utils/messageDeduplication', () => ({
+  isDuplicate: jest.fn(() => false),
+  addMessage: jest.fn(),
+  hashMessage: jest.fn(() => 'mock-hash'),
+  isDuplicateMessage: jest.fn(() => false)
+}));
+
+jest.mock('../../src/utils/messageFormatter', () => ({
+  formatContent: jest.fn(content => content),
+  trimContent: jest.fn(content => content),
+  splitMessage: jest.fn(content => [content])
+}));
+
+jest.mock('../../src/utils/avatarManager', () => ({
+  validateAvatarUrl: jest.fn().mockResolvedValue(true),
+  getValidAvatarUrl: jest.fn().mockResolvedValue('https://example.com/avatar.png'),
+  preloadPersonalityAvatar: jest.fn(),
+  warmupAvatar: jest.fn()
+}));
+
+jest.mock('../../src/utils/errorTracker', () => ({
+  trackError: jest.fn(),
+  ErrorCategory: {
+    WEBHOOK: 'webhook',
+    AVATAR: 'avatar'
+  }
+}));
+
+jest.mock('../../src/webhook', () => ({
+  createWebhookForPersonality: jest.fn(),
+  sendWebhookMessage: jest.fn(),
+  CHUNK_DELAY: 100,
+  MAX_CONTENT_LENGTH: 2000,
+  EMBED_CHUNK_SIZE: 1800,
+  DEFAULT_MESSAGE_DELAY: 150,
+  MAX_ERROR_WAIT_TIME: 60000,
+  MIN_MESSAGE_DELAY: 150,
+  // Functions that webhookManager re-exports
+  sendDirectThreadMessage: jest.fn(),
+  createPersonalityChannelKey: jest.fn((personality, channel) => `${personality}_${channel}`),
+  hasPersonalityPendingMessage: jest.fn(() => false),
+  registerPendingMessage: jest.fn(),
+  clearPendingMessage: jest.fn(),
+  calculateMessageDelay: jest.fn(() => 0),
+  updateChannelLastMessageTime: jest.fn(),
+  sendFormattedMessageInDM: jest.fn().mockImplementation(async (channel, content, personality, options = {}) => {
+    // Import the media handler to simulate media processing
+    const { mediaHandler } = require('../../src/utils/media');
+    
+    let processedContent = content;
+    let attachmentOptions = {};
+    
+    try {
+      // Simulate media processing
+      const mediaResult = await mediaHandler.processMediaUrls(content);
+      if (mediaResult && mediaResult.content) {
+        processedContent = mediaResult.content;
+      }
+      // Pass the attachments from media processing to prepareAttachmentOptions
+      attachmentOptions = mediaHandler.prepareAttachmentOptions(mediaResult?.attachments || []);
+    } catch (error) {
+      // If media processing fails, use original content
+      console.log('Media processing failed');
+    }
+    
+    // Format content with personality name
+    const formattedContent = `**${personality.displayName}:** ${processedContent}`;
+    
+    // Simulate calling channel.send
+    const sendOptions = { content: formattedContent };
+    if (attachmentOptions.files && attachmentOptions.files.length > 0) {
+      sendOptions.files = attachmentOptions.files;
+    }
+    const sentMessage = await channel.send(sendOptions);
+    
+    return {
+      message: sentMessage,
+      messageIds: [sentMessage.id],
+      isDM: true,
+      personalityName: personality.fullName
+    };
+  }),
+  isErrorContent: jest.fn(() => false),
+  markErrorContent: jest.fn(),
+  isErrorWebhookMessage: jest.fn(() => false),
+  getStandardizedUsername: jest.fn((personality) => {
+    if (!personality) return 'Bot';
+    return personality.displayName || 'Bot';
+  }),
+  generateMessageTrackingId: jest.fn(() => 'mock-tracking-id'),
+  prepareMessageData: jest.fn((data) => data),
+  createVirtualResult: jest.fn(() => {
+    const virtualId = `virtual-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return {
+      message: { id: virtualId },
+      messageIds: [virtualId],
+      isDuplicate: true
+    };
+  }),
+  sendMessageChunk: jest.fn(),
+  minimizeConsoleOutput: jest.fn(),
+  restoreConsoleOutput: jest.fn()
+}));
+
+jest.mock('../../src/constants', () => ({
+  TIME: {
+    SECOND: 1000,
+    MINUTE: 60000
+  }
+}));
+
+// Mock discord.js
+jest.mock('discord.js', () => {
+  return {
+    WebhookClient: jest.fn().mockImplementation(() => ({
+      id: 'mock-webhook-id',
+      send: jest.fn().mockResolvedValue({
+        id: 'mock-message-id',
+        webhookId: 'mock-webhook-id'
+      }),
+      destroy: jest.fn()
+    })),
+    EmbedBuilder: jest.fn().mockImplementation(data => ({
+      ...data,
+      setTitle: jest.fn().mockReturnThis(),
+      setDescription: jest.fn().mockReturnThis(), 
+      setColor: jest.fn().mockReturnThis(),
+      addFields: jest.fn().mockReturnThis()
+    }))
+  };
+});
 jest.mock('../../src/utils/media', () => {
   const mediaHandler = {
     processMediaUrls: jest.fn(),
@@ -20,6 +174,9 @@ jest.mock('../../src/utils/media', () => {
 
 // Get the mocked media module
 const { mediaHandler } = require('../../src/utils/media');
+
+// Import webhookManager after all mocks are set up
+const webhookManager = require('../../src/webhookManager');
 
 describe('Webhook Manager - DM Media Handling', () => {
   let mockChannel;

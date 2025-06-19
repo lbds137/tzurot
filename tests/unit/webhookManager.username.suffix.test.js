@@ -1,3 +1,6 @@
+// Unmock webhookManager since it's globally mocked in setup.js
+jest.unmock('../../src/webhookManager');
+
 const { getStandardizedUsername } = require('../../src/webhookManager');
 
 // Mock global.tzurotClient

@@ -19,7 +19,9 @@ jest.mock('../../../src/auth');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/core/personality');
-jest.mock('../../../src/webhookManager');
+jest.mock('../../../src/webhookManager', () => ({
+  getStandardizedUsername: jest.fn()
+}));
 
 describe('dmHandler', () => {
   let mockClient;

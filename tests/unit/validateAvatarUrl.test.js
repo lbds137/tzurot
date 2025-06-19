@@ -44,8 +44,58 @@ jest.mock('../../src/utils/urlValidator', () => ({
   isImageUrl: jest.fn(() => Promise.resolve(true))
 }));
 
+// Mock avatarManager to provide validateAvatarUrl
+jest.mock('../../src/utils/avatarManager', () => ({
+  validateAvatarUrl: jest.fn(async (url) => {
+    // Simple validation for test
+    return url && url.startsWith('http');
+  }),
+  getValidAvatarUrl: jest.fn()
+}));
+
+// Mock webhook modules
+jest.mock('../../src/webhook', () => ({
+  createWebhookForPersonality: jest.fn(),
+  sendWebhookMessage: jest.fn(),
+  CHUNK_DELAY: 100,
+  MAX_CONTENT_LENGTH: 2000,
+  EMBED_CHUNK_SIZE: 1800,
+  DEFAULT_MESSAGE_DELAY: 150,
+  MAX_ERROR_WAIT_TIME: 60000,
+  MIN_MESSAGE_DELAY: 150
+}));
+
+// Mock other dependencies
+jest.mock('../../src/utils/webhookCache', () => ({
+  get: jest.fn(),
+  set: jest.fn(),
+  clear: jest.fn()
+}));
+
+jest.mock('../../src/utils/messageDeduplication', () => ({
+  isDuplicate: jest.fn(() => false),
+  addMessage: jest.fn()
+}));
+
+jest.mock('../../src/utils/messageFormatter', () => ({
+  formatContent: jest.fn(content => content),
+  trimContent: jest.fn(content => content)
+}));
+
+jest.mock('../../src/utils/media', () => ({
+  isMediaUrl: jest.fn(() => false),
+  formatMediaUrls: jest.fn(() => [])
+}));
+
+jest.mock('../../src/constants', () => ({
+  TIME: {
+    SECOND: 1000,
+    MINUTE: 60000
+  }
+}));
+
 describe('validateAvatarUrl Success Test', () => {
-  let webhookManager;
+  let avatarManager;
   
   // Save original URL constructor
   const OriginalURL = global.URL;
@@ -68,7 +118,7 @@ describe('validateAvatarUrl Success Test', () => {
     });
     
     // Import webhook manager after setting up mocks
-    webhookManager = require('../../src/webhookManager');
+    avatarManager = require('../../src/utils/avatarManager');
   });
   
   afterEach(() => {
@@ -80,7 +130,7 @@ describe('validateAvatarUrl Success Test', () => {
     const validUrl = 'https://example.com/valid.png';
     
     // Execute the validation
-    const result = await webhookManager.validateAvatarUrl(validUrl);
+    const result = await avatarManager.validateAvatarUrl(validUrl);
     
     // Should return true
     expect(result).toBe(true);

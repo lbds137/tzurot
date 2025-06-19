@@ -1,11 +1,17 @@
-const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServiceAdapter');
-const { 
-  AIRequest,
-  AIContent,
-  AIModel
-} = require('../../../../src/domain/ai');
-const { PersonalityId } = require('../../../../src/domain/personality');
-const { UserId } = require('../../../../src/domain/personality');
+// Unmock HttpAIServiceAdapter since it's mocked globally in setup.js
+jest.unmock('../../../../src/adapters/ai/HttpAIServiceAdapter');
+
+// Mock the deduplicator to avoid timer issues
+jest.mock('../../../../src/domain/ai/AIRequestDeduplicator', () => {
+  return {
+    AIRequestDeduplicator: jest.fn().mockImplementation(() => ({
+      checkDuplicate: jest.fn().mockResolvedValue(null),
+      registerPending: jest.fn(),
+      markFailed: jest.fn(),
+      _cleanupTimer: null
+    }))
+  };
+});
 
 // Mock node-fetch
 jest.mock('node-fetch');
@@ -15,13 +21,22 @@ const nodeFetch = require('node-fetch');
 jest.mock('../../../../src/logger');
 const logger = require('../../../../src/logger');
 
+const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServiceAdapter');
+const { 
+  AIRequest,
+  AIContent,
+  AIModel
+} = require('../../../../src/domain/ai');
+const { PersonalityId } = require('../../../../src/domain/personality');
+const { UserId } = require('../../../../src/domain/personality');
+
 describe('HttpAIServiceAdapter', () => {
   let adapter;
   let mockFetch;
   
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers();
+    jest.useFakeTimers({ advanceTimers: true });
     
     // Setup mock fetch response
     mockFetch = jest.fn();
@@ -35,7 +50,7 @@ describe('HttpAIServiceAdapter', () => {
       maxRetries: 2,
       retryDelay: 100,
       fetch: mockFetch,
-      delay: (_ms) => Promise.resolve() // Instant delay for tests
+      delay: () => Promise.resolve() // Instant delay for tests
     });
     
     // Mock logger methods
@@ -46,17 +61,21 @@ describe('HttpAIServiceAdapter', () => {
   });
   
   afterEach(() => {
+    // Clean up the deduplicator's interval
+    if (adapter && adapter.deduplicator && adapter.deduplicator._cleanupTimer) {
+      clearInterval(adapter.deduplicator._cleanupTimer);
+    }
     jest.clearAllTimers();
     jest.useRealTimers();
   });
 
   describe('constructor', () => {
     it('should initialize with provided config', () => {
-      expect(adapter.baseUrl).toBe('https://api.example.com');
-      expect(adapter.headers).toEqual({ 'X-API-Key': 'test-key' });
-      expect(adapter.timeout).toBe(5000);
-      expect(adapter.maxRetries).toBe(2);
-      expect(adapter.retryDelay).toBe(100);
+      // Test behavior through getStats method instead of accessing private properties
+      const stats = adapter.getStats();
+      expect(stats.baseUrl).toBe('https://api.example.com');
+      expect(stats.timeout).toBe(5000);
+      expect(stats.maxRetries).toBe(2);
     });
 
     it('should throw error when no base URL provided', () => {
@@ -71,10 +90,10 @@ describe('HttpAIServiceAdapter', () => {
       process.env.SERVICE_API_BASE_URL = 'https://default.example.com';
       
       const defaultAdapter = new HttpAIServiceAdapter();
-      expect(defaultAdapter.baseUrl).toBe('https://default.example.com');
-      expect(defaultAdapter.timeout).toBe(30000);
-      expect(defaultAdapter.maxRetries).toBe(3);
-      expect(defaultAdapter.retryDelay).toBe(1000);
+      const stats = defaultAdapter.getStats();
+      expect(stats.baseUrl).toBe('https://default.example.com');
+      expect(stats.timeout).toBe(30000);
+      expect(stats.maxRetries).toBe(3);
       
       // Clean up
       delete process.env.SERVICE_API_BASE_URL;
@@ -197,8 +216,7 @@ describe('HttpAIServiceAdapter', () => {
       
       const resultPromise = adapter.sendRequest(mockRequest);
       
-      // Advance timers to trigger retry
-      await jest.advanceTimersByTimeAsync(100);
+      // No need to advance timers with instant delay
       
       const result = await resultPromise;
       
@@ -249,36 +267,68 @@ describe('HttpAIServiceAdapter', () => {
     });
   });
 
-  describe('error transformation', () => {
-    it('should transform 401 errors', () => {
-      const error = new Error('Unauthorized');
-      error.response = { status: 401 };
+  describe('error handling', () => {
+    let mockRequest;
+    
+    beforeEach(() => {
+      // Create a valid AIRequest with valid Discord IDs (numeric strings)
+      const userId = UserId.fromString('123456789012345678');
+      const personalityId = PersonalityId.fromString('987654321098765432');
+      const content = AIContent.fromText('Hello AI');
+      const model = new AIModel('test-model', '/models/test', {
+        supportsImages: true,
+        supportsAudio: false,
+        maxTokens: 2048,
+        temperature: 0.8
+      });
       
-      const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('AI service authentication failed');
+      mockRequest = AIRequest.create({
+        userId,
+        personalityId,
+        content,
+        model
+      });
+    });
+    
+    it('should handle authentication errors', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        text: async () => 'Invalid API key'
+      });
+      
+      await expect(adapter.sendRequest(mockRequest))
+        .rejects.toThrow('AI service authentication failed');
     });
 
-    it('should transform 429 errors', () => {
-      const error = new Error('Too Many Requests');
-      error.response = { status: 429 };
+    it('should handle rate limit errors', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        text: async () => 'Rate limit exceeded'
+      });
       
-      const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('AI service rate limit exceeded');
+      await expect(adapter.sendRequest(mockRequest))
+        .rejects.toThrow('AI service rate limit exceeded');
     });
 
-    it('should transform timeout errors', () => {
-      const error = new Error('Request timed out');
-      error.name = 'AbortError';
+    it('should handle timeout errors', async () => {
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValue(abortError);
       
-      const transformed = adapter._transformError(error);
-      expect(transformed.message).toBe('AI service request timed out');
+      await expect(adapter.sendRequest(mockRequest))
+        .rejects.toThrow('AI service request timed out');
     });
 
-    it('should return original error if cannot transform', () => {
+    it('should handle generic errors', async () => {
       const error = new Error('Unknown error');
+      mockFetch.mockRejectedValue(error);
       
-      const transformed = adapter._transformError(error);
-      expect(transformed).toBe(error);
+      await expect(adapter.sendRequest(mockRequest))
+        .rejects.toThrow('Unknown error');
     });
   });
 });

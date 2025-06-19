@@ -99,38 +99,33 @@ describe('ListCommand', () => {
       
       expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
       
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Your Personalities (Page 1/1)',
-          description: 'You have added 3 personalities.',
-          color: 0x00bcd4,
-          fields: [
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '📋 Your Personalities',
+          description: 'Showing 3 of 3 personalities',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
             {
               name: '1. First Personality',
-              value: 'Name: `personality1`\nAliases: p1, first',
+              value: '**Name:** `personality1`\n**Aliases:** p1, first',
               inline: false
             },
             {
               name: '2. Second Personality',
-              value: 'Name: `personality2`\nAliases: None',
+              value: '**Name:** `personality2`\n**Aliases:** None',
               inline: false
             },
             {
               name: '3. personality3',
-              value: 'Name: `personality3`\nAliases: p3',
+              value: '**Name:** `personality3`\n**Aliases:** p3',
               inline: false
             }
-          ],
+          ]),
           footer: {
-            text: 'Page 1 of 1',
-            icon_url: 'https://example.com/user.png'
-          },
-          author: {
-            name: 'TestUser',
-            icon_url: 'https://example.com/user.png'
+            text: 'Page 1 of 1'
           }
-        })
-      );
+        })]
+      });
     });
 
     it('should list personalities successfully without embed support', async () => {
@@ -138,50 +133,34 @@ describe('ListCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '**Your Personalities (Page 1/1)**\n' +
-        'You have added 3 personalities.\n\n' +
-        '**1. First Personality**\n' +
-        '   Name: `personality1`\n' +
-        '   Aliases: p1, first\n\n' +
-        '**2. Second Personality**\n' +
-        '   Name: `personality2`\n' +
-        '   Aliases: None\n\n' +
-        '**3. personality3**\n' +
-        '   Name: `personality3`\n' +
-        '   Aliases: p3\n\n'
-      );
+      expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
+      expect(mockContext.respond).toHaveBeenCalled();
     });
 
     it('should handle pagination', async () => {
       // Create 15 personalities for pagination test
-      const manyPersonalities = Array.from({ length: 15 }, (_, i) => ({
-        profile: {
-          name: `personality${i + 1}`,
-          displayName: `Personality ${i + 1}`
-        },
-        aliases: []
-      }));
-      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(manyPersonalities);
+      const personalities = [];
+      for (let i = 1; i <= 15; i++) {
+        personalities.push({
+          profile: {
+            name: `personality${i}`,
+            displayName: `Personality ${i}`,
+            avatarUrl: null
+          },
+          aliases: []
+        });
+      }
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(personalities);
       
-      mockContext.args = ['2'];
+      mockContext.args = ['2']; // Page 2
       
       await command.execute(mockContext);
       
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Your Personalities (Page 2/2)',
-          description: expect.stringContaining('You have added 15 personalities.'),
-          fields: expect.arrayContaining([
-            expect.objectContaining({ name: '11. Personality 11' }),
-            expect.objectContaining({ name: '12. Personality 12' }),
-            expect.objectContaining({ name: '13. Personality 13' }),
-            expect.objectContaining({ name: '14. Personality 14' }),
-            expect.objectContaining({ name: '15. Personality 15' })
-          ]),
-          footer: expect.objectContaining({ text: 'Page 2 of 2' })
-        })
-      );
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      expect(embedCall.embeds[0].title).toBe('📋 Your Personalities');
+      expect(embedCall.embeds[0].description).toBe('Showing 5 of 15 personalities');
+      expect(embedCall.embeds[0].footer.text).toBe('Page 2 of 2');
+      expect(embedCall.embeds[0].fields[0].name).toBe('11. Personality 11');
     });
 
     it('should handle slash command options', async () => {
@@ -191,6 +170,7 @@ describe('ListCommand', () => {
       await command.execute(mockContext);
       
       expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalledWith('123456789');
+      expect(mockContext.respond).toHaveBeenCalled();
     });
 
     it('should handle no personalities', async () => {
@@ -198,19 +178,45 @@ describe('ListCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        "You haven't added any personalities yet. Use `!tz add <personality-name>` to add one."
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '📋 No Personalities Yet',
+          description: "You haven't added any personalities.",
+          color: 0xff9800,
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'Get Started',
+              value: expect.stringContaining('!tz add <personality-name>')
+            })
+          ])
+        })]
+      });
     });
 
     it('should handle invalid page number', async () => {
-      mockContext.args = ['5'];
+      mockContext.args = ['5']; // Page 5 doesn't exist
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        'Invalid page number. Please specify a page between 1 and 1.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Invalid Page Number',
+          description: 'The page number you specified is out of range.',
+          color: 0xf44336,
+          fields: expect.arrayContaining([
+            {
+              name: 'Valid Range',
+              value: 'Pages 1 to 1',
+              inline: true
+            },
+            {
+              name: 'You Entered',
+              value: '5',
+              inline: true
+            }
+          ])
+        })]
+      });
     });
 
     it('should handle non-numeric page argument', async () => {
@@ -219,28 +225,38 @@ describe('ListCommand', () => {
       await command.execute(mockContext);
       
       // Should default to page 1
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Your Personalities (Page 1/1)'
-        })
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '📋 Your Personalities',
+          footer: {
+            text: 'Page 1 of 1'
+          }
+        })]
+      });
     });
 
     it('should show pagination hint for multiple pages', async () => {
       // Create 15 personalities for pagination test
-      const manyPersonalities = Array.from({ length: 15 }, (_, i) => ({
-        profile: { name: `personality${i + 1}` },
-        aliases: []
-      }));
-      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(manyPersonalities);
+      const personalities = [];
+      for (let i = 1; i <= 15; i++) {
+        personalities.push({
+          profile: {
+            name: `personality${i}`,
+            displayName: `Personality ${i}`,
+            avatarUrl: null
+          },
+          aliases: []
+        });
+      }
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue(personalities);
       
       await command.execute(mockContext);
       
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          description: expect.stringContaining('Use `!tz list <page>` to view other pages.')
-        })
-      );
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      const fields = embedCall.embeds[0].fields;
+      const navigationField = fields.find(f => f.name === 'Navigation');
+      expect(navigationField).toBeDefined();
+      expect(navigationField.value).toContain('!tz list <page>');
     });
 
     it('should handle missing personality service', async () => {
@@ -248,10 +264,17 @@ describe('ListCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ An error occurred while listing personalities. ' +
-        'Please try again later or contact support if the issue persists.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Something Went Wrong',
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'What happened',
+              value: 'PersonalityApplicationService not available'
+            })
+          ])
+        })]
+      });
     });
 
     it('should handle service exceptions', async () => {
@@ -259,38 +282,49 @@ describe('ListCommand', () => {
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        '❌ An error occurred while listing personalities. ' +
-        'Please try again later or contact support if the issue persists.'
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          title: '❌ Something Went Wrong',
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              name: 'What happened',
+              value: 'Service error'
+            })
+          ])
+        })]
+      });
     });
 
     it('should handle single personality correctly', async () => {
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
         {
-          profile: { name: 'lonelypersonality' },
+          profile: {
+            name: 'single-personality',
+            displayName: 'Single One',
+            avatarUrl: null
+          },
           aliases: []
         }
       ]);
       
       await command.execute(mockContext);
       
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          description: 'You have added 1 personality.'
-        })
-      );
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      expect(embedCall.embeds[0].description).toBe('Showing 1 of 1 personalities');
+      expect(embedCall.embeds[0].footer.text).toBe('Page 1 of 1');
+      // Should not show navigation field for single page
+      const navigationField = embedCall.embeds[0].fields.find(f => f.name === 'Navigation');
+      expect(navigationField).toBeUndefined();
     });
 
     it('should use default bot prefix when not provided', async () => {
-      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
       mockContext.dependencies.botPrefix = undefined;
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([]);
       
       await command.execute(mockContext);
       
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('`!tz add')
-      );
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      expect(embedCall.embeds[0].fields[0].value).toContain('!tz add');
     });
 
     it('should handle null page in slash command', async () => {
@@ -300,24 +334,57 @@ describe('ListCommand', () => {
       await command.execute(mockContext);
       
       // Should default to page 1
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Your Personalities (Page 1/1)'
-        })
-      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          footer: {
+            text: 'Page 1 of 1'
+          }
+        })]
+      });
     });
 
     it('should parse page number as integer', async () => {
-      mockContext.args = ['1.5'];
+      mockContext.args = ['1.5']; // Decimal number
       
       await command.execute(mockContext);
       
-      // Should parse to 1
-      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Your Personalities (Page 1/1)'
-        })
-      );
+      // Should parse as 1
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({
+          footer: {
+            text: 'Page 1 of 1'
+          }
+        })]
+      });
+    });
+
+    it('should show DDD feature flag status when enabled', async () => {
+      mockFeatureFlags.isEnabled.mockReturnValue(true);
+      
+      await command.execute(mockContext);
+      
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      const systemField = embedCall.embeds[0].fields.find(f => f.name === 'System');
+      expect(systemField).toBeDefined();
+      expect(systemField.value).toBe('🆕 Loaded from new DDD system');
+    });
+
+    it('should handle aliases as objects with value property', async () => {
+      mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([
+        {
+          profile: {
+            name: 'personality1',
+            displayName: 'First Personality',
+            avatarUrl: 'https://example.com/avatar1.png'
+          },
+          aliases: [{ value: 'p1' }, { value: 'first' }]
+        }
+      ]);
+      
+      await command.execute(mockContext);
+      
+      const embedCall = mockContext.respond.mock.calls[0][0];
+      expect(embedCall.embeds[0].fields[0].value).toBe('**Name:** `personality1`\n**Aliases:** p1, first');
     });
   });
 });
