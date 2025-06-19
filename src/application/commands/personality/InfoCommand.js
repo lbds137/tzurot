@@ -75,15 +75,15 @@ function createInfoCommand() {
 
           // Create embed fields
           const fields = [
-            { name: 'Full Name', value: personality.fullName, inline: true },
-            { name: 'Display Name', value: personality.displayName || 'Not set', inline: true },
+            { name: 'Full Name', value: personality.profile.name, inline: true },
+            { name: 'Display Name', value: personality.profile.displayName || 'Not set', inline: true },
           ];
 
           // Add user's aliases (in new system, aliases are global not per-user)
           if (personality.aliases && personality.aliases.length > 0) {
             fields.push({
               name: 'Aliases',
-              value: personality.aliases.join(', '),
+              value: personality.aliases.map(a => a.value || a.alias).join(', '),
               inline: true,
             });
           } else {
@@ -95,10 +95,10 @@ function createInfoCommand() {
           }
 
           // Add owner information if available
-          if (personality.owner) {
+          if (personality.profile.owner) {
             fields.push({
               name: 'Created By',
-              value: `<@${personality.owner}>`,
+              value: `<@${personality.profile.owner.value || personality.profile.owner}>`,
               inline: true,
             });
           }
@@ -122,7 +122,7 @@ function createInfoCommand() {
           // Create the response
           const embedData = {
             title: 'Personality Info',
-            description: `Information for **${personality.displayName || personality.fullName}**`,
+            description: `Information for **${personality.profile.displayName || personality.profile.name}**`,
             color: 0x2196f3,
             fields: fields,
           };

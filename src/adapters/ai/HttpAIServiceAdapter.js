@@ -1,5 +1,6 @@
 const { AIService } = require('../../domain/ai');
 const { AIRequest, AIContent } = require('../../domain/ai');
+const { AIRequestDeduplicator } = require('../../domain/ai/AIRequestDeduplicator');
 const logger = require('../../logger');
 const nodeFetch = require('node-fetch');
 
@@ -55,6 +56,24 @@ class HttpAIServiceAdapter extends AIService {
 
     // Injectable delay function for testing
     this.delay = config.delay || defaultDelay;
+
+    // Initialize timer functions for injection
+    const timerFunctions = {
+      setTimeout: config.delay
+        ? (fn, ms) => config.delay(ms).then(fn)
+        : globalThis.setTimeout || setTimeout,
+      clearTimeout: globalThis.clearTimeout || clearTimeout,
+      setInterval: globalThis.setInterval || setInterval,
+      clearInterval: globalThis.clearInterval || clearInterval,
+      now: () => Date.now(),
+    };
+
+    // Initialize deduplicator
+    this.deduplicator = new AIRequestDeduplicator({
+      timers: timerFunctions,
+      requestTTL: 30000, // 30 seconds
+      errorBlackoutDuration: 60000, // 1 minute
+    });
 
     // Request statistics
     this._requestCount = 0;

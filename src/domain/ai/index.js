@@ -9,6 +9,7 @@ const { AIContent } = require('./AIContent');
 const { AIModel } = require('./AIModel');
 const { AIService } = require('./AIService');
 const { AIRequestRepository } = require('./AIRequestRepository');
+const { AIRequestDeduplicator } = require('./AIRequestDeduplicator');
 const {
   AIRequestCreated,
   AIRequestSent,
@@ -31,6 +32,7 @@ module.exports = {
 
   // Services
   AIService,
+  AIRequestDeduplicator,
 
   // Repositories
   AIRequestRepository,
