@@ -45,8 +45,8 @@ function createAutorespondCommand(dependencies = {}) {
  */
 function createExecutor(dependencies) {
   return async function execute(context) {
-    const { args, options, services } = context;
-    const conversationManager = services.conversationManager;
+    const { args, options } = context;
+    const conversationManager = context.dependencies.conversationManager;
 
     logger.info(`[AutorespondCommand] Executing for user ${context.userId}`);
 
