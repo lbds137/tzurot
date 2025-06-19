@@ -48,7 +48,7 @@ function createExecutor(dependencies) {
     const { args, options } = context;
     const conversationManager = context.dependencies.conversationManager;
 
-    logger.info(`[AutorespondCommand] Executing for user ${context.userId}`);
+    logger.info(`[AutorespondCommand] Executing for user ${context.getUserId()}`);
 
     try {
       // Get action from options or args
@@ -81,7 +81,7 @@ function createExecutor(dependencies) {
  * Show current auto-response status
  */
 async function showStatus(context, conversationManager) {
-  const isEnabled = conversationManager.isAutoResponseEnabled(context.userId);
+  const isEnabled = conversationManager.isAutoResponseEnabled(context.getUserId());
 
   const embed = {
     title: '🔄 Auto-Response Status',
@@ -101,12 +101,12 @@ async function showStatus(context, conversationManager) {
       },
       {
         name: 'User',
-        value: `<@${context.userId}>`,
+        value: `<@${context.getUserId()}>`,
         inline: true,
       },
     ],
     footer: {
-      text: `Use "${context.commandPrefix}autorespond on/off" to change this setting`,
+      text: `Use "${context.dependencies.botPrefix || '!tz'}autorespond on/off" to change this setting`,
     },
     timestamp: new Date().toISOString(),
   };
@@ -119,8 +119,8 @@ async function showStatus(context, conversationManager) {
  */
 async function enableAutoResponse(context, conversationManager) {
   try {
-    conversationManager.setAutoResponse(context.userId, true);
-    logger.info(`[AutorespondCommand] Enabled auto-response for user ${context.userId}`);
+    conversationManager.setAutoResponse(context.getUserId(), true);
+    logger.info(`[AutorespondCommand] Enabled auto-response for user ${context.getUserId()}`);
 
     const embed = {
       title: '✅ Auto-Response Enabled',
@@ -155,8 +155,8 @@ async function enableAutoResponse(context, conversationManager) {
  */
 async function disableAutoResponse(context, conversationManager) {
   try {
-    conversationManager.setAutoResponse(context.userId, false);
-    logger.info(`[AutorespondCommand] Disabled auto-response for user ${context.userId}`);
+    conversationManager.setAutoResponse(context.getUserId(), false);
+    logger.info(`[AutorespondCommand] Disabled auto-response for user ${context.getUserId()}`);
 
     const embed = {
       title: '❌ Auto-Response Disabled',
