@@ -158,38 +158,12 @@ function createAliasCommand() {
           }
 
           // Add the alias using the application service
-          const result = await personalityService.addAlias(
-            personalityNameOrAlias,
-            newAlias,
-            userId
-          );
+          const personality = await personalityService.addAlias({
+            personalityName: personalityNameOrAlias,
+            alias: newAlias,
+            requesterId: userId
+          });
 
-          if (!result.success) {
-            const errorEmbed = {
-              title: '❌ Failed to Add Alias',
-              description: result.error || 'Unable to add the alias.',
-              color: 0xf44336, // Red color
-              fields: [
-                {
-                  name: 'Common Issues',
-                  value:
-                    "• Personality not found\n• You don't own this personality\n• Alias already exists\n• Personality name conflicts",
-                  inline: false,
-                },
-                {
-                  name: 'What to do',
-                  value:
-                    `• Check the personality name with \`${context.dependencies.botPrefix || '!tz'} list\`\n` +
-                    `• Make sure you own the personality\n` +
-                    `• Try a different alias`,
-                  inline: false,
-                },
-              ],
-            };
-            return await context.respond({ embeds: [errorEmbed] });
-          }
-
-          const personality = result.personality;
           const displayName = personality.profile.displayName || personality.profile.name;
 
           // Create embed fields
@@ -238,6 +212,52 @@ function createAliasCommand() {
           return await context.respond({ embeds: [embedData] });
         } catch (error) {
           logger.error('[AliasCommand] Error adding alias:', error);
+          
+          // Handle specific errors
+          if (error.message.includes('not found')) {
+            const errorEmbed = {
+              title: '❌ Personality Not Found',
+              description: `No personality found with the name or alias "${personalityNameOrAlias}".`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What to check',
+                  value:
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `list` command to see your personalities',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personality names are case-insensitive',
+              },
+            };
+            return await context.respond({ embeds: [errorEmbed] });
+          }
+
+          if (error.message.includes('owner')) {
+            const errorEmbed = {
+              title: '❌ Permission Denied',
+              description: "You can only add aliases to personalities you own.",
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'Why this happened',
+                  value:
+                    '• You are not the owner of this personality\n• Only the creator can add aliases',
+                  inline: false,
+                },
+                {
+                  name: 'What to do',
+                  value:
+                    `• Check the personality owner with \`${context.dependencies.botPrefix || '!tz'} info ${personalityNameOrAlias}\`\n` +
+                    `• Use \`${context.dependencies.botPrefix || '!tz'} list\` to see personalities you own`,
+                  inline: false,
+                },
+              ],
+            };
+            return await context.respond({ embeds: [errorEmbed] });
+          }
+
           throw error;
         }
       } catch (error) {
