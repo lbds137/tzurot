@@ -265,7 +265,7 @@ describe('BackupService', () => {
       authData = { cookie: 'session-cookie' };
 
       // Mock successful single backup execution
-      jest.spyOn(backupService, 'executeBackup').mockImplementation(async job => {
+      jest.spyOn(backupService, 'executeBackupWithCachedUser').mockImplementation(async job => {
         job.start();
         job.complete({});
         return job;
@@ -289,7 +289,7 @@ describe('BackupService', () => {
       );
 
       expect(jobs).toHaveLength(3);
-      expect(backupService.executeBackup).toHaveBeenCalledTimes(3);
+      expect(backupService.executeBackupWithCachedUser).toHaveBeenCalledTimes(3);
 
       // Verify each job was created correctly
       jobs.forEach((job, index) => {
@@ -317,7 +317,7 @@ describe('BackupService', () => {
 
       // Mock first backup to succeed, second to fail with auth error
       jest
-        .spyOn(backupService, 'executeBackup')
+        .spyOn(backupService, 'executeBackupWithCachedUser')
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED })
         .mockRejectedValueOnce(authError);
 
@@ -331,7 +331,7 @@ describe('BackupService', () => {
       );
 
       expect(jobs).toHaveLength(3);
-      expect(backupService.executeBackup).toHaveBeenCalledTimes(2); // Stopped after auth error
+      expect(backupService.executeBackupWithCachedUser).toHaveBeenCalledTimes(2); // Stopped after auth error
 
       expect(mockProgressCallback).toHaveBeenCalledWith(
         expect.stringContaining('❌ Authentication failed! Your session cookie may have expired.')
@@ -346,7 +346,7 @@ describe('BackupService', () => {
 
       // Mock second backup to fail with non-auth error
       jest
-        .spyOn(backupService, 'executeBackup')
+        .spyOn(backupService, 'executeBackupWithCachedUser')
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED })
         .mockRejectedValueOnce(generalError)
         .mockResolvedValueOnce({ status: BackupStatus.COMPLETED });
@@ -360,7 +360,7 @@ describe('BackupService', () => {
         mockProgressCallback
       );
 
-      expect(backupService.executeBackup).toHaveBeenCalledTimes(3); // Continued after error
+      expect(backupService.executeBackupWithCachedUser).toHaveBeenCalledTimes(3); // Continued after error
       expect(logger.error).toHaveBeenCalledWith(
         '[BackupService] Error in bulk backup for Personality2: Network error'
       );
