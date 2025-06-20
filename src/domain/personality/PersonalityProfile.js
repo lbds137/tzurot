@@ -26,7 +26,7 @@ class PersonalityProfile extends ValueObject {
         this.errorMessage = nameOrConfig.errorMessage || nameOrConfig.error_message || null;
         this.lastFetched = nameOrConfig.lastFetched
           ? new Date(nameOrConfig.lastFetched)
-          : new Date();
+          : null;
         // No local prompt/model data in external mode
         this.prompt = null;
         this.modelPath = null;
@@ -63,7 +63,7 @@ class PersonalityProfile extends ValueObject {
         this.prompt = null;
         this.modelPath = null;
         this.maxWordCount = null;
-        this.lastFetched = new Date();
+        this.lastFetched = nameOrConfig.lastFetched ? new Date(nameOrConfig.lastFetched) : null;
       } else {
         // Default to external mode for empty objects
         this.mode = 'external';
@@ -74,7 +74,7 @@ class PersonalityProfile extends ValueObject {
         this.prompt = null;
         this.modelPath = null;
         this.maxWordCount = null;
-        this.lastFetched = new Date();
+        this.lastFetched = nameOrConfig.lastFetched ? new Date(nameOrConfig.lastFetched) : null;
       }
 
       // Store public API data if provided
@@ -91,7 +91,7 @@ class PersonalityProfile extends ValueObject {
       this.displayName = nameOrConfig;
       this.avatarUrl = null;
       this.errorMessage = null;
-      this.lastFetched = this.mode === 'external' ? new Date() : null;
+      this.lastFetched = null;
     }
 
     this.validate();
