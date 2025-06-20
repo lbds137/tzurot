@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.3] - 2025-06-20
+
+### Fixed
+- **Feature Flag Loading** - Fixed critical bug where hyphenated feature flags couldn't be loaded from environment variables
+  - Flags like `enhanced-context`, `comparison-testing`, and `dual-write` now properly load when set via environment
+  - Added special handling in `FeatureFlags._loadFromEnvironment()` to correctly map underscores to hyphens
+  - This fix enables proper feature flag configuration in production environments
+
+### Changed
+- **Feature Flag Cleanup** - Removed 14 unused feature flags from the codebase
+  - Removed flags that were defined but never referenced in code
+  - Simplified configuration and reduced memory footprint
+  - Updated all affected tests to work without the removed flags
+- **Command Routing Simplification** - Simplified DDD command routing logic
+  - When `ddd.commands.enabled` is true, all commands now route to the new system by default
+  - Category and command-specific flags are now optional overrides instead of required
+  - Makes the system easier to understand and configure
+- **Documentation Optimization** - Reduced CLAUDE.md file size by 30%
+  - Condensed verbose sections while preserving all critical information
+  - Preserved personality section as requested
+  - Improved readability with more concise formatting
+
 ## [2.0.2] - 2025-06-20
 
 ### Fixed
