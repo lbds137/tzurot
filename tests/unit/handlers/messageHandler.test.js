@@ -25,6 +25,7 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
 }));
 jest.mock('../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../src/application/services/FeatureFlags');
+jest.mock('../../../src/utils/aliasResolver');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -45,13 +46,13 @@ const {
 } = require('../../../src/core/conversation');
 const {
   getPersonalityByAlias,
-  getPersonality,
   getMaxAliasWordCount,
 } = require('../../../src/core/personality');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
+const { resolvePersonality } = require('../../../src/utils/aliasResolver');
 
 describe('messageHandler', () => {
   let mockClient;
@@ -115,8 +116,8 @@ describe('messageHandler', () => {
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);
     isAutoResponseEnabled.mockReturnValue(undefined);
-    getPersonality.mockResolvedValue(mockPersonality);
     getPersonalityByAlias.mockReturnValue(null);
+    resolvePersonality.mockResolvedValue(null); // Default to no personality found
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
 
@@ -274,7 +275,7 @@ describe('messageHandler', () => {
 
       // Reset and setup mocks
       jest.clearAllMocks();
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
       // Make sure the other handlers return false to get to mentions
@@ -284,7 +285,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(mentionMessage, mockClient);
 
       // Verify that the personality was looked up
-      expect(getPersonality).toHaveBeenCalledWith('TestPersonality');
+      expect(resolvePersonality).toHaveBeenCalledWith('TestPersonality');
 
       // Verify that delayedProcessing was called with the right arguments
       expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
@@ -306,7 +307,7 @@ describe('messageHandler', () => {
       // Reset and setup mocks
       jest.clearAllMocks();
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
       // Make sure handlers before this one return false
@@ -314,7 +315,7 @@ describe('messageHandler', () => {
 
       // Mock handleMentions internal function to return false so we get to handleActiveConversation
       // This is done by setting up the test environment so no mentions are found
-      getPersonalityByAlias.mockReturnValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       // Call the handler
       await messageHandler.handleMessage(conversationMessage, mockClient);
@@ -350,12 +351,12 @@ describe('messageHandler', () => {
       // Set up the test to get to the activated channel handler
       // Returns for previous handlers
       referenceHandler.handleMessageReference.mockResolvedValueOnce(false);
-      getPersonalityByAlias.mockReturnValue(null); // No mention matches
+      resolvePersonality.mockResolvedValue(null); // No mention matches
       getActivePersonality.mockReturnValueOnce(null); // No active conversation
 
       // Setup for activated channel handling
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       channelUtils.isChannelNSFW.mockReturnValueOnce(true); // NSFW channel
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
@@ -493,7 +494,7 @@ describe('messageHandler', () => {
       };
 
       // Set up mocks for this test
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
       // Call the handler
@@ -522,8 +523,8 @@ describe('messageHandler', () => {
       // Set max word count to allow multi-word aliases
       getMaxAliasWordCount.mockReturnValue(2);
 
-      // Mock getPersonalityByAlias to return for multi-word alias
-      getPersonalityByAlias.mockImplementation(name => {
+      // Mock resolvePersonality to return for multi-word alias
+      resolvePersonality.mockImplementation(async name => {
         if (name === 'Test Personality') {
           return mockPersonality;
         }
@@ -539,8 +540,8 @@ describe('messageHandler', () => {
       // Should return true to indicate the mention was handled
       expect(result).toBe(true);
 
-      // Should have tried to get personality by alias with the multi-word name
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('Test Personality');
+      // Should have tried to resolve personality with the multi-word name
+      expect(resolvePersonality).toHaveBeenCalledWith('Test Personality');
 
       // For server channels (default mock), should use delayed processing
       expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
@@ -568,8 +569,8 @@ describe('messageHandler', () => {
         displayName: 'Test Personality Prime',
       };
 
-      // Mock getPersonalityByAlias to return for various aliases
-      getPersonalityByAlias.mockImplementation(async name => {
+      // Mock resolvePersonality to return for various aliases
+      resolvePersonality.mockImplementation(async name => {
         if (name === 'Test') {
           return { fullName: 'test', displayName: 'Test' };
         }
@@ -592,7 +593,7 @@ describe('messageHandler', () => {
       expect(result).toBe(true);
 
       // Should have tried different combinations
-      expect(getPersonalityByAlias).toHaveBeenCalledWith(expect.stringContaining('Test'));
+      expect(resolvePersonality).toHaveBeenCalledWith(expect.stringContaining('Test'));
 
       // For server channels, should use delayed processing with the longest match
       expect(messageTrackerHandler.delayedProcessing).toHaveBeenCalledWith(
@@ -640,7 +641,7 @@ describe('messageHandler', () => {
       jest.clearAllMocks();
 
       // Set up mocks for this test
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
 
       // Call the handler
@@ -669,7 +670,7 @@ describe('messageHandler', () => {
 
       // Set up an active conversation
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
       // Call the handler
@@ -728,7 +729,7 @@ describe('messageHandler', () => {
 
       // Set up an active conversation in a DM
       getActivePersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       personalityHandler.handlePersonalityInteraction.mockResolvedValueOnce(undefined);
 
       // Set up a DM message
@@ -766,7 +767,7 @@ describe('messageHandler', () => {
 
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
       channelUtils.isChannelNSFW.mockReturnValueOnce(true); // Channel is NSFW
 
@@ -821,7 +822,7 @@ describe('messageHandler', () => {
 
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
 
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -864,7 +865,7 @@ describe('messageHandler', () => {
 
       // Set up an activated channel
       getActivatedPersonality.mockReturnValueOnce('test-personality');
-      getPersonality.mockResolvedValueOnce(mockPersonality);
+      resolvePersonality.mockResolvedValueOnce(mockPersonality);
 
       // Set up a non-NSFW, non-DM channel
       const nonNsfwMessage = {
@@ -932,7 +933,7 @@ describe('messageHandler', () => {
 
       // Set up an activated channel
       getActivatedPersonality.mockReturnValue('TestPersonality');
-      getPersonality.mockResolvedValue(mockPersonality);
+      resolvePersonality.mockResolvedValue(mockPersonality);
       channelUtils.isChannelNSFW.mockReturnValue(true);
 
       // Set up a reply to another user (not a personality)
