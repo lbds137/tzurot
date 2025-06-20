@@ -28,7 +28,7 @@ describe('PersonalityProfile', () => {
         expect(profile.displayName).toBeNull();
         expect(profile.avatarUrl).toBeNull();
         expect(profile.errorMessage).toBeNull();
-        expect(profile.lastFetched).toBeInstanceOf(Date);
+        expect(profile.lastFetched).toBeNull();
       });
 
       it('should create external profile with display fields', () => {
@@ -290,7 +290,7 @@ describe('PersonalityProfile', () => {
         errorMessage: 'Error message',
         name: 'Claude',
       });
-      expect(json.lastFetched).toBeInstanceOf(Date);
+      expect(json.lastFetched).toBeNull();
       expect(json.prompt).toBeUndefined();
       expect(json.modelPath).toBeUndefined();
     });
@@ -341,7 +341,7 @@ describe('PersonalityProfile', () => {
         errorMessage: null,
         name: 'Claude',
       });
-      expect(json.lastFetched).toBeInstanceOf(Date);
+      expect(json.lastFetched).toBeNull();
     });
   });
 
