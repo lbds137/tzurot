@@ -102,10 +102,7 @@ describe('CommandIntegrationAdapter', () => {
       await adapter.initialize();
 
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.add';
-      });
-      mockFeatureFlags.hasFlag.mockImplementation(flag => {
-        return flag === 'ddd.commands.add';
+        return flag === 'ddd.commands.enabled';
       });
       mockCommandIntegration.hasCommand.mockReturnValue(true);
 
@@ -125,7 +122,6 @@ describe('CommandIntegrationAdapter', () => {
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
         return flag === 'ddd.commands.enabled';
       });
-      mockFeatureFlags.hasFlag.mockReturnValue(false); // No specific overrides
       mockCommandIntegration.hasCommand.mockReturnValue(true);
 
       const personalityCommands = ['add', 'remove', 'info', 'alias', 'list'];
@@ -141,59 +137,11 @@ describe('CommandIntegrationAdapter', () => {
       }
     });
 
-    it('should allow category flags to override when they exist', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        if (flag === 'ddd.commands.enabled') return true;
-        if (flag === 'ddd.commands.conversation') return false; // Override to disable
-        return false;
-      });
-      mockFeatureFlags.hasFlag.mockImplementation(flag => {
-        return flag === 'ddd.commands.conversation';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      const conversationCommands = ['reset', 'activate', 'deactivate', 'autorespond'];
-
-      for (const cmd of conversationCommands) {
-        mockProcessCommand.mockClear();
-        await adapter.processCommand(mockMessage, cmd, []);
-        expect(mockProcessCommand).toHaveBeenCalledWith(mockMessage, cmd, []);
-        expect(mockCommandIntegration.handleDiscordTextCommand).not.toHaveBeenCalled();
-      }
-    });
-
-    it('should allow specific command flags to override', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        if (flag === 'ddd.commands.enabled') return true;
-        if (flag === 'ddd.commands.auth') return false; // Specific override
-        return true;
-      });
-      mockFeatureFlags.hasFlag.mockImplementation(flag => {
-        return flag === 'ddd.commands.auth';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      // Auth command should use legacy due to specific override
-      mockProcessCommand.mockClear();
-      await adapter.processCommand(mockMessage, 'auth', []);
-      expect(mockProcessCommand).toHaveBeenCalledWith(mockMessage, 'auth', []);
-      
-      // But verify should use new system (no specific override)
-      mockFeatureFlags.hasFlag.mockImplementation(flag => false);
-      mockCommandIntegration.handleDiscordTextCommand.mockClear();
-      await adapter.processCommand(mockMessage, 'verify', []);
-      expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
-        mockMessage,
-        'verify',
-        []
-      );
-    });
 
     it('should use new system for all commands when only global flag is enabled', async () => {
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
         return flag === 'ddd.commands.enabled';
       });
-      mockFeatureFlags.hasFlag.mockReturnValue(false); // No overrides
       mockCommandIntegration.hasCommand.mockReturnValue(true);
 
       const utilityCommands = ['ping', 'status', 'debug', 'purgbot', 'volumetest', 'notifications'];
@@ -214,7 +162,6 @@ describe('CommandIntegrationAdapter', () => {
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
         return flag === 'ddd.commands.enabled';
       });
-      mockFeatureFlags.hasFlag.mockReturnValue(false);
       
       // Mock getAllCommands to simulate alias resolution
       const mockCommand = { name: 'purgbot', aliases: ['cleandm', 'purgebot', 'clearbot'] };
@@ -250,19 +197,6 @@ describe('CommandIntegrationAdapter', () => {
       expect(mockCommandIntegration.handleDiscordTextCommand).not.toHaveBeenCalled();
     });
 
-    it('should handle command-specific feature flags', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled';
-      });
-      mockFeatureFlags.hasFlag.mockImplementation(flag => {
-        return flag === 'ddd.commands.test';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      await adapter.processCommand(mockMessage, 'test', []);
-
-      expect(mockFeatureFlags.hasFlag).toHaveBeenCalledWith('ddd.commands.test');
-    });
   });
 
   describe('error handling', () => {
@@ -273,10 +207,7 @@ describe('CommandIntegrationAdapter', () => {
     it('should return error response on exception', async () => {
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
         // Enable new system but not fallback
-        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.add';
-      });
-      mockFeatureFlags.hasFlag.mockImplementation(flag => {
-        return flag === 'ddd.commands.add';
+        return flag === 'ddd.commands.enabled';
       });
       mockCommandIntegration.hasCommand.mockReturnValue(true);
       mockCommandIntegration.handleDiscordTextCommand.mockRejectedValue(new Error('Test error'));
@@ -289,11 +220,7 @@ describe('CommandIntegrationAdapter', () => {
 
     it('should fall back to legacy on error if flag enabled', async () => {
       mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return (
-          flag === 'ddd.commands.enabled' ||
-          flag === 'ddd.commands.add' ||
-          flag === 'ddd.commands.fallbackOnError'
-        );
+        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.fallbackOnError';
       });
       mockCommandIntegration.hasCommand.mockReturnValue(true);
       mockCommandIntegration.handleDiscordTextCommand.mockRejectedValue(new Error('Test error'));
