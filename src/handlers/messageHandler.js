@@ -131,7 +131,7 @@ async function checkForPersonalityMentions(message) {
  * @returns {Promise<void>}
  */
 async function handleMessage(message, client) {
-  logger.info(
+  logger.debug(
     `[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`
   );
 
@@ -653,7 +653,7 @@ async function handleActivatedChannel(message, client) {
   const isCommand = message.content.startsWith(botPrefix);
 
   if (isCommand) {
-    logger.info(`Activated personality ignoring command message: ${message.content}`);
+    logger.debug(`Activated personality ignoring command message: ${message.content}`);
     return false; // Let the command handler process this message
   }
 
