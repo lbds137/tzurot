@@ -48,7 +48,7 @@ async function execute(message, args, context = {}) {
       const MessageTracker = require('../utils/messageTracker');
       return new MessageTracker();
     })();
-  logger.info(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
+  logger.debug(`[AddCommand] Execute called for message ${message.id} from ${message.author.id}`);
 
   // Check if this message is already being processed
   if (processingMessages.has(message.id)) {

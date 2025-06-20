@@ -272,7 +272,7 @@ async function deleteUserToken(userId) {
     userTokensCache = authManager.userTokenManager.getAllTokens();
 
     if (result) {
-      logger.info(`[Auth] Deleted token for user ${userId}`);
+      logger.debug(`[Auth] Deleted token for user ${userId}`);
     } else {
       // AuthManager already logged the error
     }
@@ -301,9 +301,9 @@ async function storeNsfwVerification(userId, isVerified) {
 
     if (result) {
       if (isVerified) {
-        logger.info(`[Auth] User ${userId} verified for NSFW access`);
+        logger.debug(`[Auth] User ${userId} verified for NSFW access`);
       } else {
-        logger.info(`[Auth] Removed NSFW verification for user ${userId}`);
+        logger.debug(`[Auth] Removed NSFW verification for user ${userId}`);
       }
     } else {
       // AuthManager already logged the error

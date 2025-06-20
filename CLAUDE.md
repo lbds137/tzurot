@@ -537,6 +537,7 @@ For detailed git workflow, see:
 - Use generic test data (test@example.com, @TestUser)
 - Respect Discord's privacy guidelines
 - Implement proper data retention policies
+- **Follow privacy logging guidelines**: See `docs/development/PRIVACY_LOGGING_GUIDE.md`
 
 ### API Security
 - Always use the X-User-Auth header for user-specific requests

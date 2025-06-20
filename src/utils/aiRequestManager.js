@@ -199,7 +199,7 @@ function createRequestId(personalityName, message, context) {
     );
     if (message) {
       logger.error(
-        `[AIRequestManager] Message sample: ${JSON.stringify(message).substring(0, 100)}`
+        `[AIRequestManager] Message structure present but not logging content for privacy`
       );
     }
 
