@@ -52,7 +52,7 @@ describe('PersonalityApplicationService', () => {
       findByAlias: jest.fn(),
       findByOwner: jest.fn(),
       findAll: jest.fn(),
-      save: jest.fn(),
+      save: jest.fn().mockResolvedValue(undefined),
       delete: jest.fn(),
       exists: jest.fn(),
     };
@@ -219,6 +219,84 @@ describe('PersonalityApplicationService', () => {
         const result = await service.registerPersonality(commandWithoutMode);
 
         expect(result.profile.mode).toBe('external');
+      });
+
+      it('should generate unique alias when display name conflicts during seeding', async () => {
+        // Simulate personality seeding scenario
+        const existingPersonality = Personality.create(
+          PersonalityId.generate(),
+          new UserId('123456789012345678'),
+          new PersonalityProfile({
+            mode: 'external',
+            name: 'claude-3-opus',
+            displayName: 'Claude',
+          }),
+          AIModel.createDefault()
+        );
+        existingPersonality.addAlias(new Alias('claude'));
+
+        // Mock repository responses
+        mockPersonalityRepository.findByName.mockResolvedValue(null);
+        mockPersonalityRepository.findByAlias
+          .mockResolvedValueOnce(null) // No alias for TB
+          .mockResolvedValueOnce(null) // No alias for TestB  
+          .mockResolvedValueOnce(existingPersonality) // 'claude' is taken
+          .mockResolvedValueOnce(null); // 'claude-3' is available
+
+        // Mock profile fetcher to return API data with display name "Claude"
+        mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
+          name: 'Claude',
+          displayName: 'Claude',
+          username: 'claude-3-sonnet',
+          avatar: 'https://example.com/avatar.png',
+          error_message: 'Test error message',
+        });
+
+        const result = await service.registerPersonality({
+          name: 'claude-3-sonnet',
+          ownerId: '123456789012345678',
+          mode: 'external',
+          aliases: ['TB', 'TestB'],
+        });
+
+        // Verify the personality was created
+        expect(result).toBeDefined();
+        expect(result.profile.name).toBe('claude-3-sonnet');
+        expect(result.profile.displayName).toBe('Claude');
+
+        // Verify that it tried to add display name as alias but found conflict
+        expect(mockPersonalityRepository.findByAlias).toHaveBeenCalledWith('claude');
+        
+        // Verify the save was called twice - once after initial save, once after adding generated alias
+        expect(mockPersonalityRepository.save).toHaveBeenCalledTimes(2);
+        
+        // Check that personality has the expected aliases
+        expect(result.aliases).toHaveLength(3); // TB, TestB, claude-3
+        expect(result.aliases.map(a => a.value)).toContain('tb');
+        expect(result.aliases.map(a => a.value)).toContain('testb');
+        expect(result.aliases.map(a => a.value)).toContain('claude-3');
+      });
+
+      it('should not add any alias if display name matches full name', async () => {
+        mockPersonalityRepository.findByName.mockResolvedValue(null);
+        mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+
+        mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
+          name: 'TestBot',
+          displayName: 'TestBot', // Same as full name
+          username: 'testbot',
+          avatar: 'https://example.com/avatar.png',
+        });
+
+        const result = await service.registerPersonality({
+          name: 'testbot',
+          ownerId: '123456789012345678',
+          mode: 'external',
+        });
+
+        // Should only save once (no additional alias to add)
+        expect(mockPersonalityRepository.save).toHaveBeenCalledTimes(1);
+        expect(result.aliases).toHaveLength(0);
       });
     });
 
