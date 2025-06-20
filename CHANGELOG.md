@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.2] - 2025-06-20
+
+### Fixed
+- **Multi-Word Alias Validation** - Fixed critical bug preventing multi-word aliases from loading
+  - Removed strict validation that rejected leading/trailing spaces in Alias domain model
+  - Multi-word aliases like "angel dust" and "melek taus" now load correctly from stored data
+  - Leading and trailing spaces are now silently trimmed when creating aliases (preserving spaces in middle)
+  - Resolves FilePersonalityRepository hydration errors that prevented personality loading
+  - Enables proper Discord message parsing for multi-word mentions like `@Angel Dust hi`
+
 ## [2.0.1] - 2025-06-20
 
 ### Fixed
