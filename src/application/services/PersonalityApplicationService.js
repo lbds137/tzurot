@@ -583,6 +583,34 @@ class PersonalityApplicationService {
   }
 
   /**
+   * Get the maximum word count among all aliases
+   * @returns {Promise<number>} The maximum word count (minimum 1)
+   */
+  async getMaxAliasWordCount() {
+    try {
+      const personalities = await this.personalityRepository.findAll();
+      let maxWordCount = 1; // Default to 1 if no aliases exist
+
+      for (const personality of personalities) {
+        for (const alias of personality.aliases) {
+          const wordCount = alias.value.trim().split(/\s+/).length;
+          if (wordCount > maxWordCount) {
+            maxWordCount = wordCount;
+          }
+        }
+      }
+
+      logger.debug(`[PersonalityApplicationService] Max alias word count: ${maxWordCount}`);
+      return maxWordCount;
+    } catch (error) {
+      logger.error(
+        `[PersonalityApplicationService] Failed to get max alias word count: ${error.message}`
+      );
+      return 1; // Default to 1 on error
+    }
+  }
+
+  /**
    * Publish domain events
    * @private
    */

@@ -45,14 +45,16 @@ const mockInfoCommand = {
       return await sendFn('You need to provide a personality name or alias.');
     }
 
-    const personalityInput = args[0].toLowerCase();
+    // Join all arguments to support multi-word aliases
+    const personalityInput = args.join(' ').toLowerCase();
 
     try {
       // Look up by alias then by name
       let personality = mockPersonalityManager.getPersonalityByAlias(personalityInput);
 
       if (!personality) {
-        personality = mockPersonalityManager.getPersonality(personalityInput);
+        // If not found as multi-word alias, try just the first word as personality name
+        personality = mockPersonalityManager.getPersonality(args[0].toLowerCase());
       }
 
       if (!personality) {
@@ -241,5 +243,56 @@ describe('Info Command', () => {
 
     // Check that an error message was sent
     expect(mockDirectSend).toHaveBeenCalledWith(expect.stringContaining('An error occurred'));
+  });
+
+  it('should support multi-word aliases', async () => {
+    // Set up mock for multi-word alias lookup
+    const mockPersonality = {
+      fullName: 'test-personality',
+      displayName: 'Test Bot',
+      avatarUrl: 'https://example.com/avatar.png',
+      aliases: {
+        'user-123': ['my favorite bot', 'another alias'],
+      },
+    };
+    mockPersonalityManager.getPersonalityByAlias.mockReturnValueOnce(mockPersonality);
+
+    await infoCommand.execute(mockMessage, ['my', 'favorite', 'bot']);
+
+    // Should look up the full alias joined together
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('my favorite bot');
+
+    // Check that a response with embed was sent
+    expect(mockDirectSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+      })
+    );
+  });
+
+  it('should fall back to single word personality name if multi-word alias not found', async () => {
+    // Mock alias not found, but personality name found
+    mockPersonalityManager.getPersonalityByAlias.mockReturnValueOnce(null);
+    
+    const mockPersonality = {
+      fullName: 'test',
+      displayName: 'Test Personality',
+    };
+    mockPersonalityManager.getPersonality.mockReturnValueOnce(mockPersonality);
+
+    await infoCommand.execute(mockMessage, ['test', 'extra', 'words']);
+
+    // Should first try full multi-word alias
+    expect(mockPersonalityManager.getPersonalityByAlias).toHaveBeenCalledWith('test extra words');
+    
+    // Then fall back to first word as personality name
+    expect(mockPersonalityManager.getPersonality).toHaveBeenCalledWith('test');
+
+    // Should find personality and send response
+    expect(mockDirectSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+      })
+    );
   });
 });
