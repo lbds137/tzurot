@@ -110,7 +110,7 @@ class CommandIntegrationAdapter {
       return false;
     }
 
-    // Check global feature flag - if enabled, use new system by default
+    // Check global feature flag - if enabled, use new system
     const globalEnabled = this.featureFlags.isEnabled('ddd.commands.enabled');
     if (!globalEnabled) {
       logger.debug(
@@ -119,33 +119,9 @@ class CommandIntegrationAdapter {
       return false;
     }
 
-    // Resolve aliases to get the actual command name
-    const actualCommandName = this.resolveCommandName(commandName);
-
-    // Check command-specific feature flag for override
-    const commandFlag = `ddd.commands.${actualCommandName}`;
-    if (this.featureFlags.hasFlag(commandFlag)) {
-      const enabled = this.featureFlags.isEnabled(commandFlag);
-      logger.debug(`[CommandIntegrationAdapter] Command-specific flag ${commandFlag} = ${enabled}`);
-      return enabled;
-    }
-
-    // Check category flags for override
-    const category = this.getCommandCategory(actualCommandName);
-    if (category) {
-      const categoryFlag = `ddd.commands.${category}`;
-      if (this.featureFlags.hasFlag(categoryFlag)) {
-        const enabled = this.featureFlags.isEnabled(categoryFlag);
-        logger.debug(
-          `[CommandIntegrationAdapter] Category flag ${categoryFlag} = ${enabled} for command "${actualCommandName}"`
-        );
-        return enabled;
-      }
-    }
-
-    // Default to new system if global flag is enabled
+    // Global flag is enabled, use new system
     logger.debug(
-      `[CommandIntegrationAdapter] Using new system for "${actualCommandName}" (global flag enabled)`
+      `[CommandIntegrationAdapter] Using new system for "${commandName}" (global flag enabled)`
     );
     return true;
   }
