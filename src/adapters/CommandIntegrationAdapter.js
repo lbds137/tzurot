@@ -110,8 +110,9 @@ class CommandIntegrationAdapter {
       return false;
     }
 
-    // Check global feature flag
-    if (!this.featureFlags.isEnabled('ddd.commands.enabled')) {
+    // Check global feature flag - if enabled, use new system by default
+    const globalEnabled = this.featureFlags.isEnabled('ddd.commands.enabled');
+    if (!globalEnabled) {
       logger.debug(
         `[CommandIntegrationAdapter] Global DDD commands disabled, using legacy for "${commandName}"`
       );
@@ -121,7 +122,7 @@ class CommandIntegrationAdapter {
     // Resolve aliases to get the actual command name
     const actualCommandName = this.resolveCommandName(commandName);
 
-    // Check command-specific feature flag
+    // Check command-specific feature flag for override
     const commandFlag = `ddd.commands.${actualCommandName}`;
     if (this.featureFlags.hasFlag(commandFlag)) {
       const enabled = this.featureFlags.isEnabled(commandFlag);
@@ -129,22 +130,24 @@ class CommandIntegrationAdapter {
       return enabled;
     }
 
-    // Check category flags
+    // Check category flags for override
     const category = this.getCommandCategory(actualCommandName);
     if (category) {
       const categoryFlag = `ddd.commands.${category}`;
-      const enabled = this.featureFlags.isEnabled(categoryFlag);
-      logger.debug(
-        `[CommandIntegrationAdapter] Category flag ${categoryFlag} = ${enabled} for command "${actualCommandName}"`
-      );
-      return enabled;
+      if (this.featureFlags.hasFlag(categoryFlag)) {
+        const enabled = this.featureFlags.isEnabled(categoryFlag);
+        logger.debug(
+          `[CommandIntegrationAdapter] Category flag ${categoryFlag} = ${enabled} for command "${actualCommandName}"`
+        );
+        return enabled;
+      }
     }
 
-    // Default to legacy if no specific flag
+    // Default to new system if global flag is enabled
     logger.debug(
-      `[CommandIntegrationAdapter] No category found for command "${actualCommandName}", defaulting to legacy`
+      `[CommandIntegrationAdapter] Using new system for "${actualCommandName}" (global flag enabled)`
     );
-    return false;
+    return true;
   }
 
   /**
