@@ -10,7 +10,6 @@ class FeatureFlags {
       'ddd.personality.read': false,
       'ddd.personality.write': false,
       'ddd.personality.dual-write': false,
-      'ddd.conversation.read': false,
 
       // DDD Event system flags
       'ddd.events.enabled': false,
