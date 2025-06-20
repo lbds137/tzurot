@@ -821,7 +821,7 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/) with Discord bot-spec
    - Commit package-lock separately: `chore: update package-lock.json for vX.Y.Z`
 3. **Create PR**: Target `main` branch (this is the ONLY time PRs to main are allowed)
 4. **After Merge**: 
-   - Create GitHub release: `./scripts/create-release.sh vX.Y.Z`
+   - Create GitHub release: `echo "y" | ./scripts/create-release.sh vX.Y.Z` (note: interactive prompt!)
    - Run `git sync-develop` to sync develop with main
 
 ### Release Script Usage
@@ -829,17 +829,25 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/) with Discord bot-spec
 # After PR is merged to main
 git checkout main && git pull origin main
 
-# Create GitHub release (recommended)
+# Create GitHub release (INTERACTIVE - requires confirmation)
 ./scripts/create-release.sh v1.0.0
 
-# Or test first with dry-run
+# For Claude Code: Use echo to provide confirmation automatically
+echo "y" | ./scripts/create-release.sh v1.0.0
+
+# Or test first with dry-run (no confirmation needed)
 ./scripts/create-release.sh v1.0.0 --dry-run
 ```
+
+**⚠️ IMPORTANT**: The release script has an **interactive prompt** that asks "Create release vX.Y.Z? (y/N):" 
+- **For Claude Code**: ALWAYS use `echo "y" | ./scripts/create-release.sh vX.Y.Z`
+- **For manual runs**: You'll need to type "y" and press Enter when prompted
 
 The release script automatically:
 - Validates branch, version, and changelog
 - Extracts release notes from CHANGELOG.md
 - Creates GitHub release with proper tags
+- **Waits for user confirmation** before creating the release
 
 ### When to Update Version
 - **Bug Fixes Only**: Increment PATCH (1.2.0 → 1.2.1)
