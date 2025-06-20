@@ -1,5 +1,9 @@
 /**
  * Tests for PersonalityManager lazy loading functionality
+ * 
+ * CRITICAL: This test was previously missing the dataStorage mock,
+ * causing it to write test data to the real personalities.json file.
+ * Always mock dataStorage to prevent test pollution of production data!
  */
 
 // Mock dependencies
@@ -12,6 +16,12 @@ jest.mock('../../../../src/profileInfoFetcher', () => ({
 jest.mock('../../../../src/logger');
 jest.mock('../../../../src/utils/avatarStorage');
 
+// CRITICAL: Mock dataStorage to prevent writing to real files
+jest.mock('../../../../src/dataStorage', () => ({
+  loadData: jest.fn(),
+  saveData: jest.fn(),
+}));
+
 const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
 const {
   getProfileAvatarUrl,
@@ -20,6 +30,7 @@ const {
 } = require('../../../../src/profileInfoFetcher');
 const logger = require('../../../../src/logger');
 const avatarStorage = require('../../../../src/utils/avatarStorage');
+const { loadData, saveData } = require('../../../../src/dataStorage');
 
 describe('PersonalityManager - Lazy Loading', () => {
   let manager;
@@ -37,6 +48,10 @@ describe('PersonalityManager - Lazy Loading', () => {
     // Set up avatarStorage mock
     avatarStorage.needsUpdate = jest.fn().mockResolvedValue(false);
     avatarStorage.getLocalAvatarUrl = jest.fn().mockResolvedValue(null);
+
+    // Set up dataStorage mock to return empty data
+    loadData.mockResolvedValue({});
+    saveData.mockResolvedValue(true);
 
     // Create new manager instance
     manager = PersonalityManager.create({
