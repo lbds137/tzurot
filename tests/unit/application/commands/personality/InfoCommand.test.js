@@ -220,5 +220,30 @@ describe('InfoCommand', () => {
         expect.stringContaining('An error occurred')
       );
     });
+
+    it('should support multi-word aliases in text commands', async () => {
+      mockContext.args = ['angel', 'dust'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('angel dust');
+    });
+
+    it('should handle multi-word alias with extra spaces', async () => {
+      mockContext.args = ['my', 'favorite', 'bot'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('my favorite bot');
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              title: 'Personality Info'
+            })
+          ])
+        })
+      );
+    });
   });
 });

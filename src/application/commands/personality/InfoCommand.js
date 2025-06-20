@@ -48,7 +48,8 @@ function createInfoCommand() {
             );
           }
 
-          personalityNameOrAlias = context.args[0].toLowerCase();
+          // Join all arguments to support multi-word aliases
+          personalityNameOrAlias = context.args.join(' ').toLowerCase();
         }
 
         // Validate input

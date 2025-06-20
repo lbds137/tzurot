@@ -65,15 +65,15 @@ function createAliasCommand() {
                   name: 'Examples',
                   value:
                     `• \`${botPrefix} alias Claude cl\` - Add "cl" as alias for Claude\n` +
-                    `• \`${botPrefix} alias "Assistant Bot" helper\` - Add "helper" as alias\n` +
-                    `• \`${botPrefix} alias MyAI ai-buddy\` - Add "ai-buddy" as alias`,
+                    `• \`${botPrefix} alias Assistant helper bot\` - Add "helper bot" as alias\n` +
+                    `• \`${botPrefix} alias MyAI my favorite ai\` - Add "my favorite ai" as alias`,
                   inline: false,
                 },
                 {
                   name: 'Parameters',
                   value:
                     '• **personality-name**: Name or existing alias of the personality\n' +
-                    '• **new-alias**: The new shortcut to add (letters, numbers, underscores, hyphens only)',
+                    '• **new-alias**: The new shortcut to add (can be multiple words)',
                   inline: false,
                 },
               ],
@@ -84,8 +84,10 @@ function createAliasCommand() {
             return await context.respond({ embeds: [usageEmbed] });
           }
 
+          // Get personality name from first argument
           personalityNameOrAlias = context.args[0].toLowerCase();
-          newAlias = context.args[1].toLowerCase();
+          // Join all remaining arguments to support multi-word aliases
+          newAlias = context.args.slice(1).join(' ').toLowerCase();
         }
 
         // Validate inputs
@@ -123,22 +125,24 @@ function createAliasCommand() {
           return await context.respond({ embeds: [errorEmbed] });
         }
 
-        // Validate alias format
-        if (!/^[a-zA-Z0-9_-]+$/.test(newAlias)) {
+        // Validate alias format - allow spaces for multi-word aliases
+        if (!/^[a-zA-Z0-9_\- ]+$/.test(newAlias)) {
           const aliasErrorEmbed = {
             title: '❌ Invalid Alias Format',
-            description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
+            description:
+              'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
             color: 0xf44336, // Red color
             fields: [
               {
                 name: 'Valid characters',
-                value: '• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Underscores (_)\n• Hyphens (-)',
+                value:
+                  '• Letters (a-z, A-Z)\n• Numbers (0-9)\n• Spaces\n• Underscores (_)\n• Hyphens (-)',
                 inline: false,
               },
               {
                 name: 'Examples',
                 value:
-                  '✅ `claude-ai`\n✅ `helper_bot`\n✅ `AI2024`\n❌ `claude.ai`\n❌ `helper bot`\n❌ `AI@2024`',
+                  '✅ `claude-ai`\n✅ `helper bot`\n✅ `my favorite AI`\n✅ `AI2024`\n❌ `claude.ai`\n❌ `AI@2024`\n❌ `bot!123`',
                 inline: false,
               },
             ],

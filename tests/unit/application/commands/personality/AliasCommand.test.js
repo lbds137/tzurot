@@ -188,7 +188,7 @@ describe('AliasCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '❌ Invalid Alias Format',
-            description: 'Aliases can only contain letters, numbers, underscores, and hyphens.',
+            description: 'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
             color: 0xf44336,
           }),
         ],
@@ -332,6 +332,58 @@ describe('AliasCommand', () => {
         'Unable to identify user. Please try again.'
       );
       expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
+    });
+
+    it('should support multi-word aliases', async () => {
+      mockContext.args = ['claude', 'my', 'favorite', 'bot'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
+        personalityName: 'claude',
+        alias: 'my favorite bot',
+        requesterId: '123456789',
+      });
+    });
+
+    it('should handle personality with two-word alias', async () => {
+      mockContext.args = ['assistant', 'helper', 'bot'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
+        personalityName: 'assistant',
+        alias: 'helper bot',
+        requesterId: '123456789',
+      });
+    });
+
+    it('should handle single word personality with single word alias', async () => {
+      mockContext.args = ['claude', 'cl'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.addAlias).toHaveBeenCalledWith({
+        personalityName: 'claude',
+        alias: 'cl',
+        requesterId: '123456789',
+      });
+    });
+
+    it('should reject alias with invalid characters', async () => {
+      mockContext.args = ['claude', 'my@alias!'];
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.addAlias).not.toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Invalid Alias Format',
+            description: 'Aliases can only contain letters, numbers, spaces, underscores, and hyphens.',
+          }),
+        ],
+      });
     });
   });
 });
