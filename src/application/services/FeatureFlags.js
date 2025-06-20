@@ -175,13 +175,17 @@ class FeatureFlags {
           this.flags.set(flagName, value);
         }
 
-        // Special handling for flags with hyphens (like dual-write)
-        // Try converting DUAL_WRITE to dual-write
+        // Special handling for flags with hyphens
+        // Convert underscores to dots, then handle special cases with hyphens
         const hyphenatedFlagName = key
           .substring(prefix.length)
           .toLowerCase()
           .replace(/_/g, '.')
-          .replace(/\.dual\.write$/, '.dual-write'); // Special case for dual-write
+          .replace(/\.dual\.write$/, '.dual-write')
+          .replace(/\.comparison\.testing$/, '.comparison-testing')
+          .replace(/\.platform\.agnostic$/, '.platform-agnostic')
+          .replace(/\.performance\.logging$/, '.performance-logging')
+          .replace(/\.enhanced\.context$/, '.enhanced-context');
 
         if (this.flags.has(hyphenatedFlagName)) {
           const value = process.env[key].toLowerCase() === 'true';
