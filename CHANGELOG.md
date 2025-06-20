@@ -16,18 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This fix enables proper feature flag configuration in production environments
 
 ### Changed
-- **Feature Flag Cleanup** - Removed 14 unused feature flags from the codebase
+- **Feature Flag Cleanup** - Removed 15 unused feature flags from the codebase
   - Removed flags that were defined but never referenced in code
+  - Removed `ddd.commands.hideLegacy` flag that was only used in an empty TODO
   - Simplified configuration and reduced memory footprint
   - Updated all affected tests to work without the removed flags
-- **Command Routing Simplification** - Simplified DDD command routing logic
-  - When `ddd.commands.enabled` is true, all commands now route to the new system by default
-  - Category and command-specific flags are now optional overrides instead of required
-  - Makes the system easier to understand and configure
+- **Command Routing Simplification** - Completely simplified DDD command routing logic
+  - When `ddd.commands.enabled` is true, all commands route to the new system
+  - Removed non-functional override logic for command-specific and category flags
+  - Removed unused `resolveCommandName()` and `getCommandCategory()` methods
+  - Removed unused `resetCommandIntegrationAdapter()` and `reset()` testing utilities
+  - Makes the system much simpler to understand and maintain
 - **Documentation Optimization** - Reduced CLAUDE.md file size by 30%
   - Condensed verbose sections while preserving all critical information
   - Preserved personality section as requested
   - Improved readability with more concise formatting
+- **Configuration Cleanup** - Simplified .env.ddd-testing
+  - Removed all command-specific feature flags since global flag handles everything
+  - Kept only essential DDD system flags
 
 ## [2.0.2] - 2025-06-20
 
