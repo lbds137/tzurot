@@ -19,7 +19,6 @@ class FeatureFlags {
       'ddd.commands.integration': false, // Main flag to enable CommandIntegration routing
       'ddd.commands.fallbackOnError': true,
       'ddd.commands.slash': false,
-      'ddd.commands.hideLegacy': false,
 
       // Feature flags for new capabilities
       'features.enhanced-context': false, // Enable sending enhanced context to AI (for external services)
@@ -166,8 +165,7 @@ class FeatureFlags {
           .toLowerCase()
           .replace(/_/g, '.')
           .replace(/\.dual\.write$/, '.dual-write')
-          .replace(/\.enhanced\.context$/, '.enhanced-context')
-          .replace(/\.hide\.legacy$/, '.hideLegacy'); // Special case for camelCase flag
+          .replace(/\.enhanced\.context$/, '.enhanced-context');
 
         if (this.flags.has(hyphenatedFlagName)) {
           const value = process.env[key].toLowerCase() === 'true';
