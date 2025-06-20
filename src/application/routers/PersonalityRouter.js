@@ -159,6 +159,15 @@ class PersonalityRouter {
   }
 
   /**
+   * Get the maximum word count among all aliases
+   * @returns {Promise<number>} The maximum word count
+   */
+  async getMaxAliasWordCount() {
+    this.routingStats.newReads++;
+    return this._newGetMaxAliasWordCount();
+  }
+
+  /**
    * Get routing statistics
    * @returns {Object} Statistics
    */
@@ -265,6 +274,16 @@ class PersonalityRouter {
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system listPersonalitiesForUser:', error);
       throw error;
+    }
+  }
+
+  async _newGetMaxAliasWordCount() {
+    this._ensurePersonalityService();
+    try {
+      return await this.personalityService.getMaxAliasWordCount();
+    } catch (error) {
+      this.logger.error('[PersonalityRouter] Error in new system getMaxAliasWordCount:', error);
+      return 1; // Default to 1 on error
     }
   }
 

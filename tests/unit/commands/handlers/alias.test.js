@@ -203,4 +203,32 @@ describe('Alias Command Handler', () => {
       expect.stringContaining('An error occurred while setting the alias')
     );
   });
+
+  test('should support multi-word aliases', async () => {
+    await aliasCommand.execute(mockMessage, ['test-personality', 'my', 'favorite', 'bot']);
+
+    // Check that we tried to look up the personality
+    expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+
+    // Check that alias was set with all words joined
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'my favorite bot',
+      'test-personality'
+    );
+
+    // Verify that channel.send was called
+    expect(mockMessage.channel.send).toHaveBeenCalled();
+  });
+
+  test('should handle multi-word aliases with extra spaces', async () => {
+    await aliasCommand.execute(mockMessage, ['test-personality', 'test', '', 'alias']);
+
+    // Check that alias was set with proper space handling
+    expect(personalityManager.setPersonalityAlias).toHaveBeenCalledWith(
+      'test  alias', // Note: join(' ') preserves empty string as extra space
+      'test-personality'
+    );
+
+    expect(mockMessage.channel.send).toHaveBeenCalled();
+  });
 });

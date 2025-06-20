@@ -18,43 +18,24 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../core/conversation');
-const {
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-  getPersonality: getLegacyPersonality,
-  getMaxAliasWordCount,
-} = require('../core/personality');
+const { getMaxAliasWordCount } = require('../core/personality');
 const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../application/services/FeatureFlags');
+const { resolvePersonality } = require('../utils/aliasResolver');
 
 /**
- * Get personality by name, using DDD system if enabled
- * @param {string} name - Personality name
- * @returns {Promise<Object|null>} Personality object or null
+ * Get max alias word count, using DDD system if enabled
+ * @returns {Promise<number>} Max alias word count
  */
-async function getPersonality(name) {
+async function getMaxAliasWordCountAsync() {
   const featureFlags = getFeatureFlags();
   if (featureFlags.isEnabled('ddd.personality.read')) {
     const router = getPersonalityRouter();
-    return await router.getPersonality(name);
+    return await router.getMaxAliasWordCount();
   }
-  return await getLegacyPersonality(name);
-}
-
-/**
- * Get personality by alias, using DDD system if enabled
- * @param {string} alias - Personality alias
- * @returns {Promise<Object|null>} Personality object or null
- */
-async function getPersonalityByAlias(alias) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    // DDD system searches by name or alias in one method
-    const router = getPersonalityRouter();
-    return await router.getPersonality(alias);
-  }
-  return getLegacyPersonalityByAlias(alias);
+  return getMaxAliasWordCount();
 }
 
 /**
@@ -84,10 +65,7 @@ async function checkForPersonalityMentions(message) {
       const cleanedName = match[1].trim().replace(/[.,!?;:)"']+$/, '');
 
       // Check if this is a valid personality (directly or as an alias)
-      let personality = await getPersonality(cleanedName);
-      if (!personality) {
-        personality = await getPersonalityByAlias(cleanedName);
-      }
+      const personality = await resolvePersonality(cleanedName);
 
       if (personality) {
         return true; // Found a valid personality mention
@@ -98,7 +76,7 @@ async function checkForPersonalityMentions(message) {
   // Check for multi-word mentions with spaces
   // Use a regex that captures up to the max alias word count but stops at natural boundaries
   // This handles mentions like "&angel dust" or even longer aliases
-  const maxWords = getMaxAliasWordCount();
+  const maxWords = await getMaxAliasWordCountAsync();
   logger.debug(`[checkForPersonalityMentions] Max alias word count: ${maxWords}`);
   const multiWordMentionRegex = new RegExp(
     `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
@@ -133,7 +111,7 @@ async function checkForPersonalityMentions(message) {
         logger.debug(
           `[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`
         );
-        const personality = await getPersonalityByAlias(potentialAlias);
+        const personality = await resolvePersonality(potentialAlias);
 
         if (personality) {
           logger.debug(`[checkForPersonalityMentions] Found valid alias: "${potentialAlias}"`);
@@ -462,10 +440,7 @@ async function handleMentions(message, client) {
       );
 
       // Check if this is a valid personality (directly or as an alias)
-      let personality = await getPersonality(mentionName);
-      if (!personality) {
-        personality = await getPersonalityByAlias(mentionName);
-      }
+      const personality = await resolvePersonality(mentionName);
 
       if (personality) {
         logger.debug(
@@ -483,7 +458,7 @@ async function handleMentions(message, client) {
     if (message.content && message.content.includes(mentionChar)) {
       // Use the same improved regex as checkForPersonalityMentions
       // Captures up to the max alias word count but stops at natural boundaries
-      const maxWords = getMaxAliasWordCount();
+      const maxWords = await getMaxAliasWordCountAsync();
       const multiWordMentionRegex = new RegExp(
         `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
         'gi'
@@ -528,7 +503,7 @@ async function handleMentions(message, client) {
             logger.debug(`[handleMentions] Trying mention combination: "${mentionText}"`);
 
             // Try as an alias
-            const personality = await getPersonalityByAlias(mentionText);
+            const personality = await resolvePersonality(mentionText);
 
             if (personality) {
               logger.info(
@@ -631,12 +606,7 @@ async function handleActiveConversation(message, client) {
   logger.info(`[MessageHandler] Found active conversation with: ${activePersonalityName}`);
 
   // First try to get personality directly by full name
-  let personality = await getPersonality(activePersonalityName);
-
-  // If not found as direct name, try it as an alias
-  if (!personality) {
-    personality = await getPersonalityByAlias(activePersonalityName);
-  }
+  const personality = await resolvePersonality(activePersonalityName);
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
@@ -718,12 +688,7 @@ async function handleActivatedChannel(message, client) {
   }
 
   // First try to get personality directly by full name
-  let personality = await getPersonality(activatedPersonalityName);
-
-  // If not found as direct name, try it as an alias
-  if (!personality) {
-    personality = await getPersonalityByAlias(activatedPersonalityName);
-  }
+  const personality = await resolvePersonality(activatedPersonalityName);
 
   logger.debug(`Personality lookup result: ${personality ? personality.fullName : 'null'}`);
 
