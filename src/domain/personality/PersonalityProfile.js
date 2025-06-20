@@ -24,9 +24,7 @@ class PersonalityProfile extends ValueObject {
         this.displayName = nameOrConfig.displayName || null;
         this.avatarUrl = nameOrConfig.avatarUrl || nameOrConfig.avatar || null;
         this.errorMessage = nameOrConfig.errorMessage || nameOrConfig.error_message || null;
-        this.lastFetched = nameOrConfig.lastFetched
-          ? new Date(nameOrConfig.lastFetched)
-          : null;
+        this.lastFetched = nameOrConfig.lastFetched ? new Date(nameOrConfig.lastFetched) : null;
         // No local prompt/model data in external mode
         this.prompt = null;
         this.modelPath = null;

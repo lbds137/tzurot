@@ -125,9 +125,7 @@ class CommandIntegrationAdapter {
     const commandFlag = `ddd.commands.${actualCommandName}`;
     if (this.featureFlags.hasFlag(commandFlag)) {
       const enabled = this.featureFlags.isEnabled(commandFlag);
-      logger.debug(
-        `[CommandIntegrationAdapter] Command-specific flag ${commandFlag} = ${enabled}`
-      );
+      logger.debug(`[CommandIntegrationAdapter] Command-specific flag ${commandFlag} = ${enabled}`);
       return enabled;
     }
 
