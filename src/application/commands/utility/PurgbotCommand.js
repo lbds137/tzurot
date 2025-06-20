@@ -137,8 +137,8 @@ function createExecutor(dependencies = {}) {
 async function handleDiscordPurge(context, category, dependencies = {}) {
   try {
     // Get Discord-specific objects
-    const channel = context.rawMessage?.channel;
-    const botId = context.rawMessage?.client?.user?.id;
+    const channel = context.message?.channel || context.channel;
+    const botId = context.message?.client?.user?.id;
 
     if (!channel || !botId) {
       await context.respond('Unable to access channel information.');
@@ -161,7 +161,7 @@ async function handleDiscordPurge(context, category, dependencies = {}) {
     const messagesToDelete = filterMessagesByCategory(
       messageArray,
       botId,
-      context.rawMessage.id,
+      context.message?.id,
       category
     );
 

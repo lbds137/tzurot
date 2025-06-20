@@ -101,13 +101,14 @@ describe('PurgbotCommand', () => {
       options: {},
       respond: jest.fn().mockResolvedValue(mockStatusMessage),
       respondWithEmbed: jest.fn().mockResolvedValue(mockStatusMessage),
-      rawMessage: {
+      message: {
         id: 'cmd123',
         channel: mockChannel,
         client: {
           user: { id: 'bot123' },
         },
       },
+      channel: mockChannel,
     };
   });
 
@@ -366,7 +367,8 @@ describe('PurgbotCommand', () => {
     });
 
     it('should handle missing channel gracefully', async () => {
-      mockContext.rawMessage.channel = null;
+      mockContext.message.channel = null;
+      mockContext.channel = null;
 
       await purgbotCommand.execute(mockContext);
 
