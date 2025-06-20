@@ -125,7 +125,7 @@ describe('UserTokenManager', () => {
         createdAt: now,
         expiresAt: now + manager.tokenExpirationMs,
       });
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         `[UserTokenManager] Stored token for user ${userId}`
       );
     });
@@ -197,7 +197,7 @@ describe('UserTokenManager', () => {
 
       expect(result).toBe(true);
       expect(manager.userTokens[userId]).toBeUndefined();
-      expect(logger.info).toHaveBeenCalledWith(
+      expect(logger.debug).toHaveBeenCalledWith(
         `[UserTokenManager] Deleted token for user ${userId}`
       );
     });
