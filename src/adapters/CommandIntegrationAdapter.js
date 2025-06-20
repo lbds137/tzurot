@@ -126,69 +126,6 @@ class CommandIntegrationAdapter {
     return true;
   }
 
-  /**
-   * Resolve command aliases to get the actual command name
-   */
-  resolveCommandName(commandName) {
-    // Try to get the registry and resolve aliases
-    if (this.commandIntegration.getRegistry) {
-      const registry = this.commandIntegration.getRegistry();
-      const command = registry.get(commandName);
-      if (command) {
-        logger.debug(
-          `[CommandIntegrationAdapter] Resolved alias "${commandName}" to primary command "${command.name}"`
-        );
-        return command.name;
-      }
-    }
-
-    // Fallback: search through all commands to find if this is an alias
-    if (this.commandIntegration.getAllCommands) {
-      const allCommands = this.commandIntegration.getAllCommands();
-      for (const cmd of allCommands) {
-        if (cmd.name === commandName || (cmd.aliases && cmd.aliases.includes(commandName))) {
-          logger.debug(
-            `[CommandIntegrationAdapter] Resolved alias "${commandName}" to primary command "${cmd.name}" (via fallback)`
-          );
-          return cmd.name;
-        }
-      }
-    }
-
-    logger.debug(
-      `[CommandIntegrationAdapter] No alias resolution needed for "${commandName}" (not an alias)`
-    );
-    return commandName;
-  }
-
-  /**
-   * Get command category
-   */
-  getCommandCategory(commandName) {
-    const categoryMap = {
-      personality: ['add', 'remove', 'info', 'alias', 'list'],
-      conversation: ['reset', 'activate', 'deactivate', 'autorespond'],
-      authentication: ['auth', 'verify'],
-      utility: [
-        'ping',
-        'status',
-        'debug',
-        'purgbot',
-        'volumetest',
-        'notifications',
-        'help',
-        'backup',
-      ],
-    };
-
-    for (const [category, commands] of Object.entries(categoryMap)) {
-      if (commands.includes(commandName)) {
-        return category;
-      }
-    }
-
-    return null;
-  }
 
   /**
    * Process command using new DDD system
