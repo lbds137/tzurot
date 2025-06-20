@@ -24,9 +24,8 @@ class Alias extends ValueObject {
       throw new Error('Alias must be between 1 and 50 characters');
     }
 
-    if (trimmed !== value) {
-      throw new Error('Alias cannot have leading or trailing spaces');
-    }
+    // Silently trim leading/trailing spaces
+    // Spaces in the middle are allowed for multi-word aliases like "angel dust"
 
     // Store in lowercase for case-insensitive matching
     this.value = trimmed.toLowerCase();
