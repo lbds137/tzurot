@@ -73,22 +73,34 @@ describe('Alias', () => {
   });
 
   describe('whitespace handling', () => {
-    it('should reject leading spaces', () => {
-      expect(() => new Alias('  Claude')).toThrow('Alias cannot have leading or trailing spaces');
+    it('should silently trim leading spaces', () => {
+      const alias = new Alias('  Claude');
+      expect(alias.value).toBe('claude');
+      expect(alias.originalValue).toBe('Claude');
     });
 
-    it('should reject trailing spaces', () => {
-      expect(() => new Alias('Claude  ')).toThrow('Alias cannot have leading or trailing spaces');
+    it('should silently trim trailing spaces', () => {
+      const alias = new Alias('Claude  ');
+      expect(alias.value).toBe('claude');
+      expect(alias.originalValue).toBe('Claude');
     });
 
-    it('should reject both leading and trailing spaces', () => {
-      expect(() => new Alias('  Claude  ')).toThrow('Alias cannot have leading or trailing spaces');
+    it('should silently trim both leading and trailing spaces', () => {
+      const alias = new Alias('  Claude  ');
+      expect(alias.value).toBe('claude');
+      expect(alias.originalValue).toBe('Claude');
     });
 
     it('should accept spaces within the alias', () => {
       const alias = new Alias('Claude 3 Opus');
       expect(alias.value).toBe('claude 3 opus');
       expect(alias.originalValue).toBe('Claude 3 Opus');
+    });
+
+    it('should handle multi-word aliases with trimming', () => {
+      const alias = new Alias('  angel dust  ');
+      expect(alias.value).toBe('angel dust');
+      expect(alias.originalValue).toBe('angel dust');
     });
 
     it('should reject whitespace-only string', () => {
@@ -146,8 +158,13 @@ describe('Alias', () => {
 
     it('should apply same validation rules', () => {
       expect(() => Alias.fromString('')).toThrow();
-      expect(() => Alias.fromString('  spaced  ')).toThrow();
+      expect(() => Alias.fromString('   ')).toThrow(); // Whitespace-only
       expect(() => Alias.fromString('a'.repeat(51))).toThrow();
+      
+      // Should silently trim spaces
+      const alias = Alias.fromString('  spaced  ');
+      expect(alias.value).toBe('spaced');
+      expect(alias.originalValue).toBe('spaced');
     });
   });
 
