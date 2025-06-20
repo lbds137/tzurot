@@ -7,10 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2025-06-20
+
 ### Fixed
+- **Personality Alias Conflict Resolution** - Fixed regression where personality seeding would fail when display name aliases conflicted
+  - Personality seeding now generates unique aliases when conflicts occur, replicating legacy system behavior
+  - Smart alias generation tries using parts of full personality name (e.g., "claude" → "claude-3" for "claude-3-sonnet")
+  - Falls back to random suffix generation if smart aliases are also taken
+  - Prevents personality seeding failures that occurred in v2.0.0
+- **Multi-Word Alias Support** - Enhanced support for multi-word aliases in DDD command system
+  - Fixed alias detection and resolution for phrases like "angel dust" or "claude opus"
+  - Centralized alias resolution logic to ensure consistency across all command handlers
+  - DDD commands now properly support complex multi-word personality references
+- **Privacy Enhancements** - Improved privacy by reducing logged user information
+  - Moved Discord user IDs from INFO to DEBUG level logging to reduce exposure in production logs
+  - Maintains debugging capability while improving user privacy
+  - Updated test expectations to match new logging levels
+- **DDD System Improvements** - Multiple fixes for the new DDD architecture
+  - Fixed `PurgbotCommand` to use correct context properties for DDD system integration
+  - Updated message handler tests to use `resolvePersonality` instead of deprecated `getPersonalityByAlias`
+  - Ensured `PersonalityProfile` value objects with identical data are properly considered equal
+  - Prevented tests from accidentally writing to production `personalities.json` file
 - **Command Alias Routing** - Fixed issue where command aliases would route to legacy system instead of DDD system
   - Aliases like `cleandm` for `purgbot` now correctly route to the new DDD command system when enabled
   - Added proper alias resolution in CommandIntegrationAdapter to check the primary command name for category routing
+
+### Changed
+- **Documentation Updates** - Enhanced development workflow documentation
+  - Added rebase strategy documentation for release merges to main branch
+  - Updated LICENSE file for 2025
 
 ## [2.0.0] - 2025-06-19
 
