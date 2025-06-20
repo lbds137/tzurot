@@ -69,6 +69,9 @@ class CommandIntegrationAdapter {
 
       // Check if this command exists in the new system
       const hasNewCommand = this.commandIntegration.hasCommand(commandName);
+      logger.debug(
+        `[CommandIntegrationAdapter] Command "${commandName}" exists in new system: ${hasNewCommand}`
+      );
 
       // Check feature flags for this command
       const useNewSystem = this.shouldUseNewSystem(commandName, hasNewCommand);
@@ -101,55 +104,113 @@ class CommandIntegrationAdapter {
   shouldUseNewSystem(commandName, hasNewCommand) {
     // If command doesn't exist in new system, use legacy
     if (!hasNewCommand) {
+      logger.debug(
+        `[CommandIntegrationAdapter] Command "${commandName}" not in new system, using legacy`
+      );
       return false;
     }
 
     // Check global feature flag
     if (!this.featureFlags.isEnabled('ddd.commands.enabled')) {
+      logger.debug(
+        `[CommandIntegrationAdapter] Global DDD commands disabled, using legacy for "${commandName}"`
+      );
       return false;
     }
 
+    // Resolve aliases to get the actual command name
+    const actualCommandName = this.resolveCommandName(commandName);
+
     // Check command-specific feature flag
-    const commandFlag = `ddd.commands.${commandName}`;
+    const commandFlag = `ddd.commands.${actualCommandName}`;
     if (this.featureFlags.hasFlag(commandFlag)) {
-      return this.featureFlags.isEnabled(commandFlag);
+      const enabled = this.featureFlags.isEnabled(commandFlag);
+      logger.debug(
+        `[CommandIntegrationAdapter] Command-specific flag ${commandFlag} = ${enabled}`
+      );
+      return enabled;
     }
 
-    // Check category flags (e.g., ddd.commands.personality.*)
-    const personalityCommands = ['add', 'remove', 'info', 'alias', 'list'];
-    if (personalityCommands.includes(commandName)) {
-      return this.featureFlags.isEnabled('ddd.commands.personality');
-    }
-
-    // Check conversation commands
-    const conversationCommands = ['reset', 'activate', 'deactivate', 'autorespond'];
-    if (conversationCommands.includes(commandName)) {
-      return this.featureFlags.isEnabled('ddd.commands.conversation');
-    }
-
-    // Check authentication commands
-    const authenticationCommands = ['auth', 'verify'];
-    if (authenticationCommands.includes(commandName)) {
-      return this.featureFlags.isEnabled('ddd.commands.authentication');
-    }
-
-    // Check utility category flag
-    const utilityCommands = [
-      'ping',
-      'status',
-      'debug',
-      'purgbot',
-      'volumetest',
-      'notifications',
-      'help',
-      'backup',
-    ];
-    if (utilityCommands.includes(commandName)) {
-      return this.featureFlags.isEnabled('ddd.commands.utility');
+    // Check category flags
+    const category = this.getCommandCategory(actualCommandName);
+    if (category) {
+      const categoryFlag = `ddd.commands.${category}`;
+      const enabled = this.featureFlags.isEnabled(categoryFlag);
+      logger.debug(
+        `[CommandIntegrationAdapter] Category flag ${categoryFlag} = ${enabled} for command "${actualCommandName}"`
+      );
+      return enabled;
     }
 
     // Default to legacy if no specific flag
+    logger.debug(
+      `[CommandIntegrationAdapter] No category found for command "${actualCommandName}", defaulting to legacy`
+    );
     return false;
+  }
+
+  /**
+   * Resolve command aliases to get the actual command name
+   */
+  resolveCommandName(commandName) {
+    // Try to get the registry and resolve aliases
+    if (this.commandIntegration.getRegistry) {
+      const registry = this.commandIntegration.getRegistry();
+      const command = registry.get(commandName);
+      if (command) {
+        logger.debug(
+          `[CommandIntegrationAdapter] Resolved alias "${commandName}" to primary command "${command.name}"`
+        );
+        return command.name;
+      }
+    }
+
+    // Fallback: search through all commands to find if this is an alias
+    if (this.commandIntegration.getAllCommands) {
+      const allCommands = this.commandIntegration.getAllCommands();
+      for (const cmd of allCommands) {
+        if (cmd.name === commandName || (cmd.aliases && cmd.aliases.includes(commandName))) {
+          logger.debug(
+            `[CommandIntegrationAdapter] Resolved alias "${commandName}" to primary command "${cmd.name}" (via fallback)`
+          );
+          return cmd.name;
+        }
+      }
+    }
+
+    logger.debug(
+      `[CommandIntegrationAdapter] No alias resolution needed for "${commandName}" (not an alias)`
+    );
+    return commandName;
+  }
+
+  /**
+   * Get command category
+   */
+  getCommandCategory(commandName) {
+    const categoryMap = {
+      personality: ['add', 'remove', 'info', 'alias', 'list'],
+      conversation: ['reset', 'activate', 'deactivate', 'autorespond'],
+      authentication: ['auth', 'verify'],
+      utility: [
+        'ping',
+        'status',
+        'debug',
+        'purgbot',
+        'volumetest',
+        'notifications',
+        'help',
+        'backup',
+      ],
+    };
+
+    for (const [category, commands] of Object.entries(categoryMap)) {
+      if (commands.includes(commandName)) {
+        return category;
+      }
+    }
+
+    return null;
   }
 
   /**

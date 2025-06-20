@@ -197,6 +197,36 @@ describe('CommandIntegrationAdapter', () => {
       }
     });
 
+    it('should properly route command aliases to new system', async () => {
+      // Enable utility commands
+      mockFeatureFlags.isEnabled.mockImplementation(flag => {
+        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.utility';
+      });
+      
+      // Mock getAllCommands to simulate alias resolution
+      const mockCommand = { name: 'purgbot', aliases: ['cleandm', 'purgebot', 'clearbot'] };
+      mockCommandIntegration.getAllCommands.mockReturnValue([mockCommand]);
+      
+      // Test with primary name
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      mockCommandIntegration.handleDiscordTextCommand.mockClear();
+      await adapter.processCommand(mockMessage, 'purgbot', []);
+      expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
+        mockMessage,
+        'purgbot',
+        []
+      );
+      
+      // Test with alias - should still route to new system
+      mockCommandIntegration.handleDiscordTextCommand.mockClear();
+      await adapter.processCommand(mockMessage, 'cleandm', []);
+      expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
+        mockMessage,
+        'cleandm',
+        []
+      );
+    });
+
     it('should use legacy for commands not in new system', async () => {
       mockFeatureFlags.isEnabled.mockReturnValue(true);
       mockCommandIntegration.hasCommand.mockReturnValue(false);

@@ -190,6 +190,13 @@ class CommandIntegration {
   }
 
   /**
+   * Get the command registry (for advanced usage)
+   */
+  getRegistry() {
+    return this.registry;
+  }
+
+  /**
    * Reset (for testing)
    */
   reset() {
