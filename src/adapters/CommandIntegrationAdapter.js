@@ -225,14 +225,6 @@ class CommandIntegrationAdapter {
   isReady() {
     return this.initialized;
   }
-
-  /**
-   * Reset (for testing)
-   */
-  reset() {
-    this.initialized = false;
-    this.initializePromise = null;
-  }
 }
 
 // Singleton instance
@@ -248,18 +240,7 @@ function getCommandIntegrationAdapter() {
   return instance;
 }
 
-/**
- * Reset the adapter (for testing)
- */
-function resetCommandIntegrationAdapter() {
-  if (instance) {
-    instance.reset();
-  }
-  instance = null;
-}
-
 module.exports = {
   CommandIntegrationAdapter,
   getCommandIntegrationAdapter,
-  resetCommandIntegrationAdapter,
 };
