@@ -222,119 +222,46 @@ See `docs/testing/TIMER_PATTERNS_COMPLETE.md` and `docs/improvements/SINGLETON_M
 
 ### Core Components
 
-1. **Bot (`bot.js`)**: Main entry point for Discord interaction, handling messages, commands, and webhooks.
-   - Routes messages to appropriate handlers
-   - Supports both guild channels and direct messages (DMs)
-   - Manages message deduplication to prevent duplicate responses
-
-2. **Personality Manager (`personalityManager.js`)**: Manages AI personalities.
-   - Registers new personalities
-   - Handles aliases for personalities
-   - Loads/saves personality data to disk
-
-3. **Webhook Manager (`webhookManager.js`)**: Handles Discord webhooks for personality messages.
-   - Creates and caches webhooks for each channel
-   - Manages message splitting for content exceeding Discord limits
-   - Processes media attachments (audio and images) in both webhooks and DMs
-   - Provides fallback for DM channels (where webhooks aren't available)
-
-4. **AI Service (`aiService.js`)**: Interface with the AI API.
-   - Sends requests to the AI service
-   - Manages proper error handling
-   - Handles multimodal content (text, image, audio)
-
-5. **Conversation Manager (`conversationManager.js`)**: Tracks active conversations.
-   - Maps message IDs to personality data
-   - Manages continuations of conversations
-
-6. **Commands System**: Processes Discord commands.
-   - Commands are modular and located in `src/commands/handlers/`
-   - Command system uses middleware for auth, permissions, and deduplication
-   - New commands should follow the existing pattern in handlers directory
-
-7. **Media Handling**: Processes media attachments.
-   - `src/utils/media/mediaHandler.js` - Central media processing
-   - `src/utils/media/audioHandler.js` - Audio file processing
-   - `src/utils/media/imageHandler.js` - Image file processing
+1. **Bot (`bot.js`)**: Main Discord entry point - routes messages, supports guild/DM channels, deduplicates responses
+2. **Personality Manager (`personalityManager.js`)**: Manages AI personalities, aliases, and persistence
+3. **Webhook Manager (`webhookManager.js`)**: Creates/caches webhooks, splits large messages, handles media, provides DM fallback
+4. **AI Service (`aiService.js`)**: AI API interface with error handling and multimodal support (text/image/audio)
+5. **Conversation Manager (`conversationManager.js`)**: Tracks active conversations and message-personality mappings
+6. **Commands System**: Modular handlers in `src/commands/handlers/` with auth/permission middleware
+7. **Media Handling**: Central (`mediaHandler.js`), audio (`audioHandler.js`), and image (`imageHandler.js`) processors
 
 ### Data Flow
 
-1. User sends message to Discord
-2. Discord.js client receives message event
-3. `bot.js` processes the message:
-   - If it's a command (starts with prefix), route to command system
-   - If it's a reply to a personality, look up the personality and continue conversation
-   - If it's a mention (@personality), find the personality and start conversation
-   - If there's an active conversation or channel-activated personality, continue with that personality
-4. For AI response generation:
-   - `aiService.js` sends request to AI API with personality name
-   - Response is sent via webhook using `webhookManager.js`
-   - Conversation data is recorded in `conversationManager.js`
+1. Discord message → `bot.js` → route based on: command prefix / reply / @mention / active conversation
+2. AI generation: `aiService.js` → AI API → `webhookManager.js` → Discord (with conversation tracking)
 
 ## Code Style
 
-- Use 2 spaces for indentation
-- Use camelCase for variables and functions
-- Use PascalCase for classes
-- Use single quotes for strings
-- Always use semicolons
-- Limit line length to 100 characters
-- IMPORTANT: Use JSDoc comments for exported functions
-- Keep file sizes manageable:
-  - Target file size should be under 1000 lines
-  - Absolutely avoid files larger than 1500 lines whenever possible
-  - Break large files into smaller, more modular components
-  - Large files make code harder to understand and also exceed token limits (25k max)
-- NEVER hardcode bot prefixes (!tz, !rtz):
-  - Import `botPrefix` from config: `const { botPrefix } = require('../config');`
-  - Use template literals: `\`Use ${botPrefix} help\``
-  - See `docs/development/PREFIX_HANDLING_GUIDE.md` for details
+**Format**: 2 spaces • camelCase vars/functions • PascalCase classes • Single quotes • Semicolons • 100 char lines
 
-### Module Design Guidelines (Critical for Maintainability)
+**Files**: <1000 lines target • <1500 lines max • Break large files • JSDoc exports
 
-**IMPORTANT**: Large modules with multiple test files indicate poor separation of concerns.
+**Critical**: Never hardcode prefixes • Import `botPrefix` from config • Use template literals
 
-#### Signs Your Module is Too Large
-1. **Multiple test files** - If you need `module.test.js`, `module.error.test.js`, etc., the module is doing too much
-2. **File exceeds 500 lines** - Our linter will warn at 400 lines, error at 500 lines
-3. **High cyclomatic complexity** - Too many if/else branches and logic paths
-4. **Mixed responsibilities** - e.g., API calls, formatting, caching, and error handling in one file
+### Module Design Guidelines
 
-#### Module Refactoring Principles
-1. **Single Responsibility** - Each module should have ONE clear purpose
-2. **Clear Interfaces** - Define explicit public APIs, hide implementation details
-3. **Dependency Injection** - Make external dependencies (timers, APIs, etc.) injectable
-4. **Composability** - Small modules that work together are better than large monoliths
+**Signs of oversized modules**: Multiple test files • >500 lines (warns at 400) • High complexity • Mixed responsibilities
 
-#### Enforcement
-- Run `npm run lint:module-size` to check for oversized modules
-- Pre-commit hooks will fail if modules exceed 500 lines
-- Multiple test files per module will trigger warnings
+**Principles**: Single responsibility • Clear interfaces • Dependency injection • Composability
 
-### Timer Patterns (Critical for Test Performance)
+**Enforcement**: `npm run lint:module-size` • Pre-commit fails >500 lines
 
-**IMPORTANT**: Non-injectable timers are the #1 cause of slow tests. Always make delays injectable as dependencies.
+### Timer Patterns
 
-- Run `npm run lint:timers` to check for violations
-- Pre-commit hooks enforce timer patterns
-- See `docs/testing/TIMER_PATTERNS_COMPLETE.md` for examples and migration guide
+**Critical**: Injectable timers only (non-injectable = slow tests) • `npm run lint:timers` • See timer patterns guide
 
 ### ESLint Practices
 
-- Run `npm run lint` regularly to check code quality
-- Fix all ESLint errors before committing
-- For unavoidable unused variables in catch blocks, use this pattern:
-  ```javascript
-  try {
-    // some code that might throw
-  } catch (_error) { // eslint-disable-line no-unused-vars
-    // Error variable unused but required for catch syntax
-    // Handle the error without needing the error object
-  }
-  ```
-- Prefix intentionally unused variables with underscore: `_unusedVar`
-- Use inline ESLint suppressions sparingly and always include a comment explaining why
-- Never disable ESLint rules globally without team discussion
+**Regular**: `npm run lint` • Fix errors before commit
+
+**Unused vars**: Prefix with `_` • For catch blocks: `catch (_error) { // eslint-disable-line no-unused-vars`
+
+**Rules**: Inline suppressions sparingly with comments • No global disables without discussion
 
 ## Error Handling Guidelines
 
@@ -346,182 +273,53 @@ See `docs/testing/TIMER_PATTERNS_COMPLETE.md` and `docs/improvements/SINGLETON_M
 
 ## Testing Guidelines
 
-### Core Testing Philosophy: Behavior Over Implementation
+**Philosophy**: Test behavior, not implementation. Focus on WHAT code does, not HOW.
 
-**CRITICAL: Always test behavior, not implementation details. Focus on WHAT the code does, not HOW it does it.**
+**Key Principles**: Test public APIs • Observable outcomes • Error effects, not internals • Keep tests simple
 
-### Key Testing Principles
+**Anti-patterns** (`npm run test:antipatterns`): Real delays • Private method testing • Unmocked src/ deps • Non-deterministic tests
 
-1. **Test Public APIs** - Focus on methods other code uses
-2. **Test Observable Outcomes** - What the user/caller sees
-3. **Avoid Mocking Internals** - Don't mock private methods
-4. **Test Error Effects** - Not error internals
-5. **Keep Tests Simple** - Complex tests indicate implementation testing
+**Technical**: Jest framework • Mock externals • Fake timers • Never alter code for tests • Never skip failing tests
 
-### Critical Anti-patterns to Avoid
+**Performance**: Suite < 30s, files < 5s • Always mock I/O
 
-Run `npm run test:antipatterns` to check for:
-- Real delays in tests (use fake timers)
-- Testing private methods or implementation details
-- Unmocked dependencies from src/
-- Non-deterministic tests
-
-For detailed examples and patterns, see `docs/testing/TEST_PHILOSOPHY_AND_PATTERNS.md`.
-
-### Technical Guidelines
-
-- Jest is the testing framework
-- Keep test files parallel to implementation
-- Mock all external dependencies
-- Use fake timers for time-based operations
-- Mock console to keep output clean
-- NEVER alter real functionality to make tests pass
-- NEVER skip tests to fix failures
-- NEVER add environment checks for testing
-
-### Performance Requirements
-
-- Total test suite: < 30 seconds
-- Individual test files: < 5 seconds
-- Always use fake timers and mock I/O operations
-
-### Mock Pattern Enforcement
-
-We enforce consistent mock patterns. New tests must use:
-- `createMigrationHelper()` from `tests/utils/testEnhancements.js`
-- Or `presets.commandTest()` from `tests/__mocks__/`
-
-Pre-commit hooks will fail on deprecated patterns. See `docs/testing/MOCK_PATTERN_RULES.md` for details.
+**Patterns**: Use `createMigrationHelper()` or `presets.commandTest()` • See docs for details
 
 ## Date Handling
 
-**⚠️ CRITICAL**: Due to LLM knowledge cutoff limitations, ALWAYS verify dates and timestamps!
+**⚠️ CRITICAL**: Always verify dates (LLM cutoff limits) - use `date` command first!
 
-### Required Date Checks
+**Check for**: Docs/changelog • Version decisions • Git operations
 
-- **ALWAYS use the `date` command to get the current date** before any date-related operations
-- **NEVER assume the current date** based on knowledge cutoff
-- **ALWAYS calculate time differences** after checking actual dates
+**Commands**: `date`, `date -I`, `stat -c %y file`, `git log --date=short`
 
-### When to Check Dates
-
-1. **Documentation Updates**:
-   - Changelog entries
-   - Test coverage summaries
-   - README updates
-   - Any timestamped documentation
-
-2. **Version Decisions**:
-   - Calculating project age
-   - Determining release timelines
-   - Evaluating "how long since" questions
-
-3. **Git Operations**:
-   - When analyzing commit dates: `git log --date=short`
-   - When creating releases
-   - When referencing PR merge dates
-
-### Example Commands
-
-```bash
-# Get current date/time
-date
-
-# Get current date in ISO format
-date -I
-
-# Check file modification time
-stat -c %y filename
-
-# Get commit dates
-git log --pretty=format:"%h %ad %s" --date=short
-```
-
-### Common Pitfalls to Avoid
-
-- ❌ "The project is 6 months old" (without checking)
-- ❌ "It's currently December 2024" (assumption)
-- ❌ "This was merged last week" (without verification)
-- ✅ Run `date` first, then make calculations
-- ✅ Use git log dates for historical context
-- ✅ Verify all temporal claims with actual timestamps
+**Rule**: Never assume dates - always verify with actual timestamps
 
 ## Git Workflow and Branch Management
 
-### 🚨 CRITICAL BRANCH SAFETY RULES - NEVER DELETE BRANCHES!
+### 🚨 CRITICAL: NEVER DELETE BRANCHES WITHOUT PERMISSION!
 
-**NEVER delete ANY branch without explicit user permission!** This includes:
-- ❌ NEVER run `git branch -d` or `git branch -D` without asking
-- ❌ NEVER force push to branches without permission
-- ❌ NEVER assume a branch is safe to delete
-- ✅ ALWAYS ask before ANY destructive git operation
-- ✅ ALWAYS check branch contents before switching away
-- ✅ ALWAYS treat branches as precious until told otherwise
+**Forbidden**: `git branch -d/-D` • Force push • Any destructive operation
 
-**Before switching branches:**
+**Required checks before switching**:
 ```bash
-# ALWAYS run these checks first:
-git status                    # Check for uncommitted changes
-git log --oneline -5         # See recent commits  
-git diff origin/branch       # Compare with remote
-git branch -vv               # Check tracking status
+git status && git log --oneline -5 && git diff origin/branch && git branch -vv
 ```
 
-**If a branch already exists:**
+**If branch exists**: Ask user OR use different name OR update existing
+
+### 🚨 PR RULES: NEVER TO MAIN (except releases/hotfixes)!
+
+**Always PR to develop** for: features, fixes, refactoring, docs, tests
+
+**Quick commands**:
 ```bash
-# ❌ NEVER DO THIS:
-git branch -D existing-branch
-
-# ✅ ALWAYS DO THIS:
-# Option 1: Ask the user
-"The branch already exists. How would you like me to proceed?"
-
-# Option 2: Create a different branch name
-git checkout -b branch-name-v2
-
-# Option 3: Update the existing branch
-git checkout existing-branch
-git pull origin existing-branch
+gh pr create --base develop --title "type: description"  # Create PR
+git sync-develop                                         # After main merge
+npm run quality                                          # Before commits
 ```
 
-### 🚨 CRITICAL PR RULES - READ THIS FIRST!
-
-**NEVER create PRs directly to main!** The only exceptions:
-1. Syncing develop → main (releases)
-2. Emergency hotfixes (with approval)
-
-**ALWAYS create feature PRs to develop!** This includes:
-- Features (`feat/*`)
-- Fixes (`fix/*`)
-- Refactoring (`refactor/*`)
-- Documentation (`docs/*`)
-- Tests (`test/*`)
-
-**See `docs/development/GIT_AND_PR_WORKFLOW.md` for enforcement details.**
-
-### Quick Reference
-```bash
-# Create PR to develop (NOT main!)
-gh pr create --base develop --title "feat: your feature"
-
-# After merging to main, sync develop
-git sync-develop
-
-# Before committing
-npm run quality
-
-# Start development
-npm run dev
-```
-
-### Branch Strategy
-- **One feature = One branch**: `fix/issue`, `feat/feature`, `refactor/component`
-- **Workflow**: `feature-branch → develop → main`
-- **Conventional commits**: `type: description`
-- **Keep branches short-lived** (< 1 week)
-
-For detailed git workflow, see:
-- `docs/development/GIT_AND_PR_WORKFLOW.md` - Complete workflow guide
+**Strategy**: One feature = One branch • `feature → develop → main` • Conventional commits • <1 week lifespan
 
 ## Security Guidelines
 
@@ -583,92 +381,31 @@ For detailed git workflow, see:
 
 ## Claude Code Tool Usage Guidelines
 
-### Approved Tools
-The following tools are generally safe to use without explicit permission:
+### Approved Tools (No Permission Needed)
 
-1. **Development Commands**
-   - `npm run lint` - Check code quality
-   - `npm run lint:fix` - Fix linting issues
-   - `npm run format` - Format code
-   - `npm test` - Run test suite
-   - `npm run test:watch` - Run tests in watch mode
-   - `npm run dev` - Start development server
+**Development**: `npm run lint/lint:fix/format/test/test:watch/dev`
 
-2. **File Operations and Basic Commands**
-   - `Read` - Read file contents (always approved)
-   - `Write` - Create new files or update existing files (approved for most files except configs)
-   - `Edit` - Edit portions of files (approved for most files except configs)
-   - `MultiEdit` - Make multiple edits to a file (approved for most files except configs)
-   - `LS` - List files in a directory (always approved)
-   - `Bash` with common commands:
-     - `ls`, `pwd`, `find`, `grep` - Listing and finding files/content
-     - `cp`, `mv` - Copying and moving files
-     - `mkdir`, `rmdir`, `rm` - Creating and removing directories/files
-     - `cat`, `head`, `tail` - Viewing file contents
-     - `diff` - Comparing files
-   - Create and delete directories (excluding configuration directories)
-   - Move and rename files and directories
+**File Ops**: Read, Write, Edit, MultiEdit, LS • Bash: ls/pwd/find/grep/cp/mv/mkdir/rm/cat/head/tail/diff
 
-3. **File Search and Analysis**
-   - `Glob` - Find files using glob patterns (always approved)
-   - `Grep` - Search file contents with regular expressions (always approved)
-   - `Search` - General purpose search tool for local filesystem (always approved)
-   - `Task` - Use agent for file search and analysis (always approved)
-   - `WebSearch` - Search the web for information (always approved)
-   - `WebFetch` - Fetch content from specific URLs (always approved)
+**Search**: Glob, Grep, Search, Task, WebSearch, WebFetch
 
-4. **MCP (Model Context Protocol) Tools**
-   - `mcp__ide__getDiagnostics` - Get diagnostic info for file URIs (always approved)
-   - `mcp__gemini-collab__ask_gemini` - Ask Gemini general questions or for help (always approved)
-   - `mcp__gemini-collab__gemini_code_review` - Get code review from Gemini (always approved)
-   - `mcp__gemini-collab__gemini_brainstorm` - Brainstorm ideas with Gemini (always approved)
-   - `mcp__gemini-collab__gemini_test_cases` - Generate test cases with Gemini (always approved)
-   - `mcp__gemini-collab__gemini_explain` - Get explanations from Gemini (always approved)
-   - `mcp__gemini-collab__synthesize_perspectives` - Synthesize multiple viewpoints into coherent summary (always approved)
-   - `mcp__gemini-collab__server_info` - Check MCP server status (always approved)
+**MCP Tools**: All `mcp__*` tools (diagnostics, Gemini collaboration)
 
-5. **Node Package Operations**
-   - `npm list` - List installed packages
-   - `npm audit` - Check for vulnerabilities
-
-6. **Test-specific Commands**
-   - `npx jest tests/unit/path/to/test.js` - Run specific tests
+**Packages**: `npm list/audit` • `npx jest tests/unit/path`
 
 ### Tools Requiring Approval
-The following operations should be discussed before executing:
 
-1. **Package Management**
-   - Adding new dependencies (`npm install <package>`)
-   - Removing dependencies
-   - Changing package versions
+**Packages**: Adding/removing dependencies, version changes
 
-2. **Configuration Changes**
-   - Modifying `package.json` dependencies
-   - Changing core configuration files (`.eslintrc`, `jest.config.js`, etc.)
+**Config**: Modifying package.json deps, core configs (.eslintrc, jest.config.js)
 
-3. **Git Operations**
-   - Do not push to remote repositories (will trigger deployment)
-   - Commits are allowed but discuss significant changes first
-   - Branch operations should be explicitly requested
+**Git**: No pushing (triggers deployment) • Discuss major commits • Request branch operations
 
-### 🚨 CRITICAL: Prohibited Operations
+### 🚨 PROHIBITED: Node Process Killing
 
-**NEVER execute these commands as they will terminate Claude Code itself:**
+**NEVER**: `killall node` • `pkill node` • Any blanket Node killing (terminates Claude Code!)
 
-1. **Process Killing Commands**
-   - ❌ `killall node` - This will kill ALL Node processes including Claude Code
-   - ❌ `killall -9 node` - Force kills all Node processes
-   - ❌ `pkill node` - Pattern-based killing of Node processes
-   - ❌ `pkill -f node` - Kills all processes with "node" in the command
-   - ❌ Any blanket process killing without specific PID targeting
-
-2. **Safe Alternatives**
-   - ✅ Kill specific process by PID: `kill <PID>`
-   - ✅ Use process managers: `pm2 stop <app-name>`
-   - ✅ For development: `Ctrl+C` in the terminal where process is running
-   - ✅ Find specific process first: `ps aux | grep "npm run dev"` then `kill <PID>`
-
-**Remember: Claude Code runs on Node.js. Killing Node processes indiscriminately will terminate your own process!**
+**Safe**: `kill <PID>` • `pm2 stop <app>` • Find specific process first
 
 ### Best Practices
 1. Always run tests after making changes: `npm test`
@@ -786,7 +523,7 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
   - **Primary**: Gemini 2.5 Pro Preview (gemini-2.5-pro-preview-06-05) - experimental, best quality
   - **Fallback**: Gemini 1.5 Pro - stable, complex reasoning
 - **Server Version**: v2.0.0 (Updated: 2025-06-10)
-- **Timeout**: 10.0 seconds per request
+- **Timeout**: 10 minutes per request
 - Model availability and performance may vary - check Google AI documentation for latest updates
 
 ### Dual-Model Strategy Benefits (Now Active!)
