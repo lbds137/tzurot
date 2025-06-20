@@ -39,37 +39,37 @@ describe('FeatureFlags', () => {
       expect(flags['ddd.personality.read']).toBe(false);
       expect(flags['ddd.personality.write']).toBe(false);
       expect(flags['ddd.personality.dual-write']).toBe(false);
-      expect(flags['commands.text.enabled']).toBe(true);
-      expect(flags['commands.slash.enabled']).toBe(false);
+      expect(flags['ddd.commands.enabled']).toBe(false);
+      expect(flags['features.enhanced-context']).toBe(false);
     });
 
     it('should accept config overrides', () => {
       const customFlags = new FeatureFlags({
         'ddd.personality.read': true,
-        'commands.slash.enabled': true,
+        'features.enhanced-context': true,
       });
 
       expect(customFlags.isEnabled('ddd.personality.read')).toBe(true);
-      expect(customFlags.isEnabled('commands.slash.enabled')).toBe(true);
+      expect(customFlags.isEnabled('features.enhanced-context')).toBe(true);
       expect(customFlags.isEnabled('ddd.personality.write')).toBe(false);
     });
 
     it('should load from environment variables', () => {
       process.env.FEATURE_FLAG_DDD_PERSONALITY_READ = 'true';
-      process.env.FEATURE_FLAG_COMMANDS_SLASH_ENABLED = 'true';
-      process.env.FEATURE_FLAG_DDD_AI_WRITE = 'false';
+      process.env.FEATURE_FLAG_DDD_PERSONALITY_WRITE = 'false';
+      process.env.FEATURE_FLAG_DDD_COMMANDS_ENABLED = 'false';
 
       const flags = new FeatureFlags();
 
       expect(flags.isEnabled('ddd.personality.read')).toBe(true);
-      expect(flags.isEnabled('commands.slash.enabled')).toBe(true);
-      expect(flags.isEnabled('ddd.ai.write')).toBe(false);
+      expect(flags.isEnabled('ddd.personality.write')).toBe(false);
+      expect(flags.isEnabled('ddd.commands.enabled')).toBe(false);
     });
   });
 
   describe('isEnabled', () => {
     it('should return correct flag state', () => {
-      expect(featureFlags.isEnabled('commands.text.enabled')).toBe(true);
+      expect(featureFlags.isEnabled('ddd.personality.dual-write')).toBe(false);
       expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
     });
 
@@ -146,8 +146,8 @@ describe('FeatureFlags', () => {
         expect.objectContaining({
           'ddd.personality.read': true,
           'ddd.personality.write': false,
-          'commands.text.enabled': true,
-          'commands.slash.enabled': false,
+          'ddd.personality.dual-write': false,
+          'features.enhanced-context': false,
         })
       );
     });
@@ -178,12 +178,12 @@ describe('FeatureFlags', () => {
       featureFlags.setFlags({
         'ddd.personality.read': true,
         'ddd.personality.write': true,
-        'commands.slash.enabled': true,
+        'features.enhanced-context': true,
       });
 
       expect(featureFlags.isEnabled('ddd.personality.read')).toBe(true);
       expect(featureFlags.isEnabled('ddd.personality.write')).toBe(true);
-      expect(featureFlags.isEnabled('commands.slash.enabled')).toBe(true);
+      expect(featureFlags.isEnabled('features.enhanced-context')).toBe(true);
     });
 
     it('should throw for unknown flags', () => {
@@ -209,16 +209,16 @@ describe('FeatureFlags', () => {
       featureFlags.setFlags({
         'ddd.personality.read': true,
         'ddd.personality.write': true,
-        'commands.slash.enabled': true,
-        'commands.text.enabled': false,
+        'features.enhanced-context': true,
+        'ddd.personality.dual-write': true,
       });
 
       featureFlags.reset();
 
       expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
       expect(featureFlags.isEnabled('ddd.personality.write')).toBe(false);
-      expect(featureFlags.isEnabled('commands.slash.enabled')).toBe(false);
-      expect(featureFlags.isEnabled('commands.text.enabled')).toBe(true);
+      expect(featureFlags.isEnabled('features.enhanced-context')).toBe(false);
+      expect(featureFlags.isEnabled('ddd.personality.dual-write')).toBe(false);
     });
   });
 

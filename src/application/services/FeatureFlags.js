@@ -11,16 +11,9 @@ class FeatureFlags {
       'ddd.personality.write': false,
       'ddd.personality.dual-write': false,
       'ddd.conversation.read': false,
-      'ddd.conversation.write': false,
-      'ddd.authentication.read': false,
-      'ddd.authentication.write': false,
-      'ddd.ai.read': false,
-      'ddd.ai.write': false,
 
       // DDD Event system flags
       'ddd.events.enabled': false,
-      'ddd.events.logging': true,
-      'ddd.events.cache-invalidation': true,
 
       // Command system flags
       'ddd.commands.enabled': false,
@@ -31,13 +24,9 @@ class FeatureFlags {
       'ddd.commands.utility': false,
       'ddd.commands.fallbackOnError': true,
       'ddd.commands.slash': false,
-      'commands.slash.enabled': false,
-      'commands.text.enabled': true,
-      'commands.platform-agnostic': false,
+      'ddd.commands.hideLegacy': false,
 
       // Feature flags for new capabilities
-      'features.comparison-testing': false,
-      'features.performance-logging': false,
       'features.enhanced-context': false, // Enable sending enhanced context to AI (for external services)
 
       // Override all flags from config
@@ -182,10 +171,8 @@ class FeatureFlags {
           .toLowerCase()
           .replace(/_/g, '.')
           .replace(/\.dual\.write$/, '.dual-write')
-          .replace(/\.comparison\.testing$/, '.comparison-testing')
-          .replace(/\.platform\.agnostic$/, '.platform-agnostic')
-          .replace(/\.performance\.logging$/, '.performance-logging')
-          .replace(/\.enhanced\.context$/, '.enhanced-context');
+          .replace(/\.enhanced\.context$/, '.enhanced-context')
+          .replace(/\.hide\.legacy$/, '.hideLegacy'); // Special case for camelCase flag
 
         if (this.flags.has(hyphenatedFlagName)) {
           const value = process.env[key].toLowerCase() === 'true';
