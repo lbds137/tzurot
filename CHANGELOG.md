@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Command Alias Routing** - Fixed issue where command aliases would route to legacy system instead of DDD system
+  - Aliases like `cleandm` for `purgbot` now correctly route to the new DDD command system when enabled
+  - Added proper alias resolution in CommandIntegrationAdapter to check the primary command name for category routing
+
 ## [2.0.0] - 2025-06-19
 
 ### Added
