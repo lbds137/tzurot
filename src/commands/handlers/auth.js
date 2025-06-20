@@ -133,7 +133,7 @@ async function handleCode(message, args) {
     }
 
     // Store the token
-    logger.info(`[Auth] Storing token for user ${message.author.id}`);
+    logger.debug(`[Auth] Storing token for user ${message.author.id}`);
     const stored = await auth.storeUserToken(message.author.id, token);
 
     if (!stored) {
