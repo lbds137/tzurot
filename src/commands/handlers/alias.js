@@ -38,7 +38,8 @@ async function execute(message, args) {
 
   // Extract the personality name and alias
   const personalityName = args[0].toLowerCase();
-  const alias = args[1].toLowerCase();
+  // Join all remaining arguments to support multi-word aliases
+  const alias = args.slice(1).join(' ').toLowerCase();
 
   try {
     // Find the personality first

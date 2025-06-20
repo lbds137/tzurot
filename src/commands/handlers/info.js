@@ -5,7 +5,7 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../logger');
 const validator = require('../utils/commandValidator');
-const { getPersonality, getPersonalityByAlias } = require('../../core/personality');
+const { resolvePersonality } = require('../../utils/aliasResolver');
 const { botPrefix } = require('../../../config');
 
 /**
@@ -37,15 +37,12 @@ async function execute(message, args) {
   }
 
   // Extract the personality name or alias
-  const personalityInput = args[0].toLowerCase();
+  // Join all arguments to support multi-word aliases
+  const personalityInput = args.join(' ').toLowerCase();
 
   try {
-    // Try to find the personality (first by alias, then by name)
-    let personality = getPersonalityByAlias(personalityInput);
-
-    if (!personality) {
-      personality = await getPersonality(personalityInput);
-    }
+    // Try to find the personality by name or alias
+    const personality = await resolvePersonality(personalityInput);
 
     if (!personality) {
       return await directSendFn(
