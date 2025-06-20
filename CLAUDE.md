@@ -814,8 +814,11 @@ We follow [Semantic Versioning 2.0.0](https://semver.org/) with Discord bot-spec
 1. **Create Release Branch**: Always create `release/vX.Y.Z` from develop
 2. **Update Version**: 
    - Edit version in `package.json`
+   - **CRITICAL**: Run `npm install` to update `package-lock.json` with new version
    - Update `CHANGELOG.md` with all changes since last release
+   - Commit version files: `git add package.json package-lock.json CHANGELOG.md`
    - Commit with message: `chore: bump version to X.Y.Z and update changelog`
+   - Commit package-lock separately: `chore: update package-lock.json for vX.Y.Z`
 3. **Create PR**: Target `main` branch (this is the ONLY time PRs to main are allowed)
 4. **After Merge**: 
    - Create GitHub release: `./scripts/create-release.sh vX.Y.Z`
