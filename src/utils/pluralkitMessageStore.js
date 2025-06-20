@@ -70,7 +70,7 @@ class PluralKitMessageStore {
       const now = Date.now();
       // Check if the deletion is recent (within 5 seconds)
       if (now - messageData.deletedAt < this.expirationTime) {
-        logger.info(`[PluralKitStore] Found deleted message from user ${messageData.userId}`);
+        logger.debug(`[PluralKitStore] Found deleted message from user ${messageData.userId}`);
         // Remove it to prevent reuse
         this.deletedMessages.delete(key);
         return messageData;

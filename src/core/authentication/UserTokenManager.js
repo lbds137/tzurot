@@ -79,7 +79,7 @@ class UserTokenManager {
       createdAt: Date.now(),
       expiresAt: Date.now() + this.tokenExpirationMs,
     };
-    logger.info(`[UserTokenManager] Stored token for user ${userId}`);
+    logger.debug(`[UserTokenManager] Stored token for user ${userId}`);
     return true;
   }
 
@@ -109,7 +109,7 @@ class UserTokenManager {
 
     // Check if token is expired
     if (tokenData.expiresAt && Date.now() > tokenData.expiresAt) {
-      logger.info(`[UserTokenManager] Token for user ${userId} has expired`);
+      logger.debug(`[UserTokenManager] Token for user ${userId} has expired`);
       return false;
     }
 
@@ -127,7 +127,7 @@ class UserTokenManager {
     }
 
     delete this.userTokens[userId];
-    logger.info(`[UserTokenManager] Deleted token for user ${userId}`);
+    logger.debug(`[UserTokenManager] Deleted token for user ${userId}`);
     return true;
   }
 

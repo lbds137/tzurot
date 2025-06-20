@@ -1080,7 +1080,7 @@ async function execute(message, args) {
     }
 
     authData.cookie = userSession.cookie;
-    logger.info(`[Backup] Using stored session cookie for user ${message.author.id}`);
+    logger.debug(`[Backup] Using stored session cookie for user ${message.author.id}`);
 
     // Parse arguments
     if (args.length === 0) {
