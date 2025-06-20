@@ -395,7 +395,6 @@ class ApplicationBootstrap {
       'Personality Write': featureFlags.isEnabled('ddd.personality.write'),
       'Dual Write': featureFlags.isEnabled('ddd.personality.dual-write'),
       Events: featureFlags.isEnabled('ddd.events.enabled'),
-      'Comparison Testing': featureFlags.isEnabled('features.comparison-testing'),
     };
 
     logger.info('[ApplicationBootstrap] Active DDD features:');
