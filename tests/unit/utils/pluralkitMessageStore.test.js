@@ -156,7 +156,7 @@ describe('PluralKitMessageStore', () => {
       expect(found).toBeTruthy();
       expect(found.userId).toBe('user-456');
       expect(found.username).toBe('TestUser');
-      expect(mockLogger.info).toHaveBeenCalledWith(
+      expect(mockLogger.debug).toHaveBeenCalledWith(
         '[PluralKitStore] Found deleted message from user user-456'
       );
     });
