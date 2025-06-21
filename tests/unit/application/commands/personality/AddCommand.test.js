@@ -52,6 +52,7 @@ describe('AddCommand', () => {
     // Mock services
     mockPersonalityService = {
       registerPersonality: jest.fn(),
+      preloadAvatar: jest.fn().mockResolvedValue(undefined),
     };
 
     mockFeatureFlags = {
@@ -718,6 +719,112 @@ describe('AddCommand', () => {
       await command.execute(mockContext);
 
       expect(mockPersonalityService.registerPersonality).toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Created Successfully!',
+          }),
+        ],
+      });
+    });
+  });
+
+  describe('avatar preloading', () => {
+    it('should trigger avatar preloading after successful registration', async () => {
+      mockContext.args = ['TestBot'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      // Wait for async operations
+      await Promise.resolve();
+
+      expect(mockPersonalityService.preloadAvatar).toHaveBeenCalledWith('TestBot', 'user123');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Created Successfully!',
+          }),
+        ],
+      });
+    });
+
+    it('should handle avatar preloading errors gracefully', async () => {
+      mockContext.args = ['TestBot'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.preloadAvatar.mockRejectedValue(new Error('Avatar preload failed'));
+
+      await command.execute(mockContext);
+
+      // Wait for async operations
+      await Promise.resolve();
+
+      expect(mockPersonalityService.preloadAvatar).toHaveBeenCalledWith('TestBot', 'user123');
+      // Command should still succeed
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Created Successfully!',
+          }),
+        ],
+      });
+    });
+
+    it('should include avatar URL in embed if available', async () => {
+      const personalityWithAvatar = {
+        ...mockPersonality,
+        avatarUrl: 'https://example.com/avatar.png',
+      };
+      mockContext.args = ['TestBot'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(personalityWithAvatar);
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            thumbnail: { url: 'https://example.com/avatar.png' },
+          }),
+        ],
+      });
+    });
+
+    it('should use profile avatar URL as fallback', async () => {
+      const personalityWithProfileAvatar = {
+        ...mockPersonality,
+        profile: {
+          ...mockPersonality.profile,
+          avatarUrl: 'https://example.com/profile-avatar.png',
+        },
+      };
+      mockContext.args = ['TestBot'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(personalityWithProfileAvatar);
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            thumbnail: { url: 'https://example.com/profile-avatar.png' },
+          }),
+        ],
+      });
+    });
+
+    it('should work when service does not support avatar preloading', async () => {
+      // Remove preloadAvatar method
+      delete mockPersonalityService.preloadAvatar;
+      mockContext.args = ['TestBot'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      // Should not throw and should complete successfully
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
