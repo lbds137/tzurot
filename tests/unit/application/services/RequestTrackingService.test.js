@@ -37,10 +37,16 @@ describe('RequestTrackingService', () => {
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
-      const defaultService = new RequestTrackingService();
+      const defaultService = new RequestTrackingService({
+        scheduler: mockScheduler,
+        clearScheduler: mockClearScheduler
+      });
       expect(defaultService.pendingWindowMs).toBe(10000);
       expect(defaultService.completedWindowMs).toBe(5000);
       expect(defaultService.cleanupIntervalMs).toBe(60000);
+      
+      // Cleanup
+      defaultService.stopCleanup();
     });
 
     it('should accept custom configuration', () => {
