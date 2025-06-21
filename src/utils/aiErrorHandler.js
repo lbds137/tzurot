@@ -2,6 +2,8 @@ const logger = require('../logger');
 const { MARKERS } = require('../constants');
 const { ErrorCategory, trackError } = require('./errorTracker');
 const { getPersonality } = require('../core/personality');
+const { getFeatureFlags } = require('../application/services/FeatureFlags');
+const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
 
 /**
  * AI Error Handler Module
@@ -232,13 +234,35 @@ async function analyzeErrorAndGenerateMessage(
 
   // Try to get personality-specific error message first
   let personality = null;
+  let errorMessage = null;
   try {
-    personality = await getPersonality(personalityName);
-    if (personality && personality.errorMessage) {
+    // Use PersonalityRouter when DDD is enabled, otherwise use legacy
+    const featureFlags = getFeatureFlags();
+    if (featureFlags.isEnabled('ddd.personality.read')) {
+      const personalityRouter = getPersonalityRouter();
+      personality = await personalityRouter.getPersonality(personalityName);
+      logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
+      // PersonalityRouter converts DDD to legacy format, so errorMessage should be at top level
+      errorMessage = personality?.errorMessage;
+
+      // Log for debugging
+      if (!errorMessage && personality) {
+        logger.warn(
+          `[AIErrorHandler] No errorMessage found in PersonalityRouter response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
+        );
+      }
+    } else {
+      personality = await getPersonality(personalityName);
+      logger.debug(`[AIErrorHandler] Using legacy PersonalityManager for ${personalityName}`);
+      // Legacy format has errorMessage directly on personality
+      errorMessage = personality?.errorMessage;
+    }
+
+    if (errorMessage) {
       logger.info(
         `[AIErrorHandler] Using personality-specific error message for ${personalityName}`
       );
-      let userMessage = personality.errorMessage;
+      let userMessage = errorMessage;
 
       // Check if the error message already has the error marker pattern
       if (userMessage.includes('||*(an error has occurred)*||')) {

@@ -15,6 +15,18 @@ jest.mock('../../src/core/personality', () => ({
   getPersonality: jest.fn(),
 }));
 
+jest.mock('../../src/application/services/FeatureFlags', () => ({
+  getFeatureFlags: jest.fn().mockReturnValue({
+    isEnabled: jest.fn().mockReturnValue(false), // Default to legacy behavior
+  }),
+}));
+
+jest.mock('../../src/application/routers/PersonalityRouter', () => ({
+  getPersonalityRouter: jest.fn().mockReturnValue({
+    getPersonality: jest.fn(),
+  }),
+}));
+
 const logger = require('../../src/logger');
 const { getPersonality } = require('../../src/core/personality');
 const { analyzeErrorAndGenerateMessage } = require('../../src/utils/aiErrorHandler');
