@@ -339,6 +339,15 @@ function createAddCommand() {
               });
             }
           }
+          
+          // Add display name alias if one was automatically created
+          if (personality.displayNameAlias && !alias) {
+            fields.push({
+              name: 'Alias',
+              value: `${personality.displayNameAlias} (from display name)`,
+              inline: true,
+            });
+          }
 
           // Add prompt field
           fields.push({
