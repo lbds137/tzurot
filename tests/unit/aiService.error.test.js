@@ -54,6 +54,13 @@ jest.mock('../../src/core/personality', () => ({
   getPersonality: jest.fn(),
 }));
 
+// Mock feature flags to ensure we use legacy system in tests
+jest.mock('../../src/application/services/FeatureFlags', () => ({
+  getFeatureFlags: jest.fn().mockReturnValue({
+    isEnabled: jest.fn().mockReturnValue(false), // Disable DDD features
+  }),
+}));
+
 describe('aiService Error Handling', () => {
   let aiService;
   let mockOpenAI;
