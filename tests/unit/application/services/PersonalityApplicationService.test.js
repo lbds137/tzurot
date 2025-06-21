@@ -336,7 +336,7 @@ describe('PersonalityApplicationService', () => {
       expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
     });
 
-    it('should reject if alias conflicts with existing personality', async () => {
+    it('should handle alias conflicts by creating alternate aliases', async () => {
       mockPersonalityRepository.findByName.mockResolvedValue(null);
 
       const conflictingPersonality = Personality.create(
@@ -352,9 +352,13 @@ describe('PersonalityApplicationService', () => {
         new AIModel('gpt-4', '/model', {})
       );
 
+      // Clear all previous mocks
+      mockPersonalityRepository.findByAlias.mockReset();
+      
       mockPersonalityRepository.findByAlias
-        .mockResolvedValueOnce(null) // First alias check
-        .mockResolvedValueOnce(conflictingPersonality); // Second alias conflicts
+        .mockResolvedValueOnce(null) // 'tb' is available
+        .mockResolvedValueOnce(conflictingPersonality) // 'testb' conflicts
+        .mockResolvedValueOnce(null); // 'testb-testbot' is available
 
       const command = {
         name: 'TestBot',
@@ -365,9 +369,13 @@ describe('PersonalityApplicationService', () => {
         aliases: ['TB', 'TestB'],
       };
 
-      await expect(service.registerPersonality(command)).rejects.toThrow(
-        'Alias "TestB" is already in use by OtherBot'
-      );
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.aliases).toHaveLength(2);
+      expect(result.aliases[0].value).toBe('tb');
+      expect(result.aliases[1].value).toBe('testb-testbot');
+      expect(result.alternateAliases).toEqual(['testb-testbot']);
     });
 
     it('should handle AI service errors gracefully', async () => {
@@ -404,6 +412,64 @@ describe('PersonalityApplicationService', () => {
 
       expect(result).toBeInstanceOf(Personality);
       expect(result.aliases).toHaveLength(0);
+    });
+
+    it('should register aliases successfully when no conflicts exist', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+
+      const command = {
+        name: 'TestBot',
+        ownerId: '123456789012345678',
+        mode: 'external',
+        aliases: ['tb', 'test'],
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.aliases).toHaveLength(2);
+      expect(result.aliases[0].value).toBe('tb');
+      expect(result.aliases[1].value).toBe('test');
+      expect(result.alternateAliases).toBeUndefined();
+    });
+
+    it('should use random suffix when smart alias is also taken', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+
+      const existingPersonality1 = Personality.create(
+        PersonalityId.generate(),
+        new UserId('999999999999999999'),
+        new PersonalityProfile({ mode: 'external', name: 'Bot1' }),
+        AIModel.createDefault()
+      );
+
+      const existingPersonality2 = Personality.create(
+        PersonalityId.generate(),
+        new UserId('999999999999999999'),
+        new PersonalityProfile({ mode: 'external', name: 'Bot2' }),
+        AIModel.createDefault()
+      );
+
+      mockPersonalityRepository.findByAlias
+        .mockResolvedValueOnce(existingPersonality1) // 'bot' is taken
+        .mockResolvedValueOnce(existingPersonality2) // 'bot-testbot' is also taken
+        .mockResolvedValueOnce(null); // random suffix will be available
+
+      const command = {
+        name: 'TestBot',
+        ownerId: '123456789012345678',
+        mode: 'external',
+        aliases: ['bot'],
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.aliases).toHaveLength(1);
+      expect(result.aliases[0].value).toMatch(/^bot-[a-z]{6}$/);
+      expect(result.alternateAliases).toHaveLength(1);
+      expect(result.alternateAliases[0]).toMatch(/^bot-[a-z]{6}$/);
     });
   });
 
