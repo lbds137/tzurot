@@ -238,6 +238,13 @@ class CommandContext {
   }
 
   /**
+   * Get message ID in platform-agnostic way
+   */
+  getMessageId() {
+    return this.message?.id || this.interaction?.id || null;
+  }
+
+  /**
    * Check if command was used in DM
    */
   isDM() {
