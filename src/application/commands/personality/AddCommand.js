@@ -49,18 +49,20 @@ function createAddCommand() {
       }),
     ],
     execute: async context => {
-      try {
-        // Extract dependencies
-        const personalityService = context.dependencies.personalityApplicationService;
-        const featureFlags = context.dependencies.featureFlags;
+      // Extract dependencies early so they're in scope for error handling
+      const personalityService = context.dependencies.personalityApplicationService;
+      const featureFlags = context.dependencies.featureFlags;
+      const requestTracker = context.dependencies.requestTrackingService;
+      
+      // Variables that might be needed in error handling
+      let name, prompt, modelPath, maxWordCount, alias;
 
+      try {
         if (!personalityService) {
           throw new Error('PersonalityApplicationService not available');
         }
 
         // Get arguments based on command type
-        let name, prompt, modelPath, maxWordCount, alias;
-
         if (context.isSlashCommand) {
           // Slash command - options are named
           name = context.options.name;
@@ -222,6 +224,59 @@ function createAddCommand() {
 
         logger.info(`[AddCommand] Creating personality "${name}" for user ${context.getUserId()}`);
 
+        // Check for duplicate requests if tracking service is available
+        if (requestTracker) {
+          // Check if this message is already being processed
+          const messageId = context.getMessageId ? context.getMessageId() : null;
+          if (messageId && requestTracker.isMessageProcessing(messageId)) {
+            logger.warn(`[AddCommand] Message ${messageId} is already being processed`);
+            return null; // Silent failure to prevent duplicate responses
+          }
+
+          // Mark message as processing
+          if (messageId) {
+            requestTracker.markMessageProcessing(messageId);
+          }
+
+          // Generate request key for duplicate protection
+          const requestKey = requestTracker.generateAddCommandKey(
+            context.getUserId(),
+            name,
+            alias
+          );
+
+          // Check if this request can proceed
+          const requestStatus = requestTracker.checkRequest(requestKey);
+          if (!requestStatus.canProceed) {
+            logger.warn(
+              `[AddCommand] Duplicate request blocked: ${requestStatus.reason} for key ${requestKey}`
+            );
+            
+            if (requestStatus.isPending) {
+              // Request is still in progress, silent failure
+              return null;
+            } else if (requestStatus.isCompleted) {
+              // Request was recently completed, inform the user
+              const duplicateEmbed = {
+                title: '⚠️ Request Already Processed',
+                description: `The personality **${name}** was just created. Please wait a moment before trying again.`,
+                color: 0xff9800, // Orange color
+                footer: {
+                  text: 'This message helps prevent accidental duplicates',
+                },
+              };
+              return await context.respond({ embeds: [duplicateEmbed] });
+            }
+          }
+
+          // Mark request as pending
+          requestTracker.markPending(requestKey, {
+            userId: context.getUserId(),
+            personalityName: name,
+            alias: alias,
+          });
+        }
+
         // Alias validation already happened during parsing
 
         // Create the personality
@@ -238,6 +293,19 @@ function createAddCommand() {
           const personality = await personalityService.registerPersonality(command);
 
           logger.info(`[AddCommand] Successfully created personality "${name}"`);
+
+          // Mark request as completed if tracking
+          if (requestTracker) {
+            const requestKey = requestTracker.generateAddCommandKey(
+              context.getUserId(),
+              name,
+              alias
+            );
+            requestTracker.markCompleted(requestKey, {
+              success: true,
+              personalityId: personality.id?.value,
+            });
+          }
 
           // Create embed fields
           const fields = [
@@ -324,6 +392,16 @@ function createAddCommand() {
 
           return await context.respond({ embeds: [embedData] });
         } catch (error) {
+          // Mark request as failed if tracking
+          if (requestTracker) {
+            const requestKey = requestTracker.generateAddCommandKey(
+              context.getUserId(),
+              name,
+              alias
+            );
+            requestTracker.markFailed(requestKey);
+          }
+
           // Handle specific errors
           if (error.message.includes('already exists')) {
             const errorEmbed = {
@@ -373,6 +451,20 @@ function createAddCommand() {
         }
       } catch (error) {
         logger.error('[AddCommand] Error:', error);
+
+        // Mark request as failed if tracking and we have the name
+        // Try to get name from args if not already set
+        if (requestTracker) {
+          const nameToUse = name || (context.args && context.args[0]) || null;
+          if (nameToUse) {
+            const requestKey = requestTracker.generateAddCommandKey(
+              context.getUserId(),
+              nameToUse,
+              alias
+            );
+            requestTracker.markFailed(requestKey);
+          }
+        }
 
         const genericErrorEmbed = {
           title: '❌ Something Went Wrong',

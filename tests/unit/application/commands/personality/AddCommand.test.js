@@ -15,6 +15,8 @@ const { CommandContext } = require('../../../../../src/application/commands/Comm
 jest.mock('../../../../../src/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
 }));
 
 const logger = require('../../../../../src/logger');
@@ -23,11 +25,12 @@ describe('AddCommand', () => {
   let command;
   let mockPersonalityService;
   let mockFeatureFlags;
+  let mockRequestTracker;
   let mockContext;
 
   // Mock personality object returned by the service
   const mockPersonality = {
-    id: 'test-id',
+    id: { value: 'test-id' }, // Match the expected structure
     name: 'TestBot',
     profile: {
       name: 'TestBot',
@@ -55,12 +58,29 @@ describe('AddCommand', () => {
       isEnabled: jest.fn().mockReturnValue(false),
     };
 
+    mockRequestTracker = {
+      isMessageProcessing: jest.fn().mockReturnValue(false),
+      markMessageProcessing: jest.fn(),
+      generateAddCommandKey: jest.fn((userId, name, alias) => 
+        alias ? `${userId}-${name.toLowerCase()}-alias-${alias.toLowerCase()}` : `${userId}-${name.toLowerCase()}`
+      ),
+      checkRequest: jest.fn().mockReturnValue({
+        isPending: false,
+        isCompleted: false,
+        canProceed: true,
+      }),
+      markPending: jest.fn(),
+      markCompleted: jest.fn(),
+      markFailed: jest.fn(),
+    };
+
     // Create base context
     mockContext = new CommandContext({
       platform: 'discord',
       isSlashCommand: false,
       author: { id: 'user123' },
       channel: { id: 'channel123' },
+      message: { id: 'msg123' },
       args: [],
       options: {},
       reply: jest.fn().mockResolvedValue({}),
@@ -68,6 +88,7 @@ describe('AddCommand', () => {
       dependencies: {
         personalityApplicationService: mockPersonalityService,
         featureFlags: mockFeatureFlags,
+        requestTrackingService: mockRequestTracker,
       },
     });
   });
@@ -554,6 +575,156 @@ describe('AddCommand', () => {
       expect(logger.info).toHaveBeenCalledWith(
         expect.stringContaining('[AddCommand] Successfully created personality "TestBot"')
       );
+    });
+  });
+
+  describe('duplicate protection', () => {
+    it('should check for message processing', async () => {
+      mockContext.args = ['TestBot'];
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.isMessageProcessing).toHaveBeenCalledWith('msg123');
+      expect(mockRequestTracker.markMessageProcessing).toHaveBeenCalledWith('msg123');
+    });
+
+    it('should return null if message is already being processed', async () => {
+      mockContext.args = ['TestBot'];
+      mockRequestTracker.isMessageProcessing.mockReturnValue(true);
+      // Make sure respond is a mock
+      mockContext.respond = jest.fn();
+
+      const result = await command.execute(mockContext);
+
+      expect(result).toBeNull();
+      expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
+      expect(mockContext.respond).not.toHaveBeenCalled();
+    });
+
+    it('should check request status before proceeding', async () => {
+      mockContext.args = ['TestBot', 'tb'];
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.generateAddCommandKey).toHaveBeenCalledWith('user123', 'TestBot', 'tb');
+      expect(mockRequestTracker.checkRequest).toHaveBeenCalledWith('user123-testbot-alias-tb');
+    });
+
+    it('should return null if request is pending', async () => {
+      mockContext.args = ['TestBot'];
+      mockRequestTracker.checkRequest.mockReturnValue({
+        isPending: true,
+        isCompleted: false,
+        canProceed: false,
+        reason: 'Request is already in progress',
+      });
+      // Make sure respond is a mock
+      mockContext.respond = jest.fn();
+
+      const result = await command.execute(mockContext);
+
+      expect(result).toBeNull();
+      expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
+      expect(mockContext.respond).not.toHaveBeenCalled();
+    });
+
+    it('should show warning if request was recently completed', async () => {
+      mockContext.args = ['TestBot'];
+      mockRequestTracker.checkRequest.mockReturnValue({
+        isPending: false,
+        isCompleted: true,
+        canProceed: false,
+        reason: 'Request was recently completed',
+      });
+      mockContext.respond = jest.fn().mockResolvedValue({});
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '⚠️ Request Already Processed',
+            description: expect.stringContaining('was just created'),
+            color: 0xff9800,
+          }),
+        ],
+      });
+      expect(mockPersonalityService.registerPersonality).not.toHaveBeenCalled();
+    });
+
+    it('should mark request as pending when starting', async () => {
+      mockContext.args = ['TestBot', 'tb'];
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.markPending).toHaveBeenCalledWith(
+        'user123-testbot-alias-tb',
+        {
+          userId: 'user123',
+          personalityName: 'TestBot',
+          alias: 'tb',
+        }
+      );
+    });
+
+    it('should mark request as completed on success', async () => {
+      mockContext.args = ['TestBot'];
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.markCompleted).toHaveBeenCalledWith(
+        'user123-testbot',
+        {
+          success: true,
+          personalityId: 'test-id',
+        }
+      );
+    });
+
+    it('should mark request as failed on service error', async () => {
+      mockContext.args = ['TestBot'];
+      mockPersonalityService.registerPersonality.mockRejectedValue(
+        new Error('Service error')
+      );
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.markFailed).toHaveBeenCalledWith('user123-testbot');
+    });
+
+    it('should mark request as failed on generic error', async () => {
+      mockContext.args = ['TestBot'];
+      // Simulate an error by removing the service
+      mockContext.dependencies.personalityApplicationService = null;
+
+      await command.execute(mockContext);
+
+      expect(mockRequestTracker.markFailed).toHaveBeenCalledWith('user123-testbot');
+    });
+
+    it('should work without request tracker', async () => {
+      mockContext.dependencies.requestTrackingService = null;
+      mockContext.args = ['TestBot'];
+      // Make sure personalityApplicationService is available
+      mockContext.dependencies.personalityApplicationService = mockPersonalityService;
+      mockPersonalityService.registerPersonality.mockResolvedValue(mockPersonality);
+      // Make sure respond is mocked
+      mockContext.respond = jest.fn().mockResolvedValue({});
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.registerPersonality).toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '✅ Personality Created Successfully!',
+          }),
+        ],
+      });
     });
   });
 });
