@@ -79,11 +79,13 @@ describe('PersonalityApplicationService', () => {
     jest.spyOn(mockEventBus, 'publish').mockResolvedValue(undefined);
 
     mockProfileFetcher = {
-      fetchProfileInfo: jest.fn().mockResolvedValue({
-        name: 'TestBot',
-        avatar: 'https://api.example.com/avatar.png',
-        error_message: 'Test error message',
-      }),
+      fetchProfileInfo: jest.fn().mockImplementation((name) => 
+        Promise.resolve({
+          name: name || 'TestBot',
+          avatar: 'https://api.example.com/avatar.png',
+          error_message: 'Test error message',
+        })
+      ),
     };
 
     service = new PersonalityApplicationService({
