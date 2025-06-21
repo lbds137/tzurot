@@ -85,11 +85,17 @@ class PersonalityApplicationService {
         throw new Error(`Personality "${name}" already exists`);
       }
 
-      // Validate aliases don't conflict
-      for (const alias of aliases) {
-        const aliasConflict = await this.personalityRepository.findByAlias(alias);
-        if (aliasConflict) {
-          throw new Error(`Alias "${alias}" is already in use by ${aliasConflict.profile.name}`);
+      // Process aliases with collision handling
+      const processedAliases = [];
+      const alternateAliases = [];
+      
+      for (const requestedAlias of aliases) {
+        const aliasResult = await this._processAliasWithCollisionHandling(requestedAlias, name);
+        if (aliasResult.alias) {
+          processedAliases.push(aliasResult.alias);
+          if (aliasResult.wasAlternate) {
+            alternateAliases.push(aliasResult.alias);
+          }
         }
       }
 
@@ -148,8 +154,8 @@ class PersonalityApplicationService {
         personality = Personality.create(personalityId, userId, profile, model);
       }
 
-      // Add aliases if provided
-      for (const aliasName of aliases) {
+      // Add processed aliases
+      for (const aliasName of processedAliases) {
         const alias = new Alias(aliasName);
         personality.addAlias(alias);
       }
@@ -176,6 +182,12 @@ class PersonalityApplicationService {
       });
 
       logger.info(`[PersonalityApplicationService] Successfully registered personality: ${name}`);
+      
+      // Include alternate aliases in the result for the command to use
+      if (alternateAliases.length > 0) {
+        personality.alternateAliases = alternateAliases;
+      }
+      
       return personality;
     } catch (error) {
       logger.error(
@@ -601,6 +613,82 @@ class PersonalityApplicationService {
         `[PersonalityApplicationService] Failed to get max alias word count: ${error.message}`
       );
       return 1; // Default to 1 on error
+    }
+  }
+
+  /**
+   * Process alias with collision handling
+   * @private
+   * @param {string} requestedAlias - The requested alias
+   * @param {string} personalityName - The personality name
+   * @returns {Promise<{alias: string|null, wasAlternate: boolean}>}
+   */
+  async _processAliasWithCollisionHandling(requestedAlias, personalityName) {
+    try {
+      const aliasLower = requestedAlias.toLowerCase();
+      
+      // Check if alias already exists
+      const existingPersonality = await this.personalityRepository.findByAlias(aliasLower);
+      
+      if (!existingPersonality) {
+        // Alias is available
+        return { alias: aliasLower, wasAlternate: false };
+      }
+      
+      // Alias is taken, create a smart alternate
+      const nameLower = personalityName.toLowerCase();
+      const nameParts = nameLower.split('-');
+      const aliasParts = aliasLower.split('-');
+      
+      let alternateAlias = aliasLower;
+      
+      // Try to create a smart alias using parts of the personality name
+      if (nameParts.length > 1 && !aliasLower.includes(nameParts[nameParts.length - 1])) {
+        // Add the last part of the personality name
+        alternateAlias = `${aliasLower}-${nameParts[nameParts.length - 1]}`;
+      } else if (nameParts.length > aliasParts.length) {
+        // Find which part of the name to add
+        let matchIndex = -1;
+        for (let i = 0; i < nameParts.length; i++) {
+          if (nameParts[i] === aliasParts[0]) {
+            matchIndex = i;
+            break;
+          }
+        }
+        
+        if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
+          alternateAlias = `${aliasLower}-${nameParts[matchIndex + 1]}`;
+        }
+      } else if (!aliasLower.includes(nameLower) && nameLower !== aliasLower) {
+        // If alias doesn't include the personality name, append it
+        alternateAlias = `${aliasLower}-${nameLower}`;
+      }
+      
+      // Check if the smart alias is available
+      const smartAliasTaken = alternateAlias === aliasLower 
+        ? true 
+        : await this.personalityRepository.findByAlias(alternateAlias);
+      
+      if (alternateAlias === aliasLower || smartAliasTaken) {
+        // Fall back to random suffix
+        const chars = 'abcdefghijklmnopqrstuvwxyz';
+        let randomSuffix = '';
+        for (let i = 0; i < 6; i++) {
+          randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        alternateAlias = `${aliasLower}-${randomSuffix}`;
+      }
+      
+      logger.info(
+        `[PersonalityApplicationService] Alias "${aliasLower}" is taken, using alternate: "${alternateAlias}"`
+      );
+      
+      return { alias: alternateAlias, wasAlternate: true };
+    } catch (error) {
+      logger.error(
+        `[PersonalityApplicationService] Error processing alias: ${error.message}`
+      );
+      return { alias: null, wasAlternate: false };
     }
   }
 

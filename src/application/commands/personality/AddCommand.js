@@ -319,11 +319,25 @@ function createAddCommand() {
 
           // Add alias if provided
           if (alias) {
-            fields.push({
-              name: 'Alias',
-              value: alias,
-              inline: true,
-            });
+            // Check if an alternate alias was used due to collision
+            const actualAlias = personality.alternateAliases && personality.alternateAliases.length > 0
+              ? personality.alternateAliases[0]
+              : alias;
+            
+            if (actualAlias !== alias) {
+              // Alias was taken, show both requested and actual
+              fields.push({
+                name: 'Alias',
+                value: `${actualAlias} (requested: ${alias})`,
+                inline: true,
+              });
+            } else {
+              fields.push({
+                name: 'Alias',
+                value: alias,
+                inline: true,
+              });
+            }
           }
 
           // Add prompt field
