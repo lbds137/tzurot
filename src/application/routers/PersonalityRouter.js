@@ -304,6 +304,7 @@ class PersonalityRouter {
       owner: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
       aliases: personality.aliases?.map(a => a.value || a.alias || a) || [],
       avatarUrl: personality.profile?.avatarUrl,
+      errorMessage: personality.profile?.errorMessage,
       nsfwContent: personality.profile?.isNSFW,
       temperature: personality.profile?.temperature,
       maxWordCount: personality.profile?.maxWordCount,
