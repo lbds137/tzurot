@@ -388,6 +388,15 @@ function createAddCommand() {
           // Add avatar thumbnail if available
           if (personality.avatarUrl) {
             embedData.thumbnail = { url: personality.avatarUrl };
+          } else if (personality.profile?.avatarUrl) {
+            embedData.thumbnail = { url: personality.profile.avatarUrl };
+          }
+
+          // Trigger avatar preloading in the background if service supports it
+          if (personalityService.preloadAvatar) {
+            personalityService.preloadAvatar(name, context.getUserId()).catch(err => {
+              logger.debug(`[AddCommand] Avatar preload error (non-critical): ${err.message}`);
+            });
           }
 
           return await context.respond({ embeds: [embedData] });

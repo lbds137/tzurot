@@ -9,6 +9,7 @@ const {
 const { AIModel } = require('../../domain/ai');
 const { DomainEventBus } = require('../../domain/shared');
 const profileInfoFetcher = require('../../profileInfoFetcher');
+const { preloadPersonalityAvatar } = require('../../utils/avatarManager');
 
 /**
  * PersonalityApplicationService
@@ -168,6 +169,11 @@ class PersonalityApplicationService {
 
       // Publish domain events
       await this._publishEvents(personality);
+
+      // Preload the avatar in the background (non-blocking)
+      this.preloadAvatar(name, ownerId).catch(err => {
+        logger.error(`[PersonalityApplicationService] Error preloading avatar: ${err.message}`);
+      });
 
       logger.info(`[PersonalityApplicationService] Successfully registered personality: ${name}`);
       return personality;
@@ -674,6 +680,44 @@ class PersonalityApplicationService {
       logger.warn(
         `[PersonalityApplicationService] Failed to set display name alias: ${error.message}`
       );
+    }
+  }
+
+  /**
+   * Preload avatar for a personality
+   * @param {string} personalityName - Name of the personality
+   * @param {string} [userId] - User ID for authentication
+   * @returns {Promise<void>}
+   */
+  async preloadAvatar(personalityName, userId = null) {
+    try {
+      logger.info(`[PersonalityApplicationService] Preloading avatar for: ${personalityName}`);
+
+      // Find the personality
+      const personality = await this.personalityRepository.findByName(personalityName);
+      if (!personality) {
+        logger.warn(`[PersonalityApplicationService] Personality not found for avatar preload: ${personalityName}`);
+        return;
+      }
+
+      // Convert to the format expected by preloadPersonalityAvatar
+      const personalityData = {
+        fullName: personality.profile.name,
+        avatarUrl: personality.profile.avatarUrl || null,
+      };
+
+      // Preload the avatar
+      await preloadPersonalityAvatar(personalityData, userId);
+      
+      // If the avatar was set/updated during preload, save the personality
+      if (personalityData.avatarUrl && personalityData.avatarUrl !== personality.profile.avatarUrl) {
+        personality.profile.avatarUrl = personalityData.avatarUrl;
+        await this.personalityRepository.save(personality);
+        logger.info(`[PersonalityApplicationService] Updated avatar URL for: ${personalityName}`);
+      }
+    } catch (error) {
+      logger.error(`[PersonalityApplicationService] Failed to preload avatar: ${error.message}`);
+      // Don't throw - avatar preloading is non-critical
     }
   }
 
