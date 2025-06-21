@@ -134,9 +134,10 @@ function createExecutor(_dependencies) {
         // Use the correct property based on the format (DDD uses profile.name, legacy uses fullName)
         const personalityName =
           personality.profile?.name || personality.fullName || personality.name;
-        await conversationManager.activatePersonality(context.getChannelId(), personalityName);
+        const userId = context.getUserId();
+        await conversationManager.activatePersonality(context.getChannelId(), personalityName, userId);
         logger.info(
-          `[ActivateCommand] Successfully activated ${personalityName} in channel ${context.getChannelId()}`
+          `[ActivateCommand] Successfully activated ${personalityName} in channel ${context.getChannelId()} by user ${userId}`
         );
       } catch (error) {
         logger.error('[ActivateCommand] Error activating personality:', error);
