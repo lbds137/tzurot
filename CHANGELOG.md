@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4] - 2025-06-21
+
+### Fixed
+- **DDD Personality Error Messages** - Fixed bug where personality-specific error messages weren't being used when DDD is enabled
+  - Updated `aiErrorHandler` to check DDD feature flag and use PersonalityRouter when enabled
+  - Fixed `PersonalityRouter._convertDDDToLegacyFormat` to include the `errorMessage` field
+  - Empty response errors now correctly use personality-specific error messages in DDD mode
+  - Added comprehensive tests for both legacy and DDD error handling paths
+
 ## [2.0.3] - 2025-06-20
 
 ### Fixed
