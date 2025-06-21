@@ -834,4 +834,86 @@ describe('AddCommand', () => {
       });
     });
   });
+
+  describe('alias collision handling', () => {
+    it('should display alternate alias when collision occurs', async () => {
+      const personalityWithAlternateAlias = {
+        ...mockPersonality,
+        alternateAliases: ['tb-testbot'],
+      };
+      
+      mockContext.args = ['TestBot', 'tb'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(personalityWithAlternateAlias);
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'tb-testbot (requested: tb)',
+              }),
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should display original alias when no collision occurs', async () => {
+      mockContext.args = ['TestBot', 'tb'];
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue({
+        ...mockPersonality,
+        aliases: ['tb'],
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'tb',
+              }),
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should handle slash command with alias collision', async () => {
+      const personalityWithAlternateAlias = {
+        ...mockPersonality,
+        alternateAliases: ['bot-testbot'],
+      };
+      
+      mockContext.isSlashCommand = true;
+      mockContext.options = {
+        name: 'TestBot',
+        alias: 'bot',
+      };
+      mockContext.respond = jest.fn().mockResolvedValue({});
+      mockPersonalityService.registerPersonality.mockResolvedValue(personalityWithAlternateAlias);
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Alias',
+                value: 'bot-testbot (requested: bot)',
+              }),
+            ]),
+          }),
+        ],
+      });
+    });
+  });
 });
