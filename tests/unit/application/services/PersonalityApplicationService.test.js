@@ -8,6 +8,9 @@ jest.unmock('../../../../src/application/services/PersonalityApplicationService'
 // Mock dependencies before imports
 jest.mock('../../../../src/logger');
 jest.mock('../../../../src/profileInfoFetcher');
+jest.mock('../../../../src/utils/avatarManager', () => ({
+  preloadPersonalityAvatar: jest.fn().mockResolvedValue(undefined),
+}));
 
 const {
   PersonalityApplicationService,
@@ -1223,6 +1226,164 @@ describe('PersonalityApplicationService', () => {
         expect.objectContaining({ eventType: 'PersonalityCreated' })
       );
       expect(personality.getUncommittedEvents()).toHaveLength(0);
+    });
+  });
+
+  describe('preloadAvatar', () => {
+    let existingPersonality;
+    let mockPreloadPersonalityAvatar;
+
+    beforeEach(() => {
+      // Get the mocked avatarManager
+      const avatarManager = require('../../../../src/utils/avatarManager');
+      mockPreloadPersonalityAvatar = avatarManager.preloadPersonalityAvatar;
+      mockPreloadPersonalityAvatar.mockClear();
+
+      existingPersonality = Personality.create(
+        PersonalityId.generate(),
+        new UserId('123456789012345678'),
+        new PersonalityProfile({
+          mode: 'external',
+          name: 'TestBot',
+          displayName: 'Test Bot',
+          avatarUrl: 'https://example.com/avatar.png',
+        }),
+        AIModel.createDefault()
+      );
+      existingPersonality.markEventsAsCommitted();
+    });
+
+    it('should preload avatar for existing personality', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
+
+      await service.preloadAvatar('TestBot', '123456789012345678');
+
+      expect(mockPreloadPersonalityAvatar).toHaveBeenCalledWith(
+        {
+          fullName: 'TestBot',
+          avatarUrl: 'https://example.com/avatar.png',
+        },
+        '123456789012345678'
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Preloading avatar for: TestBot'
+      );
+    });
+
+    it('should handle personality not found', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+
+      await service.preloadAvatar('NonExistent', '123456789012345678');
+
+      expect(mockPreloadPersonalityAvatar).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Personality not found for avatar preload: NonExistent'
+      );
+    });
+
+    it('should update avatar URL if changed during preload', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
+      
+      // Mock the preloadPersonalityAvatar to update the avatar URL
+      mockPreloadPersonalityAvatar.mockImplementation(async (personalityData) => {
+        personalityData.avatarUrl = 'https://example.com/new-avatar.png';
+      });
+
+      await service.preloadAvatar('TestBot', '123456789012345678');
+
+      expect(existingPersonality.profile.avatarUrl).toBe('https://example.com/new-avatar.png');
+      expect(mockPersonalityRepository.save).toHaveBeenCalledWith(existingPersonality);
+      expect(logger.info).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Updated avatar URL for: TestBot'
+      );
+    });
+
+    it('should handle preload errors gracefully', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
+      mockPreloadPersonalityAvatar.mockRejectedValue(new Error('Network error'));
+
+      // Should not throw
+      await expect(service.preloadAvatar('TestBot', '123456789012345678')).resolves.not.toThrow();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Failed to preload avatar: Network error'
+      );
+    });
+
+    it('should work with personality without avatar URL', async () => {
+      const personalityNoAvatar = Personality.create(
+        PersonalityId.generate(),
+        new UserId('123456789012345678'),
+        new PersonalityProfile({
+          mode: 'external',
+          name: 'TestBot',
+          displayName: 'Test Bot',
+          // No avatarUrl
+        }),
+        AIModel.createDefault()
+      );
+      mockPersonalityRepository.findByName.mockResolvedValue(personalityNoAvatar);
+
+      await service.preloadAvatar('TestBot', '123456789012345678');
+
+      expect(mockPreloadPersonalityAvatar).toHaveBeenCalledWith(
+        {
+          fullName: 'TestBot',
+          avatarUrl: null,
+        },
+        '123456789012345678'
+      );
+    });
+  });
+
+  describe('registerPersonality with avatar preloading', () => {
+    it('should trigger avatar preloading after registering external personality', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      
+      // Mock the preloadAvatar method
+      const preloadAvatarSpy = jest.spyOn(service, 'preloadAvatar').mockResolvedValue(undefined);
+
+      const result = await service.registerPersonality({
+        name: 'NewBot',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      });
+
+      // Wait for async operations
+      await Promise.resolve();
+      jest.runAllTimers();
+
+      expect(preloadAvatarSpy).toHaveBeenCalledWith('NewBot', '123456789012345678');
+      expect(result).toBeDefined();
+      expect(result.profile.name).toBe('NewBot');
+    });
+
+    it('should continue registration even if avatar preloading fails', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      
+      // Mock the preloadAvatar method to reject
+      const preloadAvatarSpy = jest.spyOn(service, 'preloadAvatar').mockRejectedValue(
+        new Error('Avatar preload error')
+      );
+
+      const result = await service.registerPersonality({
+        name: 'NewBot',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      });
+
+      // Wait for async operations
+      await Promise.resolve();
+      jest.runAllTimers();
+
+      expect(preloadAvatarSpy).toHaveBeenCalledWith('NewBot', '123456789012345678');
+      expect(result).toBeDefined();
+      expect(result.profile.name).toBe('NewBot');
+      expect(logger.error).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Error preloading avatar: Avatar preload error'
+      );
     });
   });
 });
