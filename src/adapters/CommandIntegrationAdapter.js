@@ -126,7 +126,6 @@ class CommandIntegrationAdapter {
     return true;
   }
 
-
   /**
    * Process command using new DDD system
    */
