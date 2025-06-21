@@ -37,7 +37,7 @@ describe('ActivateCommand', () => {
     };
 
     mockConversationManager = {
-      activatePersonality: jest.fn(),
+      activatePersonality: jest.fn().mockResolvedValue(true),
       getActivatedPersonality: jest.fn(),
     };
 
@@ -59,6 +59,7 @@ describe('ActivateCommand', () => {
       isChannelNSFW: jest.fn(),
       getChannelId: jest.fn().mockReturnValue('987654321098765432'),
       getGuildId: jest.fn().mockReturnValue('111222333444555666'),
+      getUserId: jest.fn().mockReturnValue('123456789012345678'),
       isDM: false,
     };
 
@@ -87,6 +88,11 @@ describe('ActivateCommand', () => {
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'Aria',
+          displayName: 'Aria',
+          avatarUrl: 'https://example.com/aria.png',
+        },
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
@@ -100,7 +106,8 @@ describe('ActivateCommand', () => {
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('Aria');
       expect(mockConversationManager.activatePersonality).toHaveBeenCalledWith(
         mockContext.channelId,
-        'Aria'
+        'Aria',
+        mockContext.userId
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
@@ -124,6 +131,11 @@ describe('ActivateCommand', () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
       // The getPersonality method now handles both name and alias lookup internally
       mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'Aria',
+          displayName: 'Aria',
+          avatarUrl: 'https://example.com/aria.png',
+        },
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
@@ -137,7 +149,8 @@ describe('ActivateCommand', () => {
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('ari');
       expect(mockConversationManager.activatePersonality).toHaveBeenCalledWith(
         mockContext.channelId,
-        'Aria'
+        'Aria',
+        mockContext.userId
       );
     });
 
@@ -147,6 +160,10 @@ describe('ActivateCommand', () => {
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'Bambi Prime',
+          displayName: 'Bambi Prime',
+        },
         name: 'Bambi Prime',
         fullName: 'Bambi Prime',
         displayName: 'Bambi Prime',
@@ -159,7 +176,8 @@ describe('ActivateCommand', () => {
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('bambi prime');
       expect(mockConversationManager.activatePersonality).toHaveBeenCalledWith(
         mockContext.channelId,
-        'Bambi Prime'
+        'Bambi Prime',
+        mockContext.userId
       );
     });
 
@@ -179,6 +197,11 @@ describe('ActivateCommand', () => {
 
       // Assert
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('Aria');
+      expect(mockConversationManager.activatePersonality).toHaveBeenCalledWith(
+        mockContext.channelId,
+        'Aria',
+        mockContext.userId
+      );
     });
 
     it('should reject in DM channels', async () => {
@@ -376,6 +399,11 @@ describe('ActivateCommand', () => {
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'Aria',
+          displayName: 'Aria',
+          // No avatarUrl
+        },
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
@@ -396,6 +424,11 @@ describe('ActivateCommand', () => {
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.isChannelNSFW.mockResolvedValue(true);
       mockPersonalityService.getPersonality.mockResolvedValue({
+        profile: {
+          name: 'Aria',
+          displayName: 'Aria',
+          avatarUrl: 'https://example.com/aria.png',
+        },
         name: 'Aria',
         fullName: 'Aria',
         displayName: 'Aria',
