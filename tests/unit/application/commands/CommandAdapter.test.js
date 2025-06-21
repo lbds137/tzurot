@@ -68,6 +68,9 @@ describe('CommandAdapter', () => {
       featureFlags: {
         isEnabled: jest.fn(),
       },
+      messageTracker: {
+        track: jest.fn().mockReturnValue(true), // Default to allowing commands
+      },
     };
   });
 
@@ -84,6 +87,7 @@ describe('CommandAdapter', () => {
     describe('handleTextCommand', () => {
       it('should handle valid text command', async () => {
         const mockMessage = {
+          id: '123456789',
           author: { id: 'user123', username: 'testuser' },
           channel: { id: 'channel123' },
           guild: { id: 'guild123' },
@@ -106,8 +110,65 @@ describe('CommandAdapter', () => {
         );
       });
 
+      it('should track messages to prevent duplicates', async () => {
+        const mockMessage = {
+          id: '123456789',
+          author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          guild: { id: 'guild123' },
+          reply: jest.fn().mockResolvedValue({}),
+        };
+
+        await adapter.handleTextCommand(mockMessage, 'test', []);
+
+        expect(mockApplicationServices.messageTracker.track).toHaveBeenCalledWith(
+          '123456789',
+          'ddd-command'
+        );
+      });
+
+      it('should prevent duplicate command execution', async () => {
+        const mockMessage = {
+          id: '123456789',
+          author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          guild: { id: 'guild123' },
+          reply: jest.fn().mockResolvedValue({}),
+        };
+
+        // Simulate duplicate detection
+        mockApplicationServices.messageTracker.track.mockReturnValue(false);
+
+        const result = await adapter.handleTextCommand(mockMessage, 'test', []);
+
+        expect(result).toEqual({ success: true, duplicate: true });
+        expect(testCommand.execute).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          '[DiscordCommandAdapter] Prevented duplicate command processing for message 123456789'
+        );
+      });
+
+      it('should handle missing message tracker gracefully', async () => {
+        const mockMessage = {
+          id: '123456789',
+          author: { id: 'user123' },
+          channel: { id: 'channel123' },
+          guild: { id: 'guild123' },
+          reply: jest.fn().mockResolvedValue({}),
+        };
+
+        // Remove message tracker
+        mockApplicationServices.messageTracker = null;
+
+        const result = await adapter.handleTextCommand(mockMessage, 'test', []);
+
+        expect(result).toBe('Command executed');
+        expect(testCommand.execute).toHaveBeenCalled();
+      });
+
       it('should return null for unknown command', async () => {
         const mockMessage = {
+          id: '123456789',
           author: { id: 'user123' },
           channel: { id: 'channel123' },
           guild: null,
@@ -123,6 +184,7 @@ describe('CommandAdapter', () => {
       it('should handle command execution errors', async () => {
         testCommand.execute.mockRejectedValue(new Error('Command failed'));
         const mockMessage = {
+          id: '123456789',
           author: { id: 'user123' },
           channel: { id: 'channel123' },
           guild: null,
