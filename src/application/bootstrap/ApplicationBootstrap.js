@@ -6,6 +6,7 @@
 const logger = require('../../logger');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
+const RequestTrackingService = require('../services/RequestTrackingService');
 const {
   FilePersonalityRepository,
 } = require('../../adapters/persistence/FilePersonalityRepository');
@@ -92,6 +93,13 @@ class ApplicationBootstrap {
         eventBus: this.eventBus, // Share the same event bus!
       });
 
+      // Create request tracking service for duplicate protection
+      const requestTrackingService = new RequestTrackingService({
+        pendingWindowMs: 10000, // 10 seconds
+        completedWindowMs: 5000, // 5 seconds
+        cleanupIntervalMs: 60000, // 1 minute
+      });
+
       // Create a simple cache interface wrapper for the event handlers
       const profileInfoCache = {
         deleteFromCache: name => profileInfoFetcher.deleteFromCache(name),
@@ -105,6 +113,7 @@ class ApplicationBootstrap {
 
       this.applicationServices = {
         personalityApplicationService,
+        requestTrackingService, // New duplicate protection service
         conversationManager, // Legacy for now
         profileInfoCache, // Legacy for now
         messageTracker, // Legacy for now
@@ -179,6 +188,11 @@ class ApplicationBootstrap {
    */
   async shutdown() {
     logger.info('[ApplicationBootstrap] Shutting down DDD application layer...');
+
+    // Stop request tracking service cleanup timer
+    if (this.applicationServices?.requestTrackingService) {
+      this.applicationServices.requestTrackingService.stopCleanup();
+    }
 
     // Unregister event handlers
     if (this.eventHandlerRegistry) {
