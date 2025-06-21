@@ -264,4 +264,178 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       );
     });
   });
+
+  describe('DDD Feature Flag Integration', () => {
+    let getFeatureFlags;
+    let getPersonalityRouter;
+
+    beforeEach(() => {
+      // Get the mocked functions
+      getFeatureFlags = require('../../src/application/services/FeatureFlags').getFeatureFlags;
+      getPersonalityRouter = require('../../src/application/routers/PersonalityRouter').getPersonalityRouter;
+    });
+
+    it('should use PersonalityRouter when DDD is enabled', async () => {
+      // Enable DDD feature flag
+      const mockFeatureFlags = {
+        isEnabled: jest.fn().mockReturnValue(true),
+      };
+      getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+      // Mock PersonalityRouter response
+      const mockPersonalityRouter = {
+        getPersonality: jest.fn().mockResolvedValue({
+          fullName: 'ddd-personality',
+          displayName: 'DDD Test',
+          errorMessage: 'DDD Error! ||*(an error has occurred)*||',
+        }),
+      };
+      getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+      const result = await analyzeErrorAndGenerateMessage(
+        '',
+        'ddd-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should use PersonalityRouter
+      expect(mockFeatureFlags.isEnabled).toHaveBeenCalledWith('ddd.personality.read');
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('ddd-personality');
+      expect(getPersonality).not.toHaveBeenCalled();
+
+      // Should use DDD personality error message
+      expect(result).toMatch(/DDD Error! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[AIErrorHandler] Using PersonalityRouter for ddd-personality'
+      );
+    });
+
+    it('should use legacy PersonalityManager when DDD is disabled', async () => {
+      // Disable DDD feature flag
+      const mockFeatureFlags = {
+        isEnabled: jest.fn().mockReturnValue(false),
+      };
+      getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+      // Mock legacy personality response
+      getPersonality.mockResolvedValue({
+        fullName: 'legacy-personality',
+        errorMessage: 'Legacy Error! ||*(an error has occurred)*||',
+      });
+
+      const result = await analyzeErrorAndGenerateMessage(
+        '',
+        'legacy-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should use legacy PersonalityManager
+      expect(mockFeatureFlags.isEnabled).toHaveBeenCalledWith('ddd.personality.read');
+      expect(getPersonality).toHaveBeenCalledWith('legacy-personality');
+      
+      // PersonalityRouter should not be called
+      const mockRouter = getPersonalityRouter();
+      expect(mockRouter.getPersonality).not.toHaveBeenCalled();
+
+      // Should use legacy personality error message
+      expect(result).toMatch(/Legacy Error! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[AIErrorHandler] Using legacy PersonalityManager for legacy-personality'
+      );
+    });
+
+    it('should handle missing errorMessage in DDD personality gracefully', async () => {
+      // Enable DDD feature flag
+      const mockFeatureFlags = {
+        isEnabled: jest.fn().mockReturnValue(true),
+      };
+      getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+      // Mock PersonalityRouter response without errorMessage
+      const mockPersonalityRouter = {
+        getPersonality: jest.fn().mockResolvedValue({
+          fullName: 'ddd-personality',
+          displayName: 'DDD Test',
+          // No errorMessage field
+        }),
+      };
+      getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+      const result = await analyzeErrorAndGenerateMessage(
+        '',
+        'ddd-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should log warning about missing errorMessage
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('No errorMessage found in PersonalityRouter response')
+      );
+
+      // Should fall back to default error message
+      expect(result).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference: \w+\)\|\|/);
+    });
+
+    it('should handle PersonalityRouter errors gracefully', async () => {
+      // Enable DDD feature flag
+      const mockFeatureFlags = {
+        isEnabled: jest.fn().mockReturnValue(true),
+      };
+      getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+      // Mock PersonalityRouter to throw error
+      const mockPersonalityRouter = {
+        getPersonality: jest.fn().mockRejectedValue(new Error('Router error')),
+      };
+      getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+      const result = await analyzeErrorAndGenerateMessage(
+        'rate limit',
+        'ddd-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should log the error
+      expect(logger.debug).toHaveBeenCalledWith(
+        '[AIErrorHandler] Could not fetch personality data: Router error'
+      );
+
+      // Should fall back to default rate limit message
+      expect(result).toMatch(/I'm getting too many requests.*\|\|\(Reference: \w+\)\|\|/);
+    });
+
+    it('should use correct error message format from PersonalityRouter', async () => {
+      // Enable DDD feature flag
+      const mockFeatureFlags = {
+        isEnabled: jest.fn().mockReturnValue(true),
+      };
+      getFeatureFlags.mockReturnValue(mockFeatureFlags);
+
+      // Mock PersonalityRouter with different error message format
+      const mockPersonalityRouter = {
+        getPersonality: jest.fn().mockResolvedValue({
+          fullName: 'ddd-personality',
+          displayName: 'DDD Test',
+          errorMessage: 'System malfunction detected ||*(critical failure)*||',
+        }),
+      };
+      getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+      const result = await analyzeErrorAndGenerateMessage(
+        'TypeError: Cannot read property',
+        'ddd-personality',
+        mockContext,
+        mockAddToBlackoutList
+      );
+
+      // Should use DDD personality error message with proper reference
+      expect(result).toMatch(
+        /System malfunction detected \|\|\*\(critical failure; reference: \w+\)\*\|\|/
+      );
+    });
+  });
 });
