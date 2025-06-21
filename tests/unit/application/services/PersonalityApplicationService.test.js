@@ -1454,4 +1454,154 @@ describe('PersonalityApplicationService', () => {
       );
     });
   });
+
+  describe('Display Name Aliasing', () => {
+    it('should automatically create display name alias for external personalities', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
+      
+      // Mock profile fetcher to return a different display name
+      // Note: API returns 'name' which becomes displayName in the profile
+      mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
+        name: 'Lily',  // This becomes displayName in PersonalityProfile.fromApiResponse
+        username: 'lilith-tzel-shani',  // This becomes name
+        avatar_url: 'https://example.com/lily.png',
+      });
+      
+      const command = {
+        name: 'lilith-tzel-shani',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.profile.displayName).toBe('Lily');
+      expect(result.displayNameAlias).toBe('lily');
+      
+      // Verify the display name alias was saved
+      const savedCalls = mockPersonalityRepository.save.mock.calls;
+      const lastSave = savedCalls[savedCalls.length - 1][0];
+      expect(lastSave.aliases.some(a => a.value === 'lily')).toBe(true);
+    });
+
+    it('should automatically create display name alias for local personalities with different display names', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
+      
+      const command = {
+        name: 'test-bot-full-name',
+        ownerId: '123456789012345678',
+        mode: 'local',
+        prompt: 'You are TestBot',
+        modelPath: '/default',
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      // For local personalities, display name equals the name
+      expect(result.profile.displayName).toBe('test-bot-full-name');
+      expect(result.profile.name).toBe('test-bot-full-name');
+      // Display name is same as name, so no alias should be created
+      expect(result.displayNameAlias).toBeUndefined();
+    });
+
+    it('should handle display name alias collisions with smart alternates', async () => {
+      mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
+      
+      // First personality with display name 'Lily'
+      mockProfileFetcher.fetchProfileInfo.mockResolvedValueOnce({
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-tzel-shani',  // This becomes name
+      });
+      
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      
+      const command1 = {
+        name: 'lilith-tzel-shani',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      };
+      
+      await service.registerPersonality(command1);
+      
+      // Mock repository to return existing personality when checking alias
+      mockPersonalityRepository.findByAlias.mockImplementation(alias => {
+        if (alias === 'lily') {
+          return Promise.resolve({ personalityId: { value: 'lilith-tzel-shani' } });
+        }
+        return Promise.resolve(null);
+      });
+      
+      // Second personality with same display name
+      mockProfileFetcher.fetchProfileInfo.mockResolvedValueOnce({
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-sheda-khazra',  // This becomes name
+      });
+      
+      const command2 = {
+        name: 'lilith-sheda-khazra',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      };
+      
+      const result2 = await service.registerPersonality(command2);
+      
+      expect(result2).toBeDefined();
+      expect(result2.displayNameAlias).toBe('lily-sheda'); // Smart alternate
+    });
+
+    it('should not create display name alias if already provided as explicit alias', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
+      
+      mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
+        name: 'Lily',  // This becomes displayName
+        username: 'lilith-tzel-shani',  // This becomes name
+      });
+      
+      const command = {
+        name: 'lilith-tzel-shani',
+        ownerId: '123456789012345678',
+        mode: 'external',
+        aliases: ['lily'], // Explicitly providing display name as alias
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.displayNameAlias).toBeUndefined(); // Should not duplicate
+    });
+
+    it('should create display name alias for external personality fetched from API', async () => {
+      mockPersonalityRepository.findByName.mockResolvedValue(null);
+      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.save.mockImplementation(p => Promise.resolve(p));
+      
+      // Mock API response with display name different from full name
+      mockProfileFetcher.fetchProfileInfo.mockResolvedValue({
+        name: 'TestDisplay',  // This becomes displayName
+        username: 'test-full-name',  // This becomes name
+        avatar_url: 'https://example.com/test.png',
+      });
+      
+      const command = {
+        name: 'test-full-name',
+        ownerId: '123456789012345678',
+        mode: 'external',
+      };
+
+      const result = await service.registerPersonality(command);
+
+      expect(result).toBeDefined();
+      expect(result.profile.displayName).toBe('TestDisplay');
+      expect(result.displayNameAlias).toBe('testdisplay');
+    });
+  });
 });

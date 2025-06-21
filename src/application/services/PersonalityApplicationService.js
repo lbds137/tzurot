@@ -163,13 +163,14 @@ class PersonalityApplicationService {
       // Save to repository
       await this.personalityRepository.save(personality);
 
-      // For external personalities, automatically add display name as an alias if it differs from the full name
-      if (mode === 'external' && personality.profile && personality.profile.displayName) {
+      // Automatically add display name as an alias if it differs from the full name
+      let displayNameAlias = null;
+      if (personality.profile && personality.profile.displayName) {
         const displayNameLower = personality.profile.displayName.toLowerCase();
         const fullNameLower = name.toLowerCase();
 
         if (displayNameLower !== fullNameLower && !aliases.includes(displayNameLower)) {
-          await this._setDisplayNameAlias(displayNameLower, fullNameLower, personality);
+          displayNameAlias = await this._setDisplayNameAlias(displayNameLower, fullNameLower, personality);
         }
       }
 
@@ -186,6 +187,11 @@ class PersonalityApplicationService {
       // Include alternate aliases in the result for the command to use
       if (alternateAliases.length > 0) {
         personality.alternateAliases = alternateAliases;
+      }
+      
+      // Include display name alias if one was automatically created
+      if (displayNameAlias) {
+        personality.displayNameAlias = displayNameAlias;
       }
       
       return personality;
@@ -698,7 +704,7 @@ class PersonalityApplicationService {
    * @param {string} displayNameLower - The display name in lowercase
    * @param {string} fullNameLower - The full personality name in lowercase
    * @param {Personality} personality - The personality to add alias to
-   * @returns {Promise<void>}
+   * @returns {Promise<string|null>} The alias that was set (original or alternate)
    */
   async _setDisplayNameAlias(displayNameLower, fullNameLower, personality) {
     try {
@@ -711,25 +717,15 @@ class PersonalityApplicationService {
       ) {
         // Alias is taken by another personality, create a smarter alias using parts of the full name
         const nameParts = fullNameLower.split('-');
-        const aliasParts = displayNameLower.split('-');
 
         let alternateAlias = displayNameLower;
 
-        // If the personality name has more parts than the alias, try adding the next part
-        if (nameParts.length > aliasParts.length) {
-          // Find which part of the name corresponds to the alias
-          let matchIndex = -1;
-          for (let i = 0; i < nameParts.length; i++) {
-            if (nameParts[i] === aliasParts[0]) {
-              matchIndex = i;
-              break;
-            }
-          }
-
-          // If we found a match and there's a next part, use it
-          if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
-            alternateAlias = `${displayNameLower}-${nameParts[matchIndex + 1]}`;
-          }
+        // For display name aliases, we want to add parts from the full name to disambiguate
+        // This matches the legacy behavior from DISPLAY_NAME_ALIASES.md
+        if (nameParts.length > 1) {
+          // Try to create a meaningful alias by appending the second part of the full name
+          // Example: "lilith" + "sheda" from "lilith-sheda-khazra"
+          alternateAlias = `${displayNameLower}-${nameParts[1]}`;
         }
 
         // If the smart alias is still taken or we couldn't create one, fall back to random
@@ -755,6 +751,7 @@ class PersonalityApplicationService {
         logger.info(
           `[PersonalityApplicationService] Created alternate alias "${alternateAlias}" for ${fullNameLower} ("${displayNameLower}" was taken)`
         );
+        return alternateAlias;
       } else {
         // Alias is available, use it directly
         const alias = new Alias(displayNameLower);
@@ -763,11 +760,13 @@ class PersonalityApplicationService {
         logger.info(
           `[PersonalityApplicationService] Automatically added display name alias "${displayNameLower}" for ${fullNameLower}`
         );
+        return displayNameLower;
       }
     } catch (error) {
       logger.warn(
         `[PersonalityApplicationService] Failed to set display name alias: ${error.message}`
       );
+      return null;
     }
   }
 
