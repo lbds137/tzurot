@@ -26,6 +26,24 @@ jest.mock('../../../../src/auth');
 jest.mock('../../../../src/utils/webhookUserTracker');
 jest.mock('../../../../src/utils/channelUtils');
 jest.mock('../../../../src/core/personality/PersonalityManager');
+jest.mock('../../../../src/application/services/RequestTrackingService', () => {
+  return jest.fn().mockImplementation((options = {}) => ({
+    pendingRequests: new Map(),
+    completedRequests: new Map(),
+    messageProcessing: new Set(),
+    checkRequest: jest.fn().mockReturnValue({ canProceed: true }),
+    startRequest: jest.fn(),
+    completeRequest: jest.fn(),
+    failRequest: jest.fn(),
+    isMessageBeingProcessed: jest.fn().mockReturnValue(false),
+    startMessageProcessing: jest.fn(),
+    endMessageProcessing: jest.fn(),
+    cleanup: jest.fn(),
+    stopCleanup: jest.fn(),
+    getStats: jest.fn().mockReturnValue({ pendingRequests: 0, completedRequests: 0, processingMessages: 0 }),
+    clear: jest.fn(),
+  }));
+});
 
 const {
   ApplicationBootstrap,
@@ -68,6 +86,7 @@ describe('ApplicationBootstrap', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
 
     // Mock event bus
     mockEventBus = {
@@ -141,6 +160,7 @@ describe('ApplicationBootstrap', () => {
 
   afterEach(() => {
     resetApplicationBootstrap();
+    jest.useRealTimers();
   });
 
   describe('Initialization', () => {
@@ -256,6 +276,7 @@ describe('ApplicationBootstrap', () => {
 
       expect(services).toEqual({
         personalityApplicationService: expect.any(Object),
+        requestTrackingService: expect.any(Object),
         conversationManager: mockConversationManager,
         profileInfoCache: expect.any(Object),
         messageTracker: expect.any(Object),
@@ -350,16 +371,14 @@ describe('ApplicationBootstrap', () => {
 
       resetApplicationBootstrap();
 
-      // Wait for async error handling using a Promise-based approach
-      await new Promise(resolve => {
-        setTimeout(() => {
-          expect(logger.error).toHaveBeenCalledWith(
-            '[ApplicationBootstrap] Error during reset shutdown:',
-            expect.any(Error)
-          );
-          resolve();
-        }, 10);
-      });
+      // Wait for async error handling
+      await Promise.resolve(); // Let promises settle
+      jest.runAllTimers(); // Run any pending timers
+      
+      expect(logger.error).toHaveBeenCalledWith(
+        '[ApplicationBootstrap] Error during reset shutdown:',
+        expect.any(Error)
+      );
     });
   });
 
