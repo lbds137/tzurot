@@ -43,9 +43,35 @@ function createInfoCommand() {
         } else {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
-            return await context.respond(
-              `You need to provide a personality name or alias. Usage: \`${context.commandPrefix || '!tz'} info <name>\``
-            );
+            const usageEmbed = {
+              title: 'How to Get Personality Info',
+              description: 'View detailed information about a personality.',
+              color: 0x2196f3, // Blue color
+              fields: [
+                {
+                  name: 'Basic Usage',
+                  value: `\`${context.commandPrefix || '!tz'} info <name>\``,
+                  inline: false,
+                },
+                {
+                  name: 'Examples',
+                  value:
+                    `• \`${context.commandPrefix || '!tz'} info Claude\` - View by name\n` +
+                    `• \`${context.commandPrefix || '!tz'} info cl\` - View by alias\n` +
+                    `• \`${context.commandPrefix || '!tz'} info "My Assistant"\` - View with spaces`,
+                  inline: false,
+                },
+                {
+                  name: 'Parameters',
+                  value: "• **name**: The personality's name or alias",
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Shows all details including aliases and owner information',
+              },
+            };
+            return await context.respond({ embeds: [usageEmbed] });
           }
 
           // Join all arguments to support multi-word aliases
@@ -54,7 +80,19 @@ function createInfoCommand() {
 
         // Validate input
         if (!personalityNameOrAlias || personalityNameOrAlias.length === 0) {
-          return await context.respond('Please provide a personality name or alias.');
+          const errorEmbed = {
+            title: '❌ Missing Personality Name',
+            description: 'Please provide a personality name or alias.',
+            color: 0xf44336, // Red color
+            fields: [
+              {
+                name: 'What to provide',
+                value: '• The personality\'s name (e.g., "Claude")\n• Or an alias (e.g., "cl")',
+                inline: false,
+              },
+            ],
+          };
+          return await context.respond({ embeds: [errorEmbed] });
         }
 
         // Check if using new system
@@ -65,30 +103,56 @@ function createInfoCommand() {
         );
 
         try {
-          // Get the personality
+          // Get the personality by name or alias first
           const personality = await personalityService.getPersonality(personalityNameOrAlias);
 
           if (!personality) {
-            return await context.respond(
-              `Personality "${personalityNameOrAlias}" not found. Please check the name or alias and try again.`
-            );
+            const notFoundEmbed = {
+              title: '❌ Personality Not Found',
+              description: `No personality found with the name or alias "${personalityNameOrAlias}".`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What to check',
+                  value:
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `' +
+                    (context.commandPrefix || '!tz') +
+                    ' list` command to see available personalities',
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personality names are case-insensitive',
+              },
+            };
+            return await context.respond({ embeds: [notFoundEmbed] });
           }
 
-          // Create embed fields
+          // Refresh profile data if needed (for external personalities)
+          let refreshedPersonality = personality;
+          if (personality.profile?.mode === 'external') {
+            refreshedPersonality =
+              (await personalityService.getPersonalityWithProfile(
+                personality.profile.name,
+                context.getUserId()
+              )) || personality;
+          }
+
+          // Create embed fields using the refreshed personality
           const fields = [
-            { name: 'Full Name', value: personality.profile.name, inline: true },
+            { name: 'Full Name', value: refreshedPersonality.profile.name, inline: true },
             {
               name: 'Display Name',
-              value: personality.profile.displayName || 'Not set',
+              value: refreshedPersonality.profile.displayName || 'Not set',
               inline: true,
             },
           ];
 
           // Add user's aliases (in new system, aliases are global not per-user)
-          if (personality.aliases && personality.aliases.length > 0) {
+          if (refreshedPersonality.aliases && refreshedPersonality.aliases.length > 0) {
             fields.push({
               name: 'Aliases',
-              value: personality.aliases.map(a => a.value || a.alias).join(', '),
+              value: refreshedPersonality.aliases.map(a => a.value || a.alias).join(', '),
               inline: true,
             });
           } else {
@@ -100,10 +164,10 @@ function createInfoCommand() {
           }
 
           // Add owner information if available
-          if (personality.profile.owner) {
+          if (refreshedPersonality.ownerId) {
             fields.push({
               name: 'Created By',
-              value: `<@${personality.profile.owner.value || personality.profile.owner}>`,
+              value: `<@${refreshedPersonality.ownerId.value || refreshedPersonality.ownerId}>`,
               inline: true,
             });
           }
@@ -127,14 +191,14 @@ function createInfoCommand() {
           // Create the response
           const embedData = {
             title: 'Personality Info',
-            description: `Information for **${personality.profile.displayName || personality.profile.name}**`,
+            description: `Information for **${refreshedPersonality.profile.displayName || refreshedPersonality.profile.name}**`,
             color: 0x2196f3,
             fields: fields,
           };
 
           // Add avatar if available
-          if (personality.avatarUrl) {
-            embedData.thumbnail = { url: personality.avatarUrl };
+          if (refreshedPersonality.profile?.avatarUrl) {
+            embedData.thumbnail = { url: refreshedPersonality.profile.avatarUrl };
           }
 
           return await context.respond({ embeds: [embedData] });
@@ -145,10 +209,30 @@ function createInfoCommand() {
       } catch (error) {
         logger.error('[InfoCommand] Error:', error);
 
-        return await context.respond(
-          '❌ An error occurred while getting personality info. ' +
-            'Please try again later or contact support if the issue persists.'
-        );
+        const genericErrorEmbed = {
+          title: '❌ Something Went Wrong',
+          description: 'An error occurred while getting personality info.',
+          color: 0xf44336, // Red color
+          fields: [
+            {
+              name: 'What happened',
+              value: error.message || 'Unknown error',
+              inline: false,
+            },
+            {
+              name: 'What to do',
+              value:
+                '• Try again in a moment\n• Check the personality name\n• Contact support if the issue persists',
+              inline: false,
+            },
+          ],
+          footer: {
+            text: `Error ID: ${Date.now()}`,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        return await context.respond({ embeds: [genericErrorEmbed] });
       }
     },
   });
