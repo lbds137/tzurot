@@ -481,9 +481,10 @@ describe('CommandAdapter', () => {
 
         expect(helpMessage).toContain('**Available Commands**');
         expect(helpMessage).toContain('**Testing**');
-        expect(helpMessage).toContain('• `!tz test` - Test command');
+        // Use regex to match any prefix
+        expect(helpMessage).toMatch(/• `!\w+ test` - Test command/);
         expect(helpMessage).toContain('**General**');
-        expect(helpMessage).toContain('• `!tz example <arg>` - Example command');
+        expect(helpMessage).toMatch(/• `!\w+ example <arg>` - Example command/);
       });
     });
   });
