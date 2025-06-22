@@ -287,6 +287,68 @@ class FilePersonalityRepository extends PersonalityRepository {
   }
 
   /**
+   * Find personality by name or alias with proper resolution order
+   * @param {string} nameOrAlias - Name or alias to search for
+   * @returns {Promise<Personality|null>}
+   */
+  async findByNameOrAlias(nameOrAlias) {
+    await this._ensureInitialized();
+
+    try {
+      const normalized = nameOrAlias.toLowerCase();
+      
+      // Log for debugging
+      logger.debug(`[FilePersonalityRepository] findByNameOrAlias called with: ${nameOrAlias}`);
+      
+      // Check if cache is initialized
+      if (!this._cache || !this._cache.personalities) {
+        logger.warn('[FilePersonalityRepository] Cache not initialized in findByNameOrAlias');
+        return null;
+      }
+
+      // 1. First check for exact name match (profile.name or personality ID)
+      for (const data of Object.values(this._cache.personalities)) {
+        if (data.removed) continue;
+
+        // Check exact name match
+        if (
+          data.profile?.name?.toLowerCase() === normalized ||
+          data.id?.toLowerCase() === normalized ||
+          data.personalityId?.toLowerCase() === normalized
+        ) {
+          return this._hydrate(data);
+        }
+      }
+
+      // 2. Then check explicit aliases (global alias mapping)
+      const personalityId = Object.entries(this._cache.aliases).find(
+        ([key]) => key.toLowerCase() === normalized
+      )?.[1];
+
+      if (personalityId) {
+        const data = this._cache.personalities[personalityId];
+        if (data && !data.removed) {
+          return this._hydrate(data);
+        }
+      }
+
+      // 3. Finally check display names as a fallback
+      for (const data of Object.values(this._cache.personalities)) {
+        if (data.removed) continue;
+
+        if (data.profile?.displayName?.toLowerCase() === normalized) {
+          return this._hydrate(data);
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('[FilePersonalityRepository] Failed to find by name or alias:', error);
+      throw new Error(`Failed to find personality: ${error.message}`);
+    }
+  }
+
+  /**
    * Get all personalities
    * @returns {Promise<Personality[]>}
    */
