@@ -88,7 +88,7 @@ class PersonalityApplicationService {
       // Process aliases with collision handling
       const processedAliases = [];
       const alternateAliases = [];
-      
+
       for (const requestedAlias of aliases) {
         const aliasResult = await this._processAliasWithCollisionHandling(requestedAlias, name);
         if (aliasResult.alias) {
@@ -105,13 +105,14 @@ class PersonalityApplicationService {
 
       let personality;
       if (mode === 'external') {
-        // External mode - fetch profile from API immediately
+        // External mode - must validate personality exists in API
         let profile;
+        let apiData;
 
         // Try to fetch profile data from API
         if (this.profileFetcher) {
           try {
-            const apiData = await this.profileFetcher.fetchProfileInfo(name);
+            apiData = await this.profileFetcher.fetchProfileInfo(name);
             if (apiData) {
               profile = PersonalityProfile.fromApiResponse(apiData);
               logger.info(
@@ -125,13 +126,15 @@ class PersonalityApplicationService {
           }
         }
 
-        // Fallback to basic external profile if fetch failed
+        // For external mode, personality MUST exist in API
+        if (!apiData) {
+          throw new Error(
+            `Personality "${name}" does not exist. Please check the spelling and try again.`
+          );
+        }
+
         if (!profile) {
-          profile = new PersonalityProfile({
-            mode: 'external',
-            name: name,
-            displayName: name,
-          });
+          profile = PersonalityProfile.fromApiResponse(apiData);
         }
 
         // For external mode, we don't need AI model
@@ -170,7 +173,11 @@ class PersonalityApplicationService {
         const fullNameLower = name.toLowerCase();
 
         if (displayNameLower !== fullNameLower && !aliases.includes(displayNameLower)) {
-          displayNameAlias = await this._setDisplayNameAlias(displayNameLower, fullNameLower, personality);
+          displayNameAlias = await this._setDisplayNameAlias(
+            displayNameLower,
+            fullNameLower,
+            personality
+          );
         }
       }
 
@@ -183,17 +190,17 @@ class PersonalityApplicationService {
       });
 
       logger.info(`[PersonalityApplicationService] Successfully registered personality: ${name}`);
-      
+
       // Include alternate aliases in the result for the command to use
       if (alternateAliases.length > 0) {
         personality.alternateAliases = alternateAliases;
       }
-      
+
       // Include display name alias if one was automatically created
       if (displayNameAlias) {
         personality.displayNameAlias = displayNameAlias;
       }
-      
+
       return personality;
     } catch (error) {
       logger.error(
@@ -629,22 +636,22 @@ class PersonalityApplicationService {
   async _processAliasWithCollisionHandling(requestedAlias, personalityName) {
     try {
       const aliasLower = requestedAlias.toLowerCase();
-      
+
       // Check if alias already exists
       const existingPersonality = await this.personalityRepository.findByAlias(aliasLower);
-      
+
       if (!existingPersonality) {
         // Alias is available
         return { alias: aliasLower, wasAlternate: false };
       }
-      
+
       // Alias is taken, create a smart alternate
       const nameLower = personalityName.toLowerCase();
       const nameParts = nameLower.split('-');
       const aliasParts = aliasLower.split('-');
-      
+
       let alternateAlias = aliasLower;
-      
+
       // Try to create a smart alias using parts of the personality name
       if (nameParts.length > 1 && !aliasLower.includes(nameParts[nameParts.length - 1])) {
         // Add the last part of the personality name
@@ -658,7 +665,7 @@ class PersonalityApplicationService {
             break;
           }
         }
-        
+
         if (matchIndex >= 0 && matchIndex + 1 < nameParts.length) {
           alternateAlias = `${aliasLower}-${nameParts[matchIndex + 1]}`;
         }
@@ -666,12 +673,13 @@ class PersonalityApplicationService {
         // If alias doesn't include the personality name, append it
         alternateAlias = `${aliasLower}-${nameLower}`;
       }
-      
+
       // Check if the smart alias is available
-      const smartAliasTaken = alternateAlias === aliasLower 
-        ? true 
-        : await this.personalityRepository.findByAlias(alternateAlias);
-      
+      const smartAliasTaken =
+        alternateAlias === aliasLower
+          ? true
+          : await this.personalityRepository.findByAlias(alternateAlias);
+
       if (alternateAlias === aliasLower || smartAliasTaken) {
         // Fall back to random suffix
         const chars = 'abcdefghijklmnopqrstuvwxyz';
@@ -681,16 +689,14 @@ class PersonalityApplicationService {
         }
         alternateAlias = `${aliasLower}-${randomSuffix}`;
       }
-      
+
       logger.info(
         `[PersonalityApplicationService] Alias "${aliasLower}" is taken, using alternate: "${alternateAlias}"`
       );
-      
+
       return { alias: alternateAlias, wasAlternate: true };
     } catch (error) {
-      logger.error(
-        `[PersonalityApplicationService] Error processing alias: ${error.message}`
-      );
+      logger.error(`[PersonalityApplicationService] Error processing alias: ${error.message}`);
       return { alias: null, wasAlternate: false };
     }
   }
@@ -780,7 +786,9 @@ class PersonalityApplicationService {
       // Find the personality
       const personality = await this.personalityRepository.findByName(personalityName);
       if (!personality) {
-        logger.warn(`[PersonalityApplicationService] Personality not found for avatar preload: ${personalityName}`);
+        logger.warn(
+          `[PersonalityApplicationService] Personality not found for avatar preload: ${personalityName}`
+        );
         return;
       }
 
@@ -792,9 +800,12 @@ class PersonalityApplicationService {
 
       // Preload the avatar
       await preloadPersonalityAvatar(personalityData, userId);
-      
+
       // If the avatar was set/updated during preload, save the personality
-      if (personalityData.avatarUrl && personalityData.avatarUrl !== personality.profile.avatarUrl) {
+      if (
+        personalityData.avatarUrl &&
+        personalityData.avatarUrl !== personality.profile.avatarUrl
+      ) {
         personality.profile.avatarUrl = personalityData.avatarUrl;
         await this.personalityRepository.save(personality);
         logger.info(`[PersonalityApplicationService] Updated avatar URL for: ${personalityName}`);

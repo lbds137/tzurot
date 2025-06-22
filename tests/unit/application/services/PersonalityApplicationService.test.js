@@ -53,6 +53,7 @@ describe('PersonalityApplicationService', () => {
     mockPersonalityRepository = {
       findByName: jest.fn(),
       findByAlias: jest.fn(),
+      findByNameOrAlias: jest.fn(),
       findByOwner: jest.fn(),
       findAll: jest.fn(),
       save: jest.fn().mockResolvedValue(undefined),
@@ -224,6 +225,23 @@ describe('PersonalityApplicationService', () => {
         const result = await service.registerPersonality(commandWithoutMode);
 
         expect(result.profile.mode).toBe('external');
+      });
+
+      it('should reject external personality that does not exist in API', async () => {
+        mockPersonalityRepository.findByName.mockResolvedValue(null);
+        mockProfileFetcher.fetchProfileInfo.mockResolvedValue(null); // API returns no data
+
+        const command = {
+          name: 'NonExistentBot',
+          ownerId: '123456789012345678',
+          mode: 'external',
+        };
+
+        await expect(service.registerPersonality(command)).rejects.toThrow(
+          'Personality "NonExistentBot" does not exist. Please check the spelling and try again.'
+        );
+
+        expect(mockPersonalityRepository.save).not.toHaveBeenCalled();
       });
 
       it('should generate unique alias when display name conflicts during seeding', async () => {
@@ -821,33 +839,44 @@ describe('PersonalityApplicationService', () => {
       personality.addAlias(new Alias('TB'));
     });
 
-    it('should find personality by name', async () => {
-      mockPersonalityRepository.findByName.mockResolvedValue(personality);
+    it('should find personality using findByNameOrAlias', async () => {
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
 
       const result = await service.getPersonality('TestBot');
 
       expect(result).toBe(personality);
-      expect(mockPersonalityRepository.findByName).toHaveBeenCalledWith('TestBot');
+      expect(mockPersonalityRepository.findByNameOrAlias).toHaveBeenCalledWith('TestBot');
+      // Should not use old methods
+      expect(mockPersonalityRepository.findByName).not.toHaveBeenCalled();
       expect(mockPersonalityRepository.findByAlias).not.toHaveBeenCalled();
     });
 
-    it('should find personality by alias if not found by name', async () => {
-      mockPersonalityRepository.findByName.mockResolvedValue(null);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(personality);
+    it('should find personality by alias using findByNameOrAlias', async () => {
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
 
       const result = await service.getPersonality('TB');
 
       expect(result).toBe(personality);
-      expect(mockPersonalityRepository.findByAlias).toHaveBeenCalledWith('TB');
+      expect(mockPersonalityRepository.findByNameOrAlias).toHaveBeenCalledWith('TB');
     });
 
     it('should return null if not found', async () => {
-      mockPersonalityRepository.findByName.mockResolvedValue(null);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(null);
 
       const result = await service.getPersonality('Unknown');
 
       expect(result).toBeNull();
+      expect(mockPersonalityRepository.findByNameOrAlias).toHaveBeenCalledWith('Unknown');
+    });
+
+    it('should handle errors and re-throw them', async () => {
+      mockPersonalityRepository.findByNameOrAlias.mockRejectedValue(new Error('Database error'));
+
+      await expect(service.getPersonality('TestBot')).rejects.toThrow('Database error');
+      
+      expect(logger.error).toHaveBeenCalledWith(
+        '[PersonalityApplicationService] Failed to get personality: Database error'
+      );
     });
   });
 
@@ -992,8 +1021,7 @@ describe('PersonalityApplicationService', () => {
     });
 
     it('should grant permission to owner', async () => {
-      mockPersonalityRepository.findByName.mockResolvedValue(personality);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
 
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
@@ -1006,8 +1034,7 @@ describe('PersonalityApplicationService', () => {
 
     it('should grant permission to authenticated user', async () => {
       const otherUserId = '999999999999999999';
-      mockPersonalityRepository.findByName.mockResolvedValue(personality);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
 
       const mockUserAuth = {
         isAuthenticated: jest.fn().mockReturnValue(true),
@@ -1025,8 +1052,7 @@ describe('PersonalityApplicationService', () => {
 
     it('should deny permission to unauthenticated user', async () => {
       const otherUserId = '999999999999999999';
-      mockPersonalityRepository.findByName.mockResolvedValue(personality);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
 
       const mockUserAuth = {
         isAuthenticated: jest.fn().mockReturnValue(false),
@@ -1042,8 +1068,7 @@ describe('PersonalityApplicationService', () => {
     });
 
     it('should deny permission if personality not found', async () => {
-      mockPersonalityRepository.findByName.mockResolvedValue(null);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(null);
 
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
@@ -1055,8 +1080,7 @@ describe('PersonalityApplicationService', () => {
 
     it('should deny permission if no user auth found', async () => {
       const otherUserId = '999999999999999999';
-      mockPersonalityRepository.findByName.mockResolvedValue(personality);
-      mockPersonalityRepository.findByAlias.mockResolvedValue(null);
+      mockPersonalityRepository.findByNameOrAlias.mockResolvedValue(personality);
       mockAuthenticationRepository.findByUserId.mockResolvedValue(null);
 
       const hasPermission = await localService.checkPermission({
@@ -1068,7 +1092,7 @@ describe('PersonalityApplicationService', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      mockPersonalityRepository.findByName.mockRejectedValue(new Error('DB error'));
+      mockPersonalityRepository.findByNameOrAlias.mockRejectedValue(new Error('DB error'));
 
       const hasPermission = await localService.checkPermission({
         userId: ownerId,
