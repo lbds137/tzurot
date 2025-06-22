@@ -818,6 +818,38 @@ describe('PersonalityApplicationService', () => {
         })
       ).rejects.toThrow('Only the owner can remove a personality');
     });
+
+    it('should allow bot owner to remove any personality', async () => {
+      // Mock constants to set bot owner ID
+      jest.doMock('../../../../src/constants', () => ({
+        USER_CONFIG: {
+          OWNER_ID: '888888888888888888',
+        },
+      }));
+
+      // Create service with mocked constants
+      const localService = new PersonalityApplicationService({
+        personalityRepository: mockPersonalityRepository,
+        aiService: mockAiService,
+        authenticationRepository: mockAuthenticationRepository,
+        eventBus: mockEventBus,
+        profileFetcher: mockProfileFetcher,
+      });
+
+      mockPersonalityRepository.findByName.mockResolvedValue(existingPersonality);
+
+      await localService.removePersonality({
+        personalityName: 'TestBot',
+        requesterId: '888888888888888888', // Bot owner ID
+      });
+
+      expect(existingPersonality.isRemoved).toBe(true);
+      expect(mockPersonalityRepository.save).toHaveBeenCalled();
+      expect(mockPersonalityRepository.delete).toHaveBeenCalled();
+
+      // Clean up mock
+      jest.dontMock('../../../../src/constants');
+    });
   });
 
   describe('getPersonality', () => {

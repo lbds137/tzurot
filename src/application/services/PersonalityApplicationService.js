@@ -280,8 +280,9 @@ class PersonalityApplicationService {
         throw new Error(`Personality "${personalityName}" not found`);
       }
 
-      // Verify ownership
-      if (personality.ownerId.toString() !== requesterId) {
+      // Verify ownership - allow bot owner to update any personality
+      const isBotOwner = requesterId === require('../../constants').USER_CONFIG.OWNER_ID;
+      if (personality.ownerId.toString() !== requesterId && !isBotOwner) {
         throw new Error('Only the owner can update a personality');
       }
 
@@ -338,8 +339,9 @@ class PersonalityApplicationService {
         throw new Error(`Personality "${personalityName}" not found`);
       }
 
-      // Verify ownership
-      if (personality.ownerId.toString() !== requesterId) {
+      // Verify ownership - allow bot owner to add aliases to any personality
+      const isBotOwner = requesterId === require('../../constants').USER_CONFIG.OWNER_ID;
+      if (personality.ownerId.toString() !== requesterId && !isBotOwner) {
         throw new Error('Only the owner can add aliases');
       }
 
@@ -411,8 +413,9 @@ class PersonalityApplicationService {
         throw new Error(`Personality "${personalityName}" not found`);
       }
 
-      // Verify ownership
-      if (personality.ownerId.toString() !== requesterId) {
+      // Verify ownership - allow bot owner to remove aliases from any personality
+      const isBotOwner = requesterId === require('../../constants').USER_CONFIG.OWNER_ID;
+      if (personality.ownerId.toString() !== requesterId && !isBotOwner) {
         throw new Error('Only the owner can remove aliases');
       }
 
@@ -453,8 +456,9 @@ class PersonalityApplicationService {
         throw new Error(`Personality "${personalityName}" not found`);
       }
 
-      // Verify ownership
-      if (personality.ownerId.toString() !== requesterId) {
+      // Verify ownership - allow bot owner to remove any personality
+      const isBotOwner = requesterId === require('../../constants').USER_CONFIG.OWNER_ID;
+      if (personality.ownerId.toString() !== requesterId && !isBotOwner) {
         throw new Error('Only the owner can remove a personality');
       }
 
