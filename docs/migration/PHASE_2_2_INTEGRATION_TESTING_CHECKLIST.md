@@ -22,10 +22,10 @@ For each command, test:
 ### Personality Management Commands
 
 #### 1. Add Command (`!tz add <name> [alias]`)
-- [ ] **Basic**: Add personality without alias
-- [ ] **Basic**: Add personality with alias
-- [ ] **Feature**: Avatar preloading works (check bot logs)
-- [ ] **Feature**: Duplicate protection prevents rapid re-adds
+- [x] **Basic**: Add personality without alias
+- [x] **Basic**: Add personality with alias ⚠️ **ISSUE FOUND & FIXED**: Hardcoded bot prefixes in help messages
+- [X] **Feature**: Avatar preloading works (check bot logs)
+- [X] **Feature**: Duplicate protection prevents rapid re-adds
 - [ ] **Feature**: Alias collision generates smart alternative
 - [ ] **Feature**: Display name auto-aliasing works
 - [ ] **Error**: Invalid personality name
@@ -185,8 +185,8 @@ For each command, test:
 
 ## Test Results Summary
 
-**Total Commands Tested**: 1/19  
-**Issues Found**: 1 (Fixed)  
+**Total Commands Tested**: 2/19  
+**Issues Found**: 2 (Both Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -196,6 +196,11 @@ For each command, test:
    - Root cause: Calculating difference between two immediate Date.now() calls
    - Fix: Changed to use `client.ws.ping` for actual latency
    - Commit: `1d1f65e`
+
+2. **Add Command (Fixed)** - Hardcoded bot prefixes in help messages and instructions
+   - Root cause: Commands hardcoding '!tz' instead of using configured prefix
+   - Fix: Updated all DDD commands to use `context.commandPrefix || '!tz'`
+   - Commit: `f886b1e`
 
 ### Notes
 

@@ -481,14 +481,11 @@ class PersonalityApplicationService {
    */
   async getPersonality(nameOrAlias) {
     try {
-      // Try to find by name first
-      let personality = await this.personalityRepository.findByName(nameOrAlias);
-
-      // If not found, try by alias
-      if (!personality) {
-        personality = await this.personalityRepository.findByAlias(nameOrAlias);
-      }
-
+      // Use the new resolution method that checks in the correct order:
+      // 1. Exact name match
+      // 2. Explicit aliases
+      // 3. Display name (as fallback)
+      const personality = await this.personalityRepository.findByNameOrAlias(nameOrAlias);
       return personality;
     } catch (error) {
       logger.error(`[PersonalityApplicationService] Failed to get personality: ${error.message}`);
