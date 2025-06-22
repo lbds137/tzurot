@@ -41,12 +41,12 @@ For each command, test:
 - [x] **Feature**: Shows dynamic prefix in messages ⚠️ **ISSUE FOUND & FIXED**: Was hardcoding !tz
 - [x] **Feature**: Avatar thumbnail displayed in embed ⚠️ **ISSUE FOUND & FIXED**: Missing thumbnail
 - [X] **Error**: Non-existent personality
-- [ ] **Error**: Cannot remove others' personalities
+- [X] **Error**: Cannot remove others' personalities
 - [x] **Performance**: Response time < 1s
 
 #### 3. List Command (`!tz list`)
 - [X] **Basic**: Shows all user's personalities
-- [ ] **Basic**: Shows aliases correctly
+- [X] **Basic**: Shows aliases correctly
 - [ ] **Basic**: Empty list handled gracefully
 - [X] **Feature**: Pagination for many personalities
 - [X] **Performance**: Response time < 1s
@@ -56,14 +56,14 @@ For each command, test:
 - [x] **Basic**: Works with alias ✅ Tested with Lilith personalities
 - [x] **Feature**: Shows all relevant information
 - [x] **Feature**: Avatar thumbnail displayed in embed ⚠️ **ISSUE FOUND & FIXED**: Missing thumbnail
-- [ ] **Error**: Non-existent personality
+- [X] **Error**: Non-existent personality
 - [x] **Performance**: Response time < 1s
 
 #### 5. Alias Command (`!tz alias <name> <alias>`)
 - [ ] **Basic**: Add alias to personality
 - [ ] **Basic**: Remove alias (using remove syntax)
 - [ ] **Feature**: Alias collision handling
-- [ ] **Error**: Non-existent personality
+- [X] **Error**: Non-existent personality
 - [ ] **Error**: Duplicate alias
 - [ ] **Performance**: Response time < 1s
 
