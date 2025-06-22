@@ -115,8 +115,8 @@ For each command, test:
 - [ ] **Performance**: Response time < 1s
 
 #### 13. Ping Command (`!tz ping`)
-- [ ] **Basic**: Returns pong with latency
-- [ ] **Performance**: Response time < 500ms
+- [x] **Basic**: Returns pong with latency ⚠️ **ISSUE FOUND & FIXED**: Was showing 0ms, now uses actual Discord websocket ping
+- [x] **Performance**: Response time < 500ms
 
 #### 14. Status Command (`!tz status`)
 - [ ] **Basic**: Shows bot statistics
@@ -185,14 +185,17 @@ For each command, test:
 
 ## Test Results Summary
 
-**Total Commands Tested**: 0/19  
-**Issues Found**: 0  
+**Total Commands Tested**: 1/19  
+**Issues Found**: 1 (Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
 ### Issues Log
 
-<!-- Record any issues found during testing -->
+1. **Ping Command (Fixed)** - Was showing 0ms latency instead of actual Discord websocket ping
+   - Root cause: Calculating difference between two immediate Date.now() calls
+   - Fix: Changed to use `client.ws.ping` for actual latency
+   - Commit: `1d1f65e`
 
 ### Notes
 
