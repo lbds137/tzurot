@@ -1021,4 +1021,229 @@ describe('FilePersonalityRepository', () => {
       await expect(repository.save(personality)).rejects.toThrow('Failed to save personality');
     });
   });
+
+  describe('findByNameOrAlias', () => {
+    beforeEach(async () => {
+      // Set up test data with multiple personalities for alias testing
+      mockFileData = {
+        personalities: {
+          'test-personality': {
+            id: 'test-personality',
+            personalityId: 'test-personality',
+            ownerId: '123456789012345678',
+            profile: {
+              mode: 'local',
+              name: 'test-personality',
+              displayName: 'Test Bot',
+              avatarUrl: 'https://example.com/avatar.png',
+            },
+            model: {
+              name: 'default',
+              path: '/default'
+            },
+            aliases: [
+              { value: 'test', original: 'test' },
+              { value: 'testy', original: 'testy' }
+            ],
+            removed: false,
+            savedAt: '2024-01-01T00:00:00.000Z',
+          },
+          'another-personality': {
+            id: 'another-personality',
+            personalityId: 'another-personality',
+            ownerId: '123456789012345678',
+            profile: {
+              mode: 'local',
+              name: 'another-personality',
+              displayName: 'Another Bot',
+            },
+            model: {
+              name: 'default',
+              path: '/default'
+            },
+            aliases: [],
+            removed: false,
+            savedAt: '2024-01-01T00:00:00.000Z',
+          },
+          'display-name-test': {
+            id: 'display-name-test',
+            personalityId: 'display-name-test',
+            ownerId: '123456789012345678',
+            profile: {
+              mode: 'local',
+              name: 'display-name-test',
+              displayName: 'Unique Display Name',
+            },
+            model: {
+              name: 'default',
+              path: '/default'
+            },
+            aliases: [],
+            removed: false,
+            savedAt: '2024-01-01T00:00:00.000Z',
+          }
+        },
+        aliases: {
+          'test': 'test-personality',
+          'testy': 'test-personality',
+          'another': 'another-personality'
+        }
+      };
+      
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
+      await repository.initialize();
+    });
+
+    it('should find by exact personality name first', async () => {
+      const result = await repository.findByNameOrAlias('test-personality');
+      
+      expect(result).not.toBeNull();
+      expect(result.personalityId.value).toBe('test-personality');
+      expect(result.profile.name).toBe('test-personality');
+    });
+
+    it('should find by personality ID', async () => {
+      const result = await repository.findByNameOrAlias('another-personality');
+      
+      expect(result).not.toBeNull();
+      expect(result.personalityId.value).toBe('another-personality');
+    });
+
+    it('should find by global alias mapping second', async () => {
+      const result = await repository.findByNameOrAlias('test');
+      
+      expect(result).not.toBeNull();
+      expect(result.personalityId.value).toBe('test-personality');
+    });
+
+    it('should find by display name as fallback', async () => {
+      const result = await repository.findByNameOrAlias('Unique Display Name');
+      
+      expect(result).not.toBeNull();
+      expect(result.personalityId.value).toBe('display-name-test');
+    });
+
+    it('should prioritize exact name over alias', async () => {
+      // Add a personality with name 'test' to verify name takes precedence
+      mockFileData.personalities['test'] = {
+        id: 'test',
+        personalityId: 'test',
+        ownerId: '123456789012345678',
+        profile: {
+          mode: 'local',
+          name: 'test',
+          displayName: 'Direct Test',
+        },
+        model: {
+          name: 'default',
+          path: '/default'
+        },
+        aliases: [],
+        removed: false,
+        savedAt: '2024-01-01T00:00:00.000Z',
+      };
+      
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      
+      const result = await repository.findByNameOrAlias('test');
+      
+      expect(result).not.toBeNull();
+      // Should find the personality with name 'test', not the one aliased as 'test'
+      expect(result.personalityId.value).toBe('test');
+      expect(result.profile.name).toBe('test');
+    });
+
+    it('should prioritize alias over display name', async () => {
+      // Add alias that matches a display name to verify alias takes precedence
+      mockFileData.aliases['Another Bot'] = 'test-personality';
+      
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      
+      const result = await repository.findByNameOrAlias('Another Bot');
+      
+      expect(result).not.toBeNull();
+      // Should find via alias, not the personality with that display name
+      expect(result.personalityId.value).toBe('test-personality');
+    });
+
+    it('should be case-insensitive', async () => {
+      const result1 = await repository.findByNameOrAlias('TEST-PERSONALITY');
+      const result2 = await repository.findByNameOrAlias('TEST');
+      const result3 = await repository.findByNameOrAlias('unique display name');
+      
+      expect(result1).not.toBeNull();
+      expect(result1.personalityId.value).toBe('test-personality');
+      
+      expect(result2).not.toBeNull();
+      expect(result2.personalityId.value).toBe('test-personality');
+      
+      expect(result3).not.toBeNull();
+      expect(result3.personalityId.value).toBe('display-name-test');
+    });
+
+    it('should return null for non-existent name/alias', async () => {
+      const result = await repository.findByNameOrAlias('non-existent');
+      
+      expect(result).toBeNull();
+    });
+
+    it('should skip removed personalities', async () => {
+      mockFileData.personalities['test-personality'].removed = true;
+      
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      
+      const result = await repository.findByNameOrAlias('test-personality');
+      
+      expect(result).toBeNull();
+    });
+
+    it('should handle personalities without profile data', async () => {
+      mockFileData.personalities['no-profile'] = {
+        id: 'no-profile',
+        personalityId: 'no-profile',
+        ownerId: '123456789012345678',
+        removed: false,
+      };
+      
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      
+      const result = await repository.findByNameOrAlias('no-profile');
+      
+      expect(result).not.toBeNull();
+      expect(result.personalityId.value).toBe('no-profile');
+    });
+
+    it('should handle empty cache gracefully', async () => {
+      mockFsPromises.readFile.mockResolvedValue(JSON.stringify({ personalities: {}, aliases: {} }));
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'test-personalities.json',
+      });
+      await repository.initialize();
+      
+      const result = await repository.findByNameOrAlias('anything');
+      
+      expect(result).toBeNull();
+    });
+  });
 });

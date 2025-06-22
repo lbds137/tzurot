@@ -128,10 +128,29 @@ class FilePersonalityRepository extends PersonalityRepository {
         savedAt: new Date().toISOString(),
       };
 
-      // Update alias mappings
+      // Sync alias mappings
+      // First, remove any aliases that previously pointed to this personality
+      Object.entries(this._cache.aliases).forEach(([alias, id]) => {
+        if (id === personality.personalityId.value) {
+          delete this._cache.aliases[alias];
+        }
+      });
+
+      // Then add current aliases
       if (personality.aliases && Array.isArray(personality.aliases)) {
         personality.aliases.forEach(alias => {
-          this._cache.aliases[alias.value] = personality.personalityId.value;
+          const aliasValue = alias.value || alias;
+          // Only add if not already pointing to another personality
+          if (
+            !this._cache.aliases[aliasValue] ||
+            this._cache.aliases[aliasValue] === personality.personalityId.value
+          ) {
+            this._cache.aliases[aliasValue] = personality.personalityId.value;
+          } else {
+            logger.warn(
+              `[FilePersonalityRepository] Alias "${aliasValue}" already points to ${this._cache.aliases[aliasValue]}, not adding to ${personality.personalityId.value}`
+            );
+          }
         });
       }
 
@@ -296,10 +315,10 @@ class FilePersonalityRepository extends PersonalityRepository {
 
     try {
       const normalized = nameOrAlias.toLowerCase();
-      
+
       // Log for debugging
       logger.debug(`[FilePersonalityRepository] findByNameOrAlias called with: ${nameOrAlias}`);
-      
+
       // Check if cache is initialized
       if (!this._cache || !this._cache.personalities) {
         logger.warn('[FilePersonalityRepository] Cache not initialized in findByNameOrAlias');
