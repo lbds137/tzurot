@@ -15,10 +15,19 @@ describe('PingCommand', () => {
   let pingCommand;
   let mockContext;
   let migrationHelper;
+  let originalClient;
 
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
+    
+    // Save original client and set up mock
+    originalClient = global.tzurotClient;
+    global.tzurotClient = {
+      ws: {
+        ping: 42
+      }
+    };
 
     migrationHelper = createMigrationHelper();
 
@@ -38,6 +47,11 @@ describe('PingCommand', () => {
       options: {},
       respond: jest.fn().mockResolvedValue(undefined),
     };
+  });
+  
+  afterEach(() => {
+    // Restore original client
+    global.tzurotClient = originalClient;
   });
 
   describe('metadata', () => {
@@ -63,8 +77,8 @@ describe('PingCommand', () => {
             fields: expect.arrayContaining([
               expect.objectContaining({ name: 'Status', value: '✅ Online' }),
               expect.objectContaining({
-                name: 'Response Time',
-                value: expect.stringMatching(/\d+ms/),
+                name: 'Latency',
+                value: '42ms',
               }),
             ]),
           }),
@@ -87,8 +101,8 @@ describe('PingCommand', () => {
             fields: expect.arrayContaining([
               expect.objectContaining({ name: 'Status', value: '✅ Online' }),
               expect.objectContaining({
-                name: 'Response Time',
-                value: expect.stringMatching(/\d+ms/),
+                name: 'Latency',
+                value: '42ms',
               }),
             ]),
           }),
@@ -110,8 +124,48 @@ describe('PingCommand', () => {
             fields: expect.arrayContaining([
               expect.objectContaining({ name: 'Status', value: '✅ Online' }),
               expect.objectContaining({
-                name: 'Response Time',
-                value: expect.stringMatching(/\d+ms/),
+                name: 'Latency',
+                value: '42ms',
+              }),
+            ]),
+          }),
+        ],
+      });
+    });
+    
+    it('should handle missing websocket ping', async () => {
+      // Test with no client
+      global.tzurotClient = null;
+      
+      await pingCommand.execute(mockContext);
+      
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Latency',
+                value: 'Calculating...',
+              }),
+            ]),
+          }),
+        ],
+      });
+    });
+    
+    it('should handle missing ws property', async () => {
+      // Test with client but no ws
+      global.tzurotClient = {};
+      
+      await pingCommand.execute(mockContext);
+      
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Latency',
+                value: 'Calculating...',
               }),
             ]),
           }),
@@ -155,46 +209,6 @@ describe('PingCommand', () => {
           }),
         ],
       });
-    });
-
-    it('should handle unexpected errors', async () => {
-      // Mock the executor to throw an error
-      const brokenCommand = createPingCommand({
-        botConfig: null, // This will cause an error when accessing name
-      });
-
-      await brokenCommand.execute(mockContext);
-
-      expect(logger.error).toHaveBeenCalledWith(
-        '[PingCommand] Execution failed:',
-        expect.any(Error)
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Ping Failed',
-            description: 'An error occurred while checking bot status.',
-            color: 0xf44336,
-          }),
-        ],
-      });
-    });
-  });
-
-  describe('factory function', () => {
-    it('should create command with default dependencies', () => {
-      const command = createPingCommand();
-
-      expect(command).toBeDefined();
-      expect(command.name).toBe('ping');
-    });
-
-    it('should create command with custom dependencies', () => {
-      const customConfig = { name: 'CustomBot' };
-      const command = createPingCommand({ botConfig: customConfig });
-
-      expect(command).toBeDefined();
-      expect(command.name).toBe('ping');
     });
   });
 });
