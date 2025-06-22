@@ -31,7 +31,7 @@ For each command, test:
 - [x] **Feature**: Shows correct tagging options ⚠️ **ISSUE FOUND & FIXED**: Was showing display name first instead of aliases
 - [x] **Feature**: Avatar thumbnail displayed in embed
 - [x] **Error**: Invalid personality name ⚠️ **ISSUE FOUND & FIXED**: Was creating personalities without validation
-- [ ] **Error**: Already added personality
+- [X] **Error**: Already added personality
 - [x] **Performance**: Response time < 2s
 
 #### 2. Remove Command (`!tz remove <name>`)
@@ -40,16 +40,16 @@ For each command, test:
 - [x] **Feature**: Cache is cleared (subsequent commands fetch fresh)
 - [x] **Feature**: Shows dynamic prefix in messages ⚠️ **ISSUE FOUND & FIXED**: Was hardcoding !tz
 - [x] **Feature**: Avatar thumbnail displayed in embed ⚠️ **ISSUE FOUND & FIXED**: Missing thumbnail
-- [ ] **Error**: Non-existent personality
+- [X] **Error**: Non-existent personality
 - [ ] **Error**: Cannot remove others' personalities
 - [x] **Performance**: Response time < 1s
 
 #### 3. List Command (`!tz list`)
-- [ ] **Basic**: Shows all user's personalities
+- [X] **Basic**: Shows all user's personalities
 - [ ] **Basic**: Shows aliases correctly
 - [ ] **Basic**: Empty list handled gracefully
-- [ ] **Feature**: Pagination for many personalities
-- [ ] **Performance**: Response time < 1s
+- [X] **Feature**: Pagination for many personalities
+- [X] **Performance**: Response time < 1s
 
 #### 4. Info Command (`!tz info <name>`)
 - [x] **Basic**: Shows personality details
