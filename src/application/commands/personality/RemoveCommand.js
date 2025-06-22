@@ -119,7 +119,9 @@ function createRemoveCommand() {
                 {
                   name: 'What to check',
                   value:
-                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `list` command to see your personalities',
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `' +
+                    (context.commandPrefix || '!tz') +
+                    ' list` command to see your personalities',
                   inline: false,
                 },
               ],
@@ -197,11 +199,12 @@ function createRemoveCommand() {
           }
 
           // Add next steps
+          const botPrefix = context.commandPrefix || '!tz';
           fields.push({
             name: 'What Now?',
             value:
               '• You can recreate this personality with the same name\n' +
-              '• Use `list` to see your remaining personalities\n' +
+              `• Use \`${botPrefix} list\` to see your remaining personalities\n` +
               "• The personality's conversation history has been preserved",
             inline: false,
           });
@@ -217,6 +220,11 @@ function createRemoveCommand() {
             timestamp: new Date().toISOString(),
           };
 
+          // Add avatar thumbnail if available
+          if (personality.profile?.avatarUrl) {
+            successEmbed.thumbnail = { url: personality.profile.avatarUrl };
+          }
+
           return await context.respond({ embeds: [successEmbed] });
         } catch (error) {
           // Handle specific errors
@@ -229,7 +237,9 @@ function createRemoveCommand() {
                 {
                   name: 'What to check',
                   value:
-                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `list` command to see your personalities',
+                    '• Spelling of the personality name\n• Try using the full name instead of alias\n• Use `' +
+                    (context.commandPrefix || '!tz') +
+                    ' list` command to see your personalities',
                   inline: false,
                 },
               ],
@@ -255,7 +265,9 @@ function createRemoveCommand() {
                 {
                   name: 'What you can do',
                   value:
-                    '• Use `list` to see personalities you own\n• Ask the owner to remove it\n• Create your own version with a different name',
+                    '• Use `' +
+                    (context.commandPrefix || '!tz') +
+                    ' list` to see personalities you own\n• Ask the owner to remove it\n• Create your own version with a different name',
                   inline: false,
                 },
               ],
