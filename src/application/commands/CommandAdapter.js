@@ -29,7 +29,9 @@ class DiscordCommandAdapter {
       // Check for duplicate message processing using messageTracker
       const messageTracker = this.applicationServices.messageTracker;
       if (messageTracker && !messageTracker.track(message.id, 'ddd-command')) {
-        logger.warn(`[DiscordCommandAdapter] Prevented duplicate command processing for message ${message.id}`);
+        logger.warn(
+          `[DiscordCommandAdapter] Prevented duplicate command processing for message ${message.id}`
+        );
         return { success: true, duplicate: true }; // Command was "handled" (prevented duplicate)
       }
 
