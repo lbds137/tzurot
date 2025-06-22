@@ -1,6 +1,6 @@
 /**
  * Request Tracking Service
- * 
+ *
  * Provides duplicate request protection and tracking for commands,
  * preventing duplicate operations from being processed within a time window.
  * This is critical for commands that create resources (like personalities)
@@ -12,16 +12,16 @@ class RequestTrackingService {
     this.pendingWindowMs = options.pendingWindowMs || 10000; // 10 seconds
     this.completedWindowMs = options.completedWindowMs || 5000; // 5 seconds
     this.cleanupIntervalMs = options.cleanupIntervalMs || 60000; // 1 minute
-    
+
     // Tracking maps
     this.pendingRequests = new Map(); // Track in-progress requests
     this.completedRequests = new Map(); // Track recently completed requests
     this.messageProcessing = new Set(); // Track messages being processed
-    
+
     // Injectable dependencies
     this.scheduler = options.scheduler || setTimeout;
     this.clearScheduler = options.clearScheduler || clearTimeout;
-    
+
     // Start cleanup timer
     this.cleanupTimer = this.scheduler(() => this.cleanup(), this.cleanupIntervalMs);
   }
@@ -33,7 +33,7 @@ class RequestTrackingService {
    */
   checkRequest(key) {
     const now = Date.now();
-    
+
     // Check if request is pending
     const pendingRequest = this.pendingRequests.get(key);
     if (pendingRequest && now - pendingRequest.timestamp < this.pendingWindowMs) {
@@ -41,10 +41,10 @@ class RequestTrackingService {
         isPending: true,
         isCompleted: false,
         canProceed: false,
-        reason: 'Request is already in progress'
+        reason: 'Request is already in progress',
       };
     }
-    
+
     // Check if request was recently completed
     const completedRequest = this.completedRequests.get(key);
     if (completedRequest && now - completedRequest.timestamp < this.completedWindowMs) {
@@ -52,14 +52,14 @@ class RequestTrackingService {
         isPending: false,
         isCompleted: true,
         canProceed: false,
-        reason: 'Request was recently completed'
+        reason: 'Request was recently completed',
       };
     }
-    
+
     return {
       isPending: false,
       isCompleted: false,
-      canProceed: true
+      canProceed: true,
     };
   }
 
@@ -71,7 +71,7 @@ class RequestTrackingService {
   markPending(key, metadata = {}) {
     this.pendingRequests.set(key, {
       timestamp: Date.now(),
-      ...metadata
+      ...metadata,
     });
   }
 
@@ -83,11 +83,11 @@ class RequestTrackingService {
   markCompleted(key, metadata = {}) {
     // Remove from pending
     this.pendingRequests.delete(key);
-    
+
     // Add to completed
     this.completedRequests.set(key, {
       timestamp: Date.now(),
-      ...metadata
+      ...metadata,
     });
   }
 
@@ -114,7 +114,7 @@ class RequestTrackingService {
    */
   markMessageProcessing(messageId) {
     this.messageProcessing.add(messageId);
-    
+
     // Auto-cleanup after a reasonable time
     this.scheduler(() => {
       this.messageProcessing.delete(messageId);
@@ -138,21 +138,21 @@ class RequestTrackingService {
    */
   cleanup() {
     const now = Date.now();
-    
+
     // Clean up old pending requests
     for (const [key, request] of this.pendingRequests.entries()) {
       if (now - request.timestamp > this.pendingWindowMs * 2) {
         this.pendingRequests.delete(key);
       }
     }
-    
+
     // Clean up old completed requests
     for (const [key, request] of this.completedRequests.entries()) {
       if (now - request.timestamp > this.completedWindowMs * 2) {
         this.completedRequests.delete(key);
       }
     }
-    
+
     // Schedule next cleanup
     this.cleanupTimer = this.scheduler(() => this.cleanup(), this.cleanupIntervalMs);
   }
@@ -175,7 +175,7 @@ class RequestTrackingService {
     return {
       pendingRequests: this.pendingRequests.size,
       completedRequests: this.completedRequests.size,
-      processingMessages: this.messageProcessing.size
+      processingMessages: this.messageProcessing.size,
     };
   }
 

@@ -18,7 +18,7 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const { botConfig = require('../../../../config').botConfig } = dependencies;
-      
+
       // Get Discord client to access websocket ping
       const client = global.tzurotClient;
       const wsPing = client && client.ws && client.ws.ping ? Math.round(client.ws.ping) : null;

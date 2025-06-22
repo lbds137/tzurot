@@ -135,7 +135,11 @@ function createExecutor(_dependencies) {
         const personalityName =
           personality.profile?.name || personality.fullName || personality.name;
         const userId = context.getUserId();
-        await conversationManager.activatePersonality(context.getChannelId(), personalityName, userId);
+        await conversationManager.activatePersonality(
+          context.getChannelId(),
+          personalityName,
+          userId
+        );
         logger.info(
           `[ActivateCommand] Successfully activated ${personalityName} in channel ${context.getChannelId()} by user ${userId}`
         );

@@ -24,21 +24,25 @@ For each command, test:
 #### 1. Add Command (`!tz add <name> [alias]`)
 - [x] **Basic**: Add personality without alias
 - [x] **Basic**: Add personality with alias ⚠️ **ISSUE FOUND & FIXED**: Hardcoded bot prefixes in help messages
-- [X] **Feature**: Avatar preloading works (check bot logs)
-- [X] **Feature**: Duplicate protection prevents rapid re-adds
-- [ ] **Feature**: Alias collision generates smart alternative
-- [ ] **Feature**: Display name auto-aliasing works
-- [ ] **Error**: Invalid personality name
+- [x] **Feature**: Avatar preloading works (check bot logs)
+- [x] **Feature**: Duplicate protection prevents rapid re-adds
+- [x] **Feature**: Alias collision generates smart alternative ✅ Tested with Lilith personalities
+- [x] **Feature**: Display name auto-aliasing works ✅ Creates lilith-sheda for second Lilith
+- [x] **Feature**: Shows correct tagging options ⚠️ **ISSUE FOUND & FIXED**: Was showing display name first instead of aliases
+- [x] **Feature**: Avatar thumbnail displayed in embed
+- [x] **Error**: Invalid personality name ⚠️ **ISSUE FOUND & FIXED**: Was creating personalities without validation
 - [ ] **Error**: Already added personality
-- [ ] **Performance**: Response time < 2s
+- [x] **Performance**: Response time < 2s
 
 #### 2. Remove Command (`!tz remove <name>`)
-- [ ] **Basic**: Remove by personality name
-- [ ] **Basic**: Remove by alias
-- [ ] **Feature**: Cache is cleared (subsequent commands fetch fresh)
+- [x] **Basic**: Remove by personality name
+- [x] **Basic**: Remove by alias ✅ Tested with Lilith personalities
+- [x] **Feature**: Cache is cleared (subsequent commands fetch fresh)
+- [x] **Feature**: Shows dynamic prefix in messages ⚠️ **ISSUE FOUND & FIXED**: Was hardcoding !tz
+- [x] **Feature**: Avatar thumbnail displayed in embed ⚠️ **ISSUE FOUND & FIXED**: Missing thumbnail
 - [ ] **Error**: Non-existent personality
 - [ ] **Error**: Cannot remove others' personalities
-- [ ] **Performance**: Response time < 1s
+- [x] **Performance**: Response time < 1s
 
 #### 3. List Command (`!tz list`)
 - [ ] **Basic**: Shows all user's personalities
@@ -48,11 +52,12 @@ For each command, test:
 - [ ] **Performance**: Response time < 1s
 
 #### 4. Info Command (`!tz info <name>`)
-- [ ] **Basic**: Shows personality details
-- [ ] **Basic**: Works with alias
-- [ ] **Feature**: Shows all relevant information
+- [x] **Basic**: Shows personality details
+- [x] **Basic**: Works with alias ✅ Tested with Lilith personalities
+- [x] **Feature**: Shows all relevant information
+- [x] **Feature**: Avatar thumbnail displayed in embed ⚠️ **ISSUE FOUND & FIXED**: Missing thumbnail
 - [ ] **Error**: Non-existent personality
-- [ ] **Performance**: Response time < 1s
+- [x] **Performance**: Response time < 1s
 
 #### 5. Alias Command (`!tz alias <name> <alias>`)
 - [ ] **Basic**: Add alias to personality
@@ -156,9 +161,9 @@ For each command, test:
 ## Cross-Feature Integration Tests
 
 ### Message Tracking
-- [ ] Rapid duplicate commands are prevented
-- [ ] Different commands can be executed sequentially
-- [ ] Message tracking doesn't interfere with normal flow
+- [x] Rapid duplicate commands are prevented ✅ Tested with add command
+- [x] Different commands can be executed sequentially
+- [x] Message tracking doesn't interfere with normal flow
 
 ### Feature Flag Behavior
 - [ ] All commands route through DDD system
@@ -173,10 +178,11 @@ For each command, test:
 ## Regression Tests
 
 ### Known Issues to Verify Fixed
-- [ ] Alias collision doesn't cause errors
-- [ ] Display name aliasing doesn't create duplicates
-- [ ] Cache invalidation works properly
+- [x] Alias collision doesn't cause errors ✅ Smart alternatives generated
+- [x] Display name aliasing doesn't create duplicates ✅ Automatic syncing works
+- [x] Cache invalidation works properly ✅ Remove command clears cache
 - [ ] No duplicate API calls for same personality
+- [x] Alias resolution follows correct precedence ✅ Exact name > aliases > display name
 
 ### Backward Compatibility
 - [ ] Existing personalities work with new commands
@@ -185,8 +191,8 @@ For each command, test:
 
 ## Test Results Summary
 
-**Total Commands Tested**: 2/19  
-**Issues Found**: 2 (Both Fixed)  
+**Total Commands Tested**: 4/19  
+**Issues Found**: 9 (All Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -202,9 +208,48 @@ For each command, test:
    - Fix: Updated all DDD commands to use `context.commandPrefix || '!tz'`
    - Commit: `f886b1e`
 
+3. **Alias Resolution (Fixed)** - `&lilith` resolving to wrong personality
+   - Root cause: Display names checked before global alias mappings
+   - Fix: Implemented proper resolution order in FilePersonalityRepository.findByNameOrAlias
+   - Commit: [session continued]
+
+4. **Add Command (Fixed)** - Misleading tagging options showing display name first
+   - Root cause: Tagging options prioritized display name over actual aliases
+   - Fix: Reordered to show actual aliases first, full name as fallback
+   - Commit: [session continued]
+
+5. **Remove Command (Fixed)** - Hardcoded prefix in "What Now?" field
+   - Root cause: Using hardcoded '!tz' instead of dynamic prefix
+   - Fix: Updated to use `context.commandPrefix || '!tz'`
+   - Commit: [session continued]
+
+6. **Commands Missing Avatars (Fixed)** - Remove and Info commands not showing thumbnails
+   - Root cause: Missing thumbnail field in embed responses
+   - Fix: Added avatar thumbnail to Remove and Info command embeds
+   - Commit: [session continued]
+
+7. **Add Command (Fixed)** - Hardcoded @ mention character
+   - Root cause: Using hardcoded '@' instead of BOT_MENTION_CHAR from config
+   - Fix: Updated to use `botConfig.mentionChar` dynamically
+   - Commit: [session continued]
+
+8. **Info Command (Fixed)** - Not using embeds for error responses
+   - Root cause: Plain text responses instead of embed format
+   - Fix: Updated all error responses to use consistent embed formatting
+   - Commit: [session continued]
+
+9. **Add Command (Fixed)** - Creating invalid personalities without validation
+   - Root cause: External mode not validating personality exists in API
+   - Fix: Added API validation requirement for external personalities
+   - Commit: [session continued]
+
 ### Notes
 
-<!-- Additional observations during testing -->
+- Alias collision handling works extremely well, generating smart alternatives based on personality names
+- Automatic display name aliasing creates intuitive shortcuts (e.g., lilith-sheda for second Lilith)
+- Automatic alias syncing between global and per-personality systems prevents data inconsistency
+- Avatar preloading and thumbnail display significantly improve user experience
+- Dynamic prefix and mention character support works correctly across all tested commands
 
 ## Sign-off
 
