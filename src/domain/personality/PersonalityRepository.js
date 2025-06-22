@@ -68,6 +68,15 @@ class PersonalityRepository {
   async nextId() {
     throw new Error('PersonalityRepository.nextId() must be implemented');
   }
+
+  /**
+   * Find personality by name or alias
+   * @param {string} nameOrAlias - Name or alias to search for
+   * @returns {Promise<Personality|null>} Personality or null if not found
+   */
+  async findByNameOrAlias(nameOrAlias) {
+    throw new Error('PersonalityRepository.findByNameOrAlias() must be implemented');
+  }
 }
 
 module.exports = { PersonalityRepository };
