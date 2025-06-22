@@ -58,7 +58,7 @@ function createListCommand() {
           );
 
           if (!personalities || personalities.length === 0) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             const emptyEmbed = {
               title: '📋 No Personalities Yet',
               description: "You haven't added any personalities.",
@@ -157,7 +157,7 @@ function createListCommand() {
 
           // Add navigation help if multiple pages
           if (totalPages > 1) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             embedData.fields.push({
               name: 'Navigation',
               value: `Use \`${botPrefix} list <page>\` to view other pages`,

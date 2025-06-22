@@ -44,7 +44,7 @@ function createInfoCommand() {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
             return await context.respond(
-              'You need to provide a personality name or alias. Usage: `!tz info <name>`'
+              `You need to provide a personality name or alias. Usage: \`${context.commandPrefix || '!tz'} info <name>\``
             );
           }
 

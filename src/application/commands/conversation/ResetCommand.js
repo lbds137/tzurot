@@ -48,7 +48,7 @@ function createResetCommand() {
         } else {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             const usageEmbed = {
               title: '❌ Missing Personality Name',
               description: 'Please provide a personality name or alias to reset.',
@@ -116,7 +116,7 @@ function createResetCommand() {
                 },
                 {
                   name: 'What to do',
-                  value: `• Check the spelling and try again\n• Use \`${context.dependencies.botPrefix || '!tz'} list\` to see available personalities\n• Personality names are case-insensitive`,
+                  value: `• Check the spelling and try again\n• Use \`${context.commandPrefix || '!tz'} list\` to see available personalities\n• Personality names are case-insensitive`,
                   inline: false,
                 },
               ],

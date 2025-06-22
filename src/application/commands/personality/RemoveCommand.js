@@ -45,7 +45,7 @@ function createRemoveCommand() {
         } else {
           // Text command - parse positional arguments
           if (context.args.length < 1) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             const usageEmbed = {
               title: 'How to Remove a Personality',
               description: 'Remove a personality from your collection.',
@@ -264,7 +264,7 @@ function createRemoveCommand() {
           }
 
           if (error.message.includes('Authentication failed')) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             const authEmbed = {
               title: '❌ Authentication Required',
               description: 'You need to authenticate before removing personalities.',

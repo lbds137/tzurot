@@ -86,6 +86,7 @@ describe('AddCommand', () => {
       options: {},
       reply: jest.fn().mockResolvedValue({}),
       respond: jest.fn().mockResolvedValue({}),
+      commandPrefix: '!tz',
       dependencies: {
         personalityApplicationService: mockPersonalityService,
         featureFlags: mockFeatureFlags,
