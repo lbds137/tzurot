@@ -5,6 +5,7 @@
 
 const { Command, CommandOption } = require('../CommandAbstraction');
 const logger = require('../../../logger');
+const { botConfig } = require('../../../../config');
 
 /**
  * Create the add personality command
@@ -53,7 +54,7 @@ function createAddCommand() {
       const personalityService = context.dependencies.personalityApplicationService;
       const featureFlags = context.dependencies.featureFlags;
       const requestTracker = context.dependencies.requestTrackingService;
-      
+
       // Variables that might be needed in error handling
       let name, prompt, modelPath, maxWordCount, alias;
 
@@ -239,11 +240,7 @@ function createAddCommand() {
           }
 
           // Generate request key for duplicate protection
-          const requestKey = requestTracker.generateAddCommandKey(
-            context.getUserId(),
-            name,
-            alias
-          );
+          const requestKey = requestTracker.generateAddCommandKey(context.getUserId(), name, alias);
 
           // Check if this request can proceed
           const requestStatus = requestTracker.checkRequest(requestKey);
@@ -251,7 +248,7 @@ function createAddCommand() {
             logger.warn(
               `[AddCommand] Duplicate request blocked: ${requestStatus.reason} for key ${requestKey}`
             );
-            
+
             if (requestStatus.isPending) {
               // Request is still in progress, silent failure
               return null;
@@ -320,10 +317,11 @@ function createAddCommand() {
           // Add alias if provided
           if (alias) {
             // Check if an alternate alias was used due to collision
-            const actualAlias = personality.alternateAliases && personality.alternateAliases.length > 0
-              ? personality.alternateAliases[0]
-              : alias;
-            
+            const actualAlias =
+              personality.alternateAliases && personality.alternateAliases.length > 0
+                ? personality.alternateAliases[0]
+                : alias;
+
             if (actualAlias !== alias) {
               // Alias was taken, show both requested and actual
               fields.push({
@@ -339,7 +337,7 @@ function createAddCommand() {
               });
             }
           }
-          
+
           // Add display name alias if one was automatically created
           if (personality.displayNameAlias && !alias) {
             fields.push({
@@ -350,9 +348,10 @@ function createAddCommand() {
           }
 
           // Add prompt field
+          const displayName = personality.profile.displayName || personality.profile.name || name;
           fields.push({
             name: 'Prompt',
-            value: prompt || `You are ${name}`,
+            value: prompt || `You are ${displayName}`,
             inline: false,
           });
 
@@ -388,12 +387,55 @@ function createAddCommand() {
 
           // Add next steps
           const prefix = context.commandPrefix || '!tz';
+          const displayNameForTag =
+            personality.profile.displayName || personality.profile.name || name;
+          const fullName = personality.profile.name || name;
+
+          // Build tagging options based on what's available
+          const mentionChar = botConfig.mentionChar;
+          let taggingOptions = [];
+
+          // First, add any actual aliases
+          if (personality.aliases && personality.aliases.length > 0) {
+            const aliasNames = personality.aliases
+              .map(a => a.value || a.alias || a)
+              .filter(a => a && a !== fullName); // Filter out empty and full name duplicates
+            if (aliasNames.length > 0) {
+              taggingOptions.push(...aliasNames.map(a => `**${mentionChar}${a}**`));
+            }
+          }
+
+          // Add display name alias if it was created
+          if (
+            personality.displayNameAlias &&
+            !taggingOptions.includes(`**${mentionChar}${personality.displayNameAlias}**`)
+          ) {
+            taggingOptions.push(`**${mentionChar}${personality.displayNameAlias}**`);
+          }
+
+          // Add alternate aliases if any were created
+          if (personality.alternateAliases && personality.alternateAliases.length > 0) {
+            personality.alternateAliases.forEach(alt => {
+              if (!taggingOptions.includes(`**${mentionChar}${alt}**`)) {
+                taggingOptions.push(`**${mentionChar}${alt}**`);
+              }
+            });
+          }
+
+          // Always add the full name as a fallback option
+          taggingOptions.push(`**${mentionChar}${fullName}**`);
+
+          // Join with "or" - show up to 3 options to avoid clutter
+          const displayOptions = taggingOptions.slice(0, 3).join(' or ');
+          const extraOptions =
+            taggingOptions.length > 3 ? ` (and ${taggingOptions.length - 3} more)` : '';
+
           fields.push({
             name: 'Next Steps',
             value:
-              `• Mention **@${name}** in a channel to start chatting\n` +
-              `• Use \`${prefix} alias ${name} <new-alias>\` to add more aliases\n` +
-              `• Use \`${prefix} info ${name}\` to view personality details`,
+              `• Mention ${displayOptions}${extraOptions} in a channel to start chatting\n` +
+              `• Use \`${prefix} alias ${fullName} <new-alias>\` to add more aliases\n` +
+              `• Use \`${prefix} info ${fullName}\` to view personality details`,
             inline: false,
           });
 
@@ -436,6 +478,34 @@ function createAddCommand() {
           }
 
           // Handle specific errors
+          if (error.message.includes('does not exist')) {
+            const errorEmbed = {
+              title: '❌ Invalid Personality Name',
+              description: `The personality **${name}** does not exist in our system.`,
+              color: 0xf44336, // Red color
+              fields: [
+                {
+                  name: 'What went wrong',
+                  value:
+                    'This personality name is not recognized. It may be misspelled or not available.',
+                  inline: false,
+                },
+                {
+                  name: 'What to do',
+                  value:
+                    `• Double-check the spelling of the personality name\n` +
+                    `• Try a different personality name\n` +
+                    `• Contact support if you believe this personality should exist`,
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Personality names must match existing characters in our system',
+              },
+            };
+            return await context.respond({ embeds: [errorEmbed] });
+          }
+
           if (error.message.includes('already exists')) {
             const errorEmbed = {
               title: '❌ Personality Already Exists',

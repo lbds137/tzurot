@@ -26,10 +26,21 @@ describe('InfoCommand', () => {
         profile: {
           name: 'testpersonality',
           displayName: 'Test Personality',
-          owner: '123456789',
+          avatarUrl: 'https://example.com/avatar.png',
+          mode: 'external',
         },
+        ownerId: { value: '123456789' },
         aliases: [{ value: 'test' }, { value: 'testy' }],
-        avatarUrl: 'https://example.com/avatar.png',
+      }),
+      getPersonalityWithProfile: jest.fn().mockResolvedValue({
+        profile: {
+          name: 'testpersonality',
+          displayName: 'Test Personality',
+          avatarUrl: 'https://example.com/avatar.png',
+          mode: 'external',
+        },
+        ownerId: { value: '123456789' },
+        aliases: [{ value: 'test' }, { value: 'testy' }],
       }),
     };
 
@@ -126,7 +137,15 @@ describe('InfoCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('You need to provide a personality name')
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              title: 'How to Get Personality Info',
+              description: 'View detailed information about a personality.',
+              color: 0x2196f3,
+            }),
+          ]),
+        })
       );
       expect(mockPersonalityService.getPersonality).not.toHaveBeenCalled();
     });
@@ -145,7 +164,17 @@ describe('InfoCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(mockContext.respond).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              title: '❌ Personality Not Found',
+              description: expect.stringContaining('No personality found'),
+              color: 0xf44336,
+            }),
+          ]),
+        })
+      );
     });
 
     it('should handle personality without aliases', async () => {
@@ -153,10 +182,10 @@ describe('InfoCommand', () => {
         profile: {
           name: 'noalias',
           displayName: 'No Alias',
-          owner: '123456789',
+          avatarUrl: null,
         },
+        ownerId: { value: '123456789' },
         aliases: [],
-        avatarUrl: null,
       });
 
       await command.execute(mockContext);
@@ -179,10 +208,10 @@ describe('InfoCommand', () => {
         profile: {
           name: 'nodisplay',
           displayName: null,
-          owner: '123456789',
+          avatarUrl: null,
         },
+        ownerId: { value: '123456789' },
         aliases: [{ value: 'nd' }],
-        avatarUrl: null,
       });
 
       await command.execute(mockContext);
@@ -207,7 +236,18 @@ describe('InfoCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('An error occurred')
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              title: '❌ Something Went Wrong',
+              description: 'An error occurred while getting personality info.',
+              color: 0xf44336,
+              fields: expect.arrayContaining([
+                expect.objectContaining({ name: 'What happened', value: 'Database error' }),
+              ]),
+            }),
+          ]),
+        })
       );
     });
 
@@ -217,7 +257,15 @@ describe('InfoCommand', () => {
       await command.execute(mockContext);
 
       expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('An error occurred')
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              title: '❌ Something Went Wrong',
+              description: 'An error occurred while getting personality info.',
+              color: 0xf44336,
+            }),
+          ]),
+        })
       );
     });
 
