@@ -80,16 +80,16 @@ function createAddCommand() {
               fields: [
                 {
                   name: 'Basic Usage',
-                  value: '`!tz add <name> [alias] [prompt]`',
+                  value: `\`${context.commandPrefix || '!tz'} add <name> [alias] [prompt]\``,
                   inline: false,
                 },
                 {
                   name: 'Examples',
                   value:
-                    '• `!tz add Claude` - Creates Claude with default prompt\n' +
-                    '• `!tz add Claude claude-alias` - Creates Claude with an alias\n' +
-                    '• `!tz add Claude "You are Claude, a helpful AI assistant"` - Custom prompt\n' +
-                    '• `!tz add Claude claude-alias "You are Claude, a helpful AI assistant"` - Alias + prompt',
+                    `• \`${context.commandPrefix || '!tz'} add Claude\` - Creates Claude with default prompt\n` +
+                    `• \`${context.commandPrefix || '!tz'} add Claude claude-alias\` - Creates Claude with an alias\n` +
+                    `• \`${context.commandPrefix || '!tz'} add Claude "You are Claude, a helpful AI assistant"\` - Custom prompt\n` +
+                    `• \`${context.commandPrefix || '!tz'} add Claude claude-alias "You are Claude, a helpful AI assistant"\` - Alias + prompt`,
                   inline: false,
                 },
                 {
@@ -387,12 +387,13 @@ function createAddCommand() {
           }
 
           // Add next steps
+          const prefix = context.commandPrefix || '!tz';
           fields.push({
             name: 'Next Steps',
             value:
               `• Mention **@${name}** in a channel to start chatting\n` +
-              `• Use \`!tz alias ${name} <new-alias>\` to add more aliases\n` +
-              `• Use \`!tz info ${name}\` to view personality details`,
+              `• Use \`${prefix} alias ${name} <new-alias>\` to add more aliases\n` +
+              `• Use \`${prefix} info ${name}\` to view personality details`,
             inline: false,
           });
 
@@ -445,8 +446,8 @@ function createAddCommand() {
                   name: 'What to do',
                   value:
                     `• Choose a different name for your personality\n` +
-                    `• Use \`!tz remove ${name}\` to delete the existing one first\n` +
-                    `• Use \`!tz info ${name}\` to see who owns it`,
+                    `• Use \`${context.commandPrefix || '!tz'} remove ${name}\` to delete the existing one first\n` +
+                    `• Use \`${context.commandPrefix || '!tz'} info ${name}\` to see who owns it`,
                   inline: false,
                 },
               ],
@@ -466,9 +467,9 @@ function createAddCommand() {
                 {
                   name: 'How to authenticate',
                   value:
-                    '1. Use `!tz auth` to start authentication\n' +
-                    '2. Follow the instructions in the DM\n' +
-                    '3. Try creating your personality again',
+                    `1. Use \`${context.commandPrefix || '!tz'} auth\` to start authentication\n` +
+                    `2. Follow the instructions in the DM\n` +
+                    `3. Try creating your personality again`,
                   inline: false,
                 },
               ],

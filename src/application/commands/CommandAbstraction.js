@@ -5,6 +5,7 @@
  */
 
 const logger = require('../../logger');
+const { botPrefix } = require('../../../config');
 
 /**
  * Represents a platform-agnostic command
@@ -68,7 +69,7 @@ class Command {
    * Generate usage string from options
    */
   _generateUsage() {
-    const parts = [`!tz ${this.name}`];
+    const parts = [`${botPrefix} ${this.name}`];
 
     for (const option of this.options) {
       if (option.required) {

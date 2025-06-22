@@ -119,7 +119,7 @@ async function showStatus(context, conversationManager) {
       },
     ],
     footer: {
-      text: `Use "${context.dependencies.botPrefix || '!tz'} autorespond on/off" to change this setting`,
+      text: `Use "${context.commandPrefix || '!tz'} autorespond on/off" to change this setting`,
     },
     timestamp: new Date().toISOString(),
   };

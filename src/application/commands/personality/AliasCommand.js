@@ -50,7 +50,7 @@ function createAliasCommand() {
         } else {
           // Text command - parse positional arguments
           if (context.args.length < 2) {
-            const botPrefix = context.dependencies.botPrefix || '!tz';
+            const botPrefix = context.commandPrefix || '!tz';
             const usageEmbed = {
               title: 'How to Add an Alias',
               description: 'Add a nickname or shortcut for an existing personality.',
@@ -253,8 +253,8 @@ function createAliasCommand() {
                 {
                   name: 'What to do',
                   value:
-                    `• Check the personality owner with \`${context.dependencies.botPrefix || '!tz'} info ${personalityNameOrAlias}\`\n` +
-                    `• Use \`${context.dependencies.botPrefix || '!tz'} list\` to see personalities you own`,
+                    `• Check the personality owner with \`${context.commandPrefix || '!tz'} info ${personalityNameOrAlias}\`\n` +
+                    `• Use \`${context.commandPrefix || '!tz'} list\` to see personalities you own`,
                   inline: false,
                 },
               ],
