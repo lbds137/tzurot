@@ -2,7 +2,8 @@
  * Ping Command - Check bot responsiveness
  *
  * A simple utility command that responds with "Pong!" to verify
- * the bot is online and responsive.
+ * the bot is online and responsive. Shows the Discord websocket
+ * latency to indicate connection quality.
  */
 
 const { Command } = require('../CommandAbstraction');
@@ -17,7 +18,10 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const { botConfig = require('../../../../config').botConfig } = dependencies;
-      const startTime = Date.now();
+      
+      // Get Discord client to access websocket ping
+      const client = global.tzurotClient;
+      const wsPing = client && client.ws && client.ws.ping ? Math.round(client.ws.ping) : null;
 
       // Create ping response embed
       const pingEmbed = {
@@ -31,8 +35,8 @@ function createExecutor(dependencies = {}) {
             inline: true,
           },
           {
-            name: 'Response Time',
-            value: `${Date.now() - startTime}ms`,
+            name: 'Latency',
+            value: wsPing !== null ? `${wsPing}ms` : 'Calculating...',
             inline: true,
           },
         ],
