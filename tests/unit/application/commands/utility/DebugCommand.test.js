@@ -75,7 +75,6 @@ describe('DebugCommand', () => {
     // Mock context
     mockContext = {
       userId: 'user123',
-      userTag: 'TestUser#1234',
       channelId: 'channel123',
       guildId: 'guild123',
       commandPrefix: '!tz',
@@ -84,6 +83,7 @@ describe('DebugCommand', () => {
       args: [],
       options: {},
       respond: jest.fn().mockResolvedValue(undefined),
+      getAuthorDisplayName: jest.fn().mockReturnValue('TestUser#1234'),
     };
   });
 
