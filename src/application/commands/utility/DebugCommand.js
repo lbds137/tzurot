@@ -34,14 +34,18 @@ function createExecutor(dependencies = {}) {
       const {
         webhookUserTracker = require('../../../utils/webhookUserTracker'),
         conversationManager = require('../../../core/conversation'),
-        authManager = require('../../../auth').getAuthManager(),
         messageTracker = require('../../../messageTracker').messageTracker,
         nsfwVerificationManager,
       } = dependencies;
       
+      // Get auth manager and ensure it's initialized
+      const auth = require('../../../auth');
+      await auth.initAuth(); // Ensure auth is initialized
+      const authManager = auth.getAuthManager();
+      
       // Get NSFW verification manager - prefer injected dependency, then try auth manager
       const effectiveNsfwManager = nsfwVerificationManager || 
-        (authManager?.getNsfwVerificationManager ? authManager.getNsfwVerificationManager() : null);
+        (authManager?.nsfwVerificationManager || null);
 
       // Get subcommand from args or options
       const subcommand = context.options.subcommand || context.args[0]?.toLowerCase();
