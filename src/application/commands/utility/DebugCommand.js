@@ -33,11 +33,15 @@ function createExecutor(dependencies = {}) {
 
       const {
         webhookUserTracker = require('../../../utils/webhookUserTracker'),
-        nsfwVerificationManager = require('../../../core/authentication').getNsfwVerificationManager(),
         conversationManager = require('../../../core/conversation'),
         authManager = require('../../../auth').getAuthManager(),
         messageTracker = require('../../../messageTracker').messageTracker,
+        nsfwVerificationManager,
       } = dependencies;
+      
+      // Get NSFW verification manager - prefer injected dependency, then try auth manager
+      const effectiveNsfwManager = nsfwVerificationManager || 
+        (authManager?.getNsfwVerificationManager ? authManager.getNsfwVerificationManager() : null);
 
       // Get subcommand from args or options
       const subcommand = context.options.subcommand || context.args[0]?.toLowerCase();
@@ -51,7 +55,7 @@ function createExecutor(dependencies = {}) {
           return await clearWebhooks(context, webhookUserTracker);
 
         case 'unverify':
-          return await unverify(context, nsfwVerificationManager);
+          return await unverify(context, effectiveNsfwManager);
 
         case 'clearconversation':
           return await clearConversation(context, conversationManager);
@@ -140,6 +144,17 @@ async function clearWebhooks(context, webhookUserTracker) {
 }
 
 async function unverify(context, nsfwVerificationManager) {
+  if (!nsfwVerificationManager) {
+    const errorEmbed = {
+      title: '❌ Service Unavailable',
+      description: 'NSFW verification service is not available.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
+    return;
+  }
+  
   const cleared = nsfwVerificationManager.clearVerification(context.userId);
 
   if (cleared) {
