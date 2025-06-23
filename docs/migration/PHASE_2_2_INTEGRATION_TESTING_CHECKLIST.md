@@ -194,7 +194,7 @@ For each command, test:
 ## Test Results Summary
 
 **Total Commands Tested**: 6/19  
-**Issues Found**: 14 (All Fixed)  
+**Issues Found**: 15 (All Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -268,6 +268,11 @@ For each command, test:
 14. **Debug Command (Fixed)** - getNsfwVerificationManager error when using unverify
    - Root cause: Authentication module doesn't export getNsfwVerificationManager function
    - Fix: Get nsfwVerificationManager from authManager or use injected dependency
+   - Commit: [session continued]
+
+15. **Debug Command (Fixed)** - Service Unavailable error when using unverify
+   - Root cause: Auth manager not initialized, accessing nsfwVerificationManager incorrectly
+   - Fix: Call auth.initAuth() and access nsfwVerificationManager property directly
    - Commit: [session continued]
 
 ### Notes
