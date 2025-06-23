@@ -167,7 +167,7 @@ describe('PersonalityAuthValidator', () => {
 
       expect(result.isAuthorized).toBe(false);
       expect(result.errors).toContain(
-        'This bot requires age verification. Please use the `verify` command to confirm you are 18 or older.'
+        'This bot requires age verification. Please use the `!tz verify` command in an NSFW channel to confirm you are 18 or older.'
       );
       expect(result.requiresNsfwVerification).toBe(true);
     });
