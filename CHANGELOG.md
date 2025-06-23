@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.5] - 2025-06-22
+
+### Fixed
+- **Status Command** - Fixed -1ms ping display when Discord websocket is not ready
+  - Now shows "Calculating..." instead of -1ms when websocket ping is not available
+  - Also fixed to use DDD personality service when available instead of legacy registry
+- **Debug Command** - Fixed multiple issues with the debug command
+  - Fixed "getNsfwVerificationManager is not a function" error when using unverify subcommand
+  - Fixed username showing as "undefined" in webhook cache clear logs
+  - Added bot owner override so owner can use debug command without admin permissions
+- **Ping Command** - Fixed latency always showing 0ms
+  - Now correctly uses Discord client websocket ping for actual latency measurement
+- **Add Command** - Fixed validation for external personalities
+  - External mode now properly validates that personalities exist in the API
+  - Fixed hardcoded bot prefixes in help messages
+  - Fixed hardcoded @ mention character
+  - Fixed tagging options to show aliases first instead of display name
+- **Help Command** - Fixed specific command help not using embeds
+  - All command help now uses consistent embed formatting
+  - Added proper fields for usage, aliases, options, and examples
+- **Info Command** - Fixed missing avatar thumbnails in embed responses
+  - Command now properly displays personality avatars when available
+- **Remove Command** - Fixed missing avatar thumbnails and hardcoded prefixes
+  - Command now shows personality avatar in removal confirmation
+  - Uses dynamic command prefix throughout messages
+- **Alias Resolution** - Fixed precedence order for personality lookups
+  - Now correctly follows: exact name > aliases > display name
+  - Fixed `&lilith` resolving to wrong personality in some cases
+- **CommandContext** - Fixed DM detection for Revolt platform
+  - Removed automatic `isDirectMessage` defaulting that interfered with platform-specific logic
+
+### Changed
+- **Age Verification Message** - Made error message more helpful
+  - Now includes full command with prefix (e.g., `!tz verify`)
+  - Explicitly mentions the command must be used in an NSFW channel
+  - Helps users understand exactly what they need to do
+- **Dynamic Prefix Support** - All DDD commands now use configured bot prefix
+  - Removed all hardcoded `!tz` references throughout the codebase
+  - Commands now properly display the actual configured prefix in all messages
+
+### Added
+- **Phase 2.2 Integration Testing** - Completed comprehensive testing of all 19 commands
+  - Created detailed testing checklist documenting all functionality
+  - Added helper scripts for integration testing
+  - Documented and fixed all 17 issues found during testing
+
 ## [2.0.4] - 2025-06-21
 
 ### Fixed
