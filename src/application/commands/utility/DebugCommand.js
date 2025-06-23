@@ -137,7 +137,7 @@ async function showHelp(context) {
 
 async function clearWebhooks(context, webhookUserTracker) {
   webhookUserTracker.clearAllCachedWebhooks();
-  logger.info(`[Debug] Webhook cache cleared by ${context.userTag}`);
+  logger.info(`[Debug] Webhook cache cleared by ${context.getAuthorDisplayName()}`);
   const successEmbed = {
     title: '✅ Webhooks Cleared',
     description: 'Cleared all cached webhook identifications.',
@@ -162,7 +162,7 @@ async function unverify(context, nsfwVerificationManager) {
   const cleared = nsfwVerificationManager.clearVerification(context.userId);
 
   if (cleared) {
-    logger.info(`[Debug] NSFW verification cleared for ${context.userTag}`);
+    logger.info(`[Debug] NSFW verification cleared for ${context.getAuthorDisplayName()}`);
     const successEmbed = {
       title: '✅ Verification Cleared',
       description: 'Your NSFW verification has been cleared. You are now unverified.',
@@ -186,7 +186,7 @@ async function clearConversation(context, conversationManager) {
     // Clear conversation for all personalities in current channel
     conversationManager.clearConversation(context.userId, context.channelId);
     logger.info(
-      `[Debug] Conversation history cleared for ${context.userTag} in channel ${context.channelId}`
+      `[Debug] Conversation history cleared for ${context.getAuthorDisplayName()} in channel ${context.channelId}`
     );
     const successEmbed = {
       title: '✅ Conversation Cleared',
@@ -211,7 +211,7 @@ async function clearAuth(context, authManager) {
   try {
     // Clean up expired auth tokens
     await authManager.cleanupExpiredTokens();
-    logger.info(`[Debug] Authentication tokens cleaned up for ${context.userTag}`);
+    logger.info(`[Debug] Authentication tokens cleaned up for ${context.getAuthorDisplayName()}`);
     const successEmbed = {
       title: '✅ Authentication Cleared',
       description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
@@ -234,7 +234,7 @@ async function clearAuth(context, authManager) {
 async function clearMessages(context, messageTracker) {
   try {
     messageTracker.clear();
-    logger.info(`[Debug] Message tracking history cleared by ${context.userTag}`);
+    logger.info(`[Debug] Message tracking history cleared by ${context.getAuthorDisplayName()}`);
     const successEmbed = {
       title: '✅ Messages Cleared',
       description: 'Cleared message tracking history.',
