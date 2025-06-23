@@ -88,7 +88,9 @@ function createExecutor(dependencies = {}) {
 
       // Get Discord client for proper ping and guild count
       const client = context.message?.client || context.interaction?.client;
-      const ping = client?.ws?.ping ? `${Math.round(client.ws.ping)}ms` : 'N/A';
+      // Discord returns -1 for ping when websocket isn't ready or calculating
+      const rawPing = client?.ws?.ping;
+      const ping = (rawPing && rawPing > 0) ? `${Math.round(rawPing)}ms` : 'Calculating...';
       const guildCount = client?.guilds?.cache?.size || 0;
       
       // Build status information
