@@ -11,6 +11,17 @@ const logger = require('../../../../../src/logger');
 // Mock logger
 jest.mock('../../../../../src/logger');
 
+// Mock auth module
+jest.mock('../../../../../src/auth', () => ({
+  initAuth: jest.fn().mockResolvedValue(undefined),
+  getAuthManager: jest.fn().mockReturnValue({
+    nsfwVerificationManager: {
+      clearVerification: jest.fn().mockReturnValue(true),
+    },
+    cleanupExpiredTokens: jest.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 describe('DebugCommand', () => {
   let debugCommand;
   let mockContext;
@@ -58,7 +69,6 @@ describe('DebugCommand', () => {
       webhookUserTracker: mockWebhookUserTracker,
       nsfwVerificationManager: mockNsfwVerificationManager,
       conversationManager: mockConversationManager,
-      authManager: mockAuthManager,
       messageTracker: mockMessageTracker,
     });
 
@@ -281,11 +291,12 @@ describe('DebugCommand', () => {
 
   describe('clearauth subcommand', () => {
     it('should clean up authentication tokens', async () => {
+      const auth = require('../../../../../src/auth');
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);
 
-      expect(mockAuthManager.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(auth.getAuthManager().cleanupExpiredTokens).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
         '[Debug] Authentication tokens cleaned up for TestUser#1234'
       );
@@ -301,7 +312,8 @@ describe('DebugCommand', () => {
     });
 
     it('should handle auth cleanup errors', async () => {
-      mockAuthManager.cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
+      const auth = require('../../../../../src/auth');
+      auth.getAuthManager().cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);
