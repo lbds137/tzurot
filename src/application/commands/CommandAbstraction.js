@@ -174,7 +174,7 @@ class CommandContext {
     this.userId = userId || author?.id;
     this.channelId = channelId || channel?.id;
     this.guildId = guildId || guild?.id;
-    this.isDirectMessage = isDirectMessage !== undefined ? isDirectMessage : !guild;
+    this.isDirectMessage = isDirectMessage;
     this.commandPrefix = commandPrefix;
     this.originalMessage = originalMessage || message;
     
