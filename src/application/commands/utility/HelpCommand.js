@@ -47,57 +47,146 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
   const command = commandRegistry.get(commandName.toLowerCase());
 
   if (!command) {
-    await context.respond(
-      `Unknown command: \`${commandName}\`. Use \`${botPrefix} help\` to see available commands.`
-    );
+    const errorEmbed = {
+      title: '❌ Unknown Command',
+      description: `Command \`${commandName}\` not found.`,
+      color: 0xf44336,
+      fields: [
+        {
+          name: 'Available Commands',
+          value: `Use \`${botPrefix} help\` to see all available commands.`,
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    
+    if (context.respondWithEmbed) {
+      await context.respondWithEmbed(errorEmbed);
+    } else {
+      await context.respond({ embeds: [errorEmbed] });
+    }
     return;
   }
 
   // Check if user has permission to see this command
   if (command.permissions.includes('ADMIN') && !context.isAdmin) {
-    await context.respond('This command is only available to administrators.');
+    const permissionEmbed = {
+      title: '❌ Insufficient Permissions',
+      description: 'This command is only available to administrators.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    
+    if (context.respondWithEmbed) {
+      await context.respondWithEmbed(permissionEmbed);
+    } else {
+      await context.respond({ embeds: [permissionEmbed] });
+    }
     return;
   }
 
-  // Build detailed help for the command
-  let helpContent = `**${botPrefix} ${command.name}`;
-
-  // Add command parameters to usage
+  // Build usage string
+  let usage = `${botPrefix} ${command.name}`;
   if (command.options && command.options.length > 0) {
     for (const option of command.options) {
       if (option.required) {
-        helpContent += ` <${option.name}>`;
+        usage += ` <${option.name}>`;
       } else {
-        helpContent += ` [${option.name}]`;
+        usage += ` [${option.name}]`;
       }
     }
   }
 
-  helpContent += `**\n${command.description}`;
+  // Create embed for command help
+  const helpEmbed = {
+    title: `📖 Command: ${command.name}`,
+    description: command.description,
+    color: 0x2196f3,
+    fields: [
+      {
+        name: 'Usage',
+        value: `\`${usage}\``,
+        inline: false,
+      },
+    ],
+    timestamp: new Date().toISOString(),
+  };
 
   // Add aliases if any
   if (command.aliases && command.aliases.length > 0) {
-    helpContent += `\n\n**Aliases:** ${command.aliases.map(a => `\`${a}\``).join(', ')}`;
+    helpEmbed.fields.push({
+      name: 'Aliases',
+      value: command.aliases.map(a => `\`${a}\``).join(', '),
+      inline: false,
+    });
   }
 
   // Add options details if any
   if (command.options && command.options.length > 0) {
-    helpContent += '\n\n**Options:**';
-    for (const option of command.options) {
-      helpContent += `\n• \`${option.name}\` - ${option.description}`;
-      if (option.required) {
-        helpContent += ' (required)';
-      }
-      if (option.choices && option.choices.length > 0) {
-        helpContent += `\n  Choices: ${option.choices.map(c => `\`${c.value}\``).join(', ')}`;
+    const optionsText = command.options
+      .map(option => {
+        let text = `• \`${option.name}\` - ${option.description}`;
+        if (option.required) {
+          text += ' **(required)**';
+        }
+        if (option.choices && option.choices.length > 0) {
+          text += `\n  Choices: ${option.choices.map(c => `\`${c.value}\``).join(', ')}`;
+        }
+        return text;
+      })
+      .join('\n');
+
+    helpEmbed.fields.push({
+      name: 'Options',
+      value: optionsText,
+      inline: false,
+    });
+  }
+
+  // Add command-specific detailed help
+  const specificHelp = getCommandSpecificHelp(command.name, botPrefix);
+  if (specificHelp) {
+    // Parse the specific help to create additional fields
+    const sections = specificHelp.split('\n\n').filter(s => s.trim());
+    
+    for (const section of sections) {
+      if (section.startsWith('**') && section.includes(':**')) {
+        // Extract title and content
+        const titleMatch = section.match(/\*\*([^*]+):\*\*/);
+        if (titleMatch) {
+          const title = titleMatch[1];
+          const content = section.replace(titleMatch[0], '').trim();
+          
+          helpEmbed.fields.push({
+            name: title,
+            value: content || 'No additional information',
+            inline: false,
+          });
+        }
+      } else if (section.trim()) {
+        // Add as a generic field
+        helpEmbed.fields.push({
+          name: 'Additional Information',
+          value: section,
+          inline: false,
+        });
       }
     }
   }
 
-  // Add command-specific detailed help
-  helpContent += getCommandSpecificHelp(command.name, botPrefix);
+  // Add category
+  if (command.category) {
+    helpEmbed.footer = {
+      text: `Category: ${command.category}`,
+    };
+  }
 
-  await context.respond(helpContent);
+  if (context.respondWithEmbed) {
+    await context.respondWithEmbed(helpEmbed);
+  } else {
+    await context.respond({ embeds: [helpEmbed] });
+  }
 }
 
 /**
