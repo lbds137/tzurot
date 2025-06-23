@@ -322,7 +322,7 @@ describe('StatusCommand', () => {
         expect.objectContaining({
           description: 'Current status and information for the bot.',
           fields: expect.arrayContaining([
-            { name: 'Ping', value: 'N/A', inline: true },
+            { name: 'Ping', value: 'Calculating...', inline: true },
             { name: 'Guild Count', value: '0 servers', inline: true },
           ]),
         })

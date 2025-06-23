@@ -127,11 +127,13 @@ For each command, test:
 - [x] **Basic**: Shows bot statistics ⚠️ **ISSUE FOUND & FIXED**: Using legacy personality registry
 - [x] **Feature**: Accurate personality count ⚠️ **ISSUE FOUND & FIXED**: Now uses DDD service
 - [x] **Feature**: Ping and guild count ⚠️ **ISSUE FOUND & FIXED**: Now gets from Discord client
+- [x] **Feature**: Shows "Calculating..." for -1ms ping ⚠️ **ISSUE FOUND & FIXED**: Was showing -1ms
 - [x] **Performance**: Response time < 1s
 
 #### 15. Debug Command (`!tz debug <subcommand>`)
 - [x] **Basic**: Various debug subcommands work
 - [x] **Feature**: Admin-only restriction works ⚠️ **ISSUE FOUND & FIXED**: Added bot owner override
+- [x] **Feature**: NSFW unverify works correctly ⚠️ **ISSUE FOUND & FIXED**: getNsfwVerificationManager error
 - [x] **Performance**: Response time < 2s
 
 ### Special/Admin Commands
@@ -192,7 +194,7 @@ For each command, test:
 ## Test Results Summary
 
 **Total Commands Tested**: 6/19  
-**Issues Found**: 12 (All Fixed)  
+**Issues Found**: 14 (All Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -257,6 +259,16 @@ For each command, test:
    - Root cause: Missing bot owner override check
    - Fix: Added check for USER_CONFIG.OWNER_ID alongside isAdmin
    - Commit: `99a545c`
+
+13. **Status Command (Fixed)** - Showing -1ms ping when Discord websocket not ready
+   - Root cause: Discord returns -1 for ping when websocket is calculating or not ready
+   - Fix: Check if ping > 0 before displaying, show "Calculating..." otherwise
+   - Commit: [session continued]
+
+14. **Debug Command (Fixed)** - getNsfwVerificationManager error when using unverify
+   - Root cause: Authentication module doesn't export getNsfwVerificationManager function
+   - Fix: Get nsfwVerificationManager from authManager or use injected dependency
+   - Commit: [session continued]
 
 ### Notes
 
