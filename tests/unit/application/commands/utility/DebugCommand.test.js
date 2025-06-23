@@ -100,12 +100,46 @@ describe('DebugCommand', () => {
         embeds: [
           expect.objectContaining({
             title: '❌ Access Denied',
-            description: 'This command requires administrator permissions.',
+            description: 'This command requires administrator permissions or bot owner status.',
             color: 0xf44336,
           }),
         ],
       });
       expect(mockWebhookUserTracker.clearAllCachedWebhooks).not.toHaveBeenCalled();
+    });
+    
+    it('should allow bot owner access even without admin permissions', async () => {
+      mockContext.isAdmin = false;
+      mockContext.userId = '123456789012345678'; // Default fallback bot owner ID from constants
+      
+      // Mock the constants module
+      jest.doMock('../../../../../src/constants', () => ({
+        USER_CONFIG: {
+          OWNER_ID: '123456789012345678'
+        }
+      }));
+      
+      // Re-create the command with the mocked constants
+      debugCommand = createDebugCommand({
+        webhookUserTracker: mockWebhookUserTracker,
+        nsfwVerificationManager: mockNsfwVerificationManager,
+        conversationManager: mockConversationManager,
+        authManager: mockAuthManager,
+        messageTracker: mockMessageTracker,
+      });
+      
+      await debugCommand.execute(mockContext);
+      
+      // Should show help instead of access denied
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🛠️ Debug Command Help',
+            description: expect.stringContaining('Usage:'),
+            color: 0x2196f3,
+          }),
+        ],
+      });
     });
   });
 

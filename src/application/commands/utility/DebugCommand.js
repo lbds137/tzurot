@@ -16,11 +16,14 @@ const logger = require('../../../logger');
 function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
-      // Admin check
-      if (!context.isAdmin) {
+      // Check for admin permissions or bot owner
+      const { USER_CONFIG } = require('../../../constants');
+      const isBotOwner = context.userId === USER_CONFIG.OWNER_ID;
+      
+      if (!context.isAdmin && !isBotOwner) {
         const errorEmbed = {
           title: '❌ Access Denied',
-          description: 'This command requires administrator permissions.',
+          description: 'This command requires administrator permissions or bot owner status.',
           color: 0xf44336,
           timestamp: new Date().toISOString(),
         };

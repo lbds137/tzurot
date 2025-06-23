@@ -53,6 +53,10 @@ class DiscordCommandAdapter {
         isDirectMessage: !message.guild,
         commandPrefix: botPrefix,
         originalMessage: message,
+        // Add admin check for text commands
+        isAdmin: message.guild && message.member ? 
+          message.member.permissions.has(require('discord.js').PermissionFlagsBits.Administrator) : 
+          false,
       });
 
       // Execute the command
@@ -101,6 +105,16 @@ class DiscordCommandAdapter {
           }
         },
         dependencies: this.applicationServices,
+        // Add missing properties for slash commands
+        userId: interaction.user.id,
+        channelId: interaction.channel?.id,
+        guildId: interaction.guild?.id || null,
+        isDirectMessage: !interaction.guild,
+        commandPrefix: '/',
+        // Add admin check for slash commands
+        isAdmin: interaction.guild && interaction.member ? 
+          interaction.member.permissions.has(require('discord.js').PermissionFlagsBits.Administrator) : 
+          false,
       });
 
       // Execute the command

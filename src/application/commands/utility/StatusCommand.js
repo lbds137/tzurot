@@ -42,6 +42,9 @@ function createExecutor(dependencies = {}) {
         conversationManager = require('../../../core/conversation'),
         processUtils = { uptime: () => process.uptime() },
       } = dependencies;
+      
+      // Get DDD personality service from context if available
+      const personalityService = context.dependencies?.personalityApplicationService;
 
       // Get uptime info
       const uptime = processUtils.uptime();
@@ -54,8 +57,21 @@ function createExecutor(dependencies = {}) {
       // Get user's personalities if authenticated
       let personalityCount = 0;
       if (isAuthenticated) {
-        const personalities = personalityRegistry.listPersonalitiesForUser(context.userId);
-        personalityCount = personalities ? personalities.length : 0;
+        // Use DDD service if available, otherwise fall back to legacy
+        if (personalityService) {
+          try {
+            const personalities = await personalityService.listPersonalitiesByOwner(context.userId);
+            personalityCount = personalities ? personalities.length : 0;
+          } catch (error) {
+            logger.warn('[StatusCommand] Failed to get personalities from DDD service:', error);
+            // Fall back to legacy
+            const personalities = personalityRegistry.listPersonalitiesForUser(context.userId);
+            personalityCount = personalities ? personalities.length : 0;
+          }
+        } else {
+          const personalities = personalityRegistry.listPersonalitiesForUser(context.userId);
+          personalityCount = personalities ? personalities.length : 0;
+        }
       }
 
       // Get auto-response status
@@ -70,13 +86,18 @@ function createExecutor(dependencies = {}) {
       const currentChannelPersonality = activatedChannels[context.channelId];
       const activatedCount = Object.keys(activatedChannels).length;
 
+      // Get Discord client for proper ping and guild count
+      const client = context.message?.client || context.interaction?.client;
+      const ping = client?.ws?.ping ? `${Math.round(client.ws.ping)}ms` : 'N/A';
+      const guildCount = client?.guilds?.cache?.size || 0;
+      
       // Build status information
       const statusInfo = {
         uptime: formattedUptime,
-        ping: context.getPing ? `${Math.round(context.getPing())}ms` : 'N/A',
+        ping: ping,
         authenticated: isAuthenticated,
         ageVerified: isNsfwVerified,
-        guildCount: context.getGuildCount ? context.getGuildCount() : 'N/A',
+        guildCount: guildCount,
         personalityCount,
         autoResponse: autoResponseStatus,
         currentChannelPersonality,
