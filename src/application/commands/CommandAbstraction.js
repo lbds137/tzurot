@@ -157,6 +157,7 @@ class CommandContext {
     isDirectMessage, // Whether this is a DM (undefined means auto-detect)
     commandPrefix, // Command prefix used
     originalMessage, // Original message object (same as message, for compatibility)
+    isAdmin = false, // Whether user has admin permissions
   }) {
     this.platform = platform;
     this.isSlashCommand = isSlashCommand;
@@ -170,12 +171,15 @@ class CommandContext {
     this.reply = reply;
     this.dependencies = dependencies;
     // Store additional properties
-    this.userId = userId;
-    this.channelId = channelId;
-    this.guildId = guildId;
-    this.isDirectMessage = isDirectMessage;
+    this.userId = userId || author?.id;
+    this.channelId = channelId || channel?.id;
+    this.guildId = guildId || guild?.id;
+    this.isDirectMessage = isDirectMessage !== undefined ? isDirectMessage : !guild;
     this.commandPrefix = commandPrefix;
     this.originalMessage = originalMessage || message;
+    
+    // Admin check property
+    this.isAdmin = isAdmin;
   }
 
   /**
