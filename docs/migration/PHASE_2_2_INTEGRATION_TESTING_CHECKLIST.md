@@ -105,10 +105,10 @@ For each command, test:
 - [ ] **Performance**: Response time < 1s
 
 #### 11. Verify Command (`!tz verify`)
-- [ ] **Basic**: Verify for NSFW access
-- [ ] **Basic**: Shows current status
-- [ ] **Feature**: Proper age verification flow
-- [ ] **Performance**: Response time < 1s
+- [X] **Basic**: Verify for NSFW access
+- [X] **Basic**: Shows current status
+- [X] **Feature**: Proper age verification flow
+- [X] **Performance**: Response time < 1s
 
 ### Utility Commands
 
@@ -194,7 +194,7 @@ For each command, test:
 ## Test Results Summary
 
 **Total Commands Tested**: 6/19  
-**Issues Found**: 15 (All Fixed)  
+**Issues Found**: 16 (All Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -273,6 +273,11 @@ For each command, test:
 15. **Debug Command (Fixed)** - Service Unavailable error when using unverify
    - Root cause: Auth manager not initialized, accessing nsfwVerificationManager incorrectly
    - Fix: Call auth.initAuth() and access nsfwVerificationManager property directly
+   - Commit: [session continued]
+
+16. **Debug Command (Fixed)** - Logging "undefined" for username
+   - Root cause: CommandContext doesn't have userTag property
+   - Fix: Use context.getAuthorDisplayName() method instead of context.userTag
    - Commit: [session continued]
 
 ### Notes
