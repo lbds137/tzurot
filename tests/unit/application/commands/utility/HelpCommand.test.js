@@ -280,16 +280,32 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('**!tz add <name> [alias]**')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('Add a new personality')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('**Aliases:** `create`')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(expect.stringContaining('**Options:**'));
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith({
+        title: '📖 Command: add',
+        description: 'Add a new personality',
+        color: 0x2196f3,
+        fields: expect.arrayContaining([
+          {
+            name: 'Usage',
+            value: '`!tz add <name> [alias]`',
+            inline: false,
+          },
+          {
+            name: 'Aliases',
+            value: '`create`',
+            inline: false,
+          },
+          {
+            name: 'Options',
+            value: expect.stringContaining('• `name` - Personality name'),
+            inline: false,
+          },
+        ]),
+        footer: {
+          text: 'Category: personality',
+        },
+        timestamp: expect.any(String),
+      });
     });
 
     it('should work with command option instead of args', async () => {
@@ -303,12 +319,22 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('**!tz list [page]**')
-      );
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('List all personalities')
-      );
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith({
+        title: '📖 Command: list',
+        description: 'List all personalities',
+        color: 0x2196f3,
+        fields: expect.arrayContaining([
+          {
+            name: 'Usage',
+            value: '`!tz list [page]`',
+            inline: false,
+          },
+        ]),
+        footer: {
+          text: 'Category: personality',
+        },
+        timestamp: expect.any(String),
+      });
     });
 
     it('should show unknown command message for non-existent command', async () => {
@@ -322,9 +348,19 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        'Unknown command: `nonexistent`. Use `!tz help` to see available commands.'
-      );
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith({
+        title: '❌ Unknown Command',
+        description: 'Command `nonexistent` not found.',
+        color: 0xf44336,
+        fields: [
+          {
+            name: 'Available Commands',
+            value: 'Use `!tz help` to see all available commands.',
+            inline: false,
+          },
+        ],
+        timestamp: expect.any(String),
+      });
     });
 
     it('should show admin restriction message for admin commands', async () => {
@@ -339,9 +375,12 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        'This command is only available to administrators.'
-      );
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith({
+        title: '❌ Insufficient Permissions',
+        description: 'This command is only available to administrators.',
+        color: 0xf44336,
+        timestamp: expect.any(String),
+      });
     });
 
     it('should show command-specific detailed help', async () => {
@@ -355,10 +394,19 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      const response = mockContext.respond.mock.calls[0][0];
-      expect(response).toContain('**Subcommands:**');
-      expect(response).toContain('`start` - Begin the authentication process');
-      expect(response).toContain('**Security Note:**');
+      const embedCall = mockContext.respondWithEmbed.mock.calls[0][0];
+      expect(embedCall.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'Subcommands',
+            value: expect.stringContaining('`start` - Begin the authentication process'),
+          }),
+          expect.objectContaining({
+            name: 'Security Note',
+            value: expect.stringContaining('authorization codes must be submitted via DM'),
+          }),
+        ])
+      );
     });
 
     it('should show choices for command options', async () => {
@@ -372,8 +420,9 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      const response = mockContext.respond.mock.calls[0][0];
-      expect(response).toContain('Choices: `start`, `status`');
+      const embedCall = mockContext.respondWithEmbed.mock.calls[0][0];
+      const optionsField = embedCall.fields.find(f => f.name === 'Options');
+      expect(optionsField.value).toContain('Choices: `start`, `status`');
     });
 
     it('should work with command aliases', async () => {
@@ -387,9 +436,54 @@ describe('HelpCommand', () => {
 
       await command.execute(mockContext);
 
-      expect(mockContext.respond).toHaveBeenCalledWith(
-        expect.stringContaining('**!tz add <name> [alias]**')
-      );
+      expect(mockContext.respondWithEmbed).toHaveBeenCalledWith({
+        title: '📖 Command: add',
+        description: 'Add a new personality',
+        color: 0x2196f3,
+        fields: expect.arrayContaining([
+          {
+            name: 'Usage',
+            value: '`!tz add <name> [alias]`',
+            inline: false,
+          },
+        ]),
+        footer: {
+          text: 'Category: personality',
+        },
+        timestamp: expect.any(String),
+      });
+    });
+
+    it('should fallback to regular embeds when respondWithEmbed not available', async () => {
+      mockContext.args = ['add'];
+      mockContext.respondWithEmbed = false;
+
+      const command = createHelpCommand({
+        commandRegistry: mockRegistry,
+        botPrefix: '!tz',
+        botConfig: { name: 'TestBot' },
+      });
+
+      await command.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [{
+          title: '📖 Command: add',
+          description: 'Add a new personality',
+          color: 0x2196f3,
+          fields: expect.arrayContaining([
+            {
+              name: 'Usage',
+              value: '`!tz add <name> [alias]`',
+              inline: false,
+            },
+          ]),
+          footer: {
+            text: 'Category: personality',
+          },
+          timestamp: expect.any(String),
+        }],
+      });
     });
   });
 
