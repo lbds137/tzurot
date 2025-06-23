@@ -54,6 +54,12 @@ describe('StatusCommand', () => {
       processUtils: mockProcessUtils,
     });
 
+    // Create mock Discord client
+    const mockClient = {
+      ws: { ping: 42 },
+      guilds: { cache: { size: 5 } },
+    };
+    
     // Mock context
     mockContext = {
       userId: 'user123',
@@ -68,6 +74,8 @@ describe('StatusCommand', () => {
       getPing: jest.fn().mockReturnValue(42),
       getGuildCount: jest.fn().mockReturnValue(5),
       getBotName: jest.fn().mockReturnValue('TestBot'),
+      // Add Discord message with client
+      message: { client: mockClient },
     };
   });
 
@@ -306,6 +314,7 @@ describe('StatusCommand', () => {
       delete mockContext.getPing;
       delete mockContext.getGuildCount;
       delete mockContext.getBotName;
+      delete mockContext.message; // Remove message with client
 
       await statusCommand.execute(mockContext);
 
@@ -314,7 +323,7 @@ describe('StatusCommand', () => {
           description: 'Current status and information for the bot.',
           fields: expect.arrayContaining([
             { name: 'Ping', value: 'N/A', inline: true },
-            { name: 'Guild Count', value: 'N/A servers', inline: true },
+            { name: 'Guild Count', value: '0 servers', inline: true },
           ]),
         })
       );

@@ -47,7 +47,7 @@ For each command, test:
 #### 3. List Command (`!tz list`)
 - [X] **Basic**: Shows all user's personalities
 - [X] **Basic**: Shows aliases correctly
-- [ ] **Basic**: Empty list handled gracefully
+- [X] **Basic**: Empty list handled gracefully
 - [X] **Feature**: Pagination for many personalities
 - [X] **Performance**: Response time < 1s
 
@@ -185,9 +185,9 @@ For each command, test:
 - [x] Alias resolution follows correct precedence ✅ Exact name > aliases > display name
 
 ### Backward Compatibility
-- [ ] Existing personalities work with new commands
-- [ ] Old data formats handled gracefully
-- [ ] No breaking changes for users
+- [X] Existing personalities work with new commands
+- [X] Old data formats handled gracefully
+- [X] No breaking changes for users
 
 ## Test Results Summary
 
