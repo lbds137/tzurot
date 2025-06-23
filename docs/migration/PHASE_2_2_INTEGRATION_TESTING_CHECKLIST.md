@@ -124,15 +124,15 @@ For each command, test:
 - [x] **Performance**: Response time < 500ms
 
 #### 14. Status Command (`!tz status`)
-- [ ] **Basic**: Shows bot statistics
-- [ ] **Feature**: Accurate personality count
-- [ ] **Feature**: Memory usage reasonable
-- [ ] **Performance**: Response time < 1s
+- [x] **Basic**: Shows bot statistics ⚠️ **ISSUE FOUND & FIXED**: Using legacy personality registry
+- [x] **Feature**: Accurate personality count ⚠️ **ISSUE FOUND & FIXED**: Now uses DDD service
+- [x] **Feature**: Ping and guild count ⚠️ **ISSUE FOUND & FIXED**: Now gets from Discord client
+- [x] **Performance**: Response time < 1s
 
 #### 15. Debug Command (`!tz debug <subcommand>`)
-- [ ] **Basic**: Various debug subcommands work
-- [ ] **Feature**: Admin-only restriction works
-- [ ] **Performance**: Response time < 2s
+- [x] **Basic**: Various debug subcommands work
+- [x] **Feature**: Admin-only restriction works ⚠️ **ISSUE FOUND & FIXED**: Added bot owner override
+- [x] **Performance**: Response time < 2s
 
 ### Special/Admin Commands
 
@@ -191,8 +191,8 @@ For each command, test:
 
 ## Test Results Summary
 
-**Total Commands Tested**: 4/19  
-**Issues Found**: 9 (All Fixed)  
+**Total Commands Tested**: 6/19  
+**Issues Found**: 12 (All Fixed)  
 **Performance Issues**: 0  
 **Feature Gaps**: 0  
 
@@ -242,6 +242,21 @@ For each command, test:
    - Root cause: External mode not validating personality exists in API
    - Fix: Added API validation requirement for external personalities
    - Commit: [session continued]
+
+10. **Status Command (Fixed)** - Using legacy personality registry instead of DDD service
+   - Root cause: Command not updated to use new personality service
+   - Fix: Added DDD service support with fallback to legacy
+   - Commit: `99a545c`
+
+11. **Status Command (Fixed)** - Not getting real Discord client ping/guild count
+   - Root cause: Using helper methods that weren't implemented
+   - Fix: Direct access to client.ws.ping and client.guilds.cache.size
+   - Commit: `99a545c`
+
+12. **Debug Command (Fixed)** - Bot owner couldn't access without admin permissions
+   - Root cause: Missing bot owner override check
+   - Fix: Added check for USER_CONFIG.OWNER_ID alongside isAdmin
+   - Commit: `99a545c`
 
 ### Notes
 
