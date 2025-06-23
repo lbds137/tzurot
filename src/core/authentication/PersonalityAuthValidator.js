@@ -9,6 +9,7 @@
  */
 
 const logger = require('../../logger');
+const { botPrefix } = require('../../../config');
 
 class PersonalityAuthValidator {
   constructor(nsfwVerificationManager, userTokenManager, ownerId) {
@@ -102,7 +103,7 @@ class PersonalityAuthValidator {
           );
         } else {
           result.errors.push(
-            'This bot requires age verification. Please use the `verify` command to confirm you are 18 or older.'
+            `This bot requires age verification. Please use the \`${botPrefix} verify\` command in an NSFW channel to confirm you are 18 or older.`
           );
         }
         logger.info(
