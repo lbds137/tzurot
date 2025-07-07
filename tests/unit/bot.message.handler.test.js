@@ -27,11 +27,13 @@ jest.mock('../../src/core/conversation', () => ({
   getActivatedPersonality: jest.fn(),
 }));
 
-// Mock the commandLoader module - this is updated from commands to commandLoader
-jest.mock('../../src/commandLoader', () => ({
-  processCommand: jest.fn().mockResolvedValue({
-    success: true,
-    message: 'Command processed successfully',
+// Mock the CommandIntegrationAdapter module
+jest.mock('../../src/adapters/CommandIntegrationAdapter', () => ({
+  getCommandIntegrationAdapter: jest.fn().mockReturnValue({
+    processCommand: jest.fn().mockResolvedValue({
+      success: true,
+      message: 'Command processed successfully',
+    }),
   }),
 }));
 
@@ -68,7 +70,7 @@ function createMessageHandler() {
     aiService: require('../../src/aiService'),
     webhookManager: require('../../src/webhookManager'),
     conversationManager: require('../../src/core/conversation'),
-    commandLoader: require('../../src/commandLoader'),
+    commandAdapter: require('../../src/adapters/CommandIntegrationAdapter').getCommandIntegrationAdapter(),
     personalityManager: require('../../src/core/personality'),
     config: require('../../config'),
     logger: require('../../src/logger'),
@@ -101,7 +103,7 @@ function createMessageHandler() {
       const command = args.shift()?.toLowerCase() || 'help';
 
       // Process the command through the command loader
-      return await deps.commandLoader.processCommand(message, command, args);
+      return await deps.commandAdapter.processCommand(message, command, args);
     }
 
     // Get the active personality for this user and channel
@@ -208,7 +210,7 @@ describe('Bot Message Handler', () => {
 
     // Verify command processing was attempted
     expect(tracking.commandProcessed).toBe(true);
-    expect(deps.commandLoader.processCommand).toHaveBeenCalledWith(message, 'help', []);
+    expect(deps.commandAdapter.processCommand).toHaveBeenCalledWith(message, 'help', []);
 
     // Verify AI response was not generated
     expect(tracking.aiResponseGenerated).toBe(false);
@@ -422,6 +424,6 @@ describe('Bot Message Handler', () => {
     await handleMessage(message);
 
     // Verify command was parsed correctly
-    expect(deps.commandLoader.processCommand).toHaveBeenCalledWith(message, 'list', ['2']);
+    expect(deps.commandAdapter.processCommand).toHaveBeenCalledWith(message, 'list', ['2']);
   });
 });

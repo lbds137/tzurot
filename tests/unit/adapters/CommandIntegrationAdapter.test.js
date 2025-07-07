@@ -2,30 +2,18 @@
  * Tests for CommandIntegrationAdapter
  */
 
-// Mock before imports
-jest.mock('../../../src/commandLoader', () => ({
-  processCommand: jest.fn(),
-}));
-
 const { CommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { createMigrationHelper } = require('../../utils/testEnhancements');
-const { processCommand: mockProcessCommand } = require('../../../src/commandLoader');
 
 describe('CommandIntegrationAdapter', () => {
   let adapter;
-  let mockFeatureFlags;
   let mockCommandIntegration;
   let mockMessage;
   let migrationHelper;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     migrationHelper = createMigrationHelper();
-
-    // Mock feature flags
-    mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false),
-      hasFlag: jest.fn().mockReturnValue(false),
-    };
 
     // Mock command integration
     mockCommandIntegration = {
@@ -38,7 +26,6 @@ describe('CommandIntegrationAdapter', () => {
 
     // Create adapter with mocks
     adapter = new CommandIntegrationAdapter({
-      featureFlags: mockFeatureFlags,
       commandIntegration: mockCommandIntegration,
     });
 
@@ -48,20 +35,15 @@ describe('CommandIntegrationAdapter', () => {
       userId: '123456789',
       channelId: '987654321',
     });
-
-    // Configure the mock for each test
-    mockProcessCommand.mockResolvedValue({ success: true });
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
   });
 
   describe('initialization', () => {
     it('should initialize command integration on first use', async () => {
-      await adapter.processCommand(mockMessage, 'test', []);
+      expect(adapter.initialized).toBe(false);
 
-      expect(mockCommandIntegration.initialize).toHaveBeenCalledTimes(1);
+      await adapter.initialize({ someService: 'test' });
+
+      expect(mockCommandIntegration.initialize).toHaveBeenCalledWith({ someService: 'test' });
       expect(adapter.initialized).toBe(true);
     });
 
@@ -72,208 +54,118 @@ describe('CommandIntegrationAdapter', () => {
       expect(mockCommandIntegration.initialize).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle concurrent initialization', async () => {
-      // Start multiple initializations concurrently
-      const promises = [adapter.initialize(), adapter.initialize(), adapter.initialize()];
+    it('should handle initialization errors', async () => {
+      mockCommandIntegration.initialize.mockRejectedValue(new Error('Init failed'));
 
-      await Promise.all(promises);
-
-      expect(mockCommandIntegration.initialize).toHaveBeenCalledTimes(1);
+      await expect(adapter.initialize()).rejects.toThrow('Init failed');
+      expect(adapter.initialized).toBe(false);
     });
   });
 
-  describe('command routing', () => {
+  describe('processCommand', () => {
     beforeEach(async () => {
       await adapter.initialize();
     });
 
-    it('should route to legacy system when feature flag is disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
+    it('should process commands through DDD system', async () => {
       mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      const result = await adapter.processCommand(mockMessage, 'add', ['test']);
-
-      expect(result.success).toBe(true);
-      expect(mockCommandIntegration.handleDiscordTextCommand).not.toHaveBeenCalled();
-    });
-
-    it('should route to new system when feature flag is enabled', async () => {
-      // Ensure adapter is initialized first
-      await adapter.initialize();
-
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled';
+      mockCommandIntegration.handleDiscordTextCommand.mockResolvedValue({
+        success: true,
+        response: 'Command executed',
       });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
 
-      const result = await adapter.processCommand(mockMessage, 'add', ['test']);
+      const result = await adapter.processCommand(mockMessage, 'test', ['arg1']);
 
-      expect(result.success).toBe(true);
+      expect(mockCommandIntegration.hasCommand).toHaveBeenCalledWith('test');
       expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
         mockMessage,
-        'add',
-        ['test']
+        'test',
+        ['arg1']
       );
-      // Verify it didn't call legacy
-      expect(mockProcessCommand).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true, result: { success: true, response: 'Command executed' } });
     });
 
-    it('should use new system by default when ddd.commands.enabled is true', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      const personalityCommands = ['add', 'remove', 'info', 'alias', 'list'];
-
-      for (const cmd of personalityCommands) {
-        mockCommandIntegration.handleDiscordTextCommand.mockClear();
-        await adapter.processCommand(mockMessage, cmd, []);
-        expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
-          mockMessage,
-          cmd,
-          []
-        );
-      }
-    });
-
-
-    it('should use new system for all commands when only global flag is enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-
-      const utilityCommands = ['ping', 'status', 'debug', 'purgbot', 'volumetest', 'notifications'];
-
-      for (const cmd of utilityCommands) {
-        mockCommandIntegration.handleDiscordTextCommand.mockClear();
-        await adapter.processCommand(mockMessage, cmd, []);
-        expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
-          mockMessage,
-          cmd,
-          []
-        );
-      }
-    });
-
-    it('should properly route command aliases to new system', async () => {
-      // Enable global DDD commands
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled';
-      });
-      
-      // Mock getAllCommands to simulate alias resolution
-      const mockCommand = { name: 'purgbot', aliases: ['cleandm', 'purgebot', 'clearbot'] };
-      mockCommandIntegration.getAllCommands.mockReturnValue([mockCommand]);
-      
-      // Test with primary name
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-      mockCommandIntegration.handleDiscordTextCommand.mockClear();
-      await adapter.processCommand(mockMessage, 'purgbot', []);
-      expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
-        mockMessage,
-        'purgbot',
-        []
-      );
-      
-      // Test with alias - should still route to new system
-      mockCommandIntegration.handleDiscordTextCommand.mockClear();
-      await adapter.processCommand(mockMessage, 'cleandm', []);
-      expect(mockCommandIntegration.handleDiscordTextCommand).toHaveBeenCalledWith(
-        mockMessage,
-        'cleandm',
-        []
-      );
-    });
-
-    it('should use legacy for commands not in new system', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
+    it('should handle unknown commands', async () => {
       mockCommandIntegration.hasCommand.mockReturnValue(false);
 
       const result = await adapter.processCommand(mockMessage, 'unknown', []);
 
-      expect(result.success).toBe(true);
+      expect(result).toEqual({
+        success: false,
+        error: 'Unknown command: unknown',
+      });
       expect(mockCommandIntegration.handleDiscordTextCommand).not.toHaveBeenCalled();
     });
 
+    it('should handle command errors gracefully', async () => {
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      mockCommandIntegration.handleDiscordTextCommand.mockRejectedValue(
+        new Error('Command failed')
+      );
+
+      const result = await adapter.processCommand(mockMessage, 'test', []);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Command failed',
+      });
+    });
+
+    it('should initialize before processing if not initialized', async () => {
+      adapter.initialized = false;
+
+      mockCommandIntegration.hasCommand.mockReturnValue(true);
+      await adapter.processCommand(mockMessage, 'test', []);
+
+      expect(mockCommandIntegration.initialize).toHaveBeenCalled();
+    });
   });
 
-  describe('error handling', () => {
-    beforeEach(async () => {
+  describe('getCommandList', () => {
+    it('should return empty list when not initialized', () => {
+      const commands = adapter.getCommandList();
+      expect(commands).toEqual([]);
+    });
+
+    it('should return formatted command list', async () => {
       await adapter.initialize();
-    });
 
-    it('should return error response on exception', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        // Enable new system but not fallback
-        return flag === 'ddd.commands.enabled';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-      mockCommandIntegration.handleDiscordTextCommand.mockRejectedValue(new Error('Test error'));
+      mockCommandIntegration.getAllCommands.mockReturnValue([
+        { name: 'test', description: 'Test command', aliases: ['t'] },
+        { name: 'help', description: 'Help command', aliases: [] },
+      ]);
 
-      const result = await adapter.processCommand(mockMessage, 'add', []);
+      const commands = adapter.getCommandList();
 
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Test error');
-    });
-
-    it('should fall back to legacy on error if flag enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.enabled' || flag === 'ddd.commands.fallbackOnError';
-      });
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
-      mockCommandIntegration.handleDiscordTextCommand.mockRejectedValue(new Error('Test error'));
-
-      const result = await adapter.processCommand(mockMessage, 'add', []);
-
-      expect(result.success).toBe(true);
+      expect(commands).toEqual([
+        { name: 'test', description: 'Test command', aliases: ['t'] },
+        { name: 'help', description: 'Help command', aliases: [] },
+      ]);
     });
   });
 
-  describe('slash command registration', () => {
-    const mockClient = { user: { id: '123' } };
+  describe('registerSlashCommands', () => {
+    it('should register slash commands', async () => {
+      const mockClient = {};
+      const guildId = '123456789';
 
-    it('should skip registration if feature flag disabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
+      await adapter.registerSlashCommands(mockClient, guildId);
 
-      await adapter.registerSlashCommands(mockClient);
-
-      expect(mockCommandIntegration.registerDiscordSlashCommands).not.toHaveBeenCalled();
-    });
-
-    it('should register slash commands if enabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        return flag === 'ddd.commands.slash';
-      });
-
-      await adapter.registerSlashCommands(mockClient, '12345');
-
+      expect(mockCommandIntegration.initialize).toHaveBeenCalled();
       expect(mockCommandIntegration.registerDiscordSlashCommands).toHaveBeenCalledWith(
         mockClient,
-        '12345'
+        guildId
       );
     });
   });
 
-  describe('command list', () => {
-    it('should return new commands marked as new', () => {
-      adapter.initialized = true;
-      mockCommandIntegration.getAllCommands.mockReturnValue([
-        { name: 'add', description: 'Add personality', aliases: ['create'] },
-      ]);
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-      mockCommandIntegration.hasCommand.mockReturnValue(true);
+  describe('isReady', () => {
+    it('should return initialization status', async () => {
+      expect(adapter.isReady()).toBe(false);
 
-      const commands = adapter.getCommandList();
+      await adapter.initialize();
 
-      expect(commands).toHaveLength(1);
-      expect(commands[0]).toEqual({
-        name: 'add',
-        description: 'Add personality',
-        aliases: ['create'],
-        isNew: true,
-      });
+      expect(adapter.isReady()).toBe(true);
     });
   });
 });

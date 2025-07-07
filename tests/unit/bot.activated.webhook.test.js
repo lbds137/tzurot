@@ -12,7 +12,7 @@ jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
-jest.mock('../../src/commands');
+// Legacy commands removed - no longer needed
 // Don't mock config - we want the real values
 jest.mock('../../src/logger');
 
