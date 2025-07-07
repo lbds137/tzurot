@@ -6,23 +6,11 @@ class FeatureFlags {
   constructor(config = {}) {
     this.flags = new Map();
     this.defaultFlags = {
-      // DDD Migration flags
-      'ddd.personality.read': false,
-      'ddd.personality.write': false,
-      'ddd.personality.dual-write': false,
-
-      // DDD Event system flags
-      'ddd.events.enabled': false,
-
-      // Command system flags
-      'ddd.commands.enabled': false,
-      'ddd.commands.integration': false, // Main flag to enable CommandIntegration routing
-      'ddd.commands.fallbackOnError': true,
-      'ddd.commands.slash': false,
-
-      // Feature flags for new capabilities
-      'features.enhanced-context': false, // Enable sending enhanced context to AI (for external services)
-
+      // Example feature flags - add new features here
+      // 'features.new-ui': false,
+      // 'features.experimental-ai': false,
+      // 'features.beta-commands': false,
+      
       // Override all flags from config
       ...config,
     };
@@ -104,7 +92,7 @@ class FeatureFlags {
   }
 
   /**
-   * Get flags by prefix (e.g., 'ddd.personality')
+   * Get flags by prefix (e.g., 'features')
    * @param {string} prefix - The prefix to filter by
    * @returns {Object}
    */
@@ -145,31 +133,22 @@ class FeatureFlags {
 
   /**
    * Load feature flags from environment variables
-   * Format: FEATURE_FLAG_DDD_PERSONALITY_READ=true
+   * Format: FEATURE_FLAG_FEATURES_NEW_UI=true
    */
   _loadFromEnvironment() {
     const prefix = 'FEATURE_FLAG_';
     Object.keys(process.env).forEach(key => {
       if (key.startsWith(prefix)) {
-        const flagName = key.substring(prefix.length).toLowerCase().replace(/_/g, '.');
+        // Convert FEATURE_FLAG_FEATURES_NEW_UI to features.new-ui
+        const flagName = key
+          .substring(prefix.length)
+          .toLowerCase()
+          .replace(/_/g, '.')
+          .replace(/\./g, match => '-');
 
         if (this.flags.has(flagName)) {
           const value = process.env[key].toLowerCase() === 'true';
           this.flags.set(flagName, value);
-        }
-
-        // Special handling for flags with hyphens
-        // Convert underscores to dots, then handle special cases with hyphens
-        const hyphenatedFlagName = key
-          .substring(prefix.length)
-          .toLowerCase()
-          .replace(/_/g, '.')
-          .replace(/\.dual\.write$/, '.dual-write')
-          .replace(/\.enhanced\.context$/, '.enhanced-context');
-
-        if (this.flags.has(hyphenatedFlagName)) {
-          const value = process.env[key].toLowerCase() === 'true';
-          this.flags.set(hyphenatedFlagName, value);
         }
       }
     });
@@ -177,11 +156,23 @@ class FeatureFlags {
 
   /**
    * Create a scoped feature flag checker
-   * @param {string} scope - The scope prefix (e.g., 'ddd.personality')
+   * @param {string} scope - The scope prefix (e.g., 'features')
    * @returns {Function}
    */
   createScopedChecker(scope) {
     return feature => this.isEnabled(`${scope}.${feature}`);
+  }
+
+  /**
+   * Add a new feature flag dynamically
+   * @param {string} flagName - The feature flag name
+   * @param {boolean} defaultValue - The default value
+   */
+  addFlag(flagName, defaultValue = false) {
+    if (this.flags.has(flagName)) {
+      throw new Error(`Feature flag already exists: ${flagName}`);
+    }
+    this.flags.set(flagName, defaultValue);
   }
 }
 

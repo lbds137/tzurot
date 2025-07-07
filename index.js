@@ -6,16 +6,19 @@ const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 // Health check is now part of the modular HTTP server
-const { initAuth } = require('./src/auth');
+const AuthManager = require('./src/core/authentication');
 const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
 const { botConfig } = require('./config');
 const { releaseNotificationManager } = require('./src/core/notifications');
+const { getDataDirectory } = require('./src/dataStorage');
 
 // Track whether app has been initialized
 let isInitialized = false;
 // HTTP server instance (handles health checks, webhooks, etc.)
 let httpServer = null;
+// Auth manager instance
+let authManager = null;
 
 // Error handling for uncaught exceptions
 process.on('uncaughtException', (error) => {
@@ -69,7 +72,17 @@ async function init() {
     logger.info('Conversation manager initialized');
     
     // Initialize auth system (loads saved tokens)
-    await initAuth();
+    authManager = new AuthManager({
+      appId: process.env.SERVICE_APP_ID,
+      apiKey: process.env.SERVICE_API_KEY,
+      authWebsite: process.env.SERVICE_WEBSITE,
+      authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
+      serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
+      ownerId: process.env.BOT_OWNER_ID,
+      isDevelopment: botConfig.isDevelopment,
+      dataDir: getDataDirectory(),
+    });
+    await authManager.initialize();
     logger.info('Auth system initialized');
     
     // Initialize the AI client after auth is loaded

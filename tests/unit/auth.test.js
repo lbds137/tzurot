@@ -1,444 +1,251 @@
 /**
- * Consolidated tests for auth.js with proper timing and new mock system
+ * Tests for auth.js
  */
 
 // Mock dependencies before imports
-jest.mock('fs/promises');
-jest.mock('node-fetch');
 jest.mock('../../src/logger');
 jest.mock('../../src/core/authentication');
+jest.mock('../../src/dataStorage');
+jest.mock('../../config', () => ({
+  botConfig: {
+    isDevelopment: false
+  }
+}));
 
 const auth = require('../../src/auth');
-const fs = require('fs/promises');
-const fetch = require('node-fetch');
 const logger = require('../../src/logger');
 const AuthManager = require('../../src/core/authentication');
+const { getDataDirectory } = require('../../src/dataStorage');
 
 describe('auth', () => {
-  beforeEach(async () => {
-    // Use fake timers for speed
-    jest.useFakeTimers();
+  let mockAuthManager;
+
+  beforeEach(() => {
     jest.clearAllMocks();
-
-    // Mock console to keep test output clean
-    jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
-
+    
+    // Mock logger
+    logger.info = jest.fn();
+    logger.error = jest.fn();
+    logger.debug = jest.fn();
+    logger.warn = jest.fn();
+    
+    // Mock data directory
+    getDataDirectory.mockReturnValue('/tmp/test-data');
+    
     // Set required environment variables
     process.env.SERVICE_APP_ID = 'test-app-id';
     process.env.SERVICE_API_KEY = 'test-api-key';
     process.env.SERVICE_WEBSITE = 'https://test.example.com';
     process.env.SERVICE_API_BASE_URL = 'https://api.test.example.com';
-    process.env.OWNER_ID = 'test-owner-id';
-
-    // Mock logger functions
-    logger.info = jest.fn();
-    logger.debug = jest.fn();
-    logger.warn = jest.fn();
-    logger.error = jest.fn();
-
-    // Mock fs operations with instant responses
-    fs.mkdir = jest.fn().mockResolvedValue(undefined);
-    fs.readFile = jest.fn().mockResolvedValue('{}'); // Default empty JSON
-    fs.writeFile = jest.fn().mockResolvedValue(undefined);
-
-    // Mock fetch with success by default
-    fetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: jest.fn().mockResolvedValue({ access_token: 'test-token-123' }),
-      text: jest.fn().mockResolvedValue('OK'),
-    });
-
-    // Mock AuthManager instance with nested components
-    const mockUserTokenManager = {
-      getAllTokens: jest.fn().mockReturnValue({}),
-      getAuthorizationUrl: jest
-        .fn()
-        .mockReturnValue('https://test.example.com/authorize?app_id=test-app-id'),
-      exchangeCodeForToken: jest.fn(),
-      getUserToken: jest.fn(),
-      storeUserToken: jest.fn(),
-      deleteUserToken: jest.fn(),
-      hasValidToken: jest.fn(),
-      cleanupExpiredTokens: jest.fn().mockReturnValue(0),
-      setAllTokens: jest.fn(),
-    };
-
-    const mockNsfwVerificationManager = {
-      getAllVerifications: jest.fn().mockReturnValue({}),
-      storeNsfwVerification: jest.fn(),
-      isNsfwVerified: jest.fn(),
-      setAllVerifications: jest.fn(),
-    };
-
-    const mockAuthManager = {
-      userTokenManager: mockUserTokenManager,
-      nsfwVerificationManager: mockNsfwVerificationManager,
-      getAuthorizationUrl: jest
-        .fn()
-        .mockReturnValue('https://test.example.com/authorize?app_id=test-app-id'),
-      exchangeCodeForToken: jest.fn(),
-      getUserToken: jest.fn(),
-      storeUserToken: jest.fn(),
-      deleteUserToken: jest.fn(),
-      hasValidToken: jest.fn(),
-      storeNsfwVerification: jest.fn(),
-      isNsfwVerified: jest.fn(),
+    process.env.BOT_OWNER_ID = 'test-owner-id';
+    
+    // Create mock AuthManager instance
+    mockAuthManager = {
       initialize: jest.fn().mockResolvedValue(undefined),
-      performScheduledCleanup: jest.fn().mockResolvedValue(undefined),
       shutdown: jest.fn().mockResolvedValue(undefined),
+      getAuthorizationUrl: jest.fn().mockReturnValue('https://test.example.com/authorize'),
+      getUserToken: jest.fn(),
+      hasValidToken: jest.fn(),
+      storeUserToken: jest.fn().mockResolvedValue(true),
+      deleteUserToken: jest.fn().mockResolvedValue(true),
+      storeNsfwVerification: jest.fn().mockResolvedValue(true),
+      isNsfwVerified: jest.fn(),
+      cleanupExpiredTokens: jest.fn().mockResolvedValue(0),
+      getTokenAge: jest.fn(),
+      getTokenExpirationInfo: jest.fn(),
+      userTokenManager: {
+        exchangeCodeForToken: jest.fn(),
+      },
     };
+    
+    // Mock AuthManager constructor
     AuthManager.mockImplementation(() => mockAuthManager);
-
-    // Store the mock instance for easy access in tests
-    AuthManager.mockInstance = mockAuthManager;
-
-    // Initialize auth system
-    await auth.initAuth();
-
-    // Clear in-memory caches after init
-    auth.userTokens = {};
-    auth.nsfwVerified = {};
+    AuthManager.TOKEN_EXPIRATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
   });
 
   afterEach(async () => {
-    jest.useRealTimers();
-
-    // Shutdown auth system cleanly
-    if (auth.shutdown) {
-      await auth.shutdown();
-    }
+    // Clean up
+    // Don't shutdown here as some tests check shutdown behavior
   });
 
-  describe('Core Authentication', () => {
-    describe('getAuthorizationUrl', () => {
-      test('should generate correct authorization URL', () => {
-        const url = auth.getAuthorizationUrl();
-
-        expect(url).toContain('https://test.example.com/authorize');
-        expect(url).toContain('app_id=test-app-id');
-        expect(url).toContain('app_id=test-app-id');
+  describe('initAuth', () => {
+    test('should initialize auth manager successfully', async () => {
+      await auth.initAuth();
+      
+      expect(AuthManager).toHaveBeenCalledWith({
+        appId: 'test-app-id',
+        apiKey: 'test-api-key',
+        authWebsite: 'https://test.example.com',
+        authApiEndpoint: 'https://api.test.example.com/auth',
+        serviceApiBaseUrl: 'https://api.test.example.com/v1',
+        ownerId: 'test-owner-id',
+        isDevelopment: false,
+        dataDir: '/tmp/test-data',
       });
-    });
-
-    describe('exchangeCodeForToken', () => {
-      test('should exchange code for token successfully', async () => {
-        const mockResponse = { access_token: 'test-token-123' };
-
-        // Mock the AuthManager method to return the token
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.userTokenManager.exchangeCodeForToken.mockResolvedValue(mockResponse);
-
-        const result = await auth.exchangeCodeForToken('test-code');
-
-        expect(result).toEqual(mockResponse);
-        expect(mockAuthManager.userTokenManager.exchangeCodeForToken).toHaveBeenCalledWith(
-          'test-code'
-        );
-      });
-
-      test('should handle exchange errors', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.userTokenManager.exchangeCodeForToken.mockRejectedValue(
-          new Error('OAuth token exchange failed')
-        );
-
-        await expect(auth.exchangeCodeForToken('bad-code')).rejects.toThrow(
-          'OAuth token exchange failed'
-        );
-      });
-    });
-
-    describe('getUserToken', () => {
-      test('should return stored token for user', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.getUserToken.mockResolvedValue('token-123');
-
-        const token = await auth.getUserToken('user123');
-
-        expect(token).toBe('token-123');
-        expect(mockAuthManager.getUserToken).toHaveBeenCalledWith('user123');
-      });
-
-      test('should return null for unknown user', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.getUserToken.mockResolvedValue(null);
-
-        const token = await auth.getUserToken('unknown');
-
-        expect(token).toBeNull();
-        expect(mockAuthManager.getUserToken).toHaveBeenCalledWith('unknown');
-      });
-    });
-
-    describe('deleteUserToken', () => {
-      test('should remove user token', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.deleteUserToken.mockResolvedValue(true);
-        mockAuthManager.getUserToken.mockResolvedValue(null); // After deletion
-
-        const result = await auth.deleteUserToken('user123');
-
-        expect(result).toBe(true);
-        expect(mockAuthManager.deleteUserToken).toHaveBeenCalledWith('user123');
-      });
-
-      test('should handle deleting non-existent token', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.deleteUserToken.mockResolvedValue(true);
-
-        const result = await auth.deleteUserToken('unknown-user');
-
-        expect(result).toBe(true);
-        expect(mockAuthManager.deleteUserToken).toHaveBeenCalledWith('unknown-user');
-      });
-    });
-  });
-
-  describe('Token Expiration', () => {
-    describe('Token validity checks', () => {
-      test('should validate non-expired tokens', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.hasValidToken.mockResolvedValue(true);
-
-        const isValid = await auth.hasValidToken('user123');
-
-        expect(isValid).toBe(true);
-        expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('user123');
-      });
-
-      test('should invalidate expired tokens', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-
-        // Advance time past expiration (30 days)
-        jest.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
-
-        mockAuthManager.hasValidToken.mockResolvedValue(false);
-
-        const isValid = await auth.hasValidToken('user123');
-
-        expect(isValid).toBe(false);
-        expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('user123');
-      });
-    });
-
-    describe('Token cleanup', () => {
-      test('should clean up expired tokens on check', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-
-        // Advance time past expiration
-        jest.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
-
-        // Mock that token is invalid and removed
-        mockAuthManager.hasValidToken.mockResolvedValue(false);
-        mockAuthManager.getUserToken.mockResolvedValue(null);
-
-        // Check validity triggers cleanup
-        await auth.hasValidToken('user123');
-
-        // Token should be removed
-        expect(await auth.getUserToken('user123')).toBeNull();
-      });
-
-      test('should clean up multiple expired tokens', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-
-        // Expire first two tokens
-        jest.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
-
-        // Mock that expired tokens are invalid and removed, fresh token remains
-        mockAuthManager.hasValidToken.mockResolvedValue(false);
-        mockAuthManager.getUserToken
-          .mockResolvedValueOnce(null) // user1
-          .mockResolvedValueOnce(null) // user2
-          .mockResolvedValueOnce(null) // user3
-          .mockResolvedValueOnce('token-4'); // user4
-
-        // Trigger cleanup by checking any token
-        await auth.hasValidToken('user1');
-
-        // Only fresh token should remain
-        expect(await auth.getUserToken('user1')).toBeNull();
-        expect(await auth.getUserToken('user2')).toBeNull();
-        expect(await auth.getUserToken('user3')).toBeNull();
-        expect(await auth.getUserToken('user4')).toBe('token-4');
-      });
-    });
-  });
-
-  describe('Authentication Enforcement', () => {
-    test('should require authentication for non-owner users', async () => {
-      const userId = 'regular-user-id';
-      const mockAuthManager = AuthManager.mockInstance;
-
-      mockAuthManager.hasValidToken.mockResolvedValue(false);
-
-      const hasToken = await auth.hasValidToken(userId);
-
-      expect(hasToken).toBe(false);
-      expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith(userId);
-    });
-
-    test('should allow owner to bypass authentication', async () => {
-      const ownerId = process.env.OWNER_ID;
-      const mockAuthManager = AuthManager.mockInstance;
-
-      // Owner should be considered authenticated even without token
-      mockAuthManager.hasValidToken.mockResolvedValue(true);
-
-      const hasToken = await auth.hasValidToken(ownerId);
-
-      expect(hasToken).toBe(true);
-      expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith(ownerId);
-    });
-
-    test('should enforce authentication for personality operations', async () => {
-      const userId = 'user123';
-      const mockAuthManager = AuthManager.mockInstance;
-
-      // Without token, should not be authenticated
-      mockAuthManager.hasValidToken.mockResolvedValueOnce(false);
-      let isAuthenticated = await auth.hasValidToken(userId);
-      expect(isAuthenticated).toBe(false);
-
-      // With valid token, should be authenticated
-      mockAuthManager.hasValidToken.mockResolvedValueOnce(true);
-      isAuthenticated = await auth.hasValidToken(userId);
-      expect(isAuthenticated).toBe(true);
-    });
-  });
-
-  describe('NSFW Verification', () => {
-    describe('storeNsfwVerification', () => {
-      test('should store NSFW verification status', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.storeNsfwVerification.mockResolvedValue(true);
-
-        const result = await auth.storeNsfwVerification('user123', true);
-
-        expect(result).toBe(true);
-        expect(mockAuthManager.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
-      });
-
-      test('should handle file write errors', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        const error = new Error('Write failed');
-        mockAuthManager.storeNsfwVerification.mockRejectedValue(error);
-
-        const result = await auth.storeNsfwVerification('user123', true);
-
-        expect(result).toBe(false);
-        expect(logger.error).toHaveBeenCalledWith(
-          expect.stringContaining('Error storing NSFW verification'),
-          error
-        );
-      });
-    });
-
-    describe('isNsfwVerified', () => {
-      test('should check NSFW verification status', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.isNsfwVerified.mockResolvedValue(true);
-
-        const isVerified = await auth.isNsfwVerified('user123');
-
-        expect(isVerified).toBe(true);
-        expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith('user123');
-      });
-
-      test('should return false for unverified users', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.isNsfwVerified.mockResolvedValue(false);
-
-        const isVerified = await auth.isNsfwVerified('unverified-user');
-
-        expect(isVerified).toBe(false);
-        expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith('unverified-user');
-      });
-
-      test('should respect verification expiry', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-
-        // Advance time past NSFW verification expiry (1 year)
-        jest.advanceTimersByTime(366 * 24 * 60 * 60 * 1000);
-
-        mockAuthManager.isNsfwVerified.mockResolvedValue(false);
-
-        const isVerified = await auth.isNsfwVerified('user123');
-
-        expect(isVerified).toBe(false);
-        expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith('user123');
-      });
-
-      test('should return false for user with false verification', async () => {
-        const mockAuthManager = AuthManager.mockInstance;
-        mockAuthManager.isNsfwVerified.mockResolvedValue(false);
-
-        const isVerified = await auth.isNsfwVerified('user123');
-
-        expect(isVerified).toBe(false);
-        expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith('user123');
-      });
-    });
-  });
-
-  describe('File operations', () => {
-    test('should create data directory on init', async () => {
-      const mockAuthManager = AuthManager.mockInstance;
-
-      // initAuth should be called and already happened in beforeEach
-      // The fact that the test is running means it worked
-
+      
       expect(mockAuthManager.initialize).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[Auth] Authentication system initialized successfully');
     });
 
-    test('should handle file read errors gracefully', async () => {
-      const mockAuthManager = AuthManager.mockInstance;
-      const error = new Error('File not found');
+    test('should handle initialization errors', async () => {
+      const error = new Error('Init failed');
       mockAuthManager.initialize.mockRejectedValue(error);
+      
+      await expect(auth.initAuth()).rejects.toThrow('Init failed');
+      expect(logger.error).toHaveBeenCalledWith('[Auth] Failed to initialize auth system:', error);
+    });
 
-      // Try to init again, which should fail and be caught
+    test('should reuse existing auth manager', async () => {
       await auth.initAuth();
-
-      // The error should be logged in debug, not necessarily in error
-      // Since the mock is set to fail on initialize, it should handle gracefully
-      // Test that it doesn't crash - the important outcome is that initAuth completes
-      expect(mockAuthManager.initialize).toHaveBeenCalled();
+      const firstCallCount = AuthManager.mock.calls.length;
+      
+      await auth.initAuth();
+      expect(AuthManager.mock.calls.length).toBe(firstCallCount);
     });
   });
 
-  describe('InitAuth operations', () => {
-    test('should setup cleanup interval', async () => {
-      // Reset modules to test initialization
-      jest.resetModules();
-      jest.clearAllMocks();
+  describe('getAuthManager', () => {
+    test('should return auth manager instance', () => {
+      const manager = auth.getAuthManager();
+      expect(manager).toBe(mockAuthManager);
+    });
 
-      // Mock timers
-      const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    test('should create auth manager on first call', () => {
+      expect(AuthManager).not.toHaveBeenCalled();
+      auth.getAuthManager();
+      expect(AuthManager).toHaveBeenCalledTimes(1);
+    });
+  });
 
-      const AuthManager = require('../../src/core/authentication');
-      const mockAuthManager = {
-        userTokenManager: {
-          getAllTokens: jest.fn().mockReturnValue({}),
-          cleanupExpiredTokens: jest.fn().mockReturnValue(0),
-        },
-        nsfwVerificationManager: {
-          getAllVerifications: jest.fn().mockReturnValue({}),
-        },
-        initialize: jest.fn().mockResolvedValue(undefined),
-        performScheduledCleanup: jest.fn().mockResolvedValue(undefined),
-        shutdown: jest.fn().mockResolvedValue(undefined),
-      };
-      AuthManager.mockImplementation(() => mockAuthManager);
-
-      const auth = require('../../src/auth');
+  describe('delegated methods', () => {
+    beforeEach(async () => {
       await auth.initAuth();
+    });
 
-      // The auth module sets up a 24-hour cleanup interval via AuthManager
-      expect(mockAuthManager.initialize).toHaveBeenCalled();
+    test('getAuthorizationUrl should delegate to auth manager', () => {
+      const url = auth.getAuthorizationUrl();
+      expect(url).toBe('https://test.example.com/authorize');
+      expect(mockAuthManager.getAuthorizationUrl).toHaveBeenCalled();
+    });
 
-      setIntervalSpy.mockRestore();
+    test('exchangeCodeForToken should delegate to token manager', async () => {
+      mockAuthManager.userTokenManager.exchangeCodeForToken.mockResolvedValue({ token: 'new-token' });
+      
+      const result = await auth.exchangeCodeForToken('test-code');
+      
+      expect(result).toEqual({ token: 'new-token' });
+      expect(mockAuthManager.userTokenManager.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
+    });
+
+    test('getUserToken should delegate to auth manager', () => {
+      mockAuthManager.getUserToken.mockReturnValue('user-token');
+      
+      const token = auth.getUserToken('user123');
+      
+      expect(token).toBe('user-token');
+      expect(mockAuthManager.getUserToken).toHaveBeenCalledWith('user123');
+    });
+
+    test('hasValidToken should delegate to auth manager', () => {
+      mockAuthManager.hasValidToken.mockReturnValue(true);
+      
+      const isValid = auth.hasValidToken('user123');
+      
+      expect(isValid).toBe(true);
+      expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('user123');
+    });
+
+    test('storeUserToken should delegate to auth manager', async () => {
+      const result = await auth.storeUserToken('user123', 'new-token');
+      
+      expect(result).toBe(true);
+      expect(mockAuthManager.storeUserToken).toHaveBeenCalledWith('user123', 'new-token');
+    });
+
+    test('deleteUserToken should delegate to auth manager', async () => {
+      const result = await auth.deleteUserToken('user123');
+      
+      expect(result).toBe(true);
+      expect(mockAuthManager.deleteUserToken).toHaveBeenCalledWith('user123');
+    });
+
+    test('storeNsfwVerification should delegate to auth manager', async () => {
+      const result = await auth.storeNsfwVerification('user123', true);
+      
+      expect(result).toBe(true);
+      expect(mockAuthManager.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+    });
+
+    test('isNsfwVerified should delegate to auth manager', () => {
+      mockAuthManager.isNsfwVerified.mockReturnValue(true);
+      
+      const isVerified = auth.isNsfwVerified('user123');
+      
+      expect(isVerified).toBe(true);
+      expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith('user123');
+    });
+
+    test('cleanupExpiredTokens should delegate to auth manager', async () => {
+      const count = await auth.cleanupExpiredTokens();
+      
+      expect(count).toBe(0);
+      expect(mockAuthManager.cleanupExpiredTokens).toHaveBeenCalled();
+    });
+
+    test('getTokenAge should delegate to auth manager', () => {
+      mockAuthManager.getTokenAge.mockReturnValue(5);
+      
+      const age = auth.getTokenAge('user123');
+      
+      expect(age).toBe(5);
+      expect(mockAuthManager.getTokenAge).toHaveBeenCalledWith('user123');
+    });
+
+    test('getTokenExpirationInfo should delegate to auth manager', () => {
+      const info = { daysUntilExpiration: 25, percentRemaining: 83.33 };
+      mockAuthManager.getTokenExpirationInfo.mockReturnValue(info);
+      
+      const result = auth.getTokenExpirationInfo('user123');
+      
+      expect(result).toEqual(info);
+      expect(mockAuthManager.getTokenExpirationInfo).toHaveBeenCalledWith('user123');
+    });
+  });
+
+  describe('constants', () => {
+    test('should export TOKEN_EXPIRATION_MS', () => {
+      expect(auth.TOKEN_EXPIRATION_MS).toBe(30 * 24 * 60 * 60 * 1000);
+    });
+
+    test('should export APP_ID', () => {
+      expect(auth.APP_ID).toBe('test-app-id');
+    });
+
+    test('should export API_KEY', () => {
+      expect(auth.API_KEY).toBe('test-api-key');
+    });
+  });
+
+  describe('shutdown', () => {
+    test('should shutdown auth manager', async () => {
+      await auth.initAuth();
+      await auth.shutdown();
+      
+      expect(mockAuthManager.shutdown).toHaveBeenCalled();
+    });
+
+    test('should handle multiple shutdowns gracefully', async () => {
+      // First ensure auth manager exists
+      await auth.initAuth();
+      
+      // Clear the mock call count
+      mockAuthManager.shutdown.mockClear();
+      
+      // Now test multiple shutdowns
+      await auth.shutdown();
+      await auth.shutdown();
+      
+      expect(mockAuthManager.shutdown).toHaveBeenCalledTimes(1);
     });
   });
 });

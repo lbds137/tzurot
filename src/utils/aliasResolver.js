@@ -3,14 +3,7 @@
  * Provides consistent alias-to-personality resolution across the application
  */
 const logger = require('../logger');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
 const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
-
-// Legacy imports for backward compatibility
-const {
-  getPersonality: getLegacyPersonality,
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-} = require('../core/personality');
 
 /**
  * Resolve a personality by name or alias
@@ -29,29 +22,12 @@ async function resolvePersonality(nameOrAlias) {
 
   logger.debug(`[AliasResolver] Resolving personality for: "${trimmedInput}"`);
 
-  // Check if DDD system is enabled
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    // DDD system handles both names and aliases in one method
-    const router = getPersonalityRouter();
-    const personality = await router.getPersonality(trimmedInput);
-
-    if (personality) {
-      logger.debug(`[AliasResolver] Found personality via DDD: ${personality.fullName}`);
-    }
-
-    return personality;
-  }
-
-  // Legacy system: try name first, then alias
-  let personality = await getLegacyPersonality(trimmedInput);
-
-  if (!personality) {
-    personality = await getLegacyPersonalityByAlias(trimmedInput);
-  }
+  // Use the DDD personality router
+  const router = getPersonalityRouter();
+  const personality = await router.getPersonality(trimmedInput);
 
   if (personality) {
-    logger.debug(`[AliasResolver] Found personality via legacy: ${personality.fullName}`);
+    logger.debug(`[AliasResolver] Found personality: ${personality.fullName}`);
   }
 
   return personality;
