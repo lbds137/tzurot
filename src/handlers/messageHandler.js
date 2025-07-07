@@ -3,7 +3,7 @@
  */
 const logger = require('../logger');
 const { botPrefix, botConfig } = require('../../config');
-const { processCommand } = require('../commandLoader');
+// Legacy command loader removed - using DDD command system
 const { messageTracker } = require('../messageTracker');
 const referenceHandler = require('./referenceHandler');
 const personalityHandler = require('./personalityHandler');
@@ -359,33 +359,20 @@ async function handleCommand(message) {
   );
 
   try {
-    // Check if we should use the new command integration system
-    const featureFlags = getFeatureFlags();
-    const useNewCommandSystem = featureFlags.isEnabled('ddd.commands.integration');
+    // Use the command integration adapter (DDD system)
+    const adapter = getCommandIntegrationAdapter();
+    const result = await adapter.processCommand(message, command, args);
 
-    if (useNewCommandSystem) {
-      // Use the new command integration adapter
-      const adapter = getCommandIntegrationAdapter();
-      const result = await adapter.processCommand(message, command, args);
+    logger.debug(
+      `CommandIntegrationAdapter completed with result: ${result?.success ? 'success' : 'failure'}`
+    );
 
-      logger.debug(
-        `CommandIntegrationAdapter completed with result: ${result?.success ? 'success' : 'failure'}`
-      );
-
-      // Handle error responses from adapter
-      if (!result.success && result.error) {
-        await message.reply(`❌ ${result.error}`);
-      }
-
-      return true; // Command was handled
-    } else {
-      // Use legacy command processor
-      const result = await processCommand(message, command, args);
-      logger.debug(
-        `processCommand completed with result: ${result ? 'success' : 'null/undefined'}`
-      );
-      return true; // Command was handled
+    // Handle error responses from adapter
+    if (!result.success && result.error) {
+      await message.reply(`❌ ${result.error}`);
     }
+
+    return true; // Command was handled
   } catch (error) {
     logger.error(`Error in command processing:`, error);
     await message.reply('❌ An error occurred while processing your command. Please try again.');

@@ -14,7 +14,6 @@ jest.mock('../../../src/handlers/messageTrackerHandler');
 jest.mock('../../../src/handlers/dmHandler');
 jest.mock('../../../src/handlers/errorHandler');
 jest.mock('../../../src/utils/webhookUserTracker');
-jest.mock('../../../src/commandLoader');
 jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/channelUtils');
@@ -26,6 +25,7 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
 jest.mock('../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/utils/aliasResolver');
+jest.mock('../../../src/application/routers/PersonalityRouter');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -38,7 +38,6 @@ const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandl
 const dmHandler = require('../../../src/handlers/dmHandler');
 const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
-const { processCommand } = require('../../../src/commandLoader');
 const {
   getActivePersonality,
   getActivatedPersonality,
@@ -53,6 +52,7 @@ const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore'
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { resolvePersonality } = require('../../../src/utils/aliasResolver');
+const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
 
 describe('messageHandler', () => {
   let mockClient;
@@ -112,7 +112,6 @@ describe('messageHandler', () => {
     dmHandler.handleDirectMessage.mockResolvedValue(false);
     errorHandler.filterWebhookMessage.mockReturnValue(false);
     webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
-    processCommand.mockResolvedValue(true);
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);
     isAutoResponseEnabled.mockReturnValue(undefined);
@@ -121,14 +120,19 @@ describe('messageHandler', () => {
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
 
-    // Mock feature flags to disable DDD command integration
+    // Mock feature flags - DDD commands are always enabled now
     getFeatureFlags.mockReturnValue({
-      isEnabled: jest.fn().mockReturnValue(false),
+      isEnabled: jest.fn().mockReturnValue(true),
     });
 
     // Mock command integration adapter
     getCommandIntegrationAdapter.mockReturnValue({
       processCommand: jest.fn().mockResolvedValue({ success: true }),
+    });
+
+    // Mock personality router
+    getPersonalityRouter.mockReturnValue({
+      getMaxAliasWordCount: jest.fn().mockImplementation(async () => getMaxAliasWordCount()),
     });
   });
 
@@ -195,7 +199,7 @@ describe('messageHandler', () => {
       await messageHandler.handleMessage(botMessage, mockClient);
 
       // Should not have processed commands or references
-      expect(processCommand).not.toHaveBeenCalled();
+      expect(getCommandIntegrationAdapter().processCommand).not.toHaveBeenCalled();
       expect(referenceHandler.handleMessageReference).not.toHaveBeenCalled();
     });
 
@@ -218,7 +222,7 @@ describe('messageHandler', () => {
       expect(messageTracker.track).toHaveBeenCalledWith(botSelfMessage.id, 'bot-message');
 
       // Should not have processed commands or references
-      expect(processCommand).not.toHaveBeenCalled();
+      expect(getCommandIntegrationAdapter().processCommand).not.toHaveBeenCalled();
       expect(referenceHandler.handleMessageReference).not.toHaveBeenCalled();
     });
 
@@ -230,7 +234,7 @@ describe('messageHandler', () => {
       };
 
       // Setup mocks
-      processCommand.mockResolvedValueOnce(true);
+      getCommandIntegrationAdapter().processCommand.mockResolvedValueOnce({ success: true });
       messageTracker.track.mockReturnValueOnce(true);
 
       // Call the handler directly
@@ -238,7 +242,7 @@ describe('messageHandler', () => {
 
       // Verify that processCommand was called with the expected arguments
       // This indirectly verifies that handleCommand was called internally
-      expect(processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
+      expect(getCommandIntegrationAdapter().processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
     });
 
     it('should handle message references', async () => {
@@ -403,7 +407,7 @@ describe('messageHandler', () => {
       };
 
       // Make sure processCommand returns true for this test
-      processCommand.mockResolvedValueOnce(true);
+      getCommandIntegrationAdapter().processCommand.mockResolvedValueOnce({ success: true });
 
       // Call the handler
       const result = await messageHandler.handleCommand(commandMessage);
@@ -415,7 +419,7 @@ describe('messageHandler', () => {
       expect(messageTracker.track).toHaveBeenCalledWith(commandMessage.id, 'command');
 
       // Should have called processCommand with the correct arguments
-      expect(processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
+      expect(getCommandIntegrationAdapter().processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
     });
 
     it('should handle empty commands as help', async () => {
@@ -426,7 +430,7 @@ describe('messageHandler', () => {
       };
 
       // Make sure processCommand returns true for this test
-      processCommand.mockResolvedValueOnce(true);
+      getCommandIntegrationAdapter().processCommand.mockResolvedValueOnce({ success: true });
 
       // Call the handler
       const result = await messageHandler.handleCommand(emptyCommandMessage);
@@ -435,7 +439,7 @@ describe('messageHandler', () => {
       expect(result).toBe(true);
 
       // Should have called processCommand with 'help' command and no args
-      expect(processCommand).toHaveBeenCalledWith(emptyCommandMessage, 'help', []);
+      expect(getCommandIntegrationAdapter().processCommand).toHaveBeenCalledWith(emptyCommandMessage, 'help', []);
     });
 
     it('should prevent duplicate command processing', async () => {
@@ -455,7 +459,7 @@ describe('messageHandler', () => {
       expect(result).toBe(true);
 
       // Should not have called processCommand
-      expect(processCommand).not.toHaveBeenCalled();
+      expect(getCommandIntegrationAdapter().processCommand).not.toHaveBeenCalled();
     });
 
     it('should handle errors in command processing', async () => {
@@ -469,19 +473,22 @@ describe('messageHandler', () => {
       messageTracker.track.mockReturnValueOnce(true);
 
       // Mock processCommand to throw an error
-      processCommand.mockRejectedValueOnce(new Error('Command error'));
+      getCommandIntegrationAdapter().processCommand.mockResolvedValueOnce({ 
+        success: false, 
+        error: 'Command error' 
+      });
 
       // Call the handler
       const result = await messageHandler.handleCommand(commandMessage);
 
-      // Should return false to indicate the command had an error
-      expect(result).toBe(false);
+      // Should return true - command was handled (just with an error response)
+      expect(result).toBe(true);
 
       // Should have tracked the command
       expect(messageTracker.track).toHaveBeenCalledWith(commandMessage.id, 'command');
 
       // Should have called processCommand
-      expect(processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
+      expect(getCommandIntegrationAdapter().processCommand).toHaveBeenCalledWith(commandMessage, 'command', ['arg1', 'arg2']);
     });
   });
 
