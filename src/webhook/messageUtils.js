@@ -262,9 +262,11 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
           personalityAvatarUrl
         );
         avatarUrl = localAvatarUrl || personalityAvatarUrl;
+        logger.info(`[MessageUtils] Avatar URL for ${_personality.fullName}: ${avatarUrl} (original: ${personalityAvatarUrl})`);
       } catch (error) {
         logger.error(`[MessageUtils] Failed to get local avatar URL: ${error.message}`);
         avatarUrl = personalityAvatarUrl; // Fallback to original
+        logger.info(`[MessageUtils] Using fallback avatar URL: ${avatarUrl}`);
       }
     }
 
