@@ -353,7 +353,7 @@ class FilePersonalityRepository {
    * @returns {Promise<boolean>}
    */
   async isAliasAvailable(alias) {
-    return !this._cache.aliases.hasOwnProperty(alias.toLowerCase());
+    return !Object.prototype.hasOwnProperty.call(this._cache.aliases, alias.toLowerCase());
   }
 
   /**
@@ -384,7 +384,7 @@ class FilePersonalityRepository {
       }
 
       // Finally check display name
-      for (const [id, data] of Object.entries(this._cache.personalities)) {
+      for (const [, data] of Object.entries(this._cache.personalities)) {
         if (!data.removed) {
           const displayName = data.profile?.displayName?.toLowerCase();
           
@@ -617,7 +617,7 @@ class FilePersonalityRepository {
 
     const uniqueOwners = new Set();
 
-    for (const [id, data] of Object.entries(this._cache.personalities)) {
+    for (const [, data] of Object.entries(this._cache.personalities)) {
       if (!data.removed) {
         stats.totalPersonalities++;
         if (data.ownerId) {
