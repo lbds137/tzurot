@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.7] - 2025-07-08
+
+### Fixed
+- **Webhook Display Names** - Fixed warning "displayName missing for personality" in webhook manager
+  - Updated `getStandardizedUsername` to correctly access `personality.profile.displayName` in DDD structure
+  - Fixed avatar URL resolution to use `personality.profile.avatarUrl` for proper webhook profile pictures
+  - Removed legacy personality structure support as all data has been migrated to DDD
+  - Updated all webhook-related tests to use correct DDD personality structure
+
 ## [2.0.6] - 2025-07-08
 
 ### Fixed
