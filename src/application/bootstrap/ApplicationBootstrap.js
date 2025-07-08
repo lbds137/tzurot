@@ -15,7 +15,7 @@ const {
 } = require('../../adapters/persistence/FileAuthenticationRepository');
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
-const { getFeatureFlags } = require('../services/FeatureFlags');
+const { createFeatureFlags } = require('../services/FeatureFlags');
 const { PersonalityRouter } = require('../routers/PersonalityRouter');
 const { getCommandIntegrationAdapter } = require('../../adapters/CommandIntegrationAdapter');
 
@@ -24,8 +24,6 @@ const profileInfoFetcher = require('../../profileInfoFetcher');
 const { messageTracker } = require('../../messageTracker');
 const { getInstance: getConversationManager } = require('../../core/conversation');
 
-// Import legacy PersonalityManager for seeding compatibility
-const PersonalityManager = require('../../core/personality/PersonalityManager');
 
 /**
  * ApplicationBootstrap
@@ -43,6 +41,9 @@ class ApplicationBootstrap {
     this.eventHandlerRegistry = null;
     this.applicationServices = {};
     this.authManager = null;
+    
+    // Create feature flags instance - can be overridden for testing
+    this.featureFlags = options.featureFlags || createFeatureFlags();
 
     // Injectable delay function for testability
     this.delay =
@@ -124,7 +125,7 @@ class ApplicationBootstrap {
         conversationManager, // Legacy for now
         profileInfoCache, // Legacy for now
         messageTracker, // Legacy for now
-        featureFlags: getFeatureFlags(),
+        featureFlags: this.featureFlags,
         botPrefix: require('../../../config').botPrefix,
         authManager: this.authManager, // Use injected auth manager
         webhookUserTracker, // Legacy webhook tracker for authentication commands
@@ -135,17 +136,13 @@ class ApplicationBootstrap {
       logger.info('[ApplicationBootstrap] Created application services');
 
       // Step 4: Wire up event handlers
-      if (getFeatureFlags().isEnabled('ddd.events.enabled')) {
-        this.eventHandlerRegistry = new EventHandlerRegistry({
-          eventBus: this.eventBus,
-          profileInfoCache,
-          messageTracker,
-        });
-        this.eventHandlerRegistry.registerHandlers();
-        logger.info('[ApplicationBootstrap] Registered domain event handlers');
-      } else {
-        logger.info('[ApplicationBootstrap] Domain event handlers disabled by feature flag');
-      }
+      this.eventHandlerRegistry = new EventHandlerRegistry({
+        eventBus: this.eventBus,
+        profileInfoCache,
+        messageTracker,
+      });
+      this.eventHandlerRegistry.registerHandlers();
+      logger.info('[ApplicationBootstrap] Registered domain event handlers');
 
       // Step 5: Initialize PersonalityRouter with our application service
       const personalityRouter = new PersonalityRouter();
@@ -274,17 +271,9 @@ class ApplicationBootstrap {
       const personalityNames = personalitiesStr.split(',').map(p => p.trim());
       logger.info(`[ApplicationBootstrap] Checking ${personalityNames.length} owner personalities`);
 
-      // Check if DDD personality system is enabled
-      const featureFlags = getFeatureFlags();
-      const useDDD = featureFlags.isEnabled('ddd.personality.write');
-
-      if (useDDD) {
-        logger.info('[ApplicationBootstrap] Using DDD PersonalityApplicationService for seeding');
-        await this._seedOwnerPersonalitiesWithDDD(ownerId, personalityNames);
-      } else {
-        logger.info('[ApplicationBootstrap] Using legacy PersonalityManager for seeding');
-        await this._seedOwnerPersonalitiesWithLegacy(ownerId, personalityNames);
-      }
+      // Use DDD PersonalityApplicationService for seeding (legacy system removed)
+      logger.info('[ApplicationBootstrap] Using DDD PersonalityApplicationService for seeding');
+      await this._seedOwnerPersonalitiesWithDDD(ownerId, personalityNames);
     } catch (error) {
       // Don't fail initialization if seeding fails
       logger.error('[ApplicationBootstrap] Error seeding owner personalities:', error);
@@ -350,90 +339,16 @@ class ApplicationBootstrap {
     }
   }
 
-  /**
-   * Seed owner personalities using legacy PersonalityManager
-   * @private
-   * @param {string} ownerId - Bot owner ID
-   * @param {string[]} personalityNames - List of personality names to seed
-   */
-  async _seedOwnerPersonalitiesWithLegacy(ownerId, personalityNames) {
-    // Use the legacy PersonalityManager for seeding to ensure compatibility with commands
-    const legacyManager = PersonalityManager.getInstance();
-
-    // Initialize legacy manager if not already done
-    if (!legacyManager.initialized) {
-      logger.info('[ApplicationBootstrap] Initializing legacy PersonalityManager for seeding...');
-      await legacyManager.initialize(true, { skipBackgroundSeeding: true });
-    }
-
-    // Check existing personalities for the owner
-    const existingPersonalities = legacyManager.listPersonalitiesForUser(ownerId);
-    const existingNames = existingPersonalities.map(p => p.fullName.toLowerCase());
-
-    const personalitiesToAdd = personalityNames.filter(
-      name => !existingNames.includes(name.toLowerCase())
-    );
-
-    if (personalitiesToAdd.length === 0) {
-      logger.info(
-        `[ApplicationBootstrap] Owner has all ${personalityNames.length} expected personalities`
-      );
-      return;
-    }
-
-    logger.info(
-      `[ApplicationBootstrap] Owner has ${existingPersonalities.length} personalities, missing ${personalitiesToAdd.length}`
-    );
-    logger.info(
-      '[ApplicationBootstrap] Starting legacy personality seeding for missing entries...'
-    );
-
-    // Add missing personalities using legacy system
-    let successCount = 0;
-
-    for (const personalityName of personalitiesToAdd) {
-      try {
-        // Register using legacy system with fetchInfo enabled
-        const result = await legacyManager.registerPersonality(personalityName, ownerId, {
-          fetchInfo: true, // This fetches avatarUrl, displayName, and errorMessage from API
-        });
-
-        if (result.success) {
-          logger.info(`[ApplicationBootstrap] Successfully seeded via legacy: ${personalityName}`);
-          successCount++;
-        } else {
-          logger.error(`[ApplicationBootstrap] Failed to seed ${personalityName}: ${result.error}`);
-        }
-
-        // Small delay to avoid rate limiting
-        await this.delay(100);
-      } catch (error) {
-        logger.error(`[ApplicationBootstrap] Failed to seed ${personalityName}: ${error.message}`);
-      }
-    }
-
-    if (successCount > 0) {
-      logger.info(`[ApplicationBootstrap] Seeded ${successCount} owner personalities via legacy`);
-    }
-  }
 
   /**
    * Log active DDD features
    */
   _logActiveFeatures() {
-    const featureFlags = getFeatureFlags();
-    const features = {
-      Commands: featureFlags.isEnabled('ddd.commands.enabled'),
-      'Personality Read': featureFlags.isEnabled('ddd.personality.read'),
-      'Personality Write': featureFlags.isEnabled('ddd.personality.write'),
-      'Dual Write': featureFlags.isEnabled('ddd.personality.dual-write'),
-      Events: featureFlags.isEnabled('ddd.events.enabled'),
-    };
-
-    logger.info('[ApplicationBootstrap] Active DDD features:');
-    Object.entries(features).forEach(([name, enabled]) => {
-      logger.info(`  - ${name}: ${enabled ? '✅' : '❌'}`);
-    });
+    logger.info('[ApplicationBootstrap] DDD system fully active:');
+    logger.info('  - Commands: ✅');
+    logger.info('  - Personality Read: ✅');
+    logger.info('  - Personality Write: ✅');
+    logger.info('  - Events: ✅');
   }
 }
 

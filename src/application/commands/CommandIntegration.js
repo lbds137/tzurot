@@ -6,8 +6,7 @@
 const logger = require('../../logger');
 const { getCommandRegistry } = require('./CommandAbstraction');
 const { CommandAdapterFactory } = require('./CommandAdapter');
-const { getFeatureFlags } = require('../services/FeatureFlags');
-const { getApplicationBootstrap } = require('../bootstrap/ApplicationBootstrap');
+const { createFeatureFlags } = require('../services/FeatureFlags');
 const { createAddCommand } = require('./personality/AddCommand');
 const { createRemoveCommand } = require('./personality/RemoveCommand');
 const { createInfoCommand } = require('./personality/InfoCommand');
@@ -49,16 +48,16 @@ class CommandIntegration {
     }
 
     try {
-      // Store application services
+      // Store application services - require them to be passed in to avoid circular dependencies
       this.applicationServices = {
-        featureFlags: applicationServices.featureFlags || getFeatureFlags(),
-        personalityApplicationService:
-          applicationServices.personalityApplicationService || (() => {
-            const bootstrap = getApplicationBootstrap();
-            return bootstrap.getPersonalityRouter();
-          })(),
+        featureFlags: applicationServices.featureFlags || createFeatureFlags(),
         ...applicationServices,
       };
+
+      // Validate required services
+      if (!this.applicationServices.personalityApplicationService) {
+        throw new Error('personalityApplicationService is required for CommandIntegration');
+      }
 
       // Register all commands
       await this._registerCommands();
