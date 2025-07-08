@@ -3,7 +3,7 @@
  * Provides consistent alias-to-personality resolution across the application
  */
 const logger = require('../logger');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
  * Resolve a personality by name or alias
@@ -23,11 +23,12 @@ async function resolvePersonality(nameOrAlias) {
   logger.debug(`[AliasResolver] Resolving personality for: "${trimmedInput}"`);
 
   // Use the DDD personality router
-  const router = getPersonalityRouter();
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
   const personality = await router.getPersonality(trimmedInput);
 
   if (personality) {
-    logger.debug(`[AliasResolver] Found personality: ${personality.fullName}`);
+    logger.debug(`[AliasResolver] Found personality: ${personality.profile?.name || personality.name}`);
   }
 
   return personality;
@@ -68,7 +69,7 @@ async function personalityExists(nameOrAlias) {
  */
 async function getFullName(nameOrAlias) {
   const personality = await resolvePersonality(nameOrAlias);
-  return personality ? personality.fullName : null;
+  return personality ? (personality.profile?.name || personality.name) : null;
 }
 
 /**

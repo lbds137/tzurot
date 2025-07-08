@@ -3,7 +3,7 @@ const { MARKERS } = require('../constants');
 const { ErrorCategory, trackError } = require('./errorTracker');
 const { getPersonality } = require('../core/personality');
 const { getFeatureFlags } = require('../application/services/FeatureFlags');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
  * AI Error Handler Module
@@ -239,7 +239,8 @@ async function analyzeErrorAndGenerateMessage(
     // Use PersonalityRouter when DDD is enabled, otherwise use legacy
     const featureFlags = getFeatureFlags();
     if (featureFlags.isEnabled('ddd.personality.read')) {
-      const personalityRouter = getPersonalityRouter();
+      const bootstrap = getApplicationBootstrap();
+      const personalityRouter = bootstrap.getPersonalityRouter();
       personality = await personalityRouter.getPersonality(personalityName);
       logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
       // PersonalityRouter converts DDD to legacy format, so errorMessage should be at top level

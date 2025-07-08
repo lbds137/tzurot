@@ -57,8 +57,9 @@ class MessageHistory {
 
       if (featureFlags.isEnabled('ddd.personality.read')) {
         // Use DDD system to get personalities
-        const { getPersonalityRouter } = require('../../application/routers/PersonalityRouter');
-        const router = getPersonalityRouter();
+        const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
+        const bootstrap = getApplicationBootstrap();
+        const router = bootstrap.getPersonalityRouter();
 
         // List all personalities through the router
         // Note: We might need to enhance the router to support listing all personalities

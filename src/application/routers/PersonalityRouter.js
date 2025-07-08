@@ -9,12 +9,7 @@ const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const logger = require('../../logger');
 
-// Legacy system removed - using DDD only
-
-/**
- * Router that directs personality operations to either legacy or new DDD system
- * based on feature flags. Supports comparison testing and dual-write patterns.
- */
+// DDD-only PersonalityRouter - no legacy compatibility needed
 class PersonalityRouter {
   constructor(options = {}) {
     this.logger = options.logger || logger;
@@ -25,12 +20,8 @@ class PersonalityRouter {
 
     // Track routing statistics
     this.routingStats = {
-      legacyReads: 0,
-      newReads: 0,
-      legacyWrites: 0,
-      newWrites: 0,
-      dualWrites: 0,
-      comparisonTests: 0,
+      reads: 0,
+      writes: 0,
     };
   }
 
@@ -100,8 +91,8 @@ class PersonalityRouter {
    * @returns {Object|null} Personality data
    */
   async getPersonality(nameOrAlias) {
-    this.routingStats.newReads++;
-    return this._newGetPersonality(nameOrAlias);
+    this.routingStats.reads++;
+    return this._getPersonality(nameOrAlias);
   }
 
   /**
@@ -109,8 +100,8 @@ class PersonalityRouter {
    * @returns {Array} All personalities
    */
   async getAllPersonalities() {
-    this.routingStats.newReads++;
-    return this._newGetAllPersonalities();
+    this.routingStats.reads++;
+    return this._getAllPersonalities();
   }
 
   /**
@@ -121,8 +112,8 @@ class PersonalityRouter {
    * @returns {Object} Registration result
    */
   async registerPersonality(name, ownerId, options = {}) {
-    this.routingStats.newWrites++;
-    return this._newRegisterPersonality(name, ownerId, options);
+    this.routingStats.writes++;
+    return this._registerPersonality(name, ownerId, options);
   }
 
   /**
@@ -132,8 +123,8 @@ class PersonalityRouter {
    * @returns {Object} Removal result
    */
   async removePersonality(name, userId) {
-    this.routingStats.newWrites++;
-    return this._newRemovePersonality(name, userId);
+    this.routingStats.writes++;
+    return this._removePersonality(name, userId);
   }
 
   /**
@@ -144,8 +135,8 @@ class PersonalityRouter {
    * @returns {Object} Result
    */
   async addAlias(personalityName, alias, userId) {
-    this.routingStats.newWrites++;
-    return this._newAddAlias(personalityName, alias, userId);
+    this.routingStats.writes++;
+    return this._addAlias(personalityName, alias, userId);
   }
 
   /**
@@ -154,8 +145,8 @@ class PersonalityRouter {
    * @returns {Array} Array of personalities owned by the user
    */
   async listPersonalitiesForUser(userId) {
-    this.routingStats.newReads++;
-    return this._newListPersonalitiesForUser(userId);
+    this.routingStats.reads++;
+    return this._listPersonalitiesForUser(userId);
   }
 
   /**
@@ -163,8 +154,8 @@ class PersonalityRouter {
    * @returns {Promise<number>} The maximum word count
    */
   async getMaxAliasWordCount() {
-    this.routingStats.newReads++;
-    return this._newGetMaxAliasWordCount();
+    this.routingStats.reads++;
+    return this._getMaxAliasWordCount();
   }
 
   /**
@@ -174,40 +165,34 @@ class PersonalityRouter {
   getRoutingStatistics() {
     return {
       ...this.routingStats,
-      dddSystemActive: true, // Always true now
-      comparisonTestingActive: false,
-      dualWriteActive: false,
+      dddSystemActive: true,
     };
   }
 
-  // New DDD system wrappers
+  // DDD system methods
 
-  async _newGetPersonality(nameOrAlias) {
+  async _getPersonality(nameOrAlias) {
     this._ensurePersonalityService();
     try {
       const personality = await this.personalityService.getPersonality(nameOrAlias);
-      if (personality) {
-        return this._convertDDDToLegacyFormat(personality);
-      }
-      return null;
+      return personality;
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system getPersonality:', error);
       throw error;
     }
   }
 
-  async _newGetAllPersonalities() {
+  async _getAllPersonalities() {
     this._ensurePersonalityService();
     try {
-      const personalities = await this.personalityService.listPersonalities();
-      return personalities.map(p => this._convertDDDToLegacyFormat(p));
+      return await this.personalityService.listPersonalities();
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system getAllPersonalities:', error);
       throw error;
     }
   }
 
-  async _newRegisterPersonality(name, ownerId, options) {
+  async _registerPersonality(name, ownerId, options) {
     this._ensurePersonalityService();
     // Map legacy options to DDD command format
     const command = {
@@ -223,11 +208,11 @@ class PersonalityRouter {
 
     return {
       success: true,
-      personality: this._convertDDDToLegacyFormat(result),
+      personality: result,
     };
   }
 
-  async _newRemovePersonality(name, userId) {
+  async _removePersonality(name, userId) {
     this._ensurePersonalityService();
     try {
       await this.personalityService.removePersonality({
@@ -246,7 +231,7 @@ class PersonalityRouter {
     }
   }
 
-  async _newAddAlias(personalityName, alias, userId) {
+  async _addAlias(personalityName, alias, userId) {
     this._ensurePersonalityService();
     try {
       await this.personalityService.addAlias({
@@ -266,18 +251,17 @@ class PersonalityRouter {
     }
   }
 
-  async _newListPersonalitiesForUser(userId) {
+  async _listPersonalitiesForUser(userId) {
     this._ensurePersonalityService();
     try {
-      const personalities = await this.personalityService.listPersonalitiesByOwner(userId);
-      return personalities.map(p => this._convertDDDToLegacyFormat(p));
+      return await this.personalityService.listPersonalitiesByOwner(userId);
     } catch (error) {
       this.logger.error('[PersonalityRouter] Error in new system listPersonalitiesForUser:', error);
       throw error;
     }
   }
 
-  async _newGetMaxAliasWordCount() {
+  async _getMaxAliasWordCount() {
     this._ensurePersonalityService();
     try {
       return await this.personalityService.getMaxAliasWordCount();
@@ -287,58 +271,8 @@ class PersonalityRouter {
     }
   }
 
-  /**
-   * Convert DDD personality format to legacy format
-   * @param {Object} dddPersonality - DDD format personality
-   * @returns {Object} Legacy format personality
-   */
-  _convertDDDToLegacyFormat(dddPersonality) {
-    // Handle both the direct personality object and the result from repository
-    const personality = dddPersonality.profile ? dddPersonality : dddPersonality;
-
-    return {
-      fullName: personality.profile?.name || personality.name,
-      displayName:
-        personality.profile?.displayName || personality.profile?.name || personality.name,
-      addedBy: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
-      owner: personality.ownerId?.toString ? personality.ownerId.toString() : personality.ownerId,
-      aliases: personality.aliases?.map(a => a.value || a.alias || a) || [],
-      avatarUrl: personality.profile?.avatarUrl,
-      errorMessage: personality.profile?.errorMessage,
-      nsfwContent: personality.profile?.isNSFW,
-      temperature: personality.profile?.temperature,
-      maxWordCount: personality.profile?.maxWordCount,
-      // createdAt and updatedAt are already ISO strings in DDD
-      createdAt: personality.createdAt,
-      updatedAt: personality.updatedAt,
-    };
-  }
-}
-
-// Singleton instance
-let instance = null;
-
-/**
- * Get the personality router instance
- * @param {Object} options - Optional configuration
- * @returns {PersonalityRouter}
- */
-function getPersonalityRouter(options) {
-  if (!instance) {
-    instance = new PersonalityRouter(options);
-  }
-  return instance;
-}
-
-/**
- * Reset the personality router instance (mainly for testing)
- */
-function resetPersonalityRouter() {
-  instance = null;
 }
 
 module.exports = {
   PersonalityRouter,
-  getPersonalityRouter,
-  resetPersonalityRouter,
 };

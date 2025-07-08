@@ -19,23 +19,19 @@ const {
   isAutoResponseEnabled,
 } = require('../core/conversation');
 const { getMaxAliasWordCount } = require('../core/personality');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
 const { resolvePersonality } = require('../utils/aliasResolver');
 
 /**
- * Get max alias word count, using DDD system if enabled
+ * Get max alias word count using DDD system
  * @returns {Promise<number>} Max alias word count
  */
 async function getMaxAliasWordCountAsync() {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.getMaxAliasWordCount();
-  }
-  return getMaxAliasWordCount();
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getMaxAliasWordCount();
 }
 
 /**

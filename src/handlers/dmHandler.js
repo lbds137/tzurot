@@ -3,59 +3,44 @@
  */
 const logger = require('../logger');
 const { getStandardizedUsername } = require('../webhookManager');
-const {
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-  getPersonality: getLegacyPersonality,
-  listPersonalitiesForUser: legacyListPersonalitiesForUser,
-} = require('../core/personality');
 const { getActivePersonality } = require('../core/conversation');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const personalityHandler = require('./personalityHandler');
 const { botPrefix } = require('../../config');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
- * Get personality by name, using DDD system if enabled
+ * Get personality by name using DDD system
  * @param {string} name - Personality name
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonality(name) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.getPersonality(name);
-  }
-  return await getLegacyPersonality(name);
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(name);
 }
 
 /**
- * Get personality by alias, using DDD system if enabled
+ * Get personality by alias using DDD system
  * @param {string} alias - Personality alias
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonalityByAlias(alias) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    // DDD system searches by name or alias in one method
-    const router = getPersonalityRouter();
-    return await router.getPersonality(alias);
-  }
-  return getLegacyPersonalityByAlias(alias);
+  // DDD system searches by name or alias in one method
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(alias);
 }
 
 /**
- * List personalities for a user, using DDD system if enabled
+ * List personalities for a user using DDD system
  * @param {string} userId - User ID
  * @returns {Promise<Array<Object>>} Array of personalities
  */
 async function listPersonalitiesForUser(userId) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.listPersonalitiesForUser(userId);
-  }
-  return legacyListPersonalitiesForUser(userId);
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.listPersonalitiesForUser(userId);
 }
 
 /**

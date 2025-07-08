@@ -7,7 +7,7 @@ const logger = require('../../logger');
 const { getCommandRegistry } = require('./CommandAbstraction');
 const { CommandAdapterFactory } = require('./CommandAdapter');
 const { getFeatureFlags } = require('../services/FeatureFlags');
-const { getPersonalityRouter } = require('../routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../bootstrap/ApplicationBootstrap');
 const { createAddCommand } = require('./personality/AddCommand');
 const { createRemoveCommand } = require('./personality/RemoveCommand');
 const { createInfoCommand } = require('./personality/InfoCommand');
@@ -53,7 +53,10 @@ class CommandIntegration {
       this.applicationServices = {
         featureFlags: applicationServices.featureFlags || getFeatureFlags(),
         personalityApplicationService:
-          applicationServices.personalityApplicationService || getPersonalityRouter(),
+          applicationServices.personalityApplicationService || (() => {
+            const bootstrap = getApplicationBootstrap();
+            return bootstrap.getPersonalityRouter();
+          })(),
         ...applicationServices,
       };
 

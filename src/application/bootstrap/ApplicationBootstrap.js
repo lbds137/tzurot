@@ -16,7 +16,7 @@ const {
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
 const { getFeatureFlags } = require('../services/FeatureFlags');
-const { getPersonalityRouter } = require('../routers/PersonalityRouter');
+const { PersonalityRouter } = require('../routers/PersonalityRouter');
 const { getCommandIntegrationAdapter } = require('../../adapters/CommandIntegrationAdapter');
 
 // Import legacy dependencies for event handlers
@@ -148,10 +148,12 @@ class ApplicationBootstrap {
       }
 
       // Step 5: Initialize PersonalityRouter with our application service
-      const personalityRouter = getPersonalityRouter();
-      // Replace the auto-created service with our properly wired one
+      const personalityRouter = new PersonalityRouter();
       personalityRouter.personalityService = personalityApplicationService;
       logger.info('[ApplicationBootstrap] Configured PersonalityRouter');
+      
+      // Store the router instance for other components to use
+      this.personalityRouter = personalityRouter;
 
       // Step 6: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
       const commandAdapter = getCommandIntegrationAdapter();
@@ -233,6 +235,16 @@ class ApplicationBootstrap {
       throw new Error('ApplicationBootstrap not initialized');
     }
     return this.eventBus;
+  }
+
+  /**
+   * Get personality router
+   */
+  getPersonalityRouter() {
+    if (!this.initialized) {
+      throw new Error('ApplicationBootstrap not initialized');
+    }
+    return this.personalityRouter;
   }
 
   /**
