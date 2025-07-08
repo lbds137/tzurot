@@ -41,14 +41,18 @@ describe('messageUtils', () => {
     it('should prioritize displayName when available', () => {
       const personality = {
         fullName: 'test-personality',
-        displayName: 'Test Display',
+        profile: {
+          displayName: 'Test Display',
+        },
       };
       expect(getStandardizedUsername(personality)).toBe('Test Display');
     });
 
     it('should trim whitespace from displayName', () => {
       const personality = {
-        displayName: '  Test Display  ',
+        profile: {
+          displayName: '  Test Display  ',
+        },
       };
       expect(getStandardizedUsername(personality)).toBe('Test Display');
     });
@@ -56,7 +60,9 @@ describe('messageUtils', () => {
     it('should handle empty displayName', () => {
       const personality = {
         fullName: 'test-personality',
-        displayName: '',
+        profile: {
+          displayName: '',
+        },
       };
       expect(getStandardizedUsername(personality)).toBe('Test');
     });
@@ -69,7 +75,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test | Dev');
@@ -83,7 +91,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test');
@@ -97,7 +107,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test | Production');
@@ -105,7 +117,9 @@ describe('messageUtils', () => {
 
     it('should truncate long names to fit 32 character limit', () => {
       const personality = {
-        displayName: 'This Is A Very Long Display Name That Exceeds Limit',
+        profile: {
+          displayName: 'This Is A Very Long Display Name That Exceeds Limit',
+        },
       };
 
       const result = getStandardizedUsername(personality);
@@ -121,7 +135,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'This Is A Very Long Display Name',
+        profile: {
+          displayName: 'This Is A Very Long Display Name',
+        },
       };
 
       const result = getStandardizedUsername(personality);
@@ -138,7 +154,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       const result = getStandardizedUsername(personality);
@@ -189,7 +207,9 @@ describe('messageUtils', () => {
       global.tzurotClient = undefined;
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test');
@@ -201,7 +221,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test');
@@ -215,7 +237,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test');
@@ -260,7 +284,9 @@ describe('messageUtils', () => {
       };
 
       const personality = {
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       expect(getStandardizedUsername(personality)).toBe('Test | Dev');
@@ -407,7 +433,9 @@ describe('messageUtils', () => {
     it('should create virtual result with personality', () => {
       const personality = {
         fullName: 'test-personality',
-        displayName: 'Test',
+        profile: {
+          displayName: 'Test',
+        },
       };
 
       const result = createVirtualResult(personality, 'channel-123');
@@ -454,7 +482,9 @@ describe('messageUtils', () => {
 
       const personality = {
         fullName: 'test-personality',
-        displayName: 'Test Display',
+        profile: {
+          displayName: 'Test Display',
+        },
       };
 
       const result = createVirtualResult(personality, 'channel-123');
@@ -498,7 +528,9 @@ describe('messageUtils', () => {
         username: 'TestUser',
         _personality: {
           fullName: 'test-bot',
-          avatarUrl: 'https://example.com/avatar.png',
+          profile: {
+            avatarUrl: 'https://example.com/avatar.png',
+          },
         },
       };
 

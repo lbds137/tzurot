@@ -164,7 +164,9 @@ describe('WebhookManager', () => {
     it('should prioritize displayName if available', () => {
       const personality = {
         fullName: 'full-name-personality',
-        displayName: 'Display Name',
+        profile: {
+          displayName: 'Display Name',
+        },
       };
 
       expect(webhookManager.getStandardizedUsername(personality)).toBe('Display Name');
@@ -190,7 +192,9 @@ describe('WebhookManager', () => {
 
     it('should truncate names longer than 32 characters', () => {
       const personality = {
-        displayName: 'This is a very long display name that exceeds discord limits',
+        profile: {
+          displayName: 'This is a very long display name that exceeds discord limits',
+        },
       };
 
       const result = webhookManager.getStandardizedUsername(personality);

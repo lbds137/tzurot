@@ -49,13 +49,20 @@ function getStandardizedUsername(personality) {
       }
     }
 
+    // DDD personalities have displayName in profile.displayName
+    let displayName = null;
+
+    // Get displayName from the DDD structure
+    if (personality.profile && personality.profile.displayName) {
+      displayName = personality.profile.displayName;
+    } else if (personality.getDisplayName && typeof personality.getDisplayName === 'function') {
+      // Use the getDisplayName method as a fallback (which itself checks profile.displayName)
+      displayName = personality.getDisplayName();
+    }
+
     // ALWAYS prioritize displayName over any other field
-    if (
-      personality.displayName &&
-      typeof personality.displayName === 'string' &&
-      personality.displayName.trim().length > 0
-    ) {
-      const name = personality.displayName.trim();
+    if (displayName && typeof displayName === 'string' && displayName.trim().length > 0) {
+      const name = displayName.trim();
       logger.debug(`[WebhookManager] Using displayName: ${name}`);
 
       // Create the full name with the suffix
@@ -241,16 +248,23 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
 
     // Resolve avatar URL if personality is provided
     let avatarUrl = null;
-    if (_personality && _personality.avatarUrl) {
+    let personalityAvatarUrl = null;
+
+    // DDD personalities have avatarUrl in profile.avatarUrl
+    if (_personality && _personality.profile && _personality.profile.avatarUrl) {
+      personalityAvatarUrl = _personality.profile.avatarUrl;
+    }
+
+    if (_personality && personalityAvatarUrl) {
       try {
         const localAvatarUrl = await avatarStorage.getLocalAvatarUrl(
           _personality.fullName,
-          _personality.avatarUrl
+          personalityAvatarUrl
         );
-        avatarUrl = localAvatarUrl || _personality.avatarUrl;
+        avatarUrl = localAvatarUrl || personalityAvatarUrl;
       } catch (error) {
         logger.error(`[MessageUtils] Failed to get local avatar URL: ${error.message}`);
-        avatarUrl = _personality.avatarUrl; // Fallback to original
+        avatarUrl = personalityAvatarUrl; // Fallback to original
       }
     }
 
