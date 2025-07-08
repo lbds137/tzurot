@@ -17,11 +17,11 @@ jest.mock('../../../src/utils/embedUtils', () => ({
 }));
 jest.mock('../../../src/handlers/messageTrackerHandler');
 jest.mock('../../../src/application/services/FeatureFlags');
-jest.mock('../../../src/application/routers/PersonalityRouter');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 
 const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
 const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
-const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('Reference Handler Module', () => {
   // Mock Discord client and objects
@@ -53,10 +53,14 @@ describe('Reference Handler Module', () => {
       isEnabled: jest.fn().mockReturnValue(false),
     });
 
-    // Mock personality router
-    getPersonalityRouter.mockReturnValue({
+    // Mock ApplicationBootstrap with personality router
+    const mockPersonalityRouter = {
       getPersonality: jest.fn().mockResolvedValue(null),
-    });
+    };
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
     // Default mocks for the personality manager (now async)
     getPersonality.mockImplementation(async name => {

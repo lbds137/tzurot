@@ -37,12 +37,12 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const {
-        auth = require('../../../auth'),
+        authManager,
         personalityRegistry = require('../../../core/personality'),
         conversationManager = require('../../../core/conversation'),
         processUtils = { uptime: () => process.uptime() },
       } = dependencies;
-      
+
       // Get DDD personality service from context if available
       const personalityService = context.dependencies?.personalityApplicationService;
 
@@ -51,8 +51,8 @@ function createExecutor(dependencies = {}) {
       const formattedUptime = formatUptime(uptime);
 
       // Check authentication status
-      const isAuthenticated = auth.hasValidToken(context.userId);
-      const isNsfwVerified = auth.isNsfwVerified(context.userId);
+      const isAuthenticated = authManager && authManager.hasValidToken(context.userId);
+      const isNsfwVerified = authManager && authManager.isNsfwVerified(context.userId);
 
       // Get user's personalities if authenticated
       let personalityCount = 0;
@@ -90,9 +90,9 @@ function createExecutor(dependencies = {}) {
       const client = context.message?.client || context.interaction?.client;
       // Discord returns -1 for ping when websocket isn't ready or calculating
       const rawPing = client?.ws?.ping;
-      const ping = (rawPing && rawPing > 0) ? `${Math.round(rawPing)}ms` : 'Calculating...';
+      const ping = rawPing && rawPing > 0 ? `${Math.round(rawPing)}ms` : 'Calculating...';
       const guildCount = client?.guilds?.cache?.size || 0;
-      
+
       // Build status information
       const statusInfo = {
         uptime: formattedUptime,

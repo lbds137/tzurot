@@ -1,7 +1,6 @@
 const { getModelPath, botPrefix } = require('../config');
 const logger = require('./logger');
 const { MARKERS, DEFAULTS } = require('./constants');
-const auth = require('./auth');
 const aiAuth = require('./utils/aiAuth');
 const { sanitizeContent } = require('./utils/contentSanitizer');
 const aiRequestManager = require('./utils/aiRequestManager');
@@ -16,9 +15,13 @@ const {
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
 const { getFeatureFlags } = require('./application/services/FeatureFlags');
 
+// Store authManager reference
+let authManager = null;
+
 // Initialize the AI client - delegates to aiAuth module
-function initAiClient() {
-  aiAuth.initAiClient();
+function initAiClient(authManagerInstance) {
+  authManager = authManagerInstance;
+  aiAuth.initAiClient(authManagerInstance);
 }
 
 // Get an AI client for a specific user - delegates to aiAuth module
@@ -148,7 +151,7 @@ async function getAiResponse(personalityName, message, context = {}) {
       }
 
       // If this is NOT a proxy system webhook that should bypass auth, check auth
-      if (!shouldBypassAuth && (!userId || !auth.hasValidToken(userId))) {
+      if (!shouldBypassAuth && (!userId || !authManager || !authManager.hasValidToken(userId))) {
         logger.warn(
           `[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`
         );

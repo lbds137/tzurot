@@ -12,17 +12,14 @@ const {
 
 // Constants are imported but not used in this test file
 
-// Mock auth module to bypass authentication
-jest.mock('../../src/auth', () => ({
+// Create a mock authManager for tests
+const mockAuthManager = {
   hasValidToken: jest.fn().mockReturnValue(true),
   getUserToken: jest.fn().mockReturnValue('mock-token'),
   APP_ID: 'mock-app-id',
   API_KEY: 'mock-api-key',
   isNsfwVerified: jest.fn().mockReturnValue(true),
-  getAuthManager: jest.fn().mockReturnValue(null), // For aiAuth module
-  userTokens: {},
-  nsfwVerified: {},
-}));
+};
 
 // Mock webhookUserTracker to bypass authentication
 jest.mock('../../src/utils/webhookUserTracker', () => ({
@@ -158,6 +155,10 @@ describe('AI Service', () => {
     // Clear all tracking maps
     pendingRequests.clear();
     errorBlackoutPeriods.clear();
+    
+    // Initialize aiService with mockAuthManager
+    const { initAiClient } = require('../../src/aiService');
+    initAiClient(mockAuthManager);
   });
 
   afterEach(() => {
@@ -614,9 +615,8 @@ describe('AI Service', () => {
   // Integration test for getAiResponse function
   describe('getAiResponse', () => {
     beforeEach(() => {
-      // Ensure auth is mocked to return true
-      const auth = require('../../src/auth');
-      auth.hasValidToken.mockReturnValue(true);
+      // Ensure authManager is mocked to return true
+      mockAuthManager.hasValidToken.mockReturnValue(true);
 
       // Ensure AI client is properly mocked
       const aiAuth = require('../../src/utils/aiAuth');
@@ -876,9 +876,8 @@ describe('AI Service', () => {
     beforeEach(() => {
       jest.clearAllMocks();
 
-      // Ensure auth is properly mocked
-      const auth = require('../../src/auth');
-      auth.hasValidToken.mockReturnValue(true);
+      // Ensure authManager is properly mocked
+      mockAuthManager.hasValidToken.mockReturnValue(true);
 
       // Reset default mock implementations
       const aiAuth = require('../../src/utils/aiAuth');

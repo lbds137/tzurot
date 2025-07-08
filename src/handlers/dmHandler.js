@@ -3,69 +3,54 @@
  */
 const logger = require('../logger');
 const { getStandardizedUsername } = require('../webhookManager');
-const {
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-  getPersonality: getLegacyPersonality,
-  listPersonalitiesForUser: legacyListPersonalitiesForUser,
-} = require('../core/personality');
 const { getActivePersonality } = require('../core/conversation');
-const auth = require('../auth');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const personalityHandler = require('./personalityHandler');
 const { botPrefix } = require('../../config');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
- * Get personality by name, using DDD system if enabled
+ * Get personality by name using DDD system
  * @param {string} name - Personality name
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonality(name) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.getPersonality(name);
-  }
-  return await getLegacyPersonality(name);
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(name);
 }
 
 /**
- * Get personality by alias, using DDD system if enabled
+ * Get personality by alias using DDD system
  * @param {string} alias - Personality alias
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonalityByAlias(alias) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    // DDD system searches by name or alias in one method
-    const router = getPersonalityRouter();
-    return await router.getPersonality(alias);
-  }
-  return getLegacyPersonalityByAlias(alias);
+  // DDD system searches by name or alias in one method
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(alias);
 }
 
 /**
- * List personalities for a user, using DDD system if enabled
+ * List personalities for a user using DDD system
  * @param {string} userId - User ID
  * @returns {Promise<Array<Object>>} Array of personalities
  */
 async function listPersonalitiesForUser(userId) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.listPersonalitiesForUser(userId);
-  }
-  return legacyListPersonalitiesForUser(userId);
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.listPersonalitiesForUser(userId);
 }
 
 /**
  * Handles replies to DM-formatted bot messages
  * @param {Object} message - Discord message object
  * @param {Object} client - Discord.js client instance
+ * @param {Object} authManager - Auth manager instance
  * @returns {Promise<boolean>} - True if the message was handled as a DM reply, false otherwise
  */
-async function handleDmReply(message, client) {
+async function handleDmReply(message, client, authManager) {
   if (!message.channel.isDMBased() || message.author.bot || !message.reference) {
     return false;
   }
@@ -81,7 +66,9 @@ async function handleDmReply(message, client) {
 
     // Check NSFW verification first before processing any personality interactions
     const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
-    const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+    const isVerified = shouldBypass
+      ? true
+      : authManager && authManager.isNsfwVerified(message.author.id);
 
     if (!isVerified) {
       // User is not verified, prompt them to verify first
@@ -312,9 +299,10 @@ async function handleDmReply(message, client) {
  * Handles direct messages that aren't replies
  * @param {Object} message - Discord message object
  * @param {Object} client - Discord.js client instance
+ * @param {Object} authManager - Auth manager instance
  * @returns {Promise<boolean>} - True if the message was handled, false otherwise
  */
-async function handleDirectMessage(message, client) {
+async function handleDirectMessage(message, client, authManager) {
   if (!message.channel.isDMBased() || message.author.bot) {
     return false;
   }
@@ -326,7 +314,9 @@ async function handleDirectMessage(message, client) {
   const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
 
   // If we should bypass verification, treat as verified
-  const isVerified = shouldBypass ? true : auth.isNsfwVerified(message.author.id);
+  const isVerified = shouldBypass
+    ? true
+    : authManager && authManager.isNsfwVerified(message.author.id);
 
   if (!isVerified) {
     // User is not verified, prompt them to verify first

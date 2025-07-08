@@ -16,7 +16,7 @@ const {
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
 const { getFeatureFlags } = require('../services/FeatureFlags');
-const { getPersonalityRouter } = require('../routers/PersonalityRouter');
+const { PersonalityRouter } = require('../routers/PersonalityRouter');
 const { getCommandIntegrationAdapter } = require('../../adapters/CommandIntegrationAdapter');
 
 // Import legacy dependencies for event handlers
@@ -42,6 +42,7 @@ class ApplicationBootstrap {
     this.eventBus = null;
     this.eventHandlerRegistry = null;
     this.applicationServices = {};
+    this.authManager = null;
 
     // Injectable delay function for testability
     this.delay =
@@ -50,6 +51,14 @@ class ApplicationBootstrap {
         const timer = globalThis.setTimeout || setTimeout;
         return new Promise(resolve => timer(resolve, ms));
       });
+  }
+
+  /**
+   * Set the auth manager instance
+   * @param {Object} authManagerInstance - The auth manager instance
+   */
+  setAuthManager(authManagerInstance) {
+    this.authManager = authManagerInstance;
   }
 
   /**
@@ -106,8 +115,6 @@ class ApplicationBootstrap {
       };
       const conversationManager = getConversationManager();
 
-      // Import legacy auth service for commands
-      const auth = require('../../auth');
       const webhookUserTracker = require('../../utils/webhookUserTracker');
       const channelUtils = require('../../utils/channelUtils');
 
@@ -119,7 +126,7 @@ class ApplicationBootstrap {
         messageTracker, // Legacy for now
         featureFlags: getFeatureFlags(),
         botPrefix: require('../../../config').botPrefix,
-        auth, // Legacy auth service for authentication commands
+        authManager: this.authManager, // Use injected auth manager
         webhookUserTracker, // Legacy webhook tracker for authentication commands
         channelUtils, // Legacy channel utilities for verification commands
         authenticationRepository, // DDD repository for future use
@@ -141,10 +148,12 @@ class ApplicationBootstrap {
       }
 
       // Step 5: Initialize PersonalityRouter with our application service
-      const personalityRouter = getPersonalityRouter();
-      // Replace the auto-created service with our properly wired one
+      const personalityRouter = new PersonalityRouter();
       personalityRouter.personalityService = personalityApplicationService;
       logger.info('[ApplicationBootstrap] Configured PersonalityRouter');
+      
+      // Store the router instance for other components to use
+      this.personalityRouter = personalityRouter;
 
       // Step 6: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
       const commandAdapter = getCommandIntegrationAdapter();
@@ -226,6 +235,16 @@ class ApplicationBootstrap {
       throw new Error('ApplicationBootstrap not initialized');
     }
     return this.eventBus;
+  }
+
+  /**
+   * Get personality router
+   */
+  getPersonalityRouter() {
+    if (!this.initialized) {
+      throw new Error('ApplicationBootstrap not initialized');
+    }
+    return this.personalityRouter;
   }
 
   /**

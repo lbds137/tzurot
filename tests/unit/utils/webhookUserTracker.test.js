@@ -603,15 +603,14 @@ describe('webhookUserTracker', () => {
   });
 
   describe('checkProxySystemAuthentication', () => {
-    let mockAuth;
+    let mockAuthManager;
     let mockPluralKitStore;
 
     beforeEach(() => {
-      // Mock the auth module
-      mockAuth = {
+      // Set up mock authManager
+      mockAuthManager = {
         hasValidToken: jest.fn(),
       };
-      jest.doMock('../../../src/auth', () => mockAuth);
 
       // Mock the pluralkit message store
       mockPluralKitStore = {
@@ -627,6 +626,9 @@ describe('webhookUserTracker', () => {
       // Clear the module cache to ensure fresh mocks
       jest.resetModules();
       webhookUserTracker = require('../../../src/utils/webhookUserTracker');
+      
+      // Initialize webhookUserTracker with mockAuthManager AFTER requiring the module
+      webhookUserTracker.initialize(mockAuthManager);
     });
 
     it('should return not authenticated for null message', () => {
@@ -671,7 +673,7 @@ describe('webhookUserTracker', () => {
         content: 'Test message',
       });
 
-      mockAuth.hasValidToken.mockReturnValue(true);
+      mockAuthManager.hasValidToken.mockReturnValue(true);
 
       const result = webhookUserTracker.checkProxySystemAuthentication(message);
 
@@ -679,7 +681,7 @@ describe('webhookUserTracker', () => {
         'Test message',
         'channel123'
       );
-      expect(mockAuth.hasValidToken).toHaveBeenCalledWith('real-user-123');
+      expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('real-user-123');
       expect(result).toEqual({
         isAuthenticated: true,
         userId: 'real-user-123',

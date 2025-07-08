@@ -159,12 +159,14 @@ describe('PersonalityRepository', () => {
       const mockRepo = new MockPersonalityRepository();
       const personalityId = new PersonalityId('test-personality');
       const ownerId = new UserId('123456789012345678');
-      const profile = new PersonalityProfile(
-        'test-personality',
-        'You are a test bot',
-        '/default',
-        1000
-      );
+      const profile = new PersonalityProfile({
+        mode: 'local',
+        name: 'test-personality',
+        displayName: 'Test Personality',
+        prompt: 'You are a test bot',
+        modelPath: '/default',
+        maxWordCount: 1000,
+      });
       const model = AIModel.createDefault();
       const personality = Personality.create(personalityId, ownerId, profile, model);
 

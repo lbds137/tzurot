@@ -1,7 +1,5 @@
 const {
   PersonalityRouter,
-  getPersonalityRouter,
-  resetPersonalityRouter,
 } = require('../../../../src/application/routers/PersonalityRouter');
 
 // Mock dependencies
@@ -58,7 +56,6 @@ describe('PersonalityRouter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    resetPersonalityRouter();
 
     // Setup personality service mock
     mockPersonalityService = {
@@ -75,21 +72,12 @@ describe('PersonalityRouter', () => {
   });
 
   describe('getPersonality', () => {
-    it('should use DDD system and convert to legacy format', async () => {
+    it('should use DDD system and return DDD format', async () => {
       const result = await router.getPersonality('test-personality');
 
-      expect(result).toMatchObject({
-        fullName: 'test-personality',
-        displayName: 'Test',
-        owner: 'user123',
-        aliases: ['test-alias'],
-        avatarUrl: 'https://example.com/avatar.png',
-        nsfwContent: false,
-        temperature: 0.7,
-        maxWordCount: 500,
-      });
+      expect(result).toBe(mockDDDPersonality);
       expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('test-personality');
-      expect(router.routingStats.newReads).toBe(1);
+      expect(router.routingStats.reads).toBe(1);
     });
 
     it('should return null when personality not found', async () => {
@@ -113,17 +101,12 @@ describe('PersonalityRouter', () => {
   });
 
   describe('getAllPersonalities', () => {
-    it('should use DDD system and convert to legacy format', async () => {
+    it('should use DDD system and return DDD format', async () => {
       const result = await router.getAllPersonalities();
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        fullName: 'test-personality',
-        displayName: 'Test',
-        owner: 'user123',
-      });
+      expect(result).toEqual([mockDDDPersonality]);
       expect(mockPersonalityService.listPersonalities).toHaveBeenCalled();
-      expect(router.routingStats.newReads).toBe(1);
+      expect(router.routingStats.reads).toBe(1);
     });
 
     it('should handle empty list', async () => {
@@ -152,7 +135,7 @@ describe('PersonalityRouter', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(result.personality).toMatchObject({ fullName: 'test-personality' });
+      expect(result.personality).toBe(mockDDDPersonality);
       expect(mockPersonalityService.registerPersonality).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'test-personality',
@@ -163,7 +146,7 @@ describe('PersonalityRouter', () => {
           aliases: [],
         })
       );
-      expect(router.routingStats.newWrites).toBe(1);
+      expect(router.routingStats.writes).toBe(1);
     });
 
     it('should handle registration errors', async () => {
@@ -187,7 +170,7 @@ describe('PersonalityRouter', () => {
         personalityName: 'test-personality',
         requesterId: 'user123',
       });
-      expect(router.routingStats.newWrites).toBe(1);
+      expect(router.routingStats.writes).toBe(1);
     });
 
     it('should handle removal errors', async () => {
@@ -211,7 +194,7 @@ describe('PersonalityRouter', () => {
         alias: 'new-alias',
         requesterId: 'user123',
       });
-      expect(router.routingStats.newWrites).toBe(1);
+      expect(router.routingStats.writes).toBe(1);
     });
 
     it('should handle alias addition errors', async () => {
@@ -234,15 +217,9 @@ describe('PersonalityRouter', () => {
       const stats = router.getRoutingStatistics();
 
       expect(stats).toEqual({
-        legacyReads: 0,
-        newReads: 2,
-        legacyWrites: 0,
-        newWrites: 1,
-        dualWrites: 0,
-        comparisonTests: 0,
+        reads: 2,
+        writes: 1,
         dddSystemActive: true,
-        comparisonTestingActive: false,
-        dualWriteActive: false,
       });
     });
   });
@@ -268,20 +245,4 @@ describe('PersonalityRouter', () => {
     });
   });
 
-  describe('singleton behavior', () => {
-    it('should return same instance', () => {
-      const instance1 = getPersonalityRouter();
-      const instance2 = getPersonalityRouter();
-
-      expect(instance1).toBe(instance2);
-    });
-
-    it('should reset instance', () => {
-      const instance1 = getPersonalityRouter();
-      resetPersonalityRouter();
-      const instance2 = getPersonalityRouter();
-
-      expect(instance1).not.toBe(instance2);
-    });
-  });
 });

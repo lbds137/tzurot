@@ -107,24 +107,12 @@ describe('PersonalityProfile', () => {
       });
     });
 
-    describe('parameter-based construction (legacy)', () => {
-      it('should create external profile with name only', () => {
-        const profile = new PersonalityProfile('TestName');
-
-        expect(profile.mode).toBe('external');
-        expect(profile.name).toBe('TestName');
-        expect(profile.displayName).toBe('TestName');
-        expect(profile.prompt).toBeNull();
-      });
-
-      it('should create local profile with prompt', () => {
-        const profile = new PersonalityProfile('TestName', 'Test prompt', 'model/path', 2000);
-
-        expect(profile.mode).toBe('local');
-        expect(profile.name).toBe('TestName');
-        expect(profile.prompt).toBe('Test prompt');
-        expect(profile.modelPath).toBe('model/path');
-        expect(profile.maxWordCount).toBe(2000);
+    describe('object-only construction requirement', () => {
+      it('should throw error for non-object parameter', () => {
+        expect(() => new PersonalityProfile('TestName')).toThrow('PersonalityProfile requires an object configuration');
+        expect(() => new PersonalityProfile(null)).toThrow('PersonalityProfile requires an object configuration');
+        expect(() => new PersonalityProfile(undefined)).toThrow('PersonalityProfile requires an object configuration');
+        expect(() => new PersonalityProfile(123)).toThrow('PersonalityProfile requires an object configuration');
       });
     });
 

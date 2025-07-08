@@ -19,23 +19,19 @@ const {
   isAutoResponseEnabled,
 } = require('../core/conversation');
 const { getMaxAliasWordCount } = require('../core/personality');
-const { getPersonalityRouter } = require('../application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
 const { resolvePersonality } = require('../utils/aliasResolver');
 
 /**
- * Get max alias word count, using DDD system if enabled
+ * Get max alias word count using DDD system
  * @returns {Promise<number>} Max alias word count
  */
 async function getMaxAliasWordCountAsync() {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const router = getPersonalityRouter();
-    return await router.getMaxAliasWordCount();
-  }
-  return getMaxAliasWordCount();
+  const bootstrap = getApplicationBootstrap();
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getMaxAliasWordCount();
 }
 
 /**
@@ -128,9 +124,10 @@ async function checkForPersonalityMentions(message) {
  * Main message handler function
  * @param {Object} message - Discord message object
  * @param {Object} client - Discord.js client
+ * @param {Object} authManager - Auth manager instance
  * @returns {Promise<void>}
  */
-async function handleMessage(message, client) {
+async function handleMessage(message, client, authManager) {
   logger.debug(
     `[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`
   );
@@ -170,7 +167,7 @@ async function handleMessage(message, client) {
 
     // Check for replies to DM-formatted bot messages
     if (message.channel.isDMBased() && !message.author.bot && message.reference) {
-      const dmReplyHandled = await dmHandler.handleDmReply(message, client);
+      const dmReplyHandled = await dmHandler.handleDmReply(message, client, authManager);
       if (dmReplyHandled) {
         return; // Message was handled by DM reply handler
       }
@@ -324,7 +321,7 @@ async function handleMessage(message, client) {
 
     // Handle DM-specific behavior for "sticky" conversations
     if (message.channel.isDMBased() && !message.author.bot) {
-      await dmHandler.handleDirectMessage(message, client);
+      await dmHandler.handleDirectMessage(message, client, authManager);
     }
   } catch (error) {
     logger.error(`[MessageHandler] Error handling message:`, error);

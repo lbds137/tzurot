@@ -48,7 +48,7 @@ describe('StatusCommand', () => {
 
     // Create command with mocked dependencies
     statusCommand = createStatusCommand({
-      auth: mockAuth,
+      authManager: mockAuth,
       personalityRegistry: mockPersonalityRegistry,
       conversationManager: mockConversationManager,
       processUtils: mockProcessUtils,
@@ -333,7 +333,7 @@ describe('StatusCommand', () => {
       const limitedConversationManager = {};
 
       const command = createStatusCommand({
-        auth: mockAuth,
+        authManager: mockAuth,
         personalityRegistry: mockPersonalityRegistry,
         conversationManager: limitedConversationManager,
         processUtils: mockProcessUtils,
@@ -356,7 +356,7 @@ describe('StatusCommand', () => {
 
     it('should create command with custom dependencies', () => {
       const customAuth = { hasValidToken: jest.fn() };
-      const command = createStatusCommand({ auth: customAuth });
+      const command = createStatusCommand({ authManager: customAuth });
 
       expect(command).toBeDefined();
       expect(command.name).toBe('status');

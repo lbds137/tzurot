@@ -222,6 +222,55 @@ describe('MessageTracker', () => {
 
       expect(mockScheduler).not.toHaveBeenCalled();
     });
+
+    it('should handle exactly 5 second difference as duplicate', () => {
+      jest.spyOn(Date, 'now').mockReturnValue(1000);
+      messageTracker.trackOperation('channel123', 'reply', 'sig123');
+
+      // Exactly 5 seconds later
+      Date.now.mockReturnValue(6000);
+      const result = messageTracker.trackOperation('channel123', 'reply', 'sig123');
+
+      expect(result).toBe(true); // Should allow after exactly 5 seconds
+
+      Date.now.mockRestore();
+    });
+
+    it('should handle operations with empty channel ID', () => {
+      const result = messageTracker.trackOperation('', 'send', 'sig');
+
+      expect(result).toBe(true);
+      expect(messageTracker.processedMessages.has('send--sig')).toBe(true);
+    });
+
+    it('should handle operations with null values', () => {
+      const result = messageTracker.trackOperation(null, null, null);
+
+      expect(result).toBe(true);
+      expect(messageTracker.processedMessages.has('null-null-null')).toBe(true);
+    });
+
+    it('should handle operations with undefined values', () => {
+      const result = messageTracker.trackOperation(undefined, undefined, undefined);
+
+      expect(result).toBe(true);
+      expect(messageTracker.processedMessages.has('undefined-undefined-undefined')).toBe(true);
+    });
+
+    it('should warn with correct time difference in duplicate detection', () => {
+      jest.spyOn(Date, 'now').mockReturnValue(1000);
+      messageTracker.trackOperation('ch1', 'reply', 'sig1');
+
+      // 3.5 seconds later
+      Date.now.mockReturnValue(4500);
+      messageTracker.trackOperation('ch1', 'reply', 'sig1');
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('(3500ms ago)')
+      );
+
+      Date.now.mockRestore();
+    });
   });
 
   describe('periodic cleanup', () => {
@@ -342,6 +391,208 @@ describe('MessageTracker', () => {
 
       expect(result).toBe(true);
       expect(messageTracker.processedMessages.has(`send-ch1-${longSig}`)).toBe(true);
+    });
+
+    it('should handle special characters in IDs', () => {
+      const specialId = 'test@#$%^&*()_+{}[]|\\:\";<>?,./~`';
+      const result = messageTracker.track(specialId);
+
+      expect(result).toBe(true);
+      expect(messageTracker.processedMessages.has(`message-${specialId}`)).toBe(true);
+    });
+
+    it('should handle numeric IDs', () => {
+      const result1 = messageTracker.track(12345);
+      const result2 = messageTracker.track(0);
+      const result3 = messageTracker.track(-1);
+
+      expect(result1).toBe(true);
+      expect(result2).toBe(true);
+      expect(result3).toBe(true);
+      expect(messageTracker.processedMessages.has('message-12345')).toBe(true);
+      expect(messageTracker.processedMessages.has('message-0')).toBe(true);
+      expect(messageTracker.processedMessages.has('message--1')).toBe(true);
+    });
+
+    it('should handle object IDs by converting to string', () => {
+      const objId = { id: 'test' };
+      const result = messageTracker.track(objId);
+
+      expect(result).toBe(true);
+      expect(messageTracker.processedMessages.has('message-[object Object]')).toBe(true);
+    });
+  });
+
+  describe('singleton behavior', () => {
+    it('should export a singleton instance', () => {
+      const { messageTracker: instance1 } = require('../../src/messageTracker');
+      const { messageTracker: instance2 } = require('../../src/messageTracker');
+
+      expect(instance1).toBe(instance2);
+    });
+
+    it('should maintain state across imports', () => {
+      const { messageTracker: tracker1 } = require('../../src/messageTracker');
+      tracker1.track('singleton-test');
+
+      const { messageTracker: tracker2 } = require('../../src/messageTracker');
+      const result = tracker2.track('singleton-test');
+
+      expect(result).toBe(false); // Should detect as duplicate
+    });
+  });
+
+  describe('factory function', () => {
+    it('should create new instances with createMessageTracker', () => {
+      const tracker1 = createMessageTracker();
+      const tracker2 = createMessageTracker();
+
+      expect(tracker1).not.toBe(tracker2);
+
+      // Verify they have independent state
+      tracker1.track('factory-test');
+      const result = tracker2.track('factory-test');
+
+      expect(result).toBe(true); // Should not be duplicate
+    });
+
+    it('should pass options to new instances', () => {
+      const customScheduler = jest.fn();
+      const tracker = createMessageTracker({
+        enableCleanupTimers: false,
+        scheduler: customScheduler,
+      });
+
+      expect(tracker.enableCleanupTimers).toBe(false);
+      expect(tracker.scheduler).toBe(customScheduler);
+    });
+  });
+
+  describe('timestamp tracking', () => {
+    beforeEach(() => {
+      jest.spyOn(Date, 'now');
+      messageTracker = new MessageTracker({
+        scheduler: mockScheduler,
+        intervalScheduler: mockIntervalScheduler,
+      });
+    });
+
+    afterEach(() => {
+      Date.now.mockRestore();
+    });
+
+    it('should store current timestamp when tracking messages', () => {
+      Date.now.mockReturnValue(1234567890);
+      messageTracker.track('timestamp-test');
+
+      const timestamp = messageTracker.processedMessages.get('message-timestamp-test');
+      expect(timestamp).toBe(1234567890);
+    });
+
+    it('should update timestamp on re-track after expiry', () => {
+      Date.now.mockReturnValue(1000);
+      messageTracker.trackOperation('ch1', 'send', 'sig1');
+
+      Date.now.mockReturnValue(7000); // 6 seconds later
+      messageTracker.trackOperation('ch1', 'send', 'sig1');
+
+      const timestamp = messageTracker.processedMessages.get('send-ch1-sig1');
+      expect(timestamp).toBe(7000);
+    });
+  });
+
+  describe('concurrent operations', () => {
+    beforeEach(() => {
+      messageTracker = new MessageTracker({
+        scheduler: mockScheduler,
+        intervalScheduler: mockIntervalScheduler,
+      });
+    });
+
+    it('should handle rapid concurrent tracks correctly', () => {
+      const results = [];
+      for (let i = 0; i < 5; i++) {
+        results.push(messageTracker.track('concurrent-test'));
+      }
+
+      expect(results[0]).toBe(true);
+      expect(results.slice(1).every(r => r === false)).toBe(true);
+      expect(logger.warn).toHaveBeenCalledTimes(4);
+    });
+
+    it('should track different IDs concurrently without interference', () => {
+      const results = [];
+      for (let i = 0; i < 5; i++) {
+        results.push(messageTracker.track(`concurrent-${i}`));
+      }
+
+      expect(results.every(r => r === true)).toBe(true);
+      expect(messageTracker.size).toBe(5);
+    });
+  });
+
+  describe('memory management', () => {
+    beforeEach(() => {
+      jest.spyOn(Date, 'now');
+      messageTracker = new MessageTracker({
+        scheduler: mockScheduler,
+        intervalScheduler: mockIntervalScheduler,
+      });
+    });
+
+    afterEach(() => {
+      Date.now.mockRestore();
+    });
+
+    it('should handle cleanup with no entries gracefully', () => {
+      Date.now.mockReturnValue(1000);
+
+      // Run cleanup with empty tracker
+      expect(() => {
+        intervalCallbacks[0].callback();
+      }).not.toThrow();
+
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.stringContaining('MessageTracker cleanup removed')
+      );
+    });
+
+    it('should handle cleanup with mix of old and new entries', () => {
+      // Add entries at different times
+      Date.now.mockReturnValue(1000);
+      messageTracker.track('old1');
+      
+      Date.now.mockReturnValue(5 * 60 * 1000); // 5 min
+      messageTracker.track('mid1');
+      messageTracker.track('mid2');
+      
+      Date.now.mockReturnValue(9 * 60 * 1000); // 9 min
+      messageTracker.track('recent1');
+      
+      Date.now.mockReturnValue(11 * 60 * 1000); // 11 min
+      
+      // Run cleanup
+      intervalCallbacks[0].callback();
+      
+      expect(messageTracker.processedMessages.has('message-old1')).toBe(false);
+      expect(messageTracker.processedMessages.has('message-mid1')).toBe(true);
+      expect(messageTracker.processedMessages.has('message-mid2')).toBe(true);
+      expect(messageTracker.processedMessages.has('message-recent1')).toBe(true);
+      expect(logger.info).toHaveBeenCalledWith('MessageTracker cleanup removed 1 entries');
+    });
+
+    it('should handle cleanup removing all entries', () => {
+      Date.now.mockReturnValue(1000);
+      messageTracker.track('old1');
+      messageTracker.track('old2');
+      messageTracker.track('old3');
+
+      Date.now.mockReturnValue(12 * 60 * 1000); // 12 minutes later
+
+      intervalCallbacks[0].callback();
+
+      expect(messageTracker.size).toBe(0);
+      expect(logger.info).toHaveBeenCalledWith('MessageTracker cleanup removed 3 entries');
     });
   });
 });

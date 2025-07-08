@@ -1,4 +1,4 @@
-const { getAiResponse, createRequestId, formatApiMessages } = require('../../src/aiService');
+const { getAiResponse, createRequestId, formatApiMessages, initAiClient } = require('../../src/aiService');
 
 // Mock OpenAI module
 jest.mock('openai', () => {
@@ -65,22 +65,27 @@ jest.mock('openai', () => {
 // Mock config module
 jest.mock('../../config', () => ({
   getApiEndpoint: jest.fn().mockReturnValue('https://api.example.com'),
-  getModelPath: jest.fn().mockReturnValue('mock-model-path'),
+  getModelPath: jest.fn().mockImplementation((personality) => `mock-model-path-${personality}`),
+  botPrefix: '!tz',
   botConfig: {
     isDevelopment: false,
     mentionChar: '@',
   },
 }));
 
-// Mock auth module
-jest.mock('../../src/auth', () => ({
-  API_KEY: 'mock-api-key',
-  APP_ID: 'mock-app-id',
-  hasValidToken: jest.fn().mockReturnValue(true),
-  getUserToken: jest.fn().mockReturnValue('mock-user-token'),
-  getAuthManager: jest.fn().mockReturnValue(null), // Add missing mock
-  userTokens: {},
-  nsfwVerified: {},
+// Mock AuthManager
+jest.mock('../../src/core/authentication/AuthManager');
+
+// Mock PersonalityDataService
+jest.mock('../../src/services/PersonalityDataService', () => ({
+  getPersonalityDataService: jest.fn().mockReturnValue({
+    getExtendedProfile: jest.fn().mockResolvedValue({
+      displayName: 'Test Personality',
+      avatarUrl: 'https://example.com/avatar.png',
+      errorMessage: 'Error occurred',
+      mode: 'normal',
+    }),
+  }),
 }));
 
 // Mock aiAuth module
@@ -428,6 +433,13 @@ describe('Referenced Message Media Tests', () => {
 
   // Test 5: Integration test - full AI response flow with media references
   it('should correctly process a full AI request with referenced media', async () => {
+    // Initialize auth manager mock
+    const mockAuthManager = {
+      hasValidToken: jest.fn().mockReturnValue(true),
+      getUserToken: jest.fn().mockReturnValue('mock-user-token'),
+    };
+    initAiClient(mockAuthManager);
+
     // Set up test data
     const personalityName = 'test-personality';
     const message = {

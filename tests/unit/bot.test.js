@@ -271,7 +271,7 @@ describe('Bot Core Functionality', () => {
       // Trigger messageCreate event
       await eventHandlers.messageCreate(mockMessage);
 
-      expect(messageHandler.handleMessage).toHaveBeenCalledWith(mockMessage, client);
+      expect(messageHandler.handleMessage).toHaveBeenCalledWith(mockMessage, client, undefined);
     });
 
     it('should register messageDelete event handler', () => {

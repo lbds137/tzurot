@@ -393,7 +393,7 @@ function createAddCommand() {
 
           // Build tagging options based on what's available
           const mentionChar = botConfig.mentionChar;
-          let taggingOptions = [];
+          const taggingOptions = [];
 
           // First, add any actual aliases
           if (personality.aliases && personality.aliases.length > 0) {

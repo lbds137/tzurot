@@ -200,8 +200,11 @@ function createRemoveCommand() {
 
           // Add bot owner indicator if removing someone else's personality
           const { USER_CONFIG } = require('../../../constants');
-          if (personality.ownerId && personality.ownerId.toString() !== context.getUserId() && 
-              context.getUserId() === USER_CONFIG.OWNER_ID) {
+          if (
+            personality.ownerId &&
+            personality.ownerId.toString() !== context.getUserId() &&
+            context.getUserId() === USER_CONFIG.OWNER_ID
+          ) {
             fields.push({
               name: 'Admin Action',
               value: '👑 Removed as bot owner (originally owned by another user)',

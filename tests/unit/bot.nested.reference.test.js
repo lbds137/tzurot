@@ -8,7 +8,7 @@ jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/handlers/messageTrackerHandler');
 jest.mock('../../src/application/services/FeatureFlags');
-jest.mock('../../src/application/routers/PersonalityRouter');
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap');
 
 const logger = require('../../src/logger');
 const { handleMessageReference } = require('../../src/handlers/referenceHandler');
@@ -16,7 +16,7 @@ const { getPersonalityFromMessage } = require('../../src/core/conversation');
 const { getPersonality, getPersonalityByAlias } = require('../../src/core/personality');
 const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
 const { getFeatureFlags } = require('../../src/application/services/FeatureFlags');
-const { getPersonalityRouter } = require('../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('Nested Reference Handling', () => {
   let mockMessage;
@@ -110,7 +110,10 @@ describe('Nested Reference Handling', () => {
         displayName: 'Test',
       }),
     };
-    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
     // Set up personality manager mocks (async)
     getPersonality.mockResolvedValue({

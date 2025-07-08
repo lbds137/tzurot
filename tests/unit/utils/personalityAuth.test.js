@@ -1,15 +1,9 @@
 // Mock dependencies first
 jest.mock('../../../src/logger');
-jest.mock('../../../src/auth', () => ({
-  getAuthManager: jest.fn(),
-  hasValidToken: jest.fn(),
-  isNsfwVerified: jest.fn(),
-}));
 
 // Import after mocking
 const personalityAuth = require('../../../src/utils/personalityAuth');
 const logger = require('../../../src/logger');
-const auth = require('../../../src/auth');
 
 describe('Personality Authentication Module', () => {
   let mockAuthManager;
@@ -32,8 +26,8 @@ describe('Personality Authentication Module', () => {
       getUserAuthStatus: jest.fn(),
     };
 
-    // Default to returning the auth manager
-    auth.getAuthManager.mockReturnValue(mockAuthManager);
+    // Initialize the personalityAuth module with our mock auth manager
+    personalityAuth.initialize(mockAuthManager);
   });
 
   describe('checkPersonalityAuth', () => {
@@ -109,7 +103,8 @@ describe('Personality Authentication Module', () => {
     });
 
     it('should handle auth manager not initialized', async () => {
-      auth.getAuthManager.mockReturnValue(null);
+      // Reset auth manager to uninitialized state
+      personalityAuth._resetForTesting();
 
       const mockMessage = {
         author: { id: 'user123', username: 'testuser' },
@@ -122,7 +117,7 @@ describe('Personality Authentication Module', () => {
 
       await expect(
         personalityAuth.checkPersonalityAuth(mockMessage, mockPersonality)
-      ).rejects.toThrow('Auth system not initialized');
+      ).rejects.toThrow('Auth manager not initialized');
     });
 
     it('should handle validation errors gracefully', async () => {
@@ -174,11 +169,12 @@ describe('Personality Authentication Module', () => {
     });
 
     it('should return false when auth manager not initialized', () => {
-      auth.getAuthManager.mockReturnValue(null);
+      // Reset auth manager to uninitialized state
+      personalityAuth._resetForTesting();
 
-      const result = personalityAuth.requiresAuth({ requiresAuth: true });
-
-      expect(result).toBe(false);
+      expect(() => {
+        personalityAuth.requiresAuth({ requiresAuth: true });
+      }).toThrow('Auth manager not initialized');
     });
   });
 
@@ -205,11 +201,12 @@ describe('Personality Authentication Module', () => {
     });
 
     it('should return false when auth manager not initialized', () => {
-      auth.getAuthManager.mockReturnValue(null);
+      // Reset auth manager to uninitialized state
+      personalityAuth._resetForTesting();
 
-      const result = personalityAuth.requiresNsfwVerification({ nsfw: true });
-
-      expect(result).toBe(false);
+      expect(() => {
+        personalityAuth.requiresNsfwVerification({ nsfw: true });
+      }).toThrow('Auth manager not initialized');
     });
   });
 
@@ -233,18 +230,12 @@ describe('Personality Authentication Module', () => {
     });
 
     it('should return default status when auth manager not initialized', () => {
-      auth.getAuthManager.mockReturnValue(null);
+      // Reset auth manager to uninitialized state
+      personalityAuth._resetForTesting();
 
-      const result = personalityAuth.getUserAuthStatus('user123');
-
-      expect(result).toEqual({
-        userId: 'user123',
-        isOwner: false,
-        hasValidToken: false,
-        tokenExpiration: null,
-        nsfwVerified: false,
-        nsfwVerificationDate: null,
-      });
+      expect(() => {
+        personalityAuth.getUserAuthStatus('user123');
+      }).toThrow('Auth manager not initialized');
     });
   });
 

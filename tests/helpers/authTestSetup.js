@@ -17,6 +17,13 @@ function setupAuthMocks(options = {}) {
 
   // Create auth manager mock
   const mockAuthManager = {
+    initialize: jest.fn().mockResolvedValue(undefined),
+    shutdown: jest.fn().mockResolvedValue(undefined),
+    hasValidToken: jest.fn().mockReturnValue(isAuthenticated),
+    getUserToken: jest.fn().mockReturnValue(isAuthenticated ? 'mock-token' : null),
+    isNsfwVerified: jest.fn().mockReturnValue(true),
+    APP_ID: 'mock-app-id',
+    API_KEY: 'mock-api-key',
     aiClientFactory: {
       getDefaultClient: jest.fn().mockReturnValue(mockClient),
     },
@@ -30,15 +37,10 @@ function setupAuthMocks(options = {}) {
     },
   };
 
-  // Mock the auth module
-  jest.doMock('../../src/auth', () => ({
-    getAuthManager: jest.fn().mockReturnValue(mockAuthManager),
-    hasValidToken: jest.fn().mockReturnValue(isAuthenticated),
-    getUserToken: jest.fn().mockReturnValue(isAuthenticated ? 'mock-token' : null),
-    isNsfwVerified: jest.fn().mockReturnValue(true),
-    API_KEY: 'mock-api-key',
-    APP_ID: 'mock-app-id',
-  }));
+  // Mock the AuthManager directly
+  jest.doMock('../../src/core/authentication', () => {
+    return jest.fn().mockImplementation(() => mockAuthManager);
+  });
 
   // Mock aiAuth to return proper client
   jest.doMock('../../src/utils/aiAuth', () => ({

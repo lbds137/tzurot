@@ -37,6 +37,18 @@ const CACHE_EXPIRATION = 60 * 60 * 1000;
 // Store cleanup intervals for proper cleanup
 let cleanupIntervals = [];
 
+// Store authManager instance
+let authManager = null;
+
+/**
+ * Initialize the webhook user tracker with authManager
+ * @param {Object} authManagerInstance - The auth manager instance
+ */
+function initialize(authManagerInstance) {
+  authManager = authManagerInstance;
+  logger.info('[WebhookUserTracker] Initialized with auth manager');
+}
+
 /**
  * Clean up old entries from the webhook user map
  * @private
@@ -424,8 +436,7 @@ function checkProxySystemAuthentication(message) {
     associateWebhookWithUser(message.webhookId, originalMessageData.userId);
 
     // Check if this user is authenticated
-    const auth = require('../auth');
-    const isAuthenticated = auth.hasValidToken(originalMessageData.userId);
+    const isAuthenticated = authManager && authManager.hasValidToken(originalMessageData.userId);
 
     return {
       isAuthenticated,
@@ -437,8 +448,7 @@ function checkProxySystemAuthentication(message) {
   // Check cached associations
   const cachedUserId = getRealUserIdFromWebhook(message.webhookId);
   if (cachedUserId && cachedUserId !== 'proxy-system-user') {
-    const auth = require('../auth');
-    const isAuthenticated = auth.hasValidToken(cachedUserId);
+    const isAuthenticated = authManager && authManager.hasValidToken(cachedUserId);
     return {
       isAuthenticated,
       userId: cachedUserId,
@@ -449,6 +459,7 @@ function checkProxySystemAuthentication(message) {
 }
 
 module.exports = {
+  initialize,
   associateWebhookWithUser,
   getRealUserIdFromWebhook,
   isProxySystemWebhook,

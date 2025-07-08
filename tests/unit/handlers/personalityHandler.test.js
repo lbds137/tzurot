@@ -45,11 +45,7 @@ jest.mock('../../../src/utils/media', () => ({
   processMediaForWebhook: jest.fn(),
   prepareAttachmentOptions: jest.fn().mockReturnValue(null),
 }));
-jest.mock('../../../src/auth', () => ({
-  isNsfwVerified: jest.fn(),
-  hasValidToken: jest.fn(),
-  storeNsfwVerification: jest.fn(),
-}));
+// Auth module has been removed - auth checks are now handled by personalityAuth
 jest.mock('../../../src/utils/requestTracker');
 jest.mock('../../../src/utils/personalityAuth');
 jest.mock('../../../src/utils/threadHandler');
@@ -145,8 +141,8 @@ describe('Personality Handler Module', () => {
     webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
 
     // Mock auth module - default to authenticated and verified
-    require('../../../src/auth').hasValidToken.mockReturnValue(true);
-    require('../../../src/auth').isNsfwVerified.mockReturnValue(true);
+    // Auth checks now handled by mocked authManager
+    // NSFW checks now handled by mocked authManager
 
     // Mock media detection
     require('../../../src/utils/media').detectMedia.mockImplementation((message, content) => ({
@@ -852,10 +848,7 @@ describe('Personality Handler Module', () => {
     beforeEach(() => {
       jest.clearAllMocks();
 
-      // Setup auth mocks
-      const auth = require('../../../src/auth');
-      auth.hasValidToken.mockReturnValue(true);
-      auth.isNsfwVerified.mockReturnValue(true);
+      // Auth mocks are now handled by personalityAuth mock
 
       // Setup webhook manager mock
       webhookManager.sendWebhookMessage.mockResolvedValue({
@@ -1064,7 +1057,7 @@ describe('Personality Handler Module', () => {
       channelUtils.isChannelNSFW.mockReturnValue(true);
 
       // Mock auth module for NSFW verification
-      require('../../../src/auth').isNsfwVerified.mockReturnValue(true);
+      // NSFW checks now handled by mocked authManager
 
       // Default getRealUserId behavior (returns null for non-PluralKit messages)
       webhookUserTracker.getRealUserId.mockReturnValue(null);

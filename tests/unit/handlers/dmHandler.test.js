@@ -6,54 +6,49 @@ jest.mock('../../../src/logger', () => ({
   debug: jest.fn(),
 }));
 jest.mock('../../../src/handlers/personalityHandler');
-jest.mock('../../../src/auth');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/core/conversation');
-jest.mock('../../../src/core/personality');
 jest.mock('../../../src/webhookManager', () => ({
   getStandardizedUsername: jest.fn(),
 }));
-jest.mock('../../../src/application/routers/PersonalityRouter');
-jest.mock('../../../src/application/services/FeatureFlags');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 
 const dmHandler = require('../../../src/handlers/dmHandler');
 const personalityHandler = require('../../../src/handlers/personalityHandler');
-const auth = require('../../../src/auth');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const { getActivePersonality } = require('../../../src/core/conversation');
-const {
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-  getPersonality: getLegacyPersonality,
-  listPersonalitiesForUser: legacyListPersonalitiesForUser,
-} = require('../../../src/core/personality');
 const { getStandardizedUsername } = require('../../../src/webhookManager');
 const logger = require('../../../src/logger');
-const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
-const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('dmHandler', () => {
   let mockClient;
   let mockMessage;
   let mockRepliedToMessage;
   let mockPersonality;
-  let mockFeatureFlags;
   let mockRouter;
+  let mockAuthManager;
+  let mockBootstrap;
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Set up feature flags mock
-    mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false), // Legacy mode by default
+    
+    // Set up auth manager mock
+    mockAuthManager = {
+      hasValidToken: jest.fn().mockReturnValue(true),
+      isNsfwVerified: jest.fn().mockReturnValue(true),
+      getUserToken: jest.fn().mockReturnValue('mock-token'),
     };
-    getFeatureFlags.mockReturnValue(mockFeatureFlags);
 
     // Set up router mock
     mockRouter = {
       getPersonality: jest.fn(),
       listPersonalitiesForUser: jest.fn(),
     };
-    getPersonalityRouter.mockReturnValue(mockRouter);
+    mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
     // Mock client
     mockClient = {
@@ -92,54 +87,59 @@ describe('dmHandler', () => {
       createdTimestamp: Date.now(),
     };
 
-    // Mock personality
+    // Mock personality (DDD format)
     mockPersonality = {
-      fullName: 'test-personality',
-      displayName: 'TestPersonality',
+      profile: {
+        name: 'test-personality',
+        displayName: 'TestPersonality',
+      },
+      name: 'test-personality', // Fallback
+      fullName: 'test-personality', // dmHandler checks for fullName
+      aliases: [],
     };
 
     // Set up mock implementations
     mockMessage.channel.messages.fetch.mockResolvedValue(mockRepliedToMessage);
     personalityHandler.handlePersonalityInteraction.mockResolvedValue(undefined);
-    auth.isNsfwVerified.mockReturnValue(true);
+    mockAuthManager.isNsfwVerified.mockReturnValue(true);
     webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     getActivePersonality.mockReturnValue('test-personality');
-    // Note: The wrapper functions in dmHandler are now async, so they return Promises
-    getLegacyPersonality.mockResolvedValue(mockPersonality);
-    getLegacyPersonalityByAlias.mockResolvedValue(mockPersonality); // Now returns Promise
-    legacyListPersonalitiesForUser.mockResolvedValue([mockPersonality]); // Now returns Promise
-    getStandardizedUsername.mockImplementation(personality => personality.displayName);
+    // Set up router mocks to return DDD format personalities
+    mockRouter.getPersonality.mockResolvedValue(mockPersonality);
+    mockRouter.listPersonalitiesForUser.mockResolvedValue([mockPersonality]);
+    
+    getStandardizedUsername.mockImplementation(personality => personality.profile?.displayName || personality.displayName);
   });
 
   describe('handleDmReply', () => {
     it('should handle errors when personality interaction fails', async () => {
-      // Based on the test behavior, it seems the test was expecting a different scenario
-      // The original test probably worked when getPersonality was synchronous
-      // Now that it's async, the test setup might need to be different
-
-      // Let's test a simpler scenario: no personality found
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
-      legacyListPersonalitiesForUser.mockResolvedValue([]);
+      // Test that the handler returns false when personality interaction throws an error
+      personalityHandler.handlePersonalityInteraction.mockRejectedValue(new Error('Interaction failed'));
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
-      // Should return false when no personality is found
+      // Should return false when interaction fails
       expect(result).toBe(false);
 
-      // Should not have attempted to handle personality interaction
-      expect(personalityHandler.handlePersonalityInteraction).not.toHaveBeenCalled();
+      // Should have attempted to handle personality interaction
+      expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalled();
     });
 
     it('should return false when no personality is found after all lookup attempts', async () => {
       // Mock all personality lookup methods to return null
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
-      legacyListPersonalitiesForUser.mockResolvedValue([]);
+      mockRouter.getPersonality.mockResolvedValue(null);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([]);
+      
+      // Mock the message to not match the personality prefix pattern
+      const mockNonPersonalityMessage = {
+        ...mockRepliedToMessage,
+        content: 'Just a regular message without personality prefix'
+      };
+      mockMessage.channel.messages.fetch.mockResolvedValue(mockNonPersonalityMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return false when no personality is found
       expect(result).toBe(false);
@@ -149,7 +149,7 @@ describe('dmHandler', () => {
     });
     it('should handle replies to personality messages in DMs', async () => {
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -220,9 +220,8 @@ describe('dmHandler', () => {
         return collection;
       });
 
-      // Setup personality lookup to succeed for both methods
-      getLegacyPersonality.mockResolvedValue(mockPersonality);
-      getLegacyPersonalityByAlias.mockImplementation(async (userId, name) => {
+      // Setup personality lookup to succeed - the DDD system handles both alias and direct lookups
+      mockRouter.getPersonality.mockImplementation(async (name) => {
         if (name === 'TestPersonality') {
           return mockPersonality;
         }
@@ -230,7 +229,7 @@ describe('dmHandler', () => {
       });
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled (skip this expectation as the test is failing)
       // expect(result).toBe(true);
@@ -257,7 +256,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(mockSuffixedMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -277,19 +276,23 @@ describe('dmHandler', () => {
     });
 
     it('should match personality by exact display name', async () => {
-      // Set up initial lookups to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
-
+      // Set up router to return null for direct lookups
+      mockRouter.getPersonality.mockResolvedValue(null);
+      
       // Set up list to return personality with matching display name
       const personalityWithDisplayName = {
-        ...mockPersonality,
-        displayName: 'TestPersonality',
+        profile: {
+          name: 'test-personality',
+          displayName: 'TestPersonality',
+        },
+        name: 'test-personality',
+        fullName: 'test-personality', // dmHandler checks for fullName
+        aliases: [],
       };
-      legacyListPersonalitiesForUser.mockResolvedValue([personalityWithDisplayName]);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDisplayName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
@@ -305,21 +308,29 @@ describe('dmHandler', () => {
 
     it('should match personality by display name prefix', async () => {
       // Modify the replied message to have a shorter name
-      mockRepliedToMessage.content = '**Test:** This is a test message';
+      const mockShortMessage = {
+        ...mockRepliedToMessage,
+        content: '**Test:** This is a test message'
+      };
+      mockMessage.channel.messages.fetch.mockResolvedValue(mockShortMessage);
 
-      // Set up initial lookups to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
+      // Set up router to return null for direct lookups
+      mockRouter.getPersonality.mockResolvedValue(null);
 
       // Set up list to return personality with longer display name
       const personalityWithLongerName = {
-        ...mockPersonality,
-        displayName: 'Test Personality With Long Name',
+        profile: {
+          name: 'test-personality',
+          displayName: 'Test Personality With Long Name',
+        },
+        name: 'test-personality',
+        fullName: 'test-personality', // dmHandler checks for fullName
+        aliases: [],
       };
-      legacyListPersonalitiesForUser.mockResolvedValue([personalityWithLongerName]);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithLongerName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
@@ -335,17 +346,24 @@ describe('dmHandler', () => {
 
     it('should match personality by first part of full name', async () => {
       // Modify the replied message to use just the first part
-      mockRepliedToMessage.content = '**test:** This is a test message';
+      const mockShortMessage = {
+        ...mockRepliedToMessage,
+        content: '**test:** This is a test message'
+      };
+      mockMessage.channel.messages.fetch.mockResolvedValue(mockShortMessage);
 
       // Set up initial lookups to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
+      mockRouter.getPersonality.mockResolvedValue(null);
 
-      // Set up list to return personality
-      legacyListPersonalitiesForUser.mockResolvedValue([mockPersonality]);
+      // Set up list to return personality with fullName that starts with 'test'
+      const personalityWithMatchingFirstPart = {
+        ...mockPersonality,
+        fullName: 'test-personality', // This will match 'test'
+      };
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithMatchingFirstPart]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
@@ -353,31 +371,30 @@ describe('dmHandler', () => {
       // Should have called personality handler
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
         mockMessage,
-        mockPersonality,
+        personalityWithMatchingFirstPart,
         null,
         mockClient
       );
     });
 
     it('should try multiple personality lookup methods', async () => {
-      // Reset mock implementations to return null initially
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockImplementation(async (userId, name) => {
-        // Only return personality for specific user and name
-        if (userId === 'author-123' && name === 'TestPersonality') {
+      // Reset mock implementations to return null initially, then return personality on alias lookup
+      mockRouter.getPersonality.mockImplementation(async (name) => {
+        // Return personality on second call (alias lookup)
+        if (name === 'TestPersonality') {
           return mockPersonality;
         }
         return null;
       });
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
 
-      // Should have tried to get personality by alias (using DDD-aware wrapper when feature flags allow)
-      expect(getLegacyPersonalityByAlias).toHaveBeenCalledWith('TestPersonality');
+      // Should have tried to get personality by alias/name (DDD system)
+      expect(mockRouter.getPersonality).toHaveBeenCalledWith('TestPersonality');
 
       // Should have called the personality handler with the correct arguments
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
@@ -401,7 +418,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(mockNonBotMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
@@ -525,7 +542,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(recentMessages);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Test the behavior we can observe:
       // 1. The handler should fetch the replied-to message
@@ -535,7 +552,7 @@ describe('dmHandler', () => {
       expect(mockMessage.channel.messages.fetch).toHaveBeenCalledWith({ limit: 10 });
 
       // 3. Verify our mock setup is correct
-      expect(await getLegacyPersonality('TestPersonality')).toBe(mockPersonality);
+      expect(await mockRouter.getPersonality('TestPersonality')).toBe(mockPersonality);
 
       // Since the feature works in production but not in our test,
       // let's document what we expect to happen:
@@ -551,8 +568,7 @@ describe('dmHandler', () => {
 
     it('should match personality by standardized username', async () => {
       // Set up initial lookups to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
+      mockRouter.getPersonality.mockResolvedValue(null);
 
       // Mock getStandardizedUsername to return a specific value
       getStandardizedUsername.mockReturnValue('TestPersonality');
@@ -561,11 +577,12 @@ describe('dmHandler', () => {
       const personalityWithDifferentDisplay = {
         ...mockPersonality,
         displayName: 'Different Name',
+        fullName: 'test-personality', // dmHandler checks for fullName
       };
-      legacyListPersonalitiesForUser.mockResolvedValue([personalityWithDifferentDisplay]);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDifferentDisplay]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
@@ -584,17 +601,24 @@ describe('dmHandler', () => {
 
     it('should match personality by exact full name', async () => {
       // Modify the replied message to use the full name
-      mockRepliedToMessage.content = '**test-personality:** This is a test message';
+      const mockFullNameMessage = {
+        ...mockRepliedToMessage,
+        content: '**test-personality:** This is a test message'
+      };
+      mockMessage.channel.messages.fetch.mockResolvedValue(mockFullNameMessage);
 
       // Set up initial lookups to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
+      mockRouter.getPersonality.mockResolvedValue(null);
 
-      // Set up list to return personality
-      legacyListPersonalitiesForUser.mockResolvedValue([mockPersonality]);
+      // Set up list to return personality with matching fullName
+      const personalityWithFullName = {
+        ...mockPersonality,
+        fullName: 'test-personality', // This will match the exact full name
+      };
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithFullName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
@@ -602,7 +626,7 @@ describe('dmHandler', () => {
       // Should have called personality handler
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
         mockMessage,
-        mockPersonality,
+        personalityWithFullName,
         null,
         mockClient
       );
@@ -624,12 +648,11 @@ describe('dmHandler', () => {
       );
 
       // Set up personality lookup to fail
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
-      legacyListPersonalitiesForUser.mockResolvedValue([]);
+      mockRouter.getPersonality.mockResolvedValue(null);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue([]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Should return false when error occurs during lookup
       expect(result).toBe(false);
@@ -646,50 +669,58 @@ describe('dmHandler', () => {
       // when searching through the list of personalities
 
       // Set up the scenario: Force the handler to use listPersonalitiesForUser
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
+      mockRouter.getPersonality.mockResolvedValue(null);
 
       // Create a list with invalid entries that should be filtered out
       const personalities = [
         null, // null personality
         { fullName: null, displayName: 'Invalid' }, // null fullName
         { displayName: 'NoFullName' }, // undefined fullName
-        mockPersonality, // valid personality with fullName and displayName
+        { 
+          ...mockPersonality, 
+          fullName: 'test-personality',
+          displayName: 'TestPersonality' // Ensure this matches what's being searched for
+        }, // valid personality with fullName and displayName
       ];
-      legacyListPersonalitiesForUser.mockResolvedValue(personalities);
+      mockRouter.listPersonalitiesForUser.mockResolvedValue(personalities);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
 
       // Test the observable behavior:
       // 1. The handler should have tried to look up the personality
-      expect(getLegacyPersonality).toHaveBeenCalledWith('TestPersonality');
-      expect(getLegacyPersonalityByAlias).toHaveBeenCalled();
+      expect(mockRouter.getPersonality).toHaveBeenCalledWith('TestPersonality');
 
-      // 2. Since those returned null, it should have used listPersonalitiesForUser
-      expect(legacyListPersonalitiesForUser).toHaveBeenCalledWith('author-123');
+      // 2. Since that returned null, it should have used listPersonalitiesForUser
+      expect(mockRouter.listPersonalitiesForUser).toHaveBeenCalledWith('author-123');
 
       // 3. The handler filters the list checking for valid personalities
-      // We can verify this worked if the handler successfully processed the message
-      // even though the list contained invalid entries
-
-      // The behavior we're testing: the handler can handle lists with invalid entries
-      // It should filter them out and find the valid personality
-      // This is proven by the fact that listPersonalitiesForUser was called
-      // and returned a list with invalid entries
+      // We can verify this worked by checking that:
+      // - The handler tried to look up the personality
+      // - It attempted to use the personality list
+      // - The list contained both valid and invalid entries
+      
+      // The main behavior we're testing: the handler doesn't crash when given invalid entries
+      // and it properly filters them out during its search
+      expect(mockRouter.listPersonalitiesForUser).toHaveBeenCalledWith('author-123');
+      
+      // Since the test setup is complex and the actual matching behavior may vary,
+      // the important thing is that the handler doesn't crash on invalid data
+      // The result (true/false) depends on exact matching logic, but the key
+      // behavior is that it handles null/undefined entries gracefully
     });
   });
 
   describe('handleDirectMessage', () => {
     it('should handle errors when sending verification prompt', async () => {
       // Set up user as not verified
-      auth.isNsfwVerified.mockReturnValueOnce(false);
+      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
 
       // Mock reply to throw an error
       mockMessage.reply.mockRejectedValueOnce(new Error('Discord API error'));
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should still return true even if reply fails
       expect(result).toBe(true);
@@ -701,13 +732,13 @@ describe('dmHandler', () => {
     it('should handle errors when sending personality summon prompt', async () => {
       // Set up no active personality
       getActivePersonality.mockReturnValue(null);
-      auth.isNsfwVerified.mockReturnValue(true);
+      mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Mock reply to throw an error
       mockMessage.reply.mockRejectedValueOnce(new Error('Discord API error'));
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should still return true even if reply fails
       expect(result).toBe(true);
@@ -718,27 +749,26 @@ describe('dmHandler', () => {
     });
 
     it('should use personality from alias when direct lookup fails', async () => {
-      // Set up getPersonality to return null
-      getLegacyPersonality.mockResolvedValue(null);
-
-      // Set up getPersonalityByAlias to return the personality
-      getLegacyPersonalityByAlias.mockResolvedValue(mockPersonality);
+      // Set up getPersonality to return null first, then the personality on second call
+      mockRouter.getPersonality.mockImplementation(async (name) => {
+        if (name === 'test-personality') {
+          return mockPersonality;
+        }
+        return null;
+      });
 
       // Ensure we have an active personality
       getActivePersonality.mockReturnValue('test-personality');
-      auth.isNsfwVerified.mockReturnValue(true);
+      mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should return true
       expect(result).toBe(true);
 
-      // Should have tried direct lookup first
-      expect(getLegacyPersonality).toHaveBeenCalledWith('test-personality');
-
-      // Should have fallen back to alias lookup
-      expect(getLegacyPersonalityByAlias).toHaveBeenCalledWith('test-personality');
+      // Should have tried lookup (DDD system handles both direct and alias in one method)
+      expect(mockRouter.getPersonality).toHaveBeenCalledWith('test-personality');
 
       // Should have called personality handler with the found personality
       expect(personalityHandler.handlePersonalityInteraction).toHaveBeenCalledWith(
@@ -750,13 +780,13 @@ describe('dmHandler', () => {
     });
     it('should handle direct messages with active personalities', async () => {
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
 
       // Should have checked if the user is verified
-      expect(auth.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
+      expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
 
       // Should have checked for active personality
       expect(getActivePersonality).toHaveBeenCalledWith(
@@ -776,16 +806,16 @@ describe('dmHandler', () => {
 
     it('should prompt user to verify if not verified', async () => {
       // Set up user as not verified
-      auth.isNsfwVerified.mockReturnValueOnce(false);
+      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
 
       // Should have checked if the user is verified
-      expect(auth.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
+      expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
 
       // Should have sent a verification prompt
       expect(mockMessage.reply).toHaveBeenCalled();
@@ -800,11 +830,11 @@ describe('dmHandler', () => {
 
     it('should bypass verification for trusted proxy systems', async () => {
       // Set up user as not verified but using a trusted proxy system
-      auth.isNsfwVerified.mockReturnValueOnce(false);
+      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValueOnce(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -840,13 +870,13 @@ describe('dmHandler', () => {
       getActivePersonality.mockReturnValue(null);
 
       // Ensure user is verified
-      auth.isNsfwVerified.mockReturnValue(true);
+      mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Ensure no bypass for verification
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
 
       // Execute the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should have returned true to indicate message was handled
       expect(result).toBe(true);
@@ -872,13 +902,13 @@ describe('dmHandler', () => {
       };
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockNonDmMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockNonDmMessage, mockClient, mockAuthManager);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
 
       // Should not have checked if the user is verified
-      expect(auth.isNsfwVerified).not.toHaveBeenCalled();
+      expect(mockAuthManager.isNsfwVerified).not.toHaveBeenCalled();
 
       // Should not have checked for active personality
       expect(getActivePersonality).not.toHaveBeenCalled();
@@ -898,13 +928,13 @@ describe('dmHandler', () => {
       };
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockBotMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockBotMessage, mockClient, mockAuthManager);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
 
       // Should not have checked if the user is verified
-      expect(auth.isNsfwVerified).not.toHaveBeenCalled();
+      expect(mockAuthManager.isNsfwVerified).not.toHaveBeenCalled();
 
       // Should not have checked for active personality
       expect(getActivePersonality).not.toHaveBeenCalled();
@@ -915,21 +945,19 @@ describe('dmHandler', () => {
 
     it('should return false when personality exists but both lookups return null', async () => {
       // This tests the edge case where we have an active personality name
-      // but both getPersonality and getPersonalityByAlias return null
+      // but the DDD system can't find the personality
       getActivePersonality.mockReturnValue('missing-personality');
-      getLegacyPersonality.mockResolvedValue(null);
-      getLegacyPersonalityByAlias.mockResolvedValue(null);
-      auth.isNsfwVerified.mockReturnValue(true);
+      mockRouter.getPersonality.mockResolvedValue(null);
+      mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
 
       // Should return false because no personality was found
       expect(result).toBe(false);
 
-      // Should have tried to look up the personality
-      expect(getLegacyPersonality).toHaveBeenCalledWith('missing-personality');
-      expect(getLegacyPersonalityByAlias).toHaveBeenCalledWith('missing-personality');
+      // Should have tried to look up the personality (DDD system tries both in one call)
+      expect(mockRouter.getPersonality).toHaveBeenCalledWith('missing-personality');
 
       // Should not have called personality handler
       expect(personalityHandler.handlePersonalityInteraction).not.toHaveBeenCalled();

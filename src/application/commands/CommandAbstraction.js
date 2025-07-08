@@ -177,7 +177,7 @@ class CommandContext {
     this.isDirectMessage = isDirectMessage;
     this.commandPrefix = commandPrefix;
     this.originalMessage = originalMessage || message;
-    
+
     // Admin check property
     this.isAdmin = isAdmin;
   }

@@ -27,11 +27,13 @@ jest.mock('../../../../src/application/services/FeatureFlags', () => ({
   }),
 }));
 
-jest.mock('../../../../src/application/routers/PersonalityRouter', () => ({
-  getPersonalityRouter: jest.fn().mockReturnValue({
-    registerPersonality: jest.fn(),
-    getPersonality: jest.fn(),
-    removePersonality: jest.fn(),
+jest.mock('../../../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn().mockReturnValue({
+    getPersonalityRouter: jest.fn().mockReturnValue({
+      registerPersonality: jest.fn(),
+      getPersonality: jest.fn(),
+      removePersonality: jest.fn(),
+    }),
   }),
 }));
 
@@ -53,7 +55,7 @@ jest.mock('../../../../src/application/commands/personality/AddCommand', () => {
 
 const logger = require('../../../../src/logger');
 const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-const { getPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('CommandIntegration', () => {
   let integration;

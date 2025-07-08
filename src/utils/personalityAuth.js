@@ -9,7 +9,15 @@ const logger = require('../logger');
 
 // Lazy-loaded dependencies
 let authManager = null;
-let authModule = null;
+
+/**
+ * Initialize with auth manager
+ * @param {Object} authManagerInstance - The auth manager instance
+ */
+function initialize(authManagerInstance) {
+  authManager = authManagerInstance;
+  logger.info('[PersonalityAuth] Initialized with auth manager');
+}
 
 /**
  * Get the auth manager instance
@@ -17,10 +25,7 @@ let authModule = null;
  */
 function getAuthManager() {
   if (!authManager) {
-    if (!authModule) {
-      authModule = require('../auth');
-    }
-    authManager = authModule.getAuthManager();
+    throw new Error('Auth manager not initialized. Call initialize() with authManager first.');
   }
   return authManager;
 }
@@ -28,7 +33,6 @@ function getAuthManager() {
 // Reset function for testing
 function _resetForTesting() {
   authManager = null;
-  authModule = null;
 }
 
 /**
@@ -154,6 +158,7 @@ async function sendAuthError(message, errorMessage, _reason) {
 }
 
 module.exports = {
+  initialize,
   checkPersonalityAuth,
   requiresAuth,
   requiresNsfwVerification,

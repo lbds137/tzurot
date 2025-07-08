@@ -11,16 +11,7 @@ const logger = require('../../../../../src/logger');
 // Mock logger
 jest.mock('../../../../../src/logger');
 
-// Mock auth module
-jest.mock('../../../../../src/auth', () => ({
-  initAuth: jest.fn().mockResolvedValue(undefined),
-  getAuthManager: jest.fn().mockReturnValue({
-    nsfwVerificationManager: {
-      clearVerification: jest.fn().mockReturnValue(true),
-    },
-    cleanupExpiredTokens: jest.fn().mockResolvedValue(undefined),
-  }),
-}));
+// Note: auth.js no longer exists - authManager is injected via context
 
 describe('DebugCommand', () => {
   let debugCommand;
@@ -55,6 +46,7 @@ describe('DebugCommand', () => {
 
     // Mock auth manager
     mockAuthManager = {
+      nsfwVerificationManager: mockNsfwVerificationManager,
       cleanupExpiredTokens: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -70,6 +62,7 @@ describe('DebugCommand', () => {
       nsfwVerificationManager: mockNsfwVerificationManager,
       conversationManager: mockConversationManager,
       messageTracker: mockMessageTracker,
+      authManager: mockAuthManager,
     });
 
     // Mock context
@@ -291,12 +284,12 @@ describe('DebugCommand', () => {
 
   describe('clearauth subcommand', () => {
     it('should clean up authentication tokens', async () => {
-      const auth = require('../../../../../src/auth');
+      // Auth module removed - using injected authManager
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);
 
-      expect(auth.getAuthManager().cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockAuthManager.cleanupExpiredTokens).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
         '[Debug] Authentication tokens cleaned up for TestUser#1234'
       );
@@ -312,8 +305,8 @@ describe('DebugCommand', () => {
     });
 
     it('should handle auth cleanup errors', async () => {
-      const auth = require('../../../../../src/auth');
-      auth.getAuthManager().cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
+      // Auth module removed - using injected authManager
+      mockAuthManager.cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);

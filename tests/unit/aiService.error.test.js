@@ -9,20 +9,32 @@ jest.mock(
   () => ({
     getApiEndpoint: jest.fn().mockReturnValue('https://api.example.com'),
     getModelPath: jest.fn().mockReturnValue('model/test'),
+    botPrefix: '!tz',
   }),
   { virtual: true }
 );
 
-// Mock auth module to bypass authentication
-jest.mock('../../src/auth', () => ({
+// Mock AuthManager to bypass authentication
+const mockAuthManager = {
   hasValidToken: jest.fn().mockReturnValue(true),
   getUserToken: jest.fn().mockReturnValue('mock-token'),
-  APP_ID: 'mock-app-id',
-  API_KEY: 'mock-api-key',
   isNsfwVerified: jest.fn().mockReturnValue(true),
-  getAuthManager: jest.fn().mockReturnValue(null), // For aiAuth module
-  userTokens: {},
-  nsfwVerified: {},
+};
+
+jest.mock('../../src/core/authentication/AuthManager', () => ({
+  AuthManager: jest.fn().mockImplementation(() => mockAuthManager),
+}));
+
+// Mock PersonalityDataService
+jest.mock('../../src/services/PersonalityDataService', () => ({
+  getPersonalityDataService: jest.fn().mockReturnValue({
+    getExtendedProfile: jest.fn().mockResolvedValue({
+      displayName: 'Test Personality',
+      avatarUrl: 'https://example.com/avatar.png',
+      errorMessage: 'Error occurred',
+      mode: 'normal',
+    }),
+  }),
 }));
 
 // Mock aiAuth module
@@ -49,15 +61,14 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false),
 }));
 
-// Mock personality module for error message testing
-jest.mock('../../src/core/personality', () => ({
+// Mock ApplicationBootstrap for DDD personality access
+const mockPersonalityRouter = {
   getPersonality: jest.fn(),
-}));
+};
 
-// Mock feature flags to ensure we use legacy system in tests
-jest.mock('../../src/application/services/FeatureFlags', () => ({
-  getFeatureFlags: jest.fn().mockReturnValue({
-    isEnabled: jest.fn().mockReturnValue(false), // Disable DDD features
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn().mockReturnValue({
+    getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
   }),
 }));
 
@@ -125,12 +136,15 @@ describe('aiService Error Handling', () => {
     aiAuth.getAI.mockReturnValue(mockOpenAI);
     aiAuth.getAiClientForUser.mockResolvedValue(mockOpenAI);
 
-    // Mock getPersonality to return null by default (tests can override)
-    const { getPersonality } = require('../../src/core/personality');
-    getPersonality.mockReturnValue(null);
+    // Reset PersonalityRouter mock to return null by default (tests can override)
+    mockPersonalityRouter.getPersonality.mockReset();
+    mockPersonalityRouter.getPersonality.mockResolvedValue(null);
 
     // Import the module under test after mocking
     aiService = require('../../src/aiService');
+    
+    // Initialize with mock auth manager
+    aiService.initAiClient(mockAuthManager);
   });
 
   describe('Initialization and environment', () => {
@@ -428,11 +442,12 @@ describe('aiService Error Handling', () => {
     });
 
     test('getAiResponse should use personality error message for empty responses', async () => {
-      // Configure personality with custom error message
-      const { getPersonality } = require('../../src/core/personality');
-      getPersonality.mockResolvedValue({
+      // Configure personality with custom error message using PersonalityRouter
+      mockPersonalityRouter.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
-        errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',
+        profile: {
+          errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',
+        },
       });
 
       // Make API return an invalid response

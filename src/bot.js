@@ -20,7 +20,7 @@ const client = new Client({
 });
 
 // Bot initialization function
-async function initBot() {
+async function initBot(authManager) {
   // Log startup information
   logger.info(`🤖 Starting ${botConfig.name} in ${botConfig.environment.toUpperCase()} mode`);
   logger.info(`📝 Using prefix: ${botConfig.prefix}`);
@@ -65,7 +65,7 @@ async function initBot() {
     logger.debug(
       `[Bot] Received messageCreate event for message ${message.id} from ${message.author?.tag || 'unknown'}`
     );
-    await messageHandler.handleMessage(message, client);
+    await messageHandler.handleMessage(message, client, authManager);
   });
 
   // Track message deletions for PluralKit detection

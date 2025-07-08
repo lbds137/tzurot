@@ -25,7 +25,7 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
 jest.mock('../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/utils/aliasResolver');
-jest.mock('../../../src/application/routers/PersonalityRouter');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -52,12 +52,13 @@ const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore'
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { resolvePersonality } = require('../../../src/utils/aliasResolver');
-const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('messageHandler', () => {
   let mockClient;
   let mockMessage;
   let mockPersonality;
+  let mockAuthManager;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -99,6 +100,13 @@ describe('messageHandler', () => {
       displayName: 'TestPersonality',
     };
 
+    // Mock auth manager
+    mockAuthManager = {
+      hasValidToken: jest.fn().mockReturnValue(true),
+      isNsfwVerified: jest.fn().mockReturnValue(true),
+      getUserToken: jest.fn().mockReturnValue('mock-token'),
+    };
+
     // Set default mock implementations
     messageTracker.track.mockReturnValue(true);
     referenceHandler.handleMessageReference.mockResolvedValue({ processed: false });
@@ -130,10 +138,14 @@ describe('messageHandler', () => {
       processCommand: jest.fn().mockResolvedValue({ success: true }),
     });
 
-    // Mock personality router
-    getPersonalityRouter.mockReturnValue({
+    // Mock ApplicationBootstrap with personality router
+    const mockPersonalityRouter = {
       getMaxAliasWordCount: jest.fn().mockImplementation(async () => getMaxAliasWordCount()),
-    });
+    };
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
   });
 
   afterEach(() => {
@@ -149,7 +161,7 @@ describe('messageHandler', () => {
       };
 
       // Call the handler
-      await messageHandler.handleMessage(webhookMessage, mockClient);
+      await messageHandler.handleMessage(webhookMessage, mockClient, mockAuthManager);
 
       // Should have checked if it's a proxy system webhook
       expect(webhookUserTracker.isProxySystemWebhook).toHaveBeenCalledWith(webhookMessage);
@@ -175,10 +187,10 @@ describe('messageHandler', () => {
       dmHandler.handleDmReply.mockResolvedValueOnce(true);
 
       // Call the handler
-      await messageHandler.handleMessage(dmReplyMessage, mockClient);
+      await messageHandler.handleMessage(dmReplyMessage, mockClient, mockAuthManager);
 
       // Should have called the DM reply handler
-      expect(dmHandler.handleDmReply).toHaveBeenCalledWith(dmReplyMessage, mockClient);
+      expect(dmHandler.handleDmReply).toHaveBeenCalledWith(dmReplyMessage, mockClient, mockAuthManager);
 
       // Should not have processed further
       expect(referenceHandler.handleMessageReference).not.toHaveBeenCalled();
@@ -196,7 +208,7 @@ describe('messageHandler', () => {
       };
 
       // Call the handler
-      await messageHandler.handleMessage(botMessage, mockClient);
+      await messageHandler.handleMessage(botMessage, mockClient, mockAuthManager);
 
       // Should not have processed commands or references
       expect(getCommandIntegrationAdapter().processCommand).not.toHaveBeenCalled();
@@ -216,7 +228,7 @@ describe('messageHandler', () => {
       };
 
       // Call the handler
-      await messageHandler.handleMessage(botSelfMessage, mockClient);
+      await messageHandler.handleMessage(botSelfMessage, mockClient, mockAuthManager);
 
       // Should have tracked the bot's own message
       expect(messageTracker.track).toHaveBeenCalledWith(botSelfMessage.id, 'bot-message');
@@ -238,7 +250,7 @@ describe('messageHandler', () => {
       messageTracker.track.mockReturnValueOnce(true);
 
       // Call the handler directly
-      await messageHandler.handleMessage(commandMessage, mockClient);
+      await messageHandler.handleMessage(commandMessage, mockClient, mockAuthManager);
 
       // Verify that processCommand was called with the expected arguments
       // This indirectly verifies that handleCommand was called internally
@@ -258,7 +270,7 @@ describe('messageHandler', () => {
       referenceHandler.handleMessageReference.mockResolvedValueOnce(true);
 
       // Call the handler
-      await messageHandler.handleMessage(referenceMessage, mockClient);
+      await messageHandler.handleMessage(referenceMessage, mockClient, mockAuthManager);
 
       // Should have processed the reference
       expect(referenceHandler.handleMessageReference).toHaveBeenCalledWith(
@@ -286,7 +298,7 @@ describe('messageHandler', () => {
       referenceHandler.handleMessageReference.mockResolvedValueOnce({ processed: false });
 
       // Call the handler
-      await messageHandler.handleMessage(mentionMessage, mockClient);
+      await messageHandler.handleMessage(mentionMessage, mockClient, mockAuthManager);
 
       // Verify that the personality was looked up
       expect(resolvePersonality).toHaveBeenCalledWith('TestPersonality');
@@ -322,7 +334,7 @@ describe('messageHandler', () => {
       resolvePersonality.mockResolvedValue(null);
 
       // Call the handler
-      await messageHandler.handleMessage(conversationMessage, mockClient);
+      await messageHandler.handleMessage(conversationMessage, mockClient, mockAuthManager);
 
       // Verify that active personality was checked
       expect(getActivePersonality).toHaveBeenCalledWith(
@@ -365,7 +377,7 @@ describe('messageHandler', () => {
       messageTrackerHandler.delayedProcessing.mockResolvedValueOnce(undefined);
 
       // Call the handler
-      await messageHandler.handleMessage(activatedChannelMessage, mockClient);
+      await messageHandler.handleMessage(activatedChannelMessage, mockClient, mockAuthManager);
 
       // Verify that activated personality was checked
       expect(getActivatedPersonality).toHaveBeenCalledWith(activatedChannelMessage.channel.id);
@@ -391,10 +403,10 @@ describe('messageHandler', () => {
       };
 
       // Call the handler
-      await messageHandler.handleMessage(directMessage, mockClient);
+      await messageHandler.handleMessage(directMessage, mockClient, mockAuthManager);
 
       // Should have processed the direct message
-      expect(dmHandler.handleDirectMessage).toHaveBeenCalledWith(directMessage, mockClient);
+      expect(dmHandler.handleDirectMessage).toHaveBeenCalledWith(directMessage, mockClient, mockAuthManager);
     });
   });
 
@@ -960,7 +972,7 @@ describe('messageHandler', () => {
       messageTrackerHandler.ensureInitialized = jest.fn();
 
       // Process the message
-      await messageHandler.handleMessage(replyMessage, mockClient);
+      await messageHandler.handleMessage(replyMessage, mockClient, mockAuthManager);
 
       // Verify that despite being a reply to a non-personality,
       // the message was still processed because of the activated channel
@@ -992,7 +1004,7 @@ describe('messageHandler', () => {
       messageTrackerHandler.ensureInitialized = jest.fn();
 
       // Process the message
-      await messageHandler.handleMessage(replyMessage, mockClient);
+      await messageHandler.handleMessage(replyMessage, mockClient, mockAuthManager);
 
       // Verify that the message was not processed (no personality interaction)
       expect(messageTrackerHandler.delayedProcessing).not.toHaveBeenCalled();
@@ -1018,7 +1030,7 @@ describe('messageHandler', () => {
         guild: { id: 'guild-123' },
       };
 
-      await messageHandler.handleMessage(userMessage, mockClient);
+      await messageHandler.handleMessage(userMessage, mockClient, mockAuthManager);
 
       // Verify the message was stored
       expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
@@ -1047,7 +1059,7 @@ describe('messageHandler', () => {
         },
       };
 
-      await messageHandler.handleMessage(dmMessage, mockClient);
+      await messageHandler.handleMessage(dmMessage, mockClient, mockAuthManager);
 
       // Verify the message was stored with null guildId for DMs
       expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
@@ -1070,7 +1082,7 @@ describe('messageHandler', () => {
         webhookId: null,
       };
 
-      await messageHandler.handleMessage(botMessage, mockClient);
+      await messageHandler.handleMessage(botMessage, mockClient, mockAuthManager);
 
       // Verify the message was NOT stored
       expect(pluralkitMessageStore.instance.store).not.toHaveBeenCalled();
@@ -1087,7 +1099,7 @@ describe('messageHandler', () => {
         },
       };
 
-      await messageHandler.handleMessage(webhookMessage, mockClient);
+      await messageHandler.handleMessage(webhookMessage, mockClient, mockAuthManager);
 
       // Verify the message was NOT stored
       expect(pluralkitMessageStore.instance.store).not.toHaveBeenCalled();
@@ -1106,7 +1118,7 @@ describe('messageHandler', () => {
         guild: { id: 'guild-123' },
       };
 
-      await messageHandler.handleMessage(messageWithoutTag, mockClient);
+      await messageHandler.handleMessage(messageWithoutTag, mockClient, mockAuthManager);
 
       // Verify the message was stored with username instead of tag
       expect(pluralkitMessageStore.instance.store).toHaveBeenCalledWith('message-123', {
