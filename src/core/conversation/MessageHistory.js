@@ -50,7 +50,9 @@ class MessageHistory {
 
     try {
       // Use DDD system to get personalities
-      const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
+      const {
+        getApplicationBootstrap,
+      } = require('../../application/bootstrap/ApplicationBootstrap');
       const bootstrap = getApplicationBootstrap();
       const router = bootstrap.getPersonalityRouter();
 

@@ -68,22 +68,11 @@ async function init() {
       logger.warn('Railway volume not detected or not writable:', volumeError.message);
     }
     
-    // Initialize application bootstrap with authManager before bot startup
-    try {
-      appBootstrap = getApplicationBootstrap();
-      appBootstrap.setAuthManager(authManager);
-      await appBootstrap.initialize();
-      logger.info('Application bootstrap initialized');
-    } catch (error) {
-      logger.error('Failed to initialize application bootstrap:', error);
-      // Continue with bot startup even if DDD layer fails
-    }
-    
     // Initialize conversation manager (loads saved conversation data)
     await coreConversation.initConversationManager();
     logger.info('Conversation manager initialized');
     
-    // Initialize auth system (loads saved tokens)
+    // Initialize auth system (loads saved tokens) - MOVED BEFORE bootstrap
     authManager = new AuthManager({
       appId: process.env.SERVICE_APP_ID,
       apiKey: process.env.SERVICE_API_KEY,
@@ -96,6 +85,17 @@ async function init() {
     });
     await authManager.initialize();
     logger.info('Auth system initialized');
+    
+    // Initialize application bootstrap with authManager after auth is created
+    try {
+      appBootstrap = getApplicationBootstrap();
+      appBootstrap.setAuthManager(authManager);
+      await appBootstrap.initialize();
+      logger.info('Application bootstrap initialized');
+    } catch (error) {
+      logger.error('Failed to initialize application bootstrap:', error);
+      // Continue with bot startup even if DDD layer fails
+    }
     
     // Initialize webhookUserTracker with authManager
     const webhookUserTracker = require('./src/utils/webhookUserTracker');

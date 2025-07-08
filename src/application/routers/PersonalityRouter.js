@@ -270,7 +270,6 @@ class PersonalityRouter {
       return 1; // Default to 1 on error
     }
   }
-
 }
 
 module.exports = {

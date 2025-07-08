@@ -281,7 +281,8 @@ describe('ApplicationBootstrap', () => {
         messageTracker: expect.any(Object),
         featureFlags: mockFeatureFlags,
         botPrefix: expect.any(String),
-        authManager: null, // AuthManager is now injected from outside
+        auth: null, // AuthManager is now injected from outside (DDD key)
+        authManager: null, // AuthManager is now injected from outside (legacy key)
         webhookUserTracker: expect.any(Object),
         channelUtils: expect.any(Object),
         authenticationRepository: expect.any(Object),

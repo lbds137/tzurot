@@ -239,7 +239,7 @@ async function analyzeErrorAndGenerateMessage(
     const personalityRouter = bootstrap.getPersonalityRouter();
     personality = await personalityRouter.getPersonality(personalityName);
     logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
-    
+
     // PersonalityRouter returns DDD format, so errorMessage is in profile
     errorMessage = personality?.profile?.errorMessage;
 

@@ -469,7 +469,7 @@ async function handleCode(context, auth, code) {
   try {
     // Exchange the code for a token
     logger.info('[AuthCommand] Exchanging code for token...');
-    const token = await auth.exchangeCodeForToken(code);
+    const token = await auth.getTokenFromCode(code);
 
     if (!token) {
       const authFailedEmbed = {

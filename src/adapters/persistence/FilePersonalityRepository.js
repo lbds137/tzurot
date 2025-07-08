@@ -17,10 +17,7 @@ class FilePersonalityRepository {
    * @param {string} options.dataPath - Path to data directory
    * @param {string} options.filename - Filename for personality data
    */
-  constructor({
-    dataPath = './data',
-    filename = 'personalities.json',
-  } = {}) {
+  constructor({ dataPath = './data', filename = 'personalities.json' } = {}) {
     this.dataPath = dataPath;
     this.filePath = path.join(dataPath, filename);
     this._cache = {
@@ -37,7 +34,7 @@ class FilePersonalityRepository {
     if (this._initialized) {
       return;
     }
-    
+
     // Ensure data directory exists
     await fs.mkdir(this.dataPath, { recursive: true });
 
@@ -123,17 +120,17 @@ class FilePersonalityRepository {
       if (!targetId) {
         return null;
       }
-      
+
       // Check if the personality exists
       const personality = await this.findById(targetId);
-      
+
       // If personality doesn't exist, clean up orphaned alias
       if (!personality) {
         delete this._cache.aliases[alias.toLowerCase()];
         await this._persist();
         return null;
       }
-      
+
       return personality;
     } catch (error) {
       throw new Error(`Failed to find personality by alias: ${error.message}`);
@@ -191,67 +188,69 @@ class FilePersonalityRepository {
 
     try {
       const data = {
-      id: personality.id,
-      ownerId: personality.ownerId.toString(),
-      profile: {
-        mode: personality.profile.mode,
-        name: personality.profile.name,
-        displayName: personality.profile.displayName,
-        avatarUrl: personality.profile.avatarUrl,
-        errorMessage: personality.profile.errorMessage,
-        prompt: personality.profile.prompt,
-        modelPath: personality.profile.modelPath,
-        maxWordCount: personality.profile.maxWordCount,
-        bio: personality.profile.bio,
-        systemPrompt: personality.profile.systemPrompt,
-        temperature: personality.profile.temperature,
-        maxTokens: personality.profile.maxTokens,
-      },
-      model: {
-        name: personality.model.name,
-        endpoint: personality.model.endpoint,
-        capabilities: personality.model.capabilities,
-      },
-      aliases: personality.aliases.map(alias => ({
-        value: alias.value,
-        originalCase: alias.originalCase,
-      })),
-      createdAt: personality.createdAt instanceof Date 
-        ? personality.createdAt.toISOString() 
-        : personality.createdAt,
-      updatedAt: personality.updatedAt instanceof Date 
-        ? personality.updatedAt.toISOString() 
-        : personality.updatedAt,
-      removed: false,
-    };
+        id: personality.id,
+        ownerId: personality.ownerId.toString(),
+        profile: {
+          mode: personality.profile.mode,
+          name: personality.profile.name,
+          displayName: personality.profile.displayName,
+          avatarUrl: personality.profile.avatarUrl,
+          errorMessage: personality.profile.errorMessage,
+          prompt: personality.profile.prompt,
+          modelPath: personality.profile.modelPath,
+          maxWordCount: personality.profile.maxWordCount,
+          bio: personality.profile.bio,
+          systemPrompt: personality.profile.systemPrompt,
+          temperature: personality.profile.temperature,
+          maxTokens: personality.profile.maxTokens,
+        },
+        model: {
+          name: personality.model.name,
+          endpoint: personality.model.endpoint,
+          capabilities: personality.model.capabilities,
+        },
+        aliases: personality.aliases.map(alias => ({
+          value: alias.value,
+          originalCase: alias.originalCase,
+        })),
+        createdAt:
+          personality.createdAt instanceof Date
+            ? personality.createdAt.toISOString()
+            : personality.createdAt,
+        updatedAt:
+          personality.updatedAt instanceof Date
+            ? personality.updatedAt.toISOString()
+            : personality.updatedAt,
+        removed: false,
+      };
 
-    this._cache.personalities[personality.id] = data;
+      this._cache.personalities[personality.id] = data;
 
-    // Update alias cache
-    // First, remove any existing aliases for this personality
-    for (const [alias, targetId] of Object.entries(this._cache.aliases)) {
-      if (targetId === personality.id) {
-        delete this._cache.aliases[alias];
+      // Update alias cache
+      // First, remove any existing aliases for this personality
+      for (const [alias, targetId] of Object.entries(this._cache.aliases)) {
+        if (targetId === personality.id) {
+          delete this._cache.aliases[alias];
+        }
       }
-    }
 
-    // Then add the new aliases
-    for (const alias of personality.aliases) {
-      const lowerAlias = alias.value.toLowerCase();
-      const existingTarget = this._cache.aliases[lowerAlias];
-      
-      // Check if alias already points to a different personality
-      if (existingTarget && existingTarget !== personality.id) {
-        logger.warn(
-          `[FilePersonalityRepository] Alias "${alias.value}" already points to ${existingTarget}, not updating to ${personality.id}`
-        );
-        continue;
+      // Then add the new aliases
+      for (const alias of personality.aliases) {
+        const lowerAlias = alias.value.toLowerCase();
+        const existingTarget = this._cache.aliases[lowerAlias];
+
+        // Check if alias already points to a different personality
+        if (existingTarget && existingTarget !== personality.id) {
+          logger.warn(
+            `[FilePersonalityRepository] Alias "${alias.value}" already points to ${existingTarget}, not updating to ${personality.id}`
+          );
+          continue;
+        }
+
+        this._cache.aliases[lowerAlias] = personality.id;
       }
-      
-      this._cache.aliases[lowerAlias] = personality.id;
-    }
 
-    await this._persist();
+      await this._persist();
     } catch (error) {
       throw new Error(`Failed to save personality: ${error.message}`);
     }
@@ -300,7 +299,11 @@ class FilePersonalityRepository {
         const displayName = data.profile?.displayName?.toLowerCase();
         const personalityId = id.toLowerCase();
 
-        if (profileName === normalizedName || displayName === normalizedName || personalityId === normalizedName) {
+        if (
+          profileName === normalizedName ||
+          displayName === normalizedName ||
+          personalityId === normalizedName
+        ) {
           return this._hydrate(data);
         }
       }
@@ -372,7 +375,7 @@ class FilePersonalityRepository {
   async findByNameOrAlias(nameOrAlias) {
     try {
       const normalizedName = nameOrAlias.toLowerCase();
-      
+
       // First check if it's an alias
       const byAlias = await this.findByAlias(nameOrAlias);
       if (byAlias) {
@@ -383,19 +386,19 @@ class FilePersonalityRepository {
       for (const [, data] of Object.entries(this._cache.personalities)) {
         if (!data.removed) {
           const displayName = data.profile?.displayName?.toLowerCase();
-          
+
           if (displayName === normalizedName) {
             return this._hydrate(data);
           }
         }
       }
-      
+
       // Finally check exact name (profile.name) or personality ID
       for (const [id, data] of Object.entries(this._cache.personalities)) {
         if (!data.removed) {
           const profileName = data.profile?.name?.toLowerCase();
           const personalityId = id.toLowerCase();
-          
+
           if (profileName === normalizedName || personalityId === normalizedName) {
             return this._hydrate(data);
           }
@@ -461,8 +464,7 @@ class FilePersonalityRepository {
       profile = new PersonalityProfile({
         mode: data.profile.mode || 'local',
         name: data.profile.name || data.id,
-        displayName:
-          data.profile.displayName || data.profile.name || data.id,
+        displayName: data.profile.displayName || data.profile.name || data.id,
         prompt: data.profile.prompt || `You are ${data.profile.name || data.id}`,
         modelPath: data.profile.modelPath || '/default',
         maxWordCount: data.profile.maxWordCount || 1000,
@@ -497,7 +499,6 @@ class FilePersonalityRepository {
       model = new AIModel('default', '/default', {});
     }
 
-
     // Create aliases from stored data
     const aliases = [];
     if (data.aliases && Array.isArray(data.aliases)) {
@@ -510,21 +511,21 @@ class FilePersonalityRepository {
 
     // Create the personality with proper value objects
     const personalityId = new PersonalityId(data.id);
-    
+
     // Handle missing ownerId
     if (!data.ownerId) {
       throw new Error(`Personality ${data.id} has no ownerId`);
     }
-    
+
     const userId = new UserId(data.ownerId);
-    
+
     // Create the personality using the factory method
     const personality = Personality.create(personalityId, userId, profile, model);
-    
+
     // Set additional properties
     personality.aliases = aliases;
     personality.removed = data.removed || false;
-    
+
     // Set timestamps if available
     if (data.createdAt) {
       personality.createdAt = new Date(data.createdAt);
@@ -532,7 +533,7 @@ class FilePersonalityRepository {
     if (data.updatedAt) {
       personality.updatedAt = new Date(data.updatedAt);
     }
-    
+
     // Clear uncommitted events since this is hydration from storage
     personality.markEventsAsCommitted();
 
@@ -557,7 +558,7 @@ class FilePersonalityRepository {
     try {
       const id = personalityId.toString ? personalityId.toString() : personalityId;
       const data = this._cache.personalities[id];
-      
+
       if (!data) {
         return; // Nothing to delete
       }
@@ -597,7 +598,7 @@ class FilePersonalityRepository {
     try {
       const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\./g, '-');
       const backupPath = path.join(this.dataPath, `personalities-backup-${timestamp}.json`);
-      
+
       const dataToBackup = {
         personalities: this._cache.personalities,
         aliases: this._cache.aliases,

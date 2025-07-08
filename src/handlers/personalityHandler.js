@@ -219,7 +219,9 @@ async function handlePersonalityInteraction(
 
             // Try to get the personality from webhook username or from our message map
             try {
-              const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+              const {
+                getApplicationBootstrap,
+              } = require('../application/bootstrap/ApplicationBootstrap');
               const bootstrap = getApplicationBootstrap();
               const personalityRouter = bootstrap.getPersonalityRouter();
 
@@ -303,7 +305,9 @@ async function handlePersonalityInteraction(
               );
 
               // Try to find the full personality name from the display name
-              const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+              const {
+                getApplicationBootstrap,
+              } = require('../application/bootstrap/ApplicationBootstrap');
               const bootstrap = getApplicationBootstrap();
               const personalityRouter = bootstrap.getPersonalityRouter();
               const allPersonalities = await personalityRouter.getAllPersonalities();

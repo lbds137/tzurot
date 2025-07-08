@@ -28,7 +28,9 @@ async function resolvePersonality(nameOrAlias) {
   const personality = await router.getPersonality(trimmedInput);
 
   if (personality) {
-    logger.debug(`[AliasResolver] Found personality: ${personality.profile?.name || personality.name}`);
+    logger.debug(
+      `[AliasResolver] Found personality: ${personality.profile?.name || personality.name}`
+    );
   }
 
   return personality;
@@ -69,7 +71,7 @@ async function personalityExists(nameOrAlias) {
  */
 async function getFullName(nameOrAlias) {
   const personality = await resolvePersonality(nameOrAlias);
-  return personality ? (personality.profile?.name || personality.name) : null;
+  return personality ? personality.profile?.name || personality.name : null;
 }
 
 /**

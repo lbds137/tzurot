@@ -24,7 +24,6 @@ const profileInfoFetcher = require('../../profileInfoFetcher');
 const { messageTracker } = require('../../messageTracker');
 const { getInstance: getConversationManager } = require('../../core/conversation');
 
-
 /**
  * ApplicationBootstrap
  *
@@ -41,7 +40,7 @@ class ApplicationBootstrap {
     this.eventHandlerRegistry = null;
     this.applicationServices = {};
     this.authManager = null;
-    
+
     // Create feature flags instance - can be overridden for testing
     this.featureFlags = options.featureFlags || createFeatureFlags();
 
@@ -127,7 +126,8 @@ class ApplicationBootstrap {
         messageTracker, // Legacy for now
         featureFlags: this.featureFlags,
         botPrefix: require('../../../config').botPrefix,
-        authManager: this.authManager, // Use injected auth manager
+        auth: this.authManager, // Use injected auth manager (renamed key for consistency)
+        authManager: this.authManager, // Keep legacy key for backward compatibility
         webhookUserTracker, // Legacy webhook tracker for authentication commands
         channelUtils, // Legacy channel utilities for verification commands
         authenticationRepository, // DDD repository for future use
@@ -148,7 +148,7 @@ class ApplicationBootstrap {
       const personalityRouter = new PersonalityRouter();
       personalityRouter.personalityService = personalityApplicationService;
       logger.info('[ApplicationBootstrap] Configured PersonalityRouter');
-      
+
       // Store the router instance for other components to use
       this.personalityRouter = personalityRouter;
 
@@ -338,7 +338,6 @@ class ApplicationBootstrap {
       logger.info(`[ApplicationBootstrap] Seeded ${successCount} owner personalities via DDD`);
     }
   }
-
 
   /**
    * Log active DDD features

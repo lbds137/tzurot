@@ -152,6 +152,15 @@ class AuthManager {
   }
 
   /**
+   * Get token from authorization code without storing
+   * @param {string} code - The authorization code
+   * @returns {Promise<string|null>} The auth token, or null if exchange failed
+   */
+  async getTokenFromCode(code) {
+    return this.userTokenManager.exchangeCodeForToken(code);
+  }
+
+  /**
    * Delete user token
    * @param {string} userId - The Discord user ID
    * @returns {Promise<boolean>} Whether deletion was successful
@@ -311,6 +320,24 @@ class AuthManager {
 
   getTokenAge(userId) {
     return this.userTokenManager.getTokenAge(userId);
+  }
+
+  /**
+   * Store user token (for commands that need to store tokens separately)
+   * @param {string} userId - The Discord user ID
+   * @param {string} token - The auth token
+   * @returns {Promise<boolean>} Whether storage was successful
+   */
+  async storeUserToken(userId, token) {
+    try {
+      this.userTokenManager.storeUserToken(userId, token);
+      await this.authPersistence.saveUserTokens(this.userTokenManager.getAllTokens());
+      this.aiClientFactory.clearUserClient(userId);
+      return true;
+    } catch (error) {
+      logger.error(`[AuthManager] Error storing token for user ${userId}:`, error);
+      return false;
+    }
   }
 
   async cleanupExpiredTokens() {

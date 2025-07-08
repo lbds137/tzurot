@@ -5,8 +5,6 @@
 const {
   createAuthCommand,
 } = require('../../../../../src/application/commands/authentication/AuthCommand');
-const { createMigrationHelper } = require('../../../../utils/testEnhancements');
-const logger = require('../../../../../src/logger');
 
 // Mock logger
 jest.mock('../../../../../src/logger');
@@ -16,19 +14,17 @@ describe('AuthCommand', () => {
   let mockContext;
   let mockAuth;
   let mockWebhookUserTracker;
-  let migrationHelper;
 
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
 
-    migrationHelper = createMigrationHelper();
     authCommand = createAuthCommand();
 
     // Mock auth service
     mockAuth = {
       getAuthorizationUrl: jest.fn().mockResolvedValue('https://auth.example.com/authorize'),
-      exchangeCodeForToken: jest.fn().mockResolvedValue('test-token'),
+      getTokenFromCode: jest.fn().mockResolvedValue('test-token'),
       storeUserToken: jest.fn().mockResolvedValue(true),
       hasValidToken: jest.fn().mockReturnValue(false),
       getTokenAge: jest.fn().mockReturnValue(null),
@@ -264,7 +260,7 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       // Note: startTyping is not available in DDD command context
-      expect(mockAuth.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
+      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
       expect(mockAuth.storeUserToken).toHaveBeenCalledWith('user123', 'test-token');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
@@ -283,7 +279,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
+      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
     });
 
     it('should handle missing code', async () => {
@@ -304,7 +300,7 @@ describe('AuthCommand', () => {
     it('should handle invalid code', async () => {
       mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', 'invalid-code'];
-      mockAuth.exchangeCodeForToken.mockResolvedValue(null);
+      mockAuth.getTokenFromCode.mockResolvedValue(null);
 
       await authCommand.execute(mockContext);
 
@@ -601,7 +597,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.exchangeCodeForToken).toHaveBeenCalledWith('test-code');
+      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
     });
   });
 });
