@@ -35,6 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [Task Management and To-Do Lists](#task-management-and-to-do-lists)
 - [Context Window Management](#context-window-management)
 - [MCP (Model Context Protocol) Integration](#mcp-model-context-protocol-integration)
+- [Lessons Learned - Production Disasters & Prevention](#lessons-learned---production-disasters--prevention)
+- [MANDATORY MCP USAGE - STOP IGNORING THIS TOOL](#mandatory-mcp-usage---stop-ignoring-this-tool)
 - [Versioning and Release Management](#versioning-and-release-management) - **See VERSIONING.md for Discord bot-specific guidance**
 
 ## Claude Personality
@@ -531,6 +533,252 @@ MCP tools provide access to external AI capabilities through the Gemini collabor
 2. **Automatic Fallback**: Seamlessly switches to stable 1.5 Pro if primary model has issues
 3. **Zero Downtime**: Continuous availability even during model updates or outages
 4. **Optimal Results**: Always get the best available response without manual intervention
+
+## Lessons Learned - Production Disasters & Prevention
+
+### 🚨 MANDATORY: Document Every Production Failure
+
+**Rule**: When something breaks in production, we MUST add safeguards to prevent it happening again. Your memory resets, but these lessons must persist.
+
+### Format for Documenting Disasters
+
+```markdown
+### [Date] - [Brief Description of What Broke]
+
+**What Happened**: 
+[Describe the failure and its impact]
+
+**Root Cause**: 
+[Why it happened - be brutally honest]
+
+**Prevention Measures**:
+1. [Specific steps to prevent recurrence]
+2. [Tests or checks to add]
+3. [Process changes needed]
+
+**Warning Signs We Missed**:
+- [What should have tipped us off]
+```
+
+### Major Disasters and Their Lessons
+
+#### 2025-07-08 - Lost Avatar Functionality in DDD Migration
+
+**What Happened**: 
+Complete DDD refactor lost critical avatar downloading/serving functionality. Avatars stopped showing in Discord webhooks because we weren't downloading them locally anymore.
+
+**Root Cause**: 
+- No feature inventory before refactoring
+- No verification that all initialization steps were migrated
+- avatarStorage.initialize() was only called in legacy PersonalityManager
+- PersonalityApplicationService never pre-downloaded avatars
+
+**Prevention Measures**:
+1. **Feature Inventory Checklist** (REQUIRED for any refactor):
+   ```bash
+   # Before touching ANY architecture:
+   grep -r "initialize\|startup\|bootstrap" src/
+   # Document EVERY external service integration
+   # Document EVERY background process
+   # Document EVERY storage/cache system
+   ```
+
+2. **Dependency Migration Tracking**:
+   ```javascript
+   // Test that critical services are initialized
+   it('should initialize all required services', () => {
+     const spies = {
+       avatarStorage: jest.spyOn(avatarStorage, 'initialize'),
+       httpServer: jest.spyOn(httpServer, 'start'),
+       // ... every critical service
+     };
+     
+     await newSystem.bootstrap();
+     
+     Object.entries(spies).forEach(([name, spy]) => {
+       expect(spy).toHaveBeenCalled();
+     });
+   });
+   ```
+
+3. **Side-by-Side Verification**:
+   - Run both systems in parallel
+   - Diff the logs for missing operations
+   - Compare initialization sequences
+
+**Warning Signs We Missed**:
+- No integration tests for avatar serving
+- Nobody verified webhooks showed avatars after migration
+- "Tests pass" !== "Features work"
+
+#### 2025-07-08 - Exposed Vendor Dispute in Public Changelog
+
+**What Happened**: 
+Put sensitive business information (Discord blocking specific vendor) in public changelog.
+
+**Root Cause**: 
+- Explaining the "why" with too much detail
+- Not thinking about who reads public repos
+
+**Prevention Measures**:
+1. **Public Documentation Rules**:
+   - NEVER mention vendor disputes
+   - NEVER expose business relationships
+   - NEVER explain blocking/banning details
+   - Just describe the technical fix
+
+2. **Changelog Template**:
+   ```markdown
+   ### Fixed
+   - **Feature Name** - Technical description of fix
+     - Implementation detail 1
+     - Implementation detail 2
+     - (NO business context, NO vendor names)
+   ```
+
+### General Safeguards for ALL Changes
+
+1. **Pre-Change Checklist**:
+   - [ ] List all features that could be affected
+   - [ ] Identify all external dependencies
+   - [ ] Document current behavior before changing
+   - [ ] Write tests for current behavior first
+
+2. **Change Verification**:
+   - [ ] All existing tests still pass
+   - [ ] New tests cover the changes
+   - [ ] Manual testing in development
+   - [ ] Side-by-side comparison with old behavior
+
+3. **Post-Change Monitoring**:
+   - [ ] Check logs for new warnings/errors
+   - [ ] Verify all features still work
+   - [ ] Monitor for user complaints
+   - [ ] Have rollback plan ready
+
+### Red Flags That Should Stop You
+
+1. **"This old code looks unnecessary"** - IT'S THERE FOR A REASON
+2. **"We don't have tests for this"** - WRITE THEM FIRST
+3. **"It works locally"** - TEST IN PRODUCTION-LIKE ENVIRONMENT
+4. **"The refactor is almost done"** - RUSHING BREAKS THINGS
+5. **"We can clean this up later"** - NO, DO IT RIGHT NOW
+
+### Critical Questions Before ANY Major Change
+
+1. What initialization is the current system doing?
+2. What background processes are running?
+3. What external services are being integrated?
+4. What caches/storage systems are in use?
+5. What business logic is buried in the code?
+6. Who are the stakeholders affected?
+7. What's the rollback plan?
+
+### The Most Important Rule
+
+**If you break production, you MUST**:
+1. Fix it immediately
+2. Document what went wrong HERE
+3. Add tests to prevent it recurring
+4. Update processes to catch it earlier
+
+**Remember**: These disasters are not just "oops" moments - they're learning opportunities that MUST be captured before your context resets.
+
+## 🚨 MANDATORY MCP USAGE - STOP IGNORING THIS TOOL
+
+### You Have Gemini. FUCKING USE IT.
+
+**Current Reality**: MCP is available but almost NEVER used unless specifically requested. This is stupid and wasteful.
+
+### REQUIRED MCP Usage Scenarios
+
+1. **Before ANY Major Refactor**:
+   ```javascript
+   // MANDATORY - Get second opinion on approach
+   mcp__gemini-collab__gemini_brainstorm({
+     topic: "Migrating PersonalityManager to DDD - potential issues to watch for",
+     constraints: "Must maintain feature parity, especially initialization sequences"
+   });
+   ```
+
+2. **When Debugging Production Issues**:
+   ```javascript
+   // Don't struggle alone - get help identifying root causes
+   mcp__gemini-collab__ask_gemini({
+     question: "Webhooks not showing avatars after refactor - what initialization might be missing?",
+     context: "Migrated from legacy to DDD system"
+   });
+   ```
+
+3. **Code Review Before Major PRs**:
+   ```javascript
+   // ALWAYS get a second opinion on critical changes
+   mcp__gemini-collab__gemini_code_review({
+     code: criticalChanges,
+     focus: "missing functionality, initialization gaps, feature parity",
+     language: "javascript"
+   });
+   ```
+
+4. **Test Coverage Gaps**:
+   ```javascript
+   // Find what you're not testing
+   mcp__gemini-collab__gemini_test_cases({
+     code_or_feature: "Avatar storage and serving system",
+     test_type: "integration"
+   });
+   ```
+
+### Specific Triggers for MANDATORY MCP Use
+
+- **Refactoring > 500 lines** → MUST use `gemini_brainstorm` first
+- **Fixing production bugs** → MUST use `ask_gemini` for root cause analysis  
+- **Complex system integration** → MUST use `gemini_code_review`
+- **"This seems unnecessary" thought** → MUST use `ask_gemini` to verify
+- **No tests for feature** → MUST use `gemini_test_cases`
+
+### Examples of When MCP Would Have Prevented Disasters
+
+1. **Avatar Storage Migration**:
+   ```javascript
+   // This would have caught the missing initialization
+   mcp__gemini-collab__gemini_brainstorm({
+     topic: "What initialization steps might PersonalityManager be doing that need migration?",
+     constraints: "Moving to DDD ApplicationBootstrap"
+   });
+   ```
+
+2. **Feature Parity Check**:
+   ```javascript
+   // This would have identified missing features
+   mcp__gemini-collab__synthesize_perspectives({
+     topic: "Feature parity between legacy and DDD systems",
+     perspectives: [
+       { source: "Legacy PersonalityManager", content: "Initializes avatarStorage, pre-downloads avatars" },
+       { source: "DDD ApplicationBootstrap", content: "Initializes repositories and services" }
+     ]
+   });
+   ```
+
+### New Rule: MCP Consultation Log
+
+For major changes, document MCP consultations:
+```markdown
+## MCP Consultation for [Change Description]
+- Used `gemini_brainstorm` for approach validation ✓
+- Used `gemini_code_review` for implementation review ✓  
+- Used `gemini_test_cases` for coverage gaps ✓
+- Key insights: [What Gemini caught that you missed]
+```
+
+### Stop Making Excuses
+
+- "I can figure it out myself" → NO, get a second opinion
+- "It's a simple change" → Simple changes break production too
+- "Tests are passing" → Gemini can spot missing tests
+- "I understand the system" → Gemini provides fresh perspective
+
+**BOTTOM LINE**: The user paid for MCP access. You're being negligent by not using it strategically. Every major decision should involve Gemini consultation.
 
 ## Versioning and Release Management
 
