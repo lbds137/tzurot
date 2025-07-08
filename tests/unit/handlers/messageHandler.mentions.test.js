@@ -15,15 +15,30 @@ const { resolvePersonality } = require('../../../src/utils/aliasResolver');
 jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/aliasResolver');
 jest.mock('../../../src/logger');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 jest.mock('../../../config', () => ({
   botConfig: { mentionChar: '@' },
   botPrefix: '!tz',
 }));
 
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
+
 describe('checkForPersonalityMentions', () => {
+  let mockPersonalityRouter;
+  
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    
+    // Mock ApplicationBootstrap
+    mockPersonalityRouter = {
+      getMaxAliasWordCount: jest.fn().mockResolvedValue(1),
+    };
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
+    
     getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     resolvePersonality.mockResolvedValue(null); // Default to no personality found
   });
@@ -75,10 +90,12 @@ describe('checkForPersonalityMentions', () => {
   describe('multi-word mentions', () => {
     beforeEach(() => {
       getMaxAliasWordCount.mockReturnValue(2); // Allow 2-word aliases
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
     });
 
     it('should detect valid two-word personality mention', async () => {
       getMaxAliasWordCount.mockReturnValue(2);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
       const message = { content: '@angel dust hello', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null) // First check for "angel"
@@ -115,6 +132,7 @@ describe('checkForPersonalityMentions', () => {
 
     it('should handle three-word aliases when max is 3', async () => {
       getMaxAliasWordCount.mockReturnValue(3);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(3);
       const message = { content: '@the dark lord speaks', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null) // "the"
@@ -129,6 +147,7 @@ describe('checkForPersonalityMentions', () => {
 
     it('should not check beyond max word count', async () => {
       getMaxAliasWordCount.mockReturnValue(2); // Max 2 words
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
       const message = { content: '@one two three four', author: { id: 'user123' } };
       resolvePersonality.mockResolvedValue(null);
 
@@ -170,6 +189,7 @@ describe('checkForPersonalityMentions', () => {
 
     it('should handle mentions with multiple spaces', async () => {
       getMaxAliasWordCount.mockReturnValue(2);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
       const message = { content: '@angel   dust hello', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null)
@@ -202,6 +222,7 @@ describe('checkForPersonalityMentions', () => {
 
     it('should generate correct regex for 5 word max', async () => {
       getMaxAliasWordCount.mockReturnValue(5);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(5);
       const message = { content: '@one two three four five six', author: { id: 'user123' } };
       resolvePersonality.mockResolvedValue(null);
 

@@ -458,6 +458,7 @@ class FilePersonalityRepository extends PersonalityRepository {
           systemPrompt: data.profile.systemPrompt,
           temperature: data.profile.temperature,
           maxTokens: data.profile.maxTokens,
+          errorMessage: data.profile.errorMessage,
         });
       } else {
         // Legacy format - convert to new format using object constructor

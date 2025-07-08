@@ -1,8 +1,6 @@
 const logger = require('../logger');
 const { MARKERS } = require('../constants');
 const { ErrorCategory, trackError } = require('./errorTracker');
-const { getPersonality } = require('../core/personality');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
@@ -236,27 +234,20 @@ async function analyzeErrorAndGenerateMessage(
   let personality = null;
   let errorMessage = null;
   try {
-    // Use PersonalityRouter when DDD is enabled, otherwise use legacy
-    const featureFlags = getFeatureFlags();
-    if (featureFlags.isEnabled('ddd.personality.read')) {
-      const bootstrap = getApplicationBootstrap();
-      const personalityRouter = bootstrap.getPersonalityRouter();
-      personality = await personalityRouter.getPersonality(personalityName);
-      logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
-      // PersonalityRouter converts DDD to legacy format, so errorMessage should be at top level
-      errorMessage = personality?.errorMessage;
+    // Always use PersonalityRouter (DDD system)
+    const bootstrap = getApplicationBootstrap();
+    const personalityRouter = bootstrap.getPersonalityRouter();
+    personality = await personalityRouter.getPersonality(personalityName);
+    logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
+    
+    // PersonalityRouter returns DDD format, so errorMessage is in profile
+    errorMessage = personality?.profile?.errorMessage;
 
-      // Log for debugging
-      if (!errorMessage && personality) {
-        logger.warn(
-          `[AIErrorHandler] No errorMessage found in PersonalityRouter response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
-        );
-      }
-    } else {
-      personality = await getPersonality(personalityName);
-      logger.debug(`[AIErrorHandler] Using legacy PersonalityManager for ${personalityName}`);
-      // Legacy format has errorMessage directly on personality
-      errorMessage = personality?.errorMessage;
+    // Log for debugging
+    if (!errorMessage && personality) {
+      logger.warn(
+        `[AIErrorHandler] No errorMessage found in PersonalityRouter response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
+      );
     }
 
     if (errorMessage) {
