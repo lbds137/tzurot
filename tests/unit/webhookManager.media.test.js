@@ -60,7 +60,9 @@ describe('Webhook Manager - Media Handling', () => {
       'Check out this content',
       {
         fullName: 'test-personality',
-        displayName: 'Test Personality',
+        profile: {
+          displayName: 'Test Personality',
+        },
       },
       {
         files: [
@@ -86,7 +88,9 @@ describe('Webhook Manager - Media Handling', () => {
       'Multiple files',
       {
         fullName: 'test-personality',
-        displayName: 'Test Personality',
+        profile: {
+          displayName: 'Test Personality',
+        },
       },
       {
         files: [{ attachment: 'https://example.com/image1.png', name: 'image1.png' }],
@@ -114,7 +118,9 @@ describe('Webhook Manager - Media Handling', () => {
       'DM with file',
       {
         fullName: 'test-personality',
-        displayName: 'Test Personality',
+        profile: {
+          displayName: 'Test Personality',
+        },
       },
       {
         files: [
@@ -137,7 +143,9 @@ describe('Webhook Manager - Media Handling', () => {
       '',
       {
         fullName: 'test-personality',
-        displayName: 'Test Personality',
+        profile: {
+          displayName: 'Test Personality',
+        },
       },
       {
         files: [
@@ -167,7 +175,9 @@ describe('Webhook Manager - Media Handling', () => {
   test('should send simple message without options', async () => {
     const promise = webhookManager.sendWebhookMessage(mockChannel, 'Message with embed', {
       fullName: 'test-personality',
-      displayName: 'Test Personality',
+      profile: {
+          displayName: 'Test Personality',
+        },
     });
 
     // Advance timers to resolve any pending timers
@@ -186,15 +196,17 @@ describe('Webhook Manager - Media Handling', () => {
   test('should handle errors gracefully', async () => {
     mockWebhook.send.mockRejectedValue(new Error('Webhook error'));
 
-    const promise = expect(
-      webhookManager.sendWebhookMessage(mockChannel, 'This will fail', {
-        fullName: 'test-personality',
+    const promise = webhookManager.sendWebhookMessage(mockChannel, 'This will fail', {
+      fullName: 'test-personality',
+      profile: {
         displayName: 'Test Personality',
-      })
-    ).rejects.toThrow();
+      },
+    });
 
+    // Advance timers to resolve any pending timers
     jest.runAllTimers();
-    await promise;
+
+    await expect(promise).rejects.toThrow();
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error'));
   });

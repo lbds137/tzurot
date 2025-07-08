@@ -22,7 +22,9 @@ describe('Webhook Username Suffix', () => {
   it('should append bot suffix to display name', () => {
     const personality = {
       fullName: 'albert-einstein',
-      displayName: 'Albert Einstein',
+      profile: {
+        displayName: 'Albert Einstein',
+      },
       avatarUrl: 'https://example.com/avatar.png',
     };
 
@@ -43,7 +45,9 @@ describe('Webhook Username Suffix', () => {
   it('should handle long display names and truncate properly', () => {
     const personality = {
       fullName: 'long-name',
-      displayName: 'This is a very very very long display name that exceeds limit',
+      profile: {
+        displayName: 'This is a very very very long display name that exceeds limit',
+      },
       avatarUrl: 'https://example.com/avatar.png',
     };
 
@@ -52,7 +56,7 @@ describe('Webhook Username Suffix', () => {
     const maxNameLength = 29 - expectedSuffix.length;
 
     expect(username).toBe(
-      `${personality.displayName.substring(0, maxNameLength)}...${expectedSuffix}`
+      `${personality.profile.displayName.substring(0, maxNameLength)}...${expectedSuffix}`
     );
     expect(username.length).toBeLessThanOrEqual(32);
   });
@@ -79,7 +83,9 @@ describe('Webhook Username Suffix', () => {
 
     const personality = {
       fullName: 'sigmund-freud',
-      displayName: 'Sigmund Freud',
+      profile: {
+        displayName: 'Sigmund Freud',
+      },
       avatarUrl: 'https://example.com/avatar.png',
     };
 
@@ -97,7 +103,9 @@ describe('Webhook Username Suffix', () => {
 
     const personality = {
       fullName: 'carl-jung',
-      displayName: 'Carl Jung',
+      profile: {
+        displayName: 'Carl Jung',
+      },
       avatarUrl: 'https://example.com/avatar.png',
     };
 
@@ -122,7 +130,9 @@ describe('Webhook Username Suffix', () => {
 
     const personality = {
       fullName: 'carl-jung',
-      displayName: 'Carl Jung',
+      profile: {
+        displayName: 'Carl Jung',
+      },
       avatarUrl: 'https://example.com/avatar.png',
     };
 
