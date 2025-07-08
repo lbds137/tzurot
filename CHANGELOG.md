@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Added avatarStorage initialization to ApplicationBootstrap (was only in legacy PersonalityManager)
   - Added avatar pre-downloading when registering personalities in DDD system
   - Added avatar pre-downloading when refreshing profiles from API
-  - Ensures avatars are downloaded and served locally to bypass Discord/shapes.inc blocking
+  - Ensures avatars are downloaded and served locally for better reliability
 
 ## [2.0.7] - 2025-07-08
 
