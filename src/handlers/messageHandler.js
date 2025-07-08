@@ -430,7 +430,7 @@ async function handleMentions(message, client) {
 
       if (personality) {
         logger.debug(
-          `Found standard ${mentionChar}mention personality: ${mentionName} -> ${personality.fullName}`
+          `[MessageHandler] Found standard ${mentionChar}mention personality: ${mentionName} -> ${personality.fullName}`
         );
         potentialMatches.push({
           mentionText: mentionName,
@@ -517,7 +517,7 @@ async function handleMentions(message, client) {
       if (potentialMatches.length > 0) {
         const bestMatch = potentialMatches[0];
         logger.info(
-          `Selected best ${mentionChar}mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
+          `[MessageHandler] Selected best ${mentionChar}mention match: "${bestMatch.mentionText}" -> ${bestMatch.personality.fullName} (${bestMatch.wordCount} words)`
         );
 
         // If there were multiple matches, log them for debugging
