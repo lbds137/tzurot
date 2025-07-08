@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.6] - 2025-07-08
+
+### Fixed
+- **Personality Error Messages** - Fixed bug where personalities showed generic error messages instead of personality-specific ones
+  - Personality mentions (like `&cold hi`) now work correctly and show proper character responses
+  - Resolved "personalityName is required but was not provided" error that caused default bot messages
+  - Added backward compatibility for DDD personality system integration
+- **Bot Startup Issues** - Resolved critical startup problems that could prevent the bot from functioning
+  - Fixed "getApplicationBootstrap is not a function" error during development startup
+  - Fixed "ApplicationBootstrap not initialized" errors in production
+  - Improved error handling and dependency injection throughout the system
+
+### Changed  
+- **Internal Architecture** - Completed migration to Domain-Driven Design (DDD) architecture
+  - Removed all feature flags for DDD system (now primary architecture)
+  - Converted singleton patterns to factory functions for better testability
+  - Standardized repository constructor patterns across the codebase
+  - Enhanced logging context for better debugging capabilities
+
 ## [2.0.5] - 2025-06-22
 
 ### Fixed
