@@ -75,8 +75,9 @@ class ApplicationBootstrap {
       logger.info('[ApplicationBootstrap] Starting DDD application layer initialization...');
 
       // Initialize avatar storage system (needed for webhook profile pictures)
+      logger.info('[ApplicationBootstrap] Initializing avatar storage system...');
       await avatarStorage.initialize();
-      logger.info('[ApplicationBootstrap] Avatar storage initialized');
+      logger.info('[ApplicationBootstrap] Avatar storage initialized successfully');
 
       // Step 1: Create shared infrastructure
       this.eventBus = new DomainEventBus();
