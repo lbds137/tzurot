@@ -65,7 +65,7 @@ const { HttpAIServiceAdapter } = require('../../../../src/adapters/ai/HttpAIServ
 const {
   EventHandlerRegistry,
 } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
-const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
+const { createFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
 const { PersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
 const {
   getCommandIntegration,
@@ -99,7 +99,7 @@ describe('ApplicationBootstrap', () => {
     mockFeatureFlags = {
       isEnabled: jest.fn().mockReturnValue(true),
     };
-    getFeatureFlags.mockReturnValue(mockFeatureFlags);
+    createFeatureFlags.mockReturnValue(mockFeatureFlags);
 
     // Mock router constructor
     mockPersonalityRouter = {
@@ -200,15 +200,15 @@ describe('ApplicationBootstrap', () => {
       );
     });
 
-    it('should skip event handlers when events disabled', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => flag !== 'ddd.events.enabled');
+    it('should always register event handlers since DDD is now primary system', async () => {
+      // Events are always enabled now that backward compatibility is removed
       const bootstrap = new ApplicationBootstrap();
 
       await bootstrap.initialize();
 
-      expect(EventHandlerRegistry).not.toHaveBeenCalled();
+      expect(EventHandlerRegistry).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        '[ApplicationBootstrap] Domain event handlers disabled by feature flag'
+        '[ApplicationBootstrap] Registered domain event handlers'
       );
     });
 
@@ -383,18 +383,16 @@ describe('ApplicationBootstrap', () => {
 
   describe('Feature Logging', () => {
     it('should log active features during initialization', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(flag => {
-        const enabledFlags = ['ddd.commands.enabled', 'ddd.events.enabled'];
-        return enabledFlags.includes(flag);
-      });
+      // All DDD features are now always enabled since backward compatibility was removed
       const bootstrap = new ApplicationBootstrap();
 
       await bootstrap.initialize();
 
-      expect(logger.info).toHaveBeenCalledWith('[ApplicationBootstrap] Active DDD features:');
+      expect(logger.info).toHaveBeenCalledWith('[ApplicationBootstrap] DDD system fully active:');
       expect(logger.info).toHaveBeenCalledWith('  - Commands: ✅');
+      expect(logger.info).toHaveBeenCalledWith('  - Personality Read: ✅');
+      expect(logger.info).toHaveBeenCalledWith('  - Personality Write: ✅');
       expect(logger.info).toHaveBeenCalledWith('  - Events: ✅');
-      expect(logger.info).toHaveBeenCalledWith('  - Personality Read: ❌');
     });
   });
 
@@ -530,17 +528,16 @@ describe('ApplicationBootstrap', () => {
         expect(mockPersonalityService.listPersonalitiesByOwner).toHaveBeenCalled();
       });
 
-      it('should use legacy seeding when feature flag is disabled', async () => {
+      it('should always use DDD seeding since legacy system is removed', async () => {
         process.env.BOT_OWNER_ID = '123456789012345678';
         process.env.BOT_OWNER_PERSONALITIES = 'lilith,lucifer';
-        mockFeatureFlags.isEnabled.mockReturnValue(false);
+        // Legacy system no longer exists - DDD is always used
 
         await bootstrap._seedOwnerPersonalities();
 
         expect(logger.info).toHaveBeenCalledWith(
-          '[ApplicationBootstrap] Using legacy PersonalityManager for seeding'
+          '[ApplicationBootstrap] Using DDD PersonalityApplicationService for seeding'
         );
-        expect(mockLegacyManager.listPersonalitiesForUser).toHaveBeenCalled();
       });
     });
 
@@ -620,66 +617,6 @@ describe('ApplicationBootstrap', () => {
       });
     });
 
-    describe('Legacy personality seeding', () => {
-      let bootstrap;
-
-      beforeEach(() => {
-        bootstrap = new ApplicationBootstrap({ delay: mockDelayFunction });
-        bootstrap.applicationServices = {
-          personalityApplicationService: mockPersonalityService,
-        };
-      });
-
-      it('should initialize legacy manager if needed', async () => {
-        mockLegacyManager.initialized = false;
-
-        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith']);
-
-        expect(mockLegacyManager.initialize).toHaveBeenCalledWith(true, {
-          skipBackgroundSeeding: true,
-        });
-      });
-
-      it('should skip when all personalities exist', async () => {
-        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([
-          { fullName: 'lilith' },
-          { fullName: 'lucifer' },
-        ]);
-
-        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
-
-        expect(logger.info).toHaveBeenCalledWith(
-          '[ApplicationBootstrap] Owner has all 2 expected personalities'
-        );
-        expect(mockLegacyManager.registerPersonality).not.toHaveBeenCalled();
-      });
-
-      it('should seed missing personalities with fetchInfo', async () => {
-        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([
-          { fullName: 'lilith' },
-        ]);
-
-        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
-
-        expect(mockLegacyManager.registerPersonality).toHaveBeenCalledWith(
-          'lucifer',
-          '123456789012345678',
-          { fetchInfo: true }
-        );
-      });
-
-      it('should handle registration failures', async () => {
-        mockLegacyManager.listPersonalitiesForUser.mockReturnValue([]);
-        mockLegacyManager.registerPersonality
-          .mockResolvedValueOnce({ success: true })
-          .mockResolvedValueOnce({ success: false, error: 'Already exists' });
-
-        await bootstrap._seedOwnerPersonalitiesWithLegacy('123456789012345678', ['lilith', 'lucifer']);
-
-        expect(logger.error).toHaveBeenCalledWith(
-          '[ApplicationBootstrap] Failed to seed lucifer: Already exists'
-        );
-      });
-    });
+    // Legacy personality seeding tests removed - legacy system no longer exists
   });
 });

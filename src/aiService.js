@@ -13,7 +13,7 @@ const {
   handleApiError,
 } = require('./utils/aiErrorHandler');
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
-const { getFeatureFlags } = require('./application/services/FeatureFlags');
+const { createFeatureFlags } = require('./application/services/FeatureFlags');
 
 // Store authManager reference
 let authManager = null;
@@ -316,7 +316,7 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 
   // Check if enhanced context is enabled via feature flag
   let enhancedMessages = messages;
-  const featureFlags = getFeatureFlags();
+  const featureFlags = createFeatureFlags();
 
   if (featureFlags.isEnabled('features.enhanced-context')) {
     // Only use enhanced context if feature flag is enabled (for external services)

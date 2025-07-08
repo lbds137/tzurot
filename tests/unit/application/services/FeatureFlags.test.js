@@ -1,7 +1,6 @@
 const {
   FeatureFlags,
-  getFeatureFlags,
-  resetFeatureFlags,
+  createFeatureFlags,
 } = require('../../../../src/application/services/FeatureFlags');
 
 describe('FeatureFlags', () => {
@@ -19,17 +18,14 @@ describe('FeatureFlags', () => {
       }
     });
 
-    // Reset singleton
-    resetFeatureFlags();
-
     // Create fresh instance
-    featureFlags = new FeatureFlags();
+    featureFlags = createFeatureFlags();
   });
 
   afterEach(() => {
     // Restore original environment
     process.env = originalEnv;
-    resetFeatureFlags();
+    // Note: resetFeatureFlags no longer exists since we use factory functions
   });
 
   describe('initialization', () => {
@@ -280,37 +276,42 @@ describe('FeatureFlags', () => {
     });
   });
 
-  describe('singleton behavior', () => {
-    it('should return same instance from getFeatureFlags', () => {
-      const instance1 = getFeatureFlags();
-      const instance2 = getFeatureFlags();
+  describe('factory function behavior', () => {
+    it('should return new independent instances from createFeatureFlags', () => {
+      const instance1 = createFeatureFlags();
+      const instance2 = createFeatureFlags();
 
-      expect(instance1).toBe(instance2);
-    });
-
-    it('should maintain state across getInstance calls', () => {
-      // Initialize singleton with test flags
-      resetFeatureFlags();
-      const instance1 = getFeatureFlags();
-      // Since singleton has no default flags, create them via config
-      instance1.flags = new Map([['features.test-flag', false]]);
-      instance1.enable('features.test-flag');
-
-      const instance2 = getFeatureFlags();
-      expect(instance2.isEnabled('features.test-flag')).toBe(true);
-    });
-
-    it('should reset singleton with resetFeatureFlags', () => {
-      const instance1 = getFeatureFlags();
-      // Since singleton has no default flags, create them via config
-      instance1.flags = new Map([['features.test-flag', false]]);
-      instance1.enable('features.test-flag');
-
-      resetFeatureFlags();
-
-      const instance2 = getFeatureFlags();
-      expect(instance2.isEnabled('features.test-flag')).toBe(false);
       expect(instance1).not.toBe(instance2);
+      expect(instance1).toBeInstanceOf(FeatureFlags);
+      expect(instance2).toBeInstanceOf(FeatureFlags);
+    });
+
+    it('should create instances with independent state', () => {
+      const instance1 = createFeatureFlags();
+      const instance2 = createFeatureFlags();
+      
+      // Add a flag to both instances for testing
+      instance1.addFlag('features.test-flag', false);
+      instance2.addFlag('features.test-flag', false);
+      
+      // Enable flag in one instance
+      instance1.enable('features.test-flag');
+
+      // Instances should have independent state
+      expect(instance1.isEnabled('features.test-flag')).toBe(true);
+      expect(instance2.isEnabled('features.test-flag')).toBe(false);
+    });
+
+    it('should accept configuration in createFeatureFlags', () => {
+      const config = {
+        'features.test-flag': true,
+        'features.another-flag': false,
+      };
+      
+      const instance = createFeatureFlags(config);
+      
+      expect(instance.isEnabled('features.test-flag')).toBe(true);
+      expect(instance.isEnabled('features.another-flag')).toBe(false);
     });
   });
 
