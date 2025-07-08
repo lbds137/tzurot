@@ -23,6 +23,7 @@ const { getCommandIntegrationAdapter } = require('../../adapters/CommandIntegrat
 const profileInfoFetcher = require('../../profileInfoFetcher');
 const { messageTracker } = require('../../messageTracker');
 const { getInstance: getConversationManager } = require('../../core/conversation');
+const avatarStorage = require('../../utils/avatarStorage');
 
 /**
  * ApplicationBootstrap
@@ -72,6 +73,10 @@ class ApplicationBootstrap {
 
     try {
       logger.info('[ApplicationBootstrap] Starting DDD application layer initialization...');
+
+      // Initialize avatar storage system (needed for webhook profile pictures)
+      await avatarStorage.initialize();
+      logger.info('[ApplicationBootstrap] Avatar storage initialized');
 
       // Step 1: Create shared infrastructure
       this.eventBus = new DomainEventBus();
