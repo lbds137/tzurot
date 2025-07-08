@@ -4,20 +4,12 @@ const logger = require('../../../../src/logger');
 // Mock the logger
 jest.mock('../../../../src/logger');
 
-// Mock the personality module
-jest.mock('../../../../src/core/personality', () => ({
-  getAllPersonalities: jest.fn(),
-}));
-
 // Mock DDD modules
-jest.mock('../../../../src/application/services/FeatureFlags');
 jest.mock('../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('MessageHistory', () => {
   let messageHistory;
   let mockConversationTracker;
-  let mockPersonalityModule;
-  let mockFeatureFlags;
   let mockPersonalityRouter;
 
   beforeEach(() => {
@@ -31,17 +23,8 @@ describe('MessageHistory', () => {
     // Create new instance
     messageHistory = new MessageHistory(mockConversationTracker);
 
-    // Get the mocked personality module
-    mockPersonalityModule = require('../../../../src/core/personality');
-
-    // Mock DDD modules to use legacy system by default
-    const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
+    // Mock DDD modules
     const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
-    
-    mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false), // Use legacy system
-    };
-    getFeatureFlags.mockReturnValue(mockFeatureFlags);
 
     mockPersonalityRouter = {
       getPersonality: jest.fn().mockResolvedValue(null),
@@ -74,9 +57,14 @@ describe('MessageHistory', () => {
       const messageId = '12345';
       const webhookUsername = 'TestPersonality';
       mockConversationTracker.getConversationByMessageId.mockReturnValue(null);
-      mockPersonalityModule.getAllPersonalities.mockReturnValue([
-        { fullName: 'test-personality', displayName: 'TestPersonality' },
-      ]);
+      
+      // Mock router to return personality when queried with webhook username
+      mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+        if (nameOrAlias.toLowerCase() === 'testpersonality') {
+          return { fullName: 'test-personality' };
+        }
+        return null;
+      });
 
       // Act
       const result = await messageHistory.getPersonalityFromMessage(messageId, { webhookUsername });
@@ -103,10 +91,14 @@ describe('MessageHistory', () => {
       it('should extract base name before pipe and match personality', async () => {
         // Arrange
         const webhookUsername = 'Desidara | תשב';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'desidara-123', displayName: 'Desidara' },
-          { fullName: 'other-456', displayName: 'Other' },
-        ]);
+        
+        // Mock router to return personality for "Desidara" or "desidara"
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'desidara') {
+            return { fullName: 'desidara-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -121,9 +113,14 @@ describe('MessageHistory', () => {
       it('should handle webhook username with multiple pipes', async () => {
         // Arrange
         const webhookUsername = 'TestName | System | Extra';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'TestName' },
-        ]);
+        
+        // Mock router to return personality for "TestName"
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'testname') {
+            return { fullName: 'test-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -138,9 +135,14 @@ describe('MessageHistory', () => {
       it('should trim whitespace around extracted base name', async () => {
         // Arrange
         const webhookUsername = '  SpacedName   |   Suffix  ';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'spaced-123', displayName: 'SpacedName' },
-        ]);
+        
+        // Mock router to return personality for "SpacedName"
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'spacedname') {
+            return { fullName: 'spaced-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -152,9 +154,14 @@ describe('MessageHistory', () => {
       it('should match using webhook pattern regex', async () => {
         // Arrange
         const webhookUsername = 'PersonalityName | SomeTag';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'personality-123', displayName: 'PersonalityName' },
-        ]);
+        
+        // Mock router to return personality
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'personalityname') {
+            return { fullName: 'personality-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -162,7 +169,7 @@ describe('MessageHistory', () => {
         // Assert
         expect(result).toBe('personality-123');
         expect(logger.debug).toHaveBeenCalledWith(
-          expect.stringContaining('Found personality match')
+          expect.stringContaining('Found personality match through DDD router')
         );
       });
     });
@@ -171,9 +178,14 @@ describe('MessageHistory', () => {
       it('should find exact match with full webhook username', async () => {
         // Arrange
         const webhookUsername = 'ExactMatch';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'exact-123', displayName: 'ExactMatch' },
-        ]);
+        
+        // Mock router to return personality
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias === 'ExactMatch' || nameOrAlias.toLowerCase() === 'exactmatch') {
+            return { fullName: 'exact-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -185,9 +197,14 @@ describe('MessageHistory', () => {
       it('should find exact match with extracted base name', async () => {
         // Arrange
         const webhookUsername = 'BaseName | Suffix';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'base-123', displayName: 'BaseName' },
-        ]);
+        
+        // Mock router to return personality
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'basename') {
+            return { fullName: 'base-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -201,9 +218,14 @@ describe('MessageHistory', () => {
       it('should match case-insensitively with full username', async () => {
         // Arrange
         const webhookUsername = 'UPPERCASE';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'upper-123', displayName: 'uppercase' },
-        ]);
+        
+        // Mock router to handle case-insensitive matching
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'uppercase') {
+            return { fullName: 'upper-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -215,9 +237,14 @@ describe('MessageHistory', () => {
       it('should match case-insensitively with base name', async () => {
         // Arrange
         const webhookUsername = 'MixedCase | suffix';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'mixed-123', displayName: 'mixedcase' },
-        ]);
+        
+        // Mock router to handle case-insensitive matching
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'mixedcase') {
+            return { fullName: 'mixed-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -229,9 +256,14 @@ describe('MessageHistory', () => {
       it('should handle Hebrew characters in webhook username', async () => {
         // Arrange
         const webhookUsername = 'TestName | שלום';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'TestName' },
-        ]);
+        
+        // Mock router to return personality
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias.toLowerCase() === 'testname') {
+            return { fullName: 'test-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
@@ -242,9 +274,20 @@ describe('MessageHistory', () => {
     });
 
     describe('error handling', () => {
-      it('should handle getAllPersonalities returning null', async () => {
+      it('should handle router returning null', async () => {
         // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue(null);
+        mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+
+        // Act
+        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
+
+        // Assert
+        expect(result).toBeNull();
+      });
+
+      it('should handle router throwing error', async () => {
+        // Arrange
+        mockPersonalityRouter.getPersonality.mockRejectedValue(new Error('Router error'));
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
@@ -252,56 +295,15 @@ describe('MessageHistory', () => {
         // Assert
         expect(result).toBeNull();
         expect(logger.error).toHaveBeenCalledWith(
-          expect.stringContaining('getAllPersonalities returned invalid data')
+          expect.stringContaining('Error looking up personality by webhook username')
         );
       });
 
-      it('should handle getAllPersonalities returning non-array', async () => {
+      it('should handle ApplicationBootstrap throwing error', async () => {
         // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue('not-an-array');
-
-        // Act
-        const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
-
-        // Assert
-        expect(result).toBeNull();
-        expect(logger.error).toHaveBeenCalledWith(
-          expect.stringContaining('getAllPersonalities returned invalid data')
-        );
-      });
-
-      it('should handle personalities with missing displayName', async () => {
-        // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123' }, // No displayName
-          { fullName: 'valid-456', displayName: 'Valid' },
-        ]);
-
-        // Act
-        const result = await messageHistory._getPersonalityFromWebhookUsername('Valid');
-
-        // Assert
-        expect(result).toBe('valid-456');
-      });
-
-      it('should handle null personality entries', async () => {
-        // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          null,
-          { fullName: 'valid-123', displayName: 'Valid' },
-        ]);
-
-        // Act
-        const result = await messageHistory._getPersonalityFromWebhookUsername('Valid');
-
-        // Assert
-        expect(result).toBe('valid-123');
-      });
-
-      it('should handle personality module throwing error', async () => {
-        // Arrange
-        mockPersonalityModule.getAllPersonalities.mockImplementation(() => {
-          throw new Error('Module error');
+        const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
+        getApplicationBootstrap.mockImplementation(() => {
+          throw new Error('Bootstrap error');
         });
 
         // Act
@@ -318,9 +320,7 @@ describe('MessageHistory', () => {
     describe('no matches found', () => {
       it('should return null when no personalities match', async () => {
         // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'other-123', displayName: 'Other' },
-        ]);
+        mockPersonalityRouter.getPersonality.mockResolvedValue(null);
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername('NonExistent');
@@ -328,16 +328,11 @@ describe('MessageHistory', () => {
         // Assert
         expect(result).toBeNull();
         expect(logger.debug).toHaveBeenCalledWith(
-          expect.stringContaining('No personality found matching webhook username')
+          '[MessageHistory] No match found through DDD router after trying all variations'
         );
       });
 
       it('should return null for empty webhook username', async () => {
-        // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'test-123', displayName: 'Test' },
-        ]);
-
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername('');
 
@@ -345,9 +340,9 @@ describe('MessageHistory', () => {
         expect(result).toBeNull();
       });
 
-      it('should return null when no personalities exist', async () => {
+      it('should return null when router returns empty result', async () => {
         // Arrange
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([]);
+        mockPersonalityRouter.getPersonality.mockResolvedValue(null);
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername('Test');
@@ -358,64 +353,68 @@ describe('MessageHistory', () => {
     });
 
     describe('special characters in personality names', () => {
-      it('should escape special regex characters in display name', async () => {
+      it('should handle special characters in webhook names', async () => {
         // Arrange
-        const webhookUsername = 'Test.Name* | suffix';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'special-123', displayName: 'Test.Name*' },
-        ]);
+        const webhookUsername = 'Test.Name-123 | Suffix';
+        
+        // Mock router to handle special characters
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias === 'Test.Name-123' || nameOrAlias.toLowerCase() === 'test.name-123') {
+            return { fullName: 'test-name-123' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
-        expect(result).toBe('special-123');
+        expect(result).toBe('test-name-123');
       });
 
       it('should handle display names with parentheses', async () => {
         // Arrange
-        const webhookUsername = 'Name (Test) | tag';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'paren-123', displayName: 'Name (Test)' },
-        ]);
+        const webhookUsername = 'Name (Special) | Tag';
+        
+        // Mock router to handle parentheses
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          if (nameOrAlias === 'Name (Special)' || nameOrAlias.toLowerCase() === 'name (special)') {
+            return { fullName: 'name-special' };
+          }
+          return null;
+        });
 
         // Act
         const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
-        expect(result).toBe('paren-123');
+        expect(result).toBe('name-special');
       });
     });
 
     describe('priority of matching strategies', () => {
-      it('should prefer exact match over case-insensitive match', async () => {
-        // Arrange
-        const webhookUsername = 'TestName';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'exact-123', displayName: 'TestName' },
-          { fullName: 'case-456', displayName: 'testname' },
-        ]);
-
-        // Act
-        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
-
-        // Assert
-        expect(result).toBe('exact-123');
-      });
-
-      it('should prefer base name match over pattern match', async () => {
+      it('should try multiple variations in order', async () => {
         // Arrange
         const webhookUsername = 'TestName | Suffix';
-        mockPersonalityModule.getAllPersonalities.mockReturnValue([
-          { fullName: 'pattern-123', displayName: 'Test' }, // Would match pattern
-          { fullName: 'base-456', displayName: 'TestName' }, // Exact base name match
-        ]);
+        const callOrder = [];
+        
+        // Mock router to track call order but only return match on lowercase
+        mockPersonalityRouter.getPersonality.mockImplementation(async (nameOrAlias) => {
+          callOrder.push(nameOrAlias);
+          // Only return a match for the lowercase version to ensure all variations are tried
+          if (nameOrAlias === 'testname') {
+            return { fullName: 'test-123' };
+          }
+          return null;
+        });
 
         // Act
-        const result = await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
+        await messageHistory._getPersonalityFromWebhookUsername(webhookUsername);
 
         // Assert
-        expect(result).toBe('base-456');
+        expect(callOrder).toContain('TestName | Suffix'); // Full name
+        expect(callOrder).toContain('TestName'); // Base name
+        expect(callOrder).toContain('testname'); // Lowercase base name
       });
     });
   });

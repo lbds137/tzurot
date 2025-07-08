@@ -23,6 +23,9 @@ const {
   saveAllData,
 } = require('../../src/core/conversation');
 
+// Import ApplicationBootstrap for test mocking
+const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
+
 // Mock filesystem with a direct mock definition
 jest.mock('fs', () => {
   const mockFs = {
@@ -90,6 +93,24 @@ jest.mock('../../src/core/personality', () => ({
       avatarUrl: 'https://example.com/avatar2.png',
     },
   ]),
+}));
+
+// Mock ApplicationBootstrap for MessageHistory
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn().mockReturnValue({
+    getPersonalityRouter: jest.fn().mockReturnValue({
+      getPersonality: jest.fn().mockImplementation(async (nameOrAlias) => {
+        const normalizedName = nameOrAlias.toLowerCase();
+        if (normalizedName === 'test personality one' || normalizedName === 'test-personality-one') {
+          return { fullName: 'test-personality-one' };
+        }
+        if (normalizedName === 'test personality two' || normalizedName === 'test-personality-two') {
+          return { fullName: 'test-personality-two' };
+        }
+        return null;
+      }),
+    }),
+  }),
 }));
 
 describe('Conversation Manager', () => {
@@ -655,43 +676,46 @@ describe('Conversation Manager', () => {
       expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Error loading'));
     });
 
-    it('should handle invalid personality data gracefully', async () => {
-      // Re-require modules after jest.resetModules()
+    it('should handle router returning null gracefully', async () => {
+      // Re-require modules to get fresh state
+      jest.resetModules();
+      
+      // Mock ApplicationBootstrap to return null from router
+      jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+        getApplicationBootstrap: jest.fn().mockReturnValue({
+          getPersonalityRouter: jest.fn().mockReturnValue({
+            getPersonality: jest.fn().mockResolvedValue(null),
+          }),
+        }),
+      }));
+
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
-      const personalityManager = require('../../src/core/personality');
-      const logger = require('../../src/logger');
-
-      // Clear any previous logger calls
-      logger.error.mockClear();
-
-      // Mock personalityManager to return invalid data
-      personalityManager.getAllPersonalities.mockReturnValueOnce(null);
 
       // Try to get personality from webhook username
       const result = await getPersonalityFromMessage('unknown-id', {
         webhookUsername: 'Test Bot',
       });
 
-      // Should return null and log error
+      // Should return null gracefully
       expect(result).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.stringContaining('getAllPersonalities returned invalid data')
-      );
     });
 
-    it('should handle errors in personality lookup', async () => {
-      // Re-require modules after jest.resetModules()
+    it('should handle errors from ApplicationBootstrap gracefully', async () => {
+      // Re-require modules to get fresh state
+      jest.resetModules();
+      
+      // Mock ApplicationBootstrap to throw error
+      jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+        getApplicationBootstrap: jest.fn().mockImplementation(() => {
+          throw new Error('Bootstrap initialization error');
+        }),
+      }));
+
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
-      const personalityManager = require('../../src/core/personality');
       const logger = require('../../src/logger');
 
       // Clear any previous logger calls
       logger.error.mockClear();
-
-      // Mock personalityManager to throw error
-      personalityManager.getAllPersonalities.mockImplementationOnce(() => {
-        throw new Error('Database error');
-      });
 
       // Try to get personality from webhook username
       const result = await getPersonalityFromMessage('unknown-id', {

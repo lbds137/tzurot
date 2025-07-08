@@ -11,10 +11,10 @@ const { ValueObject } = require('../shared/ValueObject');
  * @description Contains configuration and display information for a personality
  */
 class PersonalityProfile extends ValueObject {
-  constructor(nameOrConfig, prompt, modelPath, maxWordCount) {
+  constructor(nameOrConfig) {
     super();
 
-    // Support multiple construction patterns for different modes
+    // Require object configuration
     if (typeof nameOrConfig === 'object' && nameOrConfig !== null) {
       // Mode detection based on properties
       if (nameOrConfig.mode === 'external') {
@@ -33,7 +33,7 @@ class PersonalityProfile extends ValueObject {
         // Local mode - comprehensive personality data
         this.mode = 'local';
         this.name = nameOrConfig.username || nameOrConfig.name;
-        this.displayName = nameOrConfig.name || nameOrConfig.displayName;
+        this.displayName = nameOrConfig.displayName || nameOrConfig.name;
         this.avatarUrl = nameOrConfig.avatar || nameOrConfig.avatarUrl || null;
         this.errorMessage = nameOrConfig.error_message || nameOrConfig.errorMessage || null;
         // Local personality configuration
@@ -80,16 +80,7 @@ class PersonalityProfile extends ValueObject {
         this.publicApiData = nameOrConfig.publicApiData;
       }
     } else {
-      // Parameter-based construction - legacy support
-      this.mode = prompt ? 'local' : 'external';
-      this.name = nameOrConfig;
-      this.prompt = prompt || null;
-      this.modelPath = modelPath || null;
-      this.maxWordCount = maxWordCount || 1000;
-      this.displayName = nameOrConfig;
-      this.avatarUrl = null;
-      this.errorMessage = null;
-      this.lastFetched = null;
+      throw new Error('PersonalityProfile requires an object configuration');
     }
 
     this.validate();

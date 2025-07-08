@@ -60,8 +60,8 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
             name: 'test-1',
           },
           aliases: [
-            { value: 'test1', original: 'test1' },
-            { value: 'testy1', original: 'testy1' }
+            { value: 'test1', originalCase: 'test1' },
+            { value: 'testy1', originalCase: 'testy1' }
           ],
           savedAt: '2024-01-01T00:00:00.000Z',
         },
@@ -73,7 +73,7 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
             name: 'test-2',
           },
           aliases: [
-            { value: 'test2', original: 'test2' }
+            { value: 'test2', originalCase: 'test2' }
           ],
           savedAt: '2024-01-01T00:00:00.000Z',
         },
@@ -91,10 +91,7 @@ describe('FilePersonalityRepository - Alias Synchronization', () => {
     mockFsPromises.writeFile.mockResolvedValue(undefined);
     mockFsPromises.rename.mockResolvedValue(undefined);
 
-    repository = new FilePersonalityRepository({
-      dataPath: 'test-data',
-      filename: 'test-personalities.json',
-    });
+    repository = new FilePersonalityRepository('test-data');
   });
 
   afterEach(() => {

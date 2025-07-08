@@ -33,7 +33,14 @@ describe('Personality', () => {
     jest.clearAllMocks();
     personalityId = new PersonalityId('claude-3-opus');
     ownerId = new UserId('123456789');
-    profile = new PersonalityProfile('claude-3-opus', 'You are Claude 3 Opus', '/default', 1000);
+    profile = new PersonalityProfile({
+      mode: 'local',
+      name: 'claude-3-opus',
+      displayName: 'Claude 3 Opus',
+      prompt: 'You are Claude 3 Opus',
+      modelPath: '/default',
+      maxWordCount: 1000,
+    });
     model = AIModel.createDefault();
   });
 
@@ -271,11 +278,26 @@ describe('Personality', () => {
     });
 
     it('should return display name from profile', () => {
-      expect(personality.getDisplayName()).toBe('claude-3-opus');
+      expect(personality.getDisplayName()).toBe('Claude 3 Opus');
     });
 
     it('should fall back to personality ID if no display name', () => {
-      expect(personality.getDisplayName()).toBe('claude-3-opus');
+      // Create a profile without displayName
+      const profileWithoutDisplayName = new PersonalityProfile({
+        mode: 'local',
+        name: 'claude-3-opus',
+        prompt: 'You are Claude 3 Opus',
+        modelPath: '/default',
+        maxWordCount: 1000,
+      });
+      const personalityWithoutDisplayName = Personality.create(
+        personalityId,
+        ownerId,
+        profileWithoutDisplayName,
+        model
+      );
+      
+      expect(personalityWithoutDisplayName.getDisplayName()).toBe('claude-3-opus');
     });
   });
 

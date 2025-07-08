@@ -66,12 +66,14 @@ describe('Personality Domain Index', () => {
     it('should allow creating personalities', () => {
       const personalityId = new personalityDomain.PersonalityId('test-personality');
       const userId = new personalityDomain.UserId('123456789012345678');
-      const profile = new personalityDomain.PersonalityProfile(
-        'test-personality',
-        'You are a test personality',
-        '/default',
-        1000
-      );
+      const profile = new personalityDomain.PersonalityProfile({
+        mode: 'local',
+        name: 'test-personality',
+        displayName: 'Test Personality',
+        prompt: 'You are a test personality',
+        modelPath: '/default',
+        maxWordCount: 1000,
+      });
       const model = AIModel.createDefault();
 
       const personality = personalityDomain.Personality.create(
