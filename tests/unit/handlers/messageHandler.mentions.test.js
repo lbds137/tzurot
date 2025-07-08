@@ -35,6 +35,7 @@ describe('checkForPersonalityMentions', () => {
       getMaxAliasWordCount: jest.fn().mockResolvedValue(1),
     };
     const mockBootstrap = {
+      initialized: true,
       getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);

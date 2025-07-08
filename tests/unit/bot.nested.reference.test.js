@@ -15,7 +15,7 @@ const { handleMessageReference } = require('../../src/handlers/referenceHandler'
 const { getPersonalityFromMessage } = require('../../src/core/conversation');
 const { getPersonality, getPersonalityByAlias } = require('../../src/core/personality');
 const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
-const { getFeatureFlags } = require('../../src/application/services/FeatureFlags');
+const { createFeatureFlags } = require('../../src/application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('Nested Reference Handling', () => {
@@ -102,7 +102,7 @@ describe('Nested Reference Handling', () => {
     const mockFeatureFlags = {
       isEnabled: jest.fn().mockReturnValue(false), // Use legacy by default
     };
-    getFeatureFlags.mockReturnValue(mockFeatureFlags);
+    createFeatureFlags.mockReturnValue(mockFeatureFlags);
 
     const mockPersonalityRouter = {
       getPersonality: jest.fn().mockResolvedValue({
@@ -111,6 +111,7 @@ describe('Nested Reference Handling', () => {
       }),
     };
     const mockBootstrap = {
+      initialized: true,
       getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);

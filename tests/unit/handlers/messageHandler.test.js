@@ -50,7 +50,7 @@ const {
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
-const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
+const { createFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { resolvePersonality } = require('../../../src/utils/aliasResolver');
 const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
 
@@ -129,7 +129,7 @@ describe('messageHandler', () => {
     channelUtils.isChannelNSFW.mockReturnValue(true);
 
     // Mock feature flags - DDD commands are always enabled now
-    getFeatureFlags.mockReturnValue({
+    createFeatureFlags.mockReturnValue({
       isEnabled: jest.fn().mockReturnValue(true),
     });
 

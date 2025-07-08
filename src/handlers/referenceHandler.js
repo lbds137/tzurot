@@ -9,44 +9,37 @@
 
 const logger = require('../logger');
 const { getPersonalityFromMessage } = require('../core/conversation');
-const {
-  getPersonality: getLegacyPersonality,
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-} = require('../core/personality');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');
-const { getFeatureFlags } = require('../application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 
 /**
- * Get personality by name, using DDD system if enabled
+ * Get personality by name using DDD system
  * @param {string} name - Personality name
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonality(name) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    const bootstrap = getApplicationBootstrap();
-    const router = bootstrap.getPersonalityRouter();
-    return await router.getPersonality(name);
+  const bootstrap = getApplicationBootstrap();
+  if (!bootstrap.initialized) {
+    throw new Error('ApplicationBootstrap not initialized - system is starting up');
   }
-  return await getLegacyPersonality(name);
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(name);
 }
 
 /**
- * Get personality by alias, using DDD system if enabled
+ * Get personality by alias using DDD system
  * @param {string} alias - Personality alias
  * @returns {Promise<Object|null>} Personality object or null
  */
 async function getPersonalityByAlias(alias) {
-  const featureFlags = getFeatureFlags();
-  if (featureFlags.isEnabled('ddd.personality.read')) {
-    // DDD system searches by name or alias in one method
-    const bootstrap = getApplicationBootstrap();
-    const router = bootstrap.getPersonalityRouter();
-    return await router.getPersonality(alias);
+  // DDD system searches by name or alias in one method
+  const bootstrap = getApplicationBootstrap();
+  if (!bootstrap.initialized) {
+    throw new Error('ApplicationBootstrap not initialized - system is starting up');
   }
-  return getLegacyPersonalityByAlias(alias);
+  const router = bootstrap.getPersonalityRouter();
+  return await router.getPersonality(alias);
 }
 
 /**

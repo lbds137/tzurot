@@ -22,7 +22,7 @@ jest.mock('../../../../src/logger', () => ({
 }));
 
 jest.mock('../../../../src/application/services/FeatureFlags', () => ({
-  getFeatureFlags: jest.fn().mockReturnValue({
+  createFeatureFlags: jest.fn().mockReturnValue({
     isEnabled: jest.fn().mockReturnValue(false),
   }),
 }));
@@ -54,11 +54,12 @@ jest.mock('../../../../src/application/commands/personality/AddCommand', () => {
 });
 
 const logger = require('../../../../src/logger');
-const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
+const { createFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('CommandIntegration', () => {
   let integration;
+  let mockPersonalityApplicationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,11 +67,20 @@ describe('CommandIntegration', () => {
     jest.spyOn(console, 'error').mockImplementation();
     resetCommandIntegration();
     integration = new CommandIntegration();
+    
+    // Create mock service required by CommandIntegration
+    mockPersonalityApplicationService = {
+      registerPersonality: jest.fn(),
+      listPersonalitiesByOwner: jest.fn(),
+      // Add other methods as needed
+    };
   });
 
   describe('initialize', () => {
     it('should initialize with default services', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       expect(integration.initialized).toBe(true);
       expect(integration.applicationServices.featureFlags).toBeDefined();
@@ -82,6 +92,7 @@ describe('CommandIntegration', () => {
 
     it('should initialize with custom services', async () => {
       const customServices = {
+        personalityApplicationService: mockPersonalityApplicationService,
         customService: { test: true },
         featureFlags: { custom: true },
       };
@@ -93,7 +104,9 @@ describe('CommandIntegration', () => {
     });
 
     it('should register commands during initialization', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const registry = integration.registry;
       expect(registry.get('add')).toBeDefined();
@@ -102,15 +115,21 @@ describe('CommandIntegration', () => {
     });
 
     it('should create platform adapters', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       expect(integration.adapters.has('discord')).toBe(true);
       expect(integration.adapters.has('revolt')).toBe(true);
     });
 
     it('should warn if already initialized', async () => {
-      await integration.initialize();
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       expect(logger.warn).toHaveBeenCalledWith('[CommandIntegration] Already initialized');
     });
@@ -121,7 +140,9 @@ describe('CommandIntegration', () => {
         throw new Error('Failed to create command');
       });
 
-      await expect(integration.initialize()).rejects.toThrow('Failed to create command');
+      await expect(integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      })).rejects.toThrow('Failed to create command');
       expect(logger.error).toHaveBeenCalledWith(
         '[CommandIntegration] Failed to initialize:',
         expect.any(Error)
@@ -134,7 +155,9 @@ describe('CommandIntegration', () => {
 
   describe('getAdapter', () => {
     beforeEach(async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
     });
 
     it('should get Discord adapter', () => {
@@ -168,7 +191,9 @@ describe('CommandIntegration', () => {
 
   describe('handleDiscordTextCommand', () => {
     it('should delegate to Discord adapter', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const mockMessage = { id: 'msg123' };
       const mockAdapter = {
@@ -185,7 +210,9 @@ describe('CommandIntegration', () => {
 
   describe('handleDiscordSlashCommand', () => {
     it('should delegate to Discord adapter', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const mockInteraction = { id: 'int123' };
       const mockAdapter = {
@@ -202,7 +229,9 @@ describe('CommandIntegration', () => {
 
   describe('handleRevoltTextCommand', () => {
     it('should delegate to Revolt adapter', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const mockMessage = { id: 'msg123' };
       const mockAdapter = {
@@ -219,7 +248,9 @@ describe('CommandIntegration', () => {
 
   describe('registerDiscordSlashCommands', () => {
     it('should delegate to Discord adapter', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const mockClient = { id: 'client123' };
       const mockAdapter = {
@@ -236,7 +267,9 @@ describe('CommandIntegration', () => {
 
   describe('hasCommand', () => {
     beforeEach(async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
     });
 
     it('should return true for existing command', () => {
@@ -258,7 +291,9 @@ describe('CommandIntegration', () => {
 
   describe('getAllCommands', () => {
     it('should return all registered commands', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
 
       const commands = integration.getAllCommands();
       expect(commands).toHaveLength(19);
@@ -288,7 +323,9 @@ describe('CommandIntegration', () => {
 
   describe('reset', () => {
     it('should reset all state', async () => {
-      await integration.initialize();
+      await integration.initialize({
+        personalityApplicationService: mockPersonalityApplicationService,
+      });
       integration.reset();
 
       expect(integration.initialized).toBe(false);

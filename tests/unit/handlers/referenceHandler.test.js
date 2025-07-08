@@ -20,7 +20,7 @@ jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 
 const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
-const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
+const { createFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('Reference Handler Module', () => {
@@ -44,20 +44,35 @@ describe('Reference Handler Module', () => {
 
   // Mock message handler
   const mockHandlePersonalityInteraction = jest.fn();
+  
+  // Mock personality router that will be used in tests
+  let mockPersonalityRouter;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
     // Mock feature flags to use legacy system by default
-    getFeatureFlags.mockReturnValue({
+    createFeatureFlags.mockReturnValue({
       isEnabled: jest.fn().mockReturnValue(false),
     });
 
     // Mock ApplicationBootstrap with personality router
-    const mockPersonalityRouter = {
-      getPersonality: jest.fn().mockResolvedValue(null),
+    mockPersonalityRouter = {
+      getPersonality: jest.fn().mockImplementation(async (name) => {
+        if (name === 'test-personality') {
+          return mockPersonality;
+        }
+        if (name === 'angel dust') {
+          return {
+            fullName: 'angel-dust-hazbin',
+            displayName: 'Angel Dust',
+          };
+        }
+        return null;
+      }),
     };
     const mockBootstrap = {
+      initialized: true,
       getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
@@ -184,7 +199,8 @@ describe('Reference Handler Module', () => {
       expect(getPersonalityFromMessage).toHaveBeenCalledWith('webhook-msg-id', {
         webhookUsername: 'Test Webhook',
       });
-      expect(getPersonality).toHaveBeenCalledWith('test-personality');
+      // DDD system uses ApplicationBootstrap router instead of legacy getPersonality
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test-personality');
 
       // Since we're mocking a non-DM channel and passing a client, delayedProcessing should be used
       // The delayedProcessing mock will call the handler with the client parameter
@@ -253,8 +269,8 @@ describe('Reference Handler Module', () => {
       );
 
       expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
-      expect(getPersonality).toHaveBeenCalledWith('angel dust');
-      expect(getPersonalityByAlias).toHaveBeenCalledWith('angel dust');
+      // DDD system uses ApplicationBootstrap router instead of legacy functions
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('angel dust');
       expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(
         mockMessage,
         spaceAliasPersonality,

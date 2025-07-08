@@ -48,7 +48,7 @@ jest.mock('../../src/utils/contentSanitizer', () => ({
 
 // Mock FeatureFlags module
 jest.mock('../../src/application/services/FeatureFlags', () => ({
-  getFeatureFlags: jest.fn().mockReturnValue({
+  createFeatureFlags: jest.fn().mockReturnValue({
     isEnabled: jest.fn().mockReturnValue(false),
   }),
 }));
@@ -809,7 +809,7 @@ describe('AI Service', () => {
       // Set up mocks
       const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
-      const { getFeatureFlags } = require('../../src/application/services/FeatureFlags');
+      const { createFeatureFlags } = require('../../src/application/services/FeatureFlags');
       const { getPersonalityDataService } = require('../../src/services/PersonalityDataService');
 
       const OpenAI = openaiModule.OpenAI;
@@ -834,7 +834,7 @@ describe('AI Service', () => {
       expect(getPersonalityDataService().hasBackupData).not.toHaveBeenCalled();
 
       // Now enable the feature flag
-      getFeatureFlags().isEnabled.mockReturnValue(true);
+      createFeatureFlags().isEnabled.mockReturnValue(true);
       getPersonalityDataService().hasBackupData.mockResolvedValue(true);
       getPersonalityDataService().buildContextualPrompt.mockResolvedValue({
         messages: [
