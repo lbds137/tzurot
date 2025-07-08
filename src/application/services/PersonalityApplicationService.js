@@ -10,6 +10,7 @@ const { AIModel } = require('../../domain/ai');
 const { DomainEventBus } = require('../../domain/shared');
 const profileInfoFetcher = require('../../profileInfoFetcher');
 const { preloadPersonalityAvatar } = require('../../utils/avatarManager');
+const avatarStorage = require('../../utils/avatarStorage');
 
 /**
  * PersonalityApplicationService
@@ -243,6 +244,24 @@ class PersonalityApplicationService {
 
             // Save updated profile
             await this.personalityRepository.save(personality);
+
+            // Pre-download avatar if URL changed
+            if (personality.profile.avatarUrl) {
+              try {
+                logger.info(`[PersonalityApplicationService] Pre-downloading refreshed avatar for ${personalityName}`);
+                const localUrl = await avatarStorage.getLocalAvatarUrl(
+                  personalityName,
+                  personality.profile.avatarUrl
+                );
+                if (localUrl) {
+                  logger.info(`[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`);
+                }
+              } catch (downloadError) {
+                logger.warn(
+                  `[PersonalityApplicationService] Failed to pre-download avatar for ${personalityName}: ${downloadError.message}`
+                );
+              }
+            }
           } else {
             logger.warn(
               `[PersonalityApplicationService] Failed to fetch profile for: ${personalityName}`
@@ -802,7 +821,7 @@ class PersonalityApplicationService {
         avatarUrl: personality.profile.avatarUrl || null,
       };
 
-      // Preload the avatar
+      // Preload the avatar using avatarManager (validates URL)
       await preloadPersonalityAvatar(personalityData, userId);
 
       // If the avatar was set/updated during preload, save the personality
@@ -813,6 +832,25 @@ class PersonalityApplicationService {
         personality.profile.avatarUrl = personalityData.avatarUrl;
         await this.personalityRepository.save(personality);
         logger.info(`[PersonalityApplicationService] Updated avatar URL for: ${personalityName}`);
+      }
+
+      // Pre-download the avatar to local storage (like legacy system did)
+      if (personality.profile.avatarUrl) {
+        try {
+          logger.info(`[PersonalityApplicationService] Pre-downloading avatar for ${personalityName}`);
+          const localUrl = await avatarStorage.getLocalAvatarUrl(
+            personalityName,
+            personality.profile.avatarUrl
+          );
+          if (localUrl) {
+            logger.info(`[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`);
+          }
+        } catch (downloadError) {
+          logger.warn(
+            `[PersonalityApplicationService] Failed to pre-download avatar for ${personalityName}: ${downloadError.message}`
+          );
+          // Continue anyway - avatar will be downloaded on first use
+        }
       }
     } catch (error) {
       logger.error(`[PersonalityApplicationService] Failed to preload avatar: ${error.message}`);
