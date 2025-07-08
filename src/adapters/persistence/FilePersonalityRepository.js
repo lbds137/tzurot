@@ -365,30 +365,30 @@ class FilePersonalityRepository {
     try {
       const normalizedName = nameOrAlias.toLowerCase();
       
-      // First check exact name (profile.name) or personality ID
+      // First check if it's an alias
+      const byAlias = await this.findByAlias(nameOrAlias);
+      if (byAlias) {
+        return byAlias;
+      }
+
+      // Then check display name
+      for (const [, data] of Object.entries(this._cache.personalities)) {
+        if (!data.removed) {
+          const displayName = data.profile?.displayName?.toLowerCase();
+          
+          if (displayName === normalizedName) {
+            return this._hydrate(data);
+          }
+        }
+      }
+      
+      // Finally check exact name (profile.name) or personality ID
       for (const [id, data] of Object.entries(this._cache.personalities)) {
         if (!data.removed) {
           const profileName = data.profile?.name?.toLowerCase();
           const personalityId = id.toLowerCase();
           
           if (profileName === normalizedName || personalityId === normalizedName) {
-            return this._hydrate(data);
-          }
-        }
-      }
-
-      // Then check if it's an alias
-      const byAlias = await this.findByAlias(nameOrAlias);
-      if (byAlias) {
-        return byAlias;
-      }
-
-      // Finally check display name
-      for (const [, data] of Object.entries(this._cache.personalities)) {
-        if (!data.removed) {
-          const displayName = data.profile?.displayName?.toLowerCase();
-          
-          if (displayName === normalizedName) {
             return this._hydrate(data);
           }
         }

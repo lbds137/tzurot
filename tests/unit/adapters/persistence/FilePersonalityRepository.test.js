@@ -909,7 +909,7 @@ describe('FilePersonalityRepository', () => {
       await repository.initialize();
     });
 
-    it('should find by exact personality name first', async () => {
+    it('should find by exact personality name when no alias matches', async () => {
       const result = await repository.findByNameOrAlias('test-personality');
       
       expect(result).not.toBeNull();
@@ -924,7 +924,7 @@ describe('FilePersonalityRepository', () => {
       expect(result.personalityId.value).toBe('another-personality');
     });
 
-    it('should find by global alias mapping second', async () => {
+    it('should find by global alias mapping first', async () => {
       const result = await repository.findByNameOrAlias('test');
       
       expect(result).not.toBeNull();
@@ -938,8 +938,8 @@ describe('FilePersonalityRepository', () => {
       expect(result.personalityId.value).toBe('display-name-test');
     });
 
-    it('should prioritize exact name over alias', async () => {
-      // Add a personality with name 'test' to verify name takes precedence
+    it('should prioritize alias over exact name', async () => {
+      // Add a personality with name 'test' to verify alias takes precedence
       mockFileData.personalities['test'] = {
         id: 'test',
         personalityId: 'test',
@@ -965,9 +965,9 @@ describe('FilePersonalityRepository', () => {
       const result = await repository.findByNameOrAlias('test');
       
       expect(result).not.toBeNull();
-      // Should find the personality with name 'test', not the one aliased as 'test'
-      expect(result.personalityId.value).toBe('test');
-      expect(result.profile.name).toBe('test');
+      // Should find via alias first, not the personality with name 'test'
+      expect(result.personalityId.value).toBe('test-personality');
+      expect(result.profile.name).toBe('test-personality');
     });
 
     it('should prioritize alias over display name', async () => {
