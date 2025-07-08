@@ -11,7 +11,7 @@ jest.mock('../../../../src/core/personality', () => ({
 
 // Mock DDD modules
 jest.mock('../../../../src/application/services/FeatureFlags');
-jest.mock('../../../../src/application/routers/PersonalityRouter');
+jest.mock('../../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('MessageHistory', () => {
   let messageHistory;
@@ -36,7 +36,7 @@ describe('MessageHistory', () => {
 
     // Mock DDD modules to use legacy system by default
     const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-    const { getPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
+    const { getApplicationBootstrap } = require('../../../../src/application/bootstrap/ApplicationBootstrap');
     
     mockFeatureFlags = {
       isEnabled: jest.fn().mockReturnValue(false), // Use legacy system
@@ -46,7 +46,10 @@ describe('MessageHistory', () => {
     mockPersonalityRouter = {
       getPersonality: jest.fn().mockResolvedValue(null),
     };
-    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
   });
 
   describe('getPersonalityFromMessage', () => {

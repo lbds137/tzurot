@@ -25,7 +25,7 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
 jest.mock('../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/utils/aliasResolver');
-jest.mock('../../../src/application/routers/PersonalityRouter');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -52,7 +52,7 @@ const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore'
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { resolvePersonality } = require('../../../src/utils/aliasResolver');
-const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('messageHandler', () => {
   let mockClient;
@@ -138,10 +138,14 @@ describe('messageHandler', () => {
       processCommand: jest.fn().mockResolvedValue({ success: true }),
     });
 
-    // Mock personality router
-    getPersonalityRouter.mockReturnValue({
+    // Mock ApplicationBootstrap with personality router
+    const mockPersonalityRouter = {
       getMaxAliasWordCount: jest.fn().mockImplementation(async () => getMaxAliasWordCount()),
-    });
+    };
+    const mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
   });
 
   afterEach(() => {
