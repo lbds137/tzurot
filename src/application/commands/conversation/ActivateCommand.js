@@ -174,10 +174,9 @@ function createExecutor(_dependencies) {
             inline: false,
           },
         ],
-        thumbnail:
-          personality.profile?.avatarUrl || personality.avatarUrl
-            ? { url: personality.profile?.avatarUrl || personality.avatarUrl }
-            : undefined,
+        thumbnail: personality.profile?.avatarUrl
+          ? { url: personality.profile.avatarUrl }
+          : undefined,
         timestamp: new Date().toISOString(),
       };
 

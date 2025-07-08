@@ -25,7 +25,7 @@ function getStandardizedUsername(personality) {
       `[WebhookManager] getStandardizedUsername called with personality: ${JSON.stringify({
         fullName: personality.fullName || 'N/A',
         displayName: personality.displayName || 'N/A',
-        hasAvatar: !!personality.avatarUrl,
+        hasAvatar: !!personality.profile?.avatarUrl,
       })}`
     );
 
@@ -262,7 +262,9 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
           personalityAvatarUrl
         );
         avatarUrl = localAvatarUrl || personalityAvatarUrl;
-        logger.info(`[MessageUtils] Avatar URL for ${_personality.fullName}: ${avatarUrl} (original: ${personalityAvatarUrl})`);
+        logger.info(
+          `[MessageUtils] Avatar URL for ${_personality.fullName}: ${avatarUrl} (original: ${personalityAvatarUrl})`
+        );
       } catch (error) {
         logger.error(`[MessageUtils] Failed to get local avatar URL: ${error.message}`);
         avatarUrl = personalityAvatarUrl; // Fallback to original

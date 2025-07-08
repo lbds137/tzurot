@@ -452,9 +452,7 @@ function createAddCommand() {
           };
 
           // Add avatar thumbnail if available
-          if (personality.avatarUrl) {
-            embedData.thumbnail = { url: personality.avatarUrl };
-          } else if (personality.profile?.avatarUrl) {
+          if (personality.profile?.avatarUrl) {
             embedData.thumbnail = { url: personality.profile.avatarUrl };
           }
 

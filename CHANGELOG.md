@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.9] - 2025-07-08
+
+### Fixed
+- **Avatar URL Access in Threads** - Fixed avatars not showing in thread messages
+  - Updated threadHandler.js to access personality.profile.avatarUrl instead of personality.avatarUrl
+  - Fixed all remaining instances of direct personality.avatarUrl access throughout codebase
+  - Updated avatarManager.js to properly update currentAvatarUrl after fetching
+  - Fixed embedBuilders.js createPersonalityInfoEmbed to use personality.profile?.avatarUrl
+  - Updated all related tests to use correct DDD personality structure
+  - Ensures avatar functionality works correctly in all contexts (channels, threads, embeds)
+
 ## [2.0.8] - 2025-07-08
 
 ### Fixed

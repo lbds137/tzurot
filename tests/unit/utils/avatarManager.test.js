@@ -1,10 +1,4 @@
-const avatarManager = require('../../../src/utils/avatarManager');
-const logger = require('../../../src/logger');
-const errorTracker = require('../../../src/utils/errorTracker');
-const urlValidator = require('../../../src/utils/urlValidator');
-const fetch = require('node-fetch');
-
-// Mock dependencies
+// Mock dependencies first before any imports
 jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/errorTracker');
 jest.mock('../../../src/utils/urlValidator');
@@ -12,6 +6,12 @@ jest.mock('node-fetch');
 jest.mock('../../../src/profileInfoFetcher', () => ({
   getProfileAvatarUrl: jest.fn(),
 }));
+
+const avatarManager = require('../../../src/utils/avatarManager');
+const logger = require('../../../src/logger');
+const errorTracker = require('../../../src/utils/errorTracker');
+const urlValidator = require('../../../src/utils/urlValidator');
+const fetch = require('node-fetch');
 
 describe('Avatar Manager', () => {
   beforeEach(() => {
@@ -281,12 +281,28 @@ describe('Avatar Manager', () => {
     });
 
     it('should fetch avatar URL if not set', async () => {
-      const personality = { fullName: 'TestUser' };
+      const personality = { fullName: 'TestUser', profile: {} };
       getProfileAvatarUrl.mockResolvedValue('https://example.com/fetched-avatar.png');
 
       // Mock warmup to succeed
       urlValidator.isValidUrlFormat.mockReturnValue(true);
-      urlValidator.isTrustedDomain.mockReturnValue(true);
+      urlValidator.isTrustedDomain.mockReturnValue(false); // Not a trusted domain, so it will check isImageUrl
+      urlValidator.hasImageExtension.mockReturnValue(true); // Has image extension
+      urlValidator.isImageUrl.mockResolvedValue(true); // Valid image URL
+      
+      // Mock fetch for warmup
+      fetch.mockResolvedValue({
+        ok: true,
+        headers: {
+          get: jest.fn().mockReturnValue('image/png'),
+        },
+        body: {
+          getReader: jest.fn().mockReturnValue({
+            read: jest.fn().mockResolvedValue({ done: false, value: new Uint8Array([1, 2, 3]) }),
+            cancel: jest.fn(),
+          }),
+        },
+      });
 
       await avatarManager.preloadPersonalityAvatar(personality, 'user123');
 

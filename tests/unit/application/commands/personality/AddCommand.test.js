@@ -776,7 +776,10 @@ describe('AddCommand', () => {
     it('should include avatar URL in embed if available', async () => {
       const personalityWithAvatar = {
         ...mockPersonality,
-        avatarUrl: 'https://example.com/avatar.png',
+        profile: {
+          ...mockPersonality.profile,
+          avatarUrl: 'https://example.com/avatar.png',
+        },
       };
       mockContext.args = ['TestBot'];
       mockContext.respond = jest.fn().mockResolvedValue({});

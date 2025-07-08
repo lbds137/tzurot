@@ -328,7 +328,9 @@ describe('embedBuilders', () => {
       const personality = {
         fullName: 'test-personality',
         displayName: 'Test Personality',
-        avatarUrl: 'https://example.com/avatar.png',
+        profile: {
+          avatarUrl: 'https://example.com/avatar.png',
+        },
         createdBy: 'user123',
         createdAt: new Date('2024-01-01').getTime(),
       };

@@ -15,6 +15,25 @@ const { processMediaForWebhook } = require('../utils/media');
 const avatarStorage = require('../utils/avatarStorage');
 const config = require('../../config');
 
+// Store references to global timer functions
+const globalSetTimeout = setTimeout;
+
+// Injectable timer functions for testability
+let timerFunctions = {
+  setTimeout: (callback, delay, ...args) => globalSetTimeout(callback, delay, ...args),
+};
+
+/**
+ * Override timer functions for testing
+ * @param {Object} customTimers - Custom timer implementations
+ */
+function setTimerFunctions(customTimers) {
+  timerFunctions = { ...timerFunctions, ...customTimers };
+}
+
+// Default delay function using injectable timers
+const defaultDelay = ms => new Promise(resolve => timerFunctions.setTimeout(resolve, ms));
+
 /**
  * Send a message to a thread, using optimized thread-specific webhook approach
  * This implements specialized thread handling that prioritizes webhook aesthetics
@@ -35,7 +54,7 @@ async function sendDirectThreadMessage(
   options = {},
   getStandardizedUsername,
   createVirtualResult,
-  delayFn = ms => new Promise(resolve => setTimeout(resolve, ms))
+  delayFn = defaultDelay
 ) {
   if (!channel || !channel.isThread()) {
     logger.error(
@@ -145,16 +164,27 @@ async function sendDirectThreadMessage(
 
       // Resolve avatar URL through storage system
       let avatarUrl = null;
-      if (personality && personality.avatarUrl) {
+      let personalityAvatarUrl = null;
+
+      // DDD personalities have avatarUrl in profile.avatarUrl
+      if (personality && personality.profile && personality.profile.avatarUrl) {
+        personalityAvatarUrl = personality.profile.avatarUrl;
+      }
+
+      if (personality && personalityAvatarUrl) {
         try {
           const localAvatarUrl = await avatarStorage.getLocalAvatarUrl(
             personality.fullName,
-            personality.avatarUrl
+            personalityAvatarUrl
           );
-          avatarUrl = localAvatarUrl || personality.avatarUrl;
+          avatarUrl = localAvatarUrl || personalityAvatarUrl;
+          logger.info(
+            `[ThreadHandler] Avatar URL for ${personality.fullName}: ${avatarUrl} (original: ${personalityAvatarUrl})`
+          );
         } catch (error) {
           logger.error(`[ThreadHandler] Failed to get local avatar URL: ${error.message}`);
-          avatarUrl = personality.avatarUrl; // Fallback to original
+          avatarUrl = personalityAvatarUrl; // Fallback to original
+          logger.info(`[ThreadHandler] Using fallback avatar URL: ${avatarUrl}`);
         }
       }
 
@@ -280,4 +310,5 @@ async function sendDirectThreadMessage(
 
 module.exports = {
   sendDirectThreadMessage,
+  setTimerFunctions,
 };

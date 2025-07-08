@@ -343,7 +343,10 @@ async function preloadPersonalityAvatar(personality, userId = null) {
     return;
   }
 
-  if (!personality.avatarUrl) {
+  // Check for avatar URL in DDD structure
+  let currentAvatarUrl = personality.profile?.avatarUrl || personality.avatarUrl;
+
+  if (!currentAvatarUrl) {
     logger.warn(
       `[AvatarManager] Cannot preload avatar: avatarUrl is not set for ${personality.fullName || 'unknown personality'}`
     );
@@ -361,9 +364,18 @@ async function preloadPersonalityAvatar(personality, userId = null) {
           logger.info(
             `[AvatarManager] Successfully fetched avatar URL with user auth (${userId ? 'user-specific' : 'default'}): ${fetchedAvatarUrl}`
           );
+          // Set in both places for compatibility during migration
+          if (personality.profile) {
+            personality.profile.avatarUrl = fetchedAvatarUrl;
+          }
           personality.avatarUrl = fetchedAvatarUrl;
+          // Update the current URL for warmup
+          currentAvatarUrl = fetchedAvatarUrl;
         } else {
           // Set a fallback avatar URL rather than simply returning
+          if (personality.profile) {
+            personality.profile.avatarUrl = null;
+          }
           personality.avatarUrl = null;
           logger.info(
             `[AvatarManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
@@ -372,11 +384,17 @@ async function preloadPersonalityAvatar(personality, userId = null) {
         }
       } catch (fetchError) {
         logger.error(`[AvatarManager] Error fetching avatar URL: ${fetchError.message}`);
+        if (personality.profile) {
+          personality.profile.avatarUrl = null;
+        }
         personality.avatarUrl = null;
         return;
       }
     } else {
       // Set a fallback avatar URL rather than simply returning
+      if (personality.profile) {
+        personality.profile.avatarUrl = null;
+      }
       personality.avatarUrl = null;
       logger.info(
         `[AvatarManager] Set null avatar URL for ${personality.fullName || 'unknown personality'}`
@@ -386,11 +404,11 @@ async function preloadPersonalityAvatar(personality, userId = null) {
   }
 
   logger.info(
-    `[AvatarManager] Pre-loading avatar for ${personality.fullName || 'unknown personality'}: ${personality.avatarUrl}`
+    `[AvatarManager] Pre-loading avatar for ${personality.fullName || 'unknown personality'}: ${currentAvatarUrl}`
   );
 
   // Try to warm up the avatar URL
-  const warmedUrl = await warmupAvatarUrl(personality.avatarUrl);
+  const warmedUrl = await warmupAvatarUrl(currentAvatarUrl);
 
   if (warmedUrl) {
     logger.info(
@@ -401,6 +419,9 @@ async function preloadPersonalityAvatar(personality, userId = null) {
       `[AvatarManager] Failed to pre-load avatar for ${personality.fullName || 'unknown personality'}`
     );
     // Set to null to prevent using an invalid URL
+    if (personality.profile) {
+      personality.profile.avatarUrl = null;
+    }
     personality.avatarUrl = null;
   }
 }
