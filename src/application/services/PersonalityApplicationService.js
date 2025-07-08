@@ -248,13 +248,17 @@ class PersonalityApplicationService {
             // Pre-download avatar if URL changed
             if (personality.profile.avatarUrl) {
               try {
-                logger.info(`[PersonalityApplicationService] Pre-downloading refreshed avatar for ${personalityName}`);
+                logger.info(
+                  `[PersonalityApplicationService] Pre-downloading refreshed avatar for ${personalityName}`
+                );
                 const localUrl = await avatarStorage.getLocalAvatarUrl(
                   personalityName,
                   personality.profile.avatarUrl
                 );
                 if (localUrl) {
-                  logger.info(`[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`);
+                  logger.info(
+                    `[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`
+                  );
                 }
               } catch (downloadError) {
                 logger.warn(
@@ -837,13 +841,17 @@ class PersonalityApplicationService {
       // Pre-download the avatar to local storage (like legacy system did)
       if (personality.profile.avatarUrl) {
         try {
-          logger.info(`[PersonalityApplicationService] Pre-downloading avatar for ${personalityName}`);
+          logger.info(
+            `[PersonalityApplicationService] Pre-downloading avatar for ${personalityName}`
+          );
           const localUrl = await avatarStorage.getLocalAvatarUrl(
             personalityName,
             personality.profile.avatarUrl
           );
           if (localUrl) {
-            logger.info(`[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`);
+            logger.info(
+              `[PersonalityApplicationService] Avatar downloaded successfully for ${personalityName}: ${localUrl}`
+            );
           }
         } catch (downloadError) {
           logger.warn(

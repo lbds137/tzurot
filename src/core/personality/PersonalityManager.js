@@ -530,7 +530,7 @@ class PersonalityManager {
       // Check if avatar needs updating using checksum comparison
       let avatarChanged = false;
       if (profileData.avatarUrl) {
-        if (profileData.avatarUrl !== personality.avatarUrl) {
+        if (profileData.avatarUrl !== personality.profile?.avatarUrl) {
           // URL changed, check if actual image changed
           try {
             const needsUpdate = await avatarStorage.needsUpdate(fullName, profileData.avatarUrl);

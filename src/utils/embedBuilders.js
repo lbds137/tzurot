@@ -332,8 +332,8 @@ function createPersonalityInfoEmbed(personality, aliases) {
     );
 
   // Add the avatar to the embed if available
-  if (personality.avatarUrl) {
-    embed.setThumbnail(personality.avatarUrl);
+  if (personality.profile?.avatarUrl) {
+    embed.setThumbnail(personality.profile.avatarUrl);
   }
 
   return embed;

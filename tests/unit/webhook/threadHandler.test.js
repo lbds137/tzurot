@@ -140,7 +140,13 @@ describe('threadHandler', () => {
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
-        { displayName: 'TestPersonality', avatarUrl: 'https://example.com/avatar.png' },
+        { 
+          displayName: 'TestPersonality', 
+          fullName: 'test-personality',
+          profile: { 
+            avatarUrl: 'https://example.com/avatar.png' 
+          }
+        },
         {},
         mockGetStandardizedUsername,
         mockCreateVirtualResult,
@@ -281,7 +287,13 @@ describe('threadHandler', () => {
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
-        { displayName: 'TestPersonality', avatarUrl: 'https://example.com/avatar.png' },
+        { 
+          displayName: 'TestPersonality', 
+          fullName: 'test-personality',
+          profile: { 
+            avatarUrl: 'https://example.com/avatar.png' 
+          }
+        },
         {},
         mockGetStandardizedUsername,
         mockCreateVirtualResult,
