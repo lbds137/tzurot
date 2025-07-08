@@ -183,30 +183,16 @@ class FeatureFlags {
   }
 }
 
-// Singleton instance
-let instance = null;
-
 /**
- * Get the feature flags instance
+ * Create a new feature flags instance
  * @param {Object} config - Optional configuration for initialization
  * @returns {FeatureFlags}
  */
-function getFeatureFlags(config) {
-  if (!instance) {
-    instance = new FeatureFlags(config);
-  }
-  return instance;
-}
-
-/**
- * Reset the feature flags instance (mainly for testing)
- */
-function resetFeatureFlags() {
-  instance = null;
+function createFeatureFlags(config) {
+  return new FeatureFlags(config);
 }
 
 module.exports = {
   FeatureFlags,
-  getFeatureFlags,
-  resetFeatureFlags,
+  createFeatureFlags,
 };

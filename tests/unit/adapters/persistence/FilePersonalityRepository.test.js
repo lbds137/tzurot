@@ -92,7 +92,10 @@ describe('FilePersonalityRepository', () => {
     mockFsPromises.rename.mockResolvedValue(undefined);
 
     // Create repository with data path
-    repository = new FilePersonalityRepository('test-data');
+    repository = new FilePersonalityRepository({
+      dataPath: 'test-data',
+      filename: 'personalities.json',
+    });
   });
 
   afterEach(() => {
@@ -289,7 +292,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load corrupt data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
 
       await expect(repository.findById(new PersonalityId('bad-data'))).rejects.toThrow(
@@ -351,7 +357,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load corrupt data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
 
       await expect(repository.findByOwner(new UserId('123456789012345678'))).rejects.toThrow(
@@ -399,7 +408,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load data with orphan
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
 
       const result = await repository.findByAlias('orphan');
@@ -424,7 +436,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load corrupt data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
 
       await expect(repository.findByAlias('bad')).rejects.toThrow(
@@ -481,7 +496,10 @@ describe('FilePersonalityRepository', () => {
 
     it('should return empty array if no personalities', async () => {
       // Create a new repository instance with empty data
-      const emptyRepository = new FilePersonalityRepository('test-data');
+      const emptyRepository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
 
       // Mock empty file content for this specific test
       mockFsPromises.readFile.mockResolvedValueOnce(
@@ -507,7 +525,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load corrupt data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
 
       await expect(repository.findAll()).rejects.toThrow('Failed to find all personalities');
@@ -702,7 +723,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       const personality = await repository.findById(new PersonalityId('test-id'));
 
@@ -727,7 +751,10 @@ describe('FilePersonalityRepository', () => {
         })
       );
       // Reinitialize to load data
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       const personality = await repository.findById(new PersonalityId('test-id'));
 
@@ -959,7 +986,10 @@ describe('FilePersonalityRepository', () => {
       };
       
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       
       const result = await repository.findByNameOrAlias('test');
@@ -975,7 +1005,10 @@ describe('FilePersonalityRepository', () => {
       mockFileData.aliases['another bot'] = 'test-personality';
       
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       
       const result = await repository.findByNameOrAlias('Another Bot');
@@ -1010,7 +1043,10 @@ describe('FilePersonalityRepository', () => {
       mockFileData.personalities['test-personality'].removed = true;
       
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       
       const result = await repository.findByNameOrAlias('test-personality');
@@ -1027,7 +1063,10 @@ describe('FilePersonalityRepository', () => {
       };
       
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify(mockFileData));
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       
       const result = await repository.findByNameOrAlias('no-profile');
@@ -1038,7 +1077,10 @@ describe('FilePersonalityRepository', () => {
 
     it('should handle empty cache gracefully', async () => {
       mockFsPromises.readFile.mockResolvedValue(JSON.stringify({ personalities: {}, aliases: {} }));
-      repository = new FilePersonalityRepository('test-data');
+      repository = new FilePersonalityRepository({
+        dataPath: 'test-data',
+        filename: 'personalities.json',
+      });
       await repository.initialize();
       
       const result = await repository.findByNameOrAlias('anything');

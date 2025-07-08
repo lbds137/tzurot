@@ -12,9 +12,17 @@ const { AIModel } = require('../../domain/ai/AIModel');
  * File-based repository for personality persistence
  */
 class FilePersonalityRepository {
-  constructor(dataPath = 'data') {
+  /**
+   * @param {Object} options
+   * @param {string} options.dataPath - Path to data directory
+   * @param {string} options.filename - Filename for personality data
+   */
+  constructor({
+    dataPath = './data',
+    filename = 'personalities.json',
+  } = {}) {
     this.dataPath = dataPath;
-    this.filePath = path.join(dataPath, 'personalities.json');
+    this.filePath = path.join(dataPath, filename);
     this._cache = {
       personalities: {},
       aliases: {},

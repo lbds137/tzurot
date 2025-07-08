@@ -18,7 +18,6 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../core/conversation');
-const { getMaxAliasWordCount } = require('../core/personality');
 const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
@@ -30,6 +29,9 @@ const { resolvePersonality } = require('../utils/aliasResolver');
  */
 async function getMaxAliasWordCountAsync() {
   const bootstrap = getApplicationBootstrap();
+  if (!bootstrap.initialized) {
+    throw new Error('ApplicationBootstrap not initialized - system is starting up');
+  }
   const router = bootstrap.getPersonalityRouter();
   return await router.getMaxAliasWordCount();
 }
