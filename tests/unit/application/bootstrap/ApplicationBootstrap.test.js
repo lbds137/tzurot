@@ -66,7 +66,7 @@ const {
   EventHandlerRegistry,
 } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
 const { getFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-const { getPersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
+const { PersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
 const {
   getCommandIntegration,
 } = require('../../../../src/application/commands/CommandIntegration');
@@ -101,11 +101,11 @@ describe('ApplicationBootstrap', () => {
     };
     getFeatureFlags.mockReturnValue(mockFeatureFlags);
 
-    // Mock router
+    // Mock router constructor
     mockPersonalityRouter = {
       personalityService: null,
     };
-    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+    PersonalityRouter.mockImplementation(() => mockPersonalityRouter);
 
     // Mock command integration
     mockCommandIntegration = {

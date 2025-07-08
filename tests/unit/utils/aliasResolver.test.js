@@ -4,7 +4,7 @@
 
 // Mock dependencies before imports
 jest.mock('../../../src/logger');
-jest.mock('../../../src/application/routers/PersonalityRouter');
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
 
 const {
   resolvePersonality,
@@ -15,10 +15,11 @@ const {
 } = require('../../../src/utils/aliasResolver');
 
 const logger = require('../../../src/logger');
-const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('aliasResolver', () => {
   let mockPersonalityRouter;
+  let mockBootstrap;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -27,12 +28,20 @@ describe('aliasResolver', () => {
     mockPersonalityRouter = {
       getPersonality: jest.fn(),
     };
-    getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
+
+    // Setup bootstrap mock
+    mockBootstrap = {
+      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    };
+    getApplicationBootstrap.mockReturnValue(mockBootstrap);
   });
 
   describe('resolvePersonality', () => {
     const mockPersonality = {
-      fullName: 'Test Personality',
+      profile: {
+        name: 'Test Personality',
+      },
+      name: 'Test Personality', // Fallback for compatibility
       aliases: ['test', 'testy'],
     };
 
@@ -166,7 +175,10 @@ describe('aliasResolver', () => {
 
     it('should return full name when personality exists', async () => {
       mockPersonalityRouter.getPersonality.mockResolvedValue({
-        fullName: 'Test Personality Full Name',
+        profile: {
+          name: 'Test Personality Full Name',
+        },
+        name: 'Test Personality Full Name', // Fallback
       });
 
       const result = await getFullName('test');
@@ -244,7 +256,7 @@ describe('aliasResolver', () => {
 
       const result = await resolvePersonality('test');
       
-      expect(getPersonalityRouter).toHaveBeenCalled();
+      expect(mockBootstrap.getPersonalityRouter).toHaveBeenCalled();
       expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
     });
