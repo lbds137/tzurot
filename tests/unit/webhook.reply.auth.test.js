@@ -1,15 +1,15 @@
 const webhookManager = require('../../src/webhookManager');
 const aiService = require('../../src/aiService');
 const conversationManager = require('../../src/core/conversation');
-const auth = require('../../src/auth');
 
 // Mock dependencies
 jest.mock('../../src/webhookManager');
 jest.mock('../../src/aiService');
 jest.mock('../../src/core/conversation');
-jest.mock('../../src/auth');
 
 describe('Webhook Reply Authentication', () => {
+  let mockAuthManager;
+
   // Spy on logging
   const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   const consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
@@ -19,15 +19,20 @@ describe('Webhook Reply Authentication', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // Create mock AuthManager
+    mockAuthManager = {
+      hasValidToken: jest.fn(),
+      isNsfwVerified: jest.fn(),
+      validateUserAuth: jest.fn(),
+    };
+
     // Mock getPersonalityFromMessage
     conversationManager.getPersonalityFromMessage.mockReturnValue('test-personality');
 
     // Mock getAiResponse
     aiService.getAiResponse.mockResolvedValue('AI response');
 
-    // Mock auth functions
-    auth.hasValidToken.mockImplementation(userId => userId === '9999');
-    auth.getUserToken.mockImplementation(userId => (userId === '9999' ? 'valid-token-9999' : null));
+    // Auth functions are now handled within aiService, so no need to mock them separately
 
     // Mock webhook message sending
     webhookManager.sendWebhookMessage.mockResolvedValue({
@@ -143,7 +148,7 @@ describe('Webhook Reply Authentication', () => {
 
     // Test user 1's auth token lookup
     // We need to simulate the behavior of aiService.getAiClientForUser here
-    await auth.hasValidToken(mockMessageUser1.author.id);
+    await mockAuthManager.hasValidToken(mockMessageUser1.author.id);
     await aiService.getAiResponse(mockPersonality.fullName, mockMessageUser1.content, {
       userId: mockMessageUser1.author.id,
       channelId: mockMessageUser1.channel.id,
@@ -159,15 +164,15 @@ describe('Webhook Reply Authentication', () => {
       })
     );
 
-    // Verify auth.hasValidToken was called with the first user's ID
-    expect(auth.hasValidToken).toHaveBeenCalledWith('9999');
+    // Verify mockAuthManager.hasValidToken was called with the first user's ID
+    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('9999');
 
     // Reset mocks
     jest.clearAllMocks();
 
     // Test user 2's auth token lookup
     // We need to simulate the behavior of aiService.getAiClientForUser here
-    await auth.hasValidToken(mockMessageUser2.author.id);
+    await mockAuthManager.hasValidToken(mockMessageUser2.author.id);
     await aiService.getAiResponse(mockPersonality.fullName, mockMessageUser2.content, {
       userId: mockMessageUser2.author.id,
       channelId: mockMessageUser2.channel.id,
@@ -183,7 +188,7 @@ describe('Webhook Reply Authentication', () => {
       })
     );
 
-    // Verify auth.hasValidToken was called with the second user's ID
-    expect(auth.hasValidToken).toHaveBeenCalledWith('8888');
+    // Verify mockAuthManager.hasValidToken was called with the second user's ID
+    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('8888');
   });
 });

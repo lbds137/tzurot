@@ -36,14 +36,10 @@ function createExecutor(dependencies = {}) {
         conversationManager = require('../../../core/conversation'),
         messageTracker = require('../../../messageTracker').messageTracker,
         nsfwVerificationManager,
+        authManager,
       } = dependencies;
       
-      // Get auth manager and ensure it's initialized
-      const auth = require('../../../auth');
-      await auth.initAuth(); // Ensure auth is initialized
-      const authManager = auth.getAuthManager();
-      
-      // Get NSFW verification manager - prefer injected dependency, then try auth manager
+      // Get NSFW verification manager from auth manager
       const effectiveNsfwManager = nsfwVerificationManager || 
         (authManager?.nsfwVerificationManager || null);
 

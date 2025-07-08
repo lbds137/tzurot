@@ -7,7 +7,6 @@
 
 const { getProfileInfoEndpoint } = require('../../../config');
 const logger = require('../../logger');
-const auth = require('../../auth');
 const ProfileInfoCache = require('./ProfileInfoCache');
 const ProfileInfoClient = require('./ProfileInfoClient');
 const RateLimiter = require('../../utils/rateLimiter');
@@ -16,6 +15,7 @@ class ProfileInfoFetcher {
   constructor(options = {}) {
     this.cache = new ProfileInfoCache(options.cache);
     this.client = new ProfileInfoClient(options.client);
+    this.authManager = options.authManager || null;
 
     // If rateLimiter options are provided, create a new instance with those options
     if (options.rateLimiter && !(options.rateLimiter instanceof RateLimiter)) {
@@ -127,10 +127,10 @@ class ProfileInfoFetcher {
 
     // Build headers
     const headers = {};
-    if (userId && auth.hasValidToken(userId)) {
-      const userToken = auth.getUserToken(userId);
+    if (userId && this.authManager && this.authManager.hasValidToken(userId)) {
+      const userToken = this.authManager.getUserToken(userId);
       logger.debug(`${this.logPrefix} Using user-specific auth token for user ${userId}`);
-      headers['X-App-ID'] = auth.APP_ID;
+      headers['X-App-ID'] = this.authManager.APP_ID;
       headers['X-User-Auth'] = userToken;
     }
 

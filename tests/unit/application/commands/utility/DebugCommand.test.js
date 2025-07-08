@@ -291,7 +291,7 @@ describe('DebugCommand', () => {
 
   describe('clearauth subcommand', () => {
     it('should clean up authentication tokens', async () => {
-      const auth = require('../../../../../src/auth');
+      // Auth module removed - using injected authManager
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);
@@ -312,7 +312,7 @@ describe('DebugCommand', () => {
     });
 
     it('should handle auth cleanup errors', async () => {
-      const auth = require('../../../../../src/auth');
+      // Auth module removed - using injected authManager
       auth.getAuthManager().cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
       mockContext.args = ['clearauth'];
 

@@ -9,7 +9,6 @@ const logger = require('../logger');
 
 // Lazy-loaded dependencies
 let authManager = null;
-let authModule = null;
 
 /**
  * Get the auth manager instance
@@ -17,21 +16,22 @@ let authModule = null;
  */
 function getAuthManager() {
   if (!authManager) {
-    if (!authModule) {
-      authModule = require('../auth');
-    }
-    authManager = authModule.getAuthManager();
+    throw new Error('Auth manager not initialized. Call initAiClient() with authManager first.');
   }
   return authManager;
 }
 
 /**
  * Initialize the default AI client
+ * @param {Object} authManagerInstance - The auth manager instance
  * @returns {Promise<void>}
  */
-async function initAI() {
-  // This is now handled by the auth system initialization
-  logger.info('[AIAuth] AI client initialization is now handled by auth system');
+async function initAI(authManagerInstance) {
+  if (!authManagerInstance) {
+    throw new Error('Auth manager instance is required');
+  }
+  authManager = authManagerInstance;
+  logger.info('[AIAuth] AI client initialized with auth manager');
 }
 
 /**

@@ -13,10 +13,18 @@ const urlValidator = require('./utils/urlValidator');
 
 // Create factory function for dependency injection
 let fetcher = null;
+let authManager = null;
+
+function initialize(authManagerInstance) {
+  authManager = authManagerInstance;
+  // Reset fetcher to create new instance with authManager
+  fetcher = null;
+  logger.info('[ProfileInfoFetcher] Initialized with auth manager');
+}
 
 function getFetcher() {
   if (!fetcher) {
-    fetcher = new ProfileInfoFetcher();
+    fetcher = new ProfileInfoFetcher({ authManager });
   }
   return fetcher;
 }
@@ -164,6 +172,7 @@ function deleteFromCache(profileName) {
 
 // Export the module
 module.exports = {
+  initialize,
   fetchProfileInfo,
   getProfileAvatarUrl,
   getProfileDisplayName,

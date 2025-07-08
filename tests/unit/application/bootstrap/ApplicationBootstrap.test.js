@@ -22,7 +22,6 @@ jest.mock('../../../../src/profileInfoFetcher');
 jest.mock('../../../../src/messageTracker');
 jest.mock('../../../../src/core/conversation');
 jest.mock('../../../../config');
-jest.mock('../../../../src/auth');
 jest.mock('../../../../src/utils/webhookUserTracker');
 jest.mock('../../../../src/utils/channelUtils');
 jest.mock('../../../../src/core/personality/PersonalityManager');
@@ -282,7 +281,7 @@ describe('ApplicationBootstrap', () => {
         messageTracker: expect.any(Object),
         featureFlags: mockFeatureFlags,
         botPrefix: expect.any(String),
-        auth: expect.any(Object),
+        authManager: null, // AuthManager is now injected from outside
         webhookUserTracker: expect.any(Object),
         channelUtils: expect.any(Object),
         authenticationRepository: expect.any(Object),

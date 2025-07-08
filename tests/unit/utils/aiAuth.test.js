@@ -23,7 +23,6 @@ describe('aiAuth', () => {
   const mockAppId = 'test-app-id';
   const mockUserToken = 'user-token-123';
   let aiAuth;
-  let auth;
   let mockAuthManager;
   let mockAIClient;
 
@@ -54,40 +53,39 @@ describe('aiAuth', () => {
       getAIClient: jest.fn().mockResolvedValue(mockAIClient),
     };
 
-    // Setup mocks before requiring any modules
-    jest.doMock('../../../src/auth', () => ({
-      API_KEY: mockApiKey,
-      APP_ID: mockAppId,
-      hasValidToken: jest.fn(),
-      getUserToken: jest.fn(),
-      getAuthManager: jest.fn().mockReturnValue(mockAuthManager),
-    }));
-
-    // Now require the modules after mocks are set up
-    auth = require('../../../src/auth');
-
     // Require the module under test
     aiAuth = require('../../../src/utils/aiAuth');
+    
+    // Initialize aiAuth with mockAuthManager
+    aiAuth.initAiClient(mockAuthManager);
   });
 
   describe('initAI', () => {
-    it('should log that initialization is handled by auth system', async () => {
+    it('should initialize with auth manager', async () => {
       const logger = require('../../../src/logger');
+      
+      // Reset modules to test initialization
+      jest.resetModules();
+      const freshAiAuth = require('../../../src/utils/aiAuth');
 
-      await aiAuth.initAI();
+      await freshAiAuth.initAI(mockAuthManager);
 
       expect(logger.info).toHaveBeenCalledWith(
-        '[AIAuth] AI client initialization is now handled by auth system'
+        '[AIAuth] AI client initialized with auth manager'
       );
     });
 
     it('should support legacy initAiClient alias', async () => {
       const logger = require('../../../src/logger');
+      
+      // Reset modules to test initialization
+      jest.resetModules();
+      const freshAiAuth = require('../../../src/utils/aiAuth');
 
-      await aiAuth.initAiClient();
+      await freshAiAuth.initAiClient(mockAuthManager);
 
       expect(logger.info).toHaveBeenCalledWith(
-        '[AIAuth] AI client initialization is now handled by auth system'
+        '[AIAuth] AI client initialized with auth manager'
       );
     });
   });
@@ -96,29 +94,31 @@ describe('aiAuth', () => {
     it('should return the default AI client from auth manager', () => {
       const client = aiAuth.getAI();
 
-      expect(auth.getAuthManager).toHaveBeenCalled();
+      // Auth manager is now injected directly
       expect(mockAuthManager.aiClientFactory.getDefaultClient).toHaveBeenCalled();
       expect(client).toBe(mockAIClient);
     });
 
     it('should return a test client when auth manager is not available in test mode', () => {
-      // Mock auth manager not available
-      auth.getAuthManager.mockReturnValue(null);
+      // Test uninitialized state by creating fresh instance
+      jest.resetModules();
+      const freshAiAuth = require('../../../src/utils/aiAuth');
 
       // Since we removed NODE_ENV check, this should now throw
-      expect(() => aiAuth.getAI()).toThrow('Auth system not initialized. Call initAuth() first.');
+      expect(() => freshAiAuth.getAI()).toThrow('Auth manager not initialized. Call initAiClient() with authManager first.');
     });
 
     it('should throw error when auth manager is not available in non-test mode', () => {
-      // Mock auth manager not available
-      auth.getAuthManager.mockReturnValue(null);
+      // Test uninitialized state by creating fresh instance
+      jest.resetModules();
+      const freshAiAuth = require('../../../src/utils/aiAuth');
 
       // Ensure we're not in test mode
       const originalEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
 
       try {
-        expect(() => aiAuth.getAI()).toThrow('Auth system not initialized. Call initAuth() first.');
+        expect(() => freshAiAuth.getAI()).toThrow('Auth manager not initialized. Call initAiClient() with authManager first.');
       } finally {
         process.env.NODE_ENV = originalEnv;
       }
@@ -132,7 +132,7 @@ describe('aiAuth', () => {
 
       const client = await aiAuth.getAIForUser({ userId, isWebhook: false });
 
-      expect(auth.getAuthManager).toHaveBeenCalled();
+      // Auth manager is now provided during initialization
       expect(mockAuthManager.getAIClient).toHaveBeenCalledWith({ userId, isWebhook: false });
       expect(client).toBe(mockAIClient);
       expect(logger.debug).toHaveBeenCalledWith(
@@ -166,12 +166,14 @@ describe('aiAuth', () => {
       expect(client).toBe(mockAIClient);
     });
 
-    it('should return test client when auth manager not available in test mode', async () => {
-      auth.getAuthManager.mockReturnValue(null);
+    it('should throw when auth manager not initialized', async () => {
+      // Reset modules to test uninitialized state
+      jest.resetModules();
+      const freshAiAuth = require('../../../src/utils/aiAuth');
 
-      // Since we removed NODE_ENV check, this should now throw
-      await expect(aiAuth.getAIForUser({ userId: 'user123' })).rejects.toThrow(
-        'Auth system not initialized. Call initAuth() first.'
+      // Should throw when not initialized
+      await expect(freshAiAuth.getAIForUser({ userId: 'user123' })).rejects.toThrow(
+        'Auth manager not initialized. Call initAiClient() with authManager first.'
       );
     });
   });
