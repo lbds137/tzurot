@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.8] - 2025-07-08
+
+### Fixed
+- **Webhook Profile Pictures** - Fixed avatars not showing in Discord webhooks after DDD migration
+  - Added avatarStorage initialization to ApplicationBootstrap (was only in legacy PersonalityManager)
+  - Added avatar pre-downloading when registering personalities in DDD system
+  - Added avatar pre-downloading when refreshing profiles from API
+  - Ensures avatars are downloaded and served locally to bypass Discord/shapes.inc blocking
+
 ## [2.0.7] - 2025-07-08
 
 ### Fixed
