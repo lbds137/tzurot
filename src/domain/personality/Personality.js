@@ -232,6 +232,14 @@ class Personality extends AggregateRoot {
   }
 
   /**
+   * Get full name (backward compatibility)
+   * @returns {string} Full personality name
+   */
+  get fullName() {
+    return this.profile?.name || this.personalityId?.toString() || 'Unknown';
+  }
+
+  /**
    * Check if profile needs refreshing
    * @param {number} staleThresholdMs - Milliseconds before profile is stale
    * @returns {boolean} True if profile needs refresh
