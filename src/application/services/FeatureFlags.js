@@ -10,7 +10,7 @@ class FeatureFlags {
       // 'features.new-ui': false,
       // 'features.experimental-ai': false,
       // 'features.beta-commands': false,
-      
+
       // Override all flags from config
       ...config,
     };
@@ -140,11 +140,18 @@ class FeatureFlags {
     Object.keys(process.env).forEach(key => {
       if (key.startsWith(prefix)) {
         // Convert FEATURE_FLAG_FEATURES_NEW_UI to features.new-ui
-        const flagName = key
-          .substring(prefix.length)
-          .toLowerCase()
-          .replace(/_/g, '.')
-          .replace(/\./g, match => '-');
+        const envKey = key.substring(prefix.length).toLowerCase();
+        const parts = envKey.split('_');
+
+        // If we have multiple parts, treat as namespace.feature-name
+        let flagName;
+        if (parts.length >= 2) {
+          const namespace = parts[0];
+          const featureParts = parts.slice(1);
+          flagName = `${namespace}.${featureParts.join('-')}`;
+        } else {
+          flagName = envKey.replace(/_/g, '-');
+        }
 
         if (this.flags.has(flagName)) {
           const value = process.env[key].toLowerCase() === 'true';

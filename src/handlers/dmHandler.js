@@ -81,7 +81,9 @@ async function handleDmReply(message, client, authManager) {
 
     // Check NSFW verification first before processing any personality interactions
     const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
-    const isVerified = shouldBypass ? true : (authManager && authManager.isNsfwVerified(message.author.id));
+    const isVerified = shouldBypass
+      ? true
+      : authManager && authManager.isNsfwVerified(message.author.id);
 
     if (!isVerified) {
       // User is not verified, prompt them to verify first
@@ -327,7 +329,9 @@ async function handleDirectMessage(message, client, authManager) {
   const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
 
   // If we should bypass verification, treat as verified
-  const isVerified = shouldBypass ? true : (authManager && authManager.isNsfwVerified(message.author.id));
+  const isVerified = shouldBypass
+    ? true
+    : authManager && authManager.isNsfwVerified(message.author.id);
 
   if (!isVerified) {
     // User is not verified, prompt them to verify first

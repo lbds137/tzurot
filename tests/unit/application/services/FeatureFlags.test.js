@@ -36,41 +36,45 @@ describe('FeatureFlags', () => {
     it('should initialize with default flags', () => {
       const flags = featureFlags.getAllFlags();
 
-      expect(flags['ddd.personality.read']).toBe(false);
-      expect(flags['ddd.personality.write']).toBe(false);
-      expect(flags['ddd.personality.dual-write']).toBe(false);
-      expect(flags['ddd.commands.enabled']).toBe(false);
-      expect(flags['features.enhanced-context']).toBe(false);
+      // No default flags should exist since DDD migration flags were removed
+      expect(Object.keys(flags)).toHaveLength(0);
     });
 
     it('should accept config overrides', () => {
       const customFlags = new FeatureFlags({
-        'ddd.personality.read': true,
+        'features.new-ui': true,
         'features.enhanced-context': true,
       });
 
-      expect(customFlags.isEnabled('ddd.personality.read')).toBe(true);
+      expect(customFlags.isEnabled('features.new-ui')).toBe(true);
       expect(customFlags.isEnabled('features.enhanced-context')).toBe(true);
-      expect(customFlags.isEnabled('ddd.personality.write')).toBe(false);
     });
 
     it('should load from environment variables', () => {
-      process.env.FEATURE_FLAG_DDD_PERSONALITY_READ = 'true';
-      process.env.FEATURE_FLAG_DDD_PERSONALITY_WRITE = 'false';
-      process.env.FEATURE_FLAG_DDD_COMMANDS_ENABLED = 'false';
+      process.env.FEATURE_FLAG_FEATURES_NEW_UI = 'true';
+      process.env.FEATURE_FLAG_FEATURES_ENHANCED_CONTEXT = 'false';
 
-      const flags = new FeatureFlags();
+      // Create flags first, then environment variables can override them
+      const flags = new FeatureFlags({
+        'features.new-ui': false,
+        'features.enhanced-context': true,
+      });
 
-      expect(flags.isEnabled('ddd.personality.read')).toBe(true);
-      expect(flags.isEnabled('ddd.personality.write')).toBe(false);
-      expect(flags.isEnabled('ddd.commands.enabled')).toBe(false);
+      expect(flags.isEnabled('features.new-ui')).toBe(true);
+      expect(flags.isEnabled('features.enhanced-context')).toBe(false);
     });
   });
 
   describe('isEnabled', () => {
     it('should return correct flag state', () => {
-      expect(featureFlags.isEnabled('ddd.personality.dual-write')).toBe(false);
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
+      // Create flags to test with
+      const testFlags = new FeatureFlags({
+        'features.test-flag': true,
+        'features.disabled-flag': false,
+      });
+      
+      expect(testFlags.isEnabled('features.test-flag')).toBe(true);
+      expect(testFlags.isEnabled('features.disabled-flag')).toBe(false);
     });
 
     it('should warn and return false for unknown flags', () => {
@@ -87,11 +91,16 @@ describe('FeatureFlags', () => {
 
   describe('enable', () => {
     it('should enable a flag', () => {
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
+      // Create a test flag first
+      const testFlags = new FeatureFlags({
+        'features.test-flag': false,
+      });
+      
+      expect(testFlags.isEnabled('features.test-flag')).toBe(false);
 
-      featureFlags.enable('ddd.personality.read');
+      testFlags.enable('features.test-flag');
 
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(true);
+      expect(testFlags.isEnabled('features.test-flag')).toBe(true);
     });
 
     it('should throw for unknown flags', () => {
@@ -103,12 +112,15 @@ describe('FeatureFlags', () => {
 
   describe('disable', () => {
     it('should disable a flag', () => {
-      featureFlags.enable('ddd.personality.read');
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(true);
+      const testFlags = new FeatureFlags({
+        'features.test-flag': true,
+      });
+      
+      expect(testFlags.isEnabled('features.test-flag')).toBe(true);
 
-      featureFlags.disable('ddd.personality.read');
+      testFlags.disable('features.test-flag');
 
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
+      expect(testFlags.isEnabled('features.test-flag')).toBe(false);
     });
 
     it('should throw for unknown flags', () => {
@@ -120,13 +132,17 @@ describe('FeatureFlags', () => {
 
   describe('toggle', () => {
     it('should toggle a flag state', () => {
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
+      const testFlags = new FeatureFlags({
+        'features.test-flag': false,
+      });
+      
+      expect(testFlags.isEnabled('features.test-flag')).toBe(false);
 
-      featureFlags.toggle('ddd.personality.read');
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(true);
+      testFlags.toggle('features.test-flag');
+      expect(testFlags.isEnabled('features.test-flag')).toBe(true);
 
-      featureFlags.toggle('ddd.personality.read');
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
+      testFlags.toggle('features.test-flag');
+      expect(testFlags.isEnabled('features.test-flag')).toBe(false);
     });
 
     it('should throw for unknown flags', () => {
@@ -138,32 +154,37 @@ describe('FeatureFlags', () => {
 
   describe('getAllFlags', () => {
     it('should return all flags and their states', () => {
-      featureFlags.enable('ddd.personality.read');
+      const testFlags = new FeatureFlags({
+        'features.test-flag': false,
+        'features.another-flag': true,
+      });
+      
+      testFlags.enable('features.test-flag');
 
-      const flags = featureFlags.getAllFlags();
+      const flags = testFlags.getAllFlags();
 
-      expect(flags).toEqual(
-        expect.objectContaining({
-          'ddd.personality.read': true,
-          'ddd.personality.write': false,
-          'ddd.personality.dual-write': false,
-          'features.enhanced-context': false,
-        })
-      );
+      expect(flags).toEqual({
+        'features.test-flag': true,
+        'features.another-flag': true,
+      });
     });
   });
 
   describe('getFlagsByPrefix', () => {
     it('should return flags matching prefix', () => {
-      featureFlags.enable('ddd.personality.read');
-      featureFlags.enable('ddd.personality.write');
+      const testFlags = new FeatureFlags({
+        'features.ui-flag': false,
+        'features.api-flag': true,
+        'debug.logging': false,
+      });
+      
+      testFlags.enable('features.ui-flag');
 
-      const personalityFlags = featureFlags.getFlagsByPrefix('ddd.personality');
+      const featureFlags = testFlags.getFlagsByPrefix('features');
 
-      expect(personalityFlags).toEqual({
-        'ddd.personality.read': true,
-        'ddd.personality.write': true,
-        'ddd.personality.dual-write': false,
+      expect(featureFlags).toEqual({
+        'features.ui-flag': true,
+        'features.api-flag': true,
       });
     });
 
@@ -175,63 +196,87 @@ describe('FeatureFlags', () => {
 
   describe('setFlags', () => {
     it('should set multiple flags at once', () => {
-      featureFlags.setFlags({
-        'ddd.personality.read': true,
-        'ddd.personality.write': true,
-        'features.enhanced-context': true,
+      const testFlags = new FeatureFlags({
+        'features.flag1': false,
+        'features.flag2': false,
+        'features.flag3': false,
+      });
+      
+      testFlags.setFlags({
+        'features.flag1': true,
+        'features.flag2': true,
+        'features.flag3': false,
       });
 
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(true);
-      expect(featureFlags.isEnabled('ddd.personality.write')).toBe(true);
-      expect(featureFlags.isEnabled('features.enhanced-context')).toBe(true);
+      expect(testFlags.isEnabled('features.flag1')).toBe(true);
+      expect(testFlags.isEnabled('features.flag2')).toBe(true);
+      expect(testFlags.isEnabled('features.flag3')).toBe(false);
     });
 
     it('should throw for unknown flags', () => {
+      const testFlags = new FeatureFlags({
+        'features.known-flag': true,
+      });
+      
       expect(() => {
-        featureFlags.setFlags({
-          'ddd.personality.read': true,
+        testFlags.setFlags({
+          'features.known-flag': true,
           'unknown.flag': true,
         });
       }).toThrow('Unknown feature flag: unknown.flag');
     });
 
     it('should throw for non-boolean values', () => {
+      const testFlags = new FeatureFlags({
+        'features.test-flag': false,
+      });
+      
       expect(() => {
-        featureFlags.setFlags({
-          'ddd.personality.read': 'yes',
+        testFlags.setFlags({
+          'features.test-flag': 'yes',
         });
-      }).toThrow('Feature flag value must be boolean: ddd.personality.read');
+      }).toThrow('Feature flag value must be boolean: features.test-flag');
     });
   });
 
   describe('reset', () => {
     it('should reset all flags to defaults', () => {
-      featureFlags.setFlags({
-        'ddd.personality.read': true,
-        'ddd.personality.write': true,
-        'features.enhanced-context': true,
-        'ddd.personality.dual-write': true,
+      const testFlags = new FeatureFlags({
+        'features.flag1': false,
+        'features.flag2': false,
+        'features.flag3': false,
+      });
+      
+      testFlags.setFlags({
+        'features.flag1': true,
+        'features.flag2': true,
+        'features.flag3': true,
       });
 
-      featureFlags.reset();
+      testFlags.reset();
 
-      expect(featureFlags.isEnabled('ddd.personality.read')).toBe(false);
-      expect(featureFlags.isEnabled('ddd.personality.write')).toBe(false);
-      expect(featureFlags.isEnabled('features.enhanced-context')).toBe(false);
-      expect(featureFlags.isEnabled('ddd.personality.dual-write')).toBe(false);
+      expect(testFlags.isEnabled('features.flag1')).toBe(false);
+      expect(testFlags.isEnabled('features.flag2')).toBe(false);
+      expect(testFlags.isEnabled('features.flag3')).toBe(false);
     });
   });
 
   describe('createScopedChecker', () => {
     it('should create a scoped checker function', () => {
-      featureFlags.enable('ddd.personality.read');
-      featureFlags.enable('ddd.personality.write');
+      const testFlags = new FeatureFlags({
+        'features.read': false,
+        'features.write': false,
+        'features.delete': false,
+      });
+      
+      testFlags.enable('features.read');
+      testFlags.enable('features.write');
 
-      const personalityFlags = featureFlags.createScopedChecker('ddd.personality');
+      const featureChecker = testFlags.createScopedChecker('features');
 
-      expect(personalityFlags('read')).toBe(true);
-      expect(personalityFlags('write')).toBe(true);
-      expect(personalityFlags('dual-write')).toBe(false);
+      expect(featureChecker('read')).toBe(true);
+      expect(featureChecker('write')).toBe(true);
+      expect(featureChecker('delete')).toBe(false);
     });
   });
 
@@ -244,38 +289,50 @@ describe('FeatureFlags', () => {
     });
 
     it('should maintain state across getInstance calls', () => {
+      // Initialize singleton with test flags
+      resetFeatureFlags();
       const instance1 = getFeatureFlags();
-      instance1.enable('ddd.personality.read');
+      // Since singleton has no default flags, create them via config
+      instance1.flags = new Map([['features.test-flag', false]]);
+      instance1.enable('features.test-flag');
 
       const instance2 = getFeatureFlags();
-      expect(instance2.isEnabled('ddd.personality.read')).toBe(true);
+      expect(instance2.isEnabled('features.test-flag')).toBe(true);
     });
 
     it('should reset singleton with resetFeatureFlags', () => {
       const instance1 = getFeatureFlags();
-      instance1.enable('ddd.personality.read');
+      // Since singleton has no default flags, create them via config
+      instance1.flags = new Map([['features.test-flag', false]]);
+      instance1.enable('features.test-flag');
 
       resetFeatureFlags();
 
       const instance2 = getFeatureFlags();
-      expect(instance2.isEnabled('ddd.personality.read')).toBe(false);
+      expect(instance2.isEnabled('features.test-flag')).toBe(false);
       expect(instance1).not.toBe(instance2);
     });
   });
 
   describe('environment variable parsing', () => {
     it('should handle various boolean representations', () => {
-      process.env.FEATURE_FLAG_DDD_PERSONALITY_READ = 'TRUE';
-      process.env.FEATURE_FLAG_DDD_PERSONALITY_WRITE = 'True';
-      process.env.FEATURE_FLAG_DDD_AI_READ = 'false';
-      process.env.FEATURE_FLAG_DDD_AI_WRITE = 'FALSE';
+      process.env.FEATURE_FLAG_FEATURES_TEST_READ = 'TRUE';
+      process.env.FEATURE_FLAG_FEATURES_TEST_WRITE = 'True';
+      process.env.FEATURE_FLAG_FEATURES_API_READ = 'false';
+      process.env.FEATURE_FLAG_FEATURES_API_WRITE = 'FALSE';
 
-      const flags = new FeatureFlags();
+      // Create flags first, then environment variables can override them
+      const flags = new FeatureFlags({
+        'features.test-read': false,
+        'features.test-write': false,
+        'features.api-read': true,
+        'features.api-write': true,
+      });
 
-      expect(flags.isEnabled('ddd.personality.read')).toBe(true);
-      expect(flags.isEnabled('ddd.personality.write')).toBe(true);
-      expect(flags.isEnabled('ddd.ai.read')).toBe(false);
-      expect(flags.isEnabled('ddd.ai.write')).toBe(false);
+      expect(flags.isEnabled('features.test-read')).toBe(true);
+      expect(flags.isEnabled('features.test-write')).toBe(true);
+      expect(flags.isEnabled('features.api-read')).toBe(false);
+      expect(flags.isEnabled('features.api-write')).toBe(false);
     });
 
     it('should ignore non-matching environment variables', () => {

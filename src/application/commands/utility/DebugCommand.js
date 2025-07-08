@@ -19,7 +19,7 @@ function createExecutor(dependencies = {}) {
       // Check for admin permissions or bot owner
       const { USER_CONFIG } = require('../../../constants');
       const isBotOwner = context.userId === USER_CONFIG.OWNER_ID;
-      
+
       if (!context.isAdmin && !isBotOwner) {
         const errorEmbed = {
           title: '❌ Access Denied',
@@ -38,10 +38,10 @@ function createExecutor(dependencies = {}) {
         nsfwVerificationManager,
         authManager,
       } = dependencies;
-      
+
       // Get NSFW verification manager from auth manager
-      const effectiveNsfwManager = nsfwVerificationManager || 
-        (authManager?.nsfwVerificationManager || null);
+      const effectiveNsfwManager =
+        nsfwVerificationManager || authManager?.nsfwVerificationManager || null;
 
       // Get subcommand from args or options
       const subcommand = context.options.subcommand || context.args[0]?.toLowerCase();
@@ -154,7 +154,7 @@ async function unverify(context, nsfwVerificationManager) {
     await context.respond({ embeds: [errorEmbed] });
     return;
   }
-  
+
   const cleared = nsfwVerificationManager.clearVerification(context.userId);
 
   if (cleared) {

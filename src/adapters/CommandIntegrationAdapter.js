@@ -66,18 +66,14 @@ class CommandIntegrationAdapter {
       // Check if this command exists
       const hasCommand = this.commandIntegration.hasCommand(commandName);
       if (!hasCommand) {
-        logger.debug(
-          `[CommandIntegrationAdapter] Command "${commandName}" not found`
-        );
+        logger.debug(`[CommandIntegrationAdapter] Command "${commandName}" not found`);
         return {
           success: false,
           error: `Unknown command: ${commandName}`,
         };
       }
 
-      logger.info(
-        `[CommandIntegrationAdapter] Processing command "${commandName}"`
-      );
+      logger.info(`[CommandIntegrationAdapter] Processing command "${commandName}"`);
 
       // Use the Discord text command handler
       const result = await this.commandIntegration.handleDiscordTextCommand(

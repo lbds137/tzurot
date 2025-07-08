@@ -4,9 +4,7 @@
 
 // Mock dependencies before imports
 jest.mock('../../../src/logger');
-jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/application/routers/PersonalityRouter');
-jest.mock('../../../src/core/personality');
 
 const {
   resolvePersonality,
@@ -17,34 +15,19 @@ const {
 } = require('../../../src/utils/aliasResolver');
 
 const logger = require('../../../src/logger');
-const { getFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { getPersonalityRouter } = require('../../../src/application/routers/PersonalityRouter');
-const {
-  getPersonality: getLegacyPersonality,
-  getPersonalityByAlias: getLegacyPersonalityByAlias,
-} = require('../../../src/core/personality');
 
 describe('aliasResolver', () => {
-  let mockFeatureFlags;
   let mockPersonalityRouter;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Default mock setup
-    mockFeatureFlags = {
-      isEnabled: jest.fn().mockReturnValue(false),
-    };
-    getFeatureFlags.mockReturnValue(mockFeatureFlags);
-
+    // Setup personality router mock
     mockPersonalityRouter = {
       getPersonality: jest.fn(),
     };
     getPersonalityRouter.mockReturnValue(mockPersonalityRouter);
-
-    // Setup legacy mocks
-    getLegacyPersonality.mockResolvedValue(null);
-    getLegacyPersonalityByAlias.mockResolvedValue(null);
   });
 
   describe('resolvePersonality', () => {
@@ -63,116 +46,48 @@ describe('aliasResolver', () => {
       expect(await resolvePersonality([])).toBeNull();
     });
 
-    describe('with DDD system enabled', () => {
-      beforeEach(() => {
-        mockFeatureFlags.isEnabled.mockReturnValue(true);
-      });
+    it('should resolve personality via personality router', async () => {
+      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
 
-      it('should resolve personality via DDD system', async () => {
-        mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+      const result = await resolvePersonality('test');
 
-        const result = await resolvePersonality('test');
-
-        expect(mockFeatureFlags.isEnabled).toHaveBeenCalledWith('ddd.personality.read');
-        expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
-        expect(result).toBe(mockPersonality);
-        expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "test"');
-        expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality via DDD: Test Personality');
-      });
-
-      it('should trim input before resolving', async () => {
-        mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
-
-        const result = await resolvePersonality('  test  ');
-
-        expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
-        expect(result).toBe(mockPersonality);
-      });
-
-      it('should return null when personality not found in DDD', async () => {
-        mockPersonalityRouter.getPersonality.mockResolvedValue(null);
-
-        const result = await resolvePersonality('unknown');
-
-        expect(result).toBeNull();
-        expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "unknown"');
-        expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining('Found personality'));
-      });
-
-      it('should not use legacy system when DDD is enabled', async () => {
-        mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
-
-        await resolvePersonality('test');
-
-        expect(getLegacyPersonality).not.toHaveBeenCalled();
-        expect(getLegacyPersonalityByAlias).not.toHaveBeenCalled();
-      });
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
+      expect(result).toBe(mockPersonality);
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "test"');
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality: Test Personality');
     });
 
-    describe('with legacy system', () => {
-      beforeEach(() => {
-        mockFeatureFlags.isEnabled.mockReturnValue(false);
-      });
+    it('should trim input before resolving', async () => {
+      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
 
-      it('should resolve personality by name first', async () => {
-        getLegacyPersonality.mockResolvedValue(mockPersonality);
+      const result = await resolvePersonality('  test  ');
 
-        const result = await resolvePersonality('test');
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
+      expect(result).toBe(mockPersonality);
+    });
 
-        expect(getLegacyPersonality).toHaveBeenCalledWith('test');
-        expect(getLegacyPersonalityByAlias).not.toHaveBeenCalled();
-        expect(result).toBe(mockPersonality);
-        expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality via legacy: Test Personality');
-      });
+    it('should return null when personality not found', async () => {
+      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
 
-      it('should fallback to alias lookup if name not found', async () => {
-        getLegacyPersonality.mockResolvedValue(null);
-        getLegacyPersonalityByAlias.mockResolvedValue(mockPersonality);
+      const result = await resolvePersonality('unknown');
 
-        const result = await resolvePersonality('testy');
-
-        expect(getLegacyPersonality).toHaveBeenCalledWith('testy');
-        expect(getLegacyPersonalityByAlias).toHaveBeenCalledWith('testy');
-        expect(result).toBe(mockPersonality);
-        expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality via legacy: Test Personality');
-      });
-
-      it('should return null when not found in either name or alias', async () => {
-        getLegacyPersonality.mockResolvedValue(null);
-        getLegacyPersonalityByAlias.mockResolvedValue(null);
-
-        const result = await resolvePersonality('unknown');
-
-        expect(result).toBeNull();
-        expect(getLegacyPersonality).toHaveBeenCalledWith('unknown');
-        expect(getLegacyPersonalityByAlias).toHaveBeenCalledWith('unknown');
-      });
-
-      it('should trim input for legacy system', async () => {
-        getLegacyPersonality.mockResolvedValue(mockPersonality);
-
-        await resolvePersonality('  test  ');
-
-        expect(getLegacyPersonality).toHaveBeenCalledWith('test');
-      });
+      expect(result).toBeNull();
+      expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "unknown"');
+      expect(logger.debug).not.toHaveBeenCalledWith(expect.stringContaining('Found personality'));
     });
 
     it('should handle errors gracefully', async () => {
-      mockFeatureFlags.isEnabled.mockImplementation(() => {
-        throw new Error('Feature flag error');
+      mockPersonalityRouter.getPersonality.mockImplementation(() => {
+        throw new Error('Router error');
       });
 
-      await expect(resolvePersonality('test')).rejects.toThrow('Feature flag error');
+      await expect(resolvePersonality('test')).rejects.toThrow('Router error');
     });
   });
 
   describe('resolveMultiplePersonalities', () => {
     const mockPersonality1 = { fullName: 'Personality 1' };
     const mockPersonality2 = { fullName: 'Personality 2' };
-
-    beforeEach(() => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-    });
 
     it('should resolve multiple personalities', async () => {
       mockPersonalityRouter.getPersonality
@@ -223,9 +138,6 @@ describe('aliasResolver', () => {
   });
 
   describe('personalityExists', () => {
-    beforeEach(() => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-    });
 
     it('should return true when personality exists', async () => {
       mockPersonalityRouter.getPersonality.mockResolvedValue({ fullName: 'Test' });
@@ -251,9 +163,6 @@ describe('aliasResolver', () => {
   });
 
   describe('getFullName', () => {
-    beforeEach(() => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-    });
 
     it('should return full name when personality exists', async () => {
       mockPersonalityRouter.getPersonality.mockResolvedValue({
@@ -280,9 +189,6 @@ describe('aliasResolver', () => {
   });
 
   describe('getAliases', () => {
-    beforeEach(() => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-    });
 
     it('should return aliases when personality exists', async () => {
       mockPersonalityRouter.getPersonality.mockResolvedValue({
@@ -331,30 +237,25 @@ describe('aliasResolver', () => {
     });
   });
 
-  describe('feature flag transitions', () => {
-    it('should switch between DDD and legacy based on feature flag', async () => {
-      const mockPersonality = { fullName: 'Test' };
-
-      // Start with DDD disabled
-      mockFeatureFlags.isEnabled.mockReturnValue(false);
-      getLegacyPersonality.mockResolvedValue(mockPersonality);
-
-      let result = await resolvePersonality('test');
-      expect(getLegacyPersonality).toHaveBeenCalledWith('test');
-      expect(mockPersonalityRouter.getPersonality).not.toHaveBeenCalled();
-      expect(result).toBe(mockPersonality);
-
-      // Clear mocks
-      jest.clearAllMocks();
-
-      // Enable DDD
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
+  describe('integration with personality router', () => {
+    it('should use the personality router consistently', async () => {
+      const mockPersonality = { fullName: 'Test Personality' };
       mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
 
-      result = await resolvePersonality('test');
+      const result = await resolvePersonality('test');
+      
+      expect(getPersonalityRouter).toHaveBeenCalled();
       expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
-      expect(getLegacyPersonality).not.toHaveBeenCalled();
       expect(result).toBe(mockPersonality);
+    });
+
+    it('should handle router returning null', async () => {
+      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+
+      const result = await resolvePersonality('nonexistent');
+      
+      expect(result).toBeNull();
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('nonexistent');
     });
   });
 });

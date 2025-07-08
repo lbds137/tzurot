@@ -60,7 +60,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
       ],
       timestamp: new Date().toISOString(),
     };
-    
+
     if (context.respondWithEmbed) {
       await context.respondWithEmbed(errorEmbed);
     } else {
@@ -77,7 +77,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
-    
+
     if (context.respondWithEmbed) {
       await context.respondWithEmbed(permissionEmbed);
     } else {
@@ -149,7 +149,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
   if (specificHelp) {
     // Parse the specific help to create additional fields
     const sections = specificHelp.split('\n\n').filter(s => s.trim());
-    
+
     for (const section of sections) {
       if (section.startsWith('**') && section.includes(':**')) {
         // Extract title and content
@@ -157,7 +157,7 @@ async function showCommandHelp(context, commandName, commandRegistry, botPrefix)
         if (titleMatch) {
           const title = titleMatch[1];
           const content = section.replace(titleMatch[0], '').trim();
-          
+
           helpEmbed.fields.push({
             name: title,
             value: content || 'No additional information',
