@@ -3,6 +3,7 @@ jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/media/mediaHandler');
 jest.mock('../../../src/utils/messageDeduplication');
 jest.mock('../../../src/utils/messageFormatter');
+jest.mock('../../../src/utils/avatarStorage');
 jest.mock('../../../config', () => ({
   botConfig: {
     name: 'TestWebhook',
@@ -15,6 +16,7 @@ const logger = require('../../../src/logger');
 const { processMediaForWebhook } = require('../../../src/utils/media/mediaHandler');
 const { isDuplicateMessage } = require('../../../src/utils/messageDeduplication');
 const { splitMessage } = require('../../../src/utils/messageFormatter');
+const avatarStorage = require('../../../src/utils/avatarStorage');
 const { sendDirectThreadMessage } = require('../../../src/webhook/threadHandler');
 
 describe('threadHandler', () => {
@@ -97,6 +99,12 @@ describe('threadHandler', () => {
 
     // Mock isDuplicateMessage - default to false
     isDuplicateMessage.mockReturnValue(false);
+
+    // Mock avatarStorage
+    avatarStorage.getLocalAvatarUrl.mockImplementation(async (personalityName, avatarUrl) => {
+      // Return the same URL for simplicity in tests
+      return avatarUrl;
+    });
   });
 
   afterEach(() => {
