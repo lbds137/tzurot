@@ -142,19 +142,36 @@ function createConfigCommand() {
         const booleanValue = ['off', 'false', 'disable'].includes(value.toLowerCase());
 
         try {
-          // Get the personality to verify ownership and existence
-          const personality = await personalityService.getPersonalityByNameOrAlias(
-            personalityNameOrAlias,
-            context.userId
-          );
+          // Get the personality to verify existence
+          const personality = await personalityService.getPersonality(personalityNameOrAlias);
 
           if (!personality) {
             const errorEmbed = {
               title: 'Personality Not Found',
-              description: `Could not find a personality named "${personalityNameOrAlias}" that you own.`,
+              description: `Could not find a personality named "${personalityNameOrAlias}".`,
               color: 0xff5722, // Red color
               footer: {
-                text: 'Use "!tz list" to see your personalities.',
+                text: 'Use "!tz list" to see available personalities.',
+              },
+            };
+
+            await context.reply({ embeds: [errorEmbed] });
+            return;
+          }
+
+          // Check if user has permission to modify this personality
+          const hasPermission = await personalityService.checkPermission({
+            userId: context.userId,
+            personalityName: personalityNameOrAlias,
+          });
+
+          if (!hasPermission) {
+            const errorEmbed = {
+              title: 'Permission Denied',
+              description: `You don't have permission to configure "${personalityNameOrAlias}".`,
+              color: 0xff5722, // Red color
+              footer: {
+                text: 'You can only configure personalities you own.',
               },
             };
 

@@ -7,6 +7,7 @@ This CLAUDE.md file provides guidance for working with utility functions in Tzur
 ### Core Utilities
 - **channelUtils.js** - Discord channel type detection and utilities
 - **contentSimilarity.js** - Text similarity calculation for deduplication
+- **contextMetadataFormatter.js** - Discord context metadata formatting for AI messages
 - **embedBuilders.js** - Discord embed creation helpers
 - **embedUtils.js** - Embed parsing and manipulation
 - **errorTracker.js** - Error history and tracking system
@@ -138,6 +139,62 @@ pluralkitMessageStore.markAsDeleted(messageId);
 // Find a deleted message by content (used by webhookUserTracker)
 const originalMessage = pluralkitMessageStore.findDeletedMessage(content, channelId);
 ```
+
+## Context Metadata Formatting
+
+The contextMetadataFormatter provides Discord context information for AI service messages:
+
+```javascript
+const { formatContextMetadata } = require('./contextMetadataFormatter');
+
+// Format context metadata for a Discord message
+const contextInfo = formatContextMetadata(message);
+// Returns: "[Discord: ServerName > #channel | 2024-07-10T15:30:45.000Z]"
+```
+
+### Format Examples
+
+**Guild Messages:**
+```
+[Discord: My Server > #general | 2024-07-10T15:30:45.000Z]
+```
+
+**Direct Messages:**
+```
+[Discord: Direct Messages | 2024-07-10T15:30:45.000Z]
+```
+
+**Thread Messages:**
+```
+[Discord: My Server > #general > Thread Name | 2024-07-10T15:30:45.000Z]
+```
+
+**Forum Posts:**
+```
+[Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]
+```
+
+### Individual Functions
+
+```javascript
+const { getChannelPath, formatTimestamp } = require('./contextMetadataFormatter');
+
+// Get channel path for different Discord channel types
+const channelPath = getChannelPath(message.channel);
+// Returns: "#general", "Direct Messages", "#parent > Thread Name", etc.
+
+// Format timestamp to ISO string
+const timestamp = formatTimestamp(message.createdTimestamp);
+// Returns: "2024-07-10T15:30:45.000Z"
+```
+
+### Error Handling
+
+The utility includes comprehensive error handling:
+- Invalid timestamps fall back to current time
+- Missing channel information uses "Unknown" placeholders
+- All errors are logged with appropriate context
+- Functions never throw - always return safe defaults
 
 ## When to Create New Utilities
 

@@ -14,7 +14,8 @@ describe('ConfigCommand', () => {
 
     // Mock personality service
     mockPersonalityService = {
-      getPersonalityByNameOrAlias: jest.fn(),
+      getPersonality: jest.fn(),
+      checkPermission: jest.fn(),
       updatePersonality: jest.fn(),
     };
 
@@ -85,19 +86,16 @@ describe('ConfigCommand', () => {
 
     it('should show error when personality not found', async () => {
       mockContext.args = ['nonexistent', 'context-metadata', 'off'];
-      mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(null);
+      mockPersonalityService.getPersonality.mockResolvedValue(null);
 
       await command.execute(mockContext);
 
-      expect(mockPersonalityService.getPersonalityByNameOrAlias).toHaveBeenCalledWith(
-        'nonexistent',
-        'test-user-123'
-      );
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('nonexistent');
       expect(mockContext.reply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
             title: 'Personality Not Found',
-            description: 'Could not find a personality named "nonexistent" that you own.',
+            description: 'Could not find a personality named "nonexistent".',
           }),
         ],
       });
@@ -112,15 +110,17 @@ describe('ConfigCommand', () => {
         profile: { displayName: 'Alice' },
       };
 
-      mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(mockPersonality);
+      mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.checkPermission.mockResolvedValue(true);
       mockPersonalityService.updatePersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
-      expect(mockPersonalityService.getPersonalityByNameOrAlias).toHaveBeenCalledWith(
-        'alice',
-        'test-user-123'
-      );
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('alice');
+      expect(mockPersonalityService.checkPermission).toHaveBeenCalledWith({
+        userId: 'test-user-123',
+        personalityName: 'alice',
+      });
       expect(mockPersonalityService.updatePersonality).toHaveBeenCalledWith('personality-123', {
         disableContextMetadata: true,
       });
@@ -157,11 +157,17 @@ describe('ConfigCommand', () => {
         profile: { displayName: 'Alice' },
       };
 
-      mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(mockPersonality);
+      mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.checkPermission.mockResolvedValue(true);
       mockPersonalityService.updatePersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('alice');
+      expect(mockPersonalityService.checkPermission).toHaveBeenCalledWith({
+        userId: 'test-user-123',
+        personalityName: 'alice',
+      });
       expect(mockPersonalityService.updatePersonality).toHaveBeenCalledWith('personality-123', {
         disableContextMetadata: false,
       });
@@ -197,11 +203,17 @@ describe('ConfigCommand', () => {
           profile: { displayName: 'Alice' },
         };
 
-        mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(mockPersonality);
+        mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+        mockPersonalityService.checkPermission.mockResolvedValue(true);
         mockPersonalityService.updatePersonality.mockResolvedValue(mockPersonality);
 
         await command.execute(mockContext);
 
+        expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('alice');
+        expect(mockPersonalityService.checkPermission).toHaveBeenCalledWith({
+          userId: 'test-user-123',
+          personalityName: 'alice',
+        });
         expect(mockPersonalityService.updatePersonality).toHaveBeenCalledWith('personality-123', {
           disableContextMetadata: testCase.expected,
         });
@@ -224,17 +236,48 @@ describe('ConfigCommand', () => {
         profile: { displayName: 'Alice' },
       };
 
-      mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(mockPersonality);
+      mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.checkPermission.mockResolvedValue(true);
       mockPersonalityService.updatePersonality.mockResolvedValue(mockPersonality);
 
       await command.execute(mockContext);
 
-      expect(mockPersonalityService.getPersonalityByNameOrAlias).toHaveBeenCalledWith(
-        'alice',
-        'test-user-123'
-      );
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('alice');
+      expect(mockPersonalityService.checkPermission).toHaveBeenCalledWith({
+        userId: 'test-user-123',
+        personalityName: 'alice',
+      });
       expect(mockPersonalityService.updatePersonality).toHaveBeenCalledWith('personality-123', {
         disableContextMetadata: true,
+      });
+    });
+
+    it('should show error when user lacks permission', async () => {
+      mockContext.args = ['alice', 'context-metadata', 'off'];
+
+      const mockPersonality = {
+        id: 'personality-123',
+        name: 'alice',
+        profile: { displayName: 'Alice' },
+      };
+
+      mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.checkPermission.mockResolvedValue(false);
+
+      await command.execute(mockContext);
+
+      expect(mockPersonalityService.getPersonality).toHaveBeenCalledWith('alice');
+      expect(mockPersonalityService.checkPermission).toHaveBeenCalledWith({
+        userId: 'test-user-123',
+        personalityName: 'alice',
+      });
+      expect(mockContext.reply).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: 'Permission Denied',
+            description: 'You don\'t have permission to configure "alice".',
+          }),
+        ],
       });
     });
   });
@@ -264,7 +307,8 @@ describe('ConfigCommand', () => {
         profile: { displayName: 'Alice' },
       };
 
-      mockPersonalityService.getPersonalityByNameOrAlias.mockResolvedValue(mockPersonality);
+      mockPersonalityService.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityService.checkPermission.mockResolvedValue(true);
       mockPersonalityService.updatePersonality.mockRejectedValue(new Error('Update failed'));
 
       await command.execute(mockContext);
