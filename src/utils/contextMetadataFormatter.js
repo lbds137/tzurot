@@ -6,9 +6,9 @@ const logger = require('../logger');
  */
 
 /**
- * Get the channel path for thread and forum channels
+ * Get the channel path including category hierarchy
  * @param {Object} channel - Discord channel object
- * @returns {string} - Formatted channel path (e.g., "#general > Thread Name")
+ * @returns {string} - Formatted channel path (e.g., "General > #chat" or "#general > Thread Name")
  */
 function getChannelPath(channel) {
   try {
@@ -19,18 +19,44 @@ function getChannelPath(channel) {
 
     // Handle threads (type 11 = public thread, 12 = private thread)
     if (channel.type === 11 || channel.type === 12) {
-      const parentName = channel.parent?.name || 'unknown-channel';
-      return `#${parentName} > ${channel.name}`;
+      const parentChannel = channel.parent;
+      if (!parentChannel) {
+        return `#unknown-channel > ${channel.name}`;
+      }
+      
+      // Check if the parent channel has a category
+      const categoryName = parentChannel.parent?.type === 4 ? parentChannel.parent.name : null;
+      const channelPath = categoryName 
+        ? `${categoryName} > #${parentChannel.name} > ${channel.name}`
+        : `#${parentChannel.name} > ${channel.name}`;
+      
+      return channelPath;
     }
 
     // Handle forum posts (type 15 = forum channel post)
     if (channel.type === 15) {
-      const parentName = channel.parent?.name || 'unknown-forum';
-      return `#${parentName} > ${channel.name}`;
+      const parentForum = channel.parent;
+      if (!parentForum) {
+        return `#unknown-forum > ${channel.name}`;
+      }
+      
+      // Check if the forum has a category
+      const categoryName = parentForum.parent?.type === 4 ? parentForum.parent.name : null;
+      const forumPath = categoryName
+        ? `${categoryName} > #${parentForum.name} > ${channel.name}`
+        : `#${parentForum.name} > ${channel.name}`;
+        
+      return forumPath;
     }
 
-    // Regular guild channels
-    return `#${channel.name || 'unknown-channel'}`;
+    // Regular guild channels (text, voice, etc.)
+    // Check if this channel has a category parent
+    const categoryName = channel.parent?.type === 4 ? channel.parent.name : null;
+    const channelName = channel.name || 'unknown-channel';
+    
+    return categoryName 
+      ? `${categoryName} > #${channelName}`
+      : `#${channelName}`;
   } catch (error) {
     logger.error('[ContextMetadataFormatter] Error getting channel path:', error);
     return '#unknown';

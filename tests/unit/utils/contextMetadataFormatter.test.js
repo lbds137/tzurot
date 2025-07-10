@@ -31,18 +31,48 @@ describe('contextMetadataFormatter', () => {
       expect(getChannelPath(channel)).toBe('Direct Messages');
     });
 
-    it('should format regular guild channels', () => {
+    it('should format regular guild channels without category', () => {
       const channel = { type: 0, name: 'general' };
       expect(getChannelPath(channel)).toBe('#general');
     });
 
-    it('should format public threads with parent channel', () => {
+    it('should format regular guild channels with category', () => {
+      const channel = { 
+        type: 0, 
+        name: 'general',
+        parent: { type: 4, name: 'Community' }
+      };
+      expect(getChannelPath(channel)).toBe('Community > #general');
+    });
+
+    it('should format voice channels with category', () => {
+      const channel = { 
+        type: 2, 
+        name: 'voice-chat',
+        parent: { type: 4, name: 'Voice Channels' }
+      };
+      expect(getChannelPath(channel)).toBe('Voice Channels > #voice-chat');
+    });
+
+    it('should format public threads with parent channel (no category)', () => {
       const channel = {
         type: 11,
         name: 'My Thread',
         parent: { name: 'general' }
       };
       expect(getChannelPath(channel)).toBe('#general > My Thread');
+    });
+
+    it('should format public threads with parent channel in category', () => {
+      const channel = {
+        type: 11,
+        name: 'My Thread',
+        parent: { 
+          name: 'general',
+          parent: { type: 4, name: 'Community' }
+        }
+      };
+      expect(getChannelPath(channel)).toBe('Community > #general > My Thread');
     });
 
     it('should format private threads with parent channel', () => {
@@ -54,13 +84,25 @@ describe('contextMetadataFormatter', () => {
       expect(getChannelPath(channel)).toBe('#staff > Private Thread');
     });
 
-    it('should format forum posts with parent forum', () => {
+    it('should format forum posts with parent forum (no category)', () => {
       const channel = {
         type: 15,
         name: 'Help Request',
         parent: { name: 'support' }
       };
       expect(getChannelPath(channel)).toBe('#support > Help Request');
+    });
+
+    it('should format forum posts with parent forum in category', () => {
+      const channel = {
+        type: 15,
+        name: 'Help Request',
+        parent: { 
+          name: 'support',
+          parent: { type: 4, name: 'Help Center' }
+        }
+      };
+      expect(getChannelPath(channel)).toBe('Help Center > #support > Help Request');
     });
 
     it('should handle missing parent gracefully', () => {
@@ -83,7 +125,7 @@ describe('contextMetadataFormatter', () => {
   });
 
   describe('formatContextMetadata', () => {
-    it('should format metadata for guild messages', () => {
+    it('should format metadata for guild messages without category', () => {
       const message = {
         guild: { name: 'Test Server' },
         channel: { type: 0, name: 'general' },
@@ -92,6 +134,21 @@ describe('contextMetadataFormatter', () => {
       
       const result = formatContextMetadata(message);
       expect(result).toBe('[Discord: Test Server > #general | 2024-07-10T15:30:45.000Z]');
+    });
+
+    it('should format metadata for guild messages with category', () => {
+      const message = {
+        guild: { name: 'Test Server' },
+        channel: { 
+          type: 0, 
+          name: 'general',
+          parent: { type: 4, name: 'Community' }
+        },
+        createdTimestamp: 1720625445000
+      };
+      
+      const result = formatContextMetadata(message);
+      expect(result).toBe('[Discord: Test Server > Community > #general | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should format metadata for DM messages', () => {
@@ -105,7 +162,7 @@ describe('contextMetadataFormatter', () => {
       expect(result).toBe('[Discord: Direct Messages | 2024-07-10T15:30:45.000Z]');
     });
 
-    it('should format metadata for thread messages', () => {
+    it('should format metadata for thread messages without category', () => {
       const message = {
         guild: { name: 'Cool Server' },
         channel: {
@@ -120,7 +177,25 @@ describe('contextMetadataFormatter', () => {
       expect(result).toBe('[Discord: Cool Server > #general > Discussion Thread | 2024-07-10T15:30:45.000Z]');
     });
 
-    it('should format metadata for forum posts', () => {
+    it('should format metadata for thread messages with category', () => {
+      const message = {
+        guild: { name: 'Cool Server' },
+        channel: {
+          type: 11,
+          name: 'Discussion Thread',
+          parent: { 
+            name: 'general',
+            parent: { type: 4, name: 'Community' }
+          }
+        },
+        createdTimestamp: 1720625445000
+      };
+      
+      const result = formatContextMetadata(message);
+      expect(result).toBe('[Discord: Cool Server > Community > #general > Discussion Thread | 2024-07-10T15:30:45.000Z]');
+    });
+
+    it('should format metadata for forum posts without category', () => {
       const message = {
         guild: { name: 'Help Server' },
         channel: {
@@ -133,6 +208,24 @@ describe('contextMetadataFormatter', () => {
       
       const result = formatContextMetadata(message);
       expect(result).toBe('[Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]');
+    });
+
+    it('should format metadata for forum posts with category', () => {
+      const message = {
+        guild: { name: 'Help Server' },
+        channel: {
+          type: 15,
+          name: 'How to use bot?',
+          parent: { 
+            name: 'support',
+            parent: { type: 4, name: 'Help Center' }
+          }
+        },
+        createdTimestamp: 1720625445000
+      };
+      
+      const result = formatContextMetadata(message);
+      expect(result).toBe('[Discord: Help Server > Help Center > #support > How to use bot? | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should use current time if createdTimestamp is missing', () => {

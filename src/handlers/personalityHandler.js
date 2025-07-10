@@ -600,6 +600,9 @@ async function handlePersonalityInteraction(
             // Include extracted media URLs from embeds
             imageUrl: referencedImageUrl,
             audioUrl: referencedAudioUrl,
+            // Include timestamp and channel data for context metadata
+            timestamp: referencedMessageTimestamp,
+            channel: message.channel, // Use the same channel object since replies are in same channel
           },
         };
       }

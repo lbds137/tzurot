@@ -160,7 +160,25 @@ async function formatApiMessages(
             // Fall back to the author field
             authorText = content.referencedMessage.author;
           }
-          const fullReferenceContent = `${authorText} said${mediaContext}:\n"${cleanContent}"`;
+          // Format context metadata for the referenced message if available
+          let referenceContextPrefix = '';
+          if (content.referencedMessage.timestamp && content.referencedMessage.channel && !disableContextMetadata) {
+            try {
+              // Create a temporary message object with the referenced message's timestamp and channel
+              const tempMessage = {
+                createdTimestamp: content.referencedMessage.timestamp,
+                channel: content.referencedMessage.channel,
+                guild: message?.guild // Use the current message's guild since replies are in same server
+              };
+              referenceContextPrefix = formatContextMetadata(tempMessage) + ' ';
+              logger.debug(`[AIMessageFormatter] Added context metadata to referenced message: ${referenceContextPrefix}`);
+            } catch (error) {
+              logger.error(`[AIMessageFormatter] Error formatting reference context metadata: ${error.message}`);
+              // Continue without context metadata on error
+            }
+          }
+          
+          const fullReferenceContent = `${referenceContextPrefix}${authorText} said${mediaContext}:\n"${cleanContent}"`;
 
           // For bot messages, try to get the proper display name
           let assistantReferenceContent = '';
@@ -198,10 +216,10 @@ async function formatApiMessages(
 
             if (isSamePersonality) {
               // Second-person reference when user is talking to the same personality
-              assistantReferenceContent = `You said${mediaContext}: "${cleanContent}"`;
+              assistantReferenceContent = `${referenceContextPrefix}You said${mediaContext}: "${cleanContent}"`;
             } else {
               // Third-person reference if it's a different personality
-              assistantReferenceContent = `${formattedName} said${mediaContext}: "${cleanContent}"`;
+              assistantReferenceContent = `${referenceContextPrefix}${formattedName} said${mediaContext}: "${cleanContent}"`;
             }
           }
 
