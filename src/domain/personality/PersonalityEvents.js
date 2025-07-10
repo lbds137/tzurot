@@ -29,8 +29,13 @@ class PersonalityProfileUpdated extends DomainEvent {
   constructor(aggregateId, payload) {
     super(aggregateId, payload);
 
-    if (!payload.profile || !payload.updatedAt) {
-      throw new Error('PersonalityProfileUpdated requires profile and updatedAt');
+    // Require updatedAt and at least one of: profile, configuration, or model
+    if (!payload.updatedAt) {
+      throw new Error('PersonalityProfileUpdated requires updatedAt');
+    }
+
+    if (!payload.profile && !payload.configuration && !payload.model) {
+      throw new Error('PersonalityProfileUpdated requires at least one of: profile, configuration, or model');
     }
   }
 }

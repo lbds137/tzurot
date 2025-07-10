@@ -26,9 +26,9 @@ describe('contextMetadataFormatter', () => {
   });
 
   describe('getChannelPath', () => {
-    it('should return "DMs" for DM channels', () => {
+    it('should return "Direct Messages" for DM channels', () => {
       const channel = { type: 1 };
-      expect(getChannelPath(channel)).toBe('DMs');
+      expect(getChannelPath(channel)).toBe('Direct Messages');
     });
 
     it('should format regular guild channels', () => {
@@ -91,7 +91,7 @@ describe('contextMetadataFormatter', () => {
       };
       
       const result = formatContextMetadata(message);
-      expect(result).toBe('[Test Server | #general | 2024-07-10T15:30:45.000Z]');
+      expect(result).toBe('[Discord: Test Server > #general | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should format metadata for DM messages', () => {
@@ -102,7 +102,7 @@ describe('contextMetadataFormatter', () => {
       };
       
       const result = formatContextMetadata(message);
-      expect(result).toBe('[DMs | DMs | 2024-07-10T15:30:45.000Z]');
+      expect(result).toBe('[Discord: Direct Messages | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should format metadata for thread messages', () => {
@@ -117,7 +117,7 @@ describe('contextMetadataFormatter', () => {
       };
       
       const result = formatContextMetadata(message);
-      expect(result).toBe('[Cool Server | #general > Discussion Thread | 2024-07-10T15:30:45.000Z]');
+      expect(result).toBe('[Discord: Cool Server > #general > Discussion Thread | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should format metadata for forum posts', () => {
@@ -132,7 +132,7 @@ describe('contextMetadataFormatter', () => {
       };
       
       const result = formatContextMetadata(message);
-      expect(result).toBe('[Help Server | #support > How to use bot? | 2024-07-10T15:30:45.000Z]');
+      expect(result).toBe('[Discord: Help Server > #support > How to use bot? | 2024-07-10T15:30:45.000Z]');
     });
 
     it('should use current time if createdTimestamp is missing', () => {
@@ -146,7 +146,7 @@ describe('contextMetadataFormatter', () => {
       const afterCall = Date.now();
       
       // Extract timestamp from result
-      const timestampMatch = result.match(/\[(.*?) \| (.*?) \| (.*?)\]/);
+      const timestampMatch = result.match(/\[Discord: (.*?) > (.*?) \| (.*?)\]/);
       expect(timestampMatch).toBeTruthy();
       
       const timestamp = new Date(timestampMatch[3]).getTime();
@@ -159,7 +159,7 @@ describe('contextMetadataFormatter', () => {
       const result = formatContextMetadata(message);
       
       // Should still return a valid format
-      expect(result).toMatch(/^\[Unknown \| #unknown \| \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]$/);
+      expect(result).toMatch(/^\[Discord: Unknown \| \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]$/);
     });
   });
 });

@@ -144,8 +144,18 @@ class Personality extends AggregateRoot {
       throw new Error('Cannot update removed personality');
     }
 
+    // If no configuration exists, create a default one from the profile
     if (!this.configuration) {
-      throw new Error('No configuration found for personality');
+      const { PersonalityConfiguration } = require('./PersonalityConfiguration');
+      
+      // Create default configuration from existing profile data
+      this.configuration = new PersonalityConfiguration(
+        this.profile?.name || this.personalityId.toString(),
+        this.profile?.prompt || 'You are a helpful assistant.',
+        this.model?.path || '/models/default',
+        this.profile?.maxWordCount || 1000,
+        false // Default to context metadata enabled
+      );
     }
 
     // Create updated configuration
@@ -334,8 +344,8 @@ class Personality extends AggregateRoot {
       personalityId: this.personalityId.toString(),
       ownerId: this.ownerId.toString(),
       profile: this.profile ? this.profile.toJSON() : null,
-      model: this.model ? this.model.toJSON() : null,
       configuration: this.configuration ? this.configuration.toJSON() : null,
+      model: this.model ? this.model.toJSON() : null,
       aliases: this.aliases.map(a => a.toJSON()),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,

@@ -12,9 +12,9 @@ const logger = require('../logger');
  */
 function getChannelPath(channel) {
   try {
-    // Handle DMs
+    // Handle DMs - return special indicator
     if (channel.type === 1) {
-      return 'DMs';
+      return 'Direct Messages';
     }
 
     // Handle threads (type 11 = public thread, 12 = private thread)
@@ -56,26 +56,29 @@ function formatTimestamp(timestamp) {
 /**
  * Format context metadata for a Discord message
  * @param {Object} message - Discord message object
- * @returns {string} - Formatted context string (e.g., "[Server Name | #channel | 2025-07-10T15:30:45Z]")
+ * @returns {string} - Formatted context string (e.g., "[Discord: ServerName > #channel | 2024-07-10T15:30:45Z]")
  */
 function formatContextMetadata(message) {
   try {
-    // Get server name or "DMs"
-    const serverName = message.guild?.name || 'DMs';
-    
-    // Get channel path
+    // Get channel path first to check if it's DMs
     const channelPath = getChannelPath(message.channel);
     
     // Get timestamp - use createdTimestamp (milliseconds) or fall back to current time
     const timestamp = message.createdTimestamp || Date.now();
     const formattedTime = formatTimestamp(timestamp);
     
-    // Combine into context string
-    return `[${serverName} | ${channelPath} | ${formattedTime}]`;
+    // Handle DMs differently - no server name needed
+    if (channelPath === 'Direct Messages') {
+      return `[Discord: ${channelPath} | ${formattedTime}]`;
+    }
+    
+    // For guild channels, include server name with hierarchy
+    const serverName = message.guild?.name || 'Unknown Server';
+    return `[Discord: ${serverName} > ${channelPath} | ${formattedTime}]`;
   } catch (error) {
     logger.error('[ContextMetadataFormatter] Error formatting context metadata:', error);
     // Return minimal context on error
-    return `[Unknown | #unknown | ${new Date().toISOString()}]`;
+    return `[Discord: Unknown | ${new Date().toISOString()}]`;
   }
 }
 
