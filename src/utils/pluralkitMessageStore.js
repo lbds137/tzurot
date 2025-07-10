@@ -9,6 +9,7 @@ class PluralKitMessageStore {
   constructor(options = {}) {
     this.pendingMessages = new Map();
     this.deletedMessages = new Map(); // Track deleted messages separately
+    this.deletedMessagesByChannel = new Map(); // New structure for flexible searching
     this.expirationTime = options.expirationTime || 5000; // 5 seconds - PluralKit usually processes within 1-2 seconds
 
     // Injectable timer function for testability
@@ -36,7 +37,9 @@ class PluralKitMessageStore {
       username: messageData.username,
     });
 
-    // Don't log every message since we're storing all messages now
+    logger.debug(
+      `[PluralKitStore] Stored message ${messageId} from user ${messageData.userId} with content: "${messageData.content}"`
+    );
   }
 
   /**
@@ -46,13 +49,29 @@ class PluralKitMessageStore {
   markAsDeleted(messageId) {
     const messageData = this.pendingMessages.get(messageId);
     if (messageData) {
-      // Move to deleted messages map
-      this.deletedMessages.set(`${messageData.channelId}-${messageData.content}`, {
+      // Instead of using content as the key, use a separate structure
+      // This allows us to search more flexibly
+      const deletedData = {
         ...messageData,
         deletedAt: Date.now(),
-      });
+        messageId: messageId,
+      };
+
+      // Store in a list per channel instead of by exact content
+      const channelId = messageData.channelId;
+      if (!this.deletedMessagesByChannel.has(channelId)) {
+        this.deletedMessagesByChannel.set(channelId, []);
+      }
+
+      this.deletedMessagesByChannel.get(channelId).push(deletedData);
+
+      // Also keep the old storage for backward compatibility
+      this.deletedMessages.set(`${messageData.channelId}-${messageData.content}`, deletedData);
+
       this.pendingMessages.delete(messageId);
-      logger.debug(`[PluralKitStore] Marked message ${messageId} as deleted`);
+      logger.debug(
+        `[PluralKitStore] Marked message ${messageId} as deleted with content: "${messageData.content}"`
+      );
     }
   }
 
@@ -63,20 +82,84 @@ class PluralKitMessageStore {
    * @returns {Object|null} The stored message data or null
    */
   findDeletedMessage(content, channelId) {
-    const key = `${channelId}-${content}`;
-    const messageData = this.deletedMessages.get(key);
+    logger.debug(
+      `[PluralKitStore] Looking for deleted message in channel ${channelId} with content: "${content}"`
+    );
 
-    if (messageData) {
-      const now = Date.now();
-      // Check if the deletion is recent (within 5 seconds)
-      if (now - messageData.deletedAt < this.expirationTime) {
-        logger.debug(`[PluralKitStore] Found deleted message from user ${messageData.userId}`);
-        // Remove it to prevent reuse
-        this.deletedMessages.delete(key);
-        return messageData;
+    const now = Date.now();
+
+    // First try exact match (for backward compatibility)
+    const key = `${channelId}-${content}`;
+    const exactMatch = this.deletedMessages.get(key);
+    if (exactMatch && now - exactMatch.deletedAt < this.expirationTime) {
+      logger.debug(`[PluralKitStore] Found exact match for user ${exactMatch.userId}`);
+      this.deletedMessages.delete(key);
+      
+      // Also remove from channel list to prevent reuse
+      const channelMessages = this.deletedMessagesByChannel.get(channelId);
+      if (channelMessages) {
+        const index = channelMessages.findIndex(
+          msg => msg.messageId === exactMatch.messageId && msg.content === content
+        );
+        if (index !== -1) {
+          channelMessages.splice(index, 1);
+        }
+      }
+      
+      return exactMatch;
+    }
+
+    // If no exact match, search through channel messages
+    const channelMessages = this.deletedMessagesByChannel.get(channelId);
+    if (!channelMessages || channelMessages.length === 0) {
+      logger.debug(`[PluralKitStore] No deleted messages found in channel ${channelId}`);
+      return null;
+    }
+
+    logger.debug(
+      `[PluralKitStore] Searching through ${channelMessages.length} deleted messages in channel`
+    );
+
+    // Search for messages where the webhook content might be contained in the original
+    for (let i = channelMessages.length - 1; i >= 0; i--) {
+      const msg = channelMessages[i];
+      const age = now - msg.deletedAt;
+
+      if (age >= this.expirationTime) {
+        // Remove old message
+        channelMessages.splice(i, 1);
+        continue;
+      }
+
+      // Check if the webhook content could be derived from the original message
+      // This handles cases where Pluralkit strips proxy tags
+      if (msg.content.includes(content)) {
+        logger.debug(
+          `[PluralKitStore] Found potential match: original="${msg.content}" contains webhook="${content}"`
+        );
+
+        // Additional validation: the content should be a significant part of the message
+        // This prevents false matches like "hi" matching "this is a test"
+        const contentRatio = content.length / msg.content.length;
+        if (contentRatio > 0.5) {
+          // Webhook content is at least 50% of original
+          logger.debug(
+            `[PluralKitStore] Match validated (ratio: ${contentRatio}), user: ${msg.userId}`
+          );
+          channelMessages.splice(i, 1); // Remove to prevent reuse
+
+          // Also clean up the old map
+          const oldKey = `${channelId}-${msg.content}`;
+          this.deletedMessages.delete(oldKey);
+
+          return msg;
+        } else {
+          logger.debug(`[PluralKitStore] Match rejected, content ratio too low: ${contentRatio}`);
+        }
       }
     }
 
+    logger.debug(`[PluralKitStore] No matching deleted message found`);
     return null;
   }
 
@@ -124,6 +207,20 @@ class PluralKitMessageStore {
       }
     }
 
+    // Clean up channel message lists
+    for (const [channelId, messages] of this.deletedMessagesByChannel.entries()) {
+      const originalLength = messages.length;
+      const filtered = messages.filter(msg => now - msg.deletedAt < this.expirationTime);
+      if (filtered.length < originalLength) {
+        cleanedDeleted += originalLength - filtered.length;
+        if (filtered.length === 0) {
+          this.deletedMessagesByChannel.delete(channelId);
+        } else {
+          this.deletedMessagesByChannel.set(channelId, filtered);
+        }
+      }
+    }
+
     if (cleanedPending > 0 || cleanedDeleted > 0) {
       logger.debug(
         `[PluralKitStore] Cleaned up ${cleanedPending} pending and ${cleanedDeleted} deleted messages`
@@ -148,6 +245,7 @@ class PluralKitMessageStore {
   clear() {
     this.pendingMessages.clear();
     this.deletedMessages.clear();
+    this.deletedMessagesByChannel.clear();
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;

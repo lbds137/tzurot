@@ -48,11 +48,20 @@ async function checkPersonalityAuth(message, personality) {
   }
 
   try {
+    // Get the real user ID for authentication check
+    // For Pluralkit messages, this will find the original user who sent the message
+    const webhookUserTracker = require('./webhookUserTracker');
+    const realUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
+
+    logger.debug(
+      `[PersonalityAuth] Checking auth for realUserId: ${realUserId} (message.author.id: ${message.author.id})`
+    );
+
     const result = await manager.validatePersonalityAccess({
       message,
       personality,
       channel: message.channel,
-      userId: message.author.id,
+      userId: realUserId,
     });
 
     // Convert to legacy format for backward compatibility
@@ -71,7 +80,7 @@ async function checkPersonalityAuth(message, personality) {
     // Return legacy format with all expected fields
     return {
       isAllowed: true,
-      authUserId: message.author.id,
+      authUserId: realUserId, // Use the real user ID for authentication
       authUsername: message.author.username || 'Unknown',
       isProxySystem: result.details?.proxySystem?.detected || false,
       isDM: message.channel?.isDMBased?.() || false,

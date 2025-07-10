@@ -275,6 +275,9 @@ function getRealUserId(message) {
 
     // Try to find the original user from our PluralKit message store
     // Look for a recently deleted message with the same content
+    logger.debug(
+      `[WebhookUserTracker] Searching for deleted message with content: "${message.content}" in channel ${message.channel.id}`
+    );
     const originalMessageData = pluralkitMessageStore.findDeletedMessage(
       message.content,
       message.channel.id
@@ -286,6 +289,10 @@ function getRealUserId(message) {
       // Cache this association for future use
       associateWebhookWithUser(message.webhookId, originalMessageData.userId);
       return originalMessageData.userId;
+    } else {
+      logger.warn(
+        `[WebhookUserTracker] No deleted message found matching content: "${message.content}" in channel ${message.channel.id}`
+      );
     }
 
     // For proxy systems without an associated user, we'll return a special ID that will
