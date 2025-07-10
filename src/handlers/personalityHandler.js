@@ -224,57 +224,24 @@ async function handlePersonalityInteraction(
 
             // Try to get the personality from webhook username or from our message map
             try {
-              const {
-                getApplicationBootstrap,
-              } = require('../application/bootstrap/ApplicationBootstrap');
-              const bootstrap = getApplicationBootstrap();
-              const personalityRouter = bootstrap.getPersonalityRouter();
-
               // Try to look up by message ID first
               const personalityName = await getPersonalityFromMessage(repliedToMessage.id, {
                 webhookUsername: referencedWebhookName,
               });
 
               if (personalityName) {
-                // Get display name for the personality if available
-                try {
-                  // Use the getAllPersonalities function which returns all personalities
-                  const allPersonalities = await personalityRouter.getAllPersonalities();
+                // For now, use the webhook username as display name if available,
+                // otherwise extract from the personality name
+                const displayName = referencedWebhookName || personalityName.split('-')[0];
+                
+                referencedPersonalityInfo = {
+                  name: personalityName,
+                  displayName: displayName,
+                };
 
-                  // Find the matching personality by name
-                  const personalityData = allPersonalities.find(
-                    p => p.fullName === personalityName
-                  );
-
-                  if (personalityData) {
-                    referencedPersonalityInfo = {
-                      name: personalityName,
-                      displayName: personalityData.displayName,
-                    };
-
-                    logger.info(
-                      `[PersonalityHandler] Identified referenced message as from personality: ${personalityName}`
-                    );
-                  } else {
-                    // If we can't find the personality data, just use the name
-                    referencedPersonalityInfo = {
-                      name: personalityName,
-                      displayName: personalityName.split('-')[0], // Simple extraction of first part of name
-                    };
-                    logger.info(
-                      `[PersonalityHandler] Using simple name extraction for personality: ${personalityName}`
-                    );
-                  }
-                } catch (personalityLookupError) {
-                  logger.error(
-                    `[PersonalityHandler] Error looking up personality data: ${personalityLookupError.message}`
-                  );
-                  // Still set the name even if we couldn't get full data
-                  referencedPersonalityInfo = {
-                    name: personalityName,
-                    displayName: personalityName.split('-')[0], // Simple extraction of first part of name
-                  };
-                }
+                logger.info(
+                  `[PersonalityHandler] Identified referenced message as from personality: ${personalityName}`
+                );
               }
             } catch (personalityLookupError) {
               logger.error(
@@ -309,36 +276,15 @@ async function handlePersonalityInteraction(
                 `[PersonalityHandler] Identified DM personality format message with display name: ${baseName}`
               );
 
-              // Try to find the full personality name from the display name
-              const {
-                getApplicationBootstrap,
-              } = require('../application/bootstrap/ApplicationBootstrap');
-              const bootstrap = getApplicationBootstrap();
-              const personalityRouter = bootstrap.getPersonalityRouter();
-              const allPersonalities = await personalityRouter.getAllPersonalities();
-              const matchingPersonality = allPersonalities.find(
-                p => p.displayName && p.displayName.toLowerCase() === baseName.toLowerCase()
+              // For DM messages, we can use the display name from the message prefix
+              // We don't have the full personality name, but that's okay for the AI context
+              referencedPersonalityInfo = {
+                name: baseName, // Using the display name since we don't have the full name
+                displayName: baseName,
+              };
+              logger.info(
+                `[PersonalityHandler] Using display name from DM message: ${baseName}`
               );
-
-              if (matchingPersonality) {
-                // Found the full personality data
-                referencedPersonalityInfo = {
-                  name: matchingPersonality.fullName,
-                  displayName: matchingPersonality.displayName,
-                };
-                logger.info(
-                  `[PersonalityHandler] Found full personality data for DM message: ${matchingPersonality.fullName}`
-                );
-              } else {
-                // Fallback to just using the display name
-                referencedPersonalityInfo = {
-                  name: baseName, // Using the display name since we don't have the full name
-                  displayName: baseName,
-                };
-                logger.warn(
-                  `[PersonalityHandler] Could not find full personality data for display name: ${baseName}`
-                );
-              }
             }
           }
 
