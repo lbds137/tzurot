@@ -18,23 +18,18 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../core/conversation');
-const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
 const { resolvePersonality } = require('../utils/aliasResolver');
 const pluralkitReplyTracker = require('../utils/pluralkitReplyTracker');
+const messageHandlerConfig = require('../config/MessageHandlerConfig');
 
 /**
- * Get max alias word count using DDD system
- * @returns {Promise<number>} Max alias word count
+ * Get max alias word count from configuration
+ * @returns {number} Max alias word count
  */
-async function getMaxAliasWordCountAsync() {
-  const bootstrap = getApplicationBootstrap();
-  if (!bootstrap.initialized) {
-    throw new Error('ApplicationBootstrap not initialized - system is starting up');
-  }
-  const router = bootstrap.getPersonalityRouter();
-  return await router.getMaxAliasWordCount();
+function getMaxAliasWordCount() {
+  return messageHandlerConfig.getMaxAliasWordCount();
 }
 
 /**
@@ -75,7 +70,7 @@ async function checkForPersonalityMentions(message) {
   // Check for multi-word mentions with spaces
   // Use a regex that captures up to the max alias word count but stops at natural boundaries
   // This handles mentions like "&angel dust" or even longer aliases
-  const maxWords = await getMaxAliasWordCountAsync();
+  const maxWords = getMaxAliasWordCount();
   logger.debug(`[checkForPersonalityMentions] Max alias word count: ${maxWords}`);
   const multiWordMentionRegex = new RegExp(
     `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
@@ -101,11 +96,6 @@ async function checkForPersonalityMentions(message) {
 
       for (let wordCount = maxWordsToTry; wordCount >= 1; wordCount--) {
         const potentialAlias = words.slice(0, wordCount).join(' ').trim();
-
-        // Skip single-word aliases if we already checked them in the standard mention section
-        if (wordCount === 1) {
-          continue;
-        }
 
         logger.debug(
           `[checkForPersonalityMentions] Checking multi-word alias: "${potentialAlias}"`
@@ -483,7 +473,7 @@ async function handleMentions(message, client) {
     if (message.content && message.content.includes(mentionChar)) {
       // Use the same improved regex as checkForPersonalityMentions
       // Captures up to the max alias word count but stops at natural boundaries
-      const maxWords = await getMaxAliasWordCountAsync();
+      const maxWords = getMaxAliasWordCount();
       const multiWordMentionRegex = new RegExp(
         `${escapedMentionChar}([^\\s${escapedMentionChar}\\n]+(?:\\s+[^\\s${escapedMentionChar}\\n]+){0,${maxWords - 1}})`,
         'gi'

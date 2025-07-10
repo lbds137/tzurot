@@ -24,7 +24,7 @@ jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
 jest.mock('../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../src/application/services/FeatureFlags');
 jest.mock('../../../src/utils/aliasResolver');
-jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
+jest.mock('../../../src/config/MessageHandlerConfig');
 // Import config to get the actual bot prefix
 const { botPrefix } = require('../../../config');
 
@@ -47,14 +47,13 @@ const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore'
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
 const { createFeatureFlags } = require('../../../src/application/services/FeatureFlags');
 const { resolvePersonality } = require('../../../src/utils/aliasResolver');
-const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
+const messageHandlerConfig = require('../../../src/config/MessageHandlerConfig');
 
 describe('messageHandler', () => {
   let mockClient;
   let mockMessage;
   let mockPersonality;
   let mockAuthManager;
-  let mockPersonalityRouter;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -121,6 +120,9 @@ describe('messageHandler', () => {
     isAutoResponseEnabled.mockReturnValue(undefined);
     resolvePersonality.mockResolvedValue(null); // Default to no personality found
     channelUtils.isChannelNSFW.mockReturnValue(true);
+    
+    // Mock message handler config
+    messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(5); // Default to 5 words
 
     // Mock feature flags - DDD commands are always enabled now
     createFeatureFlags.mockReturnValue({
@@ -132,15 +134,7 @@ describe('messageHandler', () => {
       processCommand: jest.fn().mockResolvedValue({ success: true }),
     });
 
-    // Mock ApplicationBootstrap with personality router
-    mockPersonalityRouter = {
-      getMaxAliasWordCount: jest.fn().mockResolvedValue(1), // Default single word
-    };
-    const mockBootstrap = {
-      initialized: true,
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
-    };
-    getApplicationBootstrap.mockReturnValue(mockBootstrap);
+    // Command integration adapter is already mocked above
   });
 
   afterEach(() => {
@@ -535,7 +529,7 @@ describe('messageHandler', () => {
       };
 
       // Set max word count to allow multi-word aliases
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(2);
 
       // Mock resolvePersonality to return for multi-word alias
       resolvePersonality.mockImplementation(async name => {
@@ -575,7 +569,7 @@ describe('messageHandler', () => {
       };
 
       // Set max word count to allow 3-word aliases
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(3);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(3);
 
       // Custom personality for this test
       const testPersonalityPrime = {
