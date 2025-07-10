@@ -4,7 +4,6 @@
 
 jest.mock('../../src/logger');
 jest.mock('../../src/core/conversation');
-jest.mock('../../src/core/personality');
 jest.mock('../../src/utils/embedUtils');
 
 const logger = require('../../src/logger');
@@ -199,14 +198,7 @@ describe('processMessageLinks - Embed Media Extraction', () => {
     const { getPersonalityFromMessage } = require('../../src/core/conversation');
     getPersonalityFromMessage.mockReturnValue('test-personality');
 
-    // Mock personalityManager to return personality data
-    const personalityManager = require('../../src/core/personality');
-    personalityManager.listPersonalitiesForUser.mockReturnValue([
-      {
-        fullName: 'test-personality',
-        displayName: 'Test Personality',
-      },
-    ]);
+    // Legacy personalityManager removed - would use DDD PersonalityRouter now
 
     mockClient = {
       user: { id: 'bot-user-id' },

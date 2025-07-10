@@ -54,9 +54,7 @@ jest.mock('../../../src/core/conversation', () => ({
   getPersonalityFromMessage: jest.fn(),
   isAutoResponseEnabled: jest.fn(),
 }));
-jest.mock('../../../src/core/personality', () => ({
-  listPersonalitiesForUser: jest.fn().mockReturnValue([]),
-}));
+// Legacy personality manager removed - using DDD system now
 
 describe('Personality Handler Module', () => {
   let mockMessage;

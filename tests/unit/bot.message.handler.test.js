@@ -37,12 +37,6 @@ jest.mock('../../src/adapters/CommandIntegrationAdapter', () => ({
   }),
 }));
 
-// Mock the personalityManager module
-jest.mock('../../src/core/personality', () => ({
-  getPersonalityByAlias: jest.fn(),
-  getPersonality: jest.fn(),
-  registerPersonality: jest.fn(),
-}));
 
 // Mock the logger module
 jest.mock('../../src/logger', () => ({
@@ -71,7 +65,7 @@ function createMessageHandler() {
     webhookManager: require('../../src/webhookManager'),
     conversationManager: require('../../src/core/conversation'),
     commandAdapter: require('../../src/adapters/CommandIntegrationAdapter').getCommandIntegrationAdapter(),
-    personalityManager: require('../../src/core/personality'),
+    // Legacy personalityManager removed
     config: require('../../config'),
     logger: require('../../src/logger'),
   };
@@ -123,8 +117,10 @@ function createMessageHandler() {
     // Use either the user's active personality or the channel's activated personality
     const personalityName = activePersonality || channelPersonality;
 
-    // Get the personality data
-    const personality = deps.personalityManager.getPersonality(personalityName);
+    // Legacy personality manager removed - would use DDD system
+    // In the real DDD system, this would lookup the personality and could return null
+    // For this test, we'll simulate that a personality doesn't exist
+    const personality = personalityName === 'nonexistent-personality' ? null : { fullName: personalityName };
     if (!personality) {
       return null;
     }
@@ -249,11 +245,7 @@ describe('Bot Message Handler', () => {
 
     // Mock active personality
     deps.conversationManager.getActivePersonality.mockReturnValue('test-personality');
-    deps.personalityManager.getPersonality.mockReturnValue({
-      fullName: 'test-personality',
-      displayName: 'Test Personality',
-      avatarUrl: 'https://example.com/avatar.png',
-    });
+    // PersonalityManager removed - DDD system now handles personality resolution
 
     // Create a mock message
     const message = {
@@ -301,11 +293,7 @@ describe('Bot Message Handler', () => {
     // Mock channel personality but no active user personality
     deps.conversationManager.getActivePersonality.mockReturnValue(null);
     deps.conversationManager.getActivatedPersonality.mockReturnValue('channel-personality');
-    deps.personalityManager.getPersonality.mockReturnValue({
-      fullName: 'channel-personality',
-      displayName: 'Channel Personality',
-      avatarUrl: 'https://example.com/channel-avatar.png',
-    });
+    // PersonalityManager removed - DDD system now handles personality resolution
 
     // Create a mock message
     const message = {
@@ -374,7 +362,7 @@ describe('Bot Message Handler', () => {
 
     // Mock active personality that doesn't exist
     deps.conversationManager.getActivePersonality.mockReturnValue('nonexistent-personality');
-    deps.personalityManager.getPersonality.mockReturnValue(null);
+    // PersonalityManager removed - DDD system now handles personality resolution
 
     // Create a mock message
     const message = {

@@ -21,9 +21,14 @@ describe('AIMessageFormatter - Pluralkit Support', () => {
       sanitizeApiText: jest.fn(text => text) // Pass through for testing
     }));
     
-    // Mock getPersonality
-    jest.doMock('../../../src/core/personality', () => ({
-      getPersonality: jest.fn()
+    // Mock aliasResolver (PersonalityManager removed - now using DDD)
+    jest.doMock('../../../src/utils/aliasResolver', () => ({
+      resolvePersonality: jest.fn()
+    }));
+    
+    // Mock context metadata formatter
+    jest.doMock('../../../src/utils/contextMetadataFormatter', () => ({
+      formatContextMetadata: jest.fn(() => '[Test Server | #test-channel | 2025-01-01T00:00:00.000Z]')
     }));
     
     aiMessageFormatter = require('../../../src/utils/aiMessageFormatter');
@@ -47,9 +52,15 @@ describe('AIMessageFormatter - Pluralkit Support', () => {
       expect(result[0].role).toBe('user');
       expect(result[0].content).toBe('Lila | System: Hello from Pluralkit!');
       
-      // Verify logging
+      // Verify logging - updated to match new format with context metadata
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Formatting proxy message - userName: "Lila | System"')
+        expect.stringContaining('Formatting message - contextPrefix: ""')
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('userName: "Lila | System"')
+      );
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('isProxyMessage: true')
       );
     });
     

@@ -6,7 +6,8 @@
 const nodeFetch = require('node-fetch');
 const logger = require('../../logger');
 const { getPersonalityJargonTerm, getPrivateProfileInfoPath } = require('../../../config');
-const { getPersonality, getPersonalityByAlias } = require('../../core/personality');
+const { resolvePersonality } = require('../../utils/aliasResolver');
+const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
 
 /**
  * API client for backup operations
@@ -84,25 +85,16 @@ class BackupAPIClient {
     logger.debug(`[BackupAPIClient] Resolving personality name for input: "${input}"`);
 
     try {
-      // First try as full name
-      const personality = await getPersonality(input);
+      // Use DDD system to resolve personality by name or alias
+      const personality = await resolvePersonality(input);
       if (personality) {
-        logger.debug(`[BackupAPIClient] Found personality by full name: ${personality.fullName}`);
+        const fullName = personality.profile?.name || personality.name;
+        const displayName = personality.profile?.displayName || fullName;
+        
+        logger.debug(`[BackupAPIClient] Found personality: ${fullName}`);
         return {
-          fullName: personality.fullName,
-          displayName: personality.displayName || personality.fullName,
-        };
-      }
-
-      // Try as alias
-      const personalityByAlias = getPersonalityByAlias(input);
-      if (personalityByAlias) {
-        logger.debug(
-          `[BackupAPIClient] Found personality by alias: ${personalityByAlias.fullName}`
-        );
-        return {
-          fullName: personalityByAlias.fullName,
-          displayName: personalityByAlias.displayName || personalityByAlias.fullName,
+          fullName: fullName,
+          displayName: displayName,
         };
       }
 

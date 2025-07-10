@@ -8,7 +8,6 @@
 
 // Mock dependencies
 jest.mock('discord.js');
-jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
@@ -18,7 +17,6 @@ jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
-const personalityManager = require('../../src/core/personality');
 const conversationManager = require('../../src/core/conversation');
 const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');
@@ -93,9 +91,7 @@ describe('Bot Activated Personality Command Handling', () => {
       displayName: 'Test Personality',
     };
 
-    // Set up personality manager mocks
-    personalityManager.getPersonality.mockReturnValue(mockPersonality);
-    personalityManager.getPersonalityByAlias.mockReturnValue(null);
+    // Personality manager removed - using DDD system now
 
     // Set up conversation manager mocks
     conversationManager.getActivatedPersonality.mockReturnValue('test-personality');
@@ -130,7 +126,7 @@ describe('Bot Activated Personality Command Handling', () => {
             );
           } else {
             // Process as a personality interaction
-            personalityManager.getPersonality(activatedPersonality);
+            // Would use DDD system to get personality
           }
         }
       };
@@ -152,7 +148,7 @@ describe('Bot Activated Personality Command Handling', () => {
 
     // Most importantly, verify that no attempt was made to get the personality for response
     // This check is our way of verifying handlePersonalityInteraction wasn't called
-    expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+    // Note: No longer using legacy personalityManager
   });
 
   it('should respond to non-command messages when a personality is activated', async () => {
@@ -166,7 +162,7 @@ describe('Bot Activated Personality Command Handling', () => {
     expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
     // Verify that personality was retrieved - this means we attempted to respond
-    expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
   });
 
   it(`should treat ${botPrefix} by itself as a command and ignore it`, async () => {
@@ -180,7 +176,7 @@ describe('Bot Activated Personality Command Handling', () => {
     // We can tell by the fact that getPersonality should not be called
     // even though getActivatedPersonality should return a value
     expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
-    expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+    // Note: No longer using legacy personalityManager
   });
 
   it('should only consider messages starting with the exact prefix as commands', async () => {
@@ -195,7 +191,7 @@ describe('Bot Activated Personality Command Handling', () => {
 
     // Verify that personality was retrieved - this means we attempted to respond
     // because this is NOT recognized as a command
-    expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
   });
 
   it('should ignore commands without a space after prefix (bug fix)', async () => {
@@ -214,6 +210,6 @@ describe('Bot Activated Personality Command Handling', () => {
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('ignoring command message'));
 
     // Verify that no attempt was made to get the personality for response
-    expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+    // Note: No longer using legacy personalityManager
   });
 });

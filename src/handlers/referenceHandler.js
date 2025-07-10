@@ -357,7 +357,6 @@ async function processMessageLinks(
                 // Try to get the personality from webhook username or from our message map
                 try {
                   const { getPersonalityFromMessage } = require('../core/conversation');
-                  const personalityManager = require('../core/personality');
 
                   // Try to look up by message ID first
                   const personalityName = await getPersonalityFromMessage(linkedMessage.id, {
@@ -365,20 +364,20 @@ async function processMessageLinks(
                   });
 
                   if (personalityName) {
-                    // Get display name for the personality if available
+                    // Get display name for the personality if available using DDD system
                     try {
-                      // Use the getAllPersonalities function to get all personalities
-                      const allPersonalities = personalityManager.getAllPersonalities();
-
-                      // Find the matching personality by name
-                      const personalityData = allPersonalities.find(
-                        p => p.fullName === personalityName
-                      );
+                      // First try to get personality directly as it could be a full name
+                      let personalityData = await getPersonality(personalityName);
+                      
+                      // If not found as direct name, try it as an alias
+                      if (!personalityData) {
+                        personalityData = await getPersonalityByAlias(personalityName);
+                      }
 
                       if (personalityData) {
                         result.referencedPersonalityInfo = {
                           name: personalityName,
-                          displayName: personalityData.displayName,
+                          displayName: personalityData.profile?.displayName || personalityData.name || personalityName,
                         };
 
                         logger.info(
