@@ -119,13 +119,13 @@ describe('PersonalityEvents', () => {
       expect(event.eventType).toBe('PersonalityProfileUpdated');
     });
 
-    it('should reject missing profile', () => {
+    it('should reject missing profile, configuration, and model', () => {
       const payload = {
         updatedAt: new Date().toISOString(),
       };
 
       expect(() => new PersonalityProfileUpdated('id', payload)).toThrow(
-        'PersonalityProfileUpdated requires profile and updatedAt'
+        'PersonalityProfileUpdated requires at least one of: profile, configuration, or model'
       );
     });
 
@@ -135,7 +135,7 @@ describe('PersonalityEvents', () => {
       };
 
       expect(() => new PersonalityProfileUpdated('id', payload)).toThrow(
-        'PersonalityProfileUpdated requires profile and updatedAt'
+        'PersonalityProfileUpdated requires updatedAt'
       );
     });
 

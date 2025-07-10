@@ -169,6 +169,11 @@ class ApplicationBootstrap {
       // Store the router instance for other components to use
       this.personalityRouter = personalityRouter;
 
+      // Set the router in aliasResolver to avoid circular dependency
+      const aliasResolver = require('../../utils/aliasResolver');
+      aliasResolver.setPersonalityRouter(personalityRouter);
+      logger.info('[ApplicationBootstrap] Set PersonalityRouter in aliasResolver');
+
       // Step 6: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
       const commandAdapter = getCommandIntegrationAdapter();
       await commandAdapter.initialize(this.applicationServices);

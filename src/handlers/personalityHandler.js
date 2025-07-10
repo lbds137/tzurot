@@ -629,8 +629,8 @@ async function handlePersonalityInteraction(
       userName: formattedUserName,
       // Flag to indicate if this is a proxy system message (PluralKit, etc)
       isProxyMessage: isWebhookMessage || false,
-      // Pass the disableContextMetadata flag if set on the personality
-      disableContextMetadata: personality.disableContextMetadata || false,
+      // Pass the disableContextMetadata flag if set on the personality configuration
+      disableContextMetadata: personality.configuration?.disableContextMetadata || false,
     });
 
     // Clear typing indicator interval
