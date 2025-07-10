@@ -22,6 +22,7 @@ const { getApplicationBootstrap } = require('../application/bootstrap/Applicatio
 const pluralkitMessageStore = require('../utils/pluralkitMessageStore').instance;
 const { getCommandIntegrationAdapter } = require('../adapters/CommandIntegrationAdapter');
 const { resolvePersonality } = require('../utils/aliasResolver');
+const pluralkitReplyTracker = require('../utils/pluralkitReplyTracker');
 
 /**
  * Get max alias word count using DDD system
@@ -241,6 +242,44 @@ async function handleMessage(message, client, authManager) {
           // This is a proxy system webhook (PluralKit, Tupperbox, etc.)
           // We should process these messages normally as they represent real users
           logger.debug(`Processing proxy system webhook message from: ${message.author.username}`);
+
+          // Check if this might be a reply that lost its reference due to Pluralkit processing
+          const pendingReply = pluralkitReplyTracker.findPendingReply(
+            message.channel.id,
+            message.content
+          );
+
+          if (pendingReply) {
+            logger.info(
+              `[MessageHandler] Found pending reply context for Pluralkit message from user ${pendingReply.userId}`
+            );
+
+            // Associate the webhook with the real user for authentication
+            webhookUserTracker.associateWebhookWithUser(message.webhookId, pendingReply.userId);
+            
+            // Mark the original message as handled to prevent duplicate processing
+            if (pendingReply.originalMessageId) {
+              // Create a minimal message object with the required properties
+              messageTrackerHandler.markMessageAsHandled({ 
+                id: pendingReply.originalMessageId,
+                channel: { id: message.channel.id }
+              });
+              logger.debug(
+                `[MessageHandler] Marked original message ${pendingReply.originalMessageId} as handled`
+              );
+            }
+
+            // Process this as a reply to the personality
+            await personalityHandler.handlePersonalityInteraction(
+              message,
+              pendingReply.personality,
+              null, // No mention trigger
+              client
+            );
+
+            return; // Message was handled as a reply
+          }
+
           // Continue processing - don't return here
         } else {
           // This is some other webhook we don't recognize
