@@ -12,6 +12,7 @@ const { createRemoveCommand } = require('./personality/RemoveCommand');
 const { createInfoCommand } = require('./personality/InfoCommand');
 const { createAliasCommand } = require('./personality/AliasCommand');
 const { createListCommand } = require('./personality/ListCommand');
+const { createConfigCommand } = require('./personality/ConfigCommand');
 const { createResetCommand } = require('./conversation/ResetCommand');
 const { createActivateCommand } = require('./conversation/ActivateCommand');
 const { createDeactivateCommand } = require('./conversation/DeactivateCommand');
@@ -86,6 +87,7 @@ class CommandIntegration {
     this.registry.register(createInfoCommand());
     this.registry.register(createAliasCommand());
     this.registry.register(createListCommand());
+    this.registry.register(createConfigCommand());
 
     // Register conversation commands
     this.registry.register(createResetCommand());
