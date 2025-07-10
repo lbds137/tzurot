@@ -12,6 +12,7 @@ const { getPersonalityFromMessage } = require('../core/conversation');
 const { parseEmbedsToText } = require('../utils/embedUtils');
 const messageTrackerHandler = require('./messageTrackerHandler');
 const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+const pluralkitReplyTracker = require('../utils/pluralkitReplyTracker');
 
 /**
  * Get personality by name using DDD system
@@ -160,6 +161,16 @@ async function handleMessageReference(message, handlePersonalityInteraction, cli
             // Process DM messages immediately
             await handlePersonalityInteraction(message, personality, null);
           } else {
+            // Track this as a pending reply for Pluralkit handling
+            pluralkitReplyTracker.trackPendingReply({
+              channelId: message.channel.id,
+              userId: message.author.id,
+              content: message.content,
+              personality: personality,
+              referencedMessageId: referencedMessage.id,
+              originalMessageId: message.id, // Track the original message ID
+            });
+
             // For server channels, implement the delay for PluralKit proxy handling
             // If client is provided, use delayed processing for PluralKit compatibility
             if (client) {

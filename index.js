@@ -112,6 +112,11 @@ async function init() {
     profileInfoFetcher.initialize(authManager);
     logger.info('Profile info fetcher initialized');
     
+    // Initialize pluralkitReplyTracker cleanup
+    const pluralkitReplyTracker = require('./src/utils/pluralkitReplyTracker');
+    pluralkitReplyTracker.startCleanup();
+    logger.info('Pluralkit reply tracker initialized');
+    
     // Initialize the AI client after auth is loaded
     initAiClient(authManager);
     logger.info('AI client initialized');
@@ -207,6 +212,15 @@ async function cleanup() {
     clearAllWebhookCaches();
   } catch (error) {
     logger.error('Error clearing webhook caches:', error);
+  }
+  
+  // Stop pluralkit reply tracker cleanup
+  try {
+    const pluralkitReplyTracker = require('./src/utils/pluralkitReplyTracker');
+    pluralkitReplyTracker.stopCleanup();
+    logger.info('Pluralkit reply tracker cleanup stopped');
+  } catch (error) {
+    logger.error('Error stopping pluralkit reply tracker:', error);
   }
   
   // Destroy client if it exists
