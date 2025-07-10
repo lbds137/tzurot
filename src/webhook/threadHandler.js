@@ -68,39 +68,17 @@ async function sendDirectThreadMessage(
   );
 
   try {
-    // First try the webhook approach with optimized thread parameters
-    // This preserves webhook aesthetics like avatar and proper username
-
-    // 1. Attempt to get or create a proper webhook for the thread's parent channel
+    // Use webhookCache to get or create webhook - this ensures consistency
+    // and prevents the webhook URL corruption issue
     logger.info(
-      `[WebhookManager] Thread optimized approach - getting parent webhook for thread ${channel.id}`
+      `[WebhookManager] Thread optimized approach - getting webhook for thread ${channel.id} via webhookCache`
     );
 
-    // Get parent channel
-    const parentChannel = channel.parent;
-    if (!parentChannel) {
-      throw new Error(`Cannot find parent channel for thread ${channel.id}`);
-    }
+    // Import webhookCache here to avoid circular dependencies
+    const webhookCache = require('../utils/webhookCache');
 
-    // Get webhooks directly from parent channel
-    const webhooks = await parentChannel.fetchWebhooks();
-
-    // Find or create our bot's webhook (webhooks is a Map)
-    let webhook = Array.from(webhooks.values()).find(wh => wh.name === config.botConfig.name);
-    if (!webhook) {
-      logger.info(`[WebhookManager] Creating new webhook in parent channel ${parentChannel.id}`);
-      webhook = await parentChannel.createWebhook({
-        name: config.botConfig.name,
-        reason: 'Needed for personality proxying in threads',
-      });
-    } else {
-      logger.info(
-        `[WebhookManager] Found existing ${config.botConfig.name} webhook in parent channel ${parentChannel.id}`
-      );
-    }
-
-    // Create webhook client from URL
-    const webhookClient = new WebhookClient({ url: webhook.url });
+    // Use the same webhook creation/caching logic as the main system
+    const webhookClient = await webhookCache.getOrCreateWebhook(channel);
 
     // Get standardized username for consistent display
     const standardName = getStandardizedUsername(personality);
