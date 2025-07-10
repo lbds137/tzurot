@@ -134,6 +134,32 @@ class Personality extends AggregateRoot {
   }
 
   /**
+   * Update personality configuration
+   * @param {Object} updates - Configuration updates to apply
+   * @param {boolean} [updates.disableContextMetadata] - Whether to disable context metadata
+   */
+  updateConfiguration(updates) {
+    if (this.removed) {
+      throw new Error('Cannot update removed personality');
+    }
+
+    if (!this.configuration) {
+      throw new Error('No configuration found for personality');
+    }
+
+    // Create updated configuration
+    const updatedConfiguration = this.configuration.withUpdates(updates);
+
+    // Apply event for configuration update
+    this.applyEvent(
+      new PersonalityProfileUpdated(this.id, {
+        configuration: updatedConfiguration.toJSON(),
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  }
+
+  /**
    * Remove personality
    */
   remove() {

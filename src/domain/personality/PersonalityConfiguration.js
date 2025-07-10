@@ -11,7 +11,7 @@ const { ValueObject } = require('../shared/ValueObject');
  * @description Contains configuration for a personality
  */
 class PersonalityConfiguration extends ValueObject {
-  constructor(name, prompt, modelPath, maxWordCount = 1000) {
+  constructor(name, prompt, modelPath, maxWordCount = 1000, disableContextMetadata = false) {
     super();
 
     if (!name || typeof name !== 'string') {
@@ -30,10 +30,15 @@ class PersonalityConfiguration extends ValueObject {
       throw new Error('Max word count must be a positive number');
     }
 
+    if (typeof disableContextMetadata !== 'boolean') {
+      throw new Error('disableContextMetadata must be a boolean');
+    }
+
     this.name = name;
     this.prompt = prompt;
     this.modelPath = modelPath;
     this.maxWordCount = maxWordCount;
+    this.disableContextMetadata = disableContextMetadata;
 
     this.freeze();
   }
@@ -48,7 +53,8 @@ class PersonalityConfiguration extends ValueObject {
       this.name, // Name cannot be changed
       updates.prompt !== undefined ? updates.prompt : this.prompt,
       updates.modelPath !== undefined ? updates.modelPath : this.modelPath,
-      updates.maxWordCount !== undefined ? updates.maxWordCount : this.maxWordCount
+      updates.maxWordCount !== undefined ? updates.maxWordCount : this.maxWordCount,
+      updates.disableContextMetadata !== undefined ? updates.disableContextMetadata : this.disableContextMetadata
     );
   }
 
@@ -58,11 +64,18 @@ class PersonalityConfiguration extends ValueObject {
       prompt: this.prompt,
       modelPath: this.modelPath,
       maxWordCount: this.maxWordCount,
+      disableContextMetadata: this.disableContextMetadata,
     };
   }
 
   static fromJSON(json) {
-    return new PersonalityConfiguration(json.name, json.prompt, json.modelPath, json.maxWordCount);
+    return new PersonalityConfiguration(
+      json.name, 
+      json.prompt, 
+      json.modelPath, 
+      json.maxWordCount,
+      json.disableContextMetadata
+    );
   }
 }
 
