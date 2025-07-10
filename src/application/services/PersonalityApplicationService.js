@@ -341,6 +341,44 @@ class PersonalityApplicationService {
   }
 
   /**
+   * Update personality configuration settings
+   * @param {string} personalityId - Personality ID to update
+   * @param {Object} updates - Configuration updates to apply
+   * @param {boolean} [updates.disableContextMetadata] - Whether to disable context metadata
+   * @returns {Promise<Personality>}
+   */
+  async updatePersonality(personalityId, updates) {
+    try {
+      logger.info(`[PersonalityApplicationService] Updating personality configuration: ${personalityId}`);
+
+      // Find the personality
+      const personality = await this.personalityRepository.findById(personalityId);
+      if (!personality) {
+        throw new Error(`Personality "${personalityId}" not found`);
+      }
+
+      // Update the configuration
+      personality.updateConfiguration(updates);
+
+      // Save changes
+      await this.personalityRepository.save(personality);
+
+      // Publish events
+      await this._publishEvents(personality);
+
+      logger.info(
+        `[PersonalityApplicationService] Successfully updated personality configuration: ${personalityId}`
+      );
+      return personality;
+    } catch (error) {
+      logger.error(
+        `[PersonalityApplicationService] Failed to update personality configuration: ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Add an alias to a personality
    * @param {Object} command
    * @param {string} command.personalityName - Personality to update
