@@ -48,7 +48,7 @@ async function getPersonalityByAlias(alias) {
  * Supports regular discord.com, ptb.discord.com, canary.discord.com, and discordapp.com variations
  */
 const MESSAGE_LINK_REGEX =
-  /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+  /https:\/\/(ptb\.|canary\.)?discord(?:app)?\.com\/channels\/(@me|\d+)\/(\d+)\/(\d+)/;
 
 /**
  * Handle a message reference (a reply to another message)
@@ -324,6 +324,42 @@ async function processMessageLinks(
       .trim();
 
     try {
+      // Special handling for DM links (@me)
+      if (linkedGuildId === '@me') {
+        logger.info(`[Bot] Processing DM message link`);
+        try {
+          const dmChannel = client.channels.cache.get(linkedChannelId);
+          if (dmChannel && dmChannel.isDMBased()) {
+            const linkedMessage = await dmChannel.messages.fetch(linkedMessageId);
+            if (linkedMessage) {
+              result.referencedMessageContent = linkedMessage.content || '';
+              result.referencedMessageAuthor = linkedMessage.author?.username || 'another user';
+              result.referencedMessageAuthorId = linkedMessage.author?.id || null;
+              result.isReferencedMessageFromBot = linkedMessage.author?.bot || false;
+              
+              // Check for DM personality format **Name:**
+              if (linkedMessage.author?.id === client.user.id && linkedMessage.content) {
+                const dmFormatMatch = linkedMessage.content.match(/^\*\*([^:]+):\*\* /);
+                if (dmFormatMatch && dmFormatMatch[1]) {
+                  result.referencedPersonalityInfo = {
+                    name: dmFormatMatch[1],
+                    displayName: dmFormatMatch[1],
+                  };
+                  logger.info(`[Bot] Identified DM personality message from: ${dmFormatMatch[1]}`);
+                }
+              }
+              result.hasProcessedLink = true;
+              logger.info(`[Bot] Successfully processed DM message link`);
+            }
+          } else {
+            logger.warn(`[Bot] Cannot access DM channel: ${linkedChannelId} (DM links only work for DMs with the bot itself)`);
+          }
+        } catch (dmError) {
+          logger.error(`[Bot] Error processing DM link: ${dmError.message}`);
+        }
+        return result; // Early return for DM links
+      }
+
       // Try to get the guild - check both the cache and attempt to fetch if needed
       const guild = client.guilds.cache.get(linkedGuildId);
 
