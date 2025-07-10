@@ -9,30 +9,21 @@ const { resolvePersonality } = require('../../../src/utils/aliasResolver');
 // Mock dependencies
 jest.mock('../../../src/utils/aliasResolver');
 jest.mock('../../../src/logger');
-jest.mock('../../../src/application/bootstrap/ApplicationBootstrap');
+jest.mock('../../../src/config/MessageHandlerConfig');
 jest.mock('../../../config', () => ({
   botConfig: { mentionChar: '@' },
   botPrefix: '!tz',
 }));
 
-const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
+const messageHandlerConfig = require('../../../src/config/MessageHandlerConfig');
 
 describe('checkForPersonalityMentions', () => {
-  let mockPersonalityRouter;
-  
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     
-    // Mock ApplicationBootstrap
-    mockPersonalityRouter = {
-      getMaxAliasWordCount: jest.fn().mockResolvedValue(1),
-    };
-    const mockBootstrap = {
-      initialized: true,
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
-    };
-    getApplicationBootstrap.mockReturnValue(mockBootstrap);
+    // Mock message handler config
+    messageHandlerConfig.getMaxAliasWordCount = jest.fn().mockReturnValue(1); // Default to single word
     
     // Legacy getMaxAliasWordCount removed - using DDD system
     resolvePersonality.mockResolvedValue(null); // Default to no personality found
@@ -44,18 +35,18 @@ describe('checkForPersonalityMentions', () => {
 
   describe('single word mentions', () => {
     it('should detect valid single-word personality mention', async () => {
-      const message = { content: '@TestBot hello', author: { id: 'user123' } };
-      resolvePersonality.mockResolvedValue({ fullName: 'test-bot' });
+      const message = { content: '@TestPersonality hello', author: { id: 'user123' } };
+      resolvePersonality.mockResolvedValueOnce({ fullName: 'test-personality' });
 
       const result = await checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(resolvePersonality).toHaveBeenCalledWith('TestBot');
+      expect(resolvePersonality).toHaveBeenCalledWith('TestPersonality');
     });
 
     it('should handle mention at end of message', async () => {
-      const message = { content: 'hello @TestBot', author: { id: 'user123' } };
-      resolvePersonality.mockResolvedValue({ fullName: 'test-bot' });
+      const message = { content: 'hello @TestPersonality', author: { id: 'user123' } };
+      resolvePersonality.mockResolvedValueOnce({ fullName: 'test-personality' });
 
       const result = await checkForPersonalityMentions(message);
 
@@ -63,13 +54,13 @@ describe('checkForPersonalityMentions', () => {
     });
 
     it('should handle mention with punctuation', async () => {
-      const message = { content: 'hello @TestBot!', author: { id: 'user123' } };
-      resolvePersonality.mockResolvedValue({ fullName: 'test-bot' });
+      const message = { content: '@TestPersonality! How are you?', author: { id: 'user123' } };
+      resolvePersonality.mockResolvedValueOnce({ fullName: 'test-personality' });
 
       const result = await checkForPersonalityMentions(message);
 
       expect(result).toBe(true);
-      expect(resolvePersonality).toHaveBeenCalledWith('TestBot');
+      expect(resolvePersonality).toHaveBeenCalledWith('TestPersonality');
     });
 
     it('should return false for invalid mention', async () => {
@@ -84,13 +75,11 @@ describe('checkForPersonalityMentions', () => {
 
   describe('multi-word mentions', () => {
     beforeEach(() => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(2); // Allow 2-word aliases
     });
 
     it('should detect valid two-word personality mention', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(2);
       const message = { content: '@angel dust hello', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null) // First check for "angel"
@@ -126,8 +115,7 @@ describe('checkForPersonalityMentions', () => {
     });
 
     it('should handle three-word aliases when max is 3', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(3);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(3);
       const message = { content: '@the dark lord speaks', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null) // "the"
@@ -141,8 +129,7 @@ describe('checkForPersonalityMentions', () => {
     });
 
     it('should not check beyond max word count', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system // Max 2 words
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(2); // Max 2 words
       const message = { content: '@one two three four', author: { id: 'user123' } };
       resolvePersonality.mockResolvedValue(null);
 
@@ -183,8 +170,7 @@ describe('checkForPersonalityMentions', () => {
     });
 
     it('should handle mentions with multiple spaces', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(2);
       const message = { content: '@angel   dust hello', author: { id: 'user123' } };
       resolvePersonality
         .mockResolvedValueOnce(null)
@@ -204,7 +190,7 @@ describe('checkForPersonalityMentions', () => {
 
   describe('regex generation based on max word count', () => {
     it('should generate correct regex for 1 word max', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(1);
       const message = { content: '@test mention', author: { id: 'user123' } };
       resolvePersonality.mockResolvedValue(null);
 
@@ -216,8 +202,7 @@ describe('checkForPersonalityMentions', () => {
     });
 
     it('should generate correct regex for 5 word max', async () => {
-      // Legacy getMaxAliasWordCount removed - using DDD system
-      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(5);
+      messageHandlerConfig.getMaxAliasWordCount.mockReturnValue(5);
       const message = { content: '@one two three four five six', author: { id: 'user123' } };
       resolvePersonality.mockResolvedValue(null);
 

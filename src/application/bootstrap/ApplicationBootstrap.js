@@ -24,6 +24,7 @@ const profileInfoFetcher = require('../../profileInfoFetcher');
 const { messageTracker } = require('../../messageTracker');
 const { getInstance: getConversationManager } = require('../../core/conversation');
 const avatarStorage = require('../../utils/avatarStorage');
+const messageHandlerConfig = require('../../config/MessageHandlerConfig');
 
 /**
  * ApplicationBootstrap
@@ -140,6 +141,16 @@ class ApplicationBootstrap {
       };
 
       logger.info('[ApplicationBootstrap] Created application services');
+
+      // Step 3.5: Initialize message handler configuration
+      // This needs to happen before any handlers are created
+      try {
+        const maxAliasWordCount = await personalityApplicationService.getMaxAliasWordCount();
+        messageHandlerConfig.setMaxAliasWordCount(maxAliasWordCount);
+        logger.info(`[ApplicationBootstrap] Set max alias word count: ${maxAliasWordCount}`);
+      } catch (configError) {
+        logger.warn('[ApplicationBootstrap] Failed to set max alias word count, using default:', configError.message);
+      }
 
       // Step 4: Wire up event handlers
       this.eventHandlerRegistry = new EventHandlerRegistry({
