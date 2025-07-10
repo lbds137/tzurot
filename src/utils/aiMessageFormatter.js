@@ -27,12 +27,12 @@ async function formatApiMessages(
   disableContextMetadata = false
 ) {
   try {
-    // Check if the content is an object with a special reference format
+    // Check if the content is an object with a special reference format or linked message format
     if (
       content &&
       typeof content === 'object' &&
       !Array.isArray(content) &&
-      content.messageContent
+      (content.messageContent || content.linkedMessageContent)
     ) {
       // Log for debugging with user info
       logger.debug(`[AIMessageFormatter] Formatting message from ${userName}`);
@@ -162,22 +162,30 @@ async function formatApiMessages(
           }
           // Format context metadata for the referenced message if available
           let referenceContextPrefix = '';
-          if (content.referencedMessage.timestamp && content.referencedMessage.channel && !disableContextMetadata) {
+          if (
+            content.referencedMessage.timestamp &&
+            content.referencedMessage.channel &&
+            !disableContextMetadata
+          ) {
             try {
               // Create a temporary message object with the referenced message's timestamp and channel
               const tempMessage = {
                 createdTimestamp: content.referencedMessage.timestamp,
                 channel: content.referencedMessage.channel,
-                guild: message?.guild // Use the current message's guild since replies are in same server
+                guild: content.referencedMessage.channel?.guild || null, // Use the referenced message's actual guild (null for DMs)
               };
               referenceContextPrefix = formatContextMetadata(tempMessage) + ' ';
-              logger.debug(`[AIMessageFormatter] Added context metadata to referenced message: ${referenceContextPrefix}`);
+              logger.debug(
+                `[AIMessageFormatter] Added context metadata to referenced message: ${referenceContextPrefix}`
+              );
             } catch (error) {
-              logger.error(`[AIMessageFormatter] Error formatting reference context metadata: ${error.message}`);
+              logger.error(
+                `[AIMessageFormatter] Error formatting reference context metadata: ${error.message}`
+              );
               // Continue without context metadata on error
             }
           }
-          
+
           const fullReferenceContent = `${referenceContextPrefix}${authorText} said${mediaContext}:\n"${cleanContent}"`;
 
           // For bot messages, try to get the proper display name
@@ -301,15 +309,19 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             // Add context metadata if available and not disabled
             if (message && !disableContextMetadata) {
               try {
                 const contextPrefix = formatContextMetadata(message) + ' ';
                 combinedText += contextPrefix;
-                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+                logger.debug(
+                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
+                );
               } catch (error) {
-                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                logger.error(
+                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+                );
                 // Continue without context metadata on error
               }
             }
@@ -367,15 +379,19 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             // Add context metadata if available and not disabled
             if (message && !disableContextMetadata) {
               try {
                 const contextPrefix = formatContextMetadata(message) + ' ';
                 combinedText += contextPrefix;
-                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+                logger.debug(
+                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
+                );
               } catch (error) {
-                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                logger.error(
+                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+                );
                 // Continue without context metadata on error
               }
             }
@@ -434,6 +450,56 @@ async function formatApiMessages(
             logger.info(`[DEBUG] Message ${index + 1}: ${JSON.stringify(msg, null, 2)}`);
           });
 
+          // ADDITIONAL: Check if there's also a linked message that needs to be included
+          if (content.linkedMessage) {
+            logger.debug(`[AIMessageFormatter] Also processing linked message alongside reference`);
+
+            // Get linked message details
+            const linkedAuthor =
+              content.linkedMessage.personalityDisplayName ||
+              content.linkedMessage.author ||
+              'someone';
+            const linkedContent = content.linkedMessage.content || '';
+
+            // Format linked message context metadata if available
+            let linkedContextPrefix = '';
+            if (
+              content.linkedMessage.timestamp &&
+              content.linkedMessage.channel &&
+              !disableContextMetadata
+            ) {
+              try {
+                const tempLinkedMessage = {
+                  createdTimestamp: content.linkedMessage.timestamp,
+                  channel: content.linkedMessage.channel,
+                  guild: content.linkedMessage.channel?.guild || null,
+                };
+                linkedContextPrefix = formatContextMetadata(tempLinkedMessage);
+                logger.debug(
+                  `[AIMessageFormatter] Added context metadata to linked message: ${linkedContextPrefix}`
+                );
+              } catch (error) {
+                logger.error(
+                  `[AIMessageFormatter] Error formatting linked message context metadata: ${error.message}`
+                );
+                linkedContextPrefix = '';
+              }
+            }
+
+            // Add linked message to the combined text
+            const lastMessage = messages[messages.length - 1];
+            if (lastMessage && lastMessage.content && Array.isArray(lastMessage.content)) {
+              const textContent = lastMessage.content.find(item => item.type === 'text');
+              if (textContent) {
+                const linkedMessageText = linkedContextPrefix
+                  ? `\n\n[Linked message] ${linkedContextPrefix} ${linkedAuthor}: "${linkedContent}"`
+                  : `\n\n[Linked message from ${linkedAuthor}]: "${linkedContent}"`;
+                textContent.text += linkedMessageText;
+                logger.debug(`[AIMessageFormatter] Added linked message to combined content`);
+              }
+            }
+          }
+
           return messages;
         } catch (refError) {
           // If there's an error processing the reference, log it but continue
@@ -454,6 +520,98 @@ async function formatApiMessages(
         }
       }
 
+      // Handle simple linked message format (used with same-personality optimization)
+      if (content.linkedMessageContent && !content.referencedMessage) {
+        logger.debug(`[AIMessageFormatter] Processing simple linked message format`);
+
+        // Get the user's message content (text or multimodal)
+        const userMessageContent = content.messageContent;
+
+        // Format the linked message content simply
+        const linkedAuthor =
+          content.linkedPersonalityInfo?.displayName || content.linkedMessageAuthor || 'someone';
+        const linkedContent = content.linkedMessageContent || '';
+
+        // Combine the user's message with the linked content
+        let combinedText = '';
+
+        // Add context metadata for the current message if available and not disabled
+        if (message && !disableContextMetadata) {
+          try {
+            const contextPrefix = formatContextMetadata(message) + ' ';
+            combinedText += contextPrefix;
+            logger.debug(
+              `[AIMessageFormatter] Added context metadata to current message: ${contextPrefix}`
+            );
+          } catch (error) {
+            logger.error(
+              `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+            );
+            // Continue without context metadata on error
+          }
+        }
+
+        // Add user's message content
+        if (Array.isArray(userMessageContent)) {
+          // Extract text from multimodal user content
+          const userTextParts = userMessageContent
+            .filter(item => item.type === 'text')
+            .map(item => item.text)
+            .join(' ');
+          combinedText += userTextParts;
+        } else {
+          const sanitizedUserContent =
+            typeof userMessageContent === 'string'
+              ? sanitizeApiText(userMessageContent)
+              : 'Message content missing';
+          combinedText += sanitizedUserContent;
+        }
+
+        // Add the linked message content with context metadata if available
+        let linkedMessageText = '';
+        if (
+          content.linkedMessageTimestamp &&
+          content.linkedMessageChannel &&
+          !disableContextMetadata
+        ) {
+          try {
+            // Create a temporary message object for the linked message
+            const tempLinkedMessage = {
+              createdTimestamp: content.linkedMessageTimestamp,
+              channel: content.linkedMessageChannel,
+              guild: content.linkedMessageChannel.guild || null, // Use the linked message's actual guild (null for DMs)
+            };
+            const linkedContextPrefix = formatContextMetadata(tempLinkedMessage);
+            linkedMessageText = `\n\n[Linked message] ${linkedContextPrefix} ${linkedAuthor}: "${linkedContent}"`;
+            logger.debug(
+              `[AIMessageFormatter] Added context metadata to linked message: ${linkedContextPrefix}`
+            );
+          } catch (error) {
+            logger.error(
+              `[AIMessageFormatter] Error formatting linked message context metadata: ${error.message}`
+            );
+            // Fall back to simple format without context metadata
+            linkedMessageText = `\n\n[Linked message from ${linkedAuthor}]: "${linkedContent}"`;
+          }
+        } else {
+          linkedMessageText = `\n\n[Linked message from ${linkedAuthor}]: "${linkedContent}"`;
+        }
+
+        combinedText += linkedMessageText;
+
+        const combinedContent = [{ type: 'text', text: combinedText }];
+
+        // Add user's original media content if present
+        if (Array.isArray(userMessageContent)) {
+          const userMediaElements = userMessageContent.filter(
+            item => item.type === 'image_url' || item.type === 'audio_url'
+          );
+          combinedContent.push(...userMediaElements);
+        }
+
+        return [{ role: 'user', content: combinedContent }];
+      }
+
       // If no reference but still using the special format, process user message normally
       if (Array.isArray(content.messageContent)) {
         return [{ role: 'user', content: content.messageContent }];
@@ -470,13 +628,15 @@ async function formatApiMessages(
     // Standard handling for non-reference formats
     if (Array.isArray(content)) {
       // Check if we need to modify the content
-      const needsContextMetadata = message && !disableContextMetadata && content.length > 0 && content[0].type === 'text';
-      const needsProxyPrefix = isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text';
-      
+      const needsContextMetadata =
+        message && !disableContextMetadata && content.length > 0 && content[0].type === 'text';
+      const needsProxyPrefix =
+        isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text';
+
       if (needsContextMetadata || needsProxyPrefix) {
         // Only create a copy if we need to modify the content
         const modifiedContent = [...content];
-        
+
         // Add context metadata if available and not disabled
         if (needsContextMetadata) {
           try {
@@ -485,18 +645,22 @@ async function formatApiMessages(
               ...modifiedContent[0],
               text: contextPrefix + modifiedContent[0].text,
             };
-            logger.debug(`[AIMessageFormatter] Added context metadata to multimodal content: ${contextPrefix}`);
+            logger.debug(
+              `[AIMessageFormatter] Added context metadata to multimodal content: ${contextPrefix}`
+            );
           } catch (error) {
-            logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+            logger.error(
+              `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+            );
             // Continue without context metadata on error
           }
         }
-        
+
         // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
         if (needsProxyPrefix) {
           const existingText = modifiedContent[0].text;
           const proxyPrefix = `${userName}: `;
-          
+
           // Check if we need to insert proxy name after context metadata
           if (needsContextMetadata && existingText.includes('] ')) {
             // Insert proxy name after context metadata
@@ -512,7 +676,7 @@ async function formatApiMessages(
             };
           }
         }
-        
+
         return [{ role: 'user', content: modifiedContent }];
       } else {
         // No modifications needed, return original content
@@ -523,7 +687,7 @@ async function formatApiMessages(
     // Simple text message - sanitize if it's a string
     if (typeof content === 'string') {
       const sanitizedContent = sanitizeApiText(content);
-      
+
       // Add context metadata if available and not disabled
       let contextPrefix = '';
       if (message && !disableContextMetadata) {
@@ -535,22 +699,26 @@ async function formatApiMessages(
           // Continue without context metadata on error
         }
       }
-      
+
       // For proxy messages only: prepend speaker identification if we have a userName
       const contentWithProxyPrefix =
         isProxyMessage && userName !== 'a user'
           ? `${userName}: ${sanitizedContent}`
           : sanitizedContent;
-      
+
       // Combine context metadata with content
       const finalContent = contextPrefix + contentWithProxyPrefix;
-      
+
       // Debug logging to verify message formatting
       if (isProxyMessage || contextPrefix) {
-        logger.info(`[AIMessageFormatter] Formatting message - contextPrefix: "${contextPrefix}", userName: "${userName}", isProxyMessage: ${isProxyMessage}`);
-        logger.info(`[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 150)}..."`);
+        logger.info(
+          `[AIMessageFormatter] Formatting message - contextPrefix: "${contextPrefix}", userName: "${userName}", isProxyMessage: ${isProxyMessage}`
+        );
+        logger.info(
+          `[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 150)}..."`
+        );
       }
-      
+
       return [{ role: 'user', content: finalContent }];
     }
 

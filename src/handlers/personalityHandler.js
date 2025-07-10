@@ -147,10 +147,12 @@ async function handlePersonalityInteraction(
 
     // Extract authentication results
     const { isProxySystem, isDM } = authResult;
-    
+
     // Debug logging for proxy system detection
     if (message.webhookId) {
-      logger.info(`[PersonalityHandler] Processing webhook message - webhookId: ${message.webhookId}, isProxySystem: ${isProxySystem}, author.username: "${message.author.username}"`);
+      logger.info(
+        `[PersonalityHandler] Processing webhook message - webhookId: ${message.webhookId}, isProxySystem: ${isProxySystem}, author.username: "${message.author.username}"`
+      );
     }
 
     // CRITICAL: Check autoresponse status NOW, not later
@@ -233,7 +235,7 @@ async function handlePersonalityInteraction(
                 // For now, use the webhook username as display name if available,
                 // otherwise extract from the personality name
                 const displayName = referencedWebhookName || personalityName.split('-')[0];
-                
+
                 referencedPersonalityInfo = {
                   name: personalityName,
                   displayName: displayName,
@@ -282,9 +284,7 @@ async function handlePersonalityInteraction(
                 name: baseName, // Using the display name since we don't have the full name
                 displayName: baseName,
               };
-              logger.info(
-                `[PersonalityHandler] Using display name from DM message: ${baseName}`
-              );
+              logger.info(`[PersonalityHandler] Using display name from DM message: ${baseName}`);
             }
           }
 
@@ -578,7 +578,26 @@ async function handlePersonalityInteraction(
         logger.info(
           `[PersonalityHandler] Detected same-personality recent message in same channel - skipping reference context for ${personality.fullName}`
         );
-        finalMessageContent = messageContent; // Just use the original content without the reference
+
+        // Even with same-personality optimization, we should include linked message content
+        // if it was processed (just skip the reply context formatting)
+        if (linkResult.hasProcessedLink && linkResult.referencedMessageContent) {
+          // Create a simple format that includes the linked content without full context
+          finalMessageContent = {
+            messageContent: messageContent,
+            linkedMessageContent: linkResult.referencedMessageContent,
+            linkedMessageAuthor: linkResult.referencedMessageAuthor,
+            linkedPersonalityInfo: linkResult.referencedPersonalityInfo,
+            // Include timestamp and channel data for context metadata
+            linkedMessageTimestamp: linkResult.referencedMessageTimestamp,
+            linkedMessageChannel: linkResult.referencedMessageChannel,
+          };
+          logger.info(
+            `[PersonalityHandler] Including linked message content despite same-personality optimization`
+          );
+        } else {
+          finalMessageContent = messageContent;
+        }
       } else {
         // Get the user's name from message author (could be nickname or username)
         const userDisplayName =
@@ -605,6 +624,27 @@ async function handlePersonalityInteraction(
             channel: message.channel, // Use the same channel object since replies are in same channel
           },
         };
+
+        // ALSO check for linked messages that need to be included
+        if (linkResult.hasProcessedLink && linkResult.referencedMessageContent) {
+          // Add linked message data to the existing structure
+          finalMessageContent.linkedMessage = {
+            content: linkResult.referencedMessageContent,
+            author: linkResult.referencedMessageAuthor,
+            authorId: linkResult.referencedMessageAuthorId,
+            isFromBot: linkResult.isReferencedMessageFromBot,
+            personalityName: linkResult.referencedPersonalityInfo?.name,
+            personalityDisplayName: linkResult.referencedPersonalityInfo?.displayName,
+            webhookName: linkResult.referencedWebhookName,
+            imageUrl: linkResult.referencedImageUrl,
+            audioUrl: linkResult.referencedAudioUrl,
+            timestamp: linkResult.referencedMessageTimestamp,
+            channel: linkResult.referencedMessageChannel,
+          };
+          logger.info(
+            `[PersonalityHandler] Including both reply context AND linked message content`
+          );
+        }
       }
     } else {
       // No reference, use the original content
@@ -619,9 +659,11 @@ async function handlePersonalityInteraction(
 
     // Debug logging for proxy context
     if (message.webhookId) {
-      logger.info(`[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`);
+      logger.info(
+        `[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`
+      );
     }
-    
+
     const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
       userId: userId,
       channelId: message.channel.id,

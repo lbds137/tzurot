@@ -273,6 +273,8 @@ async function processMessageLinks(
     hasProcessedLink: false,
     referencedImageUrl: null,
     referencedAudioUrl: null,
+    referencedMessageTimestamp: null,
+    referencedMessageChannel: null,
   };
 
   if (typeof messageContent !== 'string') {
@@ -328,7 +330,19 @@ async function processMessageLinks(
       if (linkedGuildId === '@me') {
         logger.info(`[Bot] Processing DM message link`);
         try {
-          const dmChannel = client.channels.cache.get(linkedChannelId);
+          // Try to get DM channel from cache first, then attempt to fetch if not found
+          let dmChannel = client.channels.cache.get(linkedChannelId);
+
+          // If not in cache, try to fetch it
+          if (!dmChannel) {
+            try {
+              dmChannel = await client.channels.fetch(linkedChannelId);
+              logger.debug(`[Bot] Fetched DM channel from API: ${linkedChannelId}`);
+            } catch (fetchError) {
+              logger.debug(`[Bot] Failed to fetch DM channel: ${fetchError.message}`);
+            }
+          }
+
           if (dmChannel && dmChannel.isDMBased()) {
             const linkedMessage = await dmChannel.messages.fetch(linkedMessageId);
             if (linkedMessage) {
@@ -336,7 +350,11 @@ async function processMessageLinks(
               result.referencedMessageAuthor = linkedMessage.author?.username || 'another user';
               result.referencedMessageAuthorId = linkedMessage.author?.id || null;
               result.isReferencedMessageFromBot = linkedMessage.author?.bot || false;
-              
+
+              // Include timestamp and channel information for context metadata
+              result.referencedMessageTimestamp = linkedMessage.createdTimestamp;
+              result.referencedMessageChannel = dmChannel;
+
               // Check for DM personality format **Name:**
               if (linkedMessage.author?.id === client.user.id && linkedMessage.content) {
                 const dmFormatMatch = linkedMessage.content.match(/^\*\*([^:]+):\*\* /);
@@ -352,7 +370,9 @@ async function processMessageLinks(
               logger.info(`[Bot] Successfully processed DM message link`);
             }
           } else {
-            logger.warn(`[Bot] Cannot access DM channel: ${linkedChannelId} (DM links only work for DMs with the bot itself)`);
+            logger.warn(
+              `[Bot] Cannot access DM channel: ${linkedChannelId} (DM links only work for DMs with the bot itself). Channel found: ${!!dmChannel}, isDMBased: ${dmChannel?.isDMBased()}`
+            );
           }
         } catch (dmError) {
           logger.error(`[Bot] Error processing DM link: ${dmError.message}`);
@@ -382,6 +402,10 @@ async function processMessageLinks(
               result.referencedMessageAuthorId = linkedMessage.author?.id || null;
               result.isReferencedMessageFromBot = linkedMessage.author?.bot || false;
 
+              // Include timestamp and channel information for context metadata
+              result.referencedMessageTimestamp = linkedMessage.createdTimestamp;
+              result.referencedMessageChannel = linkedChannel;
+
               // Initialize personality info variables for linked messages too
               result.referencedPersonalityInfo = null;
               result.referencedWebhookName = null;
@@ -404,7 +428,7 @@ async function processMessageLinks(
                     try {
                       // First try to get personality directly as it could be a full name
                       let personalityData = await getPersonality(personalityName);
-                      
+
                       // If not found as direct name, try it as an alias
                       if (!personalityData) {
                         personalityData = await getPersonalityByAlias(personalityName);
@@ -413,7 +437,10 @@ async function processMessageLinks(
                       if (personalityData) {
                         result.referencedPersonalityInfo = {
                           name: personalityName,
-                          displayName: personalityData.profile?.displayName || personalityData.name || personalityName,
+                          displayName:
+                            personalityData.profile?.displayName ||
+                            personalityData.name ||
+                            personalityName,
                         };
 
                         logger.info(
