@@ -7,6 +7,7 @@ const { Personality } = require('../../domain/personality/Personality');
 const { PersonalityId } = require('../../domain/personality/PersonalityId');
 const { UserId } = require('../../domain/personality/UserId');
 const { AIModel } = require('../../domain/ai/AIModel');
+const { PersonalityConfiguration } = require('../../domain/personality/PersonalityConfiguration');
 
 /**
  * File-based repository for personality persistence
@@ -209,6 +210,7 @@ class FilePersonalityRepository {
           endpoint: personality.model.endpoint,
           capabilities: personality.model.capabilities,
         },
+        configuration: personality.configuration ? personality.configuration.toJSON() : null,
         aliases: personality.aliases.map(alias => ({
           value: alias.value,
           originalCase: alias.originalCase,
@@ -521,6 +523,11 @@ class FilePersonalityRepository {
 
     // Create the personality using the factory method
     const personality = Personality.create(personalityId, userId, profile, model);
+
+    // Set configuration if available
+    if (data.configuration) {
+      personality.configuration = PersonalityConfiguration.fromJSON(data.configuration);
+    }
 
     // Set additional properties
     personality.aliases = aliases;

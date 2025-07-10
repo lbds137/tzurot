@@ -16,6 +16,7 @@ const {
 } = require('./PersonalityEvents');
 const { Alias } = require('./Alias');
 const { AIModel } = require('../ai/AIModel');
+const { PersonalityConfiguration } = require('./PersonalityConfiguration');
 
 /**
  * @class Personality
@@ -297,9 +298,14 @@ class Personality extends AggregateRoot {
   }
 
   onPersonalityProfileUpdated(event) {
-    this.profile = PersonalityProfile.fromJSON(event.payload.profile);
+    if (event.payload.profile) {
+      this.profile = PersonalityProfile.fromJSON(event.payload.profile);
+    }
     if (event.payload.model) {
       this.model = AIModel.fromJSON(event.payload.model);
+    }
+    if (event.payload.configuration) {
+      this.configuration = PersonalityConfiguration.fromJSON(event.payload.configuration);
     }
     this.updatedAt = event.payload.updatedAt;
   }
@@ -329,6 +335,7 @@ class Personality extends AggregateRoot {
       ownerId: this.ownerId.toString(),
       profile: this.profile ? this.profile.toJSON() : null,
       model: this.model ? this.model.toJSON() : null,
+      configuration: this.configuration ? this.configuration.toJSON() : null,
       aliases: this.aliases.map(a => a.toJSON()),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
