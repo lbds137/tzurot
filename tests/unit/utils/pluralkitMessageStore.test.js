@@ -101,7 +101,7 @@ describe('PluralKitMessageStore', () => {
       expect(newSizes.deleted).toBeGreaterThan(0);
 
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        `[PluralKitStore] Marked message ${messageId} as deleted`
+        `[PluralKitStore] Marked message ${messageId} as deleted with content: "Test message"`
       );
     });
 
@@ -156,8 +156,9 @@ describe('PluralKitMessageStore', () => {
       expect(found).toBeTruthy();
       expect(found.userId).toBe('user-456');
       expect(found.username).toBe('TestUser');
+      // The new implementation logs different messages
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[PluralKitStore] Found deleted message from user user-456'
+        expect.stringContaining('[PluralKitStore] Found exact match for user user-456')
       );
     });
 
@@ -234,6 +235,11 @@ describe('PluralKitMessageStore', () => {
       // Try to find it again
       const found2 = store.findDeletedMessage('Test message', 'channel-789');
       expect(found2).toBeNull();
+      
+      // Verify it was removed from both storage locations
+      const sizes = store.size();
+      // The message should be removed from the old map after exact match
+      expect(sizes.deleted).toBe(0);
     });
   });
 
@@ -332,8 +338,9 @@ describe('PluralKitMessageStore', () => {
 
       const sizes = store.size();
       expect(sizes.deleted).toBe(0);
+      // With dual storage, cleanup counts messages from both storage locations
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        '[PluralKitStore] Cleaned up 0 pending and 1 deleted messages'
+        expect.stringMatching(/\[PluralKitStore\] Cleaned up 0 pending and \d+ deleted messages/)
       );
     });
 
