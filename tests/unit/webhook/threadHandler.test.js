@@ -4,6 +4,7 @@ jest.mock('../../../src/utils/media/mediaHandler');
 jest.mock('../../../src/utils/messageDeduplication');
 jest.mock('../../../src/utils/messageFormatter');
 jest.mock('../../../src/utils/avatarStorage');
+jest.mock('../../../src/utils/webhookCache');
 jest.mock('../../../config', () => ({
   botConfig: {
     name: 'TestWebhook',
@@ -17,6 +18,7 @@ const { processMediaForWebhook } = require('../../../src/utils/media/mediaHandle
 const { isDuplicateMessage } = require('../../../src/utils/messageDeduplication');
 const { splitMessage } = require('../../../src/utils/messageFormatter');
 const avatarStorage = require('../../../src/utils/avatarStorage');
+const webhookCache = require('../../../src/utils/webhookCache');
 const { sendDirectThreadMessage } = require('../../../src/webhook/threadHandler');
 
 describe('threadHandler', () => {
@@ -105,6 +107,9 @@ describe('threadHandler', () => {
       // Return the same URL for simplicity in tests
       return avatarUrl;
     });
+
+    // Mock webhookCache
+    webhookCache.getOrCreateWebhook.mockResolvedValue(mockWebhookClient);
   });
 
   afterEach(() => {
@@ -142,9 +147,7 @@ describe('threadHandler', () => {
       ).rejects.toThrow('Cannot send direct thread message to non-thread channel');
     });
 
-    it('should fetch webhooks from parent channel', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map());
-
+    it('should use webhookCache to get webhook client', async () => {
       await sendDirectThreadMessage(
         mockChannel,
         'Test content',
@@ -161,12 +164,33 @@ describe('threadHandler', () => {
         mockDelayFn
       );
 
-      expect(mockParentChannel.fetchWebhooks).toHaveBeenCalled();
+      expect(webhookCache.getOrCreateWebhook).toHaveBeenCalledWith(mockChannel);
     });
 
-    it('should create webhook if none exists', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map());
-      mockParentChannel.createWebhook.mockResolvedValue(mockWebhook);
+    it('should send message using webhook client from cache', async () => {
+      mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
+
+      const result = await sendDirectThreadMessage(
+        mockChannel,
+        'Test content',
+        { displayName: 'TestPersonality' },
+        {},
+        mockGetStandardizedUsername,
+        mockCreateVirtualResult,
+        mockDelayFn
+      );
+
+      expect(mockWebhookClient.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Test content',
+          username: 'TestPersonality',
+          thread_id: 'thread-123'
+        })
+      );
+      expect(result.messageIds).toEqual(['message-123']);
+    });
+
+    it('should not call parent channel methods directly (uses webhookCache)', async () => {
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       await sendDirectThreadMessage(
@@ -179,32 +203,14 @@ describe('threadHandler', () => {
         mockDelayFn
       );
 
-      expect(mockParentChannel.createWebhook).toHaveBeenCalledWith({
-        name: 'TestWebhook',
-        reason: 'Needed for personality proxying in threads',
-      });
-    });
-
-    it('should use existing webhook if found', async () => {
-      const webhooksMap = new Map([['webhook-123', mockWebhook]]);
-      mockParentChannel.fetchWebhooks.mockResolvedValue(webhooksMap);
-      mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
-
-      await sendDirectThreadMessage(
-        mockChannel,
-        'Test content',
-        { displayName: 'TestPersonality' },
-        {},
-        mockGetStandardizedUsername,
-        mockCreateVirtualResult,
-        mockDelayFn
-      );
-
+      // Should not call parent channel methods directly - webhookCache handles this
+      expect(mockParentChannel.fetchWebhooks).not.toHaveBeenCalled();
       expect(mockParentChannel.createWebhook).not.toHaveBeenCalled();
+      // Should use webhookCache instead
+      expect(webhookCache.getOrCreateWebhook).toHaveBeenCalledWith(mockChannel);
     });
 
     it('should process media in content', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       processMediaForWebhook.mockResolvedValue({
@@ -228,7 +234,6 @@ describe('threadHandler', () => {
     });
 
     it('should handle media processing errors gracefully', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       processMediaForWebhook.mockRejectedValue(new Error('Media error'));
@@ -248,7 +253,6 @@ describe('threadHandler', () => {
     });
 
     it('should split long messages into chunks', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       // Create a very long message that will be split
@@ -269,7 +273,6 @@ describe('threadHandler', () => {
     });
 
     it('should add delay between chunks', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       const longContent = 'A'.repeat(2100);
@@ -289,7 +292,6 @@ describe('threadHandler', () => {
     });
 
     it('should try thread_id parameter first', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       await sendDirectThreadMessage(
@@ -319,7 +321,6 @@ describe('threadHandler', () => {
     });
 
     it('should fallback to webhook.thread() method if thread_id fails', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
 
       // First attempt with thread_id fails
       mockWebhookClient.send.mockRejectedValueOnce(new Error('Invalid thread_id'));
@@ -348,7 +349,6 @@ describe('threadHandler', () => {
     });
 
     it('should fallback to channel.send() if all webhook methods fail', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
 
       // Both webhook attempts fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
@@ -375,7 +375,6 @@ describe('threadHandler', () => {
     });
 
     it('should include files and embeds in last chunk only', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
       mockWebhookClient.send.mockResolvedValue({ id: 'message-123' });
 
       const embeds = [{ title: 'Test Embed' }];
@@ -400,7 +399,6 @@ describe('threadHandler', () => {
     });
 
     it('should skip duplicate messages', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
 
       // Mock isDuplicateMessage to return true
       isDuplicateMessage.mockReturnValue(true);
@@ -426,6 +424,9 @@ describe('threadHandler', () => {
         parent: null,
       };
 
+      // Mock webhookCache to fail for orphan thread
+      webhookCache.getOrCreateWebhook.mockRejectedValue(new Error('Cannot find parent channel for thread orphan-thread'));
+
       await expect(
         sendDirectThreadMessage(
           orphanThread,
@@ -440,8 +441,8 @@ describe('threadHandler', () => {
     });
 
     it('should handle webhook creation failure', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map());
-      mockParentChannel.createWebhook.mockRejectedValue(new Error('Permission denied'));
+      // Mock webhookCache to fail with permission error
+      webhookCache.getOrCreateWebhook.mockRejectedValue(new Error('Permission denied'));
 
       await expect(
         sendDirectThreadMessage(
@@ -457,7 +458,6 @@ describe('threadHandler', () => {
     });
 
     it('should propagate error if first chunk fails after all fallbacks', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
 
       // All methods fail
       mockWebhookClient.send.mockRejectedValue(new Error('Webhook failed'));
@@ -478,7 +478,6 @@ describe('threadHandler', () => {
     });
 
     it('should continue with remaining chunks if non-first chunk fails', async () => {
-      mockParentChannel.fetchWebhooks.mockResolvedValue(new Map([['webhook-123', mockWebhook]]));
 
       // First chunk succeeds, second fails, third succeeds
       mockWebhookClient.send
