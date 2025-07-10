@@ -22,7 +22,6 @@ describe('StatusCommand', () => {
   let statusCommand;
   let mockContext;
   let mockAuth;
-  let mockPersonalityRegistry;
   let mockConversationManager;
   let mockProcessUtils;
   let migrationHelper;
@@ -33,7 +32,7 @@ describe('StatusCommand', () => {
 
     migrationHelper = createMigrationHelper();
     
-    // Mock ApplicationBootstrap to not be initialized, forcing fallback to legacy mocks
+    // Default mock for ApplicationBootstrap - not initialized
     getApplicationBootstrap.mockReturnValue({
       initialized: false,
     });
@@ -42,10 +41,6 @@ describe('StatusCommand', () => {
     mockAuth = {
       hasValidToken: jest.fn().mockReturnValue(false),
       isNsfwVerified: jest.fn().mockReturnValue(false),
-    };
-
-    mockPersonalityRegistry = {
-      listPersonalitiesForUser: jest.fn().mockReturnValue([]),
     };
 
     mockConversationManager = {
@@ -60,7 +55,6 @@ describe('StatusCommand', () => {
     // Create command with mocked dependencies
     statusCommand = createStatusCommand({
       authManager: mockAuth,
-      personalityRegistry: mockPersonalityRegistry,
       conversationManager: mockConversationManager,
       processUtils: mockProcessUtils,
     });
@@ -156,7 +150,15 @@ describe('StatusCommand', () => {
     it('should show additional info for authenticated user', async () => {
       mockAuth.hasValidToken.mockReturnValue(true);
       mockAuth.isNsfwVerified.mockReturnValue(true);
-      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(['p1', 'p2', 'p3']);
+      
+      // Mock ApplicationBootstrap to return a DDD service with 3 personalities
+      const mockDDDService = {
+        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2', 'p3'])
+      };
+      getApplicationBootstrap.mockReturnValue({
+        initialized: true,
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockDDDService)
+      });
 
       await statusCommand.execute(mockContext);
 
@@ -227,7 +229,7 @@ describe('StatusCommand', () => {
 
     it('should handle missing personality list', async () => {
       mockAuth.hasValidToken.mockReturnValue(true);
-      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(null);
+      // Personality count now comes from DDD service passed in context
 
       await statusCommand.execute(mockContext);
 
@@ -282,7 +284,15 @@ describe('StatusCommand', () => {
 
     it('should show authenticated info in text response', async () => {
       mockAuth.hasValidToken.mockReturnValue(true);
-      mockPersonalityRegistry.listPersonalitiesForUser.mockReturnValue(['p1', 'p2']);
+      
+      // Mock ApplicationBootstrap to return a DDD service with 2 personalities
+      const mockDDDService = {
+        listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2'])
+      };
+      getApplicationBootstrap.mockReturnValue({
+        initialized: true,
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockDDDService)
+      });
 
       await statusCommand.execute(mockContext);
 
@@ -345,7 +355,6 @@ describe('StatusCommand', () => {
 
       const command = createStatusCommand({
         authManager: mockAuth,
-        personalityRegistry: mockPersonalityRegistry,
         conversationManager: limitedConversationManager,
         processUtils: mockProcessUtils,
       });

@@ -38,7 +38,6 @@ function createExecutor(dependencies = {}) {
     try {
       const {
         authManager,
-        personalityRegistry = null,
         conversationManager = require('../../../core/conversation'),
         processUtils = { uptime: () => process.uptime() },
       } = dependencies;
@@ -65,25 +64,10 @@ function createExecutor(dependencies = {}) {
             const personalityApplicationService = bootstrap.getPersonalityApplicationService();
             const personalities = await personalityApplicationService.listPersonalitiesByOwner(context.userId);
             personalityCount = personalities ? personalities.length : 0;
-          } else if (personalityRegistry) {
-            // Fallback to legacy registry if provided and bootstrap not initialized
-            const personalities = personalityRegistry.listPersonalitiesForUser(context.userId);
-            personalityCount = personalities ? personalities.length : 0;
           }
         } catch (error) {
           logger.warn('[StatusCommand] Failed to get personalities from DDD service:', error);
-          // Try legacy fallback
-          if (personalityRegistry) {
-            try {
-              const personalities = personalityRegistry.listPersonalitiesForUser(context.userId);
-              personalityCount = personalities ? personalities.length : 0;
-            } catch (legacyError) {
-              logger.warn('[StatusCommand] Legacy personality registry also failed:', legacyError);
-              personalityCount = 0;
-            }
-          } else {
-            personalityCount = 0;
-          }
+          personalityCount = 0;
         }
       }
 
