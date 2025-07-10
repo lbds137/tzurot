@@ -433,7 +433,7 @@ async function formatApiMessages(
         const modifiedContent = [...content];
         modifiedContent[0] = {
           ...modifiedContent[0],
-          text: `[${userName}]: ${modifiedContent[0].text}`,
+          text: `${userName}: ${modifiedContent[0].text}`,
         };
         return [{ role: 'user', content: modifiedContent }];
       }
@@ -446,8 +446,15 @@ async function formatApiMessages(
       // For proxy messages only: prepend speaker identification if we have a userName
       const finalContent =
         isProxyMessage && userName !== 'a user'
-          ? `[${userName}]: ${sanitizedContent}`
+          ? `${userName}: ${sanitizedContent}`
           : sanitizedContent;
+      
+      // Debug logging to verify proxy message formatting
+      if (isProxyMessage) {
+        logger.info(`[AIMessageFormatter] Formatting proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}`);
+        logger.info(`[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 100)}..."`);
+      }
+      
       return [{ role: 'user', content: finalContent }];
     }
 

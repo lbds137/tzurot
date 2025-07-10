@@ -147,6 +147,11 @@ async function handlePersonalityInteraction(
 
     // Extract authentication results
     const { isProxySystem, isDM } = authResult;
+    
+    // Debug logging for proxy system detection
+    if (message.webhookId) {
+      logger.info(`[PersonalityHandler] Processing webhook message - webhookId: ${message.webhookId}, isProxySystem: ${isProxySystem}, author.username: "${message.author.username}"`);
+    }
 
     // CRITICAL: Check autoresponse status NOW, not later
     // This prevents race conditions where autoresponse changes during processing
@@ -558,7 +563,8 @@ async function handlePersonalityInteraction(
 
     // For PluralKit or webhook messages, just use the display name to avoid redundancy
     // PluralKit names often include system tags like "Name | System"
-    const isWebhookMessage = isProxySystem;
+    // IMPORTANT: Use webhookUserTracker for better Pluralkit detection
+    const isWebhookMessage = message.webhookId && webhookUserTracker.isProxySystemWebhook(message);
     const formattedUserName = isWebhookMessage
       ? userDisplayName // Just use display name for PluralKit
       : `${userDisplayName} (${userUsername})`; // Include username for regular users
@@ -662,6 +668,11 @@ async function handlePersonalityInteraction(
     const userId = message.author?.id;
     logger.debug(`[PersonalityHandler] Using user ID for authentication: ${userId || 'none'}`);
 
+    // Debug logging for proxy context
+    if (message.webhookId) {
+      logger.info(`[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`);
+    }
+    
     const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
       userId: userId,
       channelId: message.channel.id,
@@ -671,7 +682,7 @@ async function handlePersonalityInteraction(
       // Pass the user's formatted name for audio transcript prompts
       userName: formattedUserName,
       // Flag to indicate if this is a proxy system message (PluralKit, etc)
-      isProxyMessage: isWebhookMessage,
+      isProxyMessage: isWebhookMessage || false,
     });
 
     // Clear typing indicator interval

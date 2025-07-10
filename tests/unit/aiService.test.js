@@ -413,7 +413,7 @@ describe('AI Service', () => {
       );
 
       expect(formattedMessages).toEqual([
-        { role: 'user', content: '[Alice | Wonderland System]: Hello from PluralKit!' },
+        { role: 'user', content: 'Alice | Wonderland System: Hello from PluralKit!' },
       ]);
     });
 
@@ -453,7 +453,7 @@ describe('AI Service', () => {
         {
           role: 'user',
           content: [
-            { type: 'text', text: '[Charlie | Rainbow System]: What is this?' },
+            { type: 'text', text: 'Charlie | Rainbow System: What is this?' },
             { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } },
           ],
         },
