@@ -1,6 +1,7 @@
 const logger = require('../logger');
 const { sanitizeApiText } = require('./contentSanitizer');
-const { getPersonality } = require('../core/personality');
+const { resolvePersonality } = require('./aliasResolver');
+const { formatContextMetadata } = require('./contextMetadataFormatter');
 
 /**
  * Formats messages for API request, handling text, images, audio, and referenced messages
@@ -13,13 +14,17 @@ const { getPersonality } = require('../core/personality');
  * @param {string} personalityName - The name of the personality to use in media prompts
  * @param {string} [userName] - The user's formatted name (displayName + username)
  * @param {boolean} [isProxyMessage] - Whether this is a proxy system message (PluralKit, etc)
+ * @param {Object} [message] - Discord message object for context metadata
+ * @param {boolean} [disableContextMetadata] - Whether to disable context metadata for this personality
  * @returns {Promise<Array>} Formatted messages array for API request
  */
 async function formatApiMessages(
   content,
   personalityName,
   userName = 'a user',
-  isProxyMessage = false
+  isProxyMessage = false,
+  message = null,
+  disableContextMetadata = false
 ) {
   try {
     // Check if the content is an object with a special reference format
@@ -165,11 +170,11 @@ async function formatApiMessages(
             const fullName = content.referencedMessage.personalityName;
             let displayName;
 
-            // Try to get the personality from the personality manager
-            const personalityObject = fullName ? await getPersonality(fullName) : null;
-            if (personalityObject && personalityObject.displayName) {
-              // Use display name from personality manager if available
-              displayName = personalityObject.displayName;
+            // Try to get the personality using DDD system
+            const personalityObject = fullName ? await resolvePersonality(fullName) : null;
+            if (personalityObject && personalityObject.profile?.displayName) {
+              // Use display name from DDD personality if available
+              displayName = personalityObject.profile.displayName;
             } else {
               // Fall back to provided display name or the personality name
               displayName =
@@ -278,6 +283,18 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
+            
+            // Add context metadata if available and not disabled
+            if (message && !disableContextMetadata) {
+              try {
+                const contextPrefix = formatContextMetadata(message) + ' ';
+                combinedText += contextPrefix;
+                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+              } catch (error) {
+                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                // Continue without context metadata on error
+              }
+            }
 
             if (Array.isArray(userMessageContent)) {
               // Extract text from multimodal user content
@@ -332,6 +349,18 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
+            
+            // Add context metadata if available and not disabled
+            if (message && !disableContextMetadata) {
+              try {
+                const contextPrefix = formatContextMetadata(message) + ' ';
+                combinedText += contextPrefix;
+                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+              } catch (error) {
+                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                // Continue without context metadata on error
+              }
+            }
 
             if (Array.isArray(userMessageContent)) {
               // Extract text from multimodal user content
@@ -422,37 +451,86 @@ async function formatApiMessages(
 
     // Standard handling for non-reference formats
     if (Array.isArray(content)) {
-      // Handle standard multimodal content array
-      // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
-      if (
-        isProxyMessage &&
-        userName !== 'a user' &&
-        content.length > 0 &&
-        content[0].type === 'text'
-      ) {
+      // Check if we need to modify the content
+      const needsContextMetadata = message && !disableContextMetadata && content.length > 0 && content[0].type === 'text';
+      const needsProxyPrefix = isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text';
+      
+      if (needsContextMetadata || needsProxyPrefix) {
+        // Only create a copy if we need to modify the content
         const modifiedContent = [...content];
-        modifiedContent[0] = {
-          ...modifiedContent[0],
-          text: `${userName}: ${modifiedContent[0].text}`,
-        };
+        
+        // Add context metadata if available and not disabled
+        if (needsContextMetadata) {
+          try {
+            const contextPrefix = formatContextMetadata(message) + ' ';
+            modifiedContent[0] = {
+              ...modifiedContent[0],
+              text: contextPrefix + modifiedContent[0].text,
+            };
+            logger.debug(`[AIMessageFormatter] Added context metadata to multimodal content: ${contextPrefix}`);
+          } catch (error) {
+            logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+            // Continue without context metadata on error
+          }
+        }
+        
+        // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
+        if (needsProxyPrefix) {
+          const existingText = modifiedContent[0].text;
+          const proxyPrefix = `${userName}: `;
+          
+          // Check if we need to insert proxy name after context metadata
+          if (needsContextMetadata && existingText.includes('] ')) {
+            // Insert proxy name after context metadata
+            modifiedContent[0] = {
+              ...modifiedContent[0],
+              text: existingText.replace(/\] /, `] ${proxyPrefix}`),
+            };
+          } else {
+            // No context metadata, just prepend proxy name
+            modifiedContent[0] = {
+              ...modifiedContent[0],
+              text: proxyPrefix + existingText,
+            };
+          }
+        }
+        
         return [{ role: 'user', content: modifiedContent }];
+      } else {
+        // No modifications needed, return original content
+        return [{ role: 'user', content }];
       }
-      return [{ role: 'user', content }];
     }
 
     // Simple text message - sanitize if it's a string
     if (typeof content === 'string') {
       const sanitizedContent = sanitizeApiText(content);
+      
+      // Add context metadata if available and not disabled
+      let contextPrefix = '';
+      if (message && !disableContextMetadata) {
+        try {
+          contextPrefix = formatContextMetadata(message) + ' ';
+          logger.debug(`[AIMessageFormatter] Added context metadata: ${contextPrefix}`);
+        } catch (error) {
+          logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+          // Continue without context metadata on error
+        }
+      }
+      
       // For proxy messages only: prepend speaker identification if we have a userName
-      const finalContent =
+      const contentWithProxyPrefix =
         isProxyMessage && userName !== 'a user'
           ? `${userName}: ${sanitizedContent}`
           : sanitizedContent;
       
-      // Debug logging to verify proxy message formatting
-      if (isProxyMessage) {
-        logger.info(`[AIMessageFormatter] Formatting proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}`);
-        logger.info(`[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 100)}..."`);
+      // Combine context metadata with content
+      const finalContent = contextPrefix + contentWithProxyPrefix;
+      
+      // Debug logging to verify message formatting
+      if (isProxyMessage || contextPrefix) {
+        logger.info(`[AIMessageFormatter] Formatting message - contextPrefix: "${contextPrefix}", userName: "${userName}", isProxyMessage: ${isProxyMessage}`);
+        logger.info(`[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 150)}..."`);
       }
       
       return [{ role: 'user', content: finalContent }];

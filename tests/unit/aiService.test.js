@@ -61,9 +61,7 @@ jest.mock('../../src/services/PersonalityDataService', () => ({
   }),
 }));
 
-jest.mock('../../src/core/personality', () => ({
-  getPersonality: jest.fn().mockReturnValue(null), // No personality found, use defaults
-}));
+// Legacy personality manager removed - using DDD system now
 
 // Mock OpenAI module
 jest.mock('openai', () => {

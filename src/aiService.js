@@ -273,7 +273,15 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   }
 
   // Format the message content properly for the API
-  const messages = await formatApiMessages(message, personalityName, userName, isProxyMessage);
+  // Note: disableContextMetadata can be passed through context if needed
+  const messages = await formatApiMessages(
+    message, 
+    personalityName, 
+    userName, 
+    isProxyMessage,
+    context.message || null,
+    context.disableContextMetadata || false
+  );
 
   // Debug log the exact messages being sent to detect issues
   if (typeof message === 'object' && message.referencedMessage) {

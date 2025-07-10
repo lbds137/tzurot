@@ -10,7 +10,6 @@
 
 // Mock dependencies
 jest.mock('discord.js');
-jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
@@ -20,7 +19,6 @@ jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
-const personalityManager = require('../../src/core/personality');
 const conversationManager = require('../../src/core/conversation');
 const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');
@@ -96,9 +94,7 @@ describe('Bot Activated Personality Handling', () => {
       displayName: 'Test Personality',
     };
 
-    // Set up personality manager mocks
-    personalityManager.getPersonality.mockReturnValue(mockPersonality);
-    personalityManager.getPersonalityByAlias.mockReturnValue(null);
+    // PersonalityManager removed - now using DDD system
 
     // Set up conversation manager mocks
     conversationManager.getActivatedPersonality.mockReturnValue('test-personality');
@@ -139,8 +135,8 @@ describe('Bot Activated Personality Handling', () => {
               `Activated personality in channel ${message.channel.id}, ignoring command message`
             );
           } else {
-            // Process as a personality interaction
-            personalityManager.getPersonality(activatedPersonality);
+            // Process as a personality interaction (DDD system handles this now)
+            logger.info(`Processing personality interaction for ${activatedPersonality}`);
           }
         }
       };
@@ -161,9 +157,9 @@ describe('Bot Activated Personality Handling', () => {
       // Check that the message was recognized as a command that should be ignored
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('ignoring command message'));
 
-      // Most importantly, verify that no attempt was made to get the personality for response
-      // This check is our way of verifying handlePersonalityInteraction wasn't called
-      expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+      // Most importantly, verify that no attempt was made to process the personality
+      // Since we removed PersonalityManager, we check that processing log wasn't called
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
     });
 
     it('should respond to non-command messages when a personality is activated', async () => {
@@ -176,8 +172,8 @@ describe('Bot Activated Personality Handling', () => {
       // Verify the appropriate checks were made
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
-      // Verify that personality was retrieved - this means we attempted to respond
-      expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+      // Verify that personality processing was attempted - this means we attempted to respond
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction for test-personality'));
     });
 
     it(`should treat ${botPrefix} by itself as a command and ignore it`, async () => {
@@ -188,10 +184,10 @@ describe('Bot Activated Personality Handling', () => {
       await messageHandler(mockMessage);
 
       // Check that the message was recognized as a command
-      // We can tell by the fact that getPersonality should not be called
+      // We can tell by the fact that personality processing should not happen
       // even though getActivatedPersonality should return a value
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
-      expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
     });
 
     it('should only consider messages starting with the exact prefix as commands', async () => {
@@ -204,9 +200,9 @@ describe('Bot Activated Personality Handling', () => {
       // Verify the appropriate checks were made
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
-      // Verify that personality was retrieved - this means we attempted to respond
+      // Verify that personality processing was attempted - this means we attempted to respond
       // because this is NOT recognized as a command
-      expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction for test-personality'));
     });
 
     it('should ignore commands without a space after prefix (bug fix)', async () => {
@@ -224,8 +220,8 @@ describe('Bot Activated Personality Handling', () => {
       // Check that the message was recognized as a command that should be ignored
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('ignoring command message'));
 
-      // Verify that no attempt was made to get the personality for response
-      expect(personalityManager.getPersonality).not.toHaveBeenCalled();
+      // Verify that no attempt was made to process the personality for response
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
     });
   });
 
@@ -246,7 +242,7 @@ describe('Bot Activated Personality Handling', () => {
       expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
       // Verify that no attempt was made to process the message with the personality
-      expect(personalityManager.getPersonality).not.toHaveBeenCalledWith('test-personality');
+      expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Processing personality interaction'));
     });
 
     it('should process normal user messages when a personality is activated', async () => {
@@ -255,8 +251,8 @@ describe('Bot Activated Personality Handling', () => {
       mockMessage.webhookId = null;
 
       // Reset mock call counts for this specific test
-      personalityManager.getPersonality.mockClear();
       conversationManager.getActivatedPersonality.mockClear();
+      logger.info.mockClear();
 
       // Trigger message handler
       await messageHandler(mockMessage);

@@ -9,16 +9,20 @@ jest.mock('../../../src/logger', () => ({
   error: jest.fn(),
 }));
 
-jest.mock('../../../src/core/personality', () => ({
-  getPersonality: jest.fn(),
+jest.mock('../../../src/utils/aliasResolver', () => ({
+  resolvePersonality: jest.fn(),
 }));
 
 jest.mock('../../../src/utils/contentSanitizer', () => ({
   sanitizeApiText: jest.fn(text => text),
 }));
 
+jest.mock('../../../src/utils/contextMetadataFormatter', () => ({
+  formatContextMetadata: jest.fn(() => '[Test Server | #test-channel | 2025-01-01T00:00:00.000Z]'),
+}));
+
 const { formatApiMessages } = require('../../../src/utils/aiMessageFormatter');
-const { getPersonality } = require('../../../src/core/personality');
+const { resolvePersonality } = require('../../../src/utils/aliasResolver');
 const logger = require('../../../src/logger');
 
 describe('aiMessageFormatter - Webhook Name Handling', () => {
@@ -28,7 +32,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
 
   describe('formatApiMessages with webhook references', () => {
     it('should use webhook name when personality info is not available', async () => {
-      getPersonality.mockResolvedValue(null); // No personality found
+      resolvePersonality.mockResolvedValue(null); // No personality found
 
       const content = {
         messageContent: 'Hello',
@@ -56,7 +60,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should use author name as fallback when webhook name is not available', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Hello',
@@ -79,7 +83,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should only use "the bot" as last resort', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Hello',
@@ -103,10 +107,13 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
 
     it('should prefer personality display name when available', async () => {
       const mockPersonality = {
-        fullName: 'test-personality-full',
-        displayName: 'Test Display',
+        name: 'test-personality-full',
+        profile: {
+          name: 'test-personality-full',
+          displayName: 'Test Display',
+        },
       };
-      getPersonality.mockResolvedValue(mockPersonality);
+      resolvePersonality.mockResolvedValue(mockPersonality);
 
       const content = {
         messageContent: 'Hello',
@@ -129,7 +136,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should handle proxy system webhooks with proper names', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Response to proxy',
@@ -152,7 +159,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should handle media references with webhook names', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Nice image!',
@@ -176,7 +183,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should handle self-references correctly', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Correction',
@@ -204,7 +211,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
 
   describe('Edge cases', () => {
     it('should handle missing reference data gracefully', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Hello',
@@ -229,7 +236,7 @@ describe('aiMessageFormatter - Webhook Name Handling', () => {
     });
 
     it('should handle empty webhook names', async () => {
-      getPersonality.mockResolvedValue(null);
+      resolvePersonality.mockResolvedValue(null);
 
       const content = {
         messageContent: 'Hello',

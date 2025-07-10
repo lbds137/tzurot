@@ -15,17 +15,12 @@ jest.mock('../../../src/utils/errorTracker', () => ({
   },
   trackError: jest.fn(),
 }));
-jest.mock('../../../src/core/personality', () => ({
-  getPersonality: jest.fn(),
-}));
 
-const { getPersonality } = require('../../../src/core/personality');
 
 describe('AI Error Handler', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Mock getPersonality to return null by default (no custom error message)
-    getPersonality.mockResolvedValue(null);
+    // Legacy personalityManager removed - now using DDD system
   });
 
   describe('isErrorResponse', () => {
