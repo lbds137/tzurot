@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2025-07-10
+
+### Added
+- **Context Metadata for Personalities** - AI personalities now receive temporal and location context
+  - Messages include Discord server name, channel name, and timestamps in ISO format
+  - Helps personalities understand conversation flow and respond more appropriately to time-sensitive topics
+  - Enables better context awareness in threads and forum posts
+  - Format: `[Discord: Server Name > #channel | 2025-07-10T15:30:45Z]`
+- **Configuration Command** - New `!tz config` command to control personality settings
+  - Toggle context metadata on/off per personality: `!tz config <personality> context-metadata off`
+  - Only personality owners can modify settings
+  - Settings persist across bot restarts
+
+### Changed
+- **Major Architecture Refactoring** - Completed migration from legacy PersonalityManager to Domain-Driven Design
+  - Removed entire `src/core/personality/` directory (PersonalityManager, PersonalityRegistry, etc.)
+  - All personality operations now use clean DDD patterns through PersonalityApplicationService
+  - Improved separation of concerns and testability
+  - Reduced codebase by ~5,000 lines while maintaining all functionality
+
+### Fixed
+- **Circular Dependencies** - Resolved module loading issues causing "getApplicationBootstrap is not a function" errors
+  - Introduced MessageHandlerConfig to break circular dependency chains
+  - Fixed aliasResolver to use setter injection pattern
+  - Improved module initialization order in ApplicationBootstrap
+- **Configuration Persistence** - PersonalityConfiguration now properly saves and loads from disk
+  - Fixed FilePersonalityRepository to persist configuration object
+  - Updated Personality domain model to handle configuration updates correctly
+
+### Removed
+- **Legacy Personality System** - Completely removed deprecated PersonalityManager and related components
+  - Deleted PersonalityManager.js, PersonalityRegistry.js, PersonalityValidator.js, PersonalityPersistence.js
+  - Removed embedBuilders.js utility (functionality moved to appropriate domain services)
+  - Cleaned up all references to legacy system throughout codebase
+
 ## [2.0.10] - 2025-07-09
 
 ### Fixed
