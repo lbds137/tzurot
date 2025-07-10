@@ -3,7 +3,17 @@
  * Provides consistent alias-to-personality resolution across the application
  */
 const logger = require('../logger');
-const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+
+// Store router reference - will be set during initialization
+let personalityRouter = null;
+
+/**
+ * Set the personality router instance
+ * @param {Object} router - The personality router instance
+ */
+function setPersonalityRouter(router) {
+  personalityRouter = router;
+}
 
 /**
  * Resolve a personality by name or alias
@@ -22,18 +32,41 @@ async function resolvePersonality(nameOrAlias) {
 
   logger.debug(`[AliasResolver] Resolving personality for: "${trimmedInput}"`);
 
-  // Use the DDD personality router
-  const bootstrap = getApplicationBootstrap();
-  const router = bootstrap.getPersonalityRouter();
-  const personality = await router.getPersonality(trimmedInput);
-
-  if (personality) {
-    logger.debug(
-      `[AliasResolver] Found personality: ${personality.profile?.name || personality.name}`
-    );
+  // Check if router is initialized
+  if (!personalityRouter) {
+    // Try lazy loading to avoid circular dependency
+    try {
+      const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+      const bootstrap = getApplicationBootstrap();
+      if (bootstrap && bootstrap.initialized) {
+        personalityRouter = bootstrap.getPersonalityRouter();
+      }
+    } catch (error) {
+      logger.error('[AliasResolver] Failed to get personality router:', error.message);
+      return null;
+    }
   }
 
-  return personality;
+  if (!personalityRouter) {
+    logger.warn('[AliasResolver] Personality router not available');
+    return null;
+  }
+
+  // Use the DDD personality router
+  try {
+    const personality = await personalityRouter.getPersonality(trimmedInput);
+
+    if (personality) {
+      logger.debug(
+        `[AliasResolver] Found personality: ${personality.profile?.name || personality.name}`
+      );
+    }
+
+    return personality;
+  } catch (error) {
+    logger.error('[AliasResolver] Error resolving personality:', error.message);
+    return null;
+  }
 }
 
 /**
@@ -95,4 +128,5 @@ module.exports = {
   personalityExists,
   getFullName,
   getAliases,
+  setPersonalityRouter,
 };
