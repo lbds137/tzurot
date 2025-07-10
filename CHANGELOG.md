@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] - 2025-07-10
+
+### Fixed
+- **Webhook URL Corruption in Thread Messages** - Fixed critical production issue causing thread message failures
+  - Root cause: Inconsistent webhook client construction between threadHandler and webhookCache
+  - threadHandler was using `new WebhookClient({ url: webhook.url })` while webhookCache used `{ id, token }`
+  - This inconsistency corrupted webhook URLs for specific threads (e.g., thread ID 1377848847119679508)
+  - Now threadHandler uses webhookCache.getOrCreateWebhook() for consistent webhook construction
+  - Fixes "The provided webhook URL is not valid" errors in production
+  - Emergency fallback now works properly for both short and long messages
+  - Tested successfully on regular threads and forum threads
+
 ## [2.1.0] - 2025-07-10
 
 ### Added
