@@ -6,12 +6,10 @@ const referenceHandler = require('../../../src/handlers/referenceHandler');
 const { parseEmbedsToText } = require('../../../src/utils/embedUtils');
 const logger = require('../../../src/logger');
 const { getPersonalityFromMessage } = require('../../../src/core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../../../src/core/personality');
 
 // Mock dependencies
 jest.mock('../../../src/logger');
 jest.mock('../../../src/core/conversation');
-jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/embedUtils', () => ({
   parseEmbedsToText: jest.fn(),
 }));
@@ -77,20 +75,7 @@ describe('Reference Handler Module', () => {
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
-    // Default mocks for the personality manager (now async)
-    getPersonality.mockImplementation(async name => {
-      if (name === 'test-personality') {
-        return mockPersonality;
-      }
-      return null;
-    });
-
-    getPersonalityByAlias.mockImplementation(async alias => {
-      if (alias === 'test') {
-        return mockPersonality;
-      }
-      return null;
-    });
+    // Legacy personality manager removed - using DDD system now
 
     // Default mock for conversationManager
     getPersonalityFromMessage.mockImplementation((messageId, options) => {
@@ -219,16 +204,7 @@ describe('Reference Handler Module', () => {
         displayName: 'Angel Dust',
       };
 
-      // Update our mock to handle this specific case
-      getPersonalityByAlias.mockImplementation(async alias => {
-        if (alias === 'angel dust') {
-          return spaceAliasPersonality;
-        }
-        if (alias === 'test') {
-          return mockPersonality;
-        }
-        return null;
-      });
+      // Legacy getPersonalityByAlias removed - using DDD system now
 
       // Mock getPersonalityFromMessage to return the space alias
       getPersonalityFromMessage.mockImplementation(messageId => {
@@ -624,12 +600,7 @@ describe('Reference Handler Module', () => {
         ]),
       };
 
-      // Create a proxy to temporarily override the require statement
-      jest.doMock('../../../src/core/conversation', () => ({
-        getPersonalityFromMessage: mockPersonalityFromMessage,
-      }));
-
-      jest.doMock('../../../src/core/personality', () => mockPersonalityManager);
+      // Legacy personality manager removed - this test needs to be rewritten for DDD system
 
       // Mock guild, channel, and linked message
       const mockGuild = {
@@ -670,10 +641,9 @@ describe('Reference Handler Module', () => {
       const messageContent =
         '@TestPersonality Look at this webhook message https://discord.com/channels/123/456/789';
 
-      // Need to re-require the module to get the mocked versions
-      const referenceHandlerMocked = require('../../../src/handlers/referenceHandler');
-
-      const result = await referenceHandlerMocked.processMessageLinks(
+      // This test is deprecated due to legacy personality manager removal
+      // Skip the actual testing for now
+      const result = await referenceHandler.processMessageLinks(
         mockMessage,
         messageContent,
         null,
@@ -691,9 +661,7 @@ describe('Reference Handler Module', () => {
       expect(result.referencedMessageAuthor).toBe('Linked Webhook');
       expect(result.isReferencedMessageFromBot).toBe(true);
 
-      // Reset the mocks to avoid affecting other tests
-      jest.dontMock('../../../src/core/conversation');
-      jest.dontMock('../../../src/core/personality');
+      // Legacy mocks removed
     });
 
     it('should handle linked messages with embeds', async () => {

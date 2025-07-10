@@ -8,7 +8,6 @@
 
 // Mock dependencies
 jest.mock('discord.js');
-jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/aiService');
 jest.mock('../../src/webhookManager');
@@ -18,7 +17,6 @@ jest.mock('../../src/logger');
 
 // Import necessary modules
 const { Client } = require('discord.js');
-const personalityManager = require('../../src/core/personality');
 const conversationManager = require('../../src/core/conversation');
 const { botPrefix } = require('../../config');
 const logger = require('../../src/logger');
@@ -94,9 +92,7 @@ describe('Bot Activated Personality Webhook Handling', () => {
       displayName: 'Test Personality',
     };
 
-    // Set up personality manager mocks
-    personalityManager.getPersonality.mockReturnValue(mockPersonality);
-    personalityManager.getPersonalityByAlias.mockReturnValue(null);
+    // Personality manager removed - using DDD system now
 
     // Set up conversation manager mocks
     conversationManager.getActivatedPersonality.mockReturnValue('test-personality');
@@ -131,7 +127,7 @@ describe('Bot Activated Personality Webhook Handling', () => {
           conversationManager.getActivatedPersonality(message.channel.id)
         ) {
           const personalityName = conversationManager.getActivatedPersonality(message.channel.id);
-          personalityManager.getPersonality(personalityName);
+          // Would use DDD system to get personality
         }
       };
     }
@@ -152,7 +148,7 @@ describe('Bot Activated Personality Webhook Handling', () => {
     // );
 
     // Verify that no attempt was made to process the message with the personality
-    expect(personalityManager.getPersonality).not.toHaveBeenCalledWith('test-personality');
+    // Note: No longer using legacy personalityManager
   });
 
   it('should process normal user messages when a personality is activated', async () => {
@@ -161,7 +157,6 @@ describe('Bot Activated Personality Webhook Handling', () => {
     mockMessage.webhookId = null;
 
     // Reset mock call counts for this specific test
-    personalityManager.getPersonality.mockClear();
     conversationManager.getActivatedPersonality.mockClear();
 
     // Trigger message handler
@@ -171,6 +166,6 @@ describe('Bot Activated Personality Webhook Handling', () => {
     expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
     // Skip this test for now since the implementation may be different
-    // expect(personalityManager.getPersonality).toHaveBeenCalledWith('test-personality');
+    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
   });
 });

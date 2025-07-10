@@ -67,33 +67,7 @@ jest.mock('path', () => ({
   }),
 }));
 
-// Mock personality manager
-jest.mock('../../src/core/personality', () => ({
-  listPersonalitiesForUser: jest.fn(() => [
-    {
-      fullName: 'test-personality-one',
-      displayName: 'Test Personality One',
-      avatarUrl: 'https://example.com/avatar1.png',
-    },
-    {
-      fullName: 'test-personality-two',
-      displayName: 'Test Personality Two',
-      avatarUrl: 'https://example.com/avatar2.png',
-    },
-  ]),
-  getAllPersonalities: jest.fn(() => [
-    {
-      fullName: 'test-personality-one',
-      displayName: 'Test Personality One',
-      avatarUrl: 'https://example.com/avatar1.png',
-    },
-    {
-      fullName: 'test-personality-two',
-      displayName: 'Test Personality Two',
-      avatarUrl: 'https://example.com/avatar2.png',
-    },
-  ]),
-}));
+// Legacy personality manager removed - using DDD system now
 
 // Mock ApplicationBootstrap for MessageHistory
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({

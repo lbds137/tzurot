@@ -14,7 +14,7 @@ const { ZipArchiveService } = require('../../../infrastructure/backup/ZipArchive
 const logger = require('../../../logger');
 const { USER_CONFIG } = require('../../../constants');
 const path = require('path');
-const { getPersonality, getPersonalityByAlias } = require('../../../core/personality');
+const { resolvePersonality } = require('../../../utils/aliasResolver');
 
 /**
  * Resolve a personality name/alias to the actual full name
@@ -25,23 +25,16 @@ async function resolvePersonalityName(input) {
   logger.debug(`[BackupCommand] Resolving personality name for input: "${input}"`);
 
   try {
-    // First try as full name
-    const personality = await getPersonality(input);
+    // Use DDD system to resolve personality by name or alias
+    const personality = await resolvePersonality(input);
     if (personality) {
-      logger.debug(`[BackupCommand] Found personality by full name: ${personality.fullName}`);
+      const fullName = personality.profile?.name || personality.name;
+      const displayName = personality.profile?.displayName || fullName;
+      
+      logger.debug(`[BackupCommand] Found personality: ${fullName}`);
       return {
-        fullName: personality.fullName,
-        displayName: personality.displayName || personality.fullName,
-      };
-    }
-
-    // Try as alias
-    const personalityByAlias = getPersonalityByAlias(input);
-    if (personalityByAlias) {
-      logger.debug(`[BackupCommand] Found personality by alias: ${personalityByAlias.fullName}`);
-      return {
-        fullName: personalityByAlias.fullName,
-        displayName: personalityByAlias.displayName || personalityByAlias.fullName,
+        fullName: fullName,
+        displayName: displayName,
       };
     }
 

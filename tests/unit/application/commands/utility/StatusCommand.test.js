@@ -8,9 +8,15 @@ const {
 } = require('../../../../../src/application/commands/utility/StatusCommand');
 const { createMigrationHelper } = require('../../../../utils/testEnhancements');
 const logger = require('../../../../../src/logger');
+const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
 
 // Mock logger
 jest.mock('../../../../../src/logger');
+
+// Mock ApplicationBootstrap
+jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn(),
+}));
 
 describe('StatusCommand', () => {
   let statusCommand;
@@ -26,6 +32,11 @@ describe('StatusCommand', () => {
     jest.clearAllMocks();
 
     migrationHelper = createMigrationHelper();
+    
+    // Mock ApplicationBootstrap to not be initialized, forcing fallback to legacy mocks
+    getApplicationBootstrap.mockReturnValue({
+      initialized: false,
+    });
 
     // Mock dependencies
     mockAuth = {

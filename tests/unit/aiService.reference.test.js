@@ -1,7 +1,30 @@
+// Mock dependencies before imports
+jest.mock('../../src/utils/aliasResolver', () => ({
+  resolvePersonality: jest.fn(),
+}));
+
+jest.mock('../../src/utils/contextMetadataFormatter', () => ({
+  formatContextMetadata: jest.fn(() => '[Test Server | #test-channel | 2025-01-01T00:00:00.000Z]'),
+}));
+
 const { formatApiMessages } = require('../../src/aiService');
 const { sanitizeApiText } = require('../../src/utils/contentSanitizer');
+const { resolvePersonality } = require('../../src/utils/aliasResolver');
 
 describe('AI Service Reference Message Handling', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    
+    // Setup default mock behavior for resolvePersonality
+    resolvePersonality.mockResolvedValue({
+      name: 'albert-einstein',
+      profile: {
+        name: 'albert-einstein',
+        displayName: 'Albert Einstein',
+      },
+    });
+  });
+
   describe('sanitizeApiText', () => {
     it('should handle empty input', () => {
       expect(sanitizeApiText(null)).toBe('');

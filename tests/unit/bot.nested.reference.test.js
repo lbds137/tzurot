@@ -4,7 +4,6 @@
 
 // Mock dependencies
 jest.mock('../../src/logger');
-jest.mock('../../src/core/personality');
 jest.mock('../../src/core/conversation');
 jest.mock('../../src/handlers/messageTrackerHandler');
 jest.mock('../../src/application/services/FeatureFlags');
@@ -13,7 +12,6 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap');
 const logger = require('../../src/logger');
 const { handleMessageReference } = require('../../src/handlers/referenceHandler');
 const { getPersonalityFromMessage } = require('../../src/core/conversation');
-const { getPersonality, getPersonalityByAlias } = require('../../src/core/personality');
 const messageTrackerHandler = require('../../src/handlers/messageTrackerHandler');
 const { createFeatureFlags } = require('../../src/application/services/FeatureFlags');
 const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
@@ -116,12 +114,7 @@ describe('Nested Reference Handling', () => {
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
-    // Set up personality manager mocks (async)
-    getPersonality.mockResolvedValue({
-      fullName: 'test-personality',
-      displayName: 'Test',
-    });
-    getPersonalityByAlias.mockReturnValue(null);
+    // Legacy personality manager removed - using DDD system now
 
     // Set up conversation manager mocks (async)
     getPersonalityFromMessage.mockResolvedValue('test-personality');

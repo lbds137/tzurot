@@ -24,7 +24,7 @@ jest.mock('../../../../src/core/conversation');
 jest.mock('../../../../config');
 jest.mock('../../../../src/utils/webhookUserTracker');
 jest.mock('../../../../src/utils/channelUtils');
-jest.mock('../../../../src/core/personality/PersonalityManager');
+// PersonalityManager removed - now using DDD system
 jest.mock('../../../../src/application/services/RequestTrackingService', () => {
   return jest.fn().mockImplementation((options = {}) => ({
     pendingRequests: new Map(),
@@ -144,14 +144,7 @@ describe('ApplicationBootstrap', () => {
     HttpAIServiceAdapter.mockImplementation(() => ({}));
     PersonalityApplicationService.mockImplementation(() => ({}));
 
-    // Mock PersonalityManager
-    const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
-    PersonalityManager.getInstance = jest.fn().mockReturnValue({
-      initialized: false,
-      initialize: jest.fn().mockResolvedValue(),
-      listPersonalitiesForUser: jest.fn().mockReturnValue([]),
-      registerPersonality: jest.fn().mockResolvedValue({ success: true }),
-    });
+    // Legacy PersonalityManager removed - using DDD system now
 
     // Reset singleton
     resetApplicationBootstrap();
@@ -453,8 +446,7 @@ describe('ApplicationBootstrap', () => {
         listPersonalitiesForUser: jest.fn().mockReturnValue([]),
         registerPersonality: jest.fn().mockResolvedValue({ success: true }),
       };
-      const PersonalityManager = require('../../../../src/core/personality/PersonalityManager');
-      PersonalityManager.getInstance.mockReturnValue(mockLegacyManager);
+      // Legacy PersonalityManager removed - using DDD system now
     });
 
     it('should schedule seeding when DDD personality write is enabled', async () => {

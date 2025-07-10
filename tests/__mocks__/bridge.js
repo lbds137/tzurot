@@ -29,14 +29,7 @@ function getMockEnvironment(options = {}) {
  * @param {Object} customMocks - Additional custom mocks
  */
 function setupCommonMocks(mockEnv, customMocks = {}) {
-  // Replace module exports with our mock objects
-  if (mockEnv.modules.personalityManager) {
-    require('../../src/core/personality');
-    Object.assign(
-      require.cache[require.resolve('../../src/core/personality')].exports,
-      mockEnv.modules.personalityManager
-    );
-  }
+  // Legacy personality manager removed - using DDD system now
 
   if (mockEnv.modules.conversationManager) {
     require('../../../../src/conversationManager');

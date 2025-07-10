@@ -15,7 +15,6 @@ jest.mock('../../../src/handlers/dmHandler');
 jest.mock('../../../src/handlers/errorHandler');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/core/conversation');
-jest.mock('../../../src/core/personality');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/utils/pluralkitMessageStore', () => ({
   instance: {
@@ -43,10 +42,6 @@ const {
   getActivatedPersonality,
   isAutoResponseEnabled,
 } = require('../../../src/core/conversation');
-const {
-  getPersonalityByAlias,
-  getMaxAliasWordCount,
-} = require('../../../src/core/personality');
 const channelUtils = require('../../../src/utils/channelUtils');
 const pluralkitMessageStore = require('../../../src/utils/pluralkitMessageStore');
 const { getCommandIntegrationAdapter } = require('../../../src/adapters/CommandIntegrationAdapter');
@@ -59,6 +54,7 @@ describe('messageHandler', () => {
   let mockMessage;
   let mockPersonality;
   let mockAuthManager;
+  let mockPersonalityRouter;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -123,9 +119,7 @@ describe('messageHandler', () => {
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);
     isAutoResponseEnabled.mockReturnValue(undefined);
-    getPersonalityByAlias.mockReturnValue(null);
     resolvePersonality.mockResolvedValue(null); // Default to no personality found
-    getMaxAliasWordCount.mockReturnValue(1); // Default to single word
     channelUtils.isChannelNSFW.mockReturnValue(true);
 
     // Mock feature flags - DDD commands are always enabled now
@@ -139,8 +133,8 @@ describe('messageHandler', () => {
     });
 
     // Mock ApplicationBootstrap with personality router
-    const mockPersonalityRouter = {
-      getMaxAliasWordCount: jest.fn().mockImplementation(async () => getMaxAliasWordCount()),
+    mockPersonalityRouter = {
+      getMaxAliasWordCount: jest.fn().mockResolvedValue(1), // Default single word
     };
     const mockBootstrap = {
       initialized: true,
@@ -541,7 +535,7 @@ describe('messageHandler', () => {
       };
 
       // Set max word count to allow multi-word aliases
-      getMaxAliasWordCount.mockReturnValue(2);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(2);
 
       // Mock resolvePersonality to return for multi-word alias
       resolvePersonality.mockImplementation(async name => {
@@ -581,7 +575,7 @@ describe('messageHandler', () => {
       };
 
       // Set max word count to allow 3-word aliases
-      getMaxAliasWordCount.mockReturnValue(3);
+      mockPersonalityRouter.getMaxAliasWordCount.mockResolvedValue(3);
 
       // Custom personality for this test
       const testPersonalityPrime = {

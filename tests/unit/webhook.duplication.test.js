@@ -12,15 +12,7 @@ jest.mock('../../src/logger', () => ({
   error: jest.fn(),
 }));
 
-// Mock the personalityManager module
-jest.mock('../../src/core/personality', () => ({
-  getPersonalityByAlias: jest.fn(),
-  getPersonality: jest.fn(),
-  listPersonalities: jest.fn().mockReturnValue([
-    { fullName: 'albert-einstein', displayName: 'Albert Einstein' },
-    { fullName: 'nikola-tesla', displayName: 'Nikola Tesla' },
-  ]),
-}));
+// Legacy personality manager removed - using DDD system now
 
 // Mock the conversationManager module
 jest.mock('../../src/core/conversation', () => ({

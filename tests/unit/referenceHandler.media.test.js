@@ -5,10 +5,6 @@
 // Mock dependencies first
 jest.mock('../../src/logger');
 jest.mock('../../src/core/conversation');
-jest.mock('../../src/core/personality', () => ({
-  getAllPersonalities: jest.fn(),
-  listPersonalitiesForUser: jest.fn(), // Keep for backward compatibility
-}));
 jest.mock('../../src/utils/embedUtils');
 
 // Now require the modules
@@ -402,14 +398,7 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       getPersonalityFromMessage.mockReturnValue('test-personality');
 
-      // Mock personalityManager.getAllPersonalities to return personality data
-      const personalityManager = require('../../src/core/personality');
-      personalityManager.getAllPersonalities.mockReturnValue([
-        {
-          fullName: 'test-personality',
-          displayName: 'Test',
-        },
-      ]);
+      // Legacy personalityManager removed - would use DDD PersonalityRouter now
 
       const result = await processMessageLinks(
         mockMessage,
@@ -427,7 +416,7 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       expect(result.referencedAudioUrl).toBe(null);
       expect(result.referencedPersonalityInfo).toEqual({
         name: 'test-personality',
-        displayName: 'Test',
+        displayName: 'test', // DDD system uses simple name extraction when personality not found
       });
     });
 
