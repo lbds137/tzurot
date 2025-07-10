@@ -33,6 +33,7 @@ describe('PersonalityConfiguration', () => {
       expect(config.prompt).toBe('You are a helpful assistant');
       expect(config.modelPath).toBe('/models/gpt-4');
       expect(config.maxWordCount).toBe(2000);
+      expect(config.disableContextMetadata).toBe(false);
     });
 
     it('should use default maxWordCount', () => {
@@ -43,6 +44,7 @@ describe('PersonalityConfiguration', () => {
       );
 
       expect(config.maxWordCount).toBe(1000);
+      expect(config.disableContextMetadata).toBe(false);
     });
 
     it('should reject missing name', () => {
@@ -158,6 +160,7 @@ describe('PersonalityConfiguration', () => {
       expect(updated.prompt).toBe('You are a creative writer'); // Updated
       expect(updated.modelPath).toBe('/models/gpt-4'); // Unchanged
       expect(updated.maxWordCount).toBe(2000); // Unchanged
+      expect(updated.disableContextMetadata).toBe(false); // Unchanged
     });
 
     it('should create new configuration with updated modelPath', () => {
@@ -170,6 +173,7 @@ describe('PersonalityConfiguration', () => {
       expect(updated.prompt).toBe('You are a helpful assistant');
       expect(updated.modelPath).toBe('/models/claude-3');
       expect(updated.maxWordCount).toBe(2000);
+      expect(updated.disableContextMetadata).toBe(false);
     });
 
     it('should create new configuration with updated maxWordCount', () => {
@@ -182,6 +186,7 @@ describe('PersonalityConfiguration', () => {
       expect(updated.prompt).toBe('You are a helpful assistant');
       expect(updated.modelPath).toBe('/models/gpt-4');
       expect(updated.maxWordCount).toBe(5000);
+      expect(updated.disableContextMetadata).toBe(false);
     });
 
     it('should create new configuration with multiple updates', () => {
@@ -196,6 +201,7 @@ describe('PersonalityConfiguration', () => {
       expect(updated.prompt).toBe('You are a creative writer');
       expect(updated.modelPath).toBe('/models/claude-3');
       expect(updated.maxWordCount).toBe(3000);
+      expect(updated.disableContextMetadata).toBe(false);
     });
 
     it('should not change name even if provided', () => {
@@ -207,6 +213,19 @@ describe('PersonalityConfiguration', () => {
       expect(updated.name).toBe('test-personality'); // Original name
     });
 
+    it('should create new configuration with updated disableContextMetadata', () => {
+      const updated = config.withUpdates({
+        disableContextMetadata: true,
+      });
+
+      expect(updated).not.toBe(config);
+      expect(updated.name).toBe('test-personality');
+      expect(updated.prompt).toBe('You are a helpful assistant');
+      expect(updated.modelPath).toBe('/models/gpt-4');
+      expect(updated.maxWordCount).toBe(2000);
+      expect(updated.disableContextMetadata).toBe(true);
+    });
+
     it('should handle empty updates object', () => {
       const updated = config.withUpdates({});
 
@@ -215,6 +234,7 @@ describe('PersonalityConfiguration', () => {
       expect(updated.prompt).toBe(config.prompt);
       expect(updated.modelPath).toBe(config.modelPath);
       expect(updated.maxWordCount).toBe(config.maxWordCount);
+      expect(updated.disableContextMetadata).toBe(config.disableContextMetadata);
     });
   });
 
@@ -234,6 +254,7 @@ describe('PersonalityConfiguration', () => {
         prompt: 'You are a helpful assistant',
         modelPath: '/models/gpt-4',
         maxWordCount: 2000,
+        disableContextMetadata: false,
       });
     });
   });
@@ -245,6 +266,7 @@ describe('PersonalityConfiguration', () => {
         prompt: 'You are a helpful assistant',
         modelPath: '/models/gpt-4',
         maxWordCount: 2000,
+        disableContextMetadata: true,
       };
 
       const config = PersonalityConfiguration.fromJSON(json);
@@ -254,6 +276,7 @@ describe('PersonalityConfiguration', () => {
       expect(config.prompt).toBe('You are a helpful assistant');
       expect(config.modelPath).toBe('/models/gpt-4');
       expect(config.maxWordCount).toBe(2000);
+      expect(config.disableContextMetadata).toBe(true);
     });
 
     it('should apply validation when creating from JSON', () => {

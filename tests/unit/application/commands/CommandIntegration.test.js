@@ -296,13 +296,14 @@ describe('CommandIntegration', () => {
       });
 
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(19);
+      expect(commands).toHaveLength(20);
       expect(commands.map(c => c.name)).toEqual([
         'add',
         'remove',
         'info',
         'alias',
         'list',
+        'config',
         'reset',
         'activate',
         'deactivate',
