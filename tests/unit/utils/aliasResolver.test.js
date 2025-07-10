@@ -12,6 +12,7 @@ const {
   personalityExists,
   getFullName,
   getAliases,
+  setPersonalityRouter,
 } = require('../../../src/utils/aliasResolver');
 
 const logger = require('../../../src/logger');
@@ -32,8 +33,12 @@ describe('aliasResolver', () => {
     // Setup bootstrap mock
     mockBootstrap = {
       getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      initialized: true,
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
+
+    // Set the personality router directly to avoid lazy loading in tests
+    setPersonalityRouter(mockPersonalityRouter);
   });
 
   describe('resolvePersonality', () => {
@@ -90,7 +95,10 @@ describe('aliasResolver', () => {
         throw new Error('Router error');
       });
 
-      await expect(resolvePersonality('test')).rejects.toThrow('Router error');
+      // The new implementation catches errors and returns null
+      const result = await resolvePersonality('test');
+      expect(result).toBeNull();
+      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Router error');
     });
   });
 
@@ -139,10 +147,13 @@ describe('aliasResolver', () => {
     it('should handle resolution errors gracefully', async () => {
       mockPersonalityRouter.getPersonality
         .mockResolvedValueOnce(mockPersonality1)
-        .mockRejectedValueOnce(new Error('Resolution error'))
+        .mockImplementationOnce(() => { throw new Error('Resolution error'); })
         .mockResolvedValueOnce(mockPersonality2);
 
-      await expect(resolveMultiplePersonalities(['name1', 'error', 'name2'])).rejects.toThrow('Resolution error');
+      // The new implementation catches errors and continues with other resolutions
+      const result = await resolveMultiplePersonalities(['name1', 'error', 'name2']);
+      expect(result).toEqual([mockPersonality1, mockPersonality2]); // Both successful resolutions
+      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Resolution error');
     });
   });
 
@@ -256,7 +267,7 @@ describe('aliasResolver', () => {
 
       const result = await resolvePersonality('test');
       
-      expect(mockBootstrap.getPersonalityRouter).toHaveBeenCalled();
+      // Router is already set via setPersonalityRouter, no need to call getApplicationBootstrap
       expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
     });
@@ -268,6 +279,32 @@ describe('aliasResolver', () => {
       
       expect(result).toBeNull();
       expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('nonexistent');
+    });
+
+    it('should use lazy loading when router not set', async () => {
+      // Reset the router to null to test lazy loading
+      setPersonalityRouter(null);
+      
+      const mockPersonality = { fullName: 'Lazy Loaded' };
+      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+
+      const result = await resolvePersonality('lazy');
+      
+      expect(getApplicationBootstrap).toHaveBeenCalled();
+      expect(mockBootstrap.getPersonalityRouter).toHaveBeenCalled();
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('lazy');
+      expect(result).toBe(mockPersonality);
+    });
+
+    it('should handle bootstrap not initialized during lazy loading', async () => {
+      // Reset the router and make bootstrap not initialized
+      setPersonalityRouter(null);
+      mockBootstrap.initialized = false;
+
+      const result = await resolvePersonality('notready');
+      
+      expect(result).toBeNull();
+      expect(logger.warn).toHaveBeenCalledWith('[AliasResolver] Personality router not available');
     });
   });
 });
