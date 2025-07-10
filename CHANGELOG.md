@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.10] - 2025-07-09
+
+### Fixed
+- **Pluralkit Support** - Comprehensive fix for Pluralkit integration issues
+  - Fixed authentication to use real user ID instead of webhook ID for Pluralkit messages
+  - Added reply tracking system to restore lost Discord references when Pluralkit processes messages
+  - Improved proxy message detection using webhookUserTracker for accurate Pluralkit identification
+  - Fixed conversation history to show speaker names for Pluralkit messages (e.g., "Name | System: message")
+  - Personalities can now differentiate between different Pluralkit proxies from the same Discord user
+  - Removed square brackets from proxy message format for cleaner appearance
+
+### Changed
+- **Documentation Organization** - Cleaned up root directory
+  - Consolidated temporary issue summaries into docs/development/ISSUE_RESOLUTIONS.md
+  - Moved coverage reports to docs/testing/coverage-reports/
+  - Root directory now only contains essential files (README, CHANGELOG, CLAUDE)
+
 ## [2.0.9] - 2025-07-08
 
 ### Fixed
