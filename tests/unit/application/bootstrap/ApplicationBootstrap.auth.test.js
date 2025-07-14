@@ -191,8 +191,8 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
     it('should create OAuthTokenService with correct config', async () => {
       process.env.SERVICE_APP_ID = 'test-app-id';
       process.env.SERVICE_API_KEY = 'test-api-key';
-      process.env.SERVICE_API_BASE_URL = 'http://test-api.com';
-      process.env.SERVICE_WEBSITE = 'http://test-website.com';
+      process.env.SERVICE_API_BASE_URL = 'http://example.com/api';
+      process.env.SERVICE_WEBSITE = 'http://example.com';
 
       const bootstrap = new ApplicationBootstrap();
       await bootstrap.initialize();
@@ -200,9 +200,9 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
       expect(OAuthTokenService).toHaveBeenCalledWith({
         appId: 'test-app-id',
         apiKey: 'test-api-key',
-        authApiEndpoint: 'http://test-api.com/auth',
-        authWebsite: 'http://test-website.com',
-        serviceApiBaseUrl: 'http://test-api.com',
+        authApiEndpoint: 'http://example.com/api/auth',
+        authWebsite: 'http://example.com',
+        serviceApiBaseUrl: 'http://example.com/api',
       });
     });
 
