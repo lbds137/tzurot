@@ -26,13 +26,15 @@ class AuthenticationAntiCorruptionLayer {
   /**
    * @param {Object} dependencies
    * @param {AuthManager} dependencies.legacyAuthManager - Legacy auth manager
-   * @param {AuthenticationApplicationService} dependencies.authApplicationService - New DDD auth service
+   * @param {AuthenticationApplicationService} dependencies.authenticationApplicationService - New DDD auth service
+   * @param {Object} dependencies.logger - Logger instance
    * @param {boolean} dependencies.shadowMode - Run both systems and compare results
    * @param {boolean} dependencies.useDDD - Use DDD implementation as primary
    */
   constructor({
     legacyAuthManager,
     authApplicationService,
+    logger: injectedLogger,
     shadowMode = false,
     useDDD = false,
   }) {
@@ -42,6 +44,7 @@ class AuthenticationAntiCorruptionLayer {
 
     this.legacyAuthManager = legacyAuthManager;
     this.authApplicationService = authApplicationService;
+    this.logger = injectedLogger || logger;
     this.shadowMode = shadowMode;
     this.useDDD = useDDD;
     
@@ -85,7 +88,13 @@ class AuthenticationAntiCorruptionLayer {
         const legacyUrl = await this.legacyAuthManager.getAuthorizationUrl(discordUserId);
         
         // DDD
-        const dddUrl = await this.authApplicationService.getAuthorizationUrl(discordUserId);
+        let dddUrl;
+        try {
+          dddUrl = await this.authApplicationService.getAuthorizationUrl(discordUserId);
+        } catch (error) {
+          this.logger.error(`[AuthACL] DDD getAuthorizationUrl failed: ${error.message}`);
+          dddUrl = '[DDD_ERROR]';
+        }
         
         return { legacy: legacyUrl, ddd: dddUrl };
       });
@@ -286,7 +295,7 @@ class AuthenticationAntiCorruptionLayer {
         
         // DDD
         const status = await this.authApplicationService.getAuthenticationStatus(userId);
-        const dddVerified = status.user?.nsfwStatus?.isVerified || false;
+        const dddVerified = status.user?.nsfwStatus?.verified || false;
         
         return { legacy: legacyVerified, ddd: dddVerified };
       });
@@ -294,7 +303,7 @@ class AuthenticationAntiCorruptionLayer {
     
     if (this.useDDD) {
       const status = await this.authApplicationService.getAuthenticationStatus(userId);
-      return status.user?.nsfwStatus?.isVerified || false;
+      return status.user?.nsfwStatus?.verified || false;
     }
     
     return this.legacyAuthManager.nsfwVerificationManager.isUserVerified(userId);
@@ -377,15 +386,16 @@ class AuthenticationAntiCorruptionLayer {
         const legacyResult = await this.legacyAuthManager.storeUserToken(userId, token);
         
         // DDD implementation - exchange the "token" (actually code) for real token
+        let dddResult;
         try {
-          await this.authenticationApplicationService.exchangeCodeForToken(userId, token);
-          return true;
+          await this.authApplicationService.exchangeCodeForToken(userId, token);
+          dddResult = true;
         } catch (error) {
           this.logger.error(`[ACL] DDD storeUserToken failed: ${error.message}`);
-          return false;
+          dddResult = false;
         }
         
-        return { legacy: legacyResult, ddd: true };
+        return { legacy: legacyResult, ddd: dddResult };
       });
     } catch (error) {
       this.logger.error(`[ACL] storeUserToken failed: ${error.message}`);
@@ -445,15 +455,16 @@ class AuthenticationAntiCorruptionLayer {
         const legacyResult = await this.legacyAuthManager.deleteUserToken(userId);
         
         // DDD implementation
+        let dddResult;
         try {
-          await this.authenticationApplicationService.revokeAuthentication(userId);
-          return true;
+          await this.authApplicationService.revokeAuthentication(userId);
+          dddResult = true;
         } catch (error) {
           this.logger.error(`[ACL] DDD deleteUserToken failed: ${error.message}`);
-          return false;
+          dddResult = false;
         }
         
-        return { legacy: legacyResult, ddd: true };
+        return { legacy: legacyResult, ddd: dddResult };
       });
     } catch (error) {
       this.logger.error(`[ACL] deleteUserToken failed: ${error.message}`);
@@ -561,6 +572,10 @@ class AuthenticationAntiCorruptionLayer {
     
     if (typeof legacyResult === 'boolean' && legacyResult !== dddResult) {
       return `Boolean mismatch: legacy=${legacyResult}, ddd=${dddResult}`;
+    }
+    
+    if (typeof legacyResult === 'string' && legacyResult !== dddResult) {
+      return `String mismatch: legacy="${legacyResult}", ddd="${dddResult}"`;
     }
     
     if (typeof legacyResult === 'object' && legacyResult !== null && dddResult !== null) {
