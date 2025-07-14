@@ -352,6 +352,116 @@ class AuthenticationAntiCorruptionLayer {
   }
 
   /**
+   * Legacy method: Get token from OAuth code
+   * @param {string} code - OAuth authorization code
+   * @returns {Promise<string>} Token
+   */
+  async getTokenFromCode(code) {
+    // In legacy system, this doesn't require user ID
+    // We'll use a temporary approach for migration
+    return this.shadowMode 
+      ? this.legacyAuthManager.getTokenFromCode(code)
+      : code; // Return code as token temporarily
+  }
+
+  /**
+   * Legacy method: Store user token
+   * @param {string} userId - Discord user ID
+   * @param {string} token - Token to store
+   * @returns {Promise<boolean>} Success status
+   */
+  async storeUserToken(userId, token) {
+    try {
+      return this._runInShadowMode('storeUserToken', async () => {
+        // Legacy implementation
+        const legacyResult = await this.legacyAuthManager.storeUserToken(userId, token);
+        
+        // DDD implementation - exchange the "token" (actually code) for real token
+        try {
+          await this.authenticationApplicationService.exchangeCodeForToken(userId, token);
+          return true;
+        } catch (error) {
+          this.logger.error(`[ACL] DDD storeUserToken failed: ${error.message}`);
+          return false;
+        }
+        
+        return { legacy: legacyResult, ddd: true };
+      });
+    } catch (error) {
+      this.logger.error(`[ACL] storeUserToken failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * Legacy method: Check if user has valid token
+   * @param {string} userId - Discord user ID
+   * @returns {boolean} Has valid token
+   */
+  hasValidToken(userId) {
+    // Synchronous method for legacy compatibility
+    if (this.shadowMode) {
+      return this.legacyAuthManager.hasValidToken(userId);
+    }
+    // For now, return false until we implement async wrapper
+    return false;
+  }
+
+  /**
+   * Legacy method: Get token age
+   * @param {string} userId - Discord user ID
+   * @returns {string|null} Token age description
+   */
+  getTokenAge(userId) {
+    // Synchronous method for legacy compatibility
+    if (this.shadowMode) {
+      return this.legacyAuthManager.getTokenAge(userId);
+    }
+    return null;
+  }
+
+  /**
+   * Legacy method: Get token expiration info
+   * @param {string} userId - Discord user ID
+   * @returns {Object|null} Expiration info
+   */
+  getTokenExpirationInfo(userId) {
+    // Synchronous method for legacy compatibility
+    if (this.shadowMode) {
+      return this.legacyAuthManager.getTokenExpirationInfo(userId);
+    }
+    return null;
+  }
+
+  /**
+   * Legacy method: Delete user token
+   * @param {string} userId - Discord user ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async deleteUserToken(userId) {
+    try {
+      return this._runInShadowMode('deleteUserToken', async () => {
+        // Legacy implementation
+        const legacyResult = await this.legacyAuthManager.deleteUserToken(userId);
+        
+        // DDD implementation
+        try {
+          await this.authenticationApplicationService.revokeAuthentication(userId);
+          return true;
+        } catch (error) {
+          this.logger.error(`[ACL] DDD deleteUserToken failed: ${error.message}`);
+          return false;
+        }
+        
+        return { legacy: legacyResult, ddd: true };
+      });
+    } catch (error) {
+      this.logger.error(`[ACL] deleteUserToken failed: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
    * Create AI client for user
    * @param {string} userId - Discord user ID
    * @returns {Promise<Object>} AI client
