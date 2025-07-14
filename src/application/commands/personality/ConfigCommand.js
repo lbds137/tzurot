@@ -180,7 +180,7 @@ function createConfigCommand() {
           }
 
           // Apply the setting based on the setting name
-          let updateData = {};
+          const updateData = {};
           let settingDescription = '';
 
           switch (setting) {
