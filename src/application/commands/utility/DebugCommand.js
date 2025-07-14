@@ -37,7 +37,7 @@ function createExecutor(dependencies = {}) {
         messageTracker = require('../../../messageTracker').messageTracker,
         nsfwVerificationManager,
         authManager,
-      } = dependencies;
+      } = context.dependencies || dependencies;
 
       // Get NSFW verification manager from auth manager
       const effectiveNsfwManager =
