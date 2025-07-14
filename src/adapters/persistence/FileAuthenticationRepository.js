@@ -314,49 +314,35 @@ class FileAuthenticationRepository extends AuthenticationRepository {
       }
     }
 
-    // If no valid token, create UserAuth without authentication
-    // We need to handle this edge case
-    let userAuth;
-    if (latestToken) {
-      // Token requires expiresAt, so we need to handle tokens without expiry differently
-      let token;
-      if (latestToken.expiresAt) {
-        token = new Token(latestToken.value, new Date(latestToken.expiresAt));
-      } else {
-        // For tokens without expiry, set a far future date
-        const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year
-        token = new Token(latestToken.value, farFuture);
-      }
-
-      userAuth = UserAuth.authenticate(userId, token);
-    } else {
-      // Create unauthenticated user - we'll need to handle this
-      // For now, create with a dummy constructor call
-      userAuth = new UserAuth(userId);
+    // If no valid token, we can't create a UserAuth
+    if (!latestToken) {
+      return null; // No authenticated user
     }
 
-    // Set NSFW status if different from default
-    // Handle both string format (legacy) and object format (from toJSON)
-    if (data.nsfwStatus) {
-      const nsfwStatus =
-        typeof data.nsfwStatus === 'string'
-          ? data.nsfwStatus
-          : data.nsfwStatus.verified
-            ? 'verified'
-            : 'unverified';
+    // Prepare user auth data for reconstitution
+    const authData = {
+      userId: data.userId,
+      token: {
+        value: latestToken.value,
+        expiresAt: latestToken.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year default
+      },
+      blacklisted: data.blacklisted || false,
+      blacklistReason: data.blacklistReason || null,
+      lastAuthenticatedAt: data.lastAuthenticated || latestToken.createdAt,
+      authenticationCount: data.tokens?.length || 1,
+    };
 
-      if (nsfwStatus === 'verified') {
-        userAuth.verifyNsfw();
-      } else if (nsfwStatus === 'blocked') {
-        // The domain model might not have blockNsfw, check first
-        if (typeof userAuth.blockNsfw === 'function') {
-          userAuth.blockNsfw();
-        } else {
-          // Set blacklisted instead if blockNsfw doesn't exist
-          userAuth.blacklisted = true;
-        }
-      }
+    // Handle NSFW status
+    if (data.nsfwVerified) {
+      authData.nsfwStatus = {
+        isVerified: true,
+        verifiedAt: data.nsfwVerifiedAt || new Date().toISOString(),
+      };
     }
+
+    // Use the fromData factory method
+    const userAuth = UserAuth.fromData(authData);
+
 
     // Store reference to all tokens for backward compatibility queries
     userAuth._allTokens = data.tokens || [];

@@ -21,32 +21,44 @@ const {
  * @class UserAuth
  * @extends AggregateRoot
  * @description Aggregate root for user authentication
+ * 
+ * IMPORTANT: Users must be authenticated to exist in the system.
+ * There are no "unauthenticated" users - if someone hasn't gone through
+ * OAuth, they simply don't have a UserAuth record.
  */
 class UserAuth extends AggregateRoot {
-  constructor(userId) {
+  /**
+   * Private constructor - use static factory methods
+   * @private
+   */
+  constructor(userId, token) {
     if (!(userId instanceof UserId)) {
       throw new Error('UserAuth must be created with UserId');
+    }
+
+    if (!(token instanceof Token)) {
+      throw new Error('UserAuth must be created with Token');
     }
 
     super(userId.toString());
 
     this.userId = userId;
-    this.token = null;
+    this.token = token;
     this.nsfwStatus = NsfwStatus.createUnverified();
     this.blacklisted = false;
     this.blacklistReason = null;
-    this.lastAuthenticatedAt = null;
-    this.authenticationCount = 0;
+    this.lastAuthenticatedAt = new Date();
+    this.authenticationCount = 1;
   }
 
   /**
-   * Authenticate user with token
+   * Create new authenticated user
    * @static
    * @param {UserId} userId - User ID
    * @param {Token} token - Authentication token
    * @returns {UserAuth} New authenticated user
    */
-  static authenticate(userId, token) {
+  static createAuthenticated(userId, token) {
     if (!(userId instanceof UserId)) {
       throw new Error('Invalid UserId');
     }
@@ -55,16 +67,46 @@ class UserAuth extends AggregateRoot {
       throw new Error('Invalid Token');
     }
 
-    const userAuth = new UserAuth(userId);
+    const userAuth = new UserAuth(userId, token);
 
     userAuth.applyEvent(
       new UserAuthenticated(userId.toString(), {
         userId: userId.toString(),
         token: token.toJSON(),
-        authenticatedAt: new Date().toISOString(),
+        authenticatedAt: userAuth.lastAuthenticatedAt.toISOString(),
       })
     );
 
+    return userAuth;
+  }
+
+  /**
+   * Reconstitute from persistence
+   * @static
+   * @param {Object} data - Persisted data
+   * @returns {UserAuth} Reconstituted user auth
+   */
+  static fromData(data) {
+    if (!data.userId || !data.token) {
+      throw new Error('Cannot reconstitute UserAuth without userId and token');
+    }
+
+    const userId = new UserId(data.userId);
+    const token = new Token(data.token.value, new Date(data.token.expiresAt));
+    
+    const userAuth = new UserAuth(userId, token);
+    
+    // Restore state without events
+    userAuth.nsfwStatus = data.nsfwStatus 
+      ? NsfwStatus.fromJSON(data.nsfwStatus)
+      : NsfwStatus.createUnverified();
+    userAuth.blacklisted = data.blacklisted || false;
+    userAuth.blacklistReason = data.blacklistReason || null;
+    userAuth.lastAuthenticatedAt = data.lastAuthenticatedAt 
+      ? new Date(data.lastAuthenticatedAt)
+      : new Date();
+    userAuth.authenticationCount = data.authenticationCount || 1;
+    
     return userAuth;
   }
 
@@ -87,7 +129,7 @@ class UserAuth extends AggregateRoot {
 
     this.applyEvent(
       new UserTokenRefreshed(this.id, {
-        oldToken: this.token ? this.token.toJSON() : null,
+        oldToken: this.token.toJSON(),
         newToken: newToken.toJSON(),
         refreshedAt: new Date().toISOString(),
       })
@@ -98,8 +140,8 @@ class UserAuth extends AggregateRoot {
    * Mark token as expired
    */
   expireToken() {
-    if (!this.token) {
-      throw new Error('No token to expire');
+    if (!this.token || (this.token && this.token.isExpired())) {
+      return; // Already expired
     }
 
     this.applyEvent(
@@ -110,10 +152,13 @@ class UserAuth extends AggregateRoot {
   }
 
   /**
-   * Verify NSFW access
-   * @param {Date} [verifiedAt] - Verification time
+   * Verify user for NSFW access
    */
-  verifyNsfw(verifiedAt = new Date()) {
+  verifyNsfw() {
+    if (!this.isAuthenticated()) {
+      throw new Error('Must be authenticated to verify NSFW access');
+    }
+
     if (this.blacklisted) {
       throw new Error('Cannot verify NSFW for blacklisted user');
     }
@@ -124,23 +169,22 @@ class UserAuth extends AggregateRoot {
 
     this.applyEvent(
       new UserNsfwVerified(this.id, {
-        verifiedAt: verifiedAt.toISOString(),
+        verifiedAt: new Date().toISOString(),
       })
     );
   }
 
   /**
    * Clear NSFW verification
-   * @param {string} reason - Reason for clearing
    */
-  clearNsfwVerification(reason) {
+  clearNsfwVerification() {
     if (!this.nsfwStatus.verified) {
-      return; // Already unverified
+      return; // Not verified
     }
 
     this.applyEvent(
       new UserNsfwVerificationCleared(this.id, {
-        reason,
+        reason: 'User requested clearing',
         clearedAt: new Date().toISOString(),
       })
     );
@@ -148,11 +192,11 @@ class UserAuth extends AggregateRoot {
 
   /**
    * Blacklist user
-   * @param {string} reason - Blacklist reason
+   * @param {string} reason - Reason for blacklisting
    */
   blacklist(reason) {
     if (this.blacklisted) {
-      throw new Error('User already blacklisted');
+      return; // Already blacklisted
     }
 
     if (!reason || typeof reason !== 'string') {
@@ -168,11 +212,11 @@ class UserAuth extends AggregateRoot {
   }
 
   /**
-   * Remove from blacklist
+   * Remove user from blacklist
    */
   unblacklist() {
     if (!this.blacklisted) {
-      throw new Error('User not blacklisted');
+      return; // Not blacklisted
     }
 
     this.applyEvent(
@@ -183,62 +227,85 @@ class UserAuth extends AggregateRoot {
   }
 
   /**
-   * Check if user has valid authentication
-   * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {boolean} True if authenticated
+   * Check if user is authenticated
+   * @returns {boolean} True if authenticated with valid token
    */
-  isAuthenticated(currentTime = new Date()) {
-    return !!(this.token && !this.token.isExpired(currentTime) && !this.blacklisted);
+  isAuthenticated() {
+    return this.token !== null && this.token && !this.token.isExpired();
   }
 
   /**
    * Check if user can access NSFW content
+   * @param {Object} personality - Personality to check
    * @param {AuthContext} context - Authentication context
-   * @returns {boolean} True if allowed
+   * @returns {boolean} True if can access
    */
-  canAccessNsfw(context) {
-    if (!this.isAuthenticated()) {
-      return false;
+  canAccessNsfw(personality, context) {
+    if (!personality.profile?.nsfw) {
+      return true; // Not NSFW
     }
 
-    if (!context.requiresNsfwVerification()) {
-      return true; // DMs don't require verification
+    if (context.isDM()) {
+      return this.nsfwStatus.verified;
     }
 
-    return this.nsfwStatus.verified && !this.nsfwStatus.isStale();
+    if (context.isNsfwChannel) {
+      return true; // NSFW channel
+    }
+
+    return false; // NSFW content in non-NSFW channel
   }
 
   /**
-   * Get rate limit for user
-   * @returns {number} Requests per minute
+   * Get user rate limit
+   * @returns {number} Rate limit multiplier
    */
   getRateLimit() {
     if (this.blacklisted) {
-      return 0;
+      return 0; // No access
     }
 
-    // Could be enhanced with premium tiers, etc.
-    return 20; // Default rate limit
+    // Could implement tiered rate limits based on trust
+    return 1; // Default rate limit
+  }
+
+  /**
+   * Convert to JSON for persistence
+   * @returns {Object} JSON representation
+   */
+  toJSON() {
+    return {
+      userId: this.userId.toString(),
+      token: this.token ? this.token.toJSON() : null,
+      nsfwStatus: this.nsfwStatus.toJSON(),
+      blacklisted: this.blacklisted,
+      blacklistReason: this.blacklistReason,
+      lastAuthenticatedAt: this.lastAuthenticatedAt.toISOString(),
+      authenticationCount: this.authenticationCount,
+    };
   }
 
   // Event handlers
   onUserAuthenticated(event) {
-    this.userId = UserId.fromString(event.payload.userId);
-    this.token = Token.fromJSON(event.payload.token);
-    this.lastAuthenticatedAt = event.payload.authenticatedAt;
     this.authenticationCount++;
+    this.lastAuthenticatedAt = new Date(event.payload.authenticatedAt);
   }
 
   onUserTokenRefreshed(event) {
-    this.token = Token.fromJSON(event.payload.newToken);
+    this.token = new Token(
+      event.payload.newToken.value,
+      new Date(event.payload.newToken.expiresAt)
+    );
   }
 
   onUserTokenExpired(event) {
+    // Mark token as expired by setting it to null
+    // The token history is maintained in the event itself
     this.token = null;
   }
 
   onUserNsfwVerified(event) {
-    this.nsfwStatus = this.nsfwStatus.markVerified(new Date(event.payload.verifiedAt));
+    this.nsfwStatus = this.nsfwStatus.markVerified();
   }
 
   onUserNsfwVerificationCleared(event) {
@@ -248,28 +315,11 @@ class UserAuth extends AggregateRoot {
   onUserBlacklisted(event) {
     this.blacklisted = true;
     this.blacklistReason = event.payload.reason;
-    this.token = null; // Revoke access
-    this.nsfwStatus = this.nsfwStatus.clearVerification();
   }
 
   onUserUnblacklisted(event) {
     this.blacklisted = false;
     this.blacklistReason = null;
-  }
-
-  // Serialization
-  toJSON() {
-    return {
-      id: this.id,
-      userId: this.userId.toString(),
-      token: this.token ? this.token.toJSON() : null,
-      nsfwStatus: this.nsfwStatus.toJSON(),
-      blacklisted: this.blacklisted,
-      blacklistReason: this.blacklistReason,
-      lastAuthenticatedAt: this.lastAuthenticatedAt,
-      authenticationCount: this.authenticationCount,
-      version: this.version,
-    };
   }
 }
 
