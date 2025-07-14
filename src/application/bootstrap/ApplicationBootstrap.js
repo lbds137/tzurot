@@ -6,6 +6,8 @@
 const logger = require('../../logger');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
+const { AuthenticationApplicationService } = require('../services/AuthenticationApplicationService');
+const { AuthenticationAntiCorruptionLayer } = require('../services/AuthenticationAntiCorruptionLayer');
 const RequestTrackingService = require('../services/RequestTrackingService');
 const {
   FilePersonalityRepository,
@@ -14,6 +16,7 @@ const {
   FileAuthenticationRepository,
 } = require('../../adapters/persistence/FileAuthenticationRepository');
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
+const { OAuthTokenService } = require('../../infrastructure/authentication/OAuthTokenService');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
 const { createFeatureFlags } = require('../services/FeatureFlags');
 const { PersonalityRouter } = require('../routers/PersonalityRouter');
@@ -101,7 +104,38 @@ class ApplicationBootstrap {
         logger: logger,
       });
 
-      // Step 3: Create application services with shared event bus
+      // Step 3: Create authentication services
+      const tokenService = new OAuthTokenService({
+        appId: process.env.SERVICE_APP_ID,
+        apiKey: process.env.SERVICE_API_KEY,
+        authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
+        authWebsite: process.env.SERVICE_WEBSITE,
+        serviceApiBaseUrl: process.env.SERVICE_API_BASE_URL,
+      });
+
+      const authenticationApplicationService = new AuthenticationApplicationService({
+        authenticationRepository,
+        tokenService,
+        eventBus: this.eventBus,
+        config: {
+          ownerId: process.env.BOT_OWNER_ID,
+          tokenExpirationMs: 30 * 24 * 60 * 60 * 1000, // 30 days
+          nsfwVerificationExpiryMs: 24 * 60 * 60 * 1000, // 24 hours
+        },
+      });
+
+      // Create the Anti-Corruption Layer if legacy auth manager exists
+      let authService = authenticationApplicationService;
+      if (this.authManager) {
+        authService = new AuthenticationAntiCorruptionLayer({
+          legacyAuthManager: this.authManager,
+          authenticationApplicationService,
+          logger,
+          shadowMode: true, // Start in shadow mode for safe migration
+        });
+      }
+
+      // Step 4: Create application services with shared event bus
       const personalityApplicationService = new PersonalityApplicationService({
         personalityRepository,
         aiService,
@@ -127,14 +161,16 @@ class ApplicationBootstrap {
 
       this.applicationServices = {
         personalityApplicationService,
+        authenticationApplicationService, // New DDD auth service
+        authenticationService: authService, // ACL-wrapped or direct DDD service
         requestTrackingService, // New duplicate protection service
         conversationManager, // Legacy for now
         profileInfoCache, // Legacy for now
         messageTracker, // Legacy for now
         featureFlags: this.featureFlags,
         botPrefix: require('../../../config').botPrefix,
-        auth: this.authManager, // Use injected auth manager (renamed key for consistency)
-        authManager: this.authManager, // Keep legacy key for backward compatibility
+        auth: authService, // Use new auth service (ACL or direct)
+        authManager: this.authManager, // Keep legacy instance for backward compatibility
         webhookUserTracker, // Legacy webhook tracker for authentication commands
         channelUtils, // Legacy channel utilities for verification commands
         authenticationRepository, // DDD repository for future use
@@ -142,7 +178,7 @@ class ApplicationBootstrap {
 
       logger.info('[ApplicationBootstrap] Created application services');
 
-      // Step 3.5: Initialize message handler configuration
+      // Step 5: Initialize message handler configuration
       // This needs to happen before any handlers are created
       try {
         const maxAliasWordCount = await personalityApplicationService.getMaxAliasWordCount();
@@ -152,7 +188,7 @@ class ApplicationBootstrap {
         logger.warn('[ApplicationBootstrap] Failed to set max alias word count, using default:', configError.message);
       }
 
-      // Step 4: Wire up event handlers
+      // Step 6: Wire up event handlers
       this.eventHandlerRegistry = new EventHandlerRegistry({
         eventBus: this.eventBus,
         profileInfoCache,
@@ -161,7 +197,7 @@ class ApplicationBootstrap {
       this.eventHandlerRegistry.registerHandlers();
       logger.info('[ApplicationBootstrap] Registered domain event handlers');
 
-      // Step 5: Initialize PersonalityRouter with our application service
+      // Step 7: Initialize PersonalityRouter with our application service
       const personalityRouter = new PersonalityRouter();
       personalityRouter.personalityService = personalityApplicationService;
       logger.info('[ApplicationBootstrap] Configured PersonalityRouter');
@@ -174,17 +210,17 @@ class ApplicationBootstrap {
       aliasResolver.setPersonalityRouter(personalityRouter);
       logger.info('[ApplicationBootstrap] Set PersonalityRouter in aliasResolver');
 
-      // Step 6: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
+      // Step 8: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
       const commandAdapter = getCommandIntegrationAdapter();
       await commandAdapter.initialize(this.applicationServices);
       logger.info('[ApplicationBootstrap] Initialized CommandIntegrationAdapter');
 
-      // Step 7: Initialize repositories to trigger migration if needed
+      // Step 9: Initialize repositories to trigger migration if needed
       logger.info('[ApplicationBootstrap] Initializing repositories...');
       await personalityRepository.initialize();
       await authenticationRepository.initialize();
 
-      // Step 8: Schedule owner personality seeding in background (don't block initialization)
+      // Step 10: Schedule owner personality seeding in background (don't block initialization)
       this.initialized = true;
       logger.info('[ApplicationBootstrap] ✅ DDD application layer initialization complete');
 
