@@ -603,15 +603,10 @@ describe('webhookUserTracker', () => {
   });
 
   describe('checkProxySystemAuthentication', () => {
-    let mockAuthManager;
     let mockPluralKitStore;
+    let mockDDDAuthService;
 
     beforeEach(() => {
-      // Set up mock authManager
-      mockAuthManager = {
-        hasValidToken: jest.fn(),
-      };
-
       // Mock the pluralkit message store
       mockPluralKitStore = {
         findByContent: jest.fn(),
@@ -623,41 +618,52 @@ describe('webhookUserTracker', () => {
         instance: mockPluralKitStore,
       }));
 
+      // Mock DDD authentication service
+      mockDDDAuthService = {
+        getAuthenticationStatus: jest.fn(),
+      };
+
+      // Mock ApplicationBootstrap
+      jest.doMock('../../../src/application/bootstrap/ApplicationBootstrap', () => ({
+        getApplicationBootstrap: jest.fn(() => ({
+          getApplicationServices: jest.fn(() => ({
+            authenticationService: mockDDDAuthService,
+          })),
+        })),
+      }));
+
       // Clear the module cache to ensure fresh mocks
       jest.resetModules();
       webhookUserTracker = require('../../../src/utils/webhookUserTracker');
-      
-      // Initialize webhookUserTracker with mockAuthManager AFTER requiring the module
-      webhookUserTracker.initialize(mockAuthManager);
     });
 
-    it('should return not authenticated for null message', () => {
-      const result = webhookUserTracker.checkProxySystemAuthentication(null);
+    it('should return not authenticated for null message', async () => {
+      const result = await webhookUserTracker.checkProxySystemAuthentication(null);
       expect(result).toEqual({ isAuthenticated: false, userId: null });
     });
 
-    it('should return not authenticated for non-webhook message', () => {
+    it('should return not authenticated for non-webhook message', async () => {
       const message = {
         author: { id: 'user123' },
         content: 'Test message',
         channel: { id: 'channel123' },
       };
-      const result = webhookUserTracker.checkProxySystemAuthentication(message);
+      const result = await webhookUserTracker.checkProxySystemAuthentication(message);
       expect(result).toEqual({ isAuthenticated: false, userId: null });
     });
 
-    it('should return not authenticated for non-proxy webhook', () => {
+    it('should return not authenticated for non-proxy webhook', async () => {
       const message = {
         webhookId: 'webhook123',
         author: { id: 'webhook-user' },
         content: 'Test message',
         channel: { id: 'channel123' },
       };
-      const result = webhookUserTracker.checkProxySystemAuthentication(message);
+      const result = await webhookUserTracker.checkProxySystemAuthentication(message);
       expect(result).toEqual({ isAuthenticated: false, userId: null });
     });
 
-    it('should check authentication for proxy system with found message', () => {
+    it('should check authentication for proxy system with found message', async () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359', // PluralKit
@@ -673,15 +679,17 @@ describe('webhookUserTracker', () => {
         content: 'Test message',
       });
 
-      mockAuthManager.hasValidToken.mockReturnValue(true);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
+      });
 
-      const result = webhookUserTracker.checkProxySystemAuthentication(message);
+      const result = await webhookUserTracker.checkProxySystemAuthentication(message);
 
       expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith(
         'Test message',
         'channel123'
       );
-      expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('real-user-123');
+      expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalledWith('real-user-123');
       expect(result).toEqual({
         isAuthenticated: true,
         userId: 'real-user-123',
@@ -689,7 +697,7 @@ describe('webhookUserTracker', () => {
       });
     });
 
-    it('should return not authenticated when no original message found', () => {
+    it('should return not authenticated when no original message found', async () => {
       const message = {
         webhookId: 'webhook123',
         applicationId: '466378653216014359', // PluralKit
@@ -700,7 +708,7 @@ describe('webhookUserTracker', () => {
 
       mockPluralKitStore.findByContent.mockReturnValue(null);
 
-      const result = webhookUserTracker.checkProxySystemAuthentication(message);
+      const result = await webhookUserTracker.checkProxySystemAuthentication(message);
 
       expect(mockPluralKitStore.findDeletedMessage).toHaveBeenCalledWith(
         'Test message',

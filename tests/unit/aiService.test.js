@@ -26,10 +26,24 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false),
 }));
 
-// Mock aiAuth module
-jest.mock('../../src/utils/aiAuth', () => ({
-  initAiClient: jest.fn(),
-  getAiClientForUser: jest.fn(),
+// aiAuth module no longer exists - will mock AI client functionality directly
+
+// Mock ApplicationBootstrap for DDD authentication and personalities
+const mockDDDAuthService = {
+  getAuthenticationStatus: jest.fn(),
+};
+
+const mockPersonalityRouter = {
+  getPersonality: jest.fn(),
+};
+
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn(() => ({
+    getApplicationServices: jest.fn(() => ({
+      authenticationService: mockDDDAuthService,
+    })),
+    getPersonalityRouter: jest.fn(() => mockPersonalityRouter),
+  })),
 }));
 
 // Mock contentSanitizer module
@@ -153,6 +167,25 @@ describe('AI Service', () => {
     // Clear all tracking maps
     pendingRequests.clear();
     errorBlackoutPeriods.clear();
+    
+    // Set up default mock responses
+    mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+      isAuthenticated: true,
+      user: { 
+        nsfwStatus: { verified: true },
+        token: {
+          value: 'mock-token'
+        }
+      }
+    });
+    
+    mockPersonalityRouter.getPersonality.mockResolvedValue({
+      name: 'test-personality',
+      profile: {
+        name: 'test-personality',
+        displayName: 'Test Personality',
+      },
+    });
     
     // Initialize aiService with mockAuthManager
     const { initAiClient } = require('../../src/aiService');
@@ -612,15 +645,27 @@ describe('AI Service', () => {
 
   // Integration test for getAiResponse function
   describe('getAiResponse', () => {
+    let mockClient;
+    
     beforeEach(() => {
+      // Reset DDD auth mock to ensure authentication passes
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
+        user: { 
+          nsfwStatus: { verified: true },
+          token: {
+            value: 'mock-token'
+          }
+        }
+      });
+      
       // Ensure authManager is mocked to return true
       mockAuthManager.hasValidToken.mockReturnValue(true);
 
       // Ensure AI client is properly mocked
-      const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
-      const mockClient = new OpenAI();
+      mockClient = new OpenAI();
 
       // Reset the mock to return proper responses
       mockClient.chat.completions.create.mockResolvedValue({
@@ -633,7 +678,9 @@ describe('AI Service', () => {
         ],
       });
 
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      // Mock getAiClientForUser on aiService module to return the mock OpenAI client
+      const aiService = require('../../src/aiService');
+      aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
     });
 
     it('should return a response from the AI service', async () => {
@@ -775,14 +822,14 @@ describe('AI Service', () => {
       };
 
       // Mock the AI client to throw an error
-      const aiAuth = require('../../src/utils/aiAuth');
+      const aiService = require('../../src/aiService');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
 
       // Make the create method throw an error
       mockClient.chat.completions.create.mockRejectedValue(new Error('Mock API error'));
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      aiService.getAiClientForUser.mockResolvedValue(mockClient);
 
       const response = await getAiResponse(personalityName, message, context);
 
@@ -805,7 +852,7 @@ describe('AI Service', () => {
       };
 
       // Set up mocks
-      const aiAuth = require('../../src/utils/aiAuth');
+      const aiService = require('../../src/aiService');
       const openaiModule = require('openai');
       const { createFeatureFlags } = require('../../src/application/services/FeatureFlags');
       const { getPersonalityDataService } = require('../../src/services/PersonalityDataService');
@@ -823,7 +870,7 @@ describe('AI Service', () => {
         ],
       });
 
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      aiService.getAiClientForUser.mockResolvedValue(mockClient);
 
       // Test with feature flag disabled (default)
       await getAiResponse(personalityName, message, context);
@@ -894,7 +941,7 @@ describe('AI Service', () => {
         ],
       });
 
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      aiService.getAiClientForUser.mockResolvedValue(mockClient);
 
       const { sanitizeContent } = require('../../src/utils/contentSanitizer');
       sanitizeContent.mockImplementation(content => content);
@@ -903,12 +950,13 @@ describe('AI Service', () => {
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     });
 
-    it('should delegate initAiClient to aiAuth module', async () => {
+    it('should log when initAiClient is called', async () => {
       const { initAiClient } = require('../../src/aiService');
-      const aiAuth = require('../../src/utils/aiAuth');
+      const logger = require('../../src/logger');
+      logger.info = jest.fn();
 
       initAiClient();
-      expect(aiAuth.initAiClient).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith('[AIService] initAiClient called - using DDD authentication system');
     });
 
     it('should bypass authentication for recognized webhook users', async () => {
@@ -1066,10 +1114,10 @@ describe('AI Service', () => {
     });
 
     it('should throw error when AI client is not available', async () => {
-      const aiAuth = require('../../src/utils/aiAuth');
+      const aiService = require('../../src/aiService');
 
       // Mock getAiClientForUser to return null
-      aiAuth.getAiClientForUser.mockResolvedValue(null);
+      aiService.getAiClientForUser.mockResolvedValue(null);
 
       const response = await getAiResponse('test-personality', 'Hello', {
         userId: 'test-user',

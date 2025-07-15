@@ -7,7 +7,6 @@ const logger = require('../../logger');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
 const { AuthenticationApplicationService } = require('../services/AuthenticationApplicationService');
-const { AuthenticationAntiCorruptionLayer } = require('../services/AuthenticationAntiCorruptionLayer');
 const RequestTrackingService = require('../services/RequestTrackingService');
 const {
   FilePersonalityRepository,
@@ -44,7 +43,6 @@ class ApplicationBootstrap {
     this.eventBus = null;
     this.eventHandlerRegistry = null;
     this.applicationServices = {};
-    this.authManager = null;
 
     // Create feature flags instance - can be overridden for testing
     this.featureFlags = options.featureFlags || createFeatureFlags();
@@ -58,13 +56,6 @@ class ApplicationBootstrap {
       });
   }
 
-  /**
-   * Set the auth manager instance
-   * @param {Object} authManagerInstance - The auth manager instance
-   */
-  setAuthManager(authManagerInstance) {
-    this.authManager = authManagerInstance;
-  }
 
   /**
    * Initialize the application layer
@@ -119,21 +110,11 @@ class ApplicationBootstrap {
         eventBus: this.eventBus,
         config: {
           ownerId: process.env.BOT_OWNER_ID,
-          tokenExpirationMs: 30 * 24 * 60 * 60 * 1000, // 30 days
-          nsfwVerificationExpiryMs: 24 * 60 * 60 * 1000, // 24 hours
         },
       });
 
-      // Create the Anti-Corruption Layer if legacy auth manager exists
-      let authService = authenticationApplicationService;
-      if (this.authManager) {
-        authService = new AuthenticationAntiCorruptionLayer({
-          legacyAuthManager: this.authManager,
-          authenticationApplicationService,
-          logger,
-          shadowMode: true, // Start in shadow mode for safe migration
-        });
-      }
+      // Use the DDD authentication service directly
+      const authService = authenticationApplicationService;
 
       // Step 4: Create application services with shared event bus
       const personalityApplicationService = new PersonalityApplicationService({
@@ -161,19 +142,18 @@ class ApplicationBootstrap {
 
       this.applicationServices = {
         personalityApplicationService,
-        authenticationApplicationService, // New DDD auth service
-        authenticationService: authService, // ACL-wrapped or direct DDD service
-        requestTrackingService, // New duplicate protection service
+        authenticationApplicationService, // DDD auth service
+        authenticationService: authService, // DDD authentication service
+        requestTrackingService, // Duplicate protection service
         conversationManager, // Legacy for now
         profileInfoCache, // Legacy for now
         messageTracker, // Legacy for now
         featureFlags: this.featureFlags,
         botPrefix: require('../../../config').botPrefix,
-        auth: authService, // Use new auth service (ACL or direct)
-        authManager: this.authManager, // Keep legacy instance for backward compatibility
+        auth: authService, // DDD authentication service
         webhookUserTracker, // Legacy webhook tracker for authentication commands
         channelUtils, // Legacy channel utilities for verification commands
-        authenticationRepository, // DDD repository for future use
+        authenticationRepository, // DDD repository
       };
 
       logger.info('[ApplicationBootstrap] Created application services');

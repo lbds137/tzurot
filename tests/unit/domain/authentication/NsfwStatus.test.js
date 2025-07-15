@@ -147,16 +147,16 @@ describe('NsfwStatus', () => {
       expect(status.isStale()).toBe(false);
     });
 
-    it('should return true for stale verification', () => {
+    it('should always return false for verified status (permanent verification)', () => {
       const status = NsfwStatus.createVerified();
 
       // Advance past default 30 days
       jest.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
 
-      expect(status.isStale()).toBe(true);
+      expect(status.isStale()).toBe(false); // Always false for verified
     });
 
-    it('should use custom max age', () => {
+    it('should ignore custom max age (permanent verification)', () => {
       const status = NsfwStatus.createVerified();
 
       // Advance 1 day
@@ -166,17 +166,17 @@ describe('NsfwStatus', () => {
       const oneHour = 60 * 60 * 1000;
 
       expect(status.isStale(oneWeek)).toBe(false);
-      expect(status.isStale(oneHour)).toBe(true);
+      expect(status.isStale(oneHour)).toBe(false); // Always false for verified
     });
 
-    it('should accept custom current time', () => {
+    it('should accept custom current time but always return false for verified', () => {
       const status = NsfwStatus.createVerified();
       const futureTime = new Date('2024-02-01T00:00:00Z');
 
-      expect(status.isStale(30 * 24 * 60 * 60 * 1000, futureTime)).toBe(true);
+      expect(status.isStale(30 * 24 * 60 * 60 * 1000, futureTime)).toBe(false); // Always false
     });
 
-    it('should handle exact staleness boundary', () => {
+    it('should handle exact staleness boundary but always return false', () => {
       const status = NsfwStatus.createVerified();
       const maxAge = 30 * 24 * 60 * 60 * 1000;
 
@@ -188,7 +188,7 @@ describe('NsfwStatus', () => {
       // One millisecond more
       jest.advanceTimersByTime(1);
 
-      expect(status.isStale(maxAge)).toBe(true);
+      expect(status.isStale(maxAge)).toBe(false); // Always false for verified
     });
   });
 

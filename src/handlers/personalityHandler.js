@@ -22,7 +22,7 @@ const {
   getPersonalityFromMessage,
 } = require('../core/conversation');
 const requestTracker = require('../utils/requestTracker');
-const personalityAuth = require('../utils/personalityAuth');
+// personalityAuth utility removed - using DDD authentication directly
 const threadHandler = require('../utils/threadHandler');
 
 // Injectable timer functions for testability
@@ -56,6 +56,94 @@ let delayFn = ms => new Promise(resolve => timerFunctions.setTimeout(resolve, ms
  */
 function configureDelay(customDelay) {
   delayFn = customDelay;
+}
+
+/**
+ * Set the authentication service (dependency injection)
+ * @param {Object} authService - Authentication service instance
+ */
+function setAuthService(authService) {
+  injectedAuthService = authService;
+}
+
+/**
+ * Clear injected dependencies (for testing)
+ */
+function clearCache() {
+  injectedAuthService = null;
+}
+
+/**
+ * Check if user can interact with a personality using DDD authentication
+ * @param {Object} message - Discord message object
+ * @param {Object} personality - Personality object
+ * @returns {Promise<Object>} Result with isAllowed and error message if applicable
+ */
+// Injected auth service to avoid circular dependencies
+let injectedAuthService = null;
+
+async function checkPersonalityAuthDDD(message, personality) {
+  try {
+    // Use injected auth service or throw error if not set
+    if (!injectedAuthService) {
+      throw new Error('Authentication service not initialized. Call setAuthService() first.');
+    }
+    const authService = injectedAuthService;
+    
+    // Get the real user ID for authentication check
+    const webhookUserTracker = require('../utils/webhookUserTracker');
+    const realUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
+    
+    logger.debug(
+      `[PersonalityHandler] Checking auth for realUserId: ${realUserId} (message.author.id: ${message.author.id})`
+    );
+    
+    // Check personality access using DDD system
+    const result = await authService.checkPersonalityAccess({
+      userId: realUserId,
+      personalityName: personality.name,
+      channelId: message.channel.id,
+      isNsfw: personality.nsfw || false,
+      isDM: message.channel.isDMBased?.() || false
+    });
+    
+    if (!result.isAuthorized) {
+      return {
+        isAllowed: false,
+        errorMessage: result.errors.join(' ') || 'Authorization failed',
+        reason: 'auth_failed',
+      };
+    }
+    
+    // Return success with context information
+    return {
+      isAllowed: true,
+      isProxySystem: false, // DDD system doesn't track proxy systems in this context
+      isDM: message.channel.isDMBased?.() || false,
+    };
+  } catch (error) {
+    logger.error('[PersonalityHandler] Error checking personality auth:', error);
+    return {
+      isAllowed: false,
+      errorMessage: 'An error occurred while checking authorization.',
+      reason: 'error',
+    };
+  }
+}
+
+/**
+ * Send authentication error message to user
+ * @param {Object} message - Discord message object
+ * @param {string} errorMessage - Error message to send
+ */
+async function sendAuthError(message, errorMessage) {
+  try {
+    await message.reply({
+      content: errorMessage,
+    });
+  } catch (error) {
+    logger.error('[PersonalityHandler] Error sending auth error message:', error);
+  }
 }
 
 /**
@@ -136,12 +224,12 @@ async function handlePersonalityInteraction(
   let requestKey;
 
   try {
-    // Perform complete authentication check
-    const authResult = await personalityAuth.checkPersonalityAuth(message, personality);
+    // Perform complete authentication check using DDD system
+    const authResult = await checkPersonalityAuthDDD(message, personality);
 
     if (!authResult.isAllowed) {
       // Authentication failed - send error message and exit
-      await personalityAuth.sendAuthError(message, authResult.errorMessage, authResult.reason);
+      await sendAuthError(message, authResult.errorMessage);
       return; // Exit without processing the personality interaction
     }
 
@@ -808,4 +896,6 @@ module.exports = {
   recordConversationData,
   configureTimers,
   configureDelay,
+  setAuthService,
+  clearCache,
 };

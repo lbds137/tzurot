@@ -37,38 +37,38 @@ jest.mock('../../src/services/PersonalityDataService', () => ({
   }),
 }));
 
-// Mock aiAuth module
-jest.mock('../../src/utils/aiAuth', () => ({
-  initAiClient: jest.fn(),
-  getAI: jest.fn().mockReturnValue({
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
+// Mock OpenAI directly since aiAuth module no longer exists
+const mockOpenAIClient = {
+  chat: {
+    completions: {
+      create: jest.fn(),
     },
-  }),
-  getAiClientForUser: jest.fn().mockResolvedValue({
-    chat: {
-      completions: {
-        create: jest.fn(),
-      },
-    },
-  }),
-}));
+  },
+};
 
 // Mock webhookUserTracker to bypass authentication
 jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(false),
 }));
 
-// Mock ApplicationBootstrap for DDD personality access
+// Mock ApplicationBootstrap for DDD personality and auth access
 const mockPersonalityRouter = {
   getPersonality: jest.fn(),
+};
+
+const mockDDDAuthService = {
+  getAuthenticationStatus: jest.fn().mockResolvedValue({
+    isAuthenticated: true,
+    user: { nsfwStatus: { verified: true } }
+  }),
 };
 
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
     getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    getApplicationServices: jest.fn().mockReturnValue({
+      authenticationService: mockDDDAuthService,
+    }),
   }),
 }));
 
@@ -131,11 +131,6 @@ describe('aiService Error Handling', () => {
     // Override the OpenAI constructor to return our mock
     OpenAI.mockImplementation(() => mockOpenAI);
 
-    // Update aiAuth mock to return our mockOpenAI
-    const aiAuth = require('../../src/utils/aiAuth');
-    aiAuth.getAI.mockReturnValue(mockOpenAI);
-    aiAuth.getAiClientForUser.mockResolvedValue(mockOpenAI);
-
     // Reset PersonalityRouter mock to return null by default (tests can override)
     mockPersonalityRouter.getPersonality.mockReset();
     mockPersonalityRouter.getPersonality.mockResolvedValue(null);
@@ -143,7 +138,10 @@ describe('aiService Error Handling', () => {
     // Import the module under test after mocking
     aiService = require('../../src/aiService');
     
-    // Initialize with mock auth manager
+    // Mock getAiClientForUser on the imported aiService
+    aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockOpenAI);
+    
+    // Initialize with mock auth manager (now a no-op in DDD system)
     aiService.initAiClient(mockAuthManager);
   });
 
@@ -357,6 +355,18 @@ describe('aiService Error Handling', () => {
   });
 
   describe('Request handling', () => {
+    beforeEach(() => {
+      // Mock a personality for these tests
+      mockPersonalityRouter.getPersonality.mockResolvedValue({
+        name: personalityName,
+        profile: {
+          name: personalityName,
+          displayName: 'Test Personality',
+          errorMessage: 'Error occurred',
+        },
+      });
+    });
+
     test('getAiResponse should handle missing parameters gracefully', async () => {
       // Test with missing personalityName
       const responseWithoutPersonality = await aiService.getAiResponse(undefined, message, context);

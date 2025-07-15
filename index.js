@@ -6,7 +6,6 @@ const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 // Health check is now part of the modular HTTP server
-const AuthManager = require('./src/core/authentication');
 const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
 const { botConfig } = require('./config');
@@ -18,8 +17,6 @@ const { getApplicationBootstrap } = require('./src/application/bootstrap/Applica
 let isInitialized = false;
 // HTTP server instance (handles health checks, webhooks, etc.)
 let httpServer = null;
-// Auth manager instance
-let authManager = null;
 // Application bootstrap instance
 let appBootstrap = null;
 
@@ -72,64 +69,38 @@ async function init() {
     await coreConversation.initConversationManager();
     logger.info('Conversation manager initialized');
     
-    // Initialize auth system (loads saved tokens) - MOVED BEFORE bootstrap
-    authManager = new AuthManager({
-      appId: process.env.SERVICE_APP_ID,
-      apiKey: process.env.SERVICE_API_KEY,
-      authWebsite: process.env.SERVICE_WEBSITE,
-      authApiEndpoint: `${process.env.SERVICE_API_BASE_URL}/auth`,
-      serviceApiBaseUrl: `${process.env.SERVICE_API_BASE_URL}/v1`,
-      ownerId: process.env.BOT_OWNER_ID,
-      isDevelopment: botConfig.isDevelopment,
-      dataDir: getDataDirectory(),
-    });
-    await authManager.initialize();
-    logger.info('Auth system initialized');
     
-    // Initialize application bootstrap with authManager after auth is created
+    // Initialize application bootstrap with DDD authentication
     try {
       appBootstrap = getApplicationBootstrap();
-      appBootstrap.setAuthManager(authManager);
       await appBootstrap.initialize();
       logger.info('Application bootstrap initialized');
     } catch (error) {
       logger.error('Failed to initialize application bootstrap:', error);
-      // Continue with bot startup even if DDD layer fails
+      throw error; // DDD authentication is now required
     }
-    
-    // Initialize webhookUserTracker with authManager
-    const webhookUserTracker = require('./src/utils/webhookUserTracker');
-    webhookUserTracker.initialize(authManager);
-    logger.info('Webhook user tracker initialized');
-    
-    // Initialize personalityAuth with authManager
-    const personalityAuth = require('./src/utils/personalityAuth');
-    personalityAuth.initialize(authManager);
-    logger.info('Personality auth initialized');
-    
-    // Initialize profileInfoFetcher with authManager
-    const profileInfoFetcher = require('./src/profileInfoFetcher');
-    profileInfoFetcher.initialize(authManager);
-    logger.info('Profile info fetcher initialized');
     
     // Initialize pluralkitReplyTracker cleanup
     const pluralkitReplyTracker = require('./src/utils/pluralkitReplyTracker');
     pluralkitReplyTracker.startCleanup();
     logger.info('Pluralkit reply tracker initialized');
     
-    // Initialize the AI client after auth is loaded
-    initAiClient(authManager);
-    logger.info('AI client initialized');
+    // Initialize the AI client with DDD auth (TODO: update this to use DDD auth)
+    // For now, we'll initialize without authManager since the AI client
+    // should get auth from the DDD system when needed
+    // initAiClient(authManager);
+    logger.info('AI client will be initialized by DDD system when needed');
     
     // Initialize and start the bot - this is critical for user experience
-    await initBot(authManager);
+    // Bot will get authentication from the DDD system via ApplicationBootstrap
+    await initBot();
     logger.info('Bot initialized and started');
     
     // Now that the bot is started, we can do non-blocking background tasks
     
     // Initialize release notification manager and check for updates
     try {
-      await releaseNotificationManager.initialize(client, authManager);
+      await releaseNotificationManager.initialize(client);
       logger.info('Release notification manager initialized');
       
       // Check for new version and send notifications in the background
@@ -158,7 +129,6 @@ async function init() {
       // Create context with Discord client and other shared resources
       const serverContext = {
         discordClient: global.tzurotClient || client,
-        authManager: authManager,
       };
       
       httpServer = createHTTPServer(httpPort, serverContext);

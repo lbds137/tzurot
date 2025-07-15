@@ -133,8 +133,12 @@ await rateLimiter.enqueue(async () => {
 ### Authentication Pattern
 ```javascript
 // Always validate user tokens before personality operations
-const userAuth = await authManager.validateUserAuth(userId, personalityName);
-if (!userAuth.isValid) {
+// DDD Authentication Pattern
+const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+const bootstrap = getApplicationBootstrap();
+const authService = bootstrap.getApplicationServices().authenticationService;
+const authStatus = await authService.getAuthenticationStatus(userId);
+if (!authStatus.isAuthenticated) {
   throw new Error('Authentication required');
 }
 ```

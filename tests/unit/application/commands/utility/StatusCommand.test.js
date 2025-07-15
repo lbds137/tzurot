@@ -26,6 +26,27 @@ describe('StatusCommand', () => {
   let mockProcessUtils;
   let migrationHelper;
 
+  // Helper function to setup authenticated user mocks
+  function setupAuthenticatedUser() {
+    const mockDDDAuthService = {
+      getAuthenticationStatus: jest.fn().mockResolvedValue({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: {
+            verified: true
+          }
+        }
+      })
+    };
+    getApplicationBootstrap.mockReturnValue({
+      initialized: true,
+      getApplicationServices: jest.fn().mockReturnValue({
+        authenticationService: mockDDDAuthService
+      })
+    });
+    return mockDDDAuthService;
+  }
+
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
@@ -151,14 +172,14 @@ describe('StatusCommand', () => {
       mockAuth.hasValidToken.mockReturnValue(true);
       mockAuth.isNsfwVerified.mockReturnValue(true);
       
-      // Mock ApplicationBootstrap to return a DDD service with 3 personalities
-      const mockDDDService = {
+      // Setup authenticated user with DDD mocks
+      setupAuthenticatedUser();
+      
+      // Mock personality service for personality count
+      const mockDDDPersonalityService = {
         listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2', 'p3'])
       };
-      getApplicationBootstrap.mockReturnValue({
-        initialized: true,
-        getPersonalityApplicationService: jest.fn().mockReturnValue(mockDDDService)
-      });
+      getApplicationBootstrap().getPersonalityApplicationService = jest.fn().mockReturnValue(mockDDDPersonalityService);
 
       await statusCommand.execute(mockContext);
 
@@ -191,6 +212,7 @@ describe('StatusCommand', () => {
     });
 
     it('should show activated channels count for authenticated users', async () => {
+      setupAuthenticatedUser();
       mockAuth.hasValidToken.mockReturnValue(true);
       mockConversationManager.getAllActivatedChannels.mockReturnValue({
         channel123: 'TestPersonality',
@@ -228,6 +250,7 @@ describe('StatusCommand', () => {
     });
 
     it('should handle missing personality list', async () => {
+      setupAuthenticatedUser();
       mockAuth.hasValidToken.mockReturnValue(true);
       // Personality count now comes from DDD service passed in context
 
@@ -243,6 +266,7 @@ describe('StatusCommand', () => {
     });
 
     it('should handle single activated channel', async () => {
+      setupAuthenticatedUser();
       mockAuth.hasValidToken.mockReturnValue(true);
       mockConversationManager.getAllActivatedChannels.mockReturnValue({
         channel123: 'TestPersonality',
@@ -283,16 +307,14 @@ describe('StatusCommand', () => {
     });
 
     it('should show authenticated info in text response', async () => {
+      setupAuthenticatedUser();
       mockAuth.hasValidToken.mockReturnValue(true);
       
       // Mock ApplicationBootstrap to return a DDD service with 2 personalities
       const mockDDDService = {
         listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2'])
       };
-      getApplicationBootstrap.mockReturnValue({
-        initialized: true,
-        getPersonalityApplicationService: jest.fn().mockReturnValue(mockDDDService)
-      });
+      getApplicationBootstrap().getPersonalityApplicationService = jest.fn().mockReturnValue(mockDDDService);
 
       await statusCommand.execute(mockContext);
 

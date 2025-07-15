@@ -81,7 +81,7 @@ describe('Authentication Domain Index', () => {
       const userId = new UserId('123456789012345678');
       const token = authDomain.Token.createWithLifetime('test-token', 3600 * 1000);
 
-      const userAuth = authDomain.UserAuth.authenticate(userId, token);
+      const userAuth = authDomain.UserAuth.createAuthenticated(userId, token);
 
       expect(userAuth).toBeInstanceOf(authDomain.UserAuth);
     });

@@ -88,8 +88,8 @@ describe('AuthenticationApplicationService', () => {
         tokenService: mockTokenService,
       });
 
-      expect(service.config.tokenExpirationMs).toBe(30 * 24 * 60 * 60 * 1000);
-      expect(service.config.nsfwVerificationExpiryMs).toBe(24 * 60 * 60 * 1000);
+      expect(service.config.ownerId).toBe(process.env.BOT_OWNER_ID);
+      // Token expiry and NSFW verification expiry are now handled by the AI service
     });
   });
 
@@ -242,10 +242,8 @@ describe('AuthenticationApplicationService', () => {
       expect(result.isAuthenticated).toBe(false);
       expect(result.user).toBe(user);
 
-      // Verify expiry event was published
-      expect(mockEventBus.publish).toHaveBeenCalledWith(
-        expect.any(UserTokenExpired)
-      );
+      // getAuthenticationStatus is a query method - it doesn't publish events
+      // Events are only published when state changes, not when querying state
     });
   });
 

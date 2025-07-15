@@ -11,6 +11,13 @@ const logger = require('../../../../../src/logger');
 // Mock logger
 jest.mock('../../../../../src/logger');
 
+// Mock ApplicationBootstrap for clearauth command
+jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn(),
+}));
+
+const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
+
 // Note: auth.js no longer exists - authManager is injected via context
 
 describe('DebugCommand', () => {
@@ -20,6 +27,7 @@ describe('DebugCommand', () => {
   let mockNsfwVerificationManager;
   let mockConversationManager;
   let mockAuthManager;
+  let mockDDDAuthService;
   let mockMessageTracker;
   let migrationHelper;
 
@@ -44,11 +52,24 @@ describe('DebugCommand', () => {
       clearConversation: jest.fn(),
     };
 
-    // Mock auth manager
+    // Mock auth manager (legacy)
     mockAuthManager = {
       nsfwVerificationManager: mockNsfwVerificationManager,
-      cleanupExpiredTokens: jest.fn().mockResolvedValue(undefined),
+      cleanupExpiredTokens: jest.fn().mockResolvedValue([]),
     };
+    
+    // Mock DDD authentication service
+    mockDDDAuthService = {
+      revokeAuthentication: jest.fn().mockResolvedValue(),
+      cleanupExpiredTokens: jest.fn().mockResolvedValue([]),
+    };
+    
+    // Setup ApplicationBootstrap mock
+    getApplicationBootstrap.mockReturnValue({
+      getApplicationServices: jest.fn().mockReturnValue({
+        authenticationService: mockDDDAuthService
+      })
+    });
 
     // Mock message tracker
     mockMessageTracker = {
@@ -283,30 +304,40 @@ describe('DebugCommand', () => {
   });
 
   describe('clearauth subcommand', () => {
-    it('should clean up authentication tokens', async () => {
-      // Auth module removed - using injected authManager
-      mockContext.args = ['clearauth'];
+    it('should clean up authentication tokens for default user', async () => {
+      mockContext.args = ['clearauth']; // Only subcommand, no target user
 
       await debugCommand.execute(mockContext);
 
-      expect(mockAuthManager.cleanupExpiredTokens).toHaveBeenCalled();
+      // Since there's no additional argument after 'clearauth', it should use context.userId
+      expect(mockDDDAuthService.revokeAuthentication).toHaveBeenCalledWith('user123');
+      expect(mockDDDAuthService.cleanupExpiredTokens).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
-        '[Debug] Authentication tokens cleaned up for TestUser#1234'
+        '[Debug] Authentication revocation requested by TestUser#1234 for user user123'
       );
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
-            title: '✅ Authentication Cleared',
-            description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
-            color: 0x4caf50,
+            title: '✅ Authentication Revoked',
           }),
         ],
       });
     });
 
+    it('should clean up authentication tokens for specific user', async () => {
+      mockContext.args = ['clearauth', 'target-user-456']; // Subcommand + target user
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockDDDAuthService.revokeAuthentication).toHaveBeenCalledWith('target-user-456');
+      expect(mockDDDAuthService.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        '[Debug] Authentication revocation requested by TestUser#1234 for user target-user-456'
+      );
+    });
+
     it('should handle auth cleanup errors', async () => {
-      // Auth module removed - using injected authManager
-      mockAuthManager.cleanupExpiredTokens.mockRejectedValue(new Error('Auth error'));
+      mockDDDAuthService.revokeAuthentication.mockRejectedValue(new Error('Auth error'));
       mockContext.args = ['clearauth'];
 
       await debugCommand.execute(mockContext);
@@ -315,8 +346,8 @@ describe('DebugCommand', () => {
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
-            title: '❌ Clear Failed',
-            description: 'Failed to clear authentication.',
+            title: '❌ Revocation Failed',
+            description: 'Failed to revoke authentication: Auth error',
             color: 0xf44336,
           }),
         ],

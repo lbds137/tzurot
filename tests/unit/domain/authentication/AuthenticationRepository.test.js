@@ -62,7 +62,8 @@ describe('AuthenticationRepository', () => {
   describe('unimplemented methods', () => {
     it('should throw error for save', async () => {
       const userId = new UserId('123456789012345678');
-      const userAuth = new UserAuth(userId);
+      const token = new Token('test-token', new Date(Date.now() + 24 * 60 * 60 * 1000));
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       await expect(repository.save(userAuth)).rejects.toThrow(
         'AuthenticationRepository.save() must be implemented'
@@ -126,8 +127,9 @@ describe('AuthenticationRepository', () => {
       }
 
       async findExpiredTokens(expiryDate) {
+        // In DDD, expired tokens are removed from userAuth
         return Array.from(this.users.values()).filter(userAuth => {
-          return userAuth.token && userAuth.token.isExpired(expiryDate);
+          return !userAuth.token || !userAuth.isAuthenticated();
         });
       }
 
@@ -137,7 +139,7 @@ describe('AuthenticationRepository', () => {
 
       async countAuthenticated() {
         return Array.from(this.users.values()).filter(
-          userAuth => userAuth.token && !userAuth.token.isExpired()
+          userAuth => userAuth.isAuthenticated()
         ).length;
       }
     }
@@ -151,7 +153,7 @@ describe('AuthenticationRepository', () => {
 
       // Create authenticated user
       const token = Token.createWithLifetime('test-token-123', 3600 * 1000); // 1 hour
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       // Test save
       await mockRepo.save(userAuth);
@@ -176,21 +178,26 @@ describe('AuthenticationRepository', () => {
       expect(blacklisted).toHaveLength(1);
       expect(blacklisted[0]).toBe(userAuth);
 
-      // Test findExpiredTokens (need to test with fresh user since blacklisting revokes token)
-      // Create a separate user to test expired tokens
+      // Test findExpiredTokens - Since DDD tokens don't expire client-side,
+      // we need to test with users who have no tokens (expired/revoked)
+      // The blacklisted user already has no token, so let's create a new user
       const userId2 = new UserId('987654321098765432');
-      const token2 = Token.createWithLifetime('test-token-456', 1000); // 1 second only
-      const userAuth2 = UserAuth.authenticate(userId2, token2);
-
-      // Save the user before token expires
+      const token2 = new Token('test-token-456', new Date(Date.now() + 3600000)); // Valid token
+      const userAuth2 = UserAuth.createAuthenticated(userId2, token2);
+      
+      // Save the user first
+      await mockRepo.save(userAuth2);
+      
+      // Now expire the token
+      userAuth2.expireToken();
       await mockRepo.save(userAuth2);
 
-      // Now advance time to expire the token
-      jest.advanceTimersByTime(2000); // 2 seconds to ensure expiry
-
+      // findExpiredTokens should find both users without valid tokens
+      // (blacklisted user and expired token user)
       const expired = await mockRepo.findExpiredTokens(new Date());
-      expect(expired).toHaveLength(1);
-      expect(expired[0]).toBe(userAuth2);
+      expect(expired).toHaveLength(2);
+      expect(expired).toContain(userAuth); // blacklisted user
+      expect(expired).toContain(userAuth2); // expired token user
 
       // Test delete
       await mockRepo.delete(userId);

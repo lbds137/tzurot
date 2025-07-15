@@ -52,34 +52,39 @@ describe('Token', () => {
       expect(() => new Token([], expiresAt)).toThrow('Token value must be a non-empty string');
     });
 
-    it('should require expiration date', () => {
-      expect(() => new Token('test-token', null)).toThrow('Token requires valid expiration date');
-      expect(() => new Token('test-token', undefined)).toThrow(
-        'Token requires valid expiration date'
-      );
+    it('should allow null expiration date', () => {
+      const token1 = new Token('test-token', null);
+      expect(token1.value).toBe('test-token');
+      expect(token1.expiresAt).toBeNull();
+      
+      const token2 = new Token('test-token', undefined);
+      expect(token2.value).toBe('test-token');
+      expect(token2.expiresAt).toBeNull();
     });
 
-    it('should require expiration to be Date', () => {
+    it('should require expiration to be Date if provided', () => {
       expect(() => new Token('test-token', '2024-01-01')).toThrow(
-        'Token requires valid expiration date'
+        'If provided, expiresAt must be a Date'
       );
       expect(() => new Token('test-token', Date.now())).toThrow(
-        'Token requires valid expiration date'
+        'If provided, expiresAt must be a Date'
       );
     });
 
-    it('should require future expiration', () => {
+    it('should allow past expiration (AI service handles validation)', () => {
       const pastDate = new Date('2023-12-31T23:59:59Z');
-
-      expect(() => new Token('test-token', pastDate)).toThrow(
-        'Token expiration must be in the future'
-      );
+      const token = new Token('test-token', pastDate);
+      
+      expect(token.value).toBe('test-token');
+      expect(token.expiresAt).toEqual(pastDate);
     });
 
-    it('should reject expiration at current time', () => {
+    it('should allow expiration at current time (AI service handles validation)', () => {
       const now = new Date();
-
-      expect(() => new Token('test-token', now)).toThrow('Token expiration must be in the future');
+      const token = new Token('test-token', now);
+      
+      expect(token.value).toBe('test-token');
+      expect(token.expiresAt).toEqual(now);
     });
   });
 
@@ -90,54 +95,54 @@ describe('Token', () => {
       expect(token.isExpired()).toBe(false);
     });
 
-    it('should return true for expired token', () => {
+    it('should always return false (AI service handles expiry)', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3600001); // 1 hour + 1ms
 
-      expect(token.isExpired()).toBe(true);
+      expect(token.isExpired()).toBe(false); // Always false now
     });
 
-    it('should handle exact expiration time', () => {
+    it('should always return false at exact expiration time', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3600000); // Exactly 1 hour
 
-      expect(token.isExpired()).toBe(true); // Expired at exact time
+      expect(token.isExpired()).toBe(false); // Always false now
     });
 
-    it('should accept custom current time', () => {
+    it('should always return false with custom current time', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
       const futureTime = new Date('2024-01-01T02:00:00Z');
 
-      expect(token.isExpired(futureTime)).toBe(true);
+      expect(token.isExpired(futureTime)).toBe(false); // Always false now
     });
   });
 
   describe('timeUntilExpiration', () => {
-    it('should return remaining time', () => {
+    it('should return Infinity', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
-      expect(token.timeUntilExpiration()).toBe(3600000);
+      expect(token.timeUntilExpiration()).toBe(Infinity);
 
       jest.advanceTimersByTime(1800000); // 30 minutes
 
-      expect(token.timeUntilExpiration()).toBe(1800000);
+      expect(token.timeUntilExpiration()).toBe(Infinity);
     });
 
-    it('should return 0 for expired token', () => {
+    it('should return Infinity (AI service handles expiry)', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3600001);
 
-      expect(token.timeUntilExpiration()).toBe(0);
+      expect(token.timeUntilExpiration()).toBe(Infinity);
     });
 
-    it('should accept custom current time', () => {
+    it('should return Infinity with custom current time', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
       const halfHourLater = new Date('2024-01-01T00:30:00Z');
 
-      expect(token.timeUntilExpiration(halfHourLater)).toBe(1800000);
+      expect(token.timeUntilExpiration(halfHourLater)).toBe(Infinity);
     });
   });
 
@@ -148,36 +153,36 @@ describe('Token', () => {
       expect(token.shouldRefresh()).toBe(false);
     });
 
-    it('should return true when approaching expiration', () => {
+    it('should always return false (AI service handles refresh)', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3300000); // 55 minutes
 
-      expect(token.shouldRefresh()).toBe(true); // Within 5 minute threshold
+      expect(token.shouldRefresh()).toBe(false); // Always false now
     });
 
-    it('should use custom threshold', () => {
+    it('should always return false with custom threshold', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3000000); // 50 minutes
 
-      expect(token.shouldRefresh(600000)).toBe(true); // 10 minute threshold
-      expect(token.shouldRefresh(300000)).toBe(false); // 5 minute threshold
+      expect(token.shouldRefresh(600000)).toBe(false); // Always false now
+      expect(token.shouldRefresh(300000)).toBe(false); // Always false now
     });
 
-    it('should return true for expired token', () => {
+    it('should return false for expired token', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
 
       jest.advanceTimersByTime(3600001);
 
-      expect(token.shouldRefresh()).toBe(true);
+      expect(token.shouldRefresh()).toBe(false); // Always false now
     });
 
-    it('should accept custom current time', () => {
+    it('should return false with custom current time', () => {
       const token = Token.createWithLifetime('test-token', 3600000); // 1 hour
       const nearExpiry = new Date('2024-01-01T00:56:00Z');
 
-      expect(token.shouldRefresh(300000, nearExpiry)).toBe(true);
+      expect(token.shouldRefresh(300000, nearExpiry)).toBe(false); // Always false now
     });
   });
 
@@ -228,6 +233,17 @@ describe('Token', () => {
         expiresAt: '2024-01-01T01:00:00.000Z',
       });
     });
+    
+    it('should serialize null expiresAt', () => {
+      const token = new Token('test-token-value', null);
+
+      const json = token.toJSON();
+
+      expect(json).toEqual({
+        value: 'test-token-value',
+        expiresAt: null,
+      });
+    });
   });
 
   describe('fromJSON', () => {
@@ -265,17 +281,15 @@ describe('Token', () => {
     });
 
     it('should handle zero lifetime', () => {
-      // This will create a token that expires immediately
-      // But constructor should reject it as already expired
-      expect(() => Token.createWithLifetime('test-token', 0)).toThrow(
-        'Token expiration must be in the future'
-      );
+      const token = Token.createWithLifetime('test-token', 0);
+      expect(token.value).toBe('test-token');
+      // Token can be created with zero lifetime since AI service handles validation
     });
 
     it('should handle negative lifetime', () => {
-      expect(() => Token.createWithLifetime('test-token', -1000)).toThrow(
-        'Token expiration must be in the future'
-      );
+      const token = Token.createWithLifetime('test-token', -1000);
+      expect(token.value).toBe('test-token');
+      // Token can be created with negative lifetime since AI service handles validation
     });
   });
 

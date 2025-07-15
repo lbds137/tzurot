@@ -117,10 +117,9 @@ async function checkForPersonalityMentions(message) {
  * Main message handler function
  * @param {Object} message - Discord message object
  * @param {Object} client - Discord.js client
- * @param {Object} authManager - Auth manager instance
  * @returns {Promise<void>}
  */
-async function handleMessage(message, client, authManager) {
+async function handleMessage(message, client) {
   logger.debug(
     `[MessageHandler] Received message: "${message.content}" from ${message.author.tag} (${message.author.id}), isBot: ${message.author.bot}, webhookId: ${message.webhookId}, hasReference: ${!!message.reference}`
   );
@@ -160,7 +159,7 @@ async function handleMessage(message, client, authManager) {
 
     // Check for replies to DM-formatted bot messages
     if (message.channel.isDMBased() && !message.author.bot && message.reference) {
-      const dmReplyHandled = await dmHandler.handleDmReply(message, client, authManager);
+      const dmReplyHandled = await dmHandler.handleDmReply(message, client);
       if (dmReplyHandled) {
         return; // Message was handled by DM reply handler
       }
@@ -352,7 +351,7 @@ async function handleMessage(message, client, authManager) {
 
     // Handle DM-specific behavior for "sticky" conversations
     if (message.channel.isDMBased() && !message.author.bot) {
-      await dmHandler.handleDirectMessage(message, client, authManager);
+      await dmHandler.handleDirectMessage(message, client);
     }
   } catch (error) {
     logger.error(`[MessageHandler] Error handling message:`, error);
@@ -723,6 +722,14 @@ async function handleActivatedChannel(message, client) {
   return true; // Activated channel was handled
 }
 
+/**
+ * Set authentication service for personality interactions
+ * @param {Object} authService - Authentication service instance
+ */
+function setAuthService(authService) {
+  personalityHandler.setAuthService(authService);
+}
+
 module.exports = {
   handleMessage,
   handleCommand,
@@ -730,4 +737,5 @@ module.exports = {
   handleActiveConversation,
   handleActivatedChannel,
   checkForPersonalityMentions, // Exported for testing
+  setAuthService,
 };
