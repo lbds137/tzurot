@@ -88,12 +88,14 @@ jest.mock('../../src/services/PersonalityDataService', () => ({
   }),
 }));
 
-// Mock aiAuth module
-jest.mock('../../src/utils/aiAuth', () => ({
-  initAiClient: jest.fn(),
-  getAiClientForUser: jest.fn().mockResolvedValue(new (require('openai').OpenAI)()),
-  getAI: jest.fn().mockReturnValue(new (require('openai').OpenAI)()),
-  getAIForUser: jest.fn().mockResolvedValue(new (require('openai').OpenAI)()),
+// Mock webhookUserTracker to bypass authentication
+jest.mock('../../src/utils/webhookUserTracker', () => ({
+  shouldBypassNsfwVerification: jest.fn().mockReturnValue(true), // Return true to bypass auth in tests
+}));
+
+// Mock ApplicationBootstrap
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn(),
 }));
 
 // Mock other dependencies
@@ -122,6 +124,10 @@ jest.mock('../../src/constants', () => ({
     DEFAULT_PROMPT: 'Hello',
   },
 }));
+
+// Mock aiService's getAiClientForUser method
+const aiService = require('../../src/aiService');
+aiService.getAiClientForUser = jest.fn();
 
 describe('Referenced Message Media Tests', () => {
   // Save original environment variables
@@ -156,6 +162,12 @@ describe('Referenced Message Media Tests', () => {
 
     // Reset mocks between tests
     jest.clearAllMocks();
+    
+    // Setup default mock for getAiClientForUser to return the OpenAI mock client
+    const openaiModule = require('openai');
+    const OpenAI = openaiModule.OpenAI;
+    const mockClient = new OpenAI();
+    aiService.getAiClientForUser.mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -433,12 +445,26 @@ describe('Referenced Message Media Tests', () => {
 
   // Test 5: Integration test - full AI response flow with media references
   it('should correctly process a full AI request with referenced media', async () => {
-    // Initialize auth manager mock
-    const mockAuthManager = {
-      hasValidToken: jest.fn().mockReturnValue(true),
-      getUserToken: jest.fn().mockReturnValue('mock-user-token'),
+    // Mock ApplicationBootstrap for DDD auth
+    const mockDDDAuthService = {
+      getAuthenticationStatus: jest.fn().mockResolvedValue({
+        isAuthenticated: true,
+        user: { 
+          nsfwStatus: { verified: true },
+          token: { value: 'test-token' }
+        }
+      })
     };
-    initAiClient(mockAuthManager);
+    
+    const { getApplicationBootstrap } = require('../../src/application/bootstrap/ApplicationBootstrap');
+    getApplicationBootstrap.mockReturnValue({
+      getApplicationServices: jest.fn().mockReturnValue({
+        authenticationService: mockDDDAuthService
+      }),
+      getPersonalityRouter: jest.fn().mockReturnValue({
+        getPersonality: jest.fn().mockResolvedValue(null)
+      })
+    });
 
     // Set up test data
     const personalityName = 'test-personality';
@@ -450,14 +476,25 @@ describe('Referenced Message Media Tests', () => {
         isFromBot: false,
       },
     };
-    const context = { userId: 'user123', channelId: 'channel456' };
+    const context = { 
+      userId: 'user123', 
+      channelId: 'channel456',
+      // Add webhook context to bypass initial auth check
+      message: {
+        webhookId: 'test-webhook',
+        author: { username: 'TestWebhook' }
+      }
+    };
 
-    // Spy on the OpenAI API call
+    // Setup getAiClientForUser to return our mock client
     const openaiModule = require('openai');
     const OpenAI = openaiModule.OpenAI;
     const mockClient = new OpenAI();
+    aiService.getAiClientForUser.mockResolvedValue(mockClient);
+    
+    // Spy on the OpenAI API call
     const createChatCompletionSpy = jest.spyOn(mockClient.chat.completions, 'create');
-
+    
     // Make the API call
     const response = await getAiResponse(personalityName, message, context);
 

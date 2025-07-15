@@ -1,4 +1,5 @@
 /* eslint-disable max-lines */
+const aiService = require('../../src/aiService');
 const {
   getAiResponse,
   isErrorResponse,
@@ -8,7 +9,7 @@ const {
   createBlackoutKey,
   errorBlackoutPeriods,
   pendingRequests,
-} = require('../../src/aiService');
+} = aiService;
 
 // Constants are imported but not used in this test file
 
@@ -23,7 +24,7 @@ const mockAuthManager = {
 
 // Mock webhookUserTracker to bypass authentication
 jest.mock('../../src/utils/webhookUserTracker', () => ({
-  shouldBypassNsfwVerification: jest.fn().mockReturnValue(false),
+  shouldBypassNsfwVerification: jest.fn().mockReturnValue(true), // Return true to bypass auth in tests
 }));
 
 // aiAuth module no longer exists - will mock AI client functionality directly
@@ -146,6 +147,17 @@ const { botPrefix } = require('../../config');
 describe('AI Service', () => {
   // Save original environment variables
   const originalEnv = process.env;
+  
+  // Helper to create context with webhook bypass
+  const createTestContext = (userId = 'user-123', channelId = 'channel-456') => ({
+    userId,
+    channelId,
+    // Add webhook context to bypass authentication in tests
+    message: {
+      webhookId: 'test-webhook',
+      author: { username: 'TestWebhook' }
+    }
+  });
 
   // Save original console methods
   const originalConsoleLog = console.log;
@@ -188,8 +200,14 @@ describe('AI Service', () => {
     });
     
     // Initialize aiService with mockAuthManager
-    const { initAiClient } = require('../../src/aiService');
+    const { initAiClient } = aiService;
     initAiClient(mockAuthManager);
+    
+    // Mock getAiClientForUser to return a valid client by default
+    const openaiModule = require('openai');
+    const OpenAI = openaiModule.OpenAI;
+    const mockClient = new OpenAI();
+    aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -679,7 +697,6 @@ describe('AI Service', () => {
       });
 
       // Mock getAiClientForUser on aiService module to return the mock OpenAI client
-      const aiService = require('../../src/aiService');
       aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
     });
 
@@ -822,7 +839,6 @@ describe('AI Service', () => {
       };
 
       // Mock the AI client to throw an error
-      const aiService = require('../../src/aiService');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
@@ -852,7 +868,6 @@ describe('AI Service', () => {
       };
 
       // Set up mocks
-      const aiService = require('../../src/aiService');
       const openaiModule = require('openai');
       const { createFeatureFlags } = require('../../src/application/services/FeatureFlags');
       const { getPersonalityDataService } = require('../../src/services/PersonalityDataService');
@@ -892,7 +907,16 @@ describe('AI Service', () => {
 
       // Clear previous calls
       jest.clearAllMocks();
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      // Mock DDD auth to return authenticated user with token
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
+        user: { token: { value: 'test-token' }, nsfwStatus: { verified: true } }
+      });
+      
+      // Mock getAiClientForUser on the aiService module
+      aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
+      
       mockClient.chat.completions.create.mockResolvedValue({
         choices: [
           {
@@ -925,7 +949,6 @@ describe('AI Service', () => {
       mockAuthManager.hasValidToken.mockReturnValue(true);
 
       // Reset default mock implementations
-      const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
@@ -987,14 +1010,15 @@ describe('AI Service', () => {
       };
 
       // Mock the AI client to throw authentication error
-      const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
 
       const authError = new Error('Authentication required');
       mockClient.chat.completions.create.mockRejectedValue(authError);
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      // Mock getAiClientForUser on the aiService module
+      aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
 
       const response = await getAiResponse(personalityName, message, context);
 
@@ -1019,13 +1043,14 @@ describe('AI Service', () => {
       };
 
       // Force an error by making the AI call fail
-      const aiAuth = require('../../src/utils/aiAuth');
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       const mockClient = new OpenAI();
 
       mockClient.chat.completions.create.mockRejectedValue(new Error('Test error'));
-      aiAuth.getAiClientForUser.mockResolvedValue(mockClient);
+      
+      // Mock getAiClientForUser on the aiService module
+      aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
 
       // Mock JSON.stringify to throw for circular reference
       const originalStringify = JSON.stringify;
@@ -1114,17 +1139,26 @@ describe('AI Service', () => {
     });
 
     it('should throw error when AI client is not available', async () => {
-      const aiService = require('../../src/aiService');
-
-      // Mock getAiClientForUser to return null
-      aiService.getAiClientForUser.mockResolvedValue(null);
+      // Mock the DDD auth service to return authenticated user without token
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
+        user: { 
+          nsfwStatus: { verified: true }
+          // No token property - this will cause getAiClientForUser to return null
+        }
+      });
 
       const response = await getAiResponse('test-personality', 'Hello', {
         userId: 'test-user',
         channelId: 'test-channel',
+        // Add webhook context to bypass initial auth check
+        message: {
+          webhookId: 'test-webhook',
+          author: { username: 'TestWebhook' }
+        }
       });
 
-      // When AI client is null, it's treated as an authentication issue
+      // When AI client is null due to missing token, the error is caught and returns auth error
       expect(response).toBe(
         `BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use \`${botPrefix} auth start\` to begin authentication.`
       );

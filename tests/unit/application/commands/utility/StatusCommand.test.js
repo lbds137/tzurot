@@ -338,8 +338,9 @@ describe('StatusCommand', () => {
 
   describe('error handling', () => {
     it('should handle errors gracefully', async () => {
-      mockAuth.hasValidToken.mockImplementation(() => {
-        throw new Error('Auth error');
+      // Make the uptime method throw an error to trigger the outer catch
+      mockProcessUtils.uptime.mockImplementation(() => {
+        throw new Error('Uptime error');
       });
 
       await statusCommand.execute(mockContext);
