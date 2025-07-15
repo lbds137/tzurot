@@ -73,8 +73,7 @@ jest.mock('../../config', () => ({
   },
 }));
 
-// Mock AuthManager
-jest.mock('../../src/core/authentication/AuthManager');
+// AuthManager mock removed - using DDD authentication
 
 // Mock PersonalityDataService
 jest.mock('../../src/services/PersonalityDataService', () => ({

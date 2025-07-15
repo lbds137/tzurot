@@ -82,7 +82,7 @@ function findSourceFile(testFile, mockName) {
     'githubClient': 'src/core/notifications/GitHubReleaseClient.js',
     'versionTracker': 'src/core/notifications/VersionTracker.js',
     'preferences': 'src/core/notifications/UserPreferencesPersistence.js',
-    'authManager': 'src/core/authentication/AuthManager.js',
+    // 'authManager': removed - using DDD authentication
     'client': 'discord.js', // External dependency
   };
   

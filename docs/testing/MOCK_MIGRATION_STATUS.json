@@ -1,8 +1,8 @@
 {
-  "total": 133,
+  "total": 127,
   "migrated": 6,
   "partial": 2,
-  "legacy": 125,
+  "legacy": 119,
   "byPattern": {
     "usesPresets": 0,
     "usesMigrationHelper": 8,
@@ -77,12 +77,6 @@
       "tests/unit/config.environment.test.js",
       "tests/unit/conversationManager.test.js",
       "tests/unit/core/api/ProfileInfoFetcher.test.js",
-      "tests/unit/core/authentication/AIClientFactory.test.js",
-      "tests/unit/core/authentication/AuthManager.test.js",
-      "tests/unit/core/authentication/AuthPersistence.test.js",
-      "tests/unit/core/authentication/NsfwVerificationManager.test.js",
-      "tests/unit/core/authentication/PersonalityAuthValidator.test.js",
-      "tests/unit/core/authentication/UserTokenManager.test.js",
       "tests/unit/core/conversation/ConversationTracker.test.js",
       "tests/unit/core/personality/PersonalityManager.test.js",
       "tests/unit/core/personality/PersonalityPersistence.test.js",

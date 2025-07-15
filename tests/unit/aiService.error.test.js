@@ -14,16 +14,7 @@ jest.mock(
   { virtual: true }
 );
 
-// Mock AuthManager to bypass authentication
-const mockAuthManager = {
-  hasValidToken: jest.fn().mockReturnValue(true),
-  getUserToken: jest.fn().mockReturnValue('mock-token'),
-  isNsfwVerified: jest.fn().mockReturnValue(true),
-};
-
-jest.mock('../../src/core/authentication/AuthManager', () => ({
-  AuthManager: jest.fn().mockImplementation(() => mockAuthManager),
-}));
+// Legacy AuthManager removed - using DDD authentication via ApplicationBootstrap
 
 // Mock PersonalityDataService
 jest.mock('../../src/services/PersonalityDataService', () => ({
@@ -155,8 +146,8 @@ describe('aiService Error Handling', () => {
       configurable: true
     });
     
-    // Initialize with mock auth manager (now a no-op in DDD system)
-    aiService.initAiClient(mockAuthManager);
+    // Initialize AI client (no longer requires auth manager in DDD system)
+    aiService.initAiClient();
   });
 
   describe('Initialization and environment', () => {
