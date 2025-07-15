@@ -226,7 +226,13 @@ async function showHelp(context) {
  */
 async function handleStart(context, auth) {
   try {
-    const authUrl = await auth.getAuthorizationUrl();
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Generate authorization URL using DDD service
+    const authUrl = await authService.getAuthorizationUrl(context.userId);
 
     if (!authUrl) {
       const errorEmbed = {
@@ -467,11 +473,22 @@ async function handleCode(context, auth, code) {
   // The typing indicator would need to be implemented in the adapter layer
 
   try {
-    // Exchange the code for a token
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Exchange the code for a token using DDD service
     logger.info('[AuthCommand] Exchanging code for token...');
-    const token = await auth.getTokenFromCode(code);
+    let tokenResult;
+    try {
+      tokenResult = await authService.exchangeCodeForToken(context.userId, code);
+    } catch (exchangeError) {
+      logger.error(`[AuthCommand] Code exchange failed: ${exchangeError.message}`);
+      tokenResult = null;
+    }
 
-    if (!token) {
+    if (!tokenResult) {
       const authFailedEmbed = {
         title: '❌ Authorization Failed',
         description: 'Unable to validate your authorization code.',
@@ -493,35 +510,8 @@ async function handleCode(context, auth, code) {
       return await context.respond({ embeds: [authFailedEmbed] });
     }
 
-    // Store the token
-    logger.info(`[AuthCommand] Storing token for user ${context.userId}`);
-    const stored = await auth.storeUserToken(context.userId, token);
-
-    if (!stored) {
-      const storeFailedEmbed = {
-        title: '❌ Storage Failed',
-        description: 'Unable to save your authorization token.',
-        color: 0xf44336, // Red color
-        fields: [
-          {
-            name: 'What happened?',
-            value: "The authorization was successful, but we couldn't save your token.",
-            inline: false,
-          },
-          {
-            name: 'What to do',
-            value:
-              '• Try the process again in a few minutes\n• Contact support if the issue persists',
-            inline: false,
-          },
-        ],
-        footer: {
-          text: 'This is usually a temporary issue',
-        },
-        timestamp: new Date().toISOString(),
-      };
-      return await context.respond({ embeds: [storeFailedEmbed] });
-    }
+    // Token was successfully exchanged and stored by the DDD service
+    logger.info(`[AuthCommand] Token successfully stored for user ${context.userId}`);
 
     const successEmbed = {
       title: '✅ Authorization Successful!',
@@ -582,74 +572,44 @@ async function handleCode(context, auth, code) {
  * Handle auth status subcommand
  */
 async function handleStatus(context, auth) {
-  // Check if the user has a valid token
-  const hasToken = auth.hasValidToken(context.userId);
+  try {
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Check authentication status using DDD service
+    const authStatus = await authService.getAuthenticationStatus(context.userId);
+    
+    if (authStatus.isAuthenticated) {
+      const fields = [
+        {
+          name: 'Status',
+          value: '✅ Authorized',
+          inline: true,
+        },
+        {
+          name: 'AI Service',
+          value: 'Using your personal account',
+          inline: true,
+        },
+      ];
 
-  if (hasToken) {
-    // Get token age and expiration info
-    const tokenAge = auth.getTokenAge(context.userId);
-    const expirationInfo = auth.getTokenExpirationInfo(context.userId);
+      const statusEmbed = {
+        title: '🔐 Authentication Status',
+        description:
+          'Your authorization is active. The bot is using your personal AI account for all interactions.',
+        color: 0x4caf50, // Green color
+        fields: fields,
+        footer: {
+          text: 'Your authentication is active',
+        },
+        timestamp: new Date().toISOString(),
+      };
 
-    const fields = [
-      {
-        name: 'Status',
-        value: '✅ Authorized',
-        inline: true,
-      },
-      {
-        name: 'AI Service',
-        value: 'Using your personal account',
-        inline: true,
-      },
-    ];
-
-    // Add token age and expiration info if available
-    if (tokenAge !== null && expirationInfo) {
-      fields.push({
-        name: 'Token Age',
-        value: `${tokenAge} day${tokenAge !== 1 ? 's' : ''}`,
-        inline: true,
-      });
-
-      fields.push({
-        name: 'Expires In',
-        value: `${expirationInfo.daysUntilExpiration} day${
-          expirationInfo.daysUntilExpiration !== 1 ? 's' : ''
-        }`,
-        inline: true,
-      });
-
-      fields.push({
-        name: 'Time Remaining',
-        value: `${expirationInfo.percentRemaining}%`,
-        inline: true,
-      });
-
-      // Add warning if token is expiring soon (less than 7 days)
-      if (expirationInfo.daysUntilExpiration < 7) {
-        fields.push({
-          name: '⚠️ Token Expiring Soon',
-          value: `Your token will expire soon. Use \`${getCommandPrefix(context)} auth revoke\` and then \`${getCommandPrefix(context)} auth start\` to renew your token.`,
-          inline: false,
-        });
-      }
-    }
-
-    const statusEmbed = {
-      title: '🔐 Authentication Status',
-      description:
-        'Your authorization is active. The bot is using your personal AI account for all interactions.',
-      color: 0x4caf50, // Green color
-      fields: fields,
-      footer: {
-        text: 'Token details shown above',
-      },
-      timestamp: new Date().toISOString(),
-    };
-
-    return await context.respond({ embeds: [statusEmbed] });
-  } else {
-    const notAuthorizedEmbed = {
+      return await context.respond({ embeds: [statusEmbed] });
+    } else {
+      const notAuthorizedEmbed = {
       title: '❌ Not Authorized',
       description: "You don't have an active authorization token.",
       color: 0xf44336, // Red color
@@ -673,7 +633,30 @@ async function handleStatus(context, auth) {
       timestamp: new Date().toISOString(),
     };
 
-    return await context.respond({ embeds: [notAuthorizedEmbed] });
+      return await context.respond({ embeds: [notAuthorizedEmbed] });
+    }
+  } catch (error) {
+    logger.error(`[AuthCommand] Error checking authentication status: ${error.message}`);
+    
+    const errorEmbed = {
+      title: '❌ Status Check Failed',
+      description: 'Unable to check your authentication status.',
+      color: 0xf44336, // Red color
+      fields: [
+        {
+          name: 'Error details',
+          value: error.message || 'Unknown error occurred',
+          inline: false,
+        },
+        {
+          name: 'What to do',
+          value: '• Try again in a moment\n• Contact support if the issue persists',
+          inline: false,
+        },
+      ],
+      timestamp: new Date().toISOString(),
+    };
+    return await context.respond({ embeds: [errorEmbed] });
   }
 }
 
@@ -681,10 +664,16 @@ async function handleStatus(context, auth) {
  * Handle auth revoke subcommand
  */
 async function handleRevoke(context, auth) {
-  // Delete the user's token
-  const deleted = await auth.deleteUserToken(context.userId);
-
-  if (deleted) {
+  try {
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Revoke user's authentication using DDD service
+    await authService.revokeAuthentication(context.userId);
+    
+    // Authentication was successfully revoked
     const successEmbed = {
       title: '✅ Authorization Revoked',
       description: 'Your authorization has been successfully revoked.',
@@ -712,15 +701,17 @@ async function handleRevoke(context, auth) {
       timestamp: new Date().toISOString(),
     };
     return await context.respond({ embeds: [successEmbed] });
-  } else {
+  } catch (error) {
+    logger.error(`[AuthCommand] Error revoking authentication: ${error.message}`);
+    
     const errorEmbed = {
       title: '❌ Revocation Failed',
       description: 'Unable to revoke your authorization.',
       color: 0xf44336, // Red color
       fields: [
         {
-          name: 'Possible reasons',
-          value: '• You may not have an active token\n• There was a temporary system error',
+          name: 'Error details',
+          value: error.message || 'Unknown error occurred',
           inline: false,
         },
         {
@@ -771,8 +762,14 @@ async function handleCleanup(context, auth) {
   }
 
   try {
-    // Run the cleanup
-    const removedCount = await auth.cleanupExpiredTokens();
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Run the cleanup using DDD service
+    const removedTokens = await authService.cleanupExpiredTokens();
+    const removedCount = removedTokens.length;
 
     if (removedCount > 0) {
       const successEmbed = {

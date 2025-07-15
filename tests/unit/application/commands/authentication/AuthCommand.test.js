@@ -9,19 +9,41 @@ const {
 // Mock logger
 jest.mock('../../../../../src/logger');
 
+// Mock ApplicationBootstrap
+jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap');
+
+const { getApplicationBootstrap } = require('../../../../../src/application/bootstrap/ApplicationBootstrap');
+
 describe('AuthCommand', () => {
   let authCommand;
   let mockContext;
   let mockAuth;
   let mockWebhookUserTracker;
+  let mockDDDAuthService;
 
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
 
+    // Mock DDD authentication service
+    mockDDDAuthService = {
+      getAuthorizationUrl: jest.fn().mockResolvedValue('https://auth.example.com/authorize'),
+      exchangeCodeForToken: jest.fn().mockResolvedValue({ token: 'test-token', user: {} }),
+      getAuthenticationStatus: jest.fn().mockResolvedValue({ isAuthenticated: false }),
+      revokeAuthentication: jest.fn().mockResolvedValue(),
+      cleanupExpiredTokens: jest.fn().mockResolvedValue([]),
+    };
+
+    // Mock ApplicationBootstrap
+    getApplicationBootstrap.mockReturnValue({
+      getApplicationServices: jest.fn().mockReturnValue({
+        authenticationService: mockDDDAuthService,
+      }),
+    });
+
     authCommand = createAuthCommand();
 
-    // Mock auth service
+    // Mock auth service (legacy - still passed in dependencies but not used)
     mockAuth = {
       getAuthorizationUrl: jest.fn().mockResolvedValue('https://auth.example.com/authorize'),
       getTokenFromCode: jest.fn().mockResolvedValue('test-token'),
@@ -158,7 +180,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.getAuthorizationUrl).toHaveBeenCalled();
+      expect(mockDDDAuthService.getAuthorizationUrl).toHaveBeenCalledWith('user123');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -180,7 +202,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.getAuthorizationUrl).toHaveBeenCalled();
+      expect(mockDDDAuthService.getAuthorizationUrl).toHaveBeenCalledWith('user123');
       expect(mockContext.sendDM).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -220,7 +242,7 @@ describe('AuthCommand', () => {
 
     it('should handle auth URL generation failure', async () => {
       mockContext.args = ['start'];
-      mockAuth.getAuthorizationUrl.mockResolvedValue(null);
+      mockDDDAuthService.getAuthorizationUrl.mockResolvedValue(null);
 
       await authCommand.execute(mockContext);
 
@@ -260,8 +282,7 @@ describe('AuthCommand', () => {
       await authCommand.execute(mockContext);
 
       // Note: startTyping is not available in DDD command context
-      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
-      expect(mockAuth.storeUserToken).toHaveBeenCalledWith('user123', 'test-token');
+      expect(mockDDDAuthService.exchangeCodeForToken).toHaveBeenCalledWith('user123', 'test-code');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -279,7 +300,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
+      expect(mockDDDAuthService.exchangeCodeForToken).toHaveBeenCalledWith('user123', 'test-code');
     });
 
     it('should handle missing code', async () => {
@@ -300,7 +321,7 @@ describe('AuthCommand', () => {
     it('should handle invalid code', async () => {
       mockContext.isDM.mockReturnValue(true);
       mockContext.args = ['code', 'invalid-code'];
-      mockAuth.getTokenFromCode.mockResolvedValue(null);
+      mockDDDAuthService.exchangeCodeForToken.mockRejectedValue(new Error('Invalid code'));
 
       await authCommand.execute(mockContext);
 
@@ -314,28 +335,14 @@ describe('AuthCommand', () => {
       });
     });
 
-    it('should handle token storage failure', async () => {
-      mockContext.isDM.mockReturnValue(true);
-      mockContext.args = ['code', 'test-code'];
-      mockAuth.storeUserToken.mockResolvedValue(false);
-
-      await authCommand.execute(mockContext);
-
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            title: '❌ Storage Failed',
-            description: 'Unable to save your authorization token.',
-          }),
-        ],
-      });
-    });
+    // Token storage is now handled by DDD service during exchange
+    // The storage failure test is no longer needed as failures are caught in exchangeCodeForToken
   });
 
   describe('auth status', () => {
     it('should show status when not authenticated', async () => {
       mockContext.args = ['status'];
-      mockAuth.hasValidToken.mockReturnValue(false);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({ isAuthenticated: false });
 
       await authCommand.execute(mockContext);
 
@@ -352,7 +359,9 @@ describe('AuthCommand', () => {
 
     it('should show status when authenticated', async () => {
       mockContext.args = ['status'];
-      mockAuth.hasValidToken.mockReturnValue(true);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({ 
+        isAuthenticated: true
+      });
 
       await authCommand.execute(mockContext);
 
@@ -373,69 +382,18 @@ describe('AuthCommand', () => {
       });
     });
 
-    it('should show token details when available', async () => {
-      mockContext.args = ['status'];
-      mockAuth.hasValidToken.mockReturnValue(true);
-      mockAuth.getTokenAge.mockReturnValue(5);
-      mockAuth.getTokenExpirationInfo.mockReturnValue({
-        daysUntilExpiration: 25,
-        percentRemaining: 83,
-      });
+    // Token expiration is no longer part of the DDD authentication system
 
-      await authCommand.execute(mockContext);
-
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: 'Token Age',
-                value: '5 days',
-              }),
-              expect.objectContaining({
-                name: 'Expires In',
-                value: '25 days',
-              }),
-            ]),
-          }),
-        ],
-      });
-    });
-
-    it('should warn about expiring tokens', async () => {
-      mockContext.args = ['status'];
-      mockAuth.hasValidToken.mockReturnValue(true);
-      mockAuth.getTokenAge.mockReturnValue(23);
-      mockAuth.getTokenExpirationInfo.mockReturnValue({
-        daysUntilExpiration: 5,
-        percentRemaining: 17,
-      });
-
-      await authCommand.execute(mockContext);
-
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            fields: expect.arrayContaining([
-              expect.objectContaining({
-                name: '⚠️ Token Expiring Soon',
-                value: expect.stringContaining('Your token will expire soon'),
-              }),
-            ]),
-          }),
-        ],
-      });
-    });
+    // Token expiration warnings are no longer needed in DDD system
   });
 
   describe('auth revoke', () => {
     it('should revoke token successfully', async () => {
       mockContext.args = ['revoke'];
-      mockAuth.deleteUserToken.mockResolvedValue(true);
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.deleteUserToken).toHaveBeenCalledWith('user123');
+      expect(mockDDDAuthService.revokeAuthentication).toHaveBeenCalledWith('user123');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -449,7 +407,7 @@ describe('AuthCommand', () => {
 
     it('should handle revoke failure', async () => {
       mockContext.args = ['revoke'];
-      mockAuth.deleteUserToken.mockResolvedValue(false);
+      mockDDDAuthService.revokeAuthentication.mockRejectedValue(new Error('Revocation failed'));
 
       await authCommand.execute(mockContext);
 
@@ -481,17 +439,17 @@ describe('AuthCommand', () => {
           }),
         ],
       });
-      expect(mockAuth.cleanupExpiredTokens).not.toHaveBeenCalled();
+      expect(mockDDDAuthService.cleanupExpiredTokens).not.toHaveBeenCalled();
     });
 
     it('should allow cleanup for administrators', async () => {
       mockContext.args = ['cleanup'];
       mockContext.hasPermission.mockResolvedValue(true);
-      mockAuth.cleanupExpiredTokens.mockResolvedValue(3);
+      mockDDDAuthService.cleanupExpiredTokens.mockResolvedValue(['user1', 'user2', 'user3']);
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockDDDAuthService.cleanupExpiredTokens).toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -505,11 +463,11 @@ describe('AuthCommand', () => {
     it('should allow cleanup for bot owner', async () => {
       process.env.BOT_OWNER_ID = 'user123';
       mockContext.args = ['cleanup'];
-      mockAuth.cleanupExpiredTokens.mockResolvedValue(0);
+      mockDDDAuthService.cleanupExpiredTokens.mockResolvedValue([]);
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.cleanupExpiredTokens).toHaveBeenCalled();
+      expect(mockDDDAuthService.cleanupExpiredTokens).toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -523,7 +481,7 @@ describe('AuthCommand', () => {
     it('should handle cleanup errors', async () => {
       mockContext.args = ['cleanup'];
       mockContext.hasPermission.mockResolvedValue(true);
-      mockAuth.cleanupExpiredTokens.mockRejectedValue(new Error('Database error'));
+      mockDDDAuthService.cleanupExpiredTokens.mockRejectedValue(new Error('Database error'));
 
       await authCommand.execute(mockContext);
 
@@ -562,7 +520,7 @@ describe('AuthCommand', () => {
 
     it('should handle unexpected errors', async () => {
       mockContext.args = ['start'];
-      mockAuth.getAuthorizationUrl.mockRejectedValue(new Error('Network error'));
+      mockDDDAuthService.getAuthorizationUrl.mockRejectedValue(new Error('Network error'));
 
       await authCommand.execute(mockContext);
 
@@ -588,7 +546,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.hasValidToken).toHaveBeenCalled();
+      expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalled();
     });
 
     it('should support code option for slash commands', async () => {
@@ -597,7 +555,7 @@ describe('AuthCommand', () => {
 
       await authCommand.execute(mockContext);
 
-      expect(mockAuth.getTokenFromCode).toHaveBeenCalledWith('test-code');
+      expect(mockDDDAuthService.exchangeCodeForToken).toHaveBeenCalledWith('user123', 'test-code');
     });
   });
 });

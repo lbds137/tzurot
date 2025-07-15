@@ -9,21 +9,22 @@ const { ValueObject } = require('../shared/ValueObject');
  * @class Token
  * @extends ValueObject
  * @description Represents an authentication token
+ * 
+ * Note: Token expiry is handled by the AI service. The expiresAt field
+ * is stored for informational purposes only and not validated client-side.
  */
 class Token extends ValueObject {
-  constructor(value, expiresAt) {
+  constructor(value, expiresAt = null) {
     super();
 
     if (!value || typeof value !== 'string') {
       throw new Error('Token value must be a non-empty string');
     }
 
-    if (!expiresAt || !(expiresAt instanceof Date)) {
-      throw new Error('Token requires valid expiration date');
-    }
-
-    if (expiresAt.getTime() <= Date.now()) {
-      throw new Error('Token expiration must be in the future');
+    // We store expiresAt if provided, but don't validate it
+    // The AI service handles token validation
+    if (expiresAt && !(expiresAt instanceof Date)) {
+      throw new Error('If provided, expiresAt must be a Date');
     }
 
     this.value = value;
@@ -32,31 +33,37 @@ class Token extends ValueObject {
 
   /**
    * Check if token is expired
+   * @deprecated Token expiry is handled by the AI service
    * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {boolean} True if expired
+   * @returns {boolean} Always false - AI service handles validation
    */
   isExpired(currentTime = new Date()) {
-    return currentTime.getTime() >= this.expiresAt.getTime();
+    // Token validation is handled by the AI service
+    // This method is kept for backward compatibility but always returns false
+    return false;
   }
 
   /**
    * Get time until expiration in milliseconds
+   * @deprecated Token expiry is handled by the AI service
    * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {number} Milliseconds until expiration
+   * @returns {number} Always returns Infinity - AI service handles expiry
    */
   timeUntilExpiration(currentTime = new Date()) {
-    const remaining = this.expiresAt.getTime() - currentTime.getTime();
-    return Math.max(0, remaining);
+    // Token expiry is handled by the AI service
+    return Infinity;
   }
 
   /**
    * Check if token should be refreshed (expires soon)
+   * @deprecated Token refresh is handled by the AI service
    * @param {number} refreshThresholdMs - Refresh if expires within this time
    * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {boolean} True if should refresh
+   * @returns {boolean} Always false - AI service handles refresh
    */
   shouldRefresh(refreshThresholdMs = 5 * 60 * 1000, currentTime = new Date()) {
-    return this.timeUntilExpiration(currentTime) <= refreshThresholdMs;
+    // Token refresh is handled by the AI service
+    return false;
   }
 
   /**
@@ -77,7 +84,7 @@ class Token extends ValueObject {
   toJSON() {
     return {
       value: this.value,
-      expiresAt: this.expiresAt.toISOString(),
+      expiresAt: this.expiresAt ? this.expiresAt.toISOString() : null,
     };
   }
 

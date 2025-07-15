@@ -39,7 +39,7 @@ class OAuthTokenService extends TokenService {
     this.serviceApiBaseUrl = config.serviceApiBaseUrl || process.env.SERVICE_API_BASE_URL;
     
     // Injectable HTTP client for testing
-    this.httpClient = config.httpClient || require('axios');
+    this.httpClient = config.httpClient || require('node-fetch');
     
     if (!this.appId) {
       throw new Error('App ID is required for OAuth token service');
@@ -83,45 +83,42 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info(`[OAuthTokenService] Exchanging code for user ${userId}`);
       
-      const response = await this.httpClient.post(
+      const response = await this.httpClient(
         `${this.authApiEndpoint}/exchange`,
         {
-          code,
-          discord_id: userId,
-        },
-        {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': this.apiKey,
           },
+          body: JSON.stringify({
+            code,
+            discord_id: userId,
+          }),
         }
       );
       
-      if (!response.data || !response.data.token) {
-        throw new Error('Invalid response from auth service');
+      const data = await response.json();
+      
+      if (!response.ok || !data || !data.token) {
+        throw new Error(`OAuth exchange failed: ${data?.error || response.statusText}`);
       }
       
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // Default 30 days
-      
-      if (response.data.expires_at) {
-        expiresAt.setTime(new Date(response.data.expires_at).getTime());
+      // Let the AI service handle token expiry
+      // We only store expiresAt if the API provides it
+      let expiresAt = null;
+      if (data.expires_at) {
+        expiresAt = new Date(data.expires_at);
       }
       
       logger.info(`[OAuthTokenService] Successfully exchanged code for user ${userId}`);
       
       return {
-        token: response.data.token,
+        token: data.token,
         expiresAt,
       };
     } catch (error) {
       logger.error(`[OAuthTokenService] Failed to exchange code for user ${userId}:`, error);
-      
-      if (error.response) {
-        const errorMessage = error.response.data?.error || 'Unknown error';
-        throw new Error(`OAuth exchange failed: ${errorMessage}`);
-      }
-      
       throw error;
     }
   }
@@ -135,32 +132,35 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info(`[OAuthTokenService] Direct token exchange for user ${userId}`);
       
-      const response = await this.httpClient.post(
+      const response = await this.httpClient(
         `${this.authApiEndpoint}/token`,
         {
-          discord_id: userId,
-        },
-        {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': this.apiKey,
           },
+          body: JSON.stringify({
+            discord_id: userId,
+          }),
         }
       );
       
-      if (!response.data || !response.data.token) {
-        throw new Error('Invalid response from auth service');
+      const data = await response.json();
+      
+      if (!response.ok || !data || !data.token) {
+        throw new Error(`Token exchange failed: ${data?.error || response.statusText}`);
       }
       
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // Default 30 days
-      
-      if (response.data.expires_at) {
-        expiresAt.setTime(new Date(response.data.expires_at).getTime());
+      // Let the AI service handle token expiry
+      // We only store expiresAt if the API provides it
+      let expiresAt = null;
+      if (data.expires_at) {
+        expiresAt = new Date(data.expires_at);
       }
       
       return {
-        token: response.data.token,
+        token: data.token,
         expiresAt,
       };
     } catch (error) {
@@ -176,37 +176,53 @@ class OAuthTokenService extends TokenService {
    */
   async validateToken(token) {
     try {
-      logger.info('[OAuthTokenService] Validating token');
+      logger.info('[OAuthTokenService] Validating token:', {
+        tokenPrefix: token.substring(0, 8) + '...',
+        endpoint: `${this.authApiEndpoint}/validate`
+      });
       
-      const response = await this.httpClient.post(
+      const response = await this.httpClient(
         `${this.authApiEndpoint}/validate`,
         {
-          token,
-        },
-        {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': this.apiKey,
           },
+          body: JSON.stringify({
+            token,
+          }),
         }
       );
       
-      if (!response.data) {
+      const data = response.ok ? await response.json() : null;
+      
+      logger.info('[OAuthTokenService] Token validation response:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: data,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!data) {
+        logger.warn('[OAuthTokenService] No response data from validation endpoint');
         return { valid: false };
       }
       
-      return {
-        valid: response.data.valid === true,
-        userId: response.data.discord_id,
+      const result = {
+        valid: data.valid === true,
+        userId: data.discord_id,
       };
+      
+      logger.info('[OAuthTokenService] Validation result:', result);
+      return result;
     } catch (error) {
-      logger.error('[OAuthTokenService] Failed to validate token:', error);
+      logger.error('[OAuthTokenService] Failed to validate token:', {
+        message: error.message,
+        code: error.code
+      });
       
-      // Treat validation errors as invalid token
-      if (error.response && error.response.status === 401) {
-        return { valid: false };
-      }
-      
+      // Network errors should be thrown, not treated as invalid tokens
       throw error;
     }
   }
@@ -220,43 +236,41 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info('[OAuthTokenService] Refreshing token');
       
-      const response = await this.httpClient.post(
+      const response = await this.httpClient(
         `${this.authApiEndpoint}/refresh`,
         {
-          token,
-        },
-        {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': this.apiKey,
           },
+          body: JSON.stringify({
+            token,
+          }),
         }
       );
       
-      if (!response.data || !response.data.token) {
-        throw new Error('Invalid response from auth service');
+      const data = await response.json();
+      
+      if (!response.ok || !data || !data.token) {
+        throw new Error(`Token refresh failed: ${data?.error || response.statusText}`);
       }
       
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // Default 30 days
-      
-      if (response.data.expires_at) {
-        expiresAt.setTime(new Date(response.data.expires_at).getTime());
+      // Let the AI service handle token expiry
+      // We only store expiresAt if the API provides it
+      let expiresAt = null;
+      if (data.expires_at) {
+        expiresAt = new Date(data.expires_at);
       }
       
       logger.info('[OAuthTokenService] Successfully refreshed token');
       
       return {
-        token: response.data.token,
+        token: data.token,
         expiresAt,
       };
     } catch (error) {
       logger.error('[OAuthTokenService] Failed to refresh token:', error);
-      
-      if (error.response && error.response.status === 401) {
-        throw new Error('Token is invalid or expired');
-      }
-      
       throw error;
     }
   }
@@ -270,18 +284,23 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info('[OAuthTokenService] Revoking token');
       
-      await this.httpClient.post(
+      const response = await this.httpClient(
         `${this.authApiEndpoint}/revoke`,
         {
-          token,
-        },
-        {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': this.apiKey,
           },
+          body: JSON.stringify({
+            token,
+          }),
         }
       );
+      
+      if (!response.ok) {
+        throw new Error(`Token revoke failed: ${response.statusText}`);
+      }
       
       logger.info('[OAuthTokenService] Successfully revoked token');
     } catch (error) {
@@ -289,7 +308,7 @@ class OAuthTokenService extends TokenService {
       
       // Token revocation failures are not critical
       // The token will expire naturally
-      if (error.response && error.response.status === 404) {
+      if (error.message && error.message.includes('404')) {
         logger.warn('[OAuthTokenService] Token not found for revocation, may already be revoked');
         return;
       }
@@ -307,23 +326,26 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info('[OAuthTokenService] Getting user info');
       
-      const response = await this.httpClient.get(
+      const response = await this.httpClient(
         `${this.serviceApiBaseUrl}/v1/profile`,
         {
+          method: 'GET',
           headers: {
             'X-User-Auth': token,
           },
         }
       );
       
-      if (!response.data || !response.data.id) {
-        throw new Error('Invalid user info response');
+      const data = await response.json();
+      
+      if (!response.ok || !data || !data.id) {
+        throw new Error(`Get user info failed: ${data?.error || response.statusText}`);
       }
       
       return {
-        userId: response.data.id,
-        username: response.data.username,
-        discriminator: response.data.discriminator,
+        userId: data.id,
+        username: data.username,
+        discriminator: data.discriminator,
       };
     } catch (error) {
       logger.error('[OAuthTokenService] Failed to get user info:', error);

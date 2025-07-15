@@ -21,6 +21,23 @@ async function getPersonality(name) {
 }
 
 /**
+ * Check if user is NSFW verified using DDD authentication system
+ * @param {string} userId - User ID
+ * @returns {Promise<boolean>} Whether user is NSFW verified
+ */
+async function isNsfwVerified(userId) {
+  try {
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    const status = await authService.getAuthenticationStatus(userId);
+    return status.isAuthenticated && status.user?.nsfwStatus?.verified;
+  } catch (error) {
+    logger.error('[dmHandler] Error checking NSFW verification:', error);
+    return false;
+  }
+}
+
+/**
  * Get personality by alias using DDD system
  * @param {string} alias - Personality alias
  * @returns {Promise<Object|null>} Personality object or null
@@ -50,7 +67,7 @@ async function listPersonalitiesForUser(userId) {
  * @param {Object} authManager - Auth manager instance
  * @returns {Promise<boolean>} - True if the message was handled as a DM reply, false otherwise
  */
-async function handleDmReply(message, client, authManager) {
+async function handleDmReply(message, client) {
   if (!message.channel.isDMBased() || message.author.bot || !message.reference) {
     return false;
   }
@@ -68,7 +85,7 @@ async function handleDmReply(message, client, authManager) {
     const shouldBypass = webhookUserTracker.shouldBypassNsfwVerification(message);
     const isVerified = shouldBypass
       ? true
-      : authManager && authManager.isNsfwVerified(message.author.id);
+      : await isNsfwVerified(message.author.id);
 
     if (!isVerified) {
       // User is not verified, prompt them to verify first
@@ -302,7 +319,7 @@ async function handleDmReply(message, client, authManager) {
  * @param {Object} authManager - Auth manager instance
  * @returns {Promise<boolean>} - True if the message was handled, false otherwise
  */
-async function handleDirectMessage(message, client, authManager) {
+async function handleDirectMessage(message, client) {
   if (!message.channel.isDMBased() || message.author.bot) {
     return false;
   }
@@ -316,7 +333,7 @@ async function handleDirectMessage(message, client, authManager) {
   // If we should bypass verification, treat as verified
   const isVerified = shouldBypass
     ? true
-    : authManager && authManager.isNsfwVerified(message.author.id);
+    : await isNsfwVerified(message.author.id);
 
   if (!isVerified) {
     // User is not verified, prompt them to verify first

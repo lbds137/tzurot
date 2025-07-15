@@ -18,6 +18,8 @@ jest.mock('../../../../src/application/services/FeatureFlags');
 jest.mock('../../../../src/application/routers/PersonalityRouter');
 jest.mock('../../../../src/application/commands/CommandIntegration');
 jest.mock('../../../../src/adapters/CommandIntegrationAdapter');
+jest.mock('../../../../src/infrastructure/authentication/OAuthTokenService');
+jest.mock('../../../../src/application/services/AuthenticationApplicationService');
 jest.mock('../../../../src/profileInfoFetcher');
 jest.mock('../../../../src/messageTracker');
 jest.mock('../../../../src/core/conversation');
@@ -73,11 +75,15 @@ const {
 const {
   getCommandIntegrationAdapter,
 } = require('../../../../src/adapters/CommandIntegrationAdapter');
+const { OAuthTokenService } = require('../../../../src/infrastructure/authentication/OAuthTokenService');
+const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
 
 describe('ApplicationBootstrap', () => {
   let mockEventBus;
   let mockFeatureFlags;
   let mockPersonalityRouter;
+  let mockOAuthTokenService;
+  let mockAuthenticationApplicationService;
   let mockCommandIntegration;
   let mockCommandAdapter;
   let mockEventHandlerRegistry;
@@ -143,6 +149,13 @@ describe('ApplicationBootstrap', () => {
     }));
     HttpAIServiceAdapter.mockImplementation(() => ({}));
     PersonalityApplicationService.mockImplementation(() => ({}));
+
+    // Mock authentication services
+    mockOAuthTokenService = {};
+    OAuthTokenService.mockImplementation(() => mockOAuthTokenService);
+    
+    mockAuthenticationApplicationService = {};
+    AuthenticationApplicationService.mockImplementation(() => mockAuthenticationApplicationService);
 
     // Legacy PersonalityManager removed - using DDD system now
 
@@ -274,8 +287,9 @@ describe('ApplicationBootstrap', () => {
         messageTracker: expect.any(Object),
         featureFlags: mockFeatureFlags,
         botPrefix: expect.any(String),
-        auth: null, // AuthManager is now injected from outside (DDD key)
-        authManager: null, // AuthManager is now injected from outside (legacy key)
+        auth: expect.any(Object), // DDD AuthenticationApplicationService
+        authenticationService: expect.any(Object), // DDD AuthenticationApplicationService
+        authenticationApplicationService: expect.any(Object), // DDD AuthenticationApplicationService
         webhookUserTracker: expect.any(Object),
         channelUtils: expect.any(Object),
         authenticationRepository: expect.any(Object),

@@ -36,12 +36,10 @@ function createExecutor(dependencies = {}) {
         conversationManager = require('../../../core/conversation'),
         messageTracker = require('../../../messageTracker').messageTracker,
         nsfwVerificationManager,
-        authManager,
       } = context.dependencies || dependencies;
 
-      // Get NSFW verification manager from auth manager
-      const effectiveNsfwManager =
-        nsfwVerificationManager || authManager?.nsfwVerificationManager || null;
+      // NSFW verification manager is no longer needed from authManager - DDD system handles this
+      const effectiveNsfwManager = nsfwVerificationManager || null;
 
       // Get subcommand from args or options
       const subcommand = context.options.subcommand || context.args[0]?.toLowerCase();
@@ -61,7 +59,7 @@ function createExecutor(dependencies = {}) {
           return await clearConversation(context, conversationManager);
 
         case 'clearauth':
-          return await clearAuth(context, authManager);
+          return await clearAuth(context);
 
         case 'clearmessages':
           return await clearMessages(context, messageTracker);
@@ -70,7 +68,6 @@ function createExecutor(dependencies = {}) {
           return await showStats(context, {
             webhookUserTracker,
             messageTracker,
-            authManager,
           });
 
         default: {
@@ -115,7 +112,7 @@ async function showHelp(context) {
           '• `clearwebhooks` - Clear cached webhook identifications',
           '• `unverify` - Clear your NSFW verification status',
           '• `clearconversation` - Clear your conversation history',
-          '• `clearauth` - Clear your authentication tokens',
+          '• `clearauth [userId]` - Revoke authentication tokens (yours or specified user)',
           '• `clearmessages` - Clear message tracking history',
           '• `stats` - Show debug statistics',
         ].join('\n'),
@@ -203,14 +200,36 @@ async function clearConversation(context, conversationManager) {
   }
 }
 
-async function clearAuth(context, authManager) {
+async function clearAuth(context) {
   try {
-    // Clean up expired auth tokens
-    await authManager.cleanupExpiredTokens();
-    logger.info(`[Debug] Authentication tokens cleaned up for ${context.getAuthorDisplayName()}`);
+    // Get user ID to clear auth for (defaults to command user)
+    const targetUserId = context.args?.[1] || context.userId;
+    
+    // Get authentication service from DDD system
+    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    logger.info(`[Debug] Authentication revocation requested by ${context.getAuthorDisplayName()} for user ${targetUserId}`);
+    
+    // Revoke user's authentication
+    await authService.revokeAuthentication(targetUserId);
+    
+    // Also cleanup any expired tokens in the system
+    const cleanupResult = await authService.cleanupExpiredTokens();
+    
     const successEmbed = {
-      title: '✅ Authentication Cleared',
-      description: 'Cleaned up authentication tokens. You may need to re-authenticate.',
+      title: '✅ Authentication Revoked',
+      description: targetUserId === context.userId 
+        ? 'Your authentication has been revoked. You will need to re-authenticate to interact with personalities.'
+        : `Authentication revoked for user <@${targetUserId}>. They will need to re-authenticate to interact with personalities.`,
+      fields: [
+        {
+          name: 'Cleanup Results',
+          value: `${cleanupResult.length} expired tokens cleaned up`,
+          inline: true
+        }
+      ],
       color: 0x4caf50,
       timestamp: new Date().toISOString(),
     };
@@ -218,8 +237,8 @@ async function clearAuth(context, authManager) {
   } catch (error) {
     logger.error(`[Debug] Error clearing auth: ${error.message}`);
     const errorEmbed = {
-      title: '❌ Clear Failed',
-      description: 'Failed to clear authentication.',
+      title: '❌ Revocation Failed',
+      description: `Failed to revoke authentication: ${error.message}`,
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };
@@ -252,7 +271,18 @@ async function clearMessages(context, messageTracker) {
 
 async function showStats(context, dependencies) {
   try {
-    const { messageTracker, authManager } = dependencies;
+    const { messageTracker } = dependencies;
+
+    // Check if DDD authentication is available
+    let authAvailable = false;
+    try {
+      const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+      const bootstrap = getApplicationBootstrap();
+      const authService = bootstrap.getApplicationServices().authenticationService;
+      authAvailable = !!authService;
+    } catch (error) {
+      // DDD auth not available
+    }
 
     // Gather various statistics
     const stats = {
@@ -263,7 +293,7 @@ async function showStats(context, dependencies) {
         tracked: messageTracker.size || 0,
       },
       auth: {
-        hasManager: !!authManager,
+        dddSystemAvailable: authAvailable,
       },
     };
 
@@ -330,7 +360,7 @@ function createDebugCommand(dependencies = {}) {
           { name: 'Clear cached webhooks', value: 'clearwebhooks' },
           { name: 'Clear NSFW verification', value: 'unverify' },
           { name: 'Clear conversation history', value: 'clearconversation' },
-          { name: 'Clear authentication tokens', value: 'clearauth' },
+          { name: 'Revoke authentication tokens', value: 'clearauth' },
           { name: 'Clear message tracking', value: 'clearmessages' },
           { name: 'Show debug statistics', value: 'stats' },
         ],

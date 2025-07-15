@@ -13,18 +13,16 @@ const urlValidator = require('./utils/urlValidator');
 
 // Create factory function for dependency injection
 let fetcher = null;
-let authManager = null;
 
 function initialize(authManagerInstance) {
-  authManager = authManagerInstance;
-  // Reset fetcher to create new instance with authManager
-  fetcher = null;
-  logger.info('[ProfileInfoFetcher] Initialized with auth manager');
+  // Legacy initialization - now a no-op since ProfileInfoFetcher gets auth from DDD system
+  logger.info('[ProfileInfoFetcher] initialize called - using DDD authentication system');
 }
 
 function getFetcher() {
   if (!fetcher) {
-    fetcher = new ProfileInfoFetcher({ authManager });
+    // No longer pass authManager - ProfileInfoFetcher gets auth from DDD system
+    fetcher = new ProfileInfoFetcher();
   }
   return fetcher;
 }
