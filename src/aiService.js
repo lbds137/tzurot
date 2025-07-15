@@ -1,7 +1,7 @@
 const { getModelPath, botPrefix } = require('../config');
 const logger = require('./logger');
 const { MARKERS, DEFAULTS } = require('./constants');
-const aiAuth = require('./utils/aiAuth');
+// aiAuth utility removed - using DDD authentication directly
 const { sanitizeContent } = require('./utils/contentSanitizer');
 const aiRequestManager = require('./utils/aiRequestManager');
 const { formatApiMessages } = require('./utils/aiMessageFormatter');
@@ -15,18 +15,60 @@ const {
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
 const { createFeatureFlags } = require('./application/services/FeatureFlags');
 
-// Store authManager reference
-let authManager = null;
-
-// Initialize the AI client - delegates to aiAuth module
+// Initialize the AI client (now a no-op since DDD handles auth)
 function initAiClient(authManagerInstance) {
-  authManager = authManagerInstance;
-  aiAuth.initAiClient(authManagerInstance);
+  // Legacy initialization - DDD system handles authentication
+  logger.info('[AIService] initAiClient called - using DDD authentication system');
 }
 
-// Get an AI client for a specific user - delegates to aiAuth module
-function getAiClientForUser(userId, context = {}) {
-  return aiAuth.getAiClientForUser(userId, context);
+// Check if user is authenticated using DDD system
+async function isUserAuthenticated(userId) {
+  if (!userId) return false;
+  
+  try {
+    const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    const status = await authService.getAuthenticationStatus(userId);
+    return status.isAuthenticated;
+  } catch (error) {
+    logger.error('[AIService] Error checking user authentication:', error);
+    return false;
+  }
+}
+
+// Get an AI client for a specific user using DDD authentication
+async function getAiClientForUser(userId, context = {}) {
+  try {
+    if (!userId) {
+      logger.debug('[AIService] No userId provided, using default client');
+      return null; // No user-specific auth needed
+    }
+
+    const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    
+    // Get user authentication status
+    const authStatus = await authService.getAuthenticationStatus(userId);
+    
+    if (!authStatus.isAuthenticated || !authStatus.user?.token) {
+      logger.debug(`[AIService] User ${userId} is not authenticated or has no token`);
+      return null;
+    }
+    
+    // Create and return an OpenAI client with the user's token
+    const { OpenAI } = require('openai');
+    const client = new OpenAI({
+      apiKey: authStatus.user.token.value,
+      baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+    });
+    
+    return client;
+  } catch (error) {
+    logger.error(`[AIService] Error getting AI client for user ${userId}:`, error);
+    return null;
+  }
 }
 
 // Request management is now handled by aiRequestManager module
@@ -151,7 +193,12 @@ async function getAiResponse(personalityName, message, context = {}) {
       }
 
       // If this is NOT a proxy system webhook that should bypass auth, check auth
-      if (!shouldBypassAuth && (!userId || !authManager || !authManager.hasValidToken(userId))) {
+      let userAuthenticated = false;
+      if (!shouldBypassAuth && userId) {
+        userAuthenticated = await isUserAuthenticated(userId);
+      }
+      
+      if (!shouldBypassAuth && (!userId || !userAuthenticated)) {
         logger.warn(
           `[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`
         );

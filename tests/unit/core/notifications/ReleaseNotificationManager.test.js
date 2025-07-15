@@ -124,42 +124,24 @@ describe('ReleaseNotificationManager', () => {
       await expect(manager.initialize()).rejects.toThrow('Discord client is required');
     });
 
-    it('should migrate authenticated users when authManager provided', async () => {
-      const mockTokens = {
-        user123: { token: 'token123', createdAt: Date.now() },
-        user456: { token: 'token456', createdAt: Date.now() },
-      };
-      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
-
-      // user123 already has preferences, user456 doesn't
-      mockPreferences.preferences.get.mockImplementation(userId =>
-        userId === 'user123' ? { optedOut: false } : undefined
-      );
-
+    it('should not perform migration with DDD system', async () => {
+      // DDD system handles authenticated users differently, no migration needed
       await manager.initialize(mockClient, mockAuthManager);
 
-      expect(mockAuthManager.userTokenManager.getAllTokens).toHaveBeenCalled();
-      expect(mockPreferences.updateUserPreferences).toHaveBeenCalledWith('user456', {
-        optedOut: false,
-        notificationLevel: 'minor',
-        migratedFromAuth: true,
-      });
-      expect(mockPreferences.updateUserPreferences).toHaveBeenCalledTimes(1); // Only for user456
-      expect(logger.info).toHaveBeenCalledWith(
-        '[ReleaseNotificationManager] Migrated 1 authenticated users to notification system'
-      );
+      // Migration logic has been removed
+      expect(mockAuthManager.userTokenManager.getAllTokens).not.toHaveBeenCalled();
+      expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
+      expect(manager.initialized).toBe(true);
     });
 
-    it('should handle error during user migration gracefully', async () => {
-      mockAuthManager.userTokenManager.getAllTokens.mockImplementation(() => {
-        throw new Error('Failed to get tokens');
-      });
-
+    it('should initialize successfully even if authManager is provided', async () => {
+      // Even with authManager provided, no migration happens in DDD system
       await manager.initialize(mockClient, mockAuthManager);
 
-      expect(manager.initialized).toBe(true); // Should still initialize
-      expect(logger.error).toHaveBeenCalledWith(
-        '[ReleaseNotificationManager] Error migrating authenticated users: Failed to get tokens'
+      expect(manager.initialized).toBe(true);
+      // No migration errors should be logged
+      expect(logger.error).not.toHaveBeenCalledWith(
+        expect.stringContaining('Error migrating authenticated users')
       );
     });
 

@@ -59,8 +59,6 @@ class AuthenticationApplicationService {
     this.eventBus = eventBus;
     this.config = {
       ownerId: config.ownerId || process.env.BOT_OWNER_ID,
-      tokenExpirationMs: config.tokenExpirationMs || 30 * 24 * 60 * 60 * 1000, // 30 days
-      nsfwVerificationExpiryMs: config.nsfwVerificationExpiryMs || 24 * 60 * 60 * 1000, // 24 hours
       ...config,
     };
   }
@@ -167,9 +165,10 @@ class AuthenticationApplicationService {
   /**
    * Get user authentication status
    * @param {string} discordUserId - Discord user ID
+   * @param {boolean} validateWithAI - Whether to validate token with AI service
    * @returns {Promise<{isAuthenticated: boolean, user: UserAuth|null}>}
    */
-  async getAuthenticationStatus(discordUserId) {
+  async getAuthenticationStatus(discordUserId, validateWithAI = false) {
     try {
       const userId = new UserId(discordUserId);
       const userAuth = await this.authenticationRepository.findByUserId(userId);
@@ -178,17 +177,41 @@ class AuthenticationApplicationService {
         return { isAuthenticated: false, user: null };
       }
       
-      // Check if token is still valid
+      // Check if user has a token (client-side check)
       if (!userAuth.isAuthenticated()) {
-        // Token expired, publish event
-        await this.eventBus.publish(
-          new UserTokenExpired(userId.value, {
-            userId: userId.value,
-            expiredAt: (userAuth.token?.expiresAt || new Date()).toISOString(),
-          })
-        );
-        
+        logger.info(`[AuthenticationApplicationService] User ${discordUserId} has no token`);
         return { isAuthenticated: false, user: userAuth };
+      }
+      
+      // Optionally validate with AI service
+      if (validateWithAI && userAuth.token) {
+        logger.info(`[AuthenticationApplicationService] Validating token with AI service for user ${discordUserId}`);
+        try {
+          const validation = await this.tokenService.validateToken(userAuth.token.value);
+          logger.info(`[AuthenticationApplicationService] AI service validation result:`, {
+            userId: discordUserId,
+            valid: validation.valid,
+            validationUserId: validation.userId
+          });
+          
+          if (!validation.valid) {
+            logger.warn(`[AuthenticationApplicationService] AI service rejected token for user ${discordUserId}`);
+            // Token expired according to AI service, publish event
+            await this.eventBus.publish(
+              new UserTokenExpired(userId.value, {
+                userId: userId.value,
+                expiredAt: new Date().toISOString(),
+                reason: 'AI service validation failed'
+              })
+            );
+            
+            return { isAuthenticated: false, user: userAuth };
+          }
+        } catch (error) {
+          logger.error(`[AuthenticationApplicationService] Failed to validate token with AI service:`, error);
+          // On validation error, we could either fail safe (return false) or continue (return true)
+          // For now, let's continue but log the issue
+        }
       }
       
       return { isAuthenticated: true, user: userAuth };

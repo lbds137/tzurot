@@ -15,7 +15,8 @@ class ProfileInfoFetcher {
   constructor(options = {}) {
     this.cache = new ProfileInfoCache(options.cache);
     this.client = new ProfileInfoClient(options.client);
-    this.authManager = options.authManager || null;
+    // authManager is no longer needed - we get auth from DDD system
+    // this.authManager = options.authManager || null;
 
     // If rateLimiter options are provided, create a new instance with those options
     if (options.rateLimiter && !(options.rateLimiter instanceof RateLimiter)) {
@@ -52,6 +53,38 @@ class ProfileInfoFetcher {
         const timer = globalThis.setTimeout || setTimeout;
         return new Promise(resolve => timer(resolve, ms));
       });
+  }
+
+  /**
+   * Get user authentication data from DDD system
+   * @param {string} userId - User ID
+   * @returns {Promise<Object|null>} Auth data with token and appId or null
+   */
+  async getUserAuth(userId) {
+    if (!userId) return null;
+    
+    try {
+      const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
+      const bootstrap = getApplicationBootstrap();
+      const authService = bootstrap.getApplicationServices().authenticationService;
+      const status = await authService.getAuthenticationStatus(userId);
+      
+      if (!status.isAuthenticated || !status.user?.token) {
+        return null;
+      }
+      
+      // Get app ID from config (similar to legacy authManager.APP_ID)
+      const config = require('../../../config');
+      const appId = config.serviceAppId || process.env.SERVICE_APP_ID;
+      
+      return {
+        token: status.user.token.value,
+        appId: appId
+      };
+    } catch (error) {
+      logger.error(`${this.logPrefix} Error getting user auth:`, error);
+      return null;
+    }
   }
 
   /**
@@ -127,11 +160,11 @@ class ProfileInfoFetcher {
 
     // Build headers
     const headers = {};
-    if (userId && this.authManager && this.authManager.hasValidToken(userId)) {
-      const userToken = this.authManager.getUserToken(userId);
+    const userAuth = await this.getUserAuth(userId);
+    if (userAuth) {
       logger.debug(`${this.logPrefix} Using user-specific auth token for user ${userId}`);
-      headers['X-App-ID'] = this.authManager.APP_ID;
-      headers['X-User-Auth'] = userToken;
+      headers['X-App-ID'] = userAuth.appId;
+      headers['X-User-Auth'] = userAuth.token;
     }
 
     let retryCount = 0;

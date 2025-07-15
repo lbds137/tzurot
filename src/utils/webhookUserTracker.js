@@ -37,16 +37,32 @@ const CACHE_EXPIRATION = 60 * 60 * 1000;
 // Store cleanup intervals for proper cleanup
 let cleanupIntervals = [];
 
-// Store authManager instance
-let authManager = null;
-
 /**
- * Initialize the webhook user tracker with authManager
- * @param {Object} authManagerInstance - The auth manager instance
+ * Initialize the webhook user tracker (now a no-op for backward compatibility)
+ * @param {Object} authManagerInstance - The auth manager instance (ignored)
+ * @deprecated Use DDD authentication system directly
  */
 function initialize(authManagerInstance) {
-  authManager = authManagerInstance;
-  logger.info('[WebhookUserTracker] Initialized with auth manager');
+  logger.info('[WebhookUserTracker] initialize called - using DDD authentication system');
+  // No longer needed - auth checks use DDD system
+}
+
+/**
+ * Get authentication status for a user using DDD system
+ * @param {string} userId - User ID to check
+ * @returns {Promise<boolean>} Whether user is authenticated
+ */
+async function isUserAuthenticated(userId) {
+  try {
+    const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const authService = bootstrap.getApplicationServices().authenticationService;
+    const status = await authService.getAuthenticationStatus(userId);
+    return status.isAuthenticated;
+  } catch (error) {
+    logger.error('[WebhookUserTracker] Error checking user authentication:', error);
+    return false;
+  }
 }
 
 /**
@@ -422,9 +438,9 @@ function clearAllCachedWebhooks() {
  * Check if a proxy system message is from an authenticated user
  *
  * @param {Object} message - The Discord message object
- * @returns {Object} Object with isAuthenticated boolean and userId
+ * @returns {Promise<Object>} Object with isAuthenticated boolean and userId
  */
-function checkProxySystemAuthentication(message) {
+async function checkProxySystemAuthentication(message) {
   if (!message || !message.webhookId || !isProxySystemWebhook(message)) {
     return { isAuthenticated: false, userId: null };
   }
@@ -442,8 +458,8 @@ function checkProxySystemAuthentication(message) {
     // Cache this association for future use
     associateWebhookWithUser(message.webhookId, originalMessageData.userId);
 
-    // Check if this user is authenticated
-    const isAuthenticated = authManager && authManager.hasValidToken(originalMessageData.userId);
+    // Check if this user is authenticated using DDD system
+    const isAuthenticated = await isUserAuthenticated(originalMessageData.userId);
 
     return {
       isAuthenticated,
@@ -455,7 +471,7 @@ function checkProxySystemAuthentication(message) {
   // Check cached associations
   const cachedUserId = getRealUserIdFromWebhook(message.webhookId);
   if (cachedUserId && cachedUserId !== 'proxy-system-user') {
-    const isAuthenticated = authManager && authManager.hasValidToken(cachedUserId);
+    const isAuthenticated = await isUserAuthenticated(cachedUserId);
     return {
       isAuthenticated,
       userId: cachedUserId,

@@ -37,7 +37,6 @@ function createExecutor(dependencies = {}) {
   return async function execute(context) {
     try {
       const {
-        authManager,
         conversationManager = require('../../../core/conversation'),
         processUtils = { uptime: () => process.uptime() },
       } = dependencies;
@@ -49,9 +48,20 @@ function createExecutor(dependencies = {}) {
       const uptime = processUtils.uptime();
       const formattedUptime = formatUptime(uptime);
 
-      // Check authentication status
-      const isAuthenticated = authManager && authManager.hasValidToken(context.userId);
-      const isNsfwVerified = authManager && authManager.isNsfwVerified(context.userId);
+      // Check authentication status using DDD system
+      let isAuthenticated = false;
+      let isNsfwVerified = false;
+      
+      try {
+        const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+        const bootstrap = getApplicationBootstrap();
+        const authService = bootstrap.getApplicationServices().authenticationService;
+        const status = await authService.getAuthenticationStatus(context.userId);
+        isAuthenticated = status.isAuthenticated;
+        isNsfwVerified = status.isAuthenticated && status.user?.nsfwStatus?.verified;
+      } catch (error) {
+        logger.warn('[StatusCommand] Failed to get auth status from DDD service:', error);
+      }
 
       // Get user's personalities if authenticated
       let personalityCount = 0;

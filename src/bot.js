@@ -20,7 +20,7 @@ const client = new Client({
 });
 
 // Bot initialization function
-async function initBot(authManager) {
+async function initBot() {
   // Log startup information
   logger.info(`🤖 Starting ${botConfig.name} in ${botConfig.environment.toUpperCase()} mode`);
   logger.info(`📝 Using prefix: ${botConfig.prefix}`);
@@ -31,9 +31,13 @@ async function initBot(authManager) {
     const appBootstrap = getApplicationBootstrap();
     await appBootstrap.initialize();
     logger.info('✅ DDD application layer initialized');
+    
+    // Inject auth service into handlers to avoid circular dependencies
+    const authService = appBootstrap.getApplicationServices().authenticationService;
+    messageHandler.setAuthService(authService);
+    logger.debug('✅ Auth service injected into message handlers');
   } catch (error) {
     logger.error('Failed to initialize DDD application layer:', error);
-    // Continue with legacy system if DDD fails to initialize
   }
 
   // Make client available globally to avoid circular dependencies
@@ -65,7 +69,7 @@ async function initBot(authManager) {
     logger.debug(
       `[Bot] Received messageCreate event for message ${message.id} from ${message.author?.tag || 'unknown'}`
     );
-    await messageHandler.handleMessage(message, client, authManager);
+    await messageHandler.handleMessage(message, client);
   });
 
   // Track message deletions for PluralKit detection

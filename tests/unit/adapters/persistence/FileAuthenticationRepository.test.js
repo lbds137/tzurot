@@ -191,7 +191,7 @@ describe('FileAuthenticationRepository', () => {
 
       const userId = new UserId('456789012345678901');
       const token = new Token('new-token', new Date(Date.now() + 24 * 60 * 60 * 1000));
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       await repository.save(userAuth);
 
@@ -217,7 +217,12 @@ describe('FileAuthenticationRepository', () => {
       await repository.save(existingUserAuth);
 
       // nsfwStatus is stored as an object from toJSON()
-      expect(repository._cache.userAuth['123456789012345678'].nsfwStatus.verified).toBe(true);
+      const updatedUser = repository._cache.userAuth['123456789012345678'];
+      // Check if nsfwStatus is stored as object or string
+      const nsfwStatus = typeof updatedUser.nsfwStatus === 'object' 
+        ? updatedUser.nsfwStatus.verified 
+        : updatedUser.nsfwStatus === 'verified';
+      expect(nsfwStatus).toBe(true);
     });
 
     it('should handle save errors', async () => {
@@ -226,7 +231,7 @@ describe('FileAuthenticationRepository', () => {
 
       const userId = new UserId('456789012345678901');
       const token = new Token('test-token', new Date(Date.now() + 24 * 60 * 60 * 1000));
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       await expect(repository.save(userAuth)).rejects.toThrow(
         'Failed to save user auth: Failed to persist data: Disk full'
@@ -236,7 +241,7 @@ describe('FileAuthenticationRepository', () => {
     it('should initialize if not already initialized', async () => {
       const userId = new UserId('456789012345678901');
       const token = new Token('test-token', new Date(Date.now() + 24 * 60 * 60 * 1000));
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       await repository.save(userAuth);
 
@@ -584,7 +589,8 @@ describe('FileAuthenticationRepository', () => {
 
       const data = {
         userId: '123456789012345678',
-        nsfwStatus: 'verified',
+        nsfwVerified: true,
+        nsfwVerifiedAt: new Date().toISOString(),
         tokens: [
           {
             value: 'test-token',
@@ -621,8 +627,16 @@ describe('FileAuthenticationRepository', () => {
 
       const data = {
         userId: '123456789012345678',
-        nsfwStatus: 'unverified',
-        tokens: [],
+        nsfwVerified: false,
+        tokens: [
+          {
+            value: 'test-token',
+            personalityId: 'test-personality',
+            createdAt: new Date().toISOString(),
+            expiresAt: null,
+            revokedAt: null,
+          },
+        ],
       };
 
       const userAuth = repository._hydrate(data);

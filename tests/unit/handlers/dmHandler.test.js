@@ -29,15 +29,26 @@ describe('dmHandler', () => {
   let mockRouter;
   let mockAuthManager;
   let mockBootstrap;
+  let mockDDDAuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Set up auth manager mock
+    // Set up auth manager mock (legacy, not used anymore)
     mockAuthManager = {
       hasValidToken: jest.fn().mockReturnValue(true),
       isNsfwVerified: jest.fn().mockReturnValue(true),
       getUserToken: jest.fn().mockReturnValue('mock-token'),
+    };
+    
+    // Set up DDD auth service mock
+    mockDDDAuthService = {
+      getAuthenticationStatus: jest.fn().mockResolvedValue({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: { verified: true }
+        }
+      })
     };
 
     // Set up router mock
@@ -47,6 +58,9 @@ describe('dmHandler', () => {
     };
     mockBootstrap = {
       getPersonalityRouter: jest.fn().mockReturnValue(mockRouter),
+      getApplicationServices: jest.fn().mockReturnValue({
+        authenticationService: mockDDDAuthService
+      })
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
@@ -117,7 +131,7 @@ describe('dmHandler', () => {
       personalityHandler.handlePersonalityInteraction.mockRejectedValue(new Error('Interaction failed'));
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return false when interaction fails
       expect(result).toBe(false);
@@ -139,7 +153,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValue(mockNonPersonalityMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return false when no personality is found
       expect(result).toBe(false);
@@ -149,7 +163,7 @@ describe('dmHandler', () => {
     });
     it('should handle replies to personality messages in DMs', async () => {
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -229,7 +243,7 @@ describe('dmHandler', () => {
       });
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled (skip this expectation as the test is failing)
       // expect(result).toBe(true);
@@ -256,7 +270,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(mockSuffixedMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -292,7 +306,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDisplayName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -330,7 +344,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithLongerName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -363,7 +377,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithMatchingFirstPart]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -388,7 +402,7 @@ describe('dmHandler', () => {
       });
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -418,7 +432,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(mockNonBotMessage);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
@@ -542,7 +556,7 @@ describe('dmHandler', () => {
       mockMessage.channel.messages.fetch.mockResolvedValueOnce(recentMessages);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Test the behavior we can observe:
       // 1. The handler should fetch the replied-to message
@@ -582,7 +596,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDifferentDisplay]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -618,7 +632,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithFullName]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -652,7 +666,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue([]);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Should return false when error occurs during lookup
       expect(result).toBe(false);
@@ -685,7 +699,7 @@ describe('dmHandler', () => {
       mockRouter.listPersonalitiesForUser.mockResolvedValue(personalities);
 
       // Call the handler
-      const result = await dmHandler.handleDmReply(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDmReply(mockMessage, mockClient);
 
       // Test the observable behavior:
       // 1. The handler should have tried to look up the personality
@@ -714,13 +728,18 @@ describe('dmHandler', () => {
   describe('handleDirectMessage', () => {
     it('should handle errors when sending verification prompt', async () => {
       // Set up user as not verified
-      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValueOnce({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: { verified: false }
+        }
+      });
 
       // Mock reply to throw an error
       mockMessage.reply.mockRejectedValueOnce(new Error('Discord API error'));
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should still return true even if reply fails
       expect(result).toBe(true);
@@ -738,7 +757,7 @@ describe('dmHandler', () => {
       mockMessage.reply.mockRejectedValueOnce(new Error('Discord API error'));
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should still return true even if reply fails
       expect(result).toBe(true);
@@ -762,7 +781,7 @@ describe('dmHandler', () => {
       mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should return true
       expect(result).toBe(true);
@@ -780,13 +799,13 @@ describe('dmHandler', () => {
     });
     it('should handle direct messages with active personalities', async () => {
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
 
-      // Should have checked if the user is verified
-      expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
+      // Should have checked if the user is verified via DDD auth service
+      expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalledWith(mockMessage.author.id);
 
       // Should have checked for active personality
       expect(getActivePersonality).toHaveBeenCalledWith(
@@ -806,16 +825,21 @@ describe('dmHandler', () => {
 
     it('should prompt user to verify if not verified', async () => {
       // Set up user as not verified
-      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValueOnce({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: { verified: false }
+        }
+      });
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
 
-      // Should have checked if the user is verified
-      expect(mockAuthManager.isNsfwVerified).toHaveBeenCalledWith(mockMessage.author.id);
+      // Should have checked if the user is verified via DDD auth service
+      expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalledWith(mockMessage.author.id);
 
       // Should have sent a verification prompt
       expect(mockMessage.reply).toHaveBeenCalled();
@@ -830,11 +854,16 @@ describe('dmHandler', () => {
 
     it('should bypass verification for trusted proxy systems', async () => {
       // Set up user as not verified but using a trusted proxy system
-      mockAuthManager.isNsfwVerified.mockReturnValueOnce(false);
+      mockDDDAuthService.getAuthenticationStatus.mockResolvedValueOnce({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: { verified: false }
+        }
+      });
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValueOnce(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should return true to indicate the message was handled
       expect(result).toBe(true);
@@ -876,7 +905,7 @@ describe('dmHandler', () => {
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
 
       // Execute the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should have returned true to indicate message was handled
       expect(result).toBe(true);
@@ -902,7 +931,7 @@ describe('dmHandler', () => {
       };
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockNonDmMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockNonDmMessage, mockClient);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
@@ -928,7 +957,7 @@ describe('dmHandler', () => {
       };
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockBotMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockBotMessage, mockClient);
 
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
@@ -951,7 +980,7 @@ describe('dmHandler', () => {
       mockAuthManager.isNsfwVerified.mockReturnValue(true);
 
       // Call the handler
-      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient, mockAuthManager);
+      const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
 
       // Should return false because no personality was found
       expect(result).toBe(false);

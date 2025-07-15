@@ -32,10 +32,9 @@ class ReleaseNotificationManager {
   /**
    * Initialize the notification manager
    * @param {Discord.Client} client - Discord client
-   * @param {Object} authManager - Optional AuthManager instance for migrating users
    * @returns {Promise<void>}
    */
-  async initialize(client, authManager = null) {
+  async initialize(client) {
     if (client) {
       this.client = client;
     }
@@ -57,45 +56,33 @@ class ReleaseNotificationManager {
       await this.versionTracker.clearSavedVersion();
     }
 
-    // Migrate existing authenticated users if authManager provided
-    if (authManager) {
-      await this.migrateAuthenticatedUsers(authManager);
-    }
+    // Migration is no longer needed - DDD system handles authenticated users differently
+    // Users will be opted in when they first authenticate through DDD commands
 
     this.initialized = true;
     logger.info('[ReleaseNotificationManager] Initialized successfully');
   }
 
   /**
-   * Migrate existing authenticated users to notification system
-   * @param {Object} authManager - AuthManager instance
+   * Add a user to notification system (for new DDD authenticated users)
+   * @param {string} userId - Discord user ID
+   * @param {Object} options - Notification preferences
    * @returns {Promise<void>}
    */
-  async migrateAuthenticatedUsers(authManager) {
+  async addUserToNotifications(userId, options = {}) {
     try {
-      const allTokens = authManager.userTokenManager.getAllTokens();
-      const userIds = Object.keys(allTokens);
-      let migratedCount = 0;
+      // Check if user already has preferences
+      const existingPrefs = this.preferences.preferences.get(userId);
 
-      for (const userId of userIds) {
-        // Check if user already has preferences
-        const existingPrefs = this.preferences.preferences.get(userId);
-
-        if (!existingPrefs) {
-          // Add user with default opt-in preferences
-          await this.preferences.updateUserPreferences(userId, {
-            optedOut: false,
-            notificationLevel: 'minor',
-            migratedFromAuth: true,
-          });
-          migratedCount++;
-        }
-      }
-
-      if (migratedCount > 0) {
-        logger.info(
-          `[ReleaseNotificationManager] Migrated ${migratedCount} authenticated users to notification system`
-        );
+      if (!existingPrefs) {
+        // Add user with default opt-in preferences
+        await this.preferences.updateUserPreferences(userId, {
+          optedOut: false,
+          notificationLevel: 'minor',
+          fromDDDAuth: true,
+          ...options
+        });
+        logger.info(`[ReleaseNotificationManager] Added user ${userId} to notification system`);
       }
     } catch (error) {
       logger.error(

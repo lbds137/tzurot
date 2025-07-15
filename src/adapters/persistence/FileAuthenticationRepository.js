@@ -104,7 +104,10 @@ class FileAuthenticationRepository extends AuthenticationRepository {
 
       // Add current token if exists
       const currentTokens = userAuth.token
-        ? [...otherTokens, userAuth.token.toJSON()]
+        ? [...otherTokens, {
+            ...userAuth.token.toJSON(),
+            createdAt: userAuth.lastAuthenticatedAt || new Date().toISOString()
+          }]
         : otherTokens;
 
       this._cache.userAuth[userAuth.userId.toString()] = {
@@ -335,7 +338,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     // Handle NSFW status
     if (data.nsfwVerified) {
       authData.nsfwStatus = {
-        isVerified: true,
+        verified: true,
         verifiedAt: data.nsfwVerifiedAt || new Date().toISOString(),
       };
     }

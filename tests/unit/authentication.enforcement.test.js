@@ -15,69 +15,21 @@ jest.mock('openai', () => ({
   })),
 }));
 
-// Mock aiAuth before requiring aiService
-jest.mock('../../src/utils/aiAuth', () => ({
-  initAiClient: jest.fn(),
-  getAI: jest.fn().mockReturnValue({
-    chat: {
-      completions: {
-        create: jest.fn().mockResolvedValue({
-          choices: [
-            {
-              message: { content: 'Test response' },
-            },
-          ],
-        }),
-      },
-    },
-  }),
-  getAiClientForUser: jest.fn().mockImplementation(async userId => {
-    // Return different clients based on auth status
-    if (mockAuthManager.hasValidToken(userId)) {
-      return {
-        chat: {
-          completions: {
-            create: jest.fn().mockResolvedValue({
-              choices: [
-                {
-                  message: { content: 'Authenticated response' },
-                },
-              ],
-            }),
-          },
-        },
-      };
-    }
-    // Return default client for unauthenticated users
-    return {
-      chat: {
-        completions: {
-          create: jest.fn().mockResolvedValue({
-            choices: [
-              {
-                message: { content: 'Default response' },
-              },
-            ],
-          }),
-        },
-      },
-    };
+// Mock ApplicationBootstrap for DDD authentication
+const mockDDDAuthService = {
+  getAuthenticationStatus: jest.fn(),
+};
+
+jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn().mockReturnValue({
+    getApplicationServices: jest.fn().mockReturnValue({
+      authenticationService: mockDDDAuthService,
+    }),
   }),
 }));
 
 const aiService = require('../../src/aiService');
 const { botPrefix } = require('../../config');
-
-// Mock AuthManager
-const mockAuthManager = {
-  hasValidToken: jest.fn(),
-  getUserToken: jest.fn(),
-  isNsfwVerified: jest.fn().mockReturnValue(true),
-};
-
-jest.mock('../../src/core/authentication/AuthManager', () => ({
-  AuthManager: jest.fn().mockImplementation(() => mockAuthManager),
-}));
 
 // Mock PersonalityDataService
 jest.mock('../../src/services/PersonalityDataService', () => ({
@@ -98,10 +50,46 @@ describe('Authentication Enforcement', () => {
   const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
   const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
+  // Mock OpenAI client for different auth states
+  const authenticatedClient = {
+    chat: {
+      completions: {
+        create: jest.fn().mockResolvedValue({
+          choices: [
+            {
+              message: { content: 'Authenticated response' },
+            },
+          ],
+        }),
+      },
+    },
+  };
+
+  const defaultClient = {
+    chat: {
+      completions: {
+        create: jest.fn().mockResolvedValue({
+          choices: [
+            {
+              message: { content: 'Default response' },
+            },
+          ],
+        }),
+      },
+    },
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    // Initialize aiService with the mock auth manager
-    aiService.initAiClient(mockAuthManager);
+    
+    // Mock getAiClientForUser to return different clients based on auth
+    aiService.getAiClientForUser = jest.fn().mockImplementation(async (userId) => {
+      const authStatus = await mockDDDAuthService.getAuthenticationStatus(userId);
+      if (authStatus && authStatus.isAuthenticated) {
+        return authenticatedClient;
+      }
+      return defaultClient;
+    });
   });
 
   afterEach(() => {
@@ -109,8 +97,11 @@ describe('Authentication Enforcement', () => {
   });
 
   test('getAiResponse requires authentication', async () => {
-    // Mock mockAuthManager.hasValidToken to return false for this user
-    mockAuthManager.hasValidToken.mockReturnValue(false);
+    // Mock DDD auth service to return unauthenticated status
+    mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+      isAuthenticated: false,
+      user: null,
+    });
 
     // Call getAiResponse with an unauthenticated user
     const response = await aiService.getAiResponse('test-personality', 'Hello', {
@@ -123,14 +114,19 @@ describe('Authentication Enforcement', () => {
     expect(response).toContain(`${botPrefix} auth start`);
     expect(response).toContain('BOT_ERROR_MESSAGE:');
 
-    // Verify mockAuthManager.hasValidToken was called with the user ID
-    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('unauthenticated-user');
+    // Verify DDD auth service was called with the user ID
+    expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalledWith('unauthenticated-user');
   });
 
-  test('getAiResponse checks for authentication with hasValidToken', async () => {
-    // Mock mockAuthManager.hasValidToken to return true for this user
-    mockAuthManager.hasValidToken.mockReturnValue(true);
-    mockAuthManager.getUserToken.mockReturnValue('valid-token');
+  test('getAiResponse checks for authentication with DDD auth service', async () => {
+    // Mock DDD auth service to return authenticated status
+    mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+      isAuthenticated: true,
+      user: {
+        userId: 'authenticated-user',
+        nsfwStatus: { verified: true },
+      },
+    });
 
     // We'll test a simpler scenario: authentication checking
     // Call getAiResponse with an authenticated user ID
@@ -144,38 +140,40 @@ describe('Authentication Enforcement', () => {
       // but we just want to verify authentication was checked
     }
 
-    // The most important verification: hasValidToken was called correctly
-    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('authenticated-user');
+    // The most important verification: DDD auth service was called correctly
+    expect(mockDDDAuthService.getAuthenticationStatus).toHaveBeenCalledWith('authenticated-user');
   });
 
   test('getAiClientForUser returns default client for unauthenticated users', async () => {
-    // Mock mockAuthManager.hasValidToken to return false for this user
-    mockAuthManager.hasValidToken.mockReturnValue(false);
+    // Mock DDD auth service to return unauthenticated status
+    mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+      isAuthenticated: false,
+      user: null,
+    });
 
     // Call getAiClientForUser with an unauthenticated user
     const aiClient = await aiService.getAiClientForUser('unauthenticated-user');
 
     // Verify that we get a client (falls back to default)
     expect(aiClient).not.toBeNull();
-
-    // Note: The new implementation doesn't check auth in getAiClientForUser
-    // It always returns a client (user-specific or default)
+    expect(aiClient).toBe(defaultClient);
   });
 
   test('getAiClientForUser returns client for authenticated users', async () => {
-    // Mock mockAuthManager.hasValidToken to return true for this user
-    mockAuthManager.hasValidToken.mockReturnValue(true);
-    mockAuthManager.getUserToken.mockReturnValue('valid-token');
-    // auth.APP_ID = 'test-app-id';
-    // auth.API_KEY = 'test-api-key';
+    // Mock DDD auth service to return authenticated status
+    mockDDDAuthService.getAuthenticationStatus.mockResolvedValue({
+      isAuthenticated: true,
+      user: {
+        userId: 'authenticated-user',
+        nsfwStatus: { verified: true },
+      },
+    });
 
     // Call getAiClientForUser with an authenticated user
     const aiClient = await aiService.getAiClientForUser('authenticated-user');
 
-    // Verify that we get a client object
+    // Verify that we get the authenticated client
     expect(aiClient).not.toBeNull();
-
-    // Note: The new implementation always returns a client
-    // Auth checking happens at the getAiResponse level, not here
+    expect(aiClient).toBe(authenticatedClient);
   });
 });

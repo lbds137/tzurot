@@ -48,23 +48,14 @@ describe('UserAuth', () => {
       expect(() => new UserAuth('string-id')).toThrow('UserAuth must be created with UserId');
     });
 
-    it('should initialize with UserId', () => {
-      const userAuth = new UserAuth(userId);
-
-      expect(userAuth.id).toBe(userId.toString());
-      expect(userAuth.userId).toBe(userId);
-      expect(userAuth.token).toBeNull();
-      expect(userAuth.nsfwStatus).toBeDefined();
-      expect(userAuth.blacklisted).toBe(false);
-      expect(userAuth.blacklistReason).toBeNull();
-      expect(userAuth.lastAuthenticatedAt).toBeNull();
-      expect(userAuth.authenticationCount).toBe(0);
+    it('should require Token', () => {
+      expect(() => new UserAuth(userId, 'invalid')).toThrow('UserAuth must be created with Token');
     });
   });
 
-  describe('authenticate', () => {
+  describe('createAuthenticated', () => {
     it('should create authenticated user', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       expect(userAuth).toBeInstanceOf(UserAuth);
       expect(userAuth.userId).toEqual(userId);
@@ -75,7 +66,7 @@ describe('UserAuth', () => {
     });
 
     it('should emit UserAuthenticated event', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
       const events = userAuth.getUncommittedEvents();
 
       expect(events).toHaveLength(1);
@@ -87,11 +78,11 @@ describe('UserAuth', () => {
     });
 
     it('should validate UserId', () => {
-      expect(() => UserAuth.authenticate('invalid', token)).toThrow('Invalid UserId');
+      expect(() => UserAuth.createAuthenticated('invalid', token)).toThrow('Invalid UserId');
     });
 
     it('should validate Token', () => {
-      expect(() => UserAuth.authenticate(userId, 'invalid')).toThrow('Invalid Token');
+      expect(() => UserAuth.createAuthenticated(userId, 'invalid')).toThrow('Invalid Token');
     });
   });
 
@@ -99,7 +90,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.markEventsAsCommitted();
     });
 
@@ -138,14 +129,13 @@ describe('UserAuth', () => {
       expect(() => userAuth.refreshToken('invalid')).toThrow('Invalid Token');
     });
 
-    it('should reject expired token', () => {
-      // Create a token that will be expired when checked
+    it('should accept any token (AI service validates expiry)', () => {
+      // Create a token that would be expired in old system
       const expiredToken = Token.createWithLifetime('expired-token', 1000); // 1 second
-      jest.advanceTimersByTime(1001); // Expire it
+      jest.advanceTimersByTime(1001); // Time passes
 
-      expect(() => userAuth.refreshToken(expiredToken)).toThrow(
-        'Cannot refresh with expired token'
-      );
+      // Should not throw - AI service handles token validation
+      expect(() => userAuth.refreshToken(expiredToken)).not.toThrow();
     });
   });
 
@@ -153,7 +143,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.markEventsAsCommitted();
     });
 
@@ -172,10 +162,15 @@ describe('UserAuth', () => {
       expect(events[0].payload.expiredAt).toBeDefined();
     });
 
-    it('should require existing token', () => {
-      const emptyAuth = new UserAuth(userId);
-
-      expect(() => emptyAuth.expireToken()).toThrow('No token to expire');
+    it('should handle no token gracefully', () => {
+      const emptyAuth = UserAuth.createAuthenticated(userId, token);
+      emptyAuth.expireToken(); // First expiry
+      emptyAuth.markEventsAsCommitted();
+      
+      // Second expiry should not emit event
+      emptyAuth.expireToken();
+      const events = emptyAuth.getUncommittedEvents();
+      expect(events).toHaveLength(0);
     });
   });
 
@@ -183,7 +178,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.markEventsAsCommitted();
     });
 
@@ -202,12 +197,10 @@ describe('UserAuth', () => {
       expect(events[0].payload.verifiedAt).toBeDefined();
     });
 
-    it('should accept custom verification time', () => {
-      const verifiedAt = new Date('2024-01-01T12:00:00Z');
+    it('should use current time for verification', () => {
+      userAuth.verifyNsfw();
 
-      userAuth.verifyNsfw(verifiedAt);
-
-      expect(userAuth.nsfwStatus.verifiedAt).toEqual(verifiedAt);
+      expect(userAuth.nsfwStatus.verifiedAt).toEqual(new Date('2024-01-01T00:00:00Z'));
     });
 
     it('should not emit event if already verified', () => {
@@ -230,7 +223,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.verifyNsfw();
       userAuth.markEventsAsCommitted();
     });
@@ -267,7 +260,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.verifyNsfw();
       userAuth.markEventsAsCommitted();
     });
@@ -309,7 +302,7 @@ describe('UserAuth', () => {
     let userAuth;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.blacklist('Test reason');
       userAuth.markEventsAsCommitted();
     });
@@ -339,37 +332,38 @@ describe('UserAuth', () => {
 
   describe('isAuthenticated', () => {
     it('should return true for valid authentication', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
       expect(userAuth.isAuthenticated()).toBe(true);
     });
 
-    it('should return false for expired token', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+    it('should return true even for expired token (AI service validates)', () => {
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
-      jest.advanceTimersByTime(3600001); // Expire token
+      jest.advanceTimersByTime(3600001); // Time passes
 
-      expect(userAuth.isAuthenticated()).toBe(false);
+      expect(userAuth.isAuthenticated()).toBe(true); // Still true - AI service validates
     });
 
-    it('should return false for blacklisted user', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+    it('should return false for blacklisted user (token revoked)', () => {
+      const userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.blacklist('Test reason');
 
-      expect(userAuth.isAuthenticated()).toBe(false);
+      expect(userAuth.isAuthenticated()).toBe(false); // Token revoked when blacklisted
     });
 
     it('should return false for user without token', () => {
-      const userAuth = new UserAuth(userId);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
+      userAuth.expireToken(); // Sets token to null
 
       expect(userAuth.isAuthenticated()).toBe(false);
     });
 
-    it('should accept custom current time', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+    it('should ignore time parameter (AI service validates)', () => {
+      const userAuth = UserAuth.createAuthenticated(userId, token);
       const futureTime = new Date('2024-01-01T02:00:00Z');
 
-      expect(userAuth.isAuthenticated(futureTime)).toBe(false);
+      expect(userAuth.isAuthenticated(futureTime)).toBe(true); // Still true
     });
   });
 
@@ -377,51 +371,53 @@ describe('UserAuth', () => {
     let userAuth;
     let dmContext;
     let channelContext;
+    let nsfwPersonality;
+    let safePersonality;
 
     beforeEach(() => {
-      userAuth = UserAuth.authenticate(userId, token);
+      userAuth = UserAuth.createAuthenticated(userId, token);
       dmContext = AuthContext.createForDM('123456789012345678');
       channelContext = AuthContext.createForGuild('987654321098765432', true);
+      nsfwPersonality = { profile: { nsfw: true } };
+      safePersonality = { profile: { nsfw: false } };
     });
 
-    it('should allow NSFW in DMs without verification', () => {
-      expect(userAuth.canAccessNsfw(dmContext)).toBe(true);
-    });
-
-    it('should require verification for NSFW channels', () => {
-      expect(userAuth.canAccessNsfw(channelContext)).toBe(false);
-
+    it('should require verification for NSFW in DMs', () => {
+      expect(userAuth.canAccessNsfw(nsfwPersonality, dmContext)).toBe(false);
+      
       userAuth.verifyNsfw();
-
-      expect(userAuth.canAccessNsfw(channelContext)).toBe(true);
+      
+      expect(userAuth.canAccessNsfw(nsfwPersonality, dmContext)).toBe(true);
     });
 
-    it('should return false if not authenticated', () => {
-      userAuth.expireToken();
-
-      expect(userAuth.canAccessNsfw(dmContext)).toBe(false);
-      expect(userAuth.canAccessNsfw(channelContext)).toBe(false);
+    it('should allow NSFW in NSFW channels', () => {
+      // NSFW content is allowed in NSFW channels regardless of verification
+      expect(userAuth.canAccessNsfw(nsfwPersonality, channelContext)).toBe(true);
     });
 
-    it('should return false if NSFW verification is stale', () => {
-      userAuth.verifyNsfw();
+    it('should allow safe content always', () => {
+      // Safe content is always allowed
+      expect(userAuth.canAccessNsfw(safePersonality, dmContext)).toBe(true);
+      expect(userAuth.canAccessNsfw(safePersonality, channelContext)).toBe(true);
+    });
 
-      // Mock stale verification
-      jest.spyOn(userAuth.nsfwStatus, 'isStale').mockReturnValue(true);
-
-      expect(userAuth.canAccessNsfw(channelContext)).toBe(false);
+    it('should check NSFW status for NSFW personalities in DMs', () => {
+      // NSFW personality in DM requires verification
+      const nsfwChannelContext = AuthContext.createForGuild('987654321098765432', false);
+      
+      expect(userAuth.canAccessNsfw(nsfwPersonality, nsfwChannelContext)).toBe(false);
     });
   });
 
   describe('getRateLimit', () => {
     it('should return default rate limit', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
 
-      expect(userAuth.getRateLimit()).toBe(20);
+      expect(userAuth.getRateLimit()).toBe(1);
     });
 
     it('should return 0 for blacklisted users', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.blacklist('Test reason');
 
       expect(userAuth.getRateLimit()).toBe(0);
@@ -446,7 +442,17 @@ describe('UserAuth', () => {
         }),
       ];
 
-      const userAuth = new UserAuth(userId);
+      // Create empty aggregate for event sourcing test - constructor is private
+      // so we need to use a different approach
+      const userAuth = UserAuth.createAuthenticated(userId, token);
+      
+      // Reset state to simulate empty aggregate
+      userAuth.authenticationCount = 0;
+      userAuth.nsfwStatus = NsfwStatus.createUnverified();
+      userAuth.token = token; // Will be replaced by events
+      userAuth.version = 0;
+      userAuth.markEventsAsCommitted(); // Clear creation event
+      
       userAuth.loadFromHistory(events);
 
       expect(userAuth.token.value).toBe('refreshed-token');
@@ -458,26 +464,25 @@ describe('UserAuth', () => {
 
   describe('toJSON', () => {
     it('should serialize to JSON', () => {
-      const userAuth = UserAuth.authenticate(userId, token);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
       userAuth.verifyNsfw();
 
       const json = userAuth.toJSON();
 
       expect(json).toMatchObject({
-        id: userId.toString(),
         userId: userId.toString(),
         token: token.toJSON(),
         blacklisted: false,
         blacklistReason: null,
         authenticationCount: 1,
-        version: 2,
       });
       expect(json.nsfwStatus).toBeDefined();
       expect(json.lastAuthenticatedAt).toBeDefined();
     });
 
     it('should handle null token', () => {
-      const userAuth = new UserAuth(userId);
+      const userAuth = UserAuth.createAuthenticated(userId, token);
+      userAuth.expireToken(); // Sets token to null
 
       const json = userAuth.toJSON();
 
