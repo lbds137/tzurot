@@ -55,6 +55,7 @@ const mockDDDAuthService = {
       token: { value: 'test-token' } // Add token for getAiClientForUser
     }
   }),
+  createAIClient: jest.fn(),
 };
 
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
@@ -129,6 +130,9 @@ describe('aiService Error Handling', () => {
 
     // Override the OpenAI constructor to return our mock
     OpenAI.mockImplementation(() => mockOpenAI);
+
+    // Configure the DDD authentication service to return the mock client
+    mockDDDAuthService.createAIClient.mockResolvedValue(mockOpenAI);
 
     // Reset PersonalityRouter mock to return null by default (tests can override)
     mockPersonalityRouter.getPersonality.mockReset();

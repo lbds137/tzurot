@@ -27,19 +27,14 @@ describe('dmHandler', () => {
   let mockRepliedToMessage;
   let mockPersonality;
   let mockRouter;
-  let mockAuthManager;
+  // Legacy authManager removed - using DDD authentication
   let mockBootstrap;
   let mockDDDAuthService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Set up auth manager mock (legacy, not used anymore)
-    mockAuthManager = {
-      hasValidToken: jest.fn().mockReturnValue(true),
-      isNsfwVerified: jest.fn().mockReturnValue(true),
-      getUserToken: jest.fn().mockReturnValue('mock-token'),
-    };
+    // Legacy authManager removed - using DDD authentication
     
     // Set up DDD auth service mock
     mockDDDAuthService = {
@@ -115,7 +110,7 @@ describe('dmHandler', () => {
     // Set up mock implementations
     mockMessage.channel.messages.fetch.mockResolvedValue(mockRepliedToMessage);
     personalityHandler.handlePersonalityInteraction.mockResolvedValue(undefined);
-    mockAuthManager.isNsfwVerified.mockReturnValue(true);
+    // Legacy authManager.isNsfwVerified removed - using DDD authentication
     webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     getActivePersonality.mockReturnValue('test-personality');
     // Set up router mocks to return DDD format personalities
@@ -751,7 +746,7 @@ describe('dmHandler', () => {
     it('should handle errors when sending personality summon prompt', async () => {
       // Set up no active personality
       getActivePersonality.mockReturnValue(null);
-      mockAuthManager.isNsfwVerified.mockReturnValue(true);
+      // Legacy authManager.isNsfwVerified removed - using DDD authentication
 
       // Mock reply to throw an error
       mockMessage.reply.mockRejectedValueOnce(new Error('Discord API error'));
@@ -778,7 +773,7 @@ describe('dmHandler', () => {
 
       // Ensure we have an active personality
       getActivePersonality.mockReturnValue('test-personality');
-      mockAuthManager.isNsfwVerified.mockReturnValue(true);
+      // Legacy authManager.isNsfwVerified removed - using DDD authentication
 
       // Call the handler
       const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);
@@ -898,8 +893,7 @@ describe('dmHandler', () => {
       // Override the default mock to return null for no active personality
       getActivePersonality.mockReturnValue(null);
 
-      // Ensure user is verified
-      mockAuthManager.isNsfwVerified.mockReturnValue(true);
+      // Ensure user is verified (handled by DDD authentication in setup)
 
       // Ensure no bypass for verification
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
@@ -936,8 +930,7 @@ describe('dmHandler', () => {
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
 
-      // Should not have checked if the user is verified
-      expect(mockAuthManager.isNsfwVerified).not.toHaveBeenCalled();
+      // Legacy authManager.isNsfwVerified removed - DDD authentication handles verification
 
       // Should not have checked for active personality
       expect(getActivePersonality).not.toHaveBeenCalled();
@@ -962,8 +955,7 @@ describe('dmHandler', () => {
       // Should return false to indicate the message was not handled
       expect(result).toBe(false);
 
-      // Should not have checked if the user is verified
-      expect(mockAuthManager.isNsfwVerified).not.toHaveBeenCalled();
+      // Legacy authManager.isNsfwVerified removed - DDD authentication handles verification
 
       // Should not have checked for active personality
       expect(getActivePersonality).not.toHaveBeenCalled();
@@ -977,7 +969,7 @@ describe('dmHandler', () => {
       // but the DDD system can't find the personality
       getActivePersonality.mockReturnValue('missing-personality');
       mockRouter.getPersonality.mockResolvedValue(null);
-      mockAuthManager.isNsfwVerified.mockReturnValue(true);
+      // Legacy authManager.isNsfwVerified removed - using DDD authentication
 
       // Call the handler
       const result = await dmHandler.handleDirectMessage(mockMessage, mockClient);

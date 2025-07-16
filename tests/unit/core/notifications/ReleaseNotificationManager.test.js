@@ -26,7 +26,7 @@ describe('ReleaseNotificationManager', () => {
   let mockVersionTracker;
   let mockPreferences;
   let mockGithubClient;
-  let mockAuthManager;
+  // Legacy authManager removed - using DDD authentication
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -52,12 +52,7 @@ describe('ReleaseNotificationManager', () => {
       clearSavedVersion: jest.fn(),
     };
 
-    // Mock auth manager
-    mockAuthManager = {
-      userTokenManager: {
-        getAllTokens: jest.fn().mockReturnValue({}),
-      },
-    };
+    // Legacy authManager removed - using DDD authentication
 
     // Mock preferences
     mockPreferences = {
@@ -126,17 +121,16 @@ describe('ReleaseNotificationManager', () => {
 
     it('should not perform migration with DDD system', async () => {
       // DDD system handles authenticated users differently, no migration needed
-      await manager.initialize(mockClient, mockAuthManager);
+      await manager.initialize(mockClient);
 
-      // Migration logic has been removed
-      expect(mockAuthManager.userTokenManager.getAllTokens).not.toHaveBeenCalled();
+      // Migration logic has been removed (legacy authManager removed)
       expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
       expect(manager.initialized).toBe(true);
     });
 
     it('should initialize successfully even if authManager is provided', async () => {
-      // Even with authManager provided, no migration happens in DDD system
-      await manager.initialize(mockClient, mockAuthManager);
+      // DDD system doesn't require legacy authManager
+      await manager.initialize(mockClient);
 
       expect(manager.initialized).toBe(true);
       // No migration errors should be logged
@@ -146,25 +140,20 @@ describe('ReleaseNotificationManager', () => {
     });
 
     it('should not migrate users who already have preferences', async () => {
-      const mockTokens = {
-        user123: { token: 'token123', createdAt: Date.now() },
-        user456: { token: 'token456', createdAt: Date.now() },
-      };
-      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue(mockTokens);
-
+      // Legacy user migration test - authManager removed
       // Both users already have preferences
       mockPreferences.preferences.get.mockReturnValue({ optedOut: false });
 
-      await manager.initialize(mockClient, mockAuthManager);
+      await manager.initialize(mockClient);
 
       expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining('Migrated'));
     });
 
-    it('should handle empty auth tokens gracefully', async () => {
-      mockAuthManager.userTokenManager.getAllTokens.mockReturnValue({});
+    it('should handle initialization without legacy authManager', async () => {
+      // Legacy authManager removed - test initialization without it
 
-      await manager.initialize(mockClient, mockAuthManager);
+      await manager.initialize(mockClient);
 
       expect(mockPreferences.updateUserPreferences).not.toHaveBeenCalled();
       expect(manager.initialized).toBe(true);

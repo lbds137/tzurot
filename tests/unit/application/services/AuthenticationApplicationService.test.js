@@ -95,7 +95,7 @@ describe('AuthenticationApplicationService', () => {
 
   describe('getAuthorizationUrl', () => {
     it('should delegate to token service', async () => {
-      const expectedUrl = 'https://auth.example.com/oauth?state=abc123';
+      const expectedUrl = 'https://example.com/oauth?state=abc123';
       mockTokenService.getAuthorizationUrl.mockResolvedValue(expectedUrl);
 
       const url = await authService.getAuthorizationUrl('abc123');
@@ -430,7 +430,7 @@ describe('AuthenticationApplicationService', () => {
     const context = new AuthContext({
       channelType: 'GUILD',
       channelId: 'channel123',
-      isNsfwChannel: false,
+      isNsfwChannel: true, // Use NSFW channel to test other logic without NSFW blocking
       isProxyMessage: false,
     });
 
@@ -566,15 +566,18 @@ describe('AuthenticationApplicationService', () => {
   });
 
   describe('createAIClient', () => {
-    it('should throw not implemented error', async () => {
+    it('should create AI client for authenticated user', async () => {
       const user = UserAuth.createAuthenticated(
         new UserId('123456789012345678'),
         new Token('token', new Date(Date.now() + 1000000))
       );
       mockAuthRepository.findByUserId.mockResolvedValue(user);
 
-      await expect(authService.createAIClient('123456789012345678'))
-        .rejects.toThrow('AI client factory integration not yet implemented');
+      const client = await authService.createAIClient('123456789012345678');
+      
+      // Test that the client is configured correctly by checking its behavior
+      expect(client).toBeDefined();
+      expect(client.baseURL).toBe(`${process.env.SERVICE_API_BASE_URL}/v1`);
     });
 
     it('should require authenticated user', async () => {

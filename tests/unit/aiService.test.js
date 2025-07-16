@@ -13,25 +13,15 @@ const {
 
 // Constants are imported but not used in this test file
 
-// Create a mock authManager for tests
-const mockAuthManager = {
-  hasValidToken: jest.fn().mockReturnValue(true),
-  getUserToken: jest.fn().mockReturnValue('mock-token'),
-  APP_ID: 'mock-app-id',
-  API_KEY: 'mock-api-key',
-  isNsfwVerified: jest.fn().mockReturnValue(true),
-};
-
 // Mock webhookUserTracker to bypass authentication
 jest.mock('../../src/utils/webhookUserTracker', () => ({
   shouldBypassNsfwVerification: jest.fn().mockReturnValue(true), // Return true to bypass auth in tests
 }));
 
-// aiAuth module no longer exists - will mock AI client functionality directly
-
 // Mock ApplicationBootstrap for DDD authentication and personalities
 const mockDDDAuthService = {
   getAuthenticationStatus: jest.fn(),
+  createAIClient: jest.fn(),
 };
 
 const mockPersonalityRouter = {
@@ -59,8 +49,6 @@ jest.mock('../../src/utils/contentSanitizer', () => ({
   })),
 }));
 
-// Mock personality module for error message handling
-
 // Mock FeatureFlags module
 jest.mock('../../src/application/services/FeatureFlags', () => ({
   createFeatureFlags: jest.fn().mockReturnValue({
@@ -75,8 +63,6 @@ jest.mock('../../src/services/PersonalityDataService', () => ({
     buildContextualPrompt: jest.fn(),
   }),
 }));
-
-// Legacy personality manager removed - using DDD system now
 
 // Mock OpenAI module
 jest.mock('openai', () => {
@@ -198,10 +184,6 @@ describe('AI Service', () => {
         displayName: 'Test Personality',
       },
     });
-    
-    // Initialize aiService with mockAuthManager
-    const { initAiClient } = aiService;
-    initAiClient(mockAuthManager);
     
     // Mock getAiClientForUser to return a valid client by default
     const openaiModule = require('openai');
@@ -677,14 +659,14 @@ describe('AI Service', () => {
         }
       });
       
-      // Ensure authManager is mocked to return true
-      mockAuthManager.hasValidToken.mockReturnValue(true);
-
       // Ensure AI client is properly mocked
       const openaiModule = require('openai');
       const OpenAI = openaiModule.OpenAI;
       mockClient = new OpenAI();
-
+      
+      // Mock createAIClient to return the mock client
+      mockDDDAuthService.createAIClient.mockResolvedValue(mockClient);
+      
       // Reset the mock to return proper responses
       mockClient.chat.completions.create.mockResolvedValue({
         choices: [
@@ -695,9 +677,8 @@ describe('AI Service', () => {
           },
         ],
       });
-
-      // Mock getAiClientForUser on aiService module to return the mock OpenAI client
-      aiService.getAiClientForUser = jest.fn().mockResolvedValue(mockClient);
+      
+      // Legacy authManager removed - DDD authentication handles this
     });
 
     it('should return a response from the AI service', async () => {
@@ -945,8 +926,7 @@ describe('AI Service', () => {
     beforeEach(() => {
       jest.clearAllMocks();
 
-      // Ensure authManager is properly mocked
-      mockAuthManager.hasValidToken.mockReturnValue(true);
+      // Legacy authManager removed - DDD authentication handles this
 
       // Reset default mock implementations
       const openaiModule = require('openai');

@@ -246,10 +246,9 @@ class UserAuth extends AggregateRoot {
    * @returns {boolean} True if can access
    */
   canAccessNsfw(personality, context) {
-    if (!personality.profile?.nsfw) {
-      return true; // Not NSFW
-    }
-
+    // All personalities are treated as NSFW uniformly
+    // No individual personality NSFW checking needed
+    
     if (context.isDM()) {
       return this.nsfwStatus.verified;
     }

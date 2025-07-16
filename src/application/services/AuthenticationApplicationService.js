@@ -415,20 +415,17 @@ class AuthenticationApplicationService {
         }
       }
       
-      // Check NSFW requirements
-      if (personality.profile?.nsfw) {
-        const userAuth = await this.authenticationRepository.findByUserId(userId);
-        
-        if (!userAuth || !userAuth.canAccessNsfw(personality, context)) {
-          return { 
-            allowed: false, 
-            reason: 'NSFW verification required' 
-          };
-        }
+      // Check NSFW requirements (all personalities are treated as NSFW uniformly)
+      const userAuth = await this.authenticationRepository.findByUserId(userId);
+      
+      if (!userAuth || !userAuth.canAccessNsfw(personality, context)) {
+        return { 
+          allowed: false, 
+          reason: 'NSFW verification required' 
+        };
       }
       
       // Check blacklist status
-      const userAuth = await this.authenticationRepository.findByUserId(userId);
       if (userAuth && userAuth.blacklisted) {
         return { 
           allowed: false, 
