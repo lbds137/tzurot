@@ -452,6 +452,11 @@ describe('Referenced Message Media Tests', () => {
           nsfwStatus: { verified: true },
           token: { value: 'test-token' }
         }
+      }),
+      createAIClient: jest.fn().mockImplementation(() => {
+        const openaiModule = require('openai');
+        const OpenAI = openaiModule.OpenAI;
+        return new OpenAI();
       })
     };
     
