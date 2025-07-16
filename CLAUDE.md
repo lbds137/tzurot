@@ -8,6 +8,8 @@
 
 Tzurot is a Discord bot that uses webhooks to represent multiple AI personalities. It allows users to add personalities and interact with them through Discord channels. Built with Node.js and Discord.js.
 
+**Project Context**: This is a **one-person project** developed and maintained by a single developer with AI assistance. Avoid team-oriented language and assumptions. This affects documentation style, decision-making processes, and collaboration patterns.
+
 ## Tech Stack
 - Node.js 20.x
 - Discord.js 14.x  
