@@ -1,64 +1,56 @@
-# Domain-Driven Design (DDD) Documentation
+# Domain-Driven Design Implementation
 
-This directory contains all documentation related to the ongoing Domain-Driven Design migration of the Tzurot bot.
+This directory contains documentation for the completed Domain-Driven Design architecture of Tzurot.
 
-## 📁 Directory Structure
+## Architecture Summary
 
-### Planning & Design
-- [`DOMAIN_DRIVEN_DESIGN_PLAN.md`](DOMAIN_DRIVEN_DESIGN_PLAN.md) - Original DDD migration plan
-- [`DDD_MIGRATION_CHECKLIST.md`](DDD_MIGRATION_CHECKLIST.md) - Master checklist for migration tasks
-- [`DDD_IMPLEMENTATION_SUMMARY.md`](DDD_IMPLEMENTATION_SUMMARY.md) - High-level implementation summary
+Tzurot now uses a layered DDD architecture with:
+- **Domain Layer**: Core business logic and entities
+- **Application Layer**: Use cases and orchestration  
+- **Adapters Layer**: External system integrations
+- **Infrastructure Layer**: Technical implementations
 
-### Phase Completion Reports
-- [`DDD_PHASE_0_GUIDE.md`](DDD_PHASE_0_GUIDE.md) - Phase 0 implementation guide
-- [`DDD_PHASE_0_COMPLETION.md`](DDD_PHASE_0_COMPLETION.md) - Phase 0 completion report
-- [`DDD_PHASE_1_COMPLETION.md`](DDD_PHASE_1_COMPLETION.md) - Phase 1 completion summary
-- [`DDD_PHASE_1_COMPLETION_REPORT.md`](DDD_PHASE_1_COMPLETION_REPORT.md) - Detailed Phase 1 report
-- [`DDD_PHASE_2_ADAPTER_COMPLETION.md`](DDD_PHASE_2_ADAPTER_COMPLETION.md) - Phase 2 adapter layer completion
-- [`DDD_PHASE_3_PROGRESS.md`](DDD_PHASE_3_PROGRESS.md) - Current Phase 3 progress tracker
+## Key Components
 
-### Migration Guides
-- [`SINGLETON_MIGRATION_GUIDE.md`](SINGLETON_MIGRATION_GUIDE.md) - Guide for migrating singleton patterns
-- [`ADAPTER_COMPLETENESS_REVIEW.md`](ADAPTER_COMPLETENESS_REVIEW.md) - Review of adapter implementations
+### Domain Models
+- **AI Domain**: Request handling, content processing, deduplication
+- **Authentication Domain**: User auth, tokens, permissions, NSFW verification
+- **Conversation Domain**: Message state, channel activation, auto-response
+- **Personality Domain**: AI personalities, profiles, aliases, configuration
+- **Backup Domain**: Data export and archival functionality
 
-## 🚀 Current Status
+### Application Services
+- **PersonalityApplicationService**: Personality management operations
+- **AuthenticationApplicationService**: User authentication and authorization
+- **Command Handlers**: Organized by domain (authentication, conversation, personality, utility)
 
-**Current Phase**: Phase 3 - Application Services & Command Migration
-- Week 1: Personality System ✅ (Commands migrated, needs wiring)
-- Week 2: Conversation System (Pending)
-- Week 3: Authentication System (Pending)
-- Week 4: Final Integration (Pending)
+### Adapters
+- **File-based Repositories**: JSON persistence for all domains
+- **Discord Adapters**: Discord API interactions
+- **AI Service Adapters**: External AI API integrations
 
-## 📊 Progress Overview
+## Documentation
 
-### ✅ Completed
-- **Phase 0**: Domain Models (100%)
-- **Phase 1**: Port Adapters (100%)
-- **Phase 2**: Application Services (100%)
-- **Phase 3 Week 1**: Personality Commands (90% - needs wiring to bot.js)
+### Implementation Guides
+- [`DDD_IMPLEMENTATION_SUMMARY.md`](DDD_IMPLEMENTATION_SUMMARY.md) - Architecture overview
+- [`DDD_DEPLOYMENT_GUIDE.md`](DDD_DEPLOYMENT_GUIDE.md) - Production deployment
+- [`DDD_ENABLEMENT_GUIDE.md`](DDD_ENABLEMENT_GUIDE.md) - Feature activation guide
+- [`SINGLETON_MIGRATION_GUIDE.md`](SINGLETON_MIGRATION_GUIDE.md) - Pattern migration reference
 
-### 🔄 In Progress
-- Wiring CommandIntegration to bot.js
-- Feature flag testing for gradual rollout
+## Current Status
 
-### 📋 Next Steps
-1. Wire CommandIntegration to bot.js
-2. Migrate conversation commands
-3. Migrate help command
-4. Create production deployment plan
+✅ **Authentication Domain**: DDD authentication system fully operational
+🏗️ **Other Domains**: Built but not yet activated (legacy systems still handling traffic)
+✅ **Architecture**: DDD layers and patterns implemented
+✅ **Repositories**: File-based repositories ready for all domains
+⏳ **Migration**: Ongoing transition from legacy to DDD systems
 
-## 🏗️ Architecture
+## Benefits Achieved
 
-The DDD migration follows these architectural patterns:
-- **Hexagonal Architecture**: Core domain isolated from infrastructure
-- **CQRS**: Command/Query separation for better scalability
-- **Event-Driven**: Domain events for loose coupling
-- **Repository Pattern**: Abstract persistence details
-- **Dependency Injection**: Testable, maintainable code
+- **Testability**: Clear separation enables comprehensive testing
+- **Maintainability**: Business logic isolated from technical concerns  
+- **Scalability**: Repository pattern ready for database migration
+- **Domain Focus**: Clear boundaries between business capabilities
+- **Event-Driven**: Loose coupling through domain events
 
-## 📚 Quick Links
-
-- [Test Coverage Reports](../testing/TEST_COVERAGE_SUMMARY.md)
-- [Git Workflow](../development/GIT_AND_PR_WORKFLOW.md)
-- [Timer Patterns](../testing/TIMER_PATTERNS_COMPLETE.md)
-- [Main CLAUDE.md](../../CLAUDE.md)
+For the current system architecture, see [../core/ARCHITECTURE.md](../core/ARCHITECTURE.md).

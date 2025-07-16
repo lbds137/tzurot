@@ -194,18 +194,65 @@ npm run quality    # Run lint and format
 
 ### Project Structure
 
+Tzurot follows a **Domain-Driven Design (DDD)** architecture with clear separation of concerns:
+
 ```
 tzurot/
-├── src/              # Source code
-│   ├── commands/     # Command handlers
-│   ├── handlers/     # Message handlers
-│   ├── utils/        # Utility functions
+├── src/                    # Source code
+│   ├── domain/             # Domain layer - business logic and entities
+│   │   ├── ai/             # AI domain (requests, content, models)
+│   │   ├── authentication/ # Authentication domain (tokens, auth context)
+│   │   ├── conversation/   # Conversation domain (messages, channels)
+│   │   ├── personality/    # Personality domain (profiles, aliases)
+│   │   ├── backup/         # Backup domain (jobs, data export)
+│   │   └── shared/         # Shared domain concepts (events, aggregates)
+│   ├── application/        # Application layer - use cases and coordination
+│   │   ├── bootstrap/      # Application initialization and wiring
+│   │   ├── commands/       # Command handlers organized by domain
+│   │   │   ├── authentication/  # Auth commands (auth, verify, blacklist)
+│   │   │   ├── conversation/    # Conversation commands (activate, reset)
+│   │   │   ├── personality/     # Personality commands (add, list, config)
+│   │   │   └── utility/         # Utility commands (help, ping, debug)
+│   │   ├── services/       # Application services and coordination
+│   │   ├── routers/        # Request routing and dispatching
+│   │   └── eventHandlers/  # Domain event handling
+│   ├── adapters/           # Adapters layer - external integrations
+│   │   ├── ai/             # AI service adapters (HTTP, factory)
+│   │   ├── discord/        # Discord API adapters (messages, webhooks)
+│   │   └── persistence/    # Data persistence adapters (file-based)
+│   ├── infrastructure/     # Infrastructure layer - technical concerns
+│   │   ├── authentication/ # OAuth and token management
+│   │   └── backup/         # Backup and archival infrastructure
+│   ├── core/              # Core business logic (legacy, being migrated)
+│   │   ├── api/           # Profile and API client logic
+│   │   ├── conversation/  # Conversation management
+│   │   └── notifications/ # Release and update notifications
+│   ├── handlers/          # Legacy message handlers (being phased out)
+│   ├── utils/             # Utility functions and helpers
 │   └── ...
-├── tests/            # Test files
-├── docs/             # Documentation
-├── scripts/          # Utility scripts
-└── data/             # Runtime data
+├── tests/                 # Test files (mirrors src structure)
+├── docs/                  # Comprehensive documentation
+├── scripts/               # Development and deployment scripts
+└── data/                  # Runtime data storage
 ```
+
+#### Architecture Principles
+
+- **Domain-Driven Design**: Business logic isolated in domain layer
+- **Clean Architecture**: Dependencies flow inward toward domain
+- **Command Pattern**: All user actions handled via command objects
+- **Event-Driven**: Domain events for loose coupling between contexts
+- **Dependency Injection**: Testable, mockable external dependencies
+- **Legacy Migration**: Gradual migration from flat structure to DDD
+
+#### Migration Notes
+
+⚠️ **Hybrid Architecture**: The project is currently in a migration phase from a legacy flat structure to DDD. Both systems coexist:
+
+- **New Commands**: Use DDD structure in `src/application/commands/` organized by domain
+- **Legacy Systems**: Core message processing, AI handling, and webhook management still use legacy architecture
+- **Feature Parity**: All functionality is preserved during migration - no features are lost
+- **Gradual Migration**: Components are migrated incrementally to minimize risk and maintain stability
 
 ## 🧪 Testing
 
