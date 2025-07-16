@@ -60,7 +60,6 @@ describe('UserAuth', () => {
       expect(userAuth).toBeInstanceOf(UserAuth);
       expect(userAuth.userId).toEqual(userId);
       expect(userAuth.token.value).toBe(token.value);
-      expect(userAuth.authenticationCount).toBe(1);
       expect(userAuth.version).toBe(1);
     });
 
@@ -449,7 +448,6 @@ describe('UserAuth', () => {
       const userAuth = UserAuth.createAuthenticated(userId, token);
       
       // Reset state to simulate empty aggregate
-      userAuth.authenticationCount = 0;
       userAuth.nsfwStatus = NsfwStatus.createUnverified();
       userAuth.token = token; // Will be replaced by events
       userAuth.version = 0;
@@ -459,7 +457,6 @@ describe('UserAuth', () => {
 
       expect(userAuth.token.value).toBe('refreshed-token');
       expect(userAuth.nsfwStatus.verified).toBe(true);
-      expect(userAuth.authenticationCount).toBe(1);
       expect(userAuth.version).toBe(3);
     });
   });
@@ -476,10 +473,8 @@ describe('UserAuth', () => {
         token: token.toJSON(),
         blacklisted: false,
         blacklistReason: null,
-        authenticationCount: 1,
       });
       expect(json.nsfwStatus).toBeDefined();
-      expect(json.lastAuthenticatedAt).toBeDefined();
     });
 
     it('should handle null token', () => {
@@ -505,9 +500,7 @@ describe('UserAuth', () => {
           verifiedAt: '2024-01-01T00:00:00.000Z'
         },
         blacklisted: false,
-        blacklistReason: null,
-        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
-        authenticationCount: 5
+        blacklistReason: null
       };
 
       const userAuth = UserAuth.fromData(data);
@@ -518,8 +511,7 @@ describe('UserAuth', () => {
       expect(userAuth.nsfwStatus.verified).toBe(true);
       expect(userAuth.blacklisted).toBe(false);
       expect(userAuth.blacklistReason).toBeNull();
-      expect(userAuth.lastAuthenticatedAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
-      expect(userAuth.authenticationCount).toBe(5);
+      // Fields removed: lastAuthenticatedAt and authenticationCount
     });
 
     it('should handle data without expiresAt', () => {
@@ -550,33 +542,9 @@ describe('UserAuth', () => {
       expect(userAuth.nsfwStatus.verified).toBe(false);
     });
 
-    it('should handle data without lastAuthenticatedAt', () => {
-      const data = {
-        userId: '123456789012345678',
-        token: {
-          value: 'test-token-value'
-        }
-        // No lastAuthenticatedAt
-      };
+    // Test removed: lastAuthenticatedAt field no longer exists
 
-      const userAuth = UserAuth.fromData(data);
-
-      expect(userAuth.lastAuthenticatedAt).toEqual(new Date('2024-01-01T00:00:00Z'));
-    });
-
-    it('should handle data without authenticationCount', () => {
-      const data = {
-        userId: '123456789012345678',
-        token: {
-          value: 'test-token-value'
-        }
-        // No authenticationCount
-      };
-
-      const userAuth = UserAuth.fromData(data);
-
-      expect(userAuth.authenticationCount).toBe(1);
-    });
+    // Test removed: authenticationCount field no longer exists
 
     it('should require userId', () => {
       const data = {

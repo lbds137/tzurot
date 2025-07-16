@@ -16,6 +16,7 @@ jest.mock('fs', () => ({
     rename: jest.fn(),
   },
 }));
+const logger = require('../../../../src/logger');
 jest.mock('../../../../src/logger');
 
 const { dddPresets } = require('../../../__mocks__/ddd');
@@ -36,7 +37,7 @@ describe('FileAuthenticationRepository', () => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     jest.spyOn(console, 'log').mockImplementation();
-    jest.spyOn(console, 'error').mockImplementation();
+    // jest.spyOn(console, 'error').mockImplementation();
 
     // Default mock file data - simplified structure
     mockFileData = {
@@ -52,8 +53,6 @@ describe('FileAuthenticationRepository', () => {
         },
         blacklisted: false,
         blacklistReason: null,
-        lastAuthenticatedAt: '2024-01-02T00:00:00.000Z',
-        authenticationCount: 2,
         savedAt: '2024-01-02T00:00:00.000Z',
       },
     };
@@ -90,8 +89,14 @@ describe('FileAuthenticationRepository', () => {
     });
 
     it('should load existing data file', async () => {
+      // First call fails for legacy file, second succeeds for current file
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
+
       await repository.initialize();
 
+      expect(fs.readFile).toHaveBeenCalledWith(path.join('./test-data', 'auth_tokens.json'), 'utf8');
       expect(fs.readFile).toHaveBeenCalledWith(path.join('./test-data', 'test-auth.json'), 'utf8');
       // Cache should have the user data
       expect(repository._cache['123456789012345678']).toBeDefined();
@@ -125,12 +130,17 @@ describe('FileAuthenticationRepository', () => {
           },
         },
       };
-      fs.readFile.mockResolvedValue(JSON.stringify(expiredData));
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(expiredData)); // test-auth.json found
 
       await repository.initialize();
 
       // Token cleanup no longer removes expired tokens - domain logic handles expiry
-      expect(repository._cache['123456789012345678'].token.value).toBe('expired-token');
+      expect(repository._cache['123456789012345678'].token).toEqual({
+        value: 'expired-token',
+        expiresAt: new Date(Date.now() - 1000).toISOString()
+      });
     });
 
     it('should start cleanup timer', async () => {
@@ -173,7 +183,6 @@ describe('FileAuthenticationRepository', () => {
               },
             ],
             nsfwStatus: { verified: true, verifiedAt: '2024-01-01T00:00:00.000Z' },
-            lastAuthenticatedAt: '2024-01-02T00:00:00.000Z',
           },
         },
         tokens: {
@@ -181,7 +190,9 @@ describe('FileAuthenticationRepository', () => {
           'old-token-2': { userId: '123456789012345678' },
         },
       };
-      fs.readFile.mockResolvedValue(JSON.stringify(oldFormatData));
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(oldFormatData)); // test-auth.json has old format
 
       await repository.initialize();
 
@@ -198,6 +209,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('save', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -246,6 +260,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('findByUserId', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -275,6 +292,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('findByToken', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -307,6 +327,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('delete', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -335,6 +358,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('exists', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -353,6 +379,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('countAuthenticated', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -373,32 +402,33 @@ describe('FileAuthenticationRepository', () => {
 
   describe('findBlacklisted', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
-    it.skip('should find blacklisted users - blacklisting feature not implemented', async () => {
-      // Add a blacklisted user - ensure all required fields are present
-      const blacklistedData = {
-        userId: 'blacklisted-user',
+    it('should find blacklisted users', async () => {
+      // Add a blacklisted user - UserAuth.fromData expects specific structure
+      repository._cache['999999999999999999'] = {
+        userId: '999999999999999999',
         token: { value: 'token', expiresAt: null },
         blacklisted: true,
         blacklistReason: 'Spam',
         nsfwStatus: { verified: false, verifiedAt: null },
-        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
-        authenticationCount: 1,
         savedAt: '2024-01-01T00:00:00.000Z',
       };
-      repository._cache['blacklisted-user'] = blacklistedData;
 
       // Verify the data is in cache
-      expect(repository._cache['blacklisted-user']).toBeDefined();
-      expect(repository._cache['blacklisted-user'].blacklisted).toBe(true);
-
+      expect(repository._cache['999999999999999999']).toBeDefined();
+      expect(repository._cache['999999999999999999'].blacklisted).toBe(true);
+      
       const blacklisted = await repository.findBlacklisted();
 
       expect(blacklisted).toHaveLength(1);
-      expect(blacklisted[0].userId.value).toBe('blacklisted-user');
+      expect(blacklisted[0].userId.value).toBe('999999999999999999');
       expect(blacklisted[0].blacklisted).toBe(true);
+      expect(blacklisted[0].blacklistReason).toBe('Spam');
     });
 
     it('should return empty array if no blacklisted users', async () => {
@@ -410,27 +440,29 @@ describe('FileAuthenticationRepository', () => {
 
   describe('findExpiredTokens', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
-    it.skip('should find users with expired tokens - cleanup no longer removes expired tokens', async () => {
+    it('should find users with expired tokens', async () => {
       // Add user with expired token
-      repository._cache['expired-user'] = {
-        userId: 'expired-user',
+      repository._cache['888888888888888888'] = {
+        userId: '888888888888888888',
         token: {
           value: 'expired-token',
           expiresAt: new Date(Date.now() - 1000).toISOString(),
         },
         blacklisted: false,
         nsfwStatus: { verified: false, verifiedAt: null },
-        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
-        authenticationCount: 1,
+        savedAt: '2024-01-01T00:00:00.000Z',
       };
 
       const expired = await repository.findExpiredTokens();
 
       expect(expired).toHaveLength(1);
-      expect(expired[0].userId.value).toBe('expired-user');
+      expect(expired[0].userId.value).toBe('888888888888888888');
     });
 
     it('should return empty array if no expired tokens', async () => {
@@ -442,6 +474,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('_hydrate', () => {
     it('should hydrate user with NSFW status', async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
       
       const data = {
@@ -450,8 +485,7 @@ describe('FileAuthenticationRepository', () => {
         nsfwStatus: { verified: true, verifiedAt: '2024-01-01T00:00:00.000Z' },
         blacklisted: false,
         blacklistReason: null,
-        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
-        authenticationCount: 1,
+        savedAt: '2024-01-01T00:00:00.000Z',
       };
 
       const userAuth = repository._hydrate(data);
@@ -461,6 +495,9 @@ describe('FileAuthenticationRepository', () => {
     });
 
     it('should return null for invalid data', async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
       
       const userAuth = repository._hydrate({ userId: null }); // Missing required fields
@@ -469,6 +506,9 @@ describe('FileAuthenticationRepository', () => {
     });
 
     it('should mark events as committed', async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
       
       const data = {
@@ -477,8 +517,7 @@ describe('FileAuthenticationRepository', () => {
         nsfwStatus: { verified: false, verifiedAt: null },
         blacklisted: false,
         blacklistReason: null,
-        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
-        authenticationCount: 1,
+        savedAt: '2024-01-01T00:00:00.000Z',
       };
 
       const userAuth = repository._hydrate(data);
@@ -489,6 +528,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('_persist', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -521,6 +563,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('_cleanupExpiredTokens', () => {
     beforeEach(async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
     });
 
@@ -542,7 +587,7 @@ describe('FileAuthenticationRepository', () => {
     });
 
     it('should be called periodically by timer', async () => {
-      await repository.initialize();
+      // Repository already initialized in beforeEach
       const cleanupSpy = jest.spyOn(repository, '_cleanupExpiredTokens');
 
       // Fast forward time
@@ -554,6 +599,9 @@ describe('FileAuthenticationRepository', () => {
 
   describe('shutdown', () => {
     it('should stop cleanup timer', async () => {
+      fs.readFile
+        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
+        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
       await repository.initialize();
       const timerId = repository._cleanupTimer;
 

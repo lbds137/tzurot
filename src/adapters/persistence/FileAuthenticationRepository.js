@@ -1,8 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { AuthenticationRepository } = require('../../domain/authentication');
-const { UserAuth, Token } = require('../../domain/authentication');
-const { UserId } = require('../../domain/personality');
+const { UserAuth } = require('../../domain/authentication');
 const logger = require('../../logger');
 
 /**
@@ -53,26 +52,45 @@ class FileAuthenticationRepository extends AuthenticationRepository {
       // Ensure data directory exists
       await fs.mkdir(this.dataPath, { recursive: true });
 
-      // Load existing data or create new file
+      // Check for legacy auth_tokens.json file first
+      const legacyPath = path.join(this.dataPath, 'auth_tokens.json');
       try {
-        const data = await fs.readFile(this.filePath, 'utf8');
-        const parsedData = JSON.parse(data);
+        const legacyData = await fs.readFile(legacyPath, 'utf8');
+        const legacyTokens = JSON.parse(legacyData);
         
-        // Handle migration from old format to new format
-        if (parsedData.userAuth && parsedData.tokens) {
-          logger.info('[FileAuthenticationRepository] Migrating from old format to new format');
-          this._cache = await this._migrateFromOldFormat(parsedData);
-          await this._persist();
-        } else {
-          this._cache = parsedData;
+        logger.info('[FileAuthenticationRepository] Found legacy auth_tokens.json, migrating to new format');
+        this._cache = await this._migrateFromLegacyFormat(legacyTokens);
+        await this._persist();
+        
+        // Rename legacy file to prevent re-migration
+        await fs.rename(legacyPath, `${legacyPath}.migrated`);
+        logger.info('[FileAuthenticationRepository] Legacy migration complete, renamed to auth_tokens.json.migrated');
+      } catch (legacyError) {
+        if (legacyError.code !== 'ENOENT') {
+          logger.warn('[FileAuthenticationRepository] Error reading legacy file:', legacyError);
         }
-      } catch (error) {
-        if (error.code === 'ENOENT') {
-          // File doesn't exist, create it
-          this._cache = {};
-          await this._persist();
-        } else {
-          throw error;
+        
+        // No legacy file or error reading it, try loading current format
+        try {
+          const data = await fs.readFile(this.filePath, 'utf8');
+          const parsedData = JSON.parse(data);
+          
+          // Handle migration from old DDD format to new format (dev only)
+          if (parsedData.userAuth && parsedData.tokens) {
+            logger.info('[FileAuthenticationRepository] Migrating from old DDD format to new format');
+            this._cache = await this._migrateFromOldFormat(parsedData);
+            await this._persist();
+          } else {
+            this._cache = parsedData;
+          }
+        } catch (error) {
+          if (error.code === 'ENOENT') {
+            // File doesn't exist, create it
+            this._cache = {};
+            await this._persist();
+          } else {
+            throw error;
+          }
         }
       }
 
@@ -212,7 +230,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
       
       for (const userData of Object.values(this._cache)) {
         if (userData.blacklisted) {
-          const userAuth = await this._hydrate(userData);
+          const userAuth = this._hydrate(userData);
           if (userAuth) {
             results.push(userAuth);
           }
@@ -241,7 +259,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         if (userData.token && userData.token.expiresAt) {
           const expiresAt = new Date(userData.token.expiresAt).getTime();
           if (expiresAt < now) {
-            const userAuth = await this._hydrate(userData);
+            const userAuth = this._hydrate(userData);
             if (userAuth) {
               results.push(userAuth);
             }
@@ -382,7 +400,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
           if (tokenData.revokedAt) continue;
           if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < now) continue;
           
-          const tokenTime = new Date(tokenData.createdAt || userData.lastAuthenticatedAt).getTime();
+          const tokenTime = new Date(tokenData.createdAt || userData.savedAt || Date.now()).getTime();
           if (tokenTime > latestTime) {
             latestTime = tokenTime;
             mostRecentToken = {
@@ -400,13 +418,74 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         nsfwStatus: userData.nsfwStatus || { verified: false, verifiedAt: null },
         blacklisted: userData.blacklisted || false,
         blacklistReason: userData.blacklistReason || null,
-        lastAuthenticatedAt: userData.lastAuthenticatedAt || userData.savedAt,
-        authenticationCount: userData.authenticationCount || 1,
         savedAt: userData.savedAt || new Date().toISOString(),
       };
     }
     
     logger.info(`[FileAuthenticationRepository] Migrated ${Object.keys(newData).length} users to new format`);
+    return newData;
+  }
+
+  /**
+   * Migrate from legacy format (auth_tokens.json + nsfw_verified.json) to new format
+   * @private
+   */
+  async _migrateFromLegacyFormat(legacyTokens) {
+    const newData = {};
+    
+    // Also try to load nsfw_verified.json if it exists
+    let nsfwVerifiedData = {};
+    try {
+      const nsfwPath = path.join(this.dataPath, 'nsfw_verified.json');
+      const nsfwContent = await fs.readFile(nsfwPath, 'utf8');
+      nsfwVerifiedData = JSON.parse(nsfwContent);
+      logger.info('[FileAuthenticationRepository] Found nsfw_verified.json, will merge with auth data');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        logger.warn('[FileAuthenticationRepository] Error reading nsfw_verified.json:', error);
+      }
+    }
+    
+    // Migrate each user from the legacy format
+    for (const [userId, tokenData] of Object.entries(legacyTokens)) {
+      // Skip invalid entries
+      if (!tokenData || !tokenData.token) {
+        logger.warn(`[FileAuthenticationRepository] Skipping invalid legacy entry for user ${userId}`);
+        continue;
+      }
+      
+      // Get NSFW verification status if available
+      const nsfwInfo = nsfwVerifiedData[userId] || {};
+      
+      // Create the new user data
+      newData[userId] = {
+        userId: userId,
+        token: {
+          value: tokenData.token,
+          expiresAt: null, // Ignore expiration as requested
+        },
+        nsfwStatus: {
+          verified: nsfwInfo.verified || false,
+          verifiedAt: nsfwInfo.verifiedAt ? new Date(nsfwInfo.verifiedAt).toISOString() : null,
+        },
+        blacklisted: false,
+        blacklistReason: null,
+        savedAt: new Date().toISOString(),
+      };
+    }
+    
+    // Rename nsfw_verified.json if we migrated from it
+    if (Object.keys(nsfwVerifiedData).length > 0) {
+      try {
+        const nsfwPath = path.join(this.dataPath, 'nsfw_verified.json');
+        await fs.rename(nsfwPath, `${nsfwPath}.migrated`);
+        logger.info('[FileAuthenticationRepository] Renamed nsfw_verified.json to nsfw_verified.json.migrated');
+      } catch (error) {
+        logger.warn('[FileAuthenticationRepository] Could not rename nsfw_verified.json:', error);
+      }
+    }
+    
+    logger.info(`[FileAuthenticationRepository] Migrated ${Object.keys(newData).length} users from legacy format`);
     return newData;
   }
 }
