@@ -19,6 +19,7 @@ const { createDeactivateCommand } = require('./conversation/DeactivateCommand');
 const { createAutorespondCommand } = require('./conversation/AutorespondCommand');
 const { createAuthCommand } = require('./authentication/AuthCommand');
 const { createVerifyCommand } = require('./authentication/VerifyCommand');
+const { createBlacklistCommand } = require('./authentication/BlacklistCommand');
 const { createPingCommand } = require('./utility/PingCommand');
 const { createStatusCommand } = require('./utility/StatusCommand');
 const { createNotificationsCommand } = require('./utility/NotificationsCommand');
@@ -98,6 +99,7 @@ class CommandIntegration {
     // Register authentication commands
     this.registry.register(createAuthCommand());
     this.registry.register(createVerifyCommand());
+    this.registry.register(createBlacklistCommand());
 
     // Register utility commands
     this.registry.register(createPingCommand());

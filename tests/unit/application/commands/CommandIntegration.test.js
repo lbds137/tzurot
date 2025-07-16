@@ -296,7 +296,7 @@ describe('CommandIntegration', () => {
       });
 
       const commands = integration.getAllCommands();
-      expect(commands).toHaveLength(20);
+      expect(commands).toHaveLength(21);
       expect(commands.map(c => c.name)).toEqual([
         'add',
         'remove',
@@ -310,6 +310,7 @@ describe('CommandIntegration', () => {
         'autorespond',
         'auth',
         'verify',
+        'blacklist',
         'ping',
         'status',
         'notifications',

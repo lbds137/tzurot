@@ -47,8 +47,6 @@ class UserAuth extends AggregateRoot {
     this.nsfwStatus = NsfwStatus.createUnverified();
     this.blacklisted = false;
     this.blacklistReason = null;
-    this.lastAuthenticatedAt = new Date();
-    this.authenticationCount = 0; // Will be incremented by onUserAuthenticated event
   }
 
   /**
@@ -73,7 +71,7 @@ class UserAuth extends AggregateRoot {
       new UserAuthenticated(userId.toString(), {
         userId: userId.toString(),
         token: token.toJSON(),
-        authenticatedAt: userAuth.lastAuthenticatedAt.toISOString(),
+        authenticatedAt: new Date().toISOString(),
       })
     );
 
@@ -105,10 +103,6 @@ class UserAuth extends AggregateRoot {
       : NsfwStatus.createUnverified();
     userAuth.blacklisted = data.blacklisted || false;
     userAuth.blacklistReason = data.blacklistReason || null;
-    userAuth.lastAuthenticatedAt = data.lastAuthenticatedAt 
-      ? new Date(data.lastAuthenticatedAt)
-      : new Date();
-    userAuth.authenticationCount = data.authenticationCount || 1;
     
     return userAuth;
   }
@@ -284,15 +278,12 @@ class UserAuth extends AggregateRoot {
       nsfwStatus: this.nsfwStatus.toJSON(),
       blacklisted: this.blacklisted,
       blacklistReason: this.blacklistReason,
-      lastAuthenticatedAt: this.lastAuthenticatedAt.toISOString(),
-      authenticationCount: this.authenticationCount,
     };
   }
 
   // Event handlers
   onUserAuthenticated(event) {
-    this.authenticationCount++;
-    this.lastAuthenticatedAt = new Date(event.payload.authenticatedAt);
+    // No longer tracking authentication count or last authenticated time
   }
 
   onUserTokenRefreshed(event) {
