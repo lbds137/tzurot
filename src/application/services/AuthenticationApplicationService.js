@@ -107,7 +107,7 @@ class AuthenticationApplicationService {
       
       if (userAuth) {
         // Refresh existing user's token
-        const newToken = new Token(tokenData.token, new Date(tokenData.expiresAt));
+        const newToken = new Token(tokenData.token, tokenData.expiresAt ? new Date(tokenData.expiresAt) : null);
         userAuth.refreshToken(newToken);
         
         await this.authenticationRepository.save(userAuth);
@@ -124,7 +124,7 @@ class AuthenticationApplicationService {
         // Create new authenticated user
         userAuth = UserAuth.createAuthenticated(
           userId,
-          new Token(tokenData.token, new Date(tokenData.expiresAt))
+          new Token(tokenData.token, tokenData.expiresAt ? new Date(tokenData.expiresAt) : null)
         );
         
         await this.authenticationRepository.save(userAuth);
@@ -511,9 +511,10 @@ class AuthenticationApplicationService {
   /**
    * Create AI client for authenticated user
    * @param {string} discordUserId - Discord user ID
+   * @param {Object} context - Request context
    * @returns {Promise<Object>} AI client instance
    */
-  async createAIClient(discordUserId) {
+  async createAIClient(discordUserId, context = {}) {
     try {
       const userId = new UserId(discordUserId);
       const userAuth = await this.authenticationRepository.findByUserId(userId);
@@ -522,9 +523,25 @@ class AuthenticationApplicationService {
         throw new Error('User not authenticated');
       }
       
-      // This would integrate with an AI client factory
-      // For now, we'll throw an error indicating this needs implementation
-      throw new Error('AI client factory integration not yet implemented');
+      // Create OpenAI client with user authentication
+      const { OpenAI } = require('openai');
+      
+      const headers = {
+        'X-User-Auth': userAuth.token.value,
+      };
+      
+      if (context.isWebhook) {
+        headers['Tzurot-Webhook-Bypass'] = 'true';
+      }
+      
+      const client = new OpenAI({
+        apiKey: process.env.SERVICE_API_KEY,
+        baseURL: `${process.env.SERVICE_API_BASE_URL}/v1`,
+        defaultHeaders: headers,
+      });
+      
+      logger.debug(`[AuthenticationApplicationService] Created AI client for user ${discordUserId} with user token`);
+      return client;
     } catch (error) {
       logger.error(`[AuthenticationApplicationService] Failed to create AI client for ${discordUserId}:`, error);
       throw error;

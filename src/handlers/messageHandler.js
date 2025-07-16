@@ -331,6 +331,7 @@ async function handleMessage(message, client) {
 
     // @mention personality triggering
     const mentionResult = await handleMentions(message, client);
+    logger.debug(`[MessageHandler] handleMentions returned: ${mentionResult}`);
     if (mentionResult) {
       logger.debug(`[MessageHandler] Message processed as mention`);
       return; // Mention was handled
@@ -572,6 +573,7 @@ async function handleMentions(message, client) {
 
         // For server channels, implement the delay for PluralKit proxy handling
         // Use the delayedProcessing helper for consistent handling
+        logger.debug(`[handleMentions] Starting delayedProcessing for ${bestMatch.personality.fullName}`);
         await messageTrackerHandler.delayedProcessing(
           message,
           bestMatch.personality,
@@ -580,13 +582,16 @@ async function handleMentions(message, client) {
           personalityHandler.handlePersonalityInteraction
         );
 
+        logger.debug(`[handleMentions] delayedProcessing completed for ${bestMatch.personality.fullName}`);
         return true; // Mention was handled
       }
     }
   } catch (error) {
     logger.error(`[MessageHandler] Error processing mention:`, error);
+    logger.error(`[MessageHandler] Error stack:`, error.stack);
   }
 
+  logger.debug(`[handleMentions] No mention found or processed, returning false`);
   return false; // No mention was handled
 }
 

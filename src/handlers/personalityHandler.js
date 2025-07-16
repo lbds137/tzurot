@@ -99,18 +99,25 @@ async function checkPersonalityAuthDDD(message, personality) {
     );
     
     // Check personality access using DDD system
-    const result = await authService.checkPersonalityAccess({
-      userId: realUserId,
-      personalityName: personality.name,
+    const { AuthContext } = require('../domain/authentication/AuthContext');
+    
+    // Create auth context
+    const channelType = message.channel.isDMBased?.() ? 'DM' : 
+                       message.channel.isThread?.() ? 'THREAD' : 'GUILD';
+    const authContext = new AuthContext({
+      channelType,
       channelId: message.channel.id,
-      isNsfw: personality.nsfw || false,
-      isDM: message.channel.isDMBased?.() || false
+      isNsfwChannel: personality.nsfw || false,
+      isProxyMessage: !!message.webhookId,
+      requestedPersonalityId: personality.name,
     });
     
-    if (!result.isAuthorized) {
+    const result = await authService.checkPersonalityAccess(realUserId, personality, authContext);
+    
+    if (!result.allowed) {
       return {
         isAllowed: false,
-        errorMessage: result.errors.join(' ') || 'Authorization failed',
+        errorMessage: result.reason || 'Authorization failed',
         reason: 'auth_failed',
       };
     }

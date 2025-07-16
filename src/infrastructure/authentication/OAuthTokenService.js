@@ -51,19 +51,15 @@ class OAuthTokenService extends TokenService {
 
   /**
    * Get OAuth authorization URL
-   * @param {string} state - OAuth state parameter
+   * @param {string} state - OAuth state parameter (optional)
    * @returns {Promise<string>} Authorization URL
    */
   async getAuthorizationUrl(state) {
     try {
       logger.info('[OAuthTokenService] Generating authorization URL');
       
-      const params = new URLSearchParams({
-        app_id: this.appId,
-        state: state || '',
-      });
-      
-      const authUrl = `${this.authWebsite}/auth/discord?${params.toString()}`;
+      // Match legacy URL format: ${authWebsite}/authorize?app_id=${appId}
+      const authUrl = `${this.authWebsite}/authorize?app_id=${this.appId}`;
       
       logger.info('[OAuthTokenService] Generated auth URL:', authUrl);
       return authUrl;
@@ -83,27 +79,28 @@ class OAuthTokenService extends TokenService {
     try {
       logger.info(`[OAuthTokenService] Exchanging code for user ${userId}`);
       
+      // Match legacy endpoint: ${authApiEndpoint}/nonce
       const response = await this.httpClient(
-        `${this.authApiEndpoint}/exchange`,
+        `${this.authApiEndpoint}/nonce`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey,
           },
           body: JSON.stringify({
-            code,
-            discord_id: userId,
+            app_id: this.appId,
+            code: code,
           }),
         }
       );
       
       const data = await response.json();
       
-      if (!response.ok || !data || !data.token) {
+      if (!response.ok || !data || !data.auth_token) {
         throw new Error(`OAuth exchange failed: ${data?.error || response.statusText}`);
       }
       
+      // Legacy returns auth_token, not token
       // Let the AI service handle token expiry
       // We only store expiresAt if the API provides it
       let expiresAt = null;
@@ -114,7 +111,7 @@ class OAuthTokenService extends TokenService {
       logger.info(`[OAuthTokenService] Successfully exchanged code for user ${userId}`);
       
       return {
-        token: data.token,
+        token: data.auth_token,
         expiresAt,
       };
     } catch (error) {
