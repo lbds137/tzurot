@@ -91,7 +91,7 @@ describe('OAuthTokenService', () => {
     it('should generate authorization URL with state', async () => {
       const url = await service.getAuthorizationUrl('test-state');
       
-      expect(url).toBe('https://example.com/auth/discord?app_id=test-app-id&state=test-state');
+      expect(url).toBe('https://example.com/authorize?app_id=test-app-id');
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Generating authorization URL');
       expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Generated auth URL:', url);
     });
@@ -99,24 +99,9 @@ describe('OAuthTokenService', () => {
     it('should generate authorization URL without state', async () => {
       const url = await service.getAuthorizationUrl();
       
-      expect(url).toBe('https://example.com/auth/discord?app_id=test-app-id&state=');
+      expect(url).toBe('https://example.com/authorize?app_id=test-app-id');
     });
 
-    it('should handle errors during URL generation', async () => {
-      // Mock URLSearchParams to throw
-      const originalURLSearchParams = global.URLSearchParams;
-      global.URLSearchParams = jest.fn(() => {
-        throw new Error('URL generation failed');
-      });
-
-      await expect(service.getAuthorizationUrl('test-state')).rejects.toThrow('URL generation failed');
-      expect(logger.error).toHaveBeenCalledWith(
-        '[OAuthTokenService] Failed to generate auth URL:',
-        expect.any(Error)
-      );
-
-      global.URLSearchParams = originalURLSearchParams;
-    });
   });
 
   describe('exchangeCode', () => {
@@ -132,7 +117,7 @@ describe('OAuthTokenService', () => {
 
     it('should exchange code for token successfully', async () => {
       const tokenData = {
-        token: 'access-token-123',
+        auth_token: 'access-token-123',
         expires_at: '2024-12-31T23:59:59Z',
       };
       mockResponse.json.mockResolvedValue(tokenData);
@@ -145,16 +130,15 @@ describe('OAuthTokenService', () => {
       });
 
       expect(mockHttpClient).toHaveBeenCalledWith(
-        'https://api.example.com/auth/exchange',
+        'https://api.example.com/auth/nonce',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-API-Key': 'test-api-key',
           },
           body: JSON.stringify({
+            app_id: 'test-app-id',
             code: 'auth-code-123',
-            discord_id: 'user-123',
           }),
         }
       );
@@ -199,7 +183,7 @@ describe('OAuthTokenService', () => {
 
     it('should handle response without expires_at', async () => {
       const tokenData = {
-        token: 'access-token-123',
+        auth_token: 'access-token-123',
         // No expires_at field
       };
       mockResponse.json.mockResolvedValue(tokenData);

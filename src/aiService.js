@@ -57,13 +57,8 @@ async function getAiClientForUser(userId, context = {}) {
       return null;
     }
     
-    // Create and return an OpenAI client with the user's token
-    const { OpenAI } = require('openai');
-    const client = new OpenAI({
-      apiKey: authStatus.user.token.value,
-      baseURL: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-    });
-    
+    // Get AI client from DDD authentication system
+    const client = await authService.createAIClient(userId, context);
     return client;
   } catch (error) {
     logger.error(`[AIService] Error getting AI client for user ${userId}:`, error);
