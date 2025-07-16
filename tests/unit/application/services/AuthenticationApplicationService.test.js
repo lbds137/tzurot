@@ -591,4 +591,200 @@ describe('AuthenticationApplicationService', () => {
         .rejects.toThrow('User not authenticated');
     });
   });
+
+  describe('blacklistUser', () => {
+    it('should blacklist an existing user', async () => {
+      const user = UserAuth.createAuthenticated(
+        new UserId('123456789012345678'),
+        new Token('token', new Date(Date.now() + 1000000))
+      );
+      mockAuthRepository.findByUserId.mockResolvedValue(user);
+      mockAuthRepository.save.mockResolvedValue(undefined);
+
+      await authService.blacklistUser('123456789012345678', 'Spamming');
+
+      expect(mockAuthRepository.findByUserId).toHaveBeenCalledWith(expect.any(UserId));
+      expect(user.blacklisted).toBe(true);
+      expect(user.blacklistReason).toBe('Spamming');
+      expect(mockAuthRepository.save).toHaveBeenCalledWith(user);
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aggregateId: '123456789012345678',
+          payload: expect.objectContaining({
+            userId: '123456789012345678',
+            reason: 'Spamming',
+          }),
+        })
+      );
+    });
+
+    it('should blacklist a new user who does not exist', async () => {
+      mockAuthRepository.findByUserId.mockResolvedValue(null);
+      mockAuthRepository.save.mockResolvedValue(undefined);
+
+      await authService.blacklistUser('123456789012345678', 'Spamming');
+
+      expect(mockAuthRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          blacklisted: true,
+          blacklistReason: 'Spamming',
+        })
+      );
+    });
+
+    it('should handle errors', async () => {
+      mockAuthRepository.findByUserId.mockRejectedValue(new Error('DB error'));
+
+      await expect(authService.blacklistUser('123456789012345678', 'Test'))
+        .rejects.toThrow('DB error');
+    });
+  });
+
+  describe('unblacklistUser', () => {
+    it('should unblacklist a blacklisted user', async () => {
+      const user = UserAuth.createAuthenticated(
+        new UserId('123456789012345678'),
+        new Token('token', new Date(Date.now() + 1000000))
+      );
+      user.blacklist('Previous reason');
+      mockAuthRepository.findByUserId.mockResolvedValue(user);
+      mockAuthRepository.save.mockResolvedValue(undefined);
+
+      await authService.unblacklistUser('123456789012345678');
+
+      expect(user.blacklisted).toBe(false);
+      expect(user.blacklistReason).toBeNull();
+      expect(mockAuthRepository.save).toHaveBeenCalledWith(user);
+      expect(mockEventBus.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          aggregateId: '123456789012345678',
+          payload: expect.objectContaining({
+            userId: '123456789012345678',
+          }),
+        })
+      );
+    });
+
+    it('should error if user not found', async () => {
+      mockAuthRepository.findByUserId.mockResolvedValue(null);
+
+      await expect(authService.unblacklistUser('123456789012345678'))
+        .rejects.toThrow('User not found');
+    });
+
+    it('should error if user not blacklisted', async () => {
+      const user = UserAuth.createAuthenticated(
+        new UserId('123456789012345678'),
+        new Token('token', new Date(Date.now() + 1000000))
+      );
+      mockAuthRepository.findByUserId.mockResolvedValue(user);
+
+      await expect(authService.unblacklistUser('123456789012345678'))
+        .rejects.toThrow('User is not blacklisted');
+    });
+
+    it('should handle errors', async () => {
+      mockAuthRepository.findByUserId.mockRejectedValue(new Error('DB error'));
+
+      await expect(authService.unblacklistUser('123456789012345678'))
+        .rejects.toThrow('DB error');
+    });
+  });
+
+  describe('getBlacklistedUsers', () => {
+    it('should return formatted blacklisted users', async () => {
+      const user1 = UserAuth.createAuthenticated(
+        new UserId('111111111111111111'),
+        new Token('token1', new Date(Date.now() + 1000))
+      );
+      user1.blacklist('Spam');
+      const user2 = UserAuth.createAuthenticated(
+        new UserId('222222222222222222'),
+        new Token('token2', new Date(Date.now() + 1000))
+      );
+      user2.blacklist('Abuse');
+      
+      mockAuthRepository.findBlacklisted.mockResolvedValue([user1, user2]);
+
+      const result = await authService.getBlacklistedUsers();
+
+      expect(result).toEqual([
+        {
+          userId: '111111111111111111',
+          blacklistReason: 'Spam',
+          blacklistedAt: undefined, // UserAuth doesn't track this
+        },
+        {
+          userId: '222222222222222222',
+          blacklistReason: 'Abuse',
+          blacklistedAt: undefined,
+        },
+      ]);
+    });
+
+    it('should handle empty list', async () => {
+      mockAuthRepository.findBlacklisted.mockResolvedValue([]);
+
+      const result = await authService.getBlacklistedUsers();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should handle errors', async () => {
+      mockAuthRepository.findBlacklisted.mockRejectedValue(new Error('DB error'));
+
+      await expect(authService.getBlacklistedUsers())
+        .rejects.toThrow('DB error');
+    });
+  });
+
+  describe('getAuthenticationStatus with blacklist info', () => {
+    it('should return blacklist status for blacklisted user', async () => {
+      const user = UserAuth.createAuthenticated(
+        new UserId('123456789012345678'),
+        new Token('token', new Date(Date.now() + 1000000))
+      );
+      user.blacklist('Test reason');
+      mockAuthRepository.findByUserId.mockResolvedValue(user);
+
+      const result = await authService.getAuthenticationStatus('123456789012345678');
+
+      expect(result).toEqual({
+        isAuthenticated: false, // Blacklisted users have no token
+        user,
+        isBlacklisted: true,
+        blacklistReason: 'Test reason',
+      });
+    });
+
+    it('should return blacklist status for non-blacklisted user', async () => {
+      const user = UserAuth.createAuthenticated(
+        new UserId('123456789012345678'),
+        new Token('token', new Date(Date.now() + 1000000))
+      );
+      mockAuthRepository.findByUserId.mockResolvedValue(user);
+
+      const result = await authService.getAuthenticationStatus('123456789012345678');
+
+      expect(result).toEqual({
+        isAuthenticated: true,
+        user,
+        isBlacklisted: false,
+        blacklistReason: null,
+      });
+    });
+
+    it('should return blacklist status when user not found', async () => {
+      mockAuthRepository.findByUserId.mockResolvedValue(null);
+
+      const result = await authService.getAuthenticationStatus('123456789012345678');
+
+      expect(result).toEqual({
+        isAuthenticated: false,
+        user: null,
+        isBlacklisted: false,
+        blacklistReason: null,
+      });
+    });
+  });
 });
