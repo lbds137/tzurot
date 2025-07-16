@@ -79,20 +79,99 @@ See migration guides:
 - `docs/testing/TIMER_PATTERNS_COMPLETE.md`
 - `docs/improvements/SINGLETON_MIGRATION_GUIDE.md`
 
-## Architecture - Tzurot Specific
+## Architecture
 
-### Core Components
-1. **Bot (`bot.js`)**: Main Discord entry point - routes messages, supports guild/DM channels, deduplicates responses
-2. **Personality Manager (`personalityManager.js`)**: Manages AI personalities, aliases, and persistence
-3. **Webhook Manager (`webhookManager.js`)**: Creates/caches webhooks, splits large messages, handles media, provides DM fallback
-4. **AI Service (`aiService.js`)**: AI API interface with error handling and multimodal support (text/image/audio)
-5. **Conversation Manager (`conversationManager.js`)**: Tracks active conversations and message-personality mappings
-6. **Commands System**: Modular handlers in `src/commands/handlers/` with auth/permission middleware
-7. **Media Handling**: Central (`mediaHandler.js`), audio (`audioHandler.js`), and image (`imageHandler.js`) processors
+Tzurot follows **Domain-Driven Design (DDD)** principles with a hybrid legacy/modern architecture during migration.
+
+### DDD Layers (Current Implementation)
+
+#### Domain Layer (`src/domain/`)
+**Pure business logic with no external dependencies**
+
+- **AI Domain** (`domain/ai/`): AI requests, content handling, model definitions, request deduplication
+- **Authentication Domain** (`domain/authentication/`): User authentication, tokens, NSFW status, auth context
+- **Conversation Domain** (`domain/conversation/`): Messages, channel activation, conversation settings
+- **Personality Domain** (`domain/personality/`): Personality entities, profiles, aliases, configurations
+- **Backup Domain** (`domain/backup/`): Data export, backup jobs, personality data handling
+- **Shared Domain** (`domain/shared/`): Domain events, aggregate roots, value objects
+
+#### Application Layer (`src/application/`)
+**Orchestrates domain logic and coordinates between bounded contexts**
+
+- **Bootstrap** (`application/bootstrap/`): `ApplicationBootstrap.js` - Dependency injection and service wiring
+- **Commands** (`application/commands/`): Domain-organized command handlers
+  - Authentication: `AuthCommand.js`, `BlacklistCommand.js`, `VerifyCommand.js`
+  - Conversation: `ActivateCommand.js`, `AutorespondCommand.js`, `DeactivateCommand.js`, `ResetCommand.js`
+  - Personality: `AddCommand.js`, `AliasCommand.js`, `ConfigCommand.js`, `InfoCommand.js`, `ListCommand.js`, `RemoveCommand.js`
+  - Utility: `BackupCommand.js`, `DebugCommand.js`, `HelpCommand.js`, `NotificationsCommand.js`, `PingCommand.js`
+- **Services** (`application/services/`): `PersonalityApplicationService.js`, `AuthenticationApplicationService.js`
+- **Event Handlers** (`application/eventHandlers/`): Domain event processing
+- **Routers** (`application/routers/`): Request routing and dispatching
+
+#### Adapters Layer (`src/adapters/`)
+**External integrations and infrastructure abstractions**
+
+- **AI Adapters** (`adapters/ai/`): `HttpAIServiceAdapter.js`, `AIServiceAdapterFactory.js`
+- **Discord Adapters** (`adapters/discord/`): `DiscordMessageAdapter.js`, `DiscordWebhookAdapter.js`
+- **Persistence Adapters** (`adapters/persistence/`): File-based repositories for all domains
+- **Command Integration** (`CommandIntegrationAdapter.js`): Legacy command system bridge
+
+#### Infrastructure Layer (`src/infrastructure/`)
+**Framework-specific implementations and technical concerns**
+
+- **Authentication** (`infrastructure/authentication/`): `OAuthTokenService.js`
+- **Backup** (`infrastructure/backup/`): Archive services, API clients
+
+### Legacy Components (Being Migrated)
+
+#### Core Business Logic (`src/core/`)
+- **API Layer** (`core/api/`): Profile fetching, caching, client management
+- **Conversation** (`core/conversation/`): Legacy conversation management, auto-response
+- **Notifications** (`core/notifications/`): Release notifications, version tracking
+
+#### Message Handling (`src/handlers/`)
+- **Legacy Handlers**: `messageHandler.js`, `personalityHandler.js`, `dmHandler.js`
+- **Utility Handlers**: `errorHandler.js`, `referenceHandler.js`, `messageTrackerHandler.js`
+
+#### Entry Points
+- **Bot** (`bot.js`): Main Discord client, message routing, deduplication
+- **Webhook Manager** (`webhookManager.js`): Discord webhook creation, caching, message sending
+- **AI Service** (`aiService.js`): Legacy AI API interface with error handling
 
 ### Data Flow
-1. Discord message → `bot.js` → route based on: command prefix / reply / @mention / active conversation
-2. AI generation: `aiService.js` → AI API → `webhookManager.js` → Discord (with conversation tracking)
+
+#### DDD Command Flow (Current)
+1. Discord message → `bot.js` → `CommandIntegrationAdapter` → Domain-specific command handler
+2. Command handler → Application service → Domain logic → Repository → Persistence
+3. Domain events → Event handlers → Side effects (logging, caching, notifications)
+
+#### Legacy Flow (Still Active)
+1. Discord message → `bot.js` → Route by: command prefix / reply / @mention / active conversation
+2. AI generation: `aiService.js` → AI API → `webhookManager.js` → Discord
+3. Conversation tracking: `conversationManager.js` → Message history → Personality mapping
+
+### Migration Status
+
+**Completed DDD Migration**:
+- ✅ Authentication system (tokens, user auth, blacklist)
+- ✅ Command infrastructure and routing
+- ✅ Domain events and event handling
+- ✅ Personality management commands
+- ✅ Conversation control commands
+
+**Legacy Systems Still Active**:
+- 🔄 Message processing and webhook delivery
+- 🔄 AI request handling and response generation
+- 🔄 Avatar management and profile fetching
+- 🔄 Media handling (images, audio)
+- 🔄 Core conversation management
+
+**Architecture Goals**:
+- **Feature Parity**: All legacy functionality preserved during migration
+- **Gradual Migration**: No big-bang rewrites, incremental domain-by-domain migration
+- **Event-Driven Decoupling**: Domain events reduce coupling between bounded contexts
+- **Testability**: All components dependency-injected and mockable
+- **Performance**: No degradation during migration, maintain <30s test suite
 
 ## Critical Patterns - Tzurot Specific
 

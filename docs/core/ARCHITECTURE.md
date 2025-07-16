@@ -1,25 +1,18 @@
 # System Architecture
 
-> **⚠️ IMPORTANT**: This document describes the **legacy architecture** currently handling 100% of production traffic. For a complete view including the built-but-inactive DDD system, see [ARCHITECTURE_OVERVIEW_2025-06-18.md](../architecture/ARCHITECTURE_OVERVIEW_2025-06-18.md).
+Tzurot follows a **Domain-Driven Design (DDD)** architecture with clear separation between business logic, application orchestration, and external concerns.
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [High-Level Architecture](#high-level-architecture)
-- [Core Components](#core-components)
+- [Architecture Overview](#architecture-overview)
+- [DDD Layers](#ddd-layers)
+- [Domain Bounded Contexts](#domain-bounded-contexts)
 - [Data Flow](#data-flow)
-- [Component Interactions](#component-interactions)
-- [Design Patterns](#design-patterns)
+- [Legacy Components](#legacy-components)
 - [Security Architecture](#security-architecture)
 - [Performance Optimizations](#performance-optimizations)
-- [Error Handling Strategy](#error-handling-strategy)
-- [Scalability Considerations](#scalability-considerations)
 
-## Overview
-
-Tzurot is a Discord bot that acts as a bridge between Discord users and AI personalities. It uses Discord's webhook system to create authentic character interactions, where each AI personality appears with its own name and avatar. The bot is built using Node.js and Discord.js, following a modular architecture that separates concerns and enables maintainability.
-
-## High-Level Architecture
+## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -28,506 +21,209 @@ Tzurot is a Discord bot that acts as a bridge between Discord users and AI perso
                       │                   │
                       ▼                   ▼
 ┌─────────────────────────────┐ ┌─────────────────────────────────┐
-│      Discord.js Client      │ │      Webhook Clients            │
+│      Discord.js Client      │ │      Webhook System             │
 │         (bot.js)            │ │    (webhookManager.js)          │
 └─────────────┬───────────────┘ └────────────┬────────────────────┘
               │                               │
               ▼                               │
 ┌─────────────────────────────────────────────▼───────────────────┐
-│                    Message Processing Layer                      │
-│  ┌─────────────┐ ┌──────────────┐ ┌──────────────────────────┐ │
-│  │   Commands   │ │   Handlers   │ │   Conversation Manager   │ │
-│  └─────────────┘ └──────────────┘ └──────────────────────────┘ │
+│                   Application Layer                              │
+│ ┌─────────────┐ ┌──────────────┐ ┌──────────────────────────────┐│
+│ │  Commands   │ │   Services   │ │        Event Handlers        ││
+│ │(by domain)  │ │              │ │                              ││
+│ └─────────────┘ └──────────────┘ └──────────────────────────────┘│
 └─────────────────────────────┬───────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Service Layer                               │
-│  ┌──────────────┐ ┌─────────────────┐ ┌───────────────────────┐│
-│  │  AI Service  │ │Personality Mgr  │ │ Profile Info Fetcher ││
-│  └──────────────┘ └─────────────────┘ └───────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
+│                      Domain Layer                               │
+│ ┌──────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
+│ │   AI Domain  │ │Auth Domain  │ │Conversation │ │Personality  ││
+│ │              │ │             │ │   Domain    │ │   Domain    ││
+│ └──────────────┘ └─────────────┘ └─────────────┘ └─────────────┘│
+└─────────────────────────────┬───────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Storage Layer                               │
-│  ┌──────────────┐ ┌─────────────────┐ ┌───────────────────────┐│
-│  │Data Storage  │ │ Message Tracker │ │    Error Tracker    ││
-│  └──────────────┘ └─────────────────┘ └───────────────────────┘│
+│                    Adapters & Infrastructure                     │
+│ ┌──────────────┐ ┌─────────────┐ ┌─────────────────────────────┐│
+│ │   Discord    │ │     AI      │ │      Persistence            ││
+│ │   Adapters   │ │   Adapters  │ │    (File-based)             ││
+│ └──────────────┘ └─────────────┘ └─────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Core Components
+## DDD Layers
 
-### 1. Bot Core (`src/bot.js`)
-The main entry point that handles Discord client events and orchestrates message processing.
+### Domain Layer (`src/domain/`)
+**Pure business logic with no external dependencies**
 
-**Responsibilities:**
-- Initialize Discord.js client
-- Handle message events (messages, edits, deletions)
-- Route messages to appropriate handlers
-- Manage bot lifecycle (ready, error, disconnect events)
-- Support both guild channels and direct messages (DMs)
+Contains the core business concepts and rules:
+- **Entities**: Personality, UserAuth, Conversation, Message
+- **Value Objects**: Token, UserId, PersonalityId, AuthContext
+- **Aggregates**: Business logic boundaries and consistency rules
+- **Domain Events**: Capture important business occurrences
+- **Domain Services**: Business logic that doesn't fit in entities
 
-**Key Features:**
-- Message deduplication to prevent duplicate responses
-- Thread support for conversations in threads
-- DM handling with special webhook fallback
-- Graceful error handling and recovery
+### Application Layer (`src/application/`)
+**Orchestrates domain logic and coordinates workflows**
 
-### 2. Command System (`src/commands/`)
-Modular command processing system with middleware support.
+- **Application Services**: Coordinate multiple domain operations
+- **Commands**: Handle user actions organized by domain
+- **Event Handlers**: Process domain events
+- **DTOs**: Data transfer between layers
 
-**Structure:**
-```
-commands/
-├── index.js          # Command dispatcher
-├── handlers/         # Individual command implementations
-├── middleware/       # Pre-processing middleware
-└── utils/           # Command utilities
-```
+### Adapters Layer (`src/adapters/`)
+**External system integrations and abstractions**
 
-**Middleware Pipeline:**
-1. **Authentication Middleware** - Validates user authentication
-2. **Permissions Middleware** - Checks Discord permissions
-3. **Deduplication Middleware** - Prevents duplicate command execution
-4. **Command Handler** - Executes the specific command
+- **Discord Adapters**: Discord API interactions
+- **AI Service Adapters**: External AI API integrations  
+- **Persistence Adapters**: File-based storage implementations
+- **Command Integration**: Bridge to legacy command system
 
-### 3. Message Handlers (`src/handlers/`)
-Specialized handlers for different message types and scenarios.
+### Infrastructure Layer (`src/infrastructure/`)
+**Framework-specific and technical concerns**
 
-**Components:**
-- **messageHandler.js** - Primary message processing logic
-- **dmHandler.js** - Direct message handling
-- **referenceHandler.js** - Reply/reference message handling
-- **personalityHandler.js** - Personality interaction logic
-- **errorHandler.js** - Centralized error handling
-- **messageTrackerHandler.js** - Message tracking for conversations
+- **OAuth Services**: Authentication provider implementations
+- **Archive Services**: Backup and export functionality
 
-### 4. Webhook Manager (`src/webhookManager.js`)
-Manages Discord webhooks for personality messages.
+## Domain Bounded Contexts
 
-**Features:**
-- Webhook creation and caching per channel
-- Message splitting for content exceeding Discord limits (2000 chars)
-- Media attachment handling (images and audio)
-- Username suffix support for personality identification
-- DM fallback when webhooks aren't available
+### AI Domain (`domain/ai/`)
+Handles all AI-related operations:
+- **AIRequest**: Request lifecycle and deduplication
+- **AIContent**: Multimodal content handling
+- **AIModel**: AI service configuration
+- **Request Deduplication**: Prevents duplicate expensive API calls
 
-**Webhook Naming Pattern:**
-```
-"PersonalityDisplayName | suffix"
-```
+### Authentication Domain (`domain/authentication/`)
+User authentication and authorization:
+- **UserAuth**: User authentication state and tokens
+- **Token**: OAuth token management with expiration
+- **AuthContext**: Request context for permission checks
+- **NSFW Status**: Age verification for content access
 
-### 5. AI Service (`src/aiService.js`)
-Interface layer for AI API communication.
+### Conversation Domain (`domain/conversation/`)
+Chat interactions and state:
+- **Conversation**: Multi-turn conversation state
+- **Message**: Individual message in conversation
+- **Channel Activation**: Personality activation in channels
+- **Conversation Settings**: User preferences and configuration
 
-**Responsibilities:**
-- Send requests to AI service with proper headers
-- Handle authentication and authorization
-- Process multimodal content (text, images, audio)
-- Implement retry logic with exponential backoff
-- Sanitize and validate responses
+### Personality Domain (`domain/personality/`)
+AI personality management:
+- **Personality**: Core personality entity with configuration
+- **PersonalityProfile**: Display information (name, avatar, etc.)
+- **Alias**: Alternative names for personality access
+- **PersonalityConfiguration**: Behavior and permission settings
 
-**Security Features:**
-- Authentication bypass prevention
-- Authorization validation
-- URL validation for safety
-- Content sanitization
-
-### 6. Personality Manager (`src/personalityManager.js`)
-Manages AI personality registration and metadata.
-
-**Features:**
-- Add/remove personalities per user
-- Alias management for easy reference
-- Profile information caching
-- Personality ownership tracking
-- Data persistence to disk
-
-**Data Structure:**
-```javascript
-{
-  "personality-name": {
-    "fullName": "personality-name",
-    "addedBy": ["userId1", "userId2"],
-    "aliases": {
-      "userId1": ["alias1", "alias2"]
-    },
-    "displayName": "Personality Display Name",
-    "avatarUrl": "https://..."
-  }
-}
-```
-
-### 7. Conversation Manager (`src/conversationManager.js`)
-Tracks active conversations and maintains context.
-
-**Features:**
-- Map message IDs to personality data
-- Track active conversations per user
-- Channel-wide personality activation
-- Auto-response mode management
-- Conversation timeout handling (30 minutes)
-
-### 8. Profile Info Fetcher (`src/profileInfoFetcher.js`)
-Fetches and caches personality profile information.
-
-**Features:**
-- Dynamic avatar URL fetching
-- Display name retrieval
-- 24-hour cache for performance
-- Fallback handling for unavailable profiles
-- Rate limit aware
-
-### 9. Authentication System (`src/auth.js`)
-Manages user authentication with the AI service.
-
-**Features:**
-- OAuth-like flow for user authorization
-- Token storage and validation
-- Automatic token expiration (30 days)
-- Secure code submission (DM only)
-- Authorization status tracking
-
-### 10. Utility Modules (`src/utils/`)
-Supporting utilities for various functionalities.
-
-**Key Utilities:**
-- **embedUtils.js** - Discord embed creation and parsing
-- **mediaHandler.js** - Centralized media processing
-- **contentSimilarity.js** - Duplicate content detection
-- **rateLimiter.js** - Request rate limiting
-- **urlValidator.js** - URL safety validation
-- **webhookUserTracker.js** - Webhook message tracking
-- **errorTracker.js** - Error accumulation and tracking
+### Backup Domain (`domain/backup/`)
+Data export and backup functionality:
+- **BackupJob**: Scheduled backup operations
+- **PersonalityData**: Data structures for export
 
 ## Data Flow
 
-### Standard Message Flow
-
+### Command Processing
 ```
-User Message → Discord API → Discord.js Client → Message Event Handler
-                                                          │
-                                                          ▼
-                                              Message Type Detection
-                                             /            │            \
-                                            /             │             \
-                                     Command          Mention/Reply    Channel Active
-                                        │                 │                 │
-                                        ▼                 ▼                 ▼
-                                Command System    Personality Lookup   Get Active
-                                        │                 │            Personality
-                                        ▼                 └─────────┬───────┘
-                                   Execute                          │
-                                   Command                          ▼
-                                                            AI Service Call
-                                                                    │
-                                                                    ▼
-                                                            Webhook Manager
-                                                                    │
-                                                                    ▼
-                                                         Discord Webhook API
-                                                                    │
-                                                                    ▼
-                                                         Message Sent as
-                                                          Personality
+Discord Message → bot.js → messageHandler.js
+                              ↓
+                   CommandIntegrationAdapter
+                              ↓
+                    Application Command Handler
+                              ↓
+                     Domain Operations
+                              ↓
+                    Persistence Adapters
 ```
 
-### DM Message Flow
-
+### AI Interaction
 ```
-DM Message → Discord API → Discord.js Client → DM Handler
-                                                    │
-                                                    ▼
-                                           Check Conversation
-                                              Context
-                                                    │
-                                                    ▼
-                                            AI Service Call
-                                                    │
-                                                    ▼
-                                         Standard Reply (no webhook)
-                                           with Embed for
-                                          Personality Info
+User Message → Personality Router → AI Application Service
+                                           ↓
+               AI Domain ← AI Service Adapter → External AI API
+                    ↓
+            Domain Events → Event Handlers
+                    ↓
+            Webhook Manager → Discord API
 ```
-
-## Component Interactions
-
-### Message Processing Sequence
-
-1. **Initial Receipt**
-   - Discord.js client receives message event
-   - Message passed to bot.js event handler
-   - Deduplication check performed
-
-2. **Message Classification**
-   - Command detection (prefix check)
-   - Mention detection (@personality)
-   - Reply detection (reference to personality message)
-   - Active conversation check
-   - Channel activation check
-
-3. **Processing Path Selection**
-   - Commands → Command System
-   - Mentions/Replies → Personality Handler
-   - Active Conversations → Conversation Manager
-   - Channel Activation → Direct AI Service
-
-4. **AI Interaction**
-   - Build request with context headers
-   - Include user ID and channel ID
-   - Send to AI Service
-   - Handle response or errors
-
-5. **Response Delivery**
-   - Format response for Discord
-   - Split if exceeding character limits
-   - Send via webhook (guild) or standard message (DM)
-   - Update conversation tracking
-
-### Webhook Management Flow
-
-```
-Need to Send Message
-        │
-        ▼
-Check Webhook Cache
-        │
-    ┌───┴───┐
-    │Found? │
-    └───┬───┘
-    No  │  Yes
-    │   │   │
-    ▼   │   ▼
-Create  │  Use Cached
-Webhook │  Webhook
-    │   │   │
-    └───┼───┘
-        │
-        ▼
-Send Message(s)
-        │
-        ▼
-Handle Media
-Attachments
-```
-
-## Design Patterns
-
-### 1. Middleware Pattern
-Used in the command system for composable pre-processing.
-
-```javascript
-// Middleware pipeline
-message → auth → permissions → deduplication → handler
-```
-
-### 2. Factory Pattern
-Used for creating command handlers and message processors.
-
-### 3. Singleton Pattern
-Used for:
-- Message tracker
-- Error tracker
-- Command registry
-- Webhook cache
-
-### 4. Observer Pattern
-Event-driven architecture for Discord events.
-
-### 5. Strategy Pattern
-Different handling strategies for:
-- Guild messages vs DMs
-- Commands vs conversations
-- Media types (audio, image)
-
-## Security Architecture
 
 ### Authentication Flow
 ```
-User → !tz auth start → Get Auth URL → Visit URL → Get Code
-                                              │
-                                              ▼
-                                    Submit Code (DM only)
-                                              │
-                                              ▼
-                                      Validate & Store Token
-                                              │
-                                              ▼
-                                    Authenticated Requests
+Auth Request → Auth Command → Authentication Application Service
+                                       ↓
+              User Auth Domain ← OAuth Token Service
+                       ↓
+              File Authentication Repository
 ```
 
-### Security Layers
+## Legacy Components
 
-1. **Command Level**
-   - Permission checking
-   - Input validation
-   - Rate limiting
+Some components remain from the pre-DDD architecture:
 
-2. **API Level**
-   - Authentication token validation
-   - Authorization header checking
-   - Request sanitization
+### Core Business Logic (`src/core/`)
+- **Profile Fetching**: External personality data retrieval
+- **Conversation Management**: Legacy conversation tracking
+- **Notifications**: Release notification system
 
-3. **Content Level**
-   - URL validation
-   - Content length limits
-   - Webhook name validation
+### Message Handling (`src/handlers/`)
+- **Message Handlers**: Legacy Discord message processing
+- **Reference Handlers**: Message reply and media handling
+- **DM Handlers**: Direct message processing
 
-4. **Storage Level**
-   - No sensitive data in logs
-   - Token encryption consideration
-   - File permission management
+### Entry Points
+- **bot.js**: Main Discord client and message routing
+- **webhookManager.js**: Webhook creation and message sending
+- **aiService.js**: Legacy AI API interface
+
+## Security Architecture
+
+### Authentication & Authorization
+- **OAuth Token Flow**: Secure user authentication with external providers
+- **Permission-based Access**: Commands require appropriate permissions
+- **Token Security**: Never logged or exposed in responses
+- **Rate Limiting**: Protection against abuse and API limits
+
+### Data Privacy
+- **No Sensitive Logging**: User tokens and personal data never logged
+- **Minimal Data Storage**: Only essential data persisted
+- **Privacy Controls**: NSFW verification and content filtering
+
+### API Security
+- **Header-based Auth**: X-User-Auth header for user context
+- **Input Validation**: All user inputs sanitized and validated
+- **Error Boundaries**: Prevent sensitive information leakage
 
 ## Performance Optimizations
 
-### 1. Caching Strategy
-- **Webhook Cache**: Reduces Discord API calls
-- **Profile Cache**: 24-hour TTL for avatar/display names
-- **Message Tracking**: In-memory cache with size limits
-- **Command Registry**: Pre-loaded command modules
+### Caching Strategies
+- **Webhook Caching**: Reuse Discord webhooks to avoid rate limits
+- **Profile Caching**: Cache personality profile data to reduce API calls
+- **Conversation State**: In-memory conversation tracking
+- **Avatar Storage**: Local avatar serving to reduce external requests
 
-### 2. Rate Limiting
-- User-level rate limits
-- Channel-level rate limits
-- Global API rate limits
-- Exponential backoff for retries
+### Deduplication
+- **Request Deduplication**: Prevent duplicate AI API calls
+- **Message Deduplication**: Multiple layers prevent duplicate processing
+- **Event Deduplication**: Ensure domain events fire only once
 
-### 3. Message Deduplication
-Multiple layers prevent duplicate processing:
-- Message ID tracking
-- Content similarity detection
-- Nonce checking for webhooks
-- Command execution tracking
-
-### 4. Efficient Data Structures
-- Maps for O(1) lookups
-- Sets for unique tracking
-- Circular buffers for error tracking
-
-## Error Handling Strategy
-
-### Error Categories
-
-1. **Recoverable Errors**
-   - API timeouts → Retry with backoff
-   - Rate limits → Queue and retry
-   - Network errors → Attempt recovery
-
-2. **User Errors**
-   - Invalid commands → Clear error message
-   - Missing permissions → Helpful explanation
-   - Bad input → Validation feedback
-
-3. **System Errors**
-   - Critical failures → Log and alert
-   - Webhook failures → Fallback to standard messages
-   - Storage errors → In-memory fallback
-
-### Error Propagation
-```
-Component Error → Local Handler → Error Tracker → User Notification
-                                        │
-                                        ▼
-                                  Monitoring/Logs
-```
+### Resource Management
+- **Connection Pooling**: Efficient Discord API connections
+- **Memory Management**: LRU caches with size limits
+- **Async Processing**: Non-blocking I/O throughout the system
 
 ## Scalability Considerations
 
 ### Current Limitations
-- File-based storage (personalities.json, aliases.json)
-- In-memory conversation tracking
-- Single-instance design
-- Synchronous file I/O
+- **File-based Storage**: JSON files limit concurrent access
+- **Single Instance**: No horizontal scaling support
+- **Memory State**: Conversation state lost on restart
 
-### Future Scaling Path
+### Future Database Migration
+The DDD architecture is designed to support database migration:
+- **Repository Pattern**: Abstract persistence behind interfaces
+- **Domain Model Independence**: Business logic doesn't depend on storage
+- **Event Sourcing Ready**: Domain events can rebuild state
+- **Transaction Boundaries**: Aggregates define consistency requirements
 
-1. **Database Migration**
-   - Replace JSON files with database
-   - Implement connection pooling
-   - Add caching layer (Redis)
-
-2. **Horizontal Scaling**
-   - Stateless design enables multi-instance
-   - Shared cache/database required
-   - Load balancer for webhook callbacks
-
-3. **Performance Monitoring**
-   - Metrics collection
-   - Performance profiling
-   - Resource usage tracking
-
-4. **Optimization Opportunities**
-   - Lazy loading of commands
-   - Streaming responses
-   - Worker threads for CPU-intensive tasks
-   - Message queue for async processing
-
-## Module Dependencies
-
-```
-bot.js
-├── commands/
-├── handlers/
-│   ├── messageHandler
-│   ├── dmHandler
-│   └── errorHandler
-├── webhookManager
-├── conversationManager
-├── personalityManager
-├── aiService
-└── utils/
-
-aiService.js
-├── auth
-├── logger
-└── utils/urlValidator
-
-webhookManager.js
-├── utils/media/
-├── logger
-└── Discord.js
-
-personalityManager.js
-├── dataStorage
-├── profileInfoFetcher
-└── logger
-```
-
-## Configuration Architecture
-
-### Environment Variables
-Centralized in `config.js`, loaded from `.env`:
-- `DISCORD_TOKEN` - Bot authentication
-- `PREFIX` - Command prefix
-- `SERVICE_API_KEY` - AI service authentication
-- `SERVICE_API_ENDPOINT` - AI service URL
-- `OWNER_ID` - Bot owner Discord ID
-
-### Runtime Configuration
-- Personality data in `data/personalities.json`
-- Alias mappings in `data/aliases.json`
-- Error tracking in memory
-- Conversation state in memory
-
-## Testing Architecture
-
-### Test Structure
-```
-tests/
-├── unit/          # Unit tests for individual components
-├── mocks/         # Shared mock implementations
-├── utils/         # Test utilities and helpers
-└── setup.js       # Jest configuration
-```
-
-### Test Coverage Areas
-- Command processing
-- Message handling
-- Authentication flow
-- Error scenarios
-- Media processing
-- Deduplication logic
-
-See [TESTING.md](../testing/README.md) for detailed testing documentation.
+This architecture provides a solid foundation for evolving from the current file-based system to a more scalable database-backed solution while maintaining all business logic intact.
