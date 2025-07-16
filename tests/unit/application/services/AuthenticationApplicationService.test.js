@@ -3,18 +3,9 @@
  */
 
 const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
-const { UserAuth, Token, NsfwStatus } = require('../../../../src/domain/authentication');
+const { UserAuth, Token } = require('../../../../src/domain/authentication');
 const { UserId } = require('../../../../src/domain/personality');
-const { AuthContext } = require('../../../../src/domain/authentication/AuthContext');
-const { DomainEventBus } = require('../../../../src/domain/shared/DomainEventBus');
-const {
-  UserAuthenticated,
-  UserTokenRefreshed,
-  UserTokenExpired,
-  AuthenticationDenied,
-  UserNsfwVerified,
-  UserNsfwVerificationCleared,
-} = require('../../../../src/domain/authentication/AuthenticationEvents');
+// Events not used in current tests
 
 describe('AuthenticationApplicationService', () => {
   let authService;
@@ -24,6 +15,11 @@ describe('AuthenticationApplicationService', () => {
   let mockConfig;
 
   beforeEach(() => {
+    // Mock environment variables
+    jest.clearAllMocks();
+    process.env.BOT_OWNER_ID = '987654321098765432';
+    process.env.SERVICE_API_BASE_URL = 'https://mock-api.example.com';
+    
     // Mock repository
     mockAuthRepository = {
       save: jest.fn(),
@@ -88,7 +84,7 @@ describe('AuthenticationApplicationService', () => {
         tokenService: mockTokenService,
       });
 
-      expect(service.config.ownerId).toBe(process.env.BOT_OWNER_ID);
+      expect(service.config.ownerId).toBe('987654321098765432'); // Use mocked value
       // Token expiry and NSFW verification expiry are now handled by the AI service
     });
   });
@@ -577,7 +573,7 @@ describe('AuthenticationApplicationService', () => {
       
       // Test that the client is configured correctly by checking its behavior
       expect(client).toBeDefined();
-      expect(client.baseURL).toBe(`${process.env.SERVICE_API_BASE_URL}/v1`);
+      expect(client.baseURL).toBe('https://mock-api.example.com/v1'); // Use mocked value
     });
 
     it('should require authenticated user', async () => {

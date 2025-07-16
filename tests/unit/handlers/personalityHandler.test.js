@@ -197,7 +197,7 @@ describe('Personality Handler Module', () => {
     // Set up mock DDD auth service
     mockAuthService = {
       checkPersonalityAccess: jest.fn().mockResolvedValue({
-        isAuthorized: true,
+        allowed: true,
       })
     };
     
