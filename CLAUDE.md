@@ -419,6 +419,9 @@ npm run quality                                          # Before commits
 7. Never abandon challenging tasks or take shortcuts to avoid difficult work
 8. If you need more time or context to properly complete a task, communicate this honestly
 9. Take pride in your work and maintain high standards even when faced with obstacles
+10. **CRITICAL**: Before ANY refactoring, follow the mandatory refactoring guidelines in this document
+11. **NEVER** change user-facing behavior during refactoring - structure only, behavior never
+12. **ALWAYS** verify functional parity before removing legacy code during refactors
 
 ### Task Management and To-Do Lists
 1. **Maintain Comprehensive To-Do Lists**: Use the TodoWrite and TodoRead tools extensively to create and manage detailed task lists.
@@ -611,6 +614,70 @@ Complete DDD refactor lost critical avatar downloading/serving functionality. Av
 - Nobody verified webhooks showed avatars after migration
 - "Tests pass" !== "Features work"
 
+#### 2025-07-16 - DDD Authentication Migration Lost Core Functionality
+
+**What Happened**: 
+DDD authentication refactor broke fundamental bot functionality:
+- Bot hitting OpenAI instead of user's authenticated service (401 errors)
+- Duplicate bot responses (same message triggering multiple AI requests)
+- Authentication failures preventing basic personality interactions
+- 45+ test failures across the system
+
+**Root Cause**: 
+- **Feature parity never verified** - refactor changed behavior instead of just structure
+- **No functional testing during migration** - only checked if tests passed
+- **Missing critical service integration** - createAIClient() method not implemented in new auth service
+- **Return value changes** - authentication response format changed from `isAuthorized` to `allowed`
+- **Missing initialization steps** - AI service routing not properly migrated
+
+**Prevention Measures**:
+1. **MANDATORY Pre-Refactor Feature Inventory**:
+   ```bash
+   # Document EVERY user-facing feature before touching code
+   grep -r "getAiResponse\|handlePersonalityInteraction\|sendWebhookMessage" src/
+   # List ALL external API integrations
+   # Document ALL authentication flows
+   # Map ALL service dependencies and their initialization
+   ```
+
+2. **Behavior Preservation Tests**:
+   ```javascript
+   // Before refactoring, capture current behavior
+   describe('Refactor Behavior Preservation', () => {
+     it('should maintain exact same AI service routing', async () => {
+       // Test actual API calls, not just mocks
+       expect(aiService.currentEndpoint).toBe(expectedUserEndpoint);
+     });
+     
+     it('should maintain exact same response format', () => {
+       // Test actual return values, not just that function returns
+       expect(authResult.allowed).toBeDefined(); // New format
+       expect(authResult.isAuthorized).toBeUndefined(); // Old format removed
+     });
+   });
+   ```
+
+3. **Side-by-Side Migration Verification**:
+   - **NEVER** delete old code until new code proves identical behavior
+   - Run both systems in parallel during development
+   - Compare ALL outputs: logs, API calls, responses, database writes
+   - Verify identical user experience before removing legacy code
+
+4. **Functional Testing Checklist** (REQUIRED for ANY refactor):
+   - [ ] All existing user workflows still work identically
+   - [ ] All external service integrations unchanged
+   - [ ] All authentication flows produce same results
+   - [ ] All API calls go to same endpoints with same headers
+   - [ ] All error messages remain the same for users
+   - [ ] No new duplicate behaviors introduced
+
+**Warning Signs We Missed**:
+- "Tests pass" was treated as "functionality works" 
+- No end-to-end testing of actual Discord bot behavior
+- No verification that AI service still used user's authenticated endpoints
+- Return value format changes not caught by integration tests
+- Mock tests passed but real functionality broke
+
 #### 2025-07-08 - Exposed Vendor Dispute in Public Changelog
 
 **What Happened**: 
@@ -683,6 +750,233 @@ Put sensitive business information (Discord blocking specific vendor) in public 
 4. Update processes to catch it earlier
 
 **Remember**: These disasters are not just "oops" moments - they're learning opportunities that MUST be captured before your context resets.
+
+## 🚨 MANDATORY REFACTORING GUIDELINES - PRESERVE FUNCTIONALITY AT ALL COSTS
+
+### The Golden Rule of Refactoring
+
+**REFACTORING IS ABOUT MOVING CODE, NOT CHANGING BEHAVIOR**
+
+The purpose of refactoring is to improve code structure, organization, and maintainability while keeping the exact same functionality. If user-facing behavior changes, it's not a refactor - it's a feature change that needs different planning and testing.
+
+### 🚨 PRE-REFACTOR MANDATORY CHECKLIST
+
+**BEFORE TOUCHING ANY CODE**, complete this checklist. Skipping ANY step has led to production disasters.
+
+#### 1. Feature Inventory (REQUIRED)
+```bash
+# Document EVERY feature the code currently provides
+grep -r "export\|module.exports" src/path/to/refactor/
+# List ALL public methods and their signatures
+# Document ALL external integrations (APIs, databases, services)
+# Map ALL initialization/startup sequences
+# Identify ALL side effects (logging, metrics, caching)
+```
+
+#### 2. Dependency Mapping (REQUIRED)
+```bash
+# Find everything that depends on this code
+grep -r "require.*yourModule\|import.*yourModule" src/
+# Find everything this code depends on
+grep -r "require\|import" src/path/to/refactor/
+# Document ALL environment variables used
+# Document ALL configuration dependencies
+```
+
+#### 3. Behavioral Documentation (REQUIRED)
+```markdown
+## Current Behavior Documentation
+### Input/Output Contracts
+- Method X takes inputs A, B and returns C
+- Error conditions: throws ErrorType when condition Y
+- Side effects: calls API Z, writes to database W
+
+### Integration Points
+- Service A calls this via endpoint /api/endpoint
+- Service B expects response format {field1, field2}
+- Background jobs depend on method Y being called during initialization
+
+### Performance Characteristics
+- Expected response time: X ms
+- Memory usage: Y MB
+- Concurrency handling: Z concurrent requests
+```
+
+#### 4. Test Current Behavior BEFORE Changing (REQUIRED)
+```javascript
+// Write tests that capture EXACT current behavior
+describe('Pre-Refactor Behavior Baseline', () => {
+  it('should maintain exact API response format', async () => {
+    const result = await currentImplementation.method(input);
+    expect(result).toMatchSnapshot(); // Exact format
+    expect(result).toEqual(expectedExactStructure);
+  });
+
+  it('should maintain exact error handling', () => {
+    expect(() => currentImplementation.badInput()).toThrow('Exact error message');
+  });
+
+  it('should maintain exact side effects', () => {
+    currentImplementation.method();
+    expect(externalService.methodCalled).toBe(true);
+    expect(database.write).toHaveBeenCalledWith(exactData);
+  });
+});
+```
+
+### 🚨 DURING REFACTOR MANDATORY RULES
+
+#### 1. NEVER Delete Old Code Until New Code Proves Identical
+```javascript
+// ❌ WRONG - Deleting old code immediately
+// const oldAuth = require('./oldAuth'); // DELETED TOO SOON
+
+// ✅ RIGHT - Keep both running until proven identical
+const oldAuth = require('./oldAuth');
+const newAuth = require('./newAuth');
+
+// Test both implementations side by side
+const oldResult = oldAuth.authenticate(user);
+const newResult = newAuth.authenticate(user);
+assert.deepEqual(oldResult, newResult, 'Refactor must maintain exact behavior');
+```
+
+#### 2. Behavior Verification at Every Step
+```javascript
+// After each refactor step, verify behavior is unchanged
+describe('Refactor Step N Verification', () => {
+  it('should maintain identical behavior to pre-refactor baseline', () => {
+    // Run the same tests that passed before refactor
+    expect(newImplementation.behavior()).toEqual(baselineBehavior);
+  });
+});
+```
+
+#### 3. Integration Point Verification
+```javascript
+// Verify EVERY integration point still works identically
+it('should maintain exact same API contract', async () => {
+  const request = createTestRequest();
+  const oldResponse = await oldSystem.handleRequest(request);
+  const newResponse = await newSystem.handleRequest(request);
+  
+  expect(newResponse.statusCode).toBe(oldResponse.statusCode);
+  expect(newResponse.headers).toEqual(oldResponse.headers);
+  expect(newResponse.body).toEqual(oldResponse.body);
+});
+```
+
+### 🚨 POST-REFACTOR MANDATORY VERIFICATION
+
+#### 1. Functional Testing Checklist
+- [ ] **User Workflows**: Every user action produces identical results
+- [ ] **External APIs**: All API calls go to same endpoints with same data
+- [ ] **Database Operations**: Same data written/read in same format
+- [ ] **Error Handling**: Same error messages and error codes
+- [ ] **Performance**: Response times within 5% of original
+- [ ] **Logging**: Same log entries with same format
+- [ ] **Metrics**: Same metrics collected with same values
+- [ ] **Background Jobs**: Same tasks scheduled at same intervals
+
+#### 2. Integration Testing Requirements
+```javascript
+// Test EVERY external integration
+describe('Post-Refactor Integration Tests', () => {
+  it('should maintain exact same external API calls', () => {
+    // Mock external service
+    const apiSpy = jest.spyOn(externalService, 'call');
+    
+    newSystem.doSomething();
+    
+    expect(apiSpy).toHaveBeenCalledWith(
+      exactSameEndpoint,
+      exactSameHeaders,
+      exactSamePayload
+    );
+  });
+});
+```
+
+#### 3. Production Simulation Testing
+```bash
+# Before deploying refactored code
+npm run test:production-simulation
+# Should test with production-like data volumes
+# Should test with production-like request patterns
+# Should verify identical logs/metrics output
+```
+
+### 🚨 REFACTOR RED FLAGS - STOP IMMEDIATELY
+
+If you encounter ANY of these during refactoring, you've strayed from refactoring into feature changes:
+
+#### ❌ **Behavior Changes** (Not Refactoring)
+- "Let's improve this error message while we're here"
+- "We should make this more efficient"
+- "This validation seems unnecessary"
+- "Let's add this new feature since we're touching this code"
+
+#### ❌ **Contract Changes** (Not Refactoring)
+- Changing method signatures
+- Changing return value formats (`isAuthorized` → `allowed`)
+- Changing error types or messages
+- Adding or removing required parameters
+
+#### ❌ **Integration Changes** (Not Refactoring)
+- "We should switch to a better API endpoint"
+- "Let's update the database schema while we're here"
+- "This external service call is redundant"
+
+#### ❌ **Performance Changes** (Not Refactoring)
+- "We can make this faster by caching"
+- "Let's reduce the number of database calls"
+- "We should batch these API requests"
+
+### 🚨 MCP CONSULTATION FOR REFACTORING
+
+**MANDATORY MCP Usage for Refactoring:**
+
+```javascript
+// Before starting ANY refactor
+mcp__gemini-collab__gemini_brainstorm({
+  topic: "Potential risks in refactoring [specific component]",
+  constraints: "Must maintain exact same functionality, identify hidden dependencies"
+});
+
+// During refactor when stuck
+mcp__gemini-collab__ask_gemini({
+  question: "How can I refactor [specific code] without changing any behavior?",
+  context: "Current code does X, Y, Z. Need to move to new structure but keep identical output"
+});
+
+// Before completing refactor
+mcp__gemini-collab__gemini_code_review({
+  code: refactoredCode,
+  focus: "behavior preservation, missing functionality, integration gaps",
+  language: "javascript"
+});
+```
+
+### 🚨 Emergency Refactor Recovery
+
+If you realize you've broken functionality during a refactor:
+
+1. **STOP** - Don't try to fix forward
+2. **REVERT** - Go back to working state
+3. **DOCUMENT** - What broke and why
+4. **RESTART** - Begin refactor again with proper inventory
+5. **TEST** - Verify each step maintains behavior
+
+### The Most Important Refactoring Rules
+
+1. **Refactoring is invisible to users** - If users can tell you refactored, you did it wrong
+2. **Tests should pass without changes** - If you have to update tests, you changed behavior  
+3. **Logs should look identical** - Same entries, same format, same timing
+4. **Performance should be identical** - Within 5% of original metrics
+5. **Error messages must be identical** - Users rely on specific error text
+6. **Integration points are sacred** - External services must see no changes
+
+**Remember**: Refactoring is about making the code easier to work with for DEVELOPERS, not about changing what the code does for USERS.
 
 ## 🚨 MANDATORY MCP USAGE - STOP IGNORING THIS TOOL
 
