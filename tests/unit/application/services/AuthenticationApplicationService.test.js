@@ -5,7 +5,15 @@
 const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
 const { UserAuth, Token } = require('../../../../src/domain/authentication');
 const { UserId } = require('../../../../src/domain/personality');
-// Events not used in current tests
+const { AuthContext } = require('../../../../src/domain/authentication/AuthContext');
+const {
+  UserAuthenticated,
+  UserTokenRefreshed,
+  UserTokenExpired,
+  AuthenticationDenied,
+  UserNsfwVerified,
+  UserNsfwVerificationCleared,
+} = require('../../../../src/domain/authentication/AuthenticationEvents');
 
 describe('AuthenticationApplicationService', () => {
   let authService;
