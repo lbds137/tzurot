@@ -56,11 +56,20 @@ class FileAuthenticationRepository extends AuthenticationRepository {
       // Load existing data or create new file
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
-        this._cache = JSON.parse(data);
+        const parsedData = JSON.parse(data);
+        
+        // Handle migration from old format to new format
+        if (parsedData.userAuth && parsedData.tokens) {
+          logger.info('[FileAuthenticationRepository] Migrating from old format to new format');
+          this._cache = await this._migrateFromOldFormat(parsedData);
+          await this._persist();
+        } else {
+          this._cache = parsedData;
+        }
       } catch (error) {
         if (error.code === 'ENOENT') {
           // File doesn't exist, create it
-          this._cache = { userAuth: {}, tokens: {} };
+          this._cache = {};
           await this._persist();
         } else {
           throw error;
@@ -91,44 +100,13 @@ class FileAuthenticationRepository extends AuthenticationRepository {
 
     try {
       const data = userAuth.toJSON();
-
-      // Store user auth - maintaining backward compatibility with existing data
-      // that may have multiple tokens per user
-      const existingData = this._cache.userAuth[userAuth.userId.toString()];
-      const existingTokens = existingData ? existingData.tokens : [];
-
-      // If this user already has tokens for other personalities, preserve them
-      const otherTokens = existingTokens.filter(
-        t => userAuth.token && t.personalityId !== userAuth.token.personalityId
-      );
-
-      // Add current token if exists
-      const currentTokens = userAuth.token
-        ? [...otherTokens, {
-            ...userAuth.token.toJSON(),
-            createdAt: userAuth.lastAuthenticatedAt || new Date().toISOString()
-          }]
-        : otherTokens;
-
-      this._cache.userAuth[userAuth.userId.toString()] = {
+      
+      // Simple structure - one user, one auth record
+      this._cache[userAuth.userId.toString()] = {
         ...data,
         userId: userAuth.userId.toString(),
-        tokens: currentTokens,
         savedAt: new Date().toISOString(),
       };
-
-      // Store token separately for efficient lookup
-      if (userAuth.token) {
-        // The Token object doesn't have personalityId, we need to extract from auth context
-        const tokenJson = userAuth.token.toJSON();
-        this._cache.tokens[userAuth.token.value] = {
-          userId: userAuth.userId.toString(),
-          personalityId: data.personalityId || 'unknown', // Extract from userAuth data
-          createdAt: new Date().toISOString(),
-          expiresAt: tokenJson.expiresAt,
-          revokedAt: null,
-        };
-      }
 
       await this._persist();
 
@@ -148,7 +126,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     await this._ensureInitialized();
 
     try {
-      const data = this._cache.userAuth[userId];
+      const data = this._cache[userId];
       if (!data) {
         return null;
       }
@@ -169,53 +147,17 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     await this._ensureInitialized();
 
     try {
-      const tokenData = this._cache.tokens[token];
-      if (!tokenData) {
-        return null;
+      // Search through all users to find the one with this token
+      for (const userData of Object.values(this._cache)) {
+        if (userData.token && userData.token.value === token) {
+          return this._hydrate(userData);
+        }
       }
-
-      // Get the user auth
-      const userAuthData = this._cache.userAuth[tokenData.userId];
-      if (!userAuthData) {
-        // Token exists but user doesn't - cleanup orphaned token
-        delete this._cache.tokens[token];
-        await this._persist();
-        return null;
-      }
-
-      return this._hydrate(userAuthData);
+      
+      return null;
     } catch (error) {
       logger.error('[FileAuthenticationRepository] Failed to find by token:', error);
       throw new Error(`Failed to find user auth by token: ${error.message}`);
-    }
-  }
-
-  /**
-   * Find all authentications for a personality
-   * @param {string} personalityId - Personality ID
-   * @returns {Promise<UserAuth[]>}
-   */
-  async findByPersonalityId(personalityId) {
-    await this._ensureInitialized();
-
-    try {
-      const results = [];
-
-      for (const data of Object.values(this._cache.userAuth)) {
-        // Check if user has any tokens for this personality
-        const hasPersonalityToken = data.tokens.some(
-          t => t.personalityId === personalityId && !t.revokedAt
-        );
-
-        if (hasPersonalityToken) {
-          results.push(await this._hydrate(data));
-        }
-      }
-
-      return results;
-    } catch (error) {
-      logger.error('[FileAuthenticationRepository] Failed to find by personality:', error);
-      throw new Error(`Failed to find user auth by personality: ${error.message}`);
     }
   }
 
@@ -228,16 +170,8 @@ class FileAuthenticationRepository extends AuthenticationRepository {
     await this._ensureInitialized();
 
     try {
-      const userAuth = this._cache.userAuth[userId];
-      if (userAuth) {
-        // Remove all associated tokens
-        for (const token of userAuth.tokens || []) {
-          delete this._cache.tokens[token.value];
-        }
-
-        // Remove user auth
-        delete this._cache.userAuth[userId];
-
+      if (this._cache[userId]) {
+        delete this._cache[userId];
         await this._persist();
         logger.info(`[FileAuthenticationRepository] Deleted user auth: ${userId}`);
       }
@@ -254,37 +188,71 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    */
   async exists(userId) {
     await this._ensureInitialized();
-    return !!this._cache.userAuth[userId];
+    return !!this._cache[userId];
   }
 
   /**
-   * Count all users with valid tokens
+   * Count all authenticated users
    * @returns {Promise<number>}
    */
-  async countActiveUsers() {
+  async countAuthenticated() {
+    await this._ensureInitialized();
+    return Object.keys(this._cache).length;
+  }
+
+  /**
+   * Find all blacklisted users
+   * @returns {Promise<UserAuth[]>}
+   */
+  async findBlacklisted() {
     await this._ensureInitialized();
 
     try {
-      let count = 0;
-      const now = Date.now();
-
-      for (const userAuth of Object.values(this._cache.userAuth)) {
-        // Check if user has any valid (non-expired, non-revoked) tokens
-        const hasValidToken = userAuth.tokens.some(token => {
-          if (token.revokedAt) return false;
-          if (!token.expiresAt) return true;
-          return new Date(token.expiresAt).getTime() > now;
-        });
-
-        if (hasValidToken) {
-          count++;
+      const results = [];
+      
+      for (const userData of Object.values(this._cache)) {
+        if (userData.blacklisted) {
+          const userAuth = await this._hydrate(userData);
+          if (userAuth) {
+            results.push(userAuth);
+          }
         }
       }
-
-      return count;
+      
+      return results;
     } catch (error) {
-      logger.error('[FileAuthenticationRepository] Failed to count active users:', error);
-      throw new Error(`Failed to count active users: ${error.message}`);
+      logger.error('[FileAuthenticationRepository] Failed to find blacklisted:', error);
+      throw new Error(`Failed to find blacklisted users: ${error.message}`);
+    }
+  }
+
+  /**
+   * Find all users with expired tokens
+   * @returns {Promise<UserAuth[]>}
+   */
+  async findExpiredTokens() {
+    await this._ensureInitialized();
+
+    try {
+      const results = [];
+      const now = Date.now();
+      
+      for (const userData of Object.values(this._cache)) {
+        if (userData.token && userData.token.expiresAt) {
+          const expiresAt = new Date(userData.token.expiresAt).getTime();
+          if (expiresAt < now) {
+            const userAuth = await this._hydrate(userData);
+            if (userAuth) {
+              results.push(userAuth);
+            }
+          }
+        }
+      }
+      
+      return results;
+    } catch (error) {
+      logger.error('[FileAuthenticationRepository] Failed to find expired tokens:', error);
+      throw new Error(`Failed to find expired tokens: ${error.message}`);
     }
   }
 
@@ -293,67 +261,29 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    * @private
    */
   _hydrate(data) {
-    // Since UserAuth requires authentication with a token, we need to handle this differently
-    // We'll create a UserAuth instance for each token stored (backward compatibility)
-    // For now, return the UserAuth with the most recent valid token
-
-    const userId = new UserId(data.userId);
-
-    // Find the most recent valid token
-    let latestToken = null;
-    let latestTime = 0;
-
-    for (const tokenData of data.tokens || []) {
-      // Skip revoked tokens
-      if (tokenData.revokedAt) continue;
-
-      // Skip expired tokens
-      if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < Date.now()) continue;
-
-      const tokenTime = new Date(tokenData.createdAt).getTime();
-      if (tokenTime > latestTime) {
-        latestTime = tokenTime;
-        latestToken = tokenData;
+    try {
+      // Ensure we have the required data
+      if (!data || !data.userId || !data.token) {
+        logger.warn('[FileAuthenticationRepository] Cannot hydrate user without userId and token');
+        return null;
       }
+
+      // Use the fromData factory method
+      const userAuth = UserAuth.fromData(data);
+      
+      // Mark as hydrated from persistence
+      userAuth.markEventsAsCommitted();
+      
+      return userAuth;
+    } catch (error) {
+      logger.error('[FileAuthenticationRepository] Failed to hydrate user auth:', {
+        error: error.message,
+        userId: data?.userId,
+        hasToken: !!data?.token,
+        tokenValue: data?.token?.value ? 'present' : 'missing',
+      });
+      return null;
     }
-
-    // If no valid token, we can't create a UserAuth
-    if (!latestToken) {
-      return null; // No authenticated user
-    }
-
-    // Prepare user auth data for reconstitution
-    const authData = {
-      userId: data.userId,
-      token: {
-        value: latestToken.value,
-        expiresAt: latestToken.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year default
-      },
-      blacklisted: data.blacklisted || false,
-      blacklistReason: data.blacklistReason || null,
-      lastAuthenticatedAt: data.lastAuthenticated || latestToken.createdAt,
-      authenticationCount: data.tokens?.length || 1,
-    };
-
-    // Handle NSFW status
-    if (data.nsfwVerified) {
-      authData.nsfwStatus = {
-        verified: true,
-        verifiedAt: data.nsfwVerifiedAt || new Date().toISOString(),
-      };
-    }
-
-    // Use the fromData factory method
-    const userAuth = UserAuth.fromData(authData);
-
-
-    // Store reference to all tokens for backward compatibility queries
-    userAuth._allTokens = data.tokens || [];
-
-    // Mark as hydrated from persistence
-    userAuth.markEventsAsCommitted();
-
-    return userAuth;
   }
 
   /**
@@ -393,29 +323,10 @@ class FileAuthenticationRepository extends AuthenticationRepository {
    * @private
    */
   async _cleanupExpiredTokens() {
-    const now = Date.now();
-    let cleanedCount = 0;
-
-    // Clean up expired tokens from token index
-    for (const [tokenValue, tokenData] of Object.entries(this._cache.tokens)) {
-      if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < now) {
-        delete this._cache.tokens[tokenValue];
-        cleanedCount++;
-      }
-    }
-
-    // Clean up expired tokens from user auth
-    for (const userAuth of Object.values(this._cache.userAuth)) {
-      userAuth.tokens = userAuth.tokens.filter(token => {
-        if (!token.expiresAt) return true;
-        return new Date(token.expiresAt).getTime() >= now;
-      });
-    }
-
-    if (cleanedCount > 0) {
-      logger.info(`[FileAuthenticationRepository] Cleaned up ${cleanedCount} expired tokens`);
-      await this._persist();
-    }
+    // In the simplified structure, we don't actually remove expired tokens
+    // The domain logic handles token expiry checking
+    // This method is kept for interface compatibility but does nothing
+    logger.debug('[FileAuthenticationRepository] Token cleanup check completed');
   }
 
   /**
@@ -448,50 +359,55 @@ class FileAuthenticationRepository extends AuthenticationRepository {
   }
 
   /**
-   * Get repository statistics
-   * @returns {Promise<Object>}
+   * Migrate from old format to new format
+   * @private
    */
-  async getStats() {
-    await this._ensureInitialized();
-
-    const totalUsers = Object.keys(this._cache.userAuth).length;
-    const totalTokens = Object.keys(this._cache.tokens).length;
-
-    let activeTokens = 0;
-    let expiredTokens = 0;
-    let revokedTokens = 0;
-    let verifiedUsers = 0;
-    let blockedUsers = 0;
-
-    const now = Date.now();
-
-    for (const tokenData of Object.values(this._cache.tokens)) {
-      if (tokenData.revokedAt) {
-        revokedTokens++;
-      } else if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < now) {
-        expiredTokens++;
-      } else {
-        activeTokens++;
+  async _migrateFromOldFormat(oldData) {
+    const newData = {};
+    
+    // Migrate each user from the old format
+    for (const [userId, userData] of Object.entries(oldData.userAuth)) {
+      // Find the most recent valid token for this user
+      let mostRecentToken = null;
+      
+      if (userData.token) {
+        // User already has a single token in the data
+        mostRecentToken = userData.token;
+      } else if (userData.tokens && userData.tokens.length > 0) {
+        // Find the most recent non-revoked, non-expired token
+        const now = Date.now();
+        let latestTime = 0;
+        
+        for (const tokenData of userData.tokens) {
+          if (tokenData.revokedAt) continue;
+          if (tokenData.expiresAt && new Date(tokenData.expiresAt).getTime() < now) continue;
+          
+          const tokenTime = new Date(tokenData.createdAt || userData.lastAuthenticatedAt).getTime();
+          if (tokenTime > latestTime) {
+            latestTime = tokenTime;
+            mostRecentToken = {
+              value: tokenData.value,
+              expiresAt: tokenData.expiresAt,
+            };
+          }
+        }
       }
+      
+      // Create the simplified user data
+      newData[userId] = {
+        userId: userData.userId,
+        token: mostRecentToken,
+        nsfwStatus: userData.nsfwStatus || { verified: false, verifiedAt: null },
+        blacklisted: userData.blacklisted || false,
+        blacklistReason: userData.blacklistReason || null,
+        lastAuthenticatedAt: userData.lastAuthenticatedAt || userData.savedAt,
+        authenticationCount: userData.authenticationCount || 1,
+        savedAt: userData.savedAt || new Date().toISOString(),
+      };
     }
-
-    for (const userAuth of Object.values(this._cache.userAuth)) {
-      if (userAuth.nsfwStatus === 'verified') {
-        verifiedUsers++;
-      } else if (userAuth.nsfwStatus === 'blocked') {
-        blockedUsers++;
-      }
-    }
-
-    return {
-      totalUsers,
-      totalTokens,
-      activeTokens,
-      expiredTokens,
-      revokedTokens,
-      verifiedUsers,
-      blockedUsers,
-    };
+    
+    logger.info(`[FileAuthenticationRepository] Migrated ${Object.keys(newData).length} users to new format`);
+    return newData;
   }
 }
 
