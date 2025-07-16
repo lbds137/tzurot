@@ -198,7 +198,6 @@ describe('Personality Handler Module', () => {
     mockAuthService = {
       checkPersonalityAccess: jest.fn().mockResolvedValue({
         isAuthorized: true,
-        errors: []
       })
     };
     
@@ -243,10 +242,10 @@ describe('Personality Handler Module', () => {
 
   describe('handlePersonalityInteraction', () => {
     it('should check NSFW channel requirements', async () => {
-      mockPersonality.isNSFW = true;
+      // All personalities are treated as NSFW uniformly
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: ['This personality requires age verification. Please use `!tz verify` first.']
+        allowed: false,
+        reason: 'NSFW verification required'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -257,15 +256,15 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'This personality requires age verification. Please use `!tz verify` first.'
+        content: 'NSFW verification required'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
 
     it('should check authentication before age verification', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: ['Authentication required. Please use `!tz auth` to authenticate.']
+        allowed: false,
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -276,7 +275,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'Authentication required. Please use `!tz auth` to authenticate.'
+        content: 'Personality requires authentication'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
@@ -285,8 +284,7 @@ describe('Personality Handler Module', () => {
       mockPersonality.isNSFW = true;
       channelUtils.isChannelNSFW.mockReturnValue(true);
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: true,
-        errors: []
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -301,11 +299,11 @@ describe('Personality Handler Module', () => {
     });
 
     it('should require age verification in DMs without auto-verification', async () => {
-      mockPersonality.isNSFW = true;
+      // All personalities are treated as NSFW uniformly
       mockMessage.channel.type = 1; // DM channel
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: ['🔞 This personality is marked as NSFW (18+). Please verify your age by running `!tz verify` in DMs to proceed.']
+        allowed: false,
+        reason: 'NSFW verification required'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -316,7 +314,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: '🔞 This personality is marked as NSFW (18+). Please verify your age by running `!tz verify` in DMs to proceed.'
+        content: 'NSFW verification required'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
@@ -535,8 +533,7 @@ describe('Personality Handler Module', () => {
       const pluralkitMessage = { ...mockMessage, webhookId: 'webhook-123' };
       
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: true,
-        errors: []
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -558,8 +555,7 @@ describe('Personality Handler Module', () => {
     it('should handle regular users without proxy message formatting', async () => {
       webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: true,
-        errors: []
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -585,8 +581,7 @@ describe('Personality Handler Module', () => {
       webhookUserTracker.getRealUserId.mockReturnValue('real-user-id');
       
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: true,
-        errors: []
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -616,8 +611,8 @@ describe('Personality Handler Module', () => {
 
     it('should check authentication for PluralKit proxy messages', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: ['PluralKit user authentication required. The account owner must authenticate with `!tz auth`.']
+        allowed: false,
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -628,15 +623,14 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: 'PluralKit user authentication required. The account owner must authenticate with `!tz auth`.'
+        content: 'Personality requires authentication'
       });
       expect(getAiResponse).not.toHaveBeenCalled();
     });
 
     it('should allow authenticated PluralKit users to use personalities', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: true,
-        errors: []
+        allowed: true
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -664,10 +658,9 @@ describe('Personality Handler Module', () => {
     });
 
     it('should show custom error message for unauthenticated PluralKit users', async () => {
-      const customMessage = 'Your account needs authentication to use personalities through PluralKit.';
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: [customMessage]
+        allowed: false,
+        reason: 'Personality requires authentication'
       });
 
       await personalityHandler.handlePersonalityInteraction(
@@ -678,7 +671,7 @@ describe('Personality Handler Module', () => {
       );
 
       expect(mockMessage.reply).toHaveBeenCalledWith({
-        content: customMessage
+        content: 'Personality requires authentication'
       });
     });
   });
@@ -973,8 +966,8 @@ describe('Personality Handler Module', () => {
 
     it('should handle sendAuthError failing gracefully', async () => {
       mockAuthService.checkPersonalityAccess.mockResolvedValueOnce({
-        isAuthorized: false,
-        errors: ['Authentication failed']
+        allowed: false,
+        reason: 'Personality requires authentication'
       });
       mockMessage.reply.mockRejectedValueOnce(new Error('Reply failed'));
 

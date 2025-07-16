@@ -8,7 +8,7 @@ jest.mock('../../src/aiService');
 jest.mock('../../src/core/conversation');
 
 describe('Webhook Reply Authentication', () => {
-  let mockAuthManager;
+  // Legacy authManager removed - using DDD authentication
 
   // Spy on logging
   const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -19,12 +19,7 @@ describe('Webhook Reply Authentication', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Create mock AuthManager
-    mockAuthManager = {
-      hasValidToken: jest.fn(),
-      isNsfwVerified: jest.fn(),
-      validateUserAuth: jest.fn(),
-    };
+    // Legacy authManager removed - using DDD authentication
 
     // Mock getPersonalityFromMessage
     conversationManager.getPersonalityFromMessage.mockReturnValue('test-personality');
@@ -32,7 +27,7 @@ describe('Webhook Reply Authentication', () => {
     // Mock getAiResponse
     aiService.getAiResponse.mockResolvedValue('AI response');
 
-    // Auth functions are now handled within aiService, so no need to mock them separately
+    // Legacy authManager removed - authentication handled by DDD system in aiService
 
     // Mock webhook message sending
     webhookManager.sendWebhookMessage.mockResolvedValue({
@@ -146,9 +141,8 @@ describe('Webhook Reply Authentication', () => {
       displayName: 'Test Personality',
     };
 
-    // Test user 1's auth token lookup
-    // We need to simulate the behavior of aiService.getAiClientForUser here
-    await mockAuthManager.hasValidToken(mockMessageUser1.author.id);
+    // Test user 1's auth - legacy authManager removed
+    // Authentication now handled by DDD system in aiService
     await aiService.getAiResponse(mockPersonality.fullName, mockMessageUser1.content, {
       userId: mockMessageUser1.author.id,
       channelId: mockMessageUser1.channel.id,
@@ -164,15 +158,13 @@ describe('Webhook Reply Authentication', () => {
       })
     );
 
-    // Verify mockAuthManager.hasValidToken was called with the first user's ID
-    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('9999');
+    // Legacy authManager.hasValidToken removed - authentication handled by DDD system
 
     // Reset mocks
     jest.clearAllMocks();
 
-    // Test user 2's auth token lookup
-    // We need to simulate the behavior of aiService.getAiClientForUser here
-    await mockAuthManager.hasValidToken(mockMessageUser2.author.id);
+    // Test user 2's auth - legacy authManager removed
+    // Authentication now handled by DDD system in aiService
     await aiService.getAiResponse(mockPersonality.fullName, mockMessageUser2.content, {
       userId: mockMessageUser2.author.id,
       channelId: mockMessageUser2.channel.id,
@@ -188,7 +180,6 @@ describe('Webhook Reply Authentication', () => {
       })
     );
 
-    // Verify mockAuthManager.hasValidToken was called with the second user's ID
-    expect(mockAuthManager.hasValidToken).toHaveBeenCalledWith('8888');
+    // Legacy authManager.hasValidToken removed - authentication handled by DDD system
   });
 });

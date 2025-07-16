@@ -394,10 +394,13 @@ describe('UserAuth', () => {
       expect(userAuth.canAccessNsfw(nsfwPersonality, channelContext)).toBe(true);
     });
 
-    it('should allow safe content always', () => {
-      // Safe content is always allowed
-      expect(userAuth.canAccessNsfw(safePersonality, dmContext)).toBe(true);
-      expect(userAuth.canAccessNsfw(safePersonality, channelContext)).toBe(true);
+    it('should treat all personalities as NSFW uniformly', () => {
+      // All personalities are treated as NSFW uniformly
+      // So both safe and NSFW personalities require same verification
+      expect(userAuth.canAccessNsfw(safePersonality, dmContext)).toBe(false); // DM requires verification
+      expect(userAuth.canAccessNsfw(safePersonality, channelContext)).toBe(true); // NSFW channel allows it
+      expect(userAuth.canAccessNsfw(nsfwPersonality, dmContext)).toBe(false); // DM requires verification
+      expect(userAuth.canAccessNsfw(nsfwPersonality, channelContext)).toBe(true); // NSFW channel allows it
     });
 
     it('should check NSFW status for NSFW personalities in DMs', () => {
