@@ -26,7 +26,7 @@ describe('DebugCommand', () => {
   let mockWebhookUserTracker;
   let mockNsfwVerificationManager;
   let mockConversationManager;
-  let mockAuthManager;
+  // Legacy authManager removed - using DDD authentication
   let mockDDDAuthService;
   let mockMessageTracker;
   let migrationHelper;
@@ -52,11 +52,7 @@ describe('DebugCommand', () => {
       clearConversation: jest.fn(),
     };
 
-    // Mock auth manager (legacy)
-    mockAuthManager = {
-      nsfwVerificationManager: mockNsfwVerificationManager,
-      cleanupExpiredTokens: jest.fn().mockResolvedValue([]),
-    };
+    // Legacy authManager removed - using DDD authentication
     
     // Mock DDD authentication service
     mockDDDAuthService = {
@@ -83,7 +79,7 @@ describe('DebugCommand', () => {
       nsfwVerificationManager: mockNsfwVerificationManager,
       conversationManager: mockConversationManager,
       messageTracker: mockMessageTracker,
-      authManager: mockAuthManager,
+      // Legacy authManager removed - using DDD authentication
     });
 
     // Mock context
@@ -148,7 +144,7 @@ describe('DebugCommand', () => {
         webhookUserTracker: mockWebhookUserTracker,
         nsfwVerificationManager: mockNsfwVerificationManager,
         conversationManager: mockConversationManager,
-        authManager: mockAuthManager,
+        // Legacy authManager removed - using DDD authentication
         messageTracker: mockMessageTracker,
       });
       

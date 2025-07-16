@@ -107,7 +107,7 @@ async function checkPersonalityAuthDDD(message, personality) {
     const authContext = new AuthContext({
       channelType,
       channelId: message.channel.id,
-      isNsfwChannel: personality.nsfw || false,
+      isNsfwChannel: true, // All personalities are treated as NSFW uniformly
       isProxyMessage: !!message.webhookId,
       requestedPersonalityId: personality.name,
     });
