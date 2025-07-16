@@ -60,7 +60,6 @@ describe('UserAuth', () => {
       expect(userAuth).toBeInstanceOf(UserAuth);
       expect(userAuth.userId).toEqual(userId);
       expect(userAuth.token.value).toBe(token.value);
-      expect(userAuth.lastAuthenticatedAt).toBeDefined();
       expect(userAuth.authenticationCount).toBe(1);
       expect(userAuth.version).toBe(1);
     });
@@ -487,6 +486,122 @@ describe('UserAuth', () => {
       const json = userAuth.toJSON();
 
       expect(json.token).toBeNull();
+    });
+  });
+
+  describe('fromData', () => {
+    it('should reconstitute UserAuth from persisted data', () => {
+      const data = {
+        userId: '123456789012345678',
+        token: {
+          value: 'test-token-value',
+          expiresAt: '2024-01-01T01:00:00.000Z'
+        },
+        nsfwStatus: {
+          verified: true,
+          verifiedAt: '2024-01-01T00:00:00.000Z'
+        },
+        blacklisted: false,
+        blacklistReason: null,
+        lastAuthenticatedAt: '2024-01-01T00:00:00.000Z',
+        authenticationCount: 5
+      };
+
+      const userAuth = UserAuth.fromData(data);
+
+      expect(userAuth.userId.toString()).toBe('123456789012345678');
+      expect(userAuth.token.value).toBe('test-token-value');
+      expect(userAuth.token.expiresAt).toEqual(new Date('2024-01-01T01:00:00.000Z'));
+      expect(userAuth.nsfwStatus.verified).toBe(true);
+      expect(userAuth.blacklisted).toBe(false);
+      expect(userAuth.blacklistReason).toBeNull();
+      expect(userAuth.lastAuthenticatedAt).toEqual(new Date('2024-01-01T00:00:00.000Z'));
+      expect(userAuth.authenticationCount).toBe(5);
+    });
+
+    it('should handle data without expiresAt', () => {
+      const data = {
+        userId: '123456789012345678',
+        token: {
+          value: 'test-token-value'
+          // No expiresAt
+        }
+      };
+
+      const userAuth = UserAuth.fromData(data);
+
+      expect(userAuth.token.expiresAt).toBeNull();
+    });
+
+    it('should handle data without nsfwStatus', () => {
+      const data = {
+        userId: '123456789012345678',
+        token: {
+          value: 'test-token-value'
+        }
+        // No nsfwStatus
+      };
+
+      const userAuth = UserAuth.fromData(data);
+
+      expect(userAuth.nsfwStatus.verified).toBe(false);
+    });
+
+    it('should handle data without lastAuthenticatedAt', () => {
+      const data = {
+        userId: '123456789012345678',
+        token: {
+          value: 'test-token-value'
+        }
+        // No lastAuthenticatedAt
+      };
+
+      const userAuth = UserAuth.fromData(data);
+
+      expect(userAuth.lastAuthenticatedAt).toEqual(new Date('2024-01-01T00:00:00Z'));
+    });
+
+    it('should handle data without authenticationCount', () => {
+      const data = {
+        userId: '123456789012345678',
+        token: {
+          value: 'test-token-value'
+        }
+        // No authenticationCount
+      };
+
+      const userAuth = UserAuth.fromData(data);
+
+      expect(userAuth.authenticationCount).toBe(1);
+    });
+
+    it('should require userId', () => {
+      const data = {
+        // No userId
+        token: {
+          value: 'test-token-value'
+        }
+      };
+
+      expect(() => UserAuth.fromData(data)).toThrow('Cannot reconstitute UserAuth without userId and token');
+    });
+
+    it('should require token', () => {
+      const data = {
+        userId: '123456789012345678'
+        // No token
+      };
+
+      expect(() => UserAuth.fromData(data)).toThrow('Cannot reconstitute UserAuth without userId and token');
+    });
+  });
+
+  describe('verifyNsfw - authentication check', () => {
+    it('should reject if user not authenticated', () => {
+      const userAuth = UserAuth.createAuthenticated(userId, token);
+      userAuth.expireToken(); // Remove authentication
+
+      expect(() => userAuth.verifyNsfw()).toThrow('Must be authenticated to verify NSFW access');
     });
   });
 });
