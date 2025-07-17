@@ -204,31 +204,36 @@ async function clearAuth(context) {
   try {
     // Get user ID to clear auth for (defaults to command user)
     const targetUserId = context.args?.[1] || context.userId;
-    
+
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
-    logger.info(`[Debug] Authentication revocation requested by ${context.getAuthorDisplayName()} for user ${targetUserId}`);
-    
+
+    logger.info(
+      `[Debug] Authentication revocation requested by ${context.getAuthorDisplayName()} for user ${targetUserId}`
+    );
+
     // Revoke user's authentication
     await authService.revokeAuthentication(targetUserId);
-    
+
     // Also cleanup any expired tokens in the system
     const cleanupResult = await authService.cleanupExpiredTokens();
-    
+
     const successEmbed = {
       title: '✅ Authentication Revoked',
-      description: targetUserId === context.userId 
-        ? 'Your authentication has been revoked. You will need to re-authenticate to interact with personalities.'
-        : `Authentication revoked for user <@${targetUserId}>. They will need to re-authenticate to interact with personalities.`,
+      description:
+        targetUserId === context.userId
+          ? 'Your authentication has been revoked. You will need to re-authenticate to interact with personalities.'
+          : `Authentication revoked for user <@${targetUserId}>. They will need to re-authenticate to interact with personalities.`,
       fields: [
         {
           name: 'Cleanup Results',
           value: `${cleanupResult.length} expired tokens cleaned up`,
-          inline: true
-        }
+          inline: true,
+        },
       ],
       color: 0x4caf50,
       timestamp: new Date().toISOString(),
@@ -276,7 +281,9 @@ async function showStats(context, dependencies) {
     // Check if DDD authentication is available
     let authAvailable = false;
     try {
-      const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+      const {
+        getApplicationBootstrap,
+      } = require('../../../application/bootstrap/ApplicationBootstrap');
       const bootstrap = getApplicationBootstrap();
       const authService = bootstrap.getApplicationServices().authenticationService;
       authAvailable = !!authService;

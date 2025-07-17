@@ -9,7 +9,7 @@ const { ValueObject } = require('../shared/ValueObject');
  * @class Token
  * @extends ValueObject
  * @description Represents an authentication token
- * 
+ *
  * Note: Token expiry is handled by the AI service. The expiresAt field
  * is stored for informational purposes only and not validated client-side.
  */

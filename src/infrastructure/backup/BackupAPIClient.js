@@ -90,7 +90,7 @@ class BackupAPIClient {
       if (personality) {
         const fullName = personality.profile?.name || personality.name;
         const displayName = personality.profile?.displayName || fullName;
-        
+
         logger.debug(`[BackupAPIClient] Found personality: ${fullName}`);
         return {
           fullName: fullName,

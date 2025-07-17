@@ -227,10 +227,12 @@ async function showHelp(context) {
 async function handleStart(context, auth) {
   try {
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Generate authorization URL using DDD service
     const authUrl = await authService.getAuthorizationUrl(context.userId);
 
@@ -474,10 +476,12 @@ async function handleCode(context, auth, code) {
 
   try {
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Exchange the code for a token using DDD service
     logger.info('[AuthCommand] Exchanging code for token...');
     let tokenResult;
@@ -574,13 +578,15 @@ async function handleCode(context, auth, code) {
 async function handleStatus(context, auth) {
   try {
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Check authentication status using DDD service
     const authStatus = await authService.getAuthenticationStatus(context.userId);
-    
+
     if (authStatus.isAuthenticated) {
       const fields = [
         {
@@ -610,34 +616,35 @@ async function handleStatus(context, auth) {
       return await context.respond({ embeds: [statusEmbed] });
     } else {
       const notAuthorizedEmbed = {
-      title: '❌ Not Authorized',
-      description: "You don't have an active authorization token.",
-      color: 0xf44336, // Red color
-      fields: [
-        {
-          name: 'What does this mean?',
-          value: 'The bot is using the shared AI service instead of your personal account.',
-          inline: false,
-        },
-        {
-          name: 'Get started',
-          value: `Use \`${getCommandPrefix(context)} auth start\` to begin the authorization process.`,
-          inline: false,
-        },
-        {
-          name: 'Benefits of authorizing',
-          value: '• Personal AI responses\n• Your own usage limits\n• Private conversation history',
-          inline: false,
-        },
-      ],
-      timestamp: new Date().toISOString(),
-    };
+        title: '❌ Not Authorized',
+        description: "You don't have an active authorization token.",
+        color: 0xf44336, // Red color
+        fields: [
+          {
+            name: 'What does this mean?',
+            value: 'The bot is using the shared AI service instead of your personal account.',
+            inline: false,
+          },
+          {
+            name: 'Get started',
+            value: `Use \`${getCommandPrefix(context)} auth start\` to begin the authorization process.`,
+            inline: false,
+          },
+          {
+            name: 'Benefits of authorizing',
+            value:
+              '• Personal AI responses\n• Your own usage limits\n• Private conversation history',
+            inline: false,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
 
       return await context.respond({ embeds: [notAuthorizedEmbed] });
     }
   } catch (error) {
     logger.error(`[AuthCommand] Error checking authentication status: ${error.message}`);
-    
+
     const errorEmbed = {
       title: '❌ Status Check Failed',
       description: 'Unable to check your authentication status.',
@@ -666,13 +673,15 @@ async function handleStatus(context, auth) {
 async function handleRevoke(context, auth) {
   try {
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Revoke user's authentication using DDD service
     await authService.revokeAuthentication(context.userId);
-    
+
     // Authentication was successfully revoked
     const successEmbed = {
       title: '✅ Authorization Revoked',
@@ -703,7 +712,7 @@ async function handleRevoke(context, auth) {
     return await context.respond({ embeds: [successEmbed] });
   } catch (error) {
     logger.error(`[AuthCommand] Error revoking authentication: ${error.message}`);
-    
+
     const errorEmbed = {
       title: '❌ Revocation Failed',
       description: 'Unable to revoke your authorization.',
@@ -763,10 +772,12 @@ async function handleCleanup(context, auth) {
 
   try {
     // Get authentication service from DDD system
-    const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Run the cleanup using DDD service
     const removedTokens = await authService.cleanupExpiredTokens();
     const removedCount = removedTokens.length;

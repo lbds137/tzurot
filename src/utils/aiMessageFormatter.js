@@ -283,15 +283,19 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             // Add context metadata if available and not disabled
             if (message && !disableContextMetadata) {
               try {
                 const contextPrefix = formatContextMetadata(message) + ' ';
                 combinedText += contextPrefix;
-                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+                logger.debug(
+                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
+                );
               } catch (error) {
-                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                logger.error(
+                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+                );
                 // Continue without context metadata on error
               }
             }
@@ -349,15 +353,19 @@ async function formatApiMessages(
 
             // Combine all text content into a single text element
             let combinedText = '';
-            
+
             // Add context metadata if available and not disabled
             if (message && !disableContextMetadata) {
               try {
                 const contextPrefix = formatContextMetadata(message) + ' ';
                 combinedText += contextPrefix;
-                logger.debug(`[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`);
+                logger.debug(
+                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
+                );
               } catch (error) {
-                logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+                logger.error(
+                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+                );
                 // Continue without context metadata on error
               }
             }
@@ -452,13 +460,15 @@ async function formatApiMessages(
     // Standard handling for non-reference formats
     if (Array.isArray(content)) {
       // Check if we need to modify the content
-      const needsContextMetadata = message && !disableContextMetadata && content.length > 0 && content[0].type === 'text';
-      const needsProxyPrefix = isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text';
-      
+      const needsContextMetadata =
+        message && !disableContextMetadata && content.length > 0 && content[0].type === 'text';
+      const needsProxyPrefix =
+        isProxyMessage && userName !== 'a user' && content.length > 0 && content[0].type === 'text';
+
       if (needsContextMetadata || needsProxyPrefix) {
         // Only create a copy if we need to modify the content
         const modifiedContent = [...content];
-        
+
         // Add context metadata if available and not disabled
         if (needsContextMetadata) {
           try {
@@ -467,18 +477,22 @@ async function formatApiMessages(
               ...modifiedContent[0],
               text: contextPrefix + modifiedContent[0].text,
             };
-            logger.debug(`[AIMessageFormatter] Added context metadata to multimodal content: ${contextPrefix}`);
+            logger.debug(
+              `[AIMessageFormatter] Added context metadata to multimodal content: ${contextPrefix}`
+            );
           } catch (error) {
-            logger.error(`[AIMessageFormatter] Error formatting context metadata: ${error.message}`);
+            logger.error(
+              `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
+            );
             // Continue without context metadata on error
           }
         }
-        
+
         // For proxy messages only: prepend speaker identification if we have a userName and the first element is text
         if (needsProxyPrefix) {
           const existingText = modifiedContent[0].text;
           const proxyPrefix = `${userName}: `;
-          
+
           // Check if we need to insert proxy name after context metadata
           if (needsContextMetadata && existingText.includes('] ')) {
             // Insert proxy name after context metadata
@@ -494,7 +508,7 @@ async function formatApiMessages(
             };
           }
         }
-        
+
         return [{ role: 'user', content: modifiedContent }];
       } else {
         // No modifications needed, return original content
@@ -505,7 +519,7 @@ async function formatApiMessages(
     // Simple text message - sanitize if it's a string
     if (typeof content === 'string') {
       const sanitizedContent = sanitizeApiText(content);
-      
+
       // Add context metadata if available and not disabled
       let contextPrefix = '';
       if (message && !disableContextMetadata) {
@@ -517,22 +531,26 @@ async function formatApiMessages(
           // Continue without context metadata on error
         }
       }
-      
+
       // For proxy messages only: prepend speaker identification if we have a userName
       const contentWithProxyPrefix =
         isProxyMessage && userName !== 'a user'
           ? `${userName}: ${sanitizedContent}`
           : sanitizedContent;
-      
+
       // Combine context metadata with content
       const finalContent = contextPrefix + contentWithProxyPrefix;
-      
+
       // Debug logging to verify message formatting
       if (isProxyMessage || contextPrefix) {
-        logger.info(`[AIMessageFormatter] Formatting message - contextPrefix: "${contextPrefix}", userName: "${userName}", isProxyMessage: ${isProxyMessage}`);
-        logger.info(`[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 150)}..."`);
+        logger.info(
+          `[AIMessageFormatter] Formatting message - contextPrefix: "${contextPrefix}", userName: "${userName}", isProxyMessage: ${isProxyMessage}`
+        );
+        logger.info(
+          `[AIMessageFormatter] Final formatted content: "${finalContent.substring(0, 150)}..."`
+        );
       }
-      
+
       return [{ role: 'user', content: finalContent }];
     }
 

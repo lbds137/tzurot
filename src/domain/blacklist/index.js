@@ -11,5 +11,5 @@ module.exports = {
   BlacklistedUser,
   BlacklistRepository,
   UserBlacklistedGlobally,
-  UserUnblacklistedGlobally
+  UserUnblacklistedGlobally,
 };

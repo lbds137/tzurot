@@ -31,7 +31,7 @@ async function initBot() {
     const appBootstrap = getApplicationBootstrap();
     await appBootstrap.initialize();
     logger.info('✅ DDD application layer initialized');
-    
+
     // Inject auth service into handlers to avoid circular dependencies
     const authService = appBootstrap.getApplicationServices().authenticationService;
     messageHandler.setAuthService(authService);

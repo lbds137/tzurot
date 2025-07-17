@@ -18,7 +18,7 @@ class BlacklistRepository {
   async add(blacklistedUser) {
     throw new Error('BlacklistRepository.add must be implemented');
   }
-  
+
   /**
    * Remove user from blacklist
    * @abstract
@@ -28,7 +28,7 @@ class BlacklistRepository {
   async remove(userId) {
     throw new Error('BlacklistRepository.remove must be implemented');
   }
-  
+
   /**
    * Find blacklisted user by ID
    * @abstract
@@ -38,7 +38,7 @@ class BlacklistRepository {
   async find(userId) {
     throw new Error('BlacklistRepository.find must be implemented');
   }
-  
+
   /**
    * Find all blacklisted users
    * @abstract
@@ -47,7 +47,7 @@ class BlacklistRepository {
   async findAll() {
     throw new Error('BlacklistRepository.findAll must be implemented');
   }
-  
+
   /**
    * Check if user is blacklisted
    * @abstract
