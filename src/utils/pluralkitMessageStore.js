@@ -94,7 +94,7 @@ class PluralKitMessageStore {
     if (exactMatch && now - exactMatch.deletedAt < this.expirationTime) {
       logger.debug(`[PluralKitStore] Found exact match for user ${exactMatch.userId}`);
       this.deletedMessages.delete(key);
-      
+
       // Also remove from channel list to prevent reuse
       const channelMessages = this.deletedMessagesByChannel.get(channelId);
       if (channelMessages) {
@@ -105,7 +105,7 @@ class PluralKitMessageStore {
           channelMessages.splice(index, 1);
         }
       }
-      
+
       return exactMatch;
     }
 

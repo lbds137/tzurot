@@ -89,30 +89,36 @@ async function checkPersonalityAuth(message, personality) {
       throw new Error('Authentication service not initialized. Call setAuthService() first.');
     }
     const authService = injectedAuthService;
-    
+
     const webhookUserTracker = require('../utils/webhookUserTracker');
-    
+
     // CRITICAL: Handle proxy systems (PluralKit) specially
     // If this is a proxy system webhook, use the specialized proxy authentication
     if (message.webhookId && webhookUserTracker.isProxySystemWebhook(message)) {
-      logger.debug(`[PersonalityHandler] Detected proxy system webhook, using specialized authentication`);
-      
+      logger.debug(
+        `[PersonalityHandler] Detected proxy system webhook, using specialized authentication`
+      );
+
       const proxyAuth = await webhookUserTracker.checkProxySystemAuthentication(message);
-      
+
       if (!proxyAuth.isAuthenticated) {
         return {
           isAllowed: false,
-          errorMessage: 'Authentication required for NSFW personalities. Use `!rtz auth start` to authenticate first.',
+          errorMessage:
+            'Authentication required for NSFW personalities. Use `!rtz auth start` to authenticate first.',
           reason: 'auth_failed',
         };
       }
-      
+
       // For proxy systems, we have the real user ID, so check access with DDD system
       const { AuthContext } = require('../domain/authentication/AuthContext');
       const { isChannelNSFW } = require('../utils/channelUtils');
-      
-      const channelType = message.channel.isDMBased?.() ? 'DM' : 
-                         message.channel.isThread?.() ? 'THREAD' : 'GUILD';
+
+      const channelType = message.channel.isDMBased?.()
+        ? 'DM'
+        : message.channel.isThread?.()
+          ? 'THREAD'
+          : 'GUILD';
       const authContext = new AuthContext({
         channelType,
         channelId: message.channel.id,
@@ -120,9 +126,13 @@ async function checkPersonalityAuth(message, personality) {
         isProxyMessage: true,
         requestedPersonalityId: personality.name,
       });
-      
-      const result = await authService.checkPersonalityAccess(proxyAuth.userId, personality, authContext);
-      
+
+      const result = await authService.checkPersonalityAccess(
+        proxyAuth.userId,
+        personality,
+        authContext
+      );
+
       if (!result.allowed) {
         return {
           isAllowed: false,
@@ -130,7 +140,7 @@ async function checkPersonalityAuth(message, personality) {
           reason: 'auth_failed',
         };
       }
-      
+
       return {
         isAllowed: true,
         isProxySystem: true,
@@ -138,21 +148,24 @@ async function checkPersonalityAuth(message, personality) {
         realUserId: proxyAuth.userId,
       };
     }
-    
+
     // For non-proxy messages, use standard DDD authentication
     const realUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
-    
+
     logger.debug(
       `[PersonalityHandler] Checking auth for realUserId: ${realUserId} (message.author.id: ${message.author.id})`
     );
-    
+
     // Check personality access using DDD system
     const { AuthContext } = require('../domain/authentication/AuthContext');
     const { isChannelNSFW } = require('../utils/channelUtils');
-    
+
     // Create auth context
-    const channelType = message.channel.isDMBased?.() ? 'DM' : 
-                       message.channel.isThread?.() ? 'THREAD' : 'GUILD';
+    const channelType = message.channel.isDMBased?.()
+      ? 'DM'
+      : message.channel.isThread?.()
+        ? 'THREAD'
+        : 'GUILD';
     const authContext = new AuthContext({
       channelType,
       channelId: message.channel.id,
@@ -160,9 +173,9 @@ async function checkPersonalityAuth(message, personality) {
       isProxyMessage: !!message.webhookId,
       requestedPersonalityId: personality.name,
     });
-    
+
     const result = await authService.checkPersonalityAccess(realUserId, personality, authContext);
-    
+
     if (!result.allowed) {
       return {
         isAllowed: false,
@@ -170,7 +183,7 @@ async function checkPersonalityAuth(message, personality) {
         reason: 'auth_failed',
       };
     }
-    
+
     // Return success with context information
     return {
       isAllowed: true,
@@ -291,10 +304,12 @@ async function handlePersonalityInteraction(
 
     // Extract authentication results
     const { isProxySystem, isDM } = authResult;
-    
+
     // Debug logging for proxy system detection
     if (message.webhookId) {
-      logger.info(`[PersonalityHandler] Processing webhook message - webhookId: ${message.webhookId}, isProxySystem: ${isProxySystem}, author.username: "${message.author.username}"`);
+      logger.info(
+        `[PersonalityHandler] Processing webhook message - webhookId: ${message.webhookId}, isProxySystem: ${isProxySystem}, author.username: "${message.author.username}"`
+      );
     }
 
     // CRITICAL: Check autoresponse status NOW, not later
@@ -377,7 +392,7 @@ async function handlePersonalityInteraction(
                 // For now, use the webhook username as display name if available,
                 // otherwise extract from the personality name
                 const displayName = referencedWebhookName || personalityName.split('-')[0];
-                
+
                 referencedPersonalityInfo = {
                   name: personalityName,
                   displayName: displayName,
@@ -426,9 +441,7 @@ async function handlePersonalityInteraction(
                 name: baseName, // Using the display name since we don't have the full name
                 displayName: baseName,
               };
-              logger.info(
-                `[PersonalityHandler] Using display name from DM message: ${baseName}`
-              );
+              logger.info(`[PersonalityHandler] Using display name from DM message: ${baseName}`);
             }
           }
 
@@ -760,9 +773,11 @@ async function handlePersonalityInteraction(
 
     // Debug logging for proxy context
     if (message.webhookId) {
-      logger.info(`[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`);
+      logger.info(
+        `[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`
+      );
     }
-    
+
     const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
       userId: userId,
       channelId: message.channel.id,

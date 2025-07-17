@@ -28,18 +28,18 @@ class FileBlacklistRepository extends BlacklistRepository {
     this._cache = null;
     this._initialized = false;
   }
-  
+
   /**
    * Initialize the repository
    * @returns {Promise<void>}
    */
   async initialize() {
     if (this._initialized) return;
-    
+
     try {
       // Ensure data directory exists
       await fs.mkdir(this.dataPath, { recursive: true });
-      
+
       // Try to load existing data
       try {
         const data = await fs.readFile(this.filePath, 'utf8');
@@ -47,11 +47,13 @@ class FileBlacklistRepository extends BlacklistRepository {
       } catch (error) {
         if (error.code === 'ENOENT') {
           // File doesn't exist, check if we need to migrate from auth
-          logger.info('[FileBlacklistRepository] Blacklist file not found, checking for migration...');
-          
+          logger.info(
+            '[FileBlacklistRepository] Blacklist file not found, checking for migration...'
+          );
+
           try {
             await migrateBlacklistData(this.dataPath);
-            
+
             // Try to load again after migration
             try {
               const migratedData = await fs.readFile(this.filePath, 'utf8');
@@ -63,7 +65,10 @@ class FileBlacklistRepository extends BlacklistRepository {
               await this._persist();
             }
           } catch (migrationError) {
-            logger.warn('[FileBlacklistRepository] Migration failed or not needed:', migrationError.message);
+            logger.warn(
+              '[FileBlacklistRepository] Migration failed or not needed:',
+              migrationError.message
+            );
             // Create empty structure
             this._cache = {};
             await this._persist();
@@ -72,7 +77,7 @@ class FileBlacklistRepository extends BlacklistRepository {
           throw error;
         }
       }
-      
+
       this._initialized = true;
       logger.info('[FileBlacklistRepository] Initialized successfully');
     } catch (error) {
@@ -80,7 +85,7 @@ class FileBlacklistRepository extends BlacklistRepository {
       throw new Error(`Failed to initialize blacklist repository: ${error.message}`);
     }
   }
-  
+
   /**
    * Add user to blacklist
    * @param {BlacklistedUser} blacklistedUser - User to blacklist
@@ -88,19 +93,19 @@ class FileBlacklistRepository extends BlacklistRepository {
    */
   async add(blacklistedUser) {
     await this._ensureInitialized();
-    
+
     try {
       const userId = blacklistedUser.userId.toString();
       this._cache[userId] = blacklistedUser.toJSON();
       await this._persist();
-      
+
       logger.info(`[FileBlacklistRepository] Added user to blacklist: ${userId}`);
     } catch (error) {
       logger.error('[FileBlacklistRepository] Failed to add user to blacklist:', error);
       throw new Error(`Failed to add user to blacklist: ${error.message}`);
     }
   }
-  
+
   /**
    * Remove user from blacklist
    * @param {string} userId - User ID to remove
@@ -108,7 +113,7 @@ class FileBlacklistRepository extends BlacklistRepository {
    */
   async remove(userId) {
     await this._ensureInitialized();
-    
+
     try {
       if (this._cache[userId]) {
         delete this._cache[userId];
@@ -120,7 +125,7 @@ class FileBlacklistRepository extends BlacklistRepository {
       throw new Error(`Failed to remove user from blacklist: ${error.message}`);
     }
   }
-  
+
   /**
    * Find blacklisted user by ID
    * @param {string} userId - User ID to find
@@ -128,30 +133,30 @@ class FileBlacklistRepository extends BlacklistRepository {
    */
   async find(userId) {
     await this._ensureInitialized();
-    
+
     try {
       const data = this._cache[userId];
       if (!data) {
         return null;
       }
-      
+
       return BlacklistedUser.fromData(data);
     } catch (error) {
       logger.error('[FileBlacklistRepository] Failed to find user:', error);
       throw new Error(`Failed to find blacklisted user: ${error.message}`);
     }
   }
-  
+
   /**
    * Find all blacklisted users
    * @returns {Promise<BlacklistedUser[]>}
    */
   async findAll() {
     await this._ensureInitialized();
-    
+
     try {
       const users = [];
-      
+
       for (const data of Object.values(this._cache)) {
         try {
           users.push(BlacklistedUser.fromData(data));
@@ -160,14 +165,14 @@ class FileBlacklistRepository extends BlacklistRepository {
           // Skip invalid entries
         }
       }
-      
+
       return users;
     } catch (error) {
       logger.error('[FileBlacklistRepository] Failed to find all users:', error);
       throw new Error(`Failed to find all blacklisted users: ${error.message}`);
     }
   }
-  
+
   /**
    * Check if user is blacklisted
    * @param {string} userId - User ID to check
@@ -177,7 +182,7 @@ class FileBlacklistRepository extends BlacklistRepository {
     await this._ensureInitialized();
     return !!this._cache[userId];
   }
-  
+
   /**
    * Persist cache to file
    * @private
@@ -185,21 +190,21 @@ class FileBlacklistRepository extends BlacklistRepository {
   async _persist() {
     try {
       const data = JSON.stringify(this._cache, null, 2);
-      
+
       // Write to temp file first for atomic operation
       const tempPath = `${this.filePath}.tmp`;
       await fs.writeFile(tempPath, data, 'utf8');
-      
+
       // Rename to actual file
       await fs.rename(tempPath, this.filePath);
-      
+
       logger.debug('[FileBlacklistRepository] Data persisted successfully');
     } catch (error) {
       logger.error('[FileBlacklistRepository] Failed to persist data:', error);
       throw new Error(`Failed to persist blacklist data: ${error.message}`);
     }
   }
-  
+
   /**
    * Ensure repository is initialized
    * @private

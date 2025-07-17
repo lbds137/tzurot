@@ -128,7 +128,7 @@ async function handleMessage(message, client) {
     // Global blacklist check - do this first before any other processing
     // Check the actual user ID, not webhook IDs
     let userIdToCheck = message.author.id;
-    
+
     // For proxy systems like PluralKit, try to get the real user ID
     if (message.webhookId && webhookUserTracker.isProxySystemWebhook(message)) {
       const realUserId = webhookUserTracker.getRealUserId(message);
@@ -136,18 +136,20 @@ async function handleMessage(message, client) {
         userIdToCheck = realUserId;
       }
     }
-    
+
     // Check if user is globally blacklisted
     try {
       const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
       const bootstrap = getApplicationBootstrap();
-      
+
       if (bootstrap.initialized) {
         const blacklistService = bootstrap.getBlacklistService();
         const isBlacklisted = await blacklistService.isUserBlacklisted(userIdToCheck);
-        
+
         if (isBlacklisted) {
-          logger.info(`[MessageHandler] Ignoring message from globally blacklisted user: ${userIdToCheck}`);
+          logger.info(
+            `[MessageHandler] Ignoring message from globally blacklisted user: ${userIdToCheck}`
+          );
           return; // Silent fail - no response to blacklisted users
         }
       }
@@ -155,7 +157,7 @@ async function handleMessage(message, client) {
       // Don't let blacklist check failures prevent message processing
       logger.error('[MessageHandler] Error checking blacklist status:', error);
     }
-    
+
     // Ensure messageTrackerHandler is initialized (lazy initialization)
     messageTrackerHandler.ensureInitialized();
 
@@ -276,13 +278,13 @@ async function handleMessage(message, client) {
 
             // Associate the webhook with the real user for authentication
             webhookUserTracker.associateWebhookWithUser(message.webhookId, pendingReply.userId);
-            
+
             // Mark the original message as handled to prevent duplicate processing
             if (pendingReply.originalMessageId) {
               // Create a minimal message object with the required properties
-              messageTrackerHandler.markMessageAsHandled({ 
+              messageTrackerHandler.markMessageAsHandled({
                 id: pendingReply.originalMessageId,
-                channel: { id: message.channel.id }
+                channel: { id: message.channel.id },
               });
               logger.debug(
                 `[MessageHandler] Marked original message ${pendingReply.originalMessageId} as handled`
@@ -604,7 +606,9 @@ async function handleMentions(message, client) {
 
         // For server channels, implement the delay for PluralKit proxy handling
         // Use the delayedProcessing helper for consistent handling
-        logger.debug(`[handleMentions] Starting delayedProcessing for ${bestMatch.personality.fullName}`);
+        logger.debug(
+          `[handleMentions] Starting delayedProcessing for ${bestMatch.personality.fullName}`
+        );
         await messageTrackerHandler.delayedProcessing(
           message,
           bestMatch.personality,
@@ -613,7 +617,9 @@ async function handleMentions(message, client) {
           personalityHandler.handlePersonalityInteraction
         );
 
-        logger.debug(`[handleMentions] delayedProcessing completed for ${bestMatch.personality.fullName}`);
+        logger.debug(
+          `[handleMentions] delayedProcessing completed for ${bestMatch.personality.fullName}`
+        );
         return true; // Mention was handled
       }
     }

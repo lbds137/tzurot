@@ -24,7 +24,7 @@ function initAiClient(authManagerInstance) {
 // Check if user is authenticated using DDD system
 async function isUserAuthenticated(userId) {
   if (!userId) return false;
-  
+
   try {
     const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
@@ -48,15 +48,15 @@ async function getAiClientForUser(userId, context = {}) {
     const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
     const authService = bootstrap.getApplicationServices().authenticationService;
-    
+
     // Get user authentication status
     const authStatus = await authService.getAuthenticationStatus(userId);
-    
+
     if (!authStatus.isAuthenticated || !authStatus.user?.token) {
       logger.debug(`[AIService] User ${userId} is not authenticated or has no token`);
       return null;
     }
-    
+
     // Get AI client from DDD authentication system
     const client = await authService.createAIClient(userId, context);
     return client;
@@ -192,7 +192,7 @@ async function getAiResponse(personalityName, message, context = {}) {
       if (!shouldBypassAuth && userId) {
         userAuthenticated = await isUserAuthenticated(userId);
       }
-      
+
       if (!shouldBypassAuth && (!userId || !userAuthenticated)) {
         logger.warn(
           `[AIService] Unauthenticated user attempting to access AI service: ${userId || 'unknown'}`
@@ -308,18 +308,20 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Extract user name and proxy message flag from context if available
   const userName = context.userName || 'a user';
   const isProxyMessage = context.isProxyMessage || false;
-  
+
   // Debug logging for proxy messages
   if (isProxyMessage || context.message?.webhookId) {
-    logger.info(`[AIService] Processing potential proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}, webhookId: ${context.message?.webhookId}`);
+    logger.info(
+      `[AIService] Processing potential proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}, webhookId: ${context.message?.webhookId}`
+    );
   }
 
   // Format the message content properly for the API
   // Note: disableContextMetadata can be passed through context if needed
   const messages = await formatApiMessages(
-    message, 
-    personalityName, 
-    userName, 
+    message,
+    personalityName,
+    userName,
     isProxyMessage,
     context.message || null,
     context.disableContextMetadata || false

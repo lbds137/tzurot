@@ -20,25 +20,25 @@ class BlacklistedUser {
     if (!userId) {
       throw new Error('User ID is required');
     }
-    
+
     if (!reason || typeof reason !== 'string') {
       throw new Error('Blacklist reason is required');
     }
-    
+
     if (!blacklistedBy) {
       throw new Error('Blacklisted by user ID is required');
     }
-    
+
     if (!(blacklistedAt instanceof Date)) {
       throw new Error('Blacklisted at must be a Date');
     }
-    
+
     this.userId = new UserId(userId);
     this.reason = reason;
     this.blacklistedBy = new UserId(blacklistedBy);
     this.blacklistedAt = blacklistedAt;
   }
-  
+
   /**
    * Create from plain data
    * @static
@@ -53,7 +53,7 @@ class BlacklistedUser {
       new Date(data.blacklistedAt)
     );
   }
-  
+
   /**
    * Convert to JSON for persistence
    * @returns {Object}
@@ -63,10 +63,10 @@ class BlacklistedUser {
       userId: this.userId.toString(),
       reason: this.reason,
       blacklistedBy: this.blacklistedBy.toString(),
-      blacklistedAt: this.blacklistedAt.toISOString()
+      blacklistedAt: this.blacklistedAt.toISOString(),
     };
   }
-  
+
   /**
    * Check equality
    * @param {BlacklistedUser} other
@@ -76,11 +76,13 @@ class BlacklistedUser {
     if (!(other instanceof BlacklistedUser)) {
       return false;
     }
-    
-    return this.userId.equals(other.userId) &&
-           this.reason === other.reason &&
-           this.blacklistedBy.equals(other.blacklistedBy) &&
-           this.blacklistedAt.getTime() === other.blacklistedAt.getTime();
+
+    return (
+      this.userId.equals(other.userId) &&
+      this.reason === other.reason &&
+      this.blacklistedBy.equals(other.blacklistedBy) &&
+      this.blacklistedAt.getTime() === other.blacklistedAt.getTime()
+    );
   }
 }
 

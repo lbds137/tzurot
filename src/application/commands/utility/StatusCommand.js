@@ -51,21 +51,23 @@ function createExecutor(dependencies = {}) {
       // Check authentication status using DDD system
       let isAuthenticated = false;
       let isNsfwVerified = false;
-      
+
       try {
-        const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+        const {
+          getApplicationBootstrap,
+        } = require('../../../application/bootstrap/ApplicationBootstrap');
         const bootstrap = getApplicationBootstrap();
         const authService = bootstrap.getApplicationServices().authenticationService;
         const status = await authService.getAuthenticationStatus(context.userId);
         isAuthenticated = status.isAuthenticated;
         isNsfwVerified = status.isAuthenticated && status.user?.nsfwStatus?.verified;
-        
+
         logger.debug('[StatusCommand] Auth status for user', {
           userId: context.userId,
           isAuthenticated: status.isAuthenticated,
           userExists: !!status.user,
           nsfwStatus: status.user?.nsfwStatus,
-          isNsfwVerified
+          isNsfwVerified,
         });
       } catch (error) {
         logger.warn('[StatusCommand] Failed to get auth status from DDD service:', error);
@@ -76,12 +78,16 @@ function createExecutor(dependencies = {}) {
       if (isAuthenticated) {
         // Try DDD system first
         try {
-          const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+          const {
+            getApplicationBootstrap,
+          } = require('../../../application/bootstrap/ApplicationBootstrap');
           const bootstrap = getApplicationBootstrap();
           if (bootstrap.initialized) {
             const services = bootstrap.getApplicationServices();
             const personalityApplicationService = services.personalityApplicationService;
-            const personalities = await personalityApplicationService.listPersonalitiesByOwner(context.userId);
+            const personalities = await personalityApplicationService.listPersonalitiesByOwner(
+              context.userId
+            );
             personalityCount = personalities ? personalities.length : 0;
           }
         } catch (error) {

@@ -23,7 +23,13 @@ class EventHandlerRegistry {
    * @param {AuthenticationRepository} dependencies.authenticationRepository - Auth repository
    * @param {Object} dependencies.conversationManager - Conversation manager
    */
-  constructor({ eventBus, profileInfoCache, messageTracker, authenticationRepository, conversationManager }) {
+  constructor({
+    eventBus,
+    profileInfoCache,
+    messageTracker,
+    authenticationRepository,
+    conversationManager,
+  }) {
     this.eventBus = eventBus;
     this.profileInfoCache = profileInfoCache;
     this.messageTracker = messageTracker;
