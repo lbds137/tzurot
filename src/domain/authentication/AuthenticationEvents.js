@@ -80,35 +80,6 @@ class UserNsfwVerificationCleared extends DomainEvent {
   }
 }
 
-/**
- * @class UserBlacklisted
- * @extends DomainEvent
- * @description Event when user is blacklisted
- */
-class UserBlacklisted extends DomainEvent {
-  constructor(aggregateId, payload) {
-    super(aggregateId, payload);
-
-    if (!payload.reason || !payload.blacklistedAt) {
-      throw new Error('UserBlacklisted requires reason and blacklistedAt');
-    }
-  }
-}
-
-/**
- * @class UserUnblacklisted
- * @extends DomainEvent
- * @description Event when user is removed from blacklist
- */
-class UserUnblacklisted extends DomainEvent {
-  constructor(aggregateId, payload) {
-    super(aggregateId, payload);
-
-    if (!payload.unblacklistedAt) {
-      throw new Error('UserUnblacklisted requires unblacklistedAt');
-    }
-  }
-}
 
 /**
  * @class AuthenticationDenied
@@ -146,8 +117,6 @@ module.exports = {
   UserTokenRefreshed,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
   AuthenticationDenied,
   ProxyAuthenticationAttempted,
 };

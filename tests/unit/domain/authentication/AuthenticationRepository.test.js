@@ -166,21 +166,12 @@ describe('AuthenticationRepository', () => {
       const count = await mockRepo.countAuthenticated();
       expect(count).toBe(1);
 
-      // Test findBlacklisted (empty initially)
-      let blacklisted = await mockRepo.findBlacklisted();
+      // Test findBlacklisted - deprecated, should still work
+      const blacklisted = await mockRepo.findBlacklisted();
       expect(blacklisted).toHaveLength(0);
-
-      // Blacklist the user
-      userAuth.blacklist('Test reason');
-      await mockRepo.save(userAuth);
-
-      blacklisted = await mockRepo.findBlacklisted();
-      expect(blacklisted).toHaveLength(1);
-      expect(blacklisted[0]).toBe(userAuth);
 
       // Test findExpiredTokens - Since DDD tokens don't expire client-side,
       // we need to test with users who have no tokens (expired/revoked)
-      // The blacklisted user already has no token, so let's create a new user
       const userId2 = new UserId('987654321098765432');
       const token2 = new Token('test-token-456', new Date(Date.now() + 3600000)); // Valid token
       const userAuth2 = UserAuth.createAuthenticated(userId2, token2);
@@ -192,12 +183,15 @@ describe('AuthenticationRepository', () => {
       userAuth2.expireToken();
       await mockRepo.save(userAuth2);
 
+      // Also expire the first user's token
+      userAuth.expireToken();
+      await mockRepo.save(userAuth);
+
       // findExpiredTokens should find both users without valid tokens
-      // (blacklisted user and expired token user)
       const expired = await mockRepo.findExpiredTokens(new Date());
       expect(expired).toHaveLength(2);
-      expect(expired).toContain(userAuth); // blacklisted user
-      expect(expired).toContain(userAuth2); // expired token user
+      expect(expired).toContain(userAuth); // expired token user 1
+      expect(expired).toContain(userAuth2); // expired token user 2
 
       // Test delete
       await mockRepo.delete(userId);

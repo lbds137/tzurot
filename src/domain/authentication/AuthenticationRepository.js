@@ -27,6 +27,7 @@ class AuthenticationRepository {
   }
 
   /**
+   * @deprecated Use BlacklistRepository instead
    * Find all blacklisted users
    * @returns {Promise<UserAuth[]>} Blacklisted users
    */
