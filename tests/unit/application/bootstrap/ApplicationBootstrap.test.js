@@ -199,6 +199,8 @@ describe('ApplicationBootstrap', () => {
         eventBus: mockEventBus,
         profileInfoCache: expect.any(Object),
         messageTracker: expect.any(Object),
+        authenticationRepository: expect.any(Object),
+        conversationManager: expect.any(Object),
       });
       expect(mockEventHandlerRegistry.registerHandlers).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
@@ -293,6 +295,7 @@ describe('ApplicationBootstrap', () => {
         webhookUserTracker: expect.any(Object),
         channelUtils: expect.any(Object),
         authenticationRepository: expect.any(Object),
+        blacklistService: expect.any(Object), // Global blacklist service
       });
     });
 

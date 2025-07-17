@@ -89,8 +89,8 @@ describe('EventHandlerRegistry', () => {
         messageTracker: mockMessageTracker,
       });
 
-      // Verify all event subscriptions
-      expect(mockEventBus.subscribe).toHaveBeenCalledTimes(9);
+      // Verify all event subscriptions (9 personality + 2 blacklist)
+      expect(mockEventBus.subscribe).toHaveBeenCalledTimes(11);
 
       // Check specific event subscriptions
       expect(mockEventBus.subscribe).toHaveBeenCalledWith(
