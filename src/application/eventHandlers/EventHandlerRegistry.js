@@ -6,6 +6,7 @@
 const logger = require('../../logger');
 const { PersonalityEventLogger } = require('./PersonalityEventLogger');
 const { PersonalityCacheInvalidator } = require('./PersonalityCacheInvalidator');
+const { registerBlacklistEventHandlers } = require('./BlacklistEventHandlers');
 
 /**
  * EventHandlerRegistry
@@ -19,11 +20,15 @@ class EventHandlerRegistry {
    * @param {DomainEventBus} dependencies.eventBus - The domain event bus
    * @param {Object} dependencies.profileInfoCache - Profile info cache
    * @param {Object} dependencies.messageTracker - Message tracker
+   * @param {AuthenticationRepository} dependencies.authenticationRepository - Auth repository
+   * @param {Object} dependencies.conversationManager - Conversation manager
    */
-  constructor({ eventBus, profileInfoCache, messageTracker }) {
+  constructor({ eventBus, profileInfoCache, messageTracker, authenticationRepository, conversationManager }) {
     this.eventBus = eventBus;
     this.profileInfoCache = profileInfoCache;
     this.messageTracker = messageTracker;
+    this.authenticationRepository = authenticationRepository;
+    this.conversationManager = conversationManager;
     this.subscriptions = [];
   }
 
@@ -94,6 +99,13 @@ class EventHandlerRegistry {
         cacheInvalidator.handlePersonalityAliasRemoved(event)
       )
     );
+
+    // Register blacklist event handlers
+    registerBlacklistEventHandlers({
+      eventBus: this.eventBus,
+      authenticationRepository: this.authenticationRepository,
+      conversationManager: this.conversationManager,
+    });
 
     logger.info(`[EventHandlerRegistry] Registered ${this.subscriptions.length} event handlers`);
   }

@@ -125,6 +125,37 @@ async function handleMessage(message, client) {
   );
 
   try {
+    // Global blacklist check - do this first before any other processing
+    // Check the actual user ID, not webhook IDs
+    let userIdToCheck = message.author.id;
+    
+    // For proxy systems like PluralKit, try to get the real user ID
+    if (message.webhookId && webhookUserTracker.isProxySystemWebhook(message)) {
+      const realUserId = webhookUserTracker.getRealUserId(message);
+      if (realUserId) {
+        userIdToCheck = realUserId;
+      }
+    }
+    
+    // Check if user is globally blacklisted
+    try {
+      const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
+      const bootstrap = getApplicationBootstrap();
+      
+      if (bootstrap.initialized) {
+        const blacklistService = bootstrap.getBlacklistService();
+        const isBlacklisted = await blacklistService.isUserBlacklisted(userIdToCheck);
+        
+        if (isBlacklisted) {
+          logger.info(`[MessageHandler] Ignoring message from globally blacklisted user: ${userIdToCheck}`);
+          return; // Silent fail - no response to blacklisted users
+        }
+      }
+    } catch (error) {
+      // Don't let blacklist check failures prevent message processing
+      logger.error('[MessageHandler] Error checking blacklist status:', error);
+    }
+    
     // Ensure messageTrackerHandler is initialized (lazy initialization)
     messageTrackerHandler.ensureInitialized();
 

@@ -7,6 +7,7 @@ const logger = require('../../logger');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
 const { AuthenticationApplicationService } = require('../services/AuthenticationApplicationService');
+const { BlacklistService } = require('../services/BlacklistService');
 const RequestTrackingService = require('../services/RequestTrackingService');
 const {
   FilePersonalityRepository,
@@ -14,6 +15,9 @@ const {
 const {
   FileAuthenticationRepository,
 } = require('../../adapters/persistence/FileAuthenticationRepository');
+const {
+  FileBlacklistRepository,
+} = require('../../adapters/persistence/FileBlacklistRepository');
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
 const { OAuthTokenService } = require('../../infrastructure/authentication/OAuthTokenService');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
@@ -89,6 +93,11 @@ class ApplicationBootstrap {
         filename: 'auth.json',
       });
 
+      const blacklistRepository = new FileBlacklistRepository({
+        dataPath: './data',
+        filename: 'blacklist.json',
+      });
+
       const aiService = new HttpAIServiceAdapter({
         baseUrl: process.env.SERVICE_API_BASE_URL || 'http://localhost:8080',
         apiKey: process.env.SERVICE_API_KEY || 'test-key',
@@ -115,6 +124,12 @@ class ApplicationBootstrap {
 
       // Use the DDD authentication service directly
       const authService = authenticationApplicationService;
+
+      // Create blacklist service
+      const blacklistService = new BlacklistService({
+        blacklistRepository,
+        eventBus: this.eventBus,
+      });
 
       // Step 4: Create application services with shared event bus
       const personalityApplicationService = new PersonalityApplicationService({
@@ -144,6 +159,7 @@ class ApplicationBootstrap {
         personalityApplicationService,
         authenticationApplicationService, // DDD auth service
         authenticationService: authService, // DDD authentication service
+        blacklistService, // Global blacklist service
         requestTrackingService, // Duplicate protection service
         conversationManager, // Legacy for now
         profileInfoCache, // Legacy for now
@@ -173,6 +189,8 @@ class ApplicationBootstrap {
         eventBus: this.eventBus,
         profileInfoCache,
         messageTracker,
+        authenticationRepository,
+        conversationManager,
       });
       this.eventHandlerRegistry.registerHandlers();
       logger.info('[ApplicationBootstrap] Registered domain event handlers');
@@ -199,6 +217,7 @@ class ApplicationBootstrap {
       logger.info('[ApplicationBootstrap] Initializing repositories...');
       await personalityRepository.initialize();
       await authenticationRepository.initialize();
+      await blacklistRepository.initialize();
 
       // Step 10: Schedule owner personality seeding in background (don't block initialization)
       this.initialized = true;
@@ -280,6 +299,16 @@ class ApplicationBootstrap {
       throw new Error('ApplicationBootstrap not initialized');
     }
     return this.personalityRouter;
+  }
+
+  /**
+   * Get blacklist service
+   */
+  getBlacklistService() {
+    if (!this.initialized) {
+      throw new Error('ApplicationBootstrap not initialized');
+    }
+    return this.applicationServices.blacklistService;
   }
 
   /**
