@@ -108,7 +108,30 @@ class MyService {
 - Week 2: Update command classes and utilities
 - Validation: Zero uses of `getApplicationBootstrap()` outside of ApplicationBootstrap.js
 
-### 10. Multi-User Scalability
+### 10. Unified Error Display System
+**Priority**: MEDIUM  
+**Reason**: Multiple error sources use different formatting patterns  
+**Effort**: 1-2 weeks  
+**Benefits**: Consistent user experience, easier maintenance
+
+Currently errors come from different sources with inconsistent formatting:
+- Command system: Rich embeds with proper styling
+- Authentication service: Plain text error messages
+- Legacy handlers: Mixed formatting approaches
+- AI service errors: Basic error handling
+
+Target: All errors use consistent embed formatting with:
+- Clear error titles and descriptions
+- Consistent color coding (red for errors, yellow for warnings)
+- Helpful action suggestions
+- Proper error categorization
+
+**Implementation Plan**:
+- Week 1: Create centralized error formatting service
+- Week 2: Migrate all error sources to use unified system
+- Validation: All user-facing errors follow same visual pattern
+
+### 11. Multi-User Scalability
 **Priority**: MEDIUM  
 **Document**: `MULTI_USER_SCALABILITY.md`
 - Per-user state isolation
@@ -117,13 +140,13 @@ class MyService {
 
 ## Phase 5: New Features (Weeks 11+)
 
-### 11. Random Personality Trigger
+### 12. Random Personality Trigger
 **Priority**: LOW  
 **From**: `FEATURE_IDEAS.md`
 - Fun feature for established bot
 - `!tz random [prompt]`
 
-### 11. Personality Visibility Improvements
+### 13. Personality Visibility Improvements
 **Priority**: LOW  
 **From**: `FEATURE_IDEAS.md`
 - Better discovery mechanisms

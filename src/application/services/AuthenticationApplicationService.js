@@ -438,10 +438,19 @@ class AuthenticationApplicationService {
         }
       }
       
-      // Check NSFW requirements (all personalities are treated as NSFW uniformly)
+      // Check authentication first (all personalities are treated as NSFW uniformly)
       const userAuth = await this.authenticationRepository.findByUserId(userId);
       
-      if (!userAuth || !userAuth.canAccessNsfw(personality, context)) {
+      // Authentication check should come before NSFW logic
+      if (!userAuth) {
+        return { 
+          allowed: false, 
+          reason: `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`
+        };
+      }
+      
+      // Now check NSFW requirements for authenticated users
+      if (!userAuth.canAccessNsfw(personality, context)) {
         // Provide more helpful error message based on context
         let reason = 'NSFW verification required';
         
@@ -449,14 +458,33 @@ class AuthenticationApplicationService {
           reason = `NSFW verification required for DM interactions. Use \`${botPrefix} verify\` in an NSFW channel first, or interact in an NSFW channel instead.`;
         } else if (!context.isNsfwChannel) {
           reason = 'This personality can only be used in NSFW channels. Please move to an NSFW channel to interact.';
-        } else if (!userAuth) {
-          reason = `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`;
         }
         
         return { 
           allowed: false, 
           reason 
         };
+      }
+      
+      // Auto-verify user if they're interacting in an NSFW channel and not already verified
+      if (context.isNsfwChannel && !userAuth.nsfwStatus.verified) {
+        try {
+          logger.info(`[AuthenticationApplicationService] Auto-verifying user ${discordUserId} via NSFW channel interaction`);
+          userAuth.verifyNsfw();
+          await this.authenticationRepository.save(userAuth);
+          
+          // Publish NSFW verified event
+          await this.eventBus.publish(
+            new UserNsfwVerified(userId.value, {
+              userId: userId.value,
+              verifiedAt: new Date().toISOString(),
+              verificationMethod: 'auto_nsfw_channel'
+            })
+          );
+        } catch (error) {
+          logger.error(`[AuthenticationApplicationService] Failed to auto-verify user ${discordUserId}:`, error);
+          // Don't fail the access check, just log the error
+        }
       }
       
       // Check blacklist status

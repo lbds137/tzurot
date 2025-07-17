@@ -14,7 +14,7 @@ jest.mock('../../../../../src/logger');
 describe('VerifyCommand', () => {
   let verifyCommand;
   let mockContext;
-  let mockAuth;
+  let mockAuthenticationService;
   let mockChannelUtils;
   let migrationHelper;
 
@@ -25,10 +25,17 @@ describe('VerifyCommand', () => {
     migrationHelper = createMigrationHelper();
     verifyCommand = createVerifyCommand();
 
-    // Mock auth service
-    mockAuth = {
-      isNsfwVerified: jest.fn().mockReturnValue(false),
-      storeNsfwVerification: jest.fn().mockResolvedValue(true),
+    // Mock DDD authentication service
+    mockAuthenticationService = {
+      getAuthenticationStatus: jest.fn().mockResolvedValue({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: {
+            verified: false
+          }
+        }
+      }),
+      verifyNsfwAccess: jest.fn().mockResolvedValue()
     };
 
     // Mock channel utils
@@ -47,7 +54,7 @@ describe('VerifyCommand', () => {
       args: [],
       options: {},
       dependencies: {
-        auth: mockAuth,
+        authenticationService: mockAuthenticationService,
         channelUtils: mockChannelUtils,
       },
       respond: jest.fn().mockResolvedValue(undefined),
@@ -98,7 +105,14 @@ describe('VerifyCommand', () => {
 
   describe('already verified users', () => {
     it('should inform already verified users', async () => {
-      mockAuth.isNsfwVerified.mockReturnValue(true);
+      mockAuthenticationService.getAuthenticationStatus.mockResolvedValue({
+        isAuthenticated: true,
+        user: {
+          nsfwStatus: {
+            verified: true
+          }
+        }
+      });
 
       await verifyCommand.execute(mockContext);
 
@@ -111,7 +125,7 @@ describe('VerifyCommand', () => {
           }),
         ],
       });
-      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+      expect(mockAuthenticationService.verifyNsfwAccess).not.toHaveBeenCalled();
     });
   });
 
@@ -121,7 +135,7 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockAuthenticationService.verifyNsfwAccess).toHaveBeenCalledWith('user123');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -135,7 +149,7 @@ describe('VerifyCommand', () => {
 
     it('should handle verification storage failure', async () => {
       mockContext.isChannelNSFW.mockResolvedValue(true);
-      mockAuth.storeNsfwVerification.mockResolvedValue(false);
+      mockAuthenticationService.verifyNsfwAccess.mockRejectedValue(new Error('Storage error'));
 
       await verifyCommand.execute(mockContext);
 
@@ -180,7 +194,7 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockAuthenticationService.verifyNsfwAccess).toHaveBeenCalledWith('user123');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -212,7 +226,7 @@ describe('VerifyCommand', () => {
 
       await verifyCommand.execute(mockContext);
 
-      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+      expect(mockAuthenticationService.verifyNsfwAccess).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -281,7 +295,7 @@ describe('VerifyCommand', () => {
 
       mockContext.originalMessage.guild.channels.cache.set('nsfw-channel-123', nsfwChannel);
       mockChannelUtils.isChannelNSFW.mockReturnValue(true);
-      mockAuth.storeNsfwVerification.mockResolvedValue(false);
+      mockAuthenticationService.verifyNsfwAccess.mockRejectedValue(new Error('Storage failed'));
 
       await verifyCommand.execute(mockContext);
 
@@ -299,9 +313,7 @@ describe('VerifyCommand', () => {
 
   describe('error handling', () => {
     it('should handle unexpected errors gracefully', async () => {
-      mockAuth.isNsfwVerified.mockImplementation(() => {
-        throw new Error('Database error');
-      });
+      mockAuthenticationService.getAuthenticationStatus.mockRejectedValue(new Error('Database error'));
 
       await verifyCommand.execute(mockContext);
 
@@ -355,7 +367,7 @@ describe('VerifyCommand', () => {
       await verifyCommand.execute(mockContext);
 
       // Should succeed because user has access to at least one NSFW channel
-      expect(mockAuth.storeNsfwVerification).toHaveBeenCalledWith('user123', true);
+      expect(mockAuthenticationService.verifyNsfwAccess).toHaveBeenCalledWith('user123');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -398,7 +410,7 @@ describe('VerifyCommand', () => {
       await verifyCommand.execute(mockContext);
 
       // Should not find any NSFW channels since voice channels don't count
-      expect(mockAuth.storeNsfwVerification).not.toHaveBeenCalled();
+      expect(mockAuthenticationService.verifyNsfwAccess).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
