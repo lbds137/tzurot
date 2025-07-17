@@ -1260,6 +1260,47 @@ describe('Personality Handler Module', () => {
         expect.any(Object)
       );
     });
+
+    it('should NOT apply same-personality optimization for messages older than 24 hours', async () => {
+      // Mock the conversation manager to return the same personality
+      conversationManager.getPersonalityFromMessage.mockResolvedValueOnce('test-personality');
+
+      const referencedMessage = {
+        id: 'referenced-message-id',
+        content: 'Previous personality message',
+        author: { id: 'webhook-id', username: 'Test Personality', bot: true },
+        attachments: new Map(),
+        embeds: [],
+        webhookId: 'webhook-123',
+        createdTimestamp: Date.now() - (25 * 60 * 60 * 1000), // 25 hours ago
+      };
+
+      mockMessage.reference = {
+        messageId: 'referenced-message-id',
+        channelId: 'channel-id', // Same channel
+      };
+      mockMessage.channel.id = 'channel-id'; // Ensure same channel
+      mockMessage.channel.messages.fetch.mockResolvedValueOnce(referencedMessage);
+
+      await personalityHandler.handlePersonalityInteraction(
+        mockMessage,
+        mockPersonality,
+        'Test message',
+        mockClient
+      );
+
+      // Should include reference context since message is too old
+      expect(getAiResponse).toHaveBeenCalledWith(
+        'test-personality',
+        expect.objectContaining({
+          messageContent: 'Test message',
+          referencedMessage: expect.objectContaining({
+            content: 'Previous personality message'
+          })
+        }),
+        expect.any(Object)
+      );
+    });
   });
 
   describe('Error Logging Edge Cases', () => {

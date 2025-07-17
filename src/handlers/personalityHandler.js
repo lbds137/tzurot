@@ -715,7 +715,7 @@ async function handlePersonalityInteraction(
         message?.reference?.channelId &&
         message.channel.id === message.reference.channelId;
 
-      const isRecent = referenceTimestamp && Date.now() - referenceTimestamp < 60 * 60 * 1000;
+      const isRecent = referenceTimestamp && Date.now() - referenceTimestamp < 24 * 60 * 60 * 1000;
 
       // Expanded logging to diagnose issues
       logger.debug(
@@ -725,7 +725,12 @@ async function handlePersonalityInteraction(
         `[PersonalityHandler] Reference channel check: ${sameChannel ? 'SAME' : 'DIFFERENT'}`
       );
       logger.debug(
-        `[PersonalityHandler] Reference recency check: ${isRecent ? 'RECENT' : 'OLD'} (${referenceTimestamp ? Math.round((Date.now() - referenceTimestamp) / 1000 / 60) + ' mins ago' : 'unknown'})`
+        `[PersonalityHandler] Reference recency check: ${isRecent ? 'RECENT' : 'OLD'} (${referenceTimestamp ? (() => {
+          const minsAgo = Math.round((Date.now() - referenceTimestamp) / 1000 / 60);
+          if (minsAgo < 60) return minsAgo + ' mins ago';
+          const hoursAgo = Math.round(minsAgo / 60);
+          return hoursAgo + ' hours ago';
+        })() : 'unknown'})`
       );
 
       // Re-enable the same-personality optimization now that we've fixed the variable scope issues
