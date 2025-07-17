@@ -45,8 +45,9 @@ function createExecutor(_dependencies) {
     logger.info(`[VerifyCommand] Executing for user ${context.userId}`);
 
     try {
-      // Check if verification system is already complete
-      const isAlreadyVerified = auth.isNsfwVerified(context.userId);
+      // Check if verification system is already complete using DDD authentication
+      const authStatus = await dependencies.authenticationService.getAuthenticationStatus(context.userId);
+      const isAlreadyVerified = authStatus.isAuthenticated && authStatus.user?.nsfwStatus?.verified;
 
       // Check if this is a DM channel
       const isDM = context.isDM();
@@ -116,10 +117,10 @@ function createExecutor(_dependencies) {
 
       // If the current channel is NSFW, the user is automatically verified
       if (isCurrentChannelNSFW) {
-        // Store the verification status
-        const success = await auth.storeNsfwVerification(context.userId, true);
-
-        if (success) {
+        // Store the verification status using DDD authentication service
+        try {
+          await dependencies.authenticationService.verifyNsfwAccess(context.userId);
+          
           const successEmbed = {
             title: '✅ Verification Successful',
             description:
@@ -148,7 +149,8 @@ function createExecutor(_dependencies) {
             timestamp: new Date().toISOString(),
           };
           return await context.respond({ embeds: [successEmbed] });
-        } else {
+        } catch (verifyError) {
+          logger.error('[VerifyCommand] Error storing NSFW verification:', verifyError);
           const errorEmbed = {
             title: '❌ Verification Error',
             description: 'There was an error storing your verification status.',
@@ -201,10 +203,10 @@ function createExecutor(_dependencies) {
 
         // If the user has access to any NSFW channels, they pass verification
         if (nsfwChannels.length > 0) {
-          // Store the verification status
-          const success = await auth.storeNsfwVerification(context.userId, true);
-
-          if (success) {
+          // Store the verification status using DDD authentication service
+          try {
+            await dependencies.authenticationService.verifyNsfwAccess(context.userId);
+            
             // Format channel list for Discord
             const channelList = nsfwChannels
               .slice(0, 5)
@@ -242,7 +244,8 @@ function createExecutor(_dependencies) {
               timestamp: new Date().toISOString(),
             };
             return await context.respond({ embeds: [verifiedEmbed] });
-          } else {
+          } catch (verifyError) {
+            logger.error('[VerifyCommand] Error storing NSFW verification:', verifyError);
             const storeErrorEmbed = {
               title: '❌ Verification Error',
               description: 'There was an error storing your verification status.',
