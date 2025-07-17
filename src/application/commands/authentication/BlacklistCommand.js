@@ -24,7 +24,7 @@ function getCommandPrefix(context) {
 function createBlacklistCommand(dependencies = {}) {
   return new Command({
     name: 'blacklist',
-    description: 'Blacklist or unblacklist users from authentication',
+    description: 'Globally blacklist or unblacklist users from using the bot',
     category: 'Authentication',
     aliases: ['bl'],
     options: [
@@ -180,8 +180,8 @@ async function showHelp(context) {
   const commandPrefix = getCommandPrefix(context);
 
   const helpEmbed = {
-    title: '🚫 Blacklist Management Help',
-    description: 'Manage user blacklist for authentication system',
+    title: '🚫 Global Blacklist Management',
+    description: 'Manage global user blacklist - blocks ALL bot interactions',
     color: 0x2196f3, // Blue color
     fields: [
       {
@@ -196,8 +196,8 @@ async function showHelp(context) {
       {
         name: '⚠️ Important Notes',
         value:
-          '• Blacklisted users cannot authenticate with the bot\n' +
-          '• Existing tokens are automatically revoked when blacklisted\n' +
+          '• Blacklisted users cannot use ANY bot commands\n' +
+          '• All messages from blacklisted users are ignored\n' +
           '• Only administrators can manage the blacklist',
         inline: false,
       },
@@ -275,16 +275,17 @@ async function handleAdd(context, options, args) {
   }
 
   try {
-    // Get authentication service from DDD system
+    // Get blacklist service from DDD system
     const {
       getApplicationBootstrap,
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
-    const authService = bootstrap.getApplicationServices().authenticationService;
+    const blacklistService = bootstrap.getBlacklistService();
 
     // Check if user is already blacklisted
-    const currentStatus = await authService.getAuthenticationStatus(userId);
-    if (currentStatus.isBlacklisted) {
+    const isAlreadyBlacklisted = await blacklistService.isUserBlacklisted(userId);
+    if (isAlreadyBlacklisted) {
+      const blacklistDetails = await blacklistService.getBlacklistDetails(userId);
       const alreadyBlacklistedEmbed = {
         title: '⚠️ Already Blacklisted',
         description: `User <@${userId}> is already blacklisted.`,
@@ -292,7 +293,7 @@ async function handleAdd(context, options, args) {
         fields: [
           {
             name: 'Current Reason',
-            value: currentStatus.blacklistReason || 'No reason recorded',
+            value: blacklistDetails?.reason || 'No reason recorded',
             inline: false,
           },
           {
@@ -307,7 +308,7 @@ async function handleAdd(context, options, args) {
     }
 
     // Blacklist the user
-    await authService.blacklistUser(userId, reason);
+    await blacklistService.blacklistUser(userId, reason, context.userId);
 
     logger.info(
       `[BlacklistCommand] User ${userId} blacklisted by ${context.userId} - Reason: ${reason}`
@@ -331,9 +332,9 @@ async function handleAdd(context, options, args) {
         {
           name: 'Effects',
           value:
-            '• Cannot authenticate with the bot\n' +
-            '• Existing tokens have been revoked\n' +
-            '• Will receive error when trying to auth',
+            '• Cannot use any bot commands\n' +
+            '• All messages are ignored silently\n' +
+            '• Cannot interact with personalities',
           inline: false,
         },
         {
@@ -415,16 +416,16 @@ async function handleRemove(context, options, args) {
   const userId = typeof targetUser === 'object' ? targetUser.id : targetUser;
 
   try {
-    // Get authentication service from DDD system
+    // Get blacklist service from DDD system
     const {
       getApplicationBootstrap,
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
-    const authService = bootstrap.getApplicationServices().authenticationService;
+    const blacklistService = bootstrap.getBlacklistService();
 
     // Check if user is blacklisted
-    const currentStatus = await authService.getAuthenticationStatus(userId);
-    if (!currentStatus.isBlacklisted) {
+    const blacklistDetails = await blacklistService.getBlacklistDetails(userId);
+    if (!blacklistDetails) {
       const notBlacklistedEmbed = {
         title: '⚠️ Not Blacklisted',
         description: `User <@${userId}> is not currently blacklisted.`,
@@ -432,9 +433,7 @@ async function handleRemove(context, options, args) {
         fields: [
           {
             name: 'Current Status',
-            value: currentStatus.isAuthenticated
-              ? '✅ Can authenticate normally'
-              : '❌ Not authenticated',
+            value: '✅ Can use bot normally',
             inline: false,
           },
         ],
@@ -444,7 +443,7 @@ async function handleRemove(context, options, args) {
     }
 
     // Unblacklist the user
-    await authService.unblacklistUser(userId);
+    await blacklistService.unblacklistUser(userId, context.userId);
 
     logger.info(`[BlacklistCommand] User ${userId} unblacklisted by ${context.userId}`);
 
@@ -460,15 +459,15 @@ async function handleRemove(context, options, args) {
         },
         {
           name: 'Previous Reason',
-          value: currentStatus.blacklistReason || 'No reason recorded',
+          value: blacklistDetails.reason || 'No reason recorded',
           inline: true,
         },
         {
           name: 'Effects',
           value:
-            '• Can now authenticate with the bot\n' +
-            '• Will need to re-authenticate\n' +
-            '• Previous tokens remain revoked',
+            '• Can now use all bot commands\n' +
+            '• Can interact with personalities\n' +
+            '• Will need to authenticate for NSFW content',
           inline: false,
         },
         {
@@ -509,15 +508,15 @@ async function handleRemove(context, options, args) {
  */
 async function handleList(context) {
   try {
-    // Get authentication service from DDD system
+    // Get blacklist service from DDD system
     const {
       getApplicationBootstrap,
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
-    const authService = bootstrap.getApplicationServices().authenticationService;
+    const blacklistService = bootstrap.getBlacklistService();
 
     // Get all blacklisted users
-    const blacklistedUsers = await authService.getBlacklistedUsers();
+    const blacklistedUsers = await blacklistService.getBlacklistedUsers();
 
     if (blacklistedUsers.length === 0) {
       const emptyListEmbed = {
@@ -538,8 +537,9 @@ async function handleList(context) {
 
     // Format the blacklist
     const userList = blacklistedUsers.map((user, index) => {
-      const reason = user.blacklistReason || 'No reason provided';
-      return `**${index + 1}.** <@${user.userId}>\n   Reason: ${reason}`;
+      const reason = user.reason || 'No reason provided';
+      const userId = user.userId.toString ? user.userId.toString() : user.userId;
+      return `**${index + 1}.** <@${userId}>\n   Reason: ${reason}`;
     });
 
     // Split into multiple embeds if too many users
@@ -632,17 +632,17 @@ async function handleCheck(context, options, args) {
   const userId = typeof targetUser === 'object' ? targetUser.id : targetUser;
 
   try {
-    // Get authentication service from DDD system
+    // Get blacklist service from DDD system
     const {
       getApplicationBootstrap,
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
-    const authService = bootstrap.getApplicationServices().authenticationService;
+    const blacklistService = bootstrap.getBlacklistService();
 
-    // Check user status
-    const status = await authService.getAuthenticationStatus(userId);
+    // Check user blacklist status
+    const blacklistDetails = await blacklistService.getBlacklistDetails(userId);
 
-    if (status.isBlacklisted) {
+    if (blacklistDetails) {
       const blacklistedEmbed = {
         title: '🚫 User is Blacklisted',
         description: `<@${userId}> is currently blacklisted.`,
@@ -660,12 +660,12 @@ async function handleCheck(context, options, args) {
           },
           {
             name: 'Reason',
-            value: status.blacklistReason || 'No reason provided',
+            value: blacklistDetails.reason || 'No reason provided',
             inline: false,
           },
           {
             name: 'Effects',
-            value: 'This user cannot authenticate with the bot.',
+            value: 'This user cannot use any bot commands or interact with personalities.',
             inline: false,
           },
         ],
@@ -689,8 +689,8 @@ async function handleCheck(context, options, args) {
             inline: true,
           },
           {
-            name: 'Authentication',
-            value: status.isAuthenticated ? '✅ Currently authenticated' : '❌ Not authenticated',
+            name: 'Bot Access',
+            value: '✅ Can use all bot features',
             inline: false,
           },
         ],
