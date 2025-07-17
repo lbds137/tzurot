@@ -2,6 +2,19 @@
  * Tests for AuthenticationApplicationService
  */
 
+// Mock OpenAI before any imports
+jest.mock('openai', () => {
+  const MockOpenAI = jest.fn().mockImplementation(() => ({
+    baseURL: 'https://mock-api.example.com/v1',
+    apiKey: 'mocked-key',
+    defaultHeaders: {}
+  }));
+  
+  return {
+    OpenAI: MockOpenAI
+  };
+});
+
 const { AuthenticationApplicationService } = require('../../../../src/application/services/AuthenticationApplicationService');
 const { UserAuth, Token } = require('../../../../src/domain/authentication');
 const { UserId } = require('../../../../src/domain/personality');

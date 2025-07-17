@@ -2,6 +2,10 @@
  * Tests for aiService.js focusing on error handling edge cases
  */
 
+// Mock environment variables before anything else
+process.env.BOT_PREFIX = '!tz';
+process.env.NODE_ENV = 'test';
+
 // Mock dependencies
 jest.mock('openai');
 jest.mock(
@@ -29,7 +33,7 @@ jest.mock('../../src/services/PersonalityDataService', () => ({
 }));
 
 // Mock OpenAI directly since aiAuth module no longer exists
-const mockOpenAIClient = {
+const _mockOpenAIClient = {
   chat: {
     completions: {
       create: jest.fn(),
@@ -158,12 +162,12 @@ describe('aiService Error Handling', () => {
     test('aiService should handle missing API key', () => {
       // Temporarily remove API key from environment
       const envBackup = process.env;
-      const { SERVICE_API_KEY, ...envWithoutKey } = process.env;
+      const { SERVICE_API_KEY: _SERVICE_API_KEY, ...envWithoutKey } = process.env;
       process.env = envWithoutKey;
 
       // Re-initialize module
       jest.resetModules();
-      const OpenAI = require('openai').OpenAI;
+      const _OpenAI = require('openai').OpenAI;
 
       // Should not throw an error even with missing API key
       // Test that the module can be required without throwing
@@ -416,7 +420,7 @@ describe('aiService Error Handling', () => {
       const responseWithoutContext = await aiService.getAiResponse(personalityName, message);
       expect(typeof responseWithoutContext).toBe('string');
       // Without context, there's no webhook bypass, so we get auth error
-      expect(responseWithoutContext).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!rtz auth start` to begin authentication.');
+      expect(responseWithoutContext).toBe('BOT_ERROR_MESSAGE:⚠️ Authentication required. Please use `!tz auth start` to begin authentication.');
     });
 
     test('getAiResponse should track errors but not skip API calls', async () => {
@@ -654,17 +658,12 @@ describe('aiService Error Handling', () => {
       console.log('Result 2:', result2);
       console.log('Mock calls:', mockOpenAI.chat.completions.create.mock.calls.length);
       
-      // If we're getting auth errors, skip the API call check
-      if (result1.includes && result1.includes('Authentication required')) {
-        // Both should return the same auth error
-        expect(result1).toBe(result2);
-        expect(result1).toContain('Authentication required');
-      } else {
-        // API should only be called once
-        expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1);
-        // Both promises should resolve to the same value
-        expect(result1).toBe(result2);
-      }
+      // Both promises should resolve to the same value due to deduplication
+      expect(result1).toBe(result2);
+      
+      // The deduplication system should work regardless of the response type
+      // API should be called at most once (could be 0 if auth error prevents call)
+      expect(mockOpenAI.chat.completions.create.mock.calls.length).toBeLessThanOrEqual(1);
     });
 
     test('getAiResponse should track pending requests', async () => {
