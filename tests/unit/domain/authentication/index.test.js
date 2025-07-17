@@ -62,11 +62,6 @@ describe('Authentication Domain Index', () => {
       expect(authDomain.UserNsfwVerificationCleared).toBeDefined();
       expect(typeof authDomain.UserNsfwVerificationCleared).toBe('function');
 
-      expect(authDomain.UserBlacklisted).toBeDefined();
-      expect(typeof authDomain.UserBlacklisted).toBe('function');
-
-      expect(authDomain.UserUnblacklisted).toBeDefined();
-      expect(typeof authDomain.UserUnblacklisted).toBe('function');
 
       expect(authDomain.AuthenticationDenied).toBeDefined();
       expect(typeof authDomain.AuthenticationDenied).toBe('function');
@@ -135,8 +130,6 @@ describe('Authentication Domain Index', () => {
         'UserTokenRefreshed',
         'UserNsfwVerified',
         'UserNsfwVerificationCleared',
-        'UserBlacklisted',
-        'UserUnblacklisted',
         'AuthenticationDenied',
         'ProxyAuthenticationAttempted',
       ];

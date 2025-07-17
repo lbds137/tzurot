@@ -15,8 +15,6 @@ const {
   UserTokenRefreshed,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
   AuthenticationDenied,
   ProxyAuthenticationAttempted,
 } = require('./AuthenticationEvents');
@@ -42,8 +40,6 @@ module.exports = {
   UserTokenRefreshed,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
   AuthenticationDenied,
   ProxyAuthenticationAttempted,
 };

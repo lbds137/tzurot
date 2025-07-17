@@ -22,8 +22,6 @@ const {
   UserTokenRefreshed,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
 } = require('../../../../src/domain/authentication/AuthenticationEvents');
 
 describe('UserAuth', () => {
@@ -114,14 +112,6 @@ describe('UserAuth', () => {
       });
     });
 
-    it('should reject if user blacklisted', () => {
-      userAuth.blacklist('Test reason');
-      const newToken = Token.createWithLifetime('new-token-value', 3600000);
-
-      expect(() => userAuth.refreshToken(newToken)).toThrow(
-        'Cannot refresh token for blacklisted user'
-      );
-    });
 
     it('should reject invalid token', () => {
       expect(() => userAuth.refreshToken('invalid')).toThrow('Invalid Token');
@@ -210,11 +200,6 @@ describe('UserAuth', () => {
       expect(userAuth.getUncommittedEvents()).toHaveLength(0);
     });
 
-    it('should reject if user blacklisted', () => {
-      userAuth.blacklist('Test reason');
-
-      expect(() => userAuth.verifyNsfw()).toThrow('Cannot verify NSFW for blacklisted user');
-    });
   });
 
   describe('clearNsfwVerification', () => {
@@ -254,79 +239,6 @@ describe('UserAuth', () => {
     });
   });
 
-  describe('blacklist', () => {
-    let userAuth;
-
-    beforeEach(() => {
-      userAuth = UserAuth.createAuthenticated(userId, token);
-      userAuth.verifyNsfw();
-      userAuth.markEventsAsCommitted();
-    });
-
-    it('should blacklist user', () => {
-      userAuth.blacklist('Abuse detected');
-
-      expect(userAuth.blacklisted).toBe(true);
-      expect(userAuth.blacklistReason).toBe('Abuse detected');
-      expect(userAuth.token).toBeNull(); // Token revoked
-      expect(userAuth.nsfwStatus.verified).toBe(false); // NSFW cleared
-    });
-
-    it('should emit UserBlacklisted event', () => {
-      userAuth.blacklist('Abuse detected');
-      const events = userAuth.getUncommittedEvents();
-
-      expect(events).toHaveLength(1);
-      expect(events[0]).toBeInstanceOf(UserBlacklisted);
-      expect(events[0].payload).toMatchObject({
-        reason: 'Abuse detected',
-      });
-    });
-
-    it('should require reason', () => {
-      expect(() => userAuth.blacklist('')).toThrow('Blacklist reason required');
-      expect(() => userAuth.blacklist(null)).toThrow('Blacklist reason required');
-      expect(() => userAuth.blacklist(123)).toThrow('Blacklist reason required');
-    });
-
-    it('should reject if already blacklisted', () => {
-      userAuth.blacklist('First reason');
-
-      expect(() => userAuth.blacklist('Second reason')).toThrow('User already blacklisted');
-    });
-  });
-
-  describe('unblacklist', () => {
-    let userAuth;
-
-    beforeEach(() => {
-      userAuth = UserAuth.createAuthenticated(userId, token);
-      userAuth.blacklist('Test reason');
-      userAuth.markEventsAsCommitted();
-    });
-
-    it('should remove from blacklist', () => {
-      userAuth.unblacklist();
-
-      expect(userAuth.blacklisted).toBe(false);
-      expect(userAuth.blacklistReason).toBeNull();
-    });
-
-    it('should emit UserUnblacklisted event', () => {
-      userAuth.unblacklist();
-      const events = userAuth.getUncommittedEvents();
-
-      expect(events).toHaveLength(1);
-      expect(events[0]).toBeInstanceOf(UserUnblacklisted);
-      expect(events[0].payload.unblacklistedAt).toBeDefined();
-    });
-
-    it('should reject if not blacklisted', () => {
-      userAuth.unblacklist();
-
-      expect(() => userAuth.unblacklist()).toThrow('User not blacklisted');
-    });
-  });
 
   describe('isAuthenticated', () => {
     it('should return true for valid authentication', () => {
@@ -343,12 +255,6 @@ describe('UserAuth', () => {
       expect(userAuth.isAuthenticated()).toBe(true); // Still true - AI service validates
     });
 
-    it('should return false for blacklisted user (token revoked)', () => {
-      const userAuth = UserAuth.createAuthenticated(userId, token);
-      userAuth.blacklist('Test reason');
-
-      expect(userAuth.isAuthenticated()).toBe(false); // Token revoked when blacklisted
-    });
 
     it('should return false for user without token', () => {
       const userAuth = UserAuth.createAuthenticated(userId, token);
@@ -417,12 +323,6 @@ describe('UserAuth', () => {
       expect(userAuth.getRateLimit()).toBe(1);
     });
 
-    it('should return 0 for blacklisted users', () => {
-      const userAuth = UserAuth.createAuthenticated(userId, token);
-      userAuth.blacklist('Test reason');
-
-      expect(userAuth.getRateLimit()).toBe(0);
-    });
   });
 
   describe('event sourcing', () => {
@@ -471,8 +371,6 @@ describe('UserAuth', () => {
       expect(json).toMatchObject({
         userId: userId.toString(),
         token: token.toJSON(),
-        blacklisted: false,
-        blacklistReason: null,
       });
       expect(json.nsfwStatus).toBeDefined();
     });
@@ -498,9 +396,7 @@ describe('UserAuth', () => {
         nsfwStatus: {
           verified: true,
           verifiedAt: '2024-01-01T00:00:00.000Z'
-        },
-        blacklisted: false,
-        blacklistReason: null
+        }
       };
 
       const userAuth = UserAuth.fromData(data);
@@ -509,8 +405,6 @@ describe('UserAuth', () => {
       expect(userAuth.token.value).toBe('test-token-value');
       expect(userAuth.token.expiresAt).toEqual(new Date('2024-01-01T01:00:00.000Z'));
       expect(userAuth.nsfwStatus.verified).toBe(true);
-      expect(userAuth.blacklisted).toBe(false);
-      expect(userAuth.blacklistReason).toBeNull();
       // Fields removed: lastAuthenticatedAt and authenticationCount
     });
 
