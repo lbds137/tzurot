@@ -59,6 +59,14 @@ function createExecutor(dependencies = {}) {
         const status = await authService.getAuthenticationStatus(context.userId);
         isAuthenticated = status.isAuthenticated;
         isNsfwVerified = status.isAuthenticated && status.user?.nsfwStatus?.verified;
+        
+        logger.debug('[StatusCommand] Auth status for user', {
+          userId: context.userId,
+          isAuthenticated: status.isAuthenticated,
+          userExists: !!status.user,
+          nsfwStatus: status.user?.nsfwStatus,
+          isNsfwVerified
+        });
       } catch (error) {
         logger.warn('[StatusCommand] Failed to get auth status from DDD service:', error);
       }

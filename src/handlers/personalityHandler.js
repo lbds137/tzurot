@@ -82,7 +82,7 @@ function clearCache() {
 // Injected auth service to avoid circular dependencies
 let injectedAuthService = null;
 
-async function checkPersonalityAuthDDD(message, personality) {
+async function checkPersonalityAuth(message, personality) {
   try {
     // Use injected auth service or throw error if not set
     if (!injectedAuthService) {
@@ -280,8 +280,8 @@ async function handlePersonalityInteraction(
   let requestKey;
 
   try {
-    // Perform complete authentication check using DDD system
-    const authResult = await checkPersonalityAuthDDD(message, personality);
+    // Perform complete authentication check
+    const authResult = await checkPersonalityAuth(message, personality);
 
     if (!authResult.isAllowed) {
       // Authentication failed - send error message and exit
@@ -954,4 +954,5 @@ module.exports = {
   configureDelay,
   setAuthService,
   clearCache,
+  checkPersonalityAuth, // Export for testing
 };

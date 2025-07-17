@@ -15,7 +15,7 @@ Verify that the DDD authentication implementation and major system changes maint
 - [X] **Bot Status**: Confirm Rotzot is online and responsive
 - [X] **Channel Access**: Ensure test channels are available (both public and DM)
 - [X] **Permissions**: Verify bot has appropriate permissions (Send Messages, Use Webhooks, etc.)
-- [ ] **Clean State**: Clear any existing authentication tokens if needed
+- [X] **Clean State**: Clear any existing authentication tokens if needed
 
 ### Test Data Preparation
 - [ ] **Test User ID**: Use your Discord user ID for authentication tests
@@ -28,17 +28,17 @@ Verify that the DDD authentication implementation and major system changes maint
 **Goal**: Verify authentication system works end-to-end
 
 #### Test Cases:
-- [ ] **Fresh Authentication**
+- [X] **Fresh Authentication**
   1. Use `!auth` command in DM or authorized channel
   2. Follow OAuth flow completely
   3. Verify success message received
   4. **Expected**: Authentication completes successfully
 
-- [ ] **Authentication Status Check**
+- [X] **Authentication Status Check**
   1. Run `!auth status` after authenticating
   2. **Expected**: Shows authenticated status, no mention of `lastAuthenticatedAt` or `authenticationCount`
 
-- [ ] **Re-authentication Handling**
+- [X] **Re-authentication Handling**
   1. Run `!auth` again while already authenticated
   2. **Expected**: Graceful handling (either re-auth or status message)
 
@@ -46,14 +46,14 @@ Verify that the DDD authentication implementation and major system changes maint
 **Goal**: Ensure bot uses user's authenticated AI service, not OpenAI directly
 
 #### Test Cases:
-- [ ] **Personality Interaction After Auth**
+- [X] **Personality Interaction After Auth**
   1. Authenticate with your AI service (not OpenAI)
   2. Interact with a personality: `@personality-name hello`
   3. Monitor network traffic or logs if possible
   4. **Expected**: Bot should hit YOUR AI endpoint, not OpenAI
   5. **Critical**: This was broken in previous DDD migration
 
-- [ ] **Error Response for Unauthenticated Users**
+- [X] **Error Response for Unauthenticated Users**
   1. Have an unauthenticated user try to interact with personality
   2. **Expected**: Clear error message about authentication requirement
 
@@ -107,17 +107,17 @@ Verify that the DDD authentication implementation and major system changes maint
 **Goal**: Ensure existing personality features still work
 
 #### Test Cases:
-- [ ] **Basic Personality Chat**
+- [X] **Basic Personality Chat**
   1. Use `@personality-name hello, how are you?`
   2. **Expected**: Normal AI response via webhook with correct avatar/name
 
-- [ ] **Personality Commands**
+- [X] **Personality Commands**
   1. Test `!list` - view available personalities
   2. Test `!info personality-name` - get personality details
   3. Test `!add personality-name` - add new personality (if you have rights)
   4. **Expected**: All commands work as before
 
-- [ ] **Webhook Delivery**
+- [X] **Webhook Delivery**
   1. Send messages to personalities in different channels
   2. **Expected**: Responses appear as webhooks with correct formatting
 
@@ -125,15 +125,15 @@ Verify that the DDD authentication implementation and major system changes maint
 **Goal**: Verify message handling and deduplication still work
 
 #### Test Cases:
-- [ ] **Reply Handling**
+- [X] **Reply Handling**
   1. Reply to a bot message with a follow-up
   2. **Expected**: Bot recognizes reply context correctly
 
-- [ ] **Mention Processing**
+- [X] **Mention Processing**
   1. @mention the bot directly: `@Rotzot hello`
   2. **Expected**: Bot responds appropriately
 
-- [ ] **No Duplicate Responses**
+- [X] **No Duplicate Responses**
   1. Send a message that might trigger multiple handlers
   2. **Expected**: Only one response received (deduplication working)
 
@@ -159,7 +159,7 @@ Verify that the DDD authentication implementation and major system changes maint
   1. Use `!status` 
   2. **Expected**: Shows current system status, memory usage, etc.
 
-- [ ] **Debug Command** (if authorized)
+- [X] **Debug Command** (if authorized)
   1. Use `!debug` with various options
   2. **Expected**: Returns appropriate debug information
 
@@ -167,11 +167,11 @@ Verify that the DDD authentication implementation and major system changes maint
 **Goal**: Verify graceful error handling
 
 #### Test Cases:
-- [ ] **Invalid Commands**
+- [X] **Invalid Commands**
   1. Use `!nonexistentcommand`
   2. **Expected**: Helpful error message or ignore gracefully
 
-- [ ] **Malformed Arguments**
+- [X] **Malformed Arguments**
   1. Use commands with wrong argument types
   2. **Expected**: Clear error messages, no crashes
 

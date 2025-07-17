@@ -473,11 +473,20 @@ class AuthenticationApplicationService {
       }
       
       // Auto-verify user if they're interacting in an NSFW channel and not already verified
+      logger.debug(`[AuthenticationApplicationService] Auto-verify check for ${discordUserId}:`, {
+        isNsfwChannel: context.isNsfwChannel,
+        isVerified: userAuth.nsfwStatus.verified,
+        nsfwStatus: userAuth.nsfwStatus.toJSON(),
+        personality: personality.name
+      });
+      
       if (context.isNsfwChannel && !userAuth.nsfwStatus.verified) {
         try {
           logger.info(`[AuthenticationApplicationService] Auto-verifying user ${discordUserId} via NSFW channel interaction`);
           userAuth.verifyNsfw();
           await this.authenticationRepository.save(userAuth);
+          
+          logger.info(`[AuthenticationApplicationService] Auto-verification saved for ${discordUserId}, new status:`, userAuth.nsfwStatus.toJSON());
           
           // Publish NSFW verified event
           await this.eventBus.publish(
