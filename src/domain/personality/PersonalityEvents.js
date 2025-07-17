@@ -35,7 +35,9 @@ class PersonalityProfileUpdated extends DomainEvent {
     }
 
     if (!payload.profile && !payload.configuration && !payload.model) {
-      throw new Error('PersonalityProfileUpdated requires at least one of: profile, configuration, or model');
+      throw new Error(
+        'PersonalityProfileUpdated requires at least one of: profile, configuration, or model'
+      );
     }
   }
 }

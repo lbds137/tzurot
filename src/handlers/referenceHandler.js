@@ -368,7 +368,7 @@ async function processMessageLinks(
                     try {
                       // First try to get personality directly as it could be a full name
                       let personalityData = await getPersonality(personalityName);
-                      
+
                       // If not found as direct name, try it as an alias
                       if (!personalityData) {
                         personalityData = await getPersonalityByAlias(personalityName);
@@ -377,7 +377,10 @@ async function processMessageLinks(
                       if (personalityData) {
                         result.referencedPersonalityInfo = {
                           name: personalityName,
-                          displayName: personalityData.profile?.displayName || personalityData.name || personalityName,
+                          displayName:
+                            personalityData.profile?.displayName ||
+                            personalityData.name ||
+                            personalityName,
                         };
 
                         logger.info(

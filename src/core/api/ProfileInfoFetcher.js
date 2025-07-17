@@ -15,7 +15,7 @@ class ProfileInfoFetcher {
   constructor(options = {}) {
     this.cache = new ProfileInfoCache(options.cache);
     this.client = new ProfileInfoClient(options.client);
-    
+
     // Inject authentication service to avoid circular dependency
     this.authService = options.authService || null;
 
@@ -63,27 +63,27 @@ class ProfileInfoFetcher {
    */
   async getUserAuth(userId) {
     if (!userId) return null;
-    
+
     // If no auth service injected, return null (authentication not available)
     if (!this.authService) {
       logger.debug(`${this.logPrefix} No auth service injected, returning null for user ${userId}`);
       return null;
     }
-    
+
     try {
       const status = await this.authService.getAuthenticationStatus(userId);
-      
+
       if (!status.isAuthenticated || !status.user?.token) {
         return null;
       }
-      
+
       // Get app ID from config (similar to legacy authManager.APP_ID)
       const config = require('../../../config');
       const appId = config.serviceAppId || process.env.SERVICE_APP_ID;
-      
+
       return {
         token: status.user.token.value,
-        appId: appId
+        appId: appId,
       };
     } catch (error) {
       logger.error(`${this.logPrefix} Error getting user auth:`, error);

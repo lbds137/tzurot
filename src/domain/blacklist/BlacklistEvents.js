@@ -41,5 +41,5 @@ class UserUnblacklistedGlobally extends DomainEvent {
 
 module.exports = {
   UserBlacklistedGlobally,
-  UserUnblacklistedGlobally
+  UserUnblacklistedGlobally,
 };

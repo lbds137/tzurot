@@ -12,16 +12,18 @@ const logger = require('../../logger');
  * 1. Revoke any existing authentication tokens
  * 2. Clear conversation state
  * 3. Log the action for audit purposes
- * 
+ *
  * @param {Object} dependencies - Injected dependencies
  * @returns {Function} Event handler function
  */
 function createUserBlacklistedGloballyHandler(dependencies) {
   const { authenticationRepository, conversationManager } = dependencies;
-  
+
   return async function handleUserBlacklistedGlobally(event) {
-    logger.info(`[BlacklistEventHandlers] Processing UserBlacklistedGlobally for user ${event.aggregateId}`);
-    
+    logger.info(
+      `[BlacklistEventHandlers] Processing UserBlacklistedGlobally for user ${event.aggregateId}`
+    );
+
     try {
       // Clean up authentication data
       // We don't delete the entire auth record as it might contain useful history
@@ -30,17 +32,23 @@ function createUserBlacklistedGloballyHandler(dependencies) {
       if (userAuth && userAuth.isAuthenticated()) {
         userAuth.expireToken();
         await authenticationRepository.save(userAuth);
-        logger.info(`[BlacklistEventHandlers] Expired authentication token for blacklisted user ${event.aggregateId}`);
+        logger.info(
+          `[BlacklistEventHandlers] Expired authentication token for blacklisted user ${event.aggregateId}`
+        );
       }
-      
+
       // Clear any active conversations
       if (conversationManager && conversationManager.clearUserConversations) {
         conversationManager.clearUserConversations(event.aggregateId);
-        logger.info(`[BlacklistEventHandlers] Cleared active conversations for blacklisted user ${event.aggregateId}`);
+        logger.info(
+          `[BlacklistEventHandlers] Cleared active conversations for blacklisted user ${event.aggregateId}`
+        );
       }
-      
+
       // Log for audit
-      logger.info(`[BlacklistEventHandlers] User ${event.aggregateId} globally blacklisted by ${event.payload.blacklistedBy}. Reason: ${event.payload.reason}`);
+      logger.info(
+        `[BlacklistEventHandlers] User ${event.aggregateId} globally blacklisted by ${event.payload.blacklistedBy}. Reason: ${event.payload.reason}`
+      );
     } catch (error) {
       logger.error(`[BlacklistEventHandlers] Error handling UserBlacklistedGlobally:`, error);
       // Don't throw - we don't want event handler failures to affect the blacklist operation
@@ -52,17 +60,21 @@ function createUserBlacklistedGloballyHandler(dependencies) {
  * Handle user unblacklisted globally event
  * When a user is unblacklisted, we just log it for audit purposes.
  * The user will need to re-authenticate if they want to use NSFW features.
- * 
+ *
  * @param {Object} dependencies - Injected dependencies
  * @returns {Function} Event handler function
  */
 function createUserUnblacklistedGloballyHandler(dependencies) {
   return async function handleUserUnblacklistedGlobally(event) {
-    logger.info(`[BlacklistEventHandlers] Processing UserUnblacklistedGlobally for user ${event.aggregateId}`);
-    
+    logger.info(
+      `[BlacklistEventHandlers] Processing UserUnblacklistedGlobally for user ${event.aggregateId}`
+    );
+
     try {
       // Log for audit
-      logger.info(`[BlacklistEventHandlers] User ${event.aggregateId} globally unblacklisted by ${event.payload.unblacklistedBy}. Previous reason: ${event.payload.previousReason}`);
+      logger.info(
+        `[BlacklistEventHandlers] User ${event.aggregateId} globally unblacklisted by ${event.payload.unblacklistedBy}. Previous reason: ${event.payload.previousReason}`
+      );
     } catch (error) {
       logger.error(`[BlacklistEventHandlers] Error handling UserUnblacklistedGlobally:`, error);
       // Don't throw - we don't want event handler failures to affect the unblacklist operation
@@ -79,23 +91,23 @@ function createUserUnblacklistedGloballyHandler(dependencies) {
  */
 function registerBlacklistEventHandlers(dependencies) {
   const { eventBus } = dependencies;
-  
+
   // Register handlers
   eventBus.subscribe(
     UserBlacklistedGlobally.name,
     createUserBlacklistedGloballyHandler(dependencies)
   );
-  
+
   eventBus.subscribe(
     UserUnblacklistedGlobally.name,
     createUserUnblacklistedGloballyHandler(dependencies)
   );
-  
+
   logger.info('[BlacklistEventHandlers] Registered blacklist event handlers');
 }
 
 module.exports = {
   registerBlacklistEventHandlers,
   createUserBlacklistedGloballyHandler,
-  createUserUnblacklistedGloballyHandler
+  createUserUnblacklistedGloballyHandler,
 };

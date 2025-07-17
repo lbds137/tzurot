@@ -46,7 +46,9 @@ function createExecutor(_dependencies) {
 
     try {
       // Check if verification system is already complete using DDD authentication
-      const authStatus = await dependencies.authenticationService.getAuthenticationStatus(context.userId);
+      const authStatus = await dependencies.authenticationService.getAuthenticationStatus(
+        context.userId
+      );
       const isAlreadyVerified = authStatus.isAuthenticated && authStatus.user?.nsfwStatus?.verified;
 
       // Check if this is a DM channel
@@ -120,7 +122,7 @@ function createExecutor(_dependencies) {
         // Store the verification status using DDD authentication service
         try {
           await dependencies.authenticationService.verifyNsfwAccess(context.userId);
-          
+
           const successEmbed = {
             title: '✅ Verification Successful',
             description:
@@ -206,7 +208,7 @@ function createExecutor(_dependencies) {
           // Store the verification status using DDD authentication service
           try {
             await dependencies.authenticationService.verifyNsfwAccess(context.userId);
-            
+
             // Format channel list for Discord
             const channelList = nsfwChannels
               .slice(0, 5)

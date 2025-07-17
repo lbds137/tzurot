@@ -80,7 +80,7 @@ class ReleaseNotificationManager {
           optedOut: false,
           notificationLevel: 'minor',
           fromDDDAuth: true,
-          ...options
+          ...options,
         });
         logger.info(`[ReleaseNotificationManager] Added user ${userId} to notification system`);
       }

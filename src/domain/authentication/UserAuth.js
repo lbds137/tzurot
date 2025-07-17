@@ -21,7 +21,7 @@ const {
  * @class UserAuth
  * @extends AggregateRoot
  * @description Aggregate root for user authentication
- * 
+ *
  * IMPORTANT: Users must be authenticated to exist in the system.
  * There are no "unauthenticated" users - if someone hasn't gone through
  * OAuth, they simply don't have a UserAuth record.
@@ -91,19 +91,19 @@ class UserAuth extends AggregateRoot {
 
     const userId = new UserId(data.userId);
     const token = new Token(
-      data.token.value, 
+      data.token.value,
       data.token.expiresAt ? new Date(data.token.expiresAt) : null
     );
-    
+
     const userAuth = new UserAuth(userId, token);
-    
+
     // Restore state without events
-    userAuth.nsfwStatus = data.nsfwStatus 
+    userAuth.nsfwStatus = data.nsfwStatus
       ? NsfwStatus.fromJSON(data.nsfwStatus)
       : NsfwStatus.createUnverified();
     userAuth.blacklisted = data.blacklisted || false;
     userAuth.blacklistReason = data.blacklistReason || null;
-    
+
     return userAuth;
   }
 
@@ -242,7 +242,7 @@ class UserAuth extends AggregateRoot {
   canAccessNsfw(personality, context) {
     // All personalities are treated as NSFW uniformly
     // No individual personality NSFW checking needed
-    
+
     if (context.isDM()) {
       return this.nsfwStatus.verified;
     }

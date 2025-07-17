@@ -6,7 +6,9 @@
 const logger = require('../../logger');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const { PersonalityApplicationService } = require('../services/PersonalityApplicationService');
-const { AuthenticationApplicationService } = require('../services/AuthenticationApplicationService');
+const {
+  AuthenticationApplicationService,
+} = require('../services/AuthenticationApplicationService');
 const { BlacklistService } = require('../services/BlacklistService');
 const RequestTrackingService = require('../services/RequestTrackingService');
 const {
@@ -15,9 +17,7 @@ const {
 const {
   FileAuthenticationRepository,
 } = require('../../adapters/persistence/FileAuthenticationRepository');
-const {
-  FileBlacklistRepository,
-} = require('../../adapters/persistence/FileBlacklistRepository');
+const { FileBlacklistRepository } = require('../../adapters/persistence/FileBlacklistRepository');
 const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter');
 const { OAuthTokenService } = require('../../infrastructure/authentication/OAuthTokenService');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
@@ -59,7 +59,6 @@ class ApplicationBootstrap {
         return new Promise(resolve => timer(resolve, ms));
       });
   }
-
 
   /**
    * Initialize the application layer
@@ -181,7 +180,10 @@ class ApplicationBootstrap {
         messageHandlerConfig.setMaxAliasWordCount(maxAliasWordCount);
         logger.info(`[ApplicationBootstrap] Set max alias word count: ${maxAliasWordCount}`);
       } catch (configError) {
-        logger.warn('[ApplicationBootstrap] Failed to set max alias word count, using default:', configError.message);
+        logger.warn(
+          '[ApplicationBootstrap] Failed to set max alias word count, using default:',
+          configError.message
+        );
       }
 
       // Step 6: Wire up event handlers
