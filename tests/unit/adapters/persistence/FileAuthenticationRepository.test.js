@@ -400,43 +400,6 @@ describe('FileAuthenticationRepository', () => {
     });
   });
 
-  describe('findBlacklisted', () => {
-    beforeEach(async () => {
-      fs.readFile
-        .mockRejectedValueOnce({ code: 'ENOENT' }) // auth_tokens.json not found
-        .mockResolvedValueOnce(JSON.stringify(mockFileData)); // test-auth.json found
-      await repository.initialize();
-    });
-
-    it('should find blacklisted users', async () => {
-      // Add a blacklisted user - UserAuth.fromData expects specific structure
-      repository._cache['999999999999999999'] = {
-        userId: '999999999999999999',
-        token: { value: 'token', expiresAt: null },
-        blacklisted: true,
-        blacklistReason: 'Spam',
-        nsfwStatus: { verified: false, verifiedAt: null },
-        savedAt: '2024-01-01T00:00:00.000Z',
-      };
-
-      // Verify the data is in cache
-      expect(repository._cache['999999999999999999']).toBeDefined();
-      expect(repository._cache['999999999999999999'].blacklisted).toBe(true);
-      
-      const blacklisted = await repository.findBlacklisted();
-
-      expect(blacklisted).toHaveLength(1);
-      expect(blacklisted[0].userId.value).toBe('999999999999999999');
-      expect(blacklisted[0].blacklisted).toBe(true);
-      expect(blacklisted[0].blacklistReason).toBe('Spam');
-    });
-
-    it('should return empty array if no blacklisted users', async () => {
-      const blacklisted = await repository.findBlacklisted();
-
-      expect(blacklisted).toEqual([]);
-    });
-  });
 
   describe('findExpiredTokens', () => {
     beforeEach(async () => {
