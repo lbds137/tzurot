@@ -18,11 +18,13 @@ jest.mock('../../../../../src/application/bootstrap/ApplicationBootstrap', () =>
     getApplicationServices: jest.fn(() => ({
       authenticationService: mockAuthService,
     })),
+    getBlacklistService: jest.fn(() => mockBlacklistService),
   })),
 }));
 
-// Create mock auth service that will be referenced by the mock
+// Create mock services that will be referenced by the mock
 let mockAuthService;
+let mockBlacklistService;
 
 describe('BlacklistCommand', () => {
   let blacklistCommand;
@@ -41,6 +43,15 @@ describe('BlacklistCommand', () => {
       blacklistUser: jest.fn(),
       unblacklistUser: jest.fn(), 
       getBlacklistedUsers: jest.fn(),
+    };
+
+    // Reset blacklist service mock
+    mockBlacklistService = {
+      isUserBlacklisted: jest.fn(),
+      blacklistUser: jest.fn(),
+      unblacklistUser: jest.fn(),
+      getBlacklistedUsers: jest.fn(),
+      getBlacklistDetails: jest.fn(),
     };
 
     blacklistCommand = createBlacklistCommand();
@@ -69,7 +80,7 @@ describe('BlacklistCommand', () => {
   describe('Command Properties', () => {
     it('should have correct metadata', () => {
       expect(blacklistCommand.name).toBe('blacklist');
-      expect(blacklistCommand.description).toBe('Blacklist or unblacklist users from authentication');
+      expect(blacklistCommand.description).toBe('Globally blacklist or unblacklist users from using the bot');
       expect(blacklistCommand.category).toBe('Authentication');
       expect(blacklistCommand.aliases).toEqual(['bl']);
     });
@@ -116,22 +127,22 @@ describe('BlacklistCommand', () => {
     it('should allow access to admin users', async () => {
       mockContext.hasPermission.mockResolvedValue(true);
       mockContext.args = ['list'];
-      mockAuthService.getBlacklistedUsers.mockResolvedValue([]);
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue([]);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getBlacklistedUsers).toHaveBeenCalled();
+      expect(mockBlacklistService.getBlacklistedUsers).toHaveBeenCalled();
     });
 
     it('should allow access to bot owner even without admin permission', async () => {
       mockContext.hasPermission.mockResolvedValue(false);
       mockContext.userId = process.env.BOT_OWNER_ID;
       mockContext.args = ['list'];
-      mockAuthService.getBlacklistedUsers.mockResolvedValue([]);
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue([]);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getBlacklistedUsers).toHaveBeenCalled();
+      expect(mockBlacklistService.getBlacklistedUsers).toHaveBeenCalled();
     });
   });
 
@@ -142,8 +153,8 @@ describe('BlacklistCommand', () => {
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
-            title: '🚫 Blacklist Management Help',
-            description: 'Manage user blacklist for authentication system',
+            title: '🚫 Global Blacklist Management',
+            description: 'Manage global user blacklist - blocks ALL bot interactions',
             color: 0x2196f3,
           }),
         ],
@@ -178,16 +189,13 @@ describe('BlacklistCommand', () => {
         user: { id: '111111111111111111' },
         reason: 'Spamming the bot',
       };
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-        isAuthenticated: true,
-      });
-      mockAuthService.blacklistUser.mockResolvedValue(undefined);
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
+      mockBlacklistService.blacklistUser.mockResolvedValue(undefined);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getAuthenticationStatus).toHaveBeenCalledWith('111111111111111111');
-      expect(mockAuthService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'Spamming the bot');
+      expect(mockBlacklistService.isUserBlacklisted).toHaveBeenCalledWith('111111111111111111');
+      expect(mockBlacklistService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'Spamming the bot', mockContext.userId);
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -207,26 +215,22 @@ describe('BlacklistCommand', () => {
 
     it('should blacklist user with reason using args', async () => {
       mockContext.args = ['add', '<@111111111111111111>', 'Spamming', 'the', 'bot'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-      });
-      mockAuthService.blacklistUser.mockResolvedValue(undefined);
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
+      mockBlacklistService.blacklistUser.mockResolvedValue(undefined);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'Spamming the bot');
+      expect(mockBlacklistService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'Spamming the bot', mockContext.userId);
     });
 
     it('should blacklist user with default reason when not provided', async () => {
       mockContext.args = ['add', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-      });
-      mockAuthService.blacklistUser.mockResolvedValue(undefined);
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
+      mockBlacklistService.blacklistUser.mockResolvedValue(undefined);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'No reason provided');
+      expect(mockBlacklistService.blacklistUser).toHaveBeenCalledWith('111111111111111111', 'No reason provided', mockContext.userId);
     });
 
     it('should show error when user is missing', async () => {
@@ -245,14 +249,17 @@ describe('BlacklistCommand', () => {
 
     it('should show warning when user is already blacklisted', async () => {
       mockContext.args = ['add', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: true,
-        blacklistReason: 'Previous spam',
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(true);
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue({
+        userId: { toString: () => '111111111111111111' },
+        reason: 'Previous spam',
+        blacklistedBy: { toString: () => '987654321' },
+        blacklistedAt: new Date('2024-01-01'),
       });
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.blacklistUser).not.toHaveBeenCalled();
+      expect(mockBlacklistService.blacklistUser).not.toHaveBeenCalled();
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -272,10 +279,8 @@ describe('BlacklistCommand', () => {
 
     it('should handle blacklist errors', async () => {
       mockContext.args = ['add', '111111111111111111', 'Test reason'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-      });
-      mockAuthService.blacklistUser.mockRejectedValue(new Error('Database error'));
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
+      mockBlacklistService.blacklistUser.mockRejectedValue(new Error('Database error'));
 
       await blacklistCommand.execute(mockContext);
 
@@ -307,16 +312,18 @@ describe('BlacklistCommand', () => {
         action: 'remove',
         user: { id: '111111111111111111' },
       };
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: true,
-        blacklistReason: 'Old spam',
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue({
+        userId: { toString: () => '111111111111111111' },
+        reason: 'Old spam',
+        blacklistedBy: { toString: () => '987654321' },
+        blacklistedAt: new Date('2024-01-01'),
       });
-      mockAuthService.unblacklistUser.mockResolvedValue(undefined);
+      mockBlacklistService.unblacklistUser.mockResolvedValue(undefined);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getAuthenticationStatus).toHaveBeenCalledWith('111111111111111111');
-      expect(mockAuthService.unblacklistUser).toHaveBeenCalledWith('111111111111111111');
+      expect(mockBlacklistService.getBlacklistDetails).toHaveBeenCalledWith('111111111111111111');
+      expect(mockBlacklistService.unblacklistUser).toHaveBeenCalledWith('111111111111111111', mockContext.userId);
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -336,15 +343,18 @@ describe('BlacklistCommand', () => {
 
     it('should unblacklist user using args with mention', async () => {
       mockContext.args = ['remove', '<@!111111111111111111>'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: true,
-        blacklistReason: 'Test',
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(true);
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue({
+        userId: { toString: () => '111111111111111111' },
+        reason: 'Test',
+        blacklistedBy: { toString: () => '987654321' },
+        blacklistedAt: new Date('2024-01-01'),
       });
-      mockAuthService.unblacklistUser.mockResolvedValue(undefined);
+      mockBlacklistService.unblacklistUser.mockResolvedValue(undefined);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.unblacklistUser).toHaveBeenCalledWith('111111111111111111');
+      expect(mockBlacklistService.unblacklistUser).toHaveBeenCalledWith('111111111111111111', mockContext.userId);
     });
 
     it('should show error when user is missing', async () => {
@@ -363,14 +373,11 @@ describe('BlacklistCommand', () => {
 
     it('should show warning when user is not blacklisted', async () => {
       mockContext.args = ['remove', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-        isAuthenticated: true,
-      });
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.unblacklistUser).not.toHaveBeenCalled();
+      expect(mockBlacklistService.unblacklistUser).not.toHaveBeenCalled();
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -380,7 +387,7 @@ describe('BlacklistCommand', () => {
             fields: expect.arrayContaining([
               expect.objectContaining({
                 name: 'Current Status',
-                value: '✅ Can authenticate normally',
+                value: '✅ Can use bot normally',
               }),
             ]),
           }),
@@ -390,10 +397,14 @@ describe('BlacklistCommand', () => {
 
     it('should handle unblacklist errors', async () => {
       mockContext.args = ['remove', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: true,
+      mockBlacklistService.isUserBlacklisted.mockResolvedValue(true);
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue({
+        userId: { toString: () => '111111111111111111' },
+        reason: 'Old reason',
+        blacklistedBy: { toString: () => '987654321' },
+        blacklistedAt: new Date('2024-01-01'),
       });
-      mockAuthService.unblacklistUser.mockRejectedValue(new Error('Database error'));
+      mockBlacklistService.unblacklistUser.mockRejectedValue(new Error('Database error'));
 
       await blacklistCommand.execute(mockContext);
 
@@ -421,11 +432,11 @@ describe('BlacklistCommand', () => {
     });
 
     it('should show empty list message when no users are blacklisted', async () => {
-      mockAuthService.getBlacklistedUsers.mockResolvedValue([]);
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue([]);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getBlacklistedUsers).toHaveBeenCalled();
+      expect(mockBlacklistService.getBlacklistedUsers).toHaveBeenCalled();
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -438,10 +449,10 @@ describe('BlacklistCommand', () => {
     });
 
     it('should list blacklisted users', async () => {
-      mockAuthService.getBlacklistedUsers.mockResolvedValue([
-        { userId: '111111111111111111', blacklistReason: 'Spamming' },
-        { userId: '222222222222222222', blacklistReason: 'API abuse' },
-        { userId: '333333333333333333', blacklistReason: null },
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue([
+        { userId: { toString: () => '111111111111111111' }, reason: 'Spamming', blacklistedBy: { toString: () => '987654321' }, blacklistedAt: new Date('2024-01-01') },
+        { userId: { toString: () => '222222222222222222' }, reason: 'API abuse', blacklistedBy: { toString: () => '987654321' }, blacklistedAt: new Date('2024-01-01') },
+        { userId: { toString: () => '333333333333333333' }, reason: null, blacklistedBy: { toString: () => '987654321' }, blacklistedAt: new Date('2024-01-01') },
       ]);
 
       await blacklistCommand.execute(mockContext);
@@ -463,10 +474,17 @@ describe('BlacklistCommand', () => {
     it('should paginate long blacklist', async () => {
       // Create 15 blacklisted users
       const blacklistedUsers = Array.from({ length: 15 }, (_, i) => ({
-        userId: `${111111111111111111 + i}`,
+        userId: `11111111111111111${i}`,
         blacklistReason: `Reason ${i + 1}`,
       }));
-      mockAuthService.getBlacklistedUsers.mockResolvedValue(blacklistedUsers);
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue(
+        blacklistedUsers.map(u => ({
+          userId: { toString: () => u.userId },
+          reason: u.blacklistReason,
+          blacklistedBy: { toString: () => '987654321' },
+          blacklistedAt: new Date('2024-01-01'),
+        }))
+      );
 
       await blacklistCommand.execute(mockContext);
 
@@ -488,7 +506,7 @@ describe('BlacklistCommand', () => {
     });
 
     it('should handle list errors', async () => {
-      mockAuthService.getBlacklistedUsers.mockRejectedValue(new Error('Database error'));
+      mockBlacklistService.getBlacklistedUsers.mockRejectedValue(new Error('Database error'));
 
       await blacklistCommand.execute(mockContext);
 
@@ -520,14 +538,16 @@ describe('BlacklistCommand', () => {
         action: 'check',
         user: { id: '111111111111111111' },
       };
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: true,
-        blacklistReason: 'Spam',
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue({
+        userId: { toString: () => '111111111111111111' },
+        reason: 'Spam',
+        blacklistedBy: { toString: () => '987654321' },
+        blacklistedAt: new Date('2024-01-01'),
       });
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getAuthenticationStatus).toHaveBeenCalledWith('111111111111111111');
+      expect(mockBlacklistService.getBlacklistDetails).toHaveBeenCalledWith('111111111111111111');
       expect(mockRespond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -551,10 +571,7 @@ describe('BlacklistCommand', () => {
 
     it('should check non-blacklisted user', async () => {
       mockContext.args = ['check', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockResolvedValue({
-        isBlacklisted: false,
-        isAuthenticated: true,
-      });
+      mockBlacklistService.getBlacklistDetails.mockResolvedValue(null);
 
       await blacklistCommand.execute(mockContext);
 
@@ -570,8 +587,8 @@ describe('BlacklistCommand', () => {
                 value: '✅ Not blacklisted',
               }),
               expect.objectContaining({
-                name: 'Authentication',
-                value: '✅ Currently authenticated',
+                name: 'Bot Access',
+                value: '✅ Can use all bot features',
               }),
             ]),
           }),
@@ -595,7 +612,7 @@ describe('BlacklistCommand', () => {
 
     it('should handle check errors', async () => {
       mockContext.args = ['check', '111111111111111111'];
-      mockAuthService.getAuthenticationStatus.mockRejectedValue(new Error('Database error'));
+      mockBlacklistService.getBlacklistDetails.mockRejectedValue(new Error('Database error'));
 
       await blacklistCommand.execute(mockContext);
 
@@ -666,12 +683,12 @@ describe('BlacklistCommand', () => {
       for (const { input, expected } of testCases) {
         jest.clearAllMocks();
         mockContext.args = ['add', input, 'Test'];
-        mockAuthService.getAuthenticationStatus.mockResolvedValue({ isBlacklisted: false });
-        mockAuthService.blacklistUser.mockResolvedValue(undefined);
+        mockBlacklistService.isUserBlacklisted.mockResolvedValue(false);
+        mockBlacklistService.blacklistUser.mockResolvedValue(undefined);
 
         await blacklistCommand.execute(mockContext);
 
-        expect(mockAuthService.blacklistUser).toHaveBeenCalledWith(expected, 'Test');
+        expect(mockBlacklistService.blacklistUser).toHaveBeenCalledWith(expected, 'Test', mockContext.userId);
       }
     });
 
@@ -695,11 +712,11 @@ describe('BlacklistCommand', () => {
       mockContext.options = {
         action: 'list', // This should take precedence
       };
-      mockAuthService.getBlacklistedUsers.mockResolvedValue([]);
+      mockBlacklistService.getBlacklistedUsers.mockResolvedValue([]);
 
       await blacklistCommand.execute(mockContext);
 
-      expect(mockAuthService.getBlacklistedUsers).toHaveBeenCalled();
+      expect(mockBlacklistService.getBlacklistedUsers).toHaveBeenCalled();
     });
   });
 });

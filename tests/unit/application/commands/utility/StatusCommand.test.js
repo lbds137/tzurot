@@ -173,13 +173,21 @@ describe('StatusCommand', () => {
       mockAuth.isNsfwVerified.mockReturnValue(true);
       
       // Setup authenticated user with DDD mocks
-      setupAuthenticatedUser();
+      const mockDDDAuthService = setupAuthenticatedUser();
       
       // Mock personality service for personality count
       const mockDDDPersonalityService = {
         listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2', 'p3'])
       };
-      getApplicationBootstrap().getPersonalityApplicationService = jest.fn().mockReturnValue(mockDDDPersonalityService);
+      
+      // Update the mock to include personality service
+      getApplicationBootstrap.mockReturnValue({
+        initialized: true,
+        getApplicationServices: jest.fn().mockReturnValue({
+          authenticationService: mockDDDAuthService,
+          personalityApplicationService: mockDDDPersonalityService
+        })
+      });
 
       await statusCommand.execute(mockContext);
 
@@ -307,14 +315,22 @@ describe('StatusCommand', () => {
     });
 
     it('should show authenticated info in text response', async () => {
-      setupAuthenticatedUser();
       mockAuth.hasValidToken.mockReturnValue(true);
       
-      // Mock ApplicationBootstrap to return a DDD service with 2 personalities
-      const mockDDDService = {
+      // Setup authenticated user and personality service
+      const mockDDDAuthService = setupAuthenticatedUser();
+      const mockDDDPersonalityService = {
         listPersonalitiesByOwner: jest.fn().mockResolvedValue(['p1', 'p2'])
       };
-      getApplicationBootstrap().getPersonalityApplicationService = jest.fn().mockReturnValue(mockDDDService);
+      
+      // Update the mock to include personality service
+      getApplicationBootstrap.mockReturnValue({
+        initialized: true,
+        getApplicationServices: jest.fn().mockReturnValue({
+          authenticationService: mockDDDAuthService,
+          personalityApplicationService: mockDDDPersonalityService
+        })
+      });
 
       await statusCommand.execute(mockContext);
 
