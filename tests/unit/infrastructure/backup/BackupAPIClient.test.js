@@ -37,7 +37,7 @@ describe('BackupAPIClient', () => {
     mockClearScheduler = jest.fn();
 
     // Mock config functions
-    getPersonalityJargonTerm.mockReturnValue('shapes');
+    getPersonalityJargonTerm.mockReturnValue('personalities');
     getPrivateProfileInfoPath.mockReturnValue('private/profile');
 
     // Mock environment
@@ -222,7 +222,7 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(knowledgeData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes/personality-id/story',
+        'https://example.com/api/personalities/personality-id/story',
         expect.any(Object)
       );
     });
@@ -296,7 +296,7 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(trainingData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes/personality-id/training',
+        'https://example.com/api/personalities/personality-id/training',
         expect.any(Object)
       );
     });
@@ -348,7 +348,7 @@ describe('BackupAPIClient', () => {
 
       expect(result).toEqual(personalizationData);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes/personality-id/user',
+        'https://example.com/api/personalities/personality-id/user',
         expect.any(Object)
       );
     });
@@ -404,11 +404,11 @@ describe('BackupAPIClient', () => {
 
       // Check pagination URLs
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id',
+        'https://example.com/api/personalities/personality-id/chat/history?limit=50&shape_id=personality-id',
         expect.any(Object)
       );
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes/personality-id/chat/history?limit=50&shape_id=personality-id&before_ts=1609459100',
+        'https://example.com/api/personalities/personality-id/chat/history?limit=50&shape_id=personality-id&before_ts=1609459100',
         expect.any(Object)
       );
     });
@@ -561,7 +561,7 @@ describe('BackupAPIClient', () => {
       
       expect(result).toEqual(personalities);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes?category=self',
+        'https://example.com/api/personalities?category=self',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
@@ -570,7 +570,7 @@ describe('BackupAPIClient', () => {
         })
       );
       expect(logger.info).toHaveBeenCalledWith(
-        '[BackupAPIClient] Fetching self personalities from: https://example.com/api/shapes?category=self'
+        '[BackupAPIClient] Fetching self personalities from: https://example.com/api/personalities?category=self'
       );
       expect(logger.info).toHaveBeenCalledWith(
         '[BackupAPIClient] Retrieved 2 self personalities'
@@ -595,7 +595,7 @@ describe('BackupAPIClient', () => {
       
       expect(result).toEqual(personalities);
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://example.com/api/shapes?category=recent',
+        'https://example.com/api/personalities?category=recent',
         expect.any(Object)
       );
     });
