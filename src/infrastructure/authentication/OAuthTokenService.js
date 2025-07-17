@@ -278,40 +278,16 @@ class OAuthTokenService extends TokenService {
    * @returns {Promise<void>}
    */
   async revokeToken(token) {
-    try {
-      logger.info('[OAuthTokenService] Revoking token');
-      
-      const response = await this.httpClient(
-        `${this.authApiEndpoint}/revoke`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': this.apiKey,
-          },
-          body: JSON.stringify({
-            token,
-          }),
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Token revoke failed: ${response.statusText}`);
-      }
-      
-      logger.info('[OAuthTokenService] Successfully revoked token');
-    } catch (error) {
-      logger.error('[OAuthTokenService] Failed to revoke token:', error);
-      
-      // Token revocation failures are not critical
-      // The token will expire naturally
-      if (error.message && error.message.includes('404')) {
-        logger.warn('[OAuthTokenService] Token not found for revocation, may already be revoked');
-        return;
-      }
-      
-      throw error;
-    }
+    // Note: There is no remote revocation endpoint available
+    // Token revocation is handled locally by expiring the token in the domain model
+    // This method exists for interface compatibility but doesn't perform remote operations
+    
+    logger.info('[OAuthTokenService] Token revocation requested - handling locally only');
+    logger.warn('[OAuthTokenService] No remote revocation endpoint available, token will be expired locally');
+    
+    // Return immediately without error since revocation is handled locally
+    // by the AuthenticationApplicationService calling userAuth.expireToken()
+    return;
   }
 
   /**
