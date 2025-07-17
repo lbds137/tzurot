@@ -7,7 +7,7 @@ const nodeFetch = require('node-fetch');
 const logger = require('../../logger');
 const { getPersonalityJargonTerm, getPrivateProfileInfoPath } = require('../../../config');
 const { resolvePersonality } = require('../../utils/aliasResolver');
-const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
+// Note: getApplicationBootstrap imported lazily to avoid circular dependency
 
 /**
  * API client for backup operations

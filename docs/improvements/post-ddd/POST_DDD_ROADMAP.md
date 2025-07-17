@@ -79,7 +79,36 @@ Once the DDD migration is complete and stable, we can leverage the clean archite
 - Gradual file-by-file migration
 - Leverage DDD boundaries
 
-### 9. Multi-User Scalability
+### 9. Service Locator Pattern Elimination
+**Priority**: HIGH  
+**Reason**: Remove architectural debt that causes circular dependencies  
+**Effort**: 1-2 weeks  
+**Benefits**: Cleaner dependencies, better testability, no circular dependency risk
+
+Current anti-pattern:
+```javascript
+// Every module importing ApplicationBootstrap
+const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+const service = getApplicationBootstrap().getServices().someService;
+```
+
+Target pattern:
+```javascript
+// Clean dependency injection
+class MyService {
+  constructor({ authService, otherService }) {
+    this.authService = authService;
+    this.otherService = otherService;
+  }
+}
+```
+
+**Implementation Plan**:
+- Week 1: Refactor core services (ProfileInfoFetcher, BackupAPIClient, etc.)
+- Week 2: Update command classes and utilities
+- Validation: Zero uses of `getApplicationBootstrap()` outside of ApplicationBootstrap.js
+
+### 10. Multi-User Scalability
 **Priority**: MEDIUM  
 **Document**: `MULTI_USER_SCALABILITY.md`
 - Per-user state isolation
@@ -88,7 +117,7 @@ Once the DDD migration is complete and stable, we can leverage the clean archite
 
 ## Phase 5: New Features (Weeks 11+)
 
-### 10. Random Personality Trigger
+### 11. Random Personality Trigger
 **Priority**: LOW  
 **From**: `FEATURE_IDEAS.md`
 - Fun feature for established bot
