@@ -90,8 +90,56 @@ async function checkPersonalityAuthDDD(message, personality) {
     }
     const authService = injectedAuthService;
     
-    // Get the real user ID for authentication check
     const webhookUserTracker = require('../utils/webhookUserTracker');
+    
+    // CRITICAL: Handle proxy systems (PluralKit) specially
+    // If this is a proxy system webhook, use the specialized proxy authentication
+    if (message.webhookId && webhookUserTracker.isProxySystemWebhook(message)) {
+      logger.debug(`[PersonalityHandler] Detected proxy system webhook, using specialized authentication`);
+      
+      const proxyAuth = await webhookUserTracker.checkProxySystemAuthentication(message);
+      
+      if (!proxyAuth.isAuthenticated) {
+        return {
+          isAllowed: false,
+          errorMessage: 'Authentication required for NSFW personalities. Use `!rtz auth start` to authenticate first.',
+          reason: 'auth_failed',
+        };
+      }
+      
+      // For proxy systems, we have the real user ID, so check access with DDD system
+      const { AuthContext } = require('../domain/authentication/AuthContext');
+      const { isChannelNSFW } = require('../utils/channelUtils');
+      
+      const channelType = message.channel.isDMBased?.() ? 'DM' : 
+                         message.channel.isThread?.() ? 'THREAD' : 'GUILD';
+      const authContext = new AuthContext({
+        channelType,
+        channelId: message.channel.id,
+        isNsfwChannel: isChannelNSFW(message.channel),
+        isProxyMessage: true,
+        requestedPersonalityId: personality.name,
+      });
+      
+      const result = await authService.checkPersonalityAccess(proxyAuth.userId, personality, authContext);
+      
+      if (!result.allowed) {
+        return {
+          isAllowed: false,
+          errorMessage: result.reason || 'Authorization failed',
+          reason: 'auth_failed',
+        };
+      }
+      
+      return {
+        isAllowed: true,
+        isProxySystem: true,
+        isDM: message.channel.isDMBased?.() || false,
+        realUserId: proxyAuth.userId,
+      };
+    }
+    
+    // For non-proxy messages, use standard DDD authentication
     const realUserId = webhookUserTracker.getRealUserId(message) || message.author.id;
     
     logger.debug(
@@ -126,7 +174,7 @@ async function checkPersonalityAuthDDD(message, personality) {
     // Return success with context information
     return {
       isAllowed: true,
-      isProxySystem: false, // DDD system doesn't track proxy systems in this context
+      isProxySystem: false,
       isDM: message.channel.isDMBased?.() || false,
     };
   } catch (error) {
