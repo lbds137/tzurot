@@ -79,7 +79,8 @@ function createExecutor(dependencies = {}) {
           const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
           const bootstrap = getApplicationBootstrap();
           if (bootstrap.initialized) {
-            const personalityApplicationService = bootstrap.getPersonalityApplicationService();
+            const services = bootstrap.getApplicationServices();
+            const personalityApplicationService = services.personalityApplicationService;
             const personalities = await personalityApplicationService.listPersonalitiesByOwner(context.userId);
             personalityCount = personalities ? personalities.length : 0;
           }
