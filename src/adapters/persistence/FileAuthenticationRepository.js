@@ -225,6 +225,7 @@ class FileAuthenticationRepository extends AuthenticationRepository {
   }
 
   /**
+   * @deprecated Use BlacklistRepository instead
    * Find all blacklisted users
    * @returns {Promise<UserAuth[]>}
    */
@@ -424,8 +425,6 @@ class FileAuthenticationRepository extends AuthenticationRepository {
         userId: userData.userId,
         token: mostRecentToken,
         nsfwStatus: userData.nsfwStatus || { verified: false, verifiedAt: null },
-        blacklisted: userData.blacklisted || false,
-        blacklistReason: userData.blacklistReason || null,
         savedAt: userData.savedAt || new Date().toISOString(),
       };
     }
@@ -482,8 +481,6 @@ class FileAuthenticationRepository extends AuthenticationRepository {
           verified: nsfwInfo.verified || false,
           verifiedAt: nsfwInfo.verifiedAt ? new Date(nsfwInfo.verifiedAt).toISOString() : null,
         },
-        blacklisted: false,
-        blacklistReason: null,
         savedAt: new Date().toISOString(),
       };
     }

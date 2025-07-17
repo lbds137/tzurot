@@ -103,4 +103,11 @@ While no circular dependencies exist, the following files use the anti-pattern o
 The FileBlacklistRepository automatically migrates blacklist data from `auth.json` to `blacklist.json` on first initialization. Original auth file is backed up before cleaning.
 
 ### Remaining Cleanup
-The blacklist fields in UserAuth domain (`blacklisted`, `blacklistReason`) can be removed after verifying the new system is stable in production.
+The blacklist fields in UserAuth domain (`blacklisted`, `blacklistReason`) have been removed since they never made it to production.
+
+### Test Cleanup Required
+The following test files still have tests for the deprecated blacklist functionality in UserAuth:
+- `tests/unit/application/services/AuthenticationApplicationService.test.js` - Tests for blacklistUser, unblacklistUser, getBlacklistedUsers methods
+- `tests/unit/adapters/persistence/FileAuthenticationRepository.test.js` - Tests for findBlacklisted
+
+These tests should be removed or updated when cleaning up the deprecated methods in AuthenticationApplicationService.

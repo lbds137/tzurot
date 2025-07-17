@@ -22,8 +22,6 @@ const {
   AuthenticationDenied,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
 } = require('../../domain/authentication/AuthenticationEvents');
 
 /**
@@ -188,8 +186,6 @@ class AuthenticationApplicationService {
         return {
           isAuthenticated: false,
           user: null,
-          isBlacklisted: false,
-          blacklistReason: null,
         };
       }
 
@@ -199,8 +195,6 @@ class AuthenticationApplicationService {
         return {
           isAuthenticated: false,
           user: userAuth,
-          isBlacklisted: userAuth.blacklisted,
-          blacklistReason: userAuth.blacklistReason,
         };
       }
 
@@ -233,8 +227,6 @@ class AuthenticationApplicationService {
             return {
               isAuthenticated: false,
               user: userAuth,
-              isBlacklisted: userAuth.blacklisted,
-              blacklistReason: userAuth.blacklistReason,
             };
           }
         } catch (error) {
@@ -250,8 +242,6 @@ class AuthenticationApplicationService {
       return {
         isAuthenticated: true,
         user: userAuth,
-        isBlacklisted: userAuth.blacklisted,
-        blacklistReason: userAuth.blacklistReason,
       };
     } catch (error) {
       logger.error(
@@ -558,13 +548,6 @@ class AuthenticationApplicationService {
         }
       }
 
-      // Check blacklist status
-      if (userAuth && userAuth.blacklisted) {
-        return {
-          allowed: false,
-          reason: userAuth.blacklistReason || 'User is blacklisted',
-        };
-      }
 
       return { allowed: true };
     } catch (error) {
@@ -638,120 +621,9 @@ class AuthenticationApplicationService {
   }
 
   /**
-   * Blacklist a user
-   * @param {string} discordUserId - Discord user ID to blacklist
-   * @param {string} reason - Reason for blacklisting
-   * @returns {Promise<void>}
+   * @deprecated Use BlacklistService instead
+   * Blacklist methods have been moved to the global blacklist system
    */
-  async blacklistUser(discordUserId, reason) {
-    try {
-      logger.info(
-        `[AuthenticationApplicationService] Blacklisting user ${discordUserId} - Reason: ${reason}`
-      );
-
-      const userId = new UserId(discordUserId);
-      let userAuth = await this.authenticationRepository.findByUserId(userId);
-
-      if (!userAuth) {
-        // Create a new user auth record for blacklisting
-        userAuth = UserAuth.createAuthenticated(userId, Token.createWithLifetime('blacklisted', 0));
-      }
-
-      // Blacklist the user
-      userAuth.blacklist(reason);
-      await this.authenticationRepository.save(userAuth);
-
-      // Publish blacklisted event
-      const { UserBlacklisted } = require('../../domain/authentication/AuthenticationEvents');
-      await this.eventBus.publish(
-        new UserBlacklisted(userId.value, {
-          userId: userId.value,
-          reason: reason,
-          blacklistedAt: new Date().toISOString(),
-        })
-      );
-
-      logger.info(
-        `[AuthenticationApplicationService] Successfully blacklisted user ${discordUserId}`
-      );
-    } catch (error) {
-      logger.error(
-        `[AuthenticationApplicationService] Failed to blacklist user ${discordUserId}:`,
-        error
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Unblacklist a user
-   * @param {string} discordUserId - Discord user ID to unblacklist
-   * @returns {Promise<void>}
-   */
-  async unblacklistUser(discordUserId) {
-    try {
-      logger.info(`[AuthenticationApplicationService] Unblacklisting user ${discordUserId}`);
-
-      const userId = new UserId(discordUserId);
-      const userAuth = await this.authenticationRepository.findByUserId(userId);
-
-      if (!userAuth) {
-        throw new Error('User not found');
-      }
-
-      if (!userAuth.blacklisted) {
-        throw new Error('User is not blacklisted');
-      }
-
-      // Unblacklist the user
-      userAuth.unblacklist();
-      await this.authenticationRepository.save(userAuth);
-
-      // Publish unblacklisted event
-      const { UserUnblacklisted } = require('../../domain/authentication/AuthenticationEvents');
-      await this.eventBus.publish(
-        new UserUnblacklisted(userId.value, {
-          userId: userId.value,
-          unblacklistedAt: new Date().toISOString(),
-        })
-      );
-
-      logger.info(
-        `[AuthenticationApplicationService] Successfully unblacklisted user ${discordUserId}`
-      );
-    } catch (error) {
-      logger.error(
-        `[AuthenticationApplicationService] Failed to unblacklist user ${discordUserId}:`,
-        error
-      );
-      throw error;
-    }
-  }
-
-  /**
-   * Get all blacklisted users
-   * @returns {Promise<Array>} List of blacklisted users
-   */
-  async getBlacklistedUsers() {
-    try {
-      logger.info('[AuthenticationApplicationService] Getting blacklisted users');
-
-      const blacklistedUsers = await this.authenticationRepository.findBlacklisted();
-
-      // Convert to simple format for command
-      const result = blacklistedUsers.map(userAuth => ({
-        userId: userAuth.userId.toString(),
-        blacklistReason: userAuth.blacklistReason,
-        blacklistedAt: userAuth.blacklistedAt,
-      }));
-
-      logger.info(`[AuthenticationApplicationService] Found ${result.length} blacklisted users`);
-      return result;
-    } catch (error) {
-      logger.error('[AuthenticationApplicationService] Failed to get blacklisted users:', error);
-      throw error;
-    }
-  }
 
   /**
    * Create AI client for authenticated user

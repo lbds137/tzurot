@@ -13,8 +13,6 @@ const {
   UserTokenRefreshed,
   UserNsfwVerified,
   UserNsfwVerificationCleared,
-  UserBlacklisted,
-  UserUnblacklisted,
 } = require('./AuthenticationEvents');
 
 /**
@@ -45,8 +43,6 @@ class UserAuth extends AggregateRoot {
     this.userId = userId;
     this.token = token;
     this.nsfwStatus = NsfwStatus.createUnverified();
-    this.blacklisted = false;
-    this.blacklistReason = null;
   }
 
   /**
@@ -101,8 +97,6 @@ class UserAuth extends AggregateRoot {
     userAuth.nsfwStatus = data.nsfwStatus
       ? NsfwStatus.fromJSON(data.nsfwStatus)
       : NsfwStatus.createUnverified();
-    userAuth.blacklisted = data.blacklisted || false;
-    userAuth.blacklistReason = data.blacklistReason || null;
 
     return userAuth;
   }
@@ -112,10 +106,6 @@ class UserAuth extends AggregateRoot {
    * @param {Token} newToken - New token
    */
   refreshToken(newToken) {
-    if (this.blacklisted) {
-      throw new Error('Cannot refresh token for blacklisted user');
-    }
-
     if (!(newToken instanceof Token)) {
       throw new Error('Invalid Token');
     }
@@ -151,10 +141,6 @@ class UserAuth extends AggregateRoot {
    * Verify user for NSFW access
    */
   verifyNsfw() {
-    if (this.blacklisted) {
-      throw new Error('Cannot verify NSFW for blacklisted user');
-    }
-
     if (!this.isAuthenticated()) {
       throw new Error('Must be authenticated to verify NSFW access');
     }
@@ -187,41 +173,6 @@ class UserAuth extends AggregateRoot {
     );
   }
 
-  /**
-   * Blacklist user
-   * @param {string} reason - Reason for blacklisting
-   */
-  blacklist(reason) {
-    if (this.blacklisted) {
-      throw new Error('User already blacklisted');
-    }
-
-    if (!reason || typeof reason !== 'string') {
-      throw new Error('Blacklist reason required');
-    }
-
-    this.applyEvent(
-      new UserBlacklisted(this.id, {
-        reason,
-        blacklistedAt: new Date().toISOString(),
-      })
-    );
-  }
-
-  /**
-   * Remove user from blacklist
-   */
-  unblacklist() {
-    if (!this.blacklisted) {
-      throw new Error('User not blacklisted');
-    }
-
-    this.applyEvent(
-      new UserUnblacklisted(this.id, {
-        unblacklistedAt: new Date().toISOString(),
-      })
-    );
-  }
 
   /**
    * Check if user is authenticated
@@ -259,10 +210,6 @@ class UserAuth extends AggregateRoot {
    * @returns {number} Rate limit multiplier
    */
   getRateLimit() {
-    if (this.blacklisted) {
-      return 0; // No access
-    }
-
     // Could implement tiered rate limits based on trust
     return 1; // Default rate limit
   }
@@ -276,8 +223,6 @@ class UserAuth extends AggregateRoot {
       userId: this.userId.toString(),
       token: this.token ? this.token.toJSON() : null,
       nsfwStatus: this.nsfwStatus.toJSON(),
-      blacklisted: this.blacklisted,
-      blacklistReason: this.blacklistReason,
     };
   }
 
@@ -305,19 +250,6 @@ class UserAuth extends AggregateRoot {
 
   onUserNsfwVerificationCleared(event) {
     this.nsfwStatus = this.nsfwStatus.clearVerification();
-  }
-
-  onUserBlacklisted(event) {
-    this.blacklisted = true;
-    this.blacklistReason = event.payload.reason;
-    // Revoke token and clear NSFW verification when blacklisted
-    this.token = null;
-    this.nsfwStatus = NsfwStatus.createUnverified();
-  }
-
-  onUserUnblacklisted(event) {
-    this.blacklisted = false;
-    this.blacklistReason = null;
   }
 }
 

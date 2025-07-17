@@ -198,55 +198,6 @@ describe('AuthenticationEvents', () => {
     });
   });
 
-  describe('UserBlacklisted', () => {
-    it('should create event with required fields', () => {
-      const payload = {
-        reason: 'Abuse detected',
-        blacklistedAt: '2024-01-01T00:00:00.000Z',
-      };
-
-      const event = new UserBlacklisted('123456789012345678', payload);
-
-      expect(event).toBeInstanceOf(DomainEvent);
-      expect(event.eventType).toBe('UserBlacklisted');
-      expect(event.aggregateId).toBe('123456789012345678');
-      expect(event.payload).toEqual(payload);
-    });
-
-    it('should validate required fields', () => {
-      expect(() => new UserBlacklisted('123456789012345678', {})).toThrow(
-        'UserBlacklisted requires reason and blacklistedAt'
-      );
-
-      expect(
-        () =>
-          new UserBlacklisted('123456789012345678', {
-            reason: 'Test',
-          })
-      ).toThrow('UserBlacklisted requires reason and blacklistedAt');
-    });
-  });
-
-  describe('UserUnblacklisted', () => {
-    it('should create event with required fields', () => {
-      const payload = {
-        unblacklistedAt: '2024-01-01T00:00:00.000Z',
-      };
-
-      const event = new UserUnblacklisted('123456789012345678', payload);
-
-      expect(event).toBeInstanceOf(DomainEvent);
-      expect(event.eventType).toBe('UserUnblacklisted');
-      expect(event.aggregateId).toBe('123456789012345678');
-      expect(event.payload).toEqual(payload);
-    });
-
-    it('should validate required fields', () => {
-      expect(() => new UserUnblacklisted('123456789012345678', {})).toThrow(
-        'UserUnblacklisted requires unblacklistedAt'
-      );
-    });
-  });
 
   describe('AuthenticationDenied', () => {
     it('should create event with required fields', () => {
