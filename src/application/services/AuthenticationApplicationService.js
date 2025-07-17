@@ -9,6 +9,7 @@
  */
 
 const logger = require('../../logger');
+const { botPrefix } = require('../../../config');
 const { UserAuth } = require('../../domain/authentication/UserAuth');
 const { Token } = require('../../domain/authentication/Token');
 const { UserId } = require('../../domain/personality/UserId');
@@ -441,9 +442,20 @@ class AuthenticationApplicationService {
       const userAuth = await this.authenticationRepository.findByUserId(userId);
       
       if (!userAuth || !userAuth.canAccessNsfw(personality, context)) {
+        // Provide more helpful error message based on context
+        let reason = 'NSFW verification required';
+        
+        if (context.isDM()) {
+          reason = `NSFW verification required for DM interactions. Use \`${botPrefix} verify\` in an NSFW channel first, or interact in an NSFW channel instead.`;
+        } else if (!context.isNsfwChannel) {
+          reason = 'This personality can only be used in NSFW channels. Please move to an NSFW channel to interact.';
+        } else if (!userAuth) {
+          reason = `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`;
+        }
+        
         return { 
           allowed: false, 
-          reason: 'NSFW verification required' 
+          reason 
         };
       }
       

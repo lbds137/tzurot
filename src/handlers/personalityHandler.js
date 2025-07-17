@@ -100,6 +100,7 @@ async function checkPersonalityAuthDDD(message, personality) {
     
     // Check personality access using DDD system
     const { AuthContext } = require('../domain/authentication/AuthContext');
+    const { isChannelNSFW } = require('../utils/channelUtils');
     
     // Create auth context
     const channelType = message.channel.isDMBased?.() ? 'DM' : 
@@ -107,7 +108,7 @@ async function checkPersonalityAuthDDD(message, personality) {
     const authContext = new AuthContext({
       channelType,
       channelId: message.channel.id,
-      isNsfwChannel: true, // All personalities are treated as NSFW uniformly
+      isNsfwChannel: isChannelNSFW(message.channel),
       isProxyMessage: !!message.webhookId,
       requestedPersonalityId: personality.name,
     });
