@@ -317,7 +317,13 @@ class AuthenticationApplicationService {
       
       // Revoke token with token service if exists
       if (userAuth.token && !userAuth.token.isExpired()) {
-        await this.tokenService.revokeToken(userAuth.token.value);
+        try {
+          await this.tokenService.revokeToken(userAuth.token.value);
+        } catch (error) {
+          logger.warn(`[AuthenticationApplicationService] Token service revocation failed for ${discordUserId}:`, error.message);
+          // Continue with local token expiration even if remote revocation fails
+          // The token will expire naturally or be cleaned up later
+        }
       }
       
       // Expire token in domain model

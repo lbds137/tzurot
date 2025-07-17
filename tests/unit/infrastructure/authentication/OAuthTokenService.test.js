@@ -430,63 +430,20 @@ describe('OAuthTokenService', () => {
   });
 
   describe('revokeToken', () => {
-    const mockResponse = {
-      ok: true,
-      status: 200,
-    };
-
-    beforeEach(() => {
-      mockHttpClient.mockResolvedValue(mockResponse);
-    });
-
-    it('should revoke token successfully', async () => {
+    it('should handle token revocation locally without remote calls', async () => {
       await service.revokeToken('token-123');
 
-      expect(mockHttpClient).toHaveBeenCalledWith(
-        'https://api.example.com/auth/revoke',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': 'test-api-key',
-          },
-          body: JSON.stringify({
-            token: 'token-123',
-          }),
-        }
-      );
+      // Should not make any HTTP calls since there's no remote revocation endpoint
+      expect(mockHttpClient).not.toHaveBeenCalled();
 
-      expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Revoking token');
+      // Should log that it's handling locally
+      expect(logger.info).toHaveBeenCalledWith('[OAuthTokenService] Token revocation requested - handling locally only');
+      expect(logger.warn).toHaveBeenCalledWith('[OAuthTokenService] No remote revocation endpoint available, token will be expired locally');
     });
 
-    it('should handle revocation errors', async () => {
-      mockResponse.ok = false;
-      mockResponse.status = 400;
-      mockResponse.statusText = 'Bad Request';
-
-      await expect(service.revokeToken('invalid-token')).rejects.toThrow(
-        'Token revoke failed: Bad Request'
-      );
-
-      expect(logger.error).toHaveBeenCalledWith(
-        '[OAuthTokenService] Failed to revoke token:',
-        expect.any(Error)
-      );
-    });
-
-    it('should handle network errors during revocation', async () => {
-      mockHttpClient.mockRejectedValue(new Error('Network error'));
-
-      await expect(service.revokeToken('token-123')).rejects.toThrow('Network error');
-    });
-
-    it('should handle 404 errors gracefully (token already revoked)', async () => {
-      mockHttpClient.mockRejectedValue(new Error('Token revoke failed: 404 Not Found'));
-
-      // Should not throw for 404 errors
-      await expect(service.revokeToken('token-123')).resolves.toBeUndefined();
-
-      expect(logger.warn).toHaveBeenCalledWith('[OAuthTokenService] Token not found for revocation, may already be revoked');
+    it('should always succeed since revocation is local-only', async () => {
+      // Should not throw any errors since it's a no-op
+      await expect(service.revokeToken('any-token')).resolves.toBeUndefined();
     });
   });
 
