@@ -15,8 +15,9 @@ class ProfileInfoFetcher {
   constructor(options = {}) {
     this.cache = new ProfileInfoCache(options.cache);
     this.client = new ProfileInfoClient(options.client);
-    // authManager is no longer needed - we get auth from DDD system
-    // this.authManager = options.authManager || null;
+    
+    // Inject authentication service to avoid circular dependency
+    this.authService = options.authService || null;
 
     // If rateLimiter options are provided, create a new instance with those options
     if (options.rateLimiter && !(options.rateLimiter instanceof RateLimiter)) {
@@ -63,11 +64,14 @@ class ProfileInfoFetcher {
   async getUserAuth(userId) {
     if (!userId) return null;
     
+    // If no auth service injected, return null (authentication not available)
+    if (!this.authService) {
+      logger.debug(`${this.logPrefix} No auth service injected, returning null for user ${userId}`);
+      return null;
+    }
+    
     try {
-      const { getApplicationBootstrap } = require('../../application/bootstrap/ApplicationBootstrap');
-      const bootstrap = getApplicationBootstrap();
-      const authService = bootstrap.getApplicationServices().authenticationService;
-      const status = await authService.getAuthenticationStatus(userId);
+      const status = await this.authService.getAuthenticationStatus(userId);
       
       if (!status.isAuthenticated || !status.user?.token) {
         return null;

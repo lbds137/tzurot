@@ -175,6 +175,60 @@ Tzurot follows **Domain-Driven Design (DDD)** principles with a hybrid legacy/mo
 - **Testability**: All components dependency-injected and mockable
 - **Performance**: No degradation during migration, maintain <30s test suite
 
+## 🚨 CIRCULAR DEPENDENCY PREVENTION
+
+### The Service Locator Anti-Pattern
+
+**❌ NEVER DO THIS - Causes Circular Dependencies:**
+```javascript
+// In any module that ApplicationBootstrap might import
+const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+const service = getApplicationBootstrap().getServices().someService;
+```
+
+**✅ CORRECT PATTERN - Dependency Injection:**
+```javascript
+// In constructor - let the caller inject dependencies
+class MyService {
+  constructor({ authService, personalityService }) {
+    this.authService = authService;
+    this.personalityService = personalityService;
+  }
+}
+
+// Or lazy loading as last resort:
+async function myFunction() {
+  const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
+  const service = getApplicationBootstrap().getServices().someService;
+}
+```
+
+### Why This Happens
+
+1. **ApplicationBootstrap imports Module A** (directly or indirectly)
+2. **Module A imports ApplicationBootstrap** to get a service
+3. **Circular dependency!** Node.js warns about this
+
+### Common Circular Dependency Sources
+
+- `ProfileInfoFetcher.js` trying to get auth service
+- `BackupAPIClient.js` trying to get services  
+- Any utility trying to get bootstrap services
+- Command classes importing bootstrap during module load
+
+### Prevention Rules
+
+1. **NEVER import ApplicationBootstrap at module level** in files that might be imported by ApplicationBootstrap
+2. **Always use constructor injection** when possible
+3. **Use lazy loading** only as a last resort
+4. **Check import chains** before adding ApplicationBootstrap imports
+
+### Quick Test for Circular Dependencies
+
+```bash
+node --trace-warnings -e "require('./src/application/bootstrap/ApplicationBootstrap')"
+```
+
 ## Critical Patterns - Tzurot Specific
 
 ### Performance & Rate Limits
