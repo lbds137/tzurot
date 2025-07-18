@@ -4,7 +4,7 @@
 
 // Mock the aiService module
 jest.mock('../../src/aiService', () => ({
-  getAiResponse: jest.fn().mockResolvedValue('This is a mock AI response'),
+  getAiResponse: jest.fn().mockResolvedValue({ content: 'This is a mock AI response', metadata: null }),
 }));
 
 // Mock the webhookManager module

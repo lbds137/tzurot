@@ -156,7 +156,7 @@ describe('Personality Handler Module', () => {
     conversationManager.isAutoResponseEnabled.mockReturnValue(false);
 
     // Mock getAiResponse
-    getAiResponse.mockResolvedValue('AI response');
+    getAiResponse.mockResolvedValue({ content: 'AI response', metadata: null });
 
     // Mock webhookManager
     webhookManager.sendWebhookMessage.mockResolvedValue({
@@ -386,7 +386,7 @@ describe('Personality Handler Module', () => {
     });
 
     it('should handle error response markers', async () => {
-      getAiResponse.mockResolvedValueOnce(MARKERS.HARD_BLOCKED_RESPONSE);
+      getAiResponse.mockResolvedValueOnce({ content: MARKERS.HARD_BLOCKED_RESPONSE, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -406,7 +406,7 @@ describe('Personality Handler Module', () => {
     });
 
     it('should handle error messages from AI service', async () => {
-      getAiResponse.mockResolvedValueOnce(`${MARKERS.BOT_ERROR_MESSAGE}Something went wrong`);
+      getAiResponse.mockResolvedValueOnce({ content: `${MARKERS.BOT_ERROR_MESSAGE}Something went wrong`, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -681,7 +681,7 @@ describe('Personality Handler Module', () => {
       const responseWithMarkdown = 'Here is an image: [https://example.com/image.png](https://example.com/image.png)';
       const expectedProcessed = 'Here is an image:\n[Image: https://example.com/image.png]';
       
-      getAiResponse.mockResolvedValueOnce(responseWithMarkdown);
+      getAiResponse.mockResolvedValueOnce({ content: responseWithMarkdown, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -703,7 +703,7 @@ describe('Personality Handler Module', () => {
       const responseWithMultiple = 'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2: [https://example.com/2.png](https://example.com/2.png)';
       const expectedProcessed = 'Image 1: [https://example.com/1.png](https://example.com/1.png) and Image 2:\n[Image: https://example.com/2.png]';
       
-      getAiResponse.mockResolvedValueOnce(responseWithMultiple);
+      getAiResponse.mockResolvedValueOnce({ content: responseWithMultiple, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -724,7 +724,7 @@ describe('Personality Handler Module', () => {
     it('should not modify responses without markdown image links', async () => {
       const normalResponse = 'This is a normal response without images';
       
-      getAiResponse.mockResolvedValueOnce(normalResponse);
+      getAiResponse.mockResolvedValueOnce({ content: normalResponse, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -745,7 +745,7 @@ describe('Personality Handler Module', () => {
     it('should not process markdown links with mismatched URLs', async () => {
       const responseWithDifferentUrls = '![image](https://example.com/image.png)(https://different.com/image.png)';
       
-      getAiResponse.mockResolvedValueOnce(responseWithDifferentUrls);
+      getAiResponse.mockResolvedValueOnce({ content: responseWithDifferentUrls, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -773,7 +773,7 @@ describe('Personality Handler Module', () => {
         const response = `[https://example.com/image.${format}](https://example.com/image.${format})`;
         const expected = `\n[Image: https://example.com/image.${format}]`;
         
-        getAiResponse.mockResolvedValueOnce(response);
+        getAiResponse.mockResolvedValueOnce({ content: response, metadata: null });
 
         await personalityHandler.handlePersonalityInteraction(
           mockMessage,
@@ -793,7 +793,7 @@ describe('Personality Handler Module', () => {
     });
 
     it('should handle non-string AI responses gracefully', async () => {
-      getAiResponse.mockResolvedValueOnce(null);
+      getAiResponse.mockResolvedValueOnce({ content: null, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,
@@ -869,7 +869,7 @@ describe('Personality Handler Module', () => {
       jest.clearAllMocks();
       personalityHandler.setAuthService(mockAuthService);
       requestTracker.trackRequest.mockReturnValueOnce('request-2');
-      getAiResponse.mockResolvedValueOnce('AI response after retry');
+      getAiResponse.mockResolvedValueOnce({ content: 'AI response after retry', metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,

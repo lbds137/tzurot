@@ -9,6 +9,12 @@ const logger = require('../logger');
 const { splitMessage } = require('../utils/messageFormatter');
 const { processMediaForWebhook, prepareAttachmentOptions } = require('../utils/media');
 
+// Default delay function using global timer
+const defaultDelay = ms => {
+  const timer = globalThis.setTimeout || setTimeout;
+  return new Promise(resolve => timer(resolve, ms));
+};
+
 /**
  * Send a formatted message in a DM channel
  * @param {Object} channel - Discord DM channel
@@ -23,7 +29,7 @@ async function sendFormattedMessageInDM(
   content,
   personality,
   options = {},
-  delayFn = ms => new Promise(resolve => setTimeout(resolve, ms))
+  delayFn = defaultDelay
 ) {
   try {
     // For DMs, use just the personality name without the suffix
@@ -154,7 +160,12 @@ async function sendFormattedMessageInDM(
     for (let i = 0; i < contentChunks.length; i++) {
       const isFirstChunk = i === 0;
       const isLastChunk = i === contentChunks.length - 1;
-      const chunkContent = contentChunks[i];
+      let chunkContent = contentChunks[i];
+      
+      // Append model indicator to the last chunk if provided
+      if (isLastChunk && options.modelIndicator) {
+        chunkContent += options.modelIndicator;
+      }
 
       // Add a delay between chunks to prevent Discord from merging/replacing them
       // 750ms delay provides a good balance between speed and reliability
