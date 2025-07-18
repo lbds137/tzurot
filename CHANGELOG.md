@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2025-01-18
+
+### Changed
+- **Model Indicator Terminology** - Updated model indicator text for consistency
+  - Changed "Main Model Used (Premium)" to "Primary Model Used (Premium)"
+  - Changed "Main Model Used (Free)" to "Primary Model Used (Free)"
+  - Provides clearer and more consistent terminology across the bot
+
 ## [2.2.1] - 2025-01-18
 
 ### Fixed
@@ -21,8 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Fallback Engine Indicators** - Messages now display model usage information
-  - "Main Model Used (Premium)" when using premium model with `is_premium: true`
-  - "Main Model Used (Free)" when using standard model with `is_premium: false`
+  - "Primary Model Used (Premium)" when using premium model with `is_premium: true`
+  - "Primary Model Used (Free)" when using standard model with `is_premium: false`
   - "Fallback Model Used" when using fallback engine with `fallback_model_used: true`
   - Indicators appear as small Discord text (using `-#` formatting) at the end of personality messages
   - Works across all message types: DMs, regular channels, and threads
