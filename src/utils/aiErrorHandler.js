@@ -241,13 +241,46 @@ async function analyzeErrorAndGenerateMessage(
     logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
 
     // PersonalityRouter returns DDD format, so errorMessage is in profile
-    errorMessage = personality?.profile?.errorMessage;
+    // Handle both raw Personality aggregate and serialized format
+    if (personality) {
+      // If it's a raw Personality aggregate, it might need to be serialized
+      const personalityData = personality.toJSON ? personality.toJSON() : personality;
+      errorMessage = personalityData?.profile?.errorMessage;
+      
+      if (!errorMessage && personality.profile) {
+        // Try direct access on the profile object
+        errorMessage = personality.profile.errorMessage;
+      }
+    }
 
-    // Log for debugging
+    // Enhanced debugging to understand the issue
     if (!errorMessage && personality) {
       logger.warn(
         `[AIErrorHandler] No errorMessage found in PersonalityRouter response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
       );
+      
+      // Log profile details if it exists
+      if (personality.profile) {
+        logger.warn(`[AIErrorHandler] Profile exists but errorMessage is missing.`);
+        logger.warn(`[AIErrorHandler] Profile type: ${personality.profile.constructor.name}`);
+        logger.warn(`[AIErrorHandler] Profile mode: ${personality.profile.mode}`);
+        logger.warn(`[AIErrorHandler] Profile has errorMessage property: ${'errorMessage' in personality.profile}`);
+        logger.warn(`[AIErrorHandler] Profile.errorMessage value: ${personality.profile.errorMessage}`);
+        
+        // Check if profile is a plain object or PersonalityProfile instance
+        logger.warn(`[AIErrorHandler] Profile is plain object: ${personality.profile.constructor === Object}`);
+        logger.warn(`[AIErrorHandler] Profile keys: ${Object.keys(personality.profile).join(', ')}`);
+        
+        // Try direct property access
+        logger.warn(`[AIErrorHandler] Direct errorMessage access: ${personality.profile['errorMessage']}`);
+        
+        // Check if it's a PersonalityProfile object
+        if (personality.profile.toJSON) {
+          const profileJSON = personality.profile.toJSON();
+          logger.warn(`[AIErrorHandler] Profile.toJSON() errorMessage: ${profileJSON.errorMessage}`);
+          logger.warn(`[AIErrorHandler] Profile.toJSON() keys: ${Object.keys(profileJSON).join(', ')}`);
+        }
+      }
     }
 
     if (errorMessage) {

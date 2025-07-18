@@ -86,17 +86,29 @@ class Personality extends AggregateRoot {
   /**
    * Update personality profile
    * @param {Object} updates - Updates to apply
-   * @param {string} [updates.prompt] - New prompt
-   * @param {string} [updates.modelPath] - New model path
-   * @param {AIModel} [updates.model] - New AI model
-   * @param {number} [updates.maxWordCount] - New max word count
+   * @param {string} [updates.prompt] - New prompt (local mode)
+   * @param {string} [updates.modelPath] - New model path (local mode)
+   * @param {AIModel} [updates.model] - New AI model (local mode)
+   * @param {number} [updates.maxWordCount] - New max word count (local mode)
+   * @param {PersonalityProfile} [updates.externalProfile] - Updated external profile from API
    */
   updateProfile(updates) {
     if (this.removed) {
       throw new Error('Cannot update removed personality');
     }
 
-    // Only allow updates for local mode personalities
+    // Handle external profile updates (from API refresh)
+    if (updates.externalProfile && this.profile && this.profile.mode === 'external') {
+      this.applyEvent(
+        new PersonalityProfileUpdated(this.id, {
+          profile: updates.externalProfile.toJSON(),
+          updatedAt: new Date().toISOString(),
+        })
+      );
+      return;
+    }
+
+    // Handle local mode updates
     if (!this.profile || this.profile.mode !== 'local') {
       throw new Error('Cannot update profile for external personalities');
     }
