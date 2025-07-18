@@ -25,7 +25,7 @@ describe('Webhook Reply Authentication', () => {
     conversationManager.getPersonalityFromMessage.mockReturnValue('test-personality');
 
     // Mock getAiResponse
-    aiService.getAiResponse.mockResolvedValue('AI response');
+    aiService.getAiResponse.mockResolvedValue({ content: 'AI response', metadata: null });
 
     // Legacy authManager removed - authentication handled by DDD system in aiService
 

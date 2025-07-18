@@ -421,30 +421,33 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   if (!response || !response.choices || !response.choices[0] || !response.choices[0].message) {
     logger.error(`[AIService] Invalid response structure from ${personalityName}`);
     // Use personality error handler for empty/invalid responses
-    return await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+    const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+    return { content: errorMessage, metadata: null };
   }
 
   let content = response.choices[0].message.content;
   if (typeof content !== 'string') {
     logger.error(`[AIService] Non-string content from ${personalityName}: ${typeof content}`);
     // Use personality error handler for non-string content
-    return await analyzeErrorAndGenerateMessage(
+    const errorMessage = await analyzeErrorAndGenerateMessage(
       content,
       personalityName,
       context,
       addToBlackoutList
     );
+    return { content: errorMessage, metadata: null };
   }
 
   // Check if the content appears to be an error before sanitization
   if (isErrorResponse(content)) {
     // Delegate error analysis and message generation to error handler
-    return await analyzeErrorAndGenerateMessage(
+    const errorMessage = await analyzeErrorAndGenerateMessage(
       content,
       personalityName,
       context,
       addToBlackoutList
     );
+    return { content: errorMessage, metadata: null };
   }
 
   // Apply sanitization to all personality responses to be safe
@@ -463,7 +466,8 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     if (sanitizedContent.length === 0) {
       logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
       // Use personality error handler for empty content after sanitization
-      return await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+      const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
+    return { content: errorMessage, metadata: null };
     }
 
     // Replace the original content with the sanitized version
@@ -471,18 +475,31 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   } catch (sanitizeError) {
     logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
     // Use personality error handler for sanitization errors
-    return await analyzeErrorAndGenerateMessage(
+    const errorMessage = await analyzeErrorAndGenerateMessage(
       sanitizeError.message,
       personalityName,
       context,
       addToBlackoutList
     );
+    return { content: errorMessage, metadata: null };
+  }
+
+  // Extract metadata if available
+  let metadata = null;
+  if (response.usage && response.usage.metadata) {
+    metadata = response.usage.metadata;
+    logger.debug(`[AIService] Response metadata: ${JSON.stringify(metadata)}`);
   }
 
   logger.info(
     `[AIService] Successfully generated response for ${personalityName} (${content.length} chars)`
   );
-  return content;
+  
+  // Return both content and metadata
+  return {
+    content: content,
+    metadata: metadata
+  };
 }
 
 module.exports = {
