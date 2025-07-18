@@ -140,6 +140,12 @@ async function sendDirectThreadMessage(
       // Only include embeds in last chunk
       const embeds = isLastChunk && options.embeds ? options.embeds : [];
 
+      // Append model indicator to last chunk content if provided
+      let finalChunkContent = chunkContent;
+      if (isLastChunk && options.modelIndicator) {
+        finalChunkContent += options.modelIndicator;
+      }
+
       // Resolve avatar URL through storage system
       let avatarUrl = null;
       let personalityAvatarUrl = null;
@@ -168,7 +174,7 @@ async function sendDirectThreadMessage(
 
       // Prepare base webhook options
       const baseOptions = {
-        content: chunkContent,
+        content: finalChunkContent,
         username: standardName,
         avatarURL: avatarUrl,
         threadId: channel.id,
@@ -230,7 +236,7 @@ async function sendDirectThreadMessage(
 
         try {
           // Format the content with the personality name for direct sending
-          const formattedContent = `**${standardName}:** ${chunkContent}`;
+          const formattedContent = `**${standardName}:** ${finalChunkContent}`;
 
           // Create send options
           const sendOptions = {
