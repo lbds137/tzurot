@@ -127,7 +127,7 @@ describe('Personality Handler - Model Metadata Indicator', () => {
       };
 
       const indicator = personalityHandler.generateModelIndicator(metadata);
-      expect(indicator).toBe('\n-# Main Model Used (Premium)');
+      expect(indicator).toBe('\n-# Primary Model Used (Premium)');
     });
 
     it('should generate indicator for free main model', () => {
@@ -138,7 +138,7 @@ describe('Personality Handler - Model Metadata Indicator', () => {
       };
 
       const indicator = personalityHandler.generateModelIndicator(metadata);
-      expect(indicator).toBe('\n-# Main Model Used (Free)');
+      expect(indicator).toBe('\n-# Primary Model Used (Free)');
     });
 
     it('should return empty string for null metadata', () => {
@@ -165,12 +165,12 @@ describe('Personality Handler - Model Metadata Indicator', () => {
         },
         {
           metadata: { fallback_model_used: false, is_premium: true },
-          expected: '\n-# Main Model Used (Premium)',
+          expected: '\n-# Primary Model Used (Premium)',
           description: 'premium model',
         },
         {
           metadata: { fallback_model_used: false, is_premium: false },
-          expected: '\n-# Main Model Used (Free)',
+          expected: '\n-# Primary Model Used (Free)',
           description: 'free model',
         },
         {

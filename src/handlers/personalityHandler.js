@@ -229,9 +229,9 @@ function generateModelIndicator(metadata) {
   if (metadata.fallback_model_used === true) {
     indicator = 'Fallback Model Used';
   } else if (metadata.is_premium === true) {
-    indicator = 'Main Model Used (Premium)';
+    indicator = 'Primary Model Used (Premium)';
   } else if (metadata.is_premium === false) {
-    indicator = 'Main Model Used (Free)';
+    indicator = 'Primary Model Used (Free)';
   }
 
   return indicator ? `\n-# ${indicator}` : '';
