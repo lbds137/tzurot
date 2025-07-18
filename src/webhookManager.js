@@ -341,7 +341,12 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = i === 0;
         const isLastChunk = i === contentChunks.length - 1;
-        const finalContent = contentChunks[i];
+        let finalContent = contentChunks[i];
+        
+        // Append model indicator to the last chunk if provided
+        if (isLastChunk && options.modelIndicator) {
+          finalContent += options.modelIndicator;
+        }
 
         // Skip if this exact message was recently sent
         if (isDuplicateMessage(finalContent, standardizedName, channel.id)) {

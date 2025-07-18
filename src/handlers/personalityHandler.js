@@ -216,6 +216,28 @@ async function sendAuthError(message, errorMessage) {
 }
 
 /**
+ * Generate model usage indicator based on metadata
+ * @param {Object} metadata - Response metadata from AI service
+ * @returns {string} - Model indicator string or empty string
+ */
+function generateModelIndicator(metadata) {
+  if (!metadata) {
+    return '';
+  }
+
+  let indicator = '';
+  if (metadata.fallback_model_used === true) {
+    indicator = 'Fallback Model Used';
+  } else if (metadata.is_premium === true) {
+    indicator = 'Main Model Used (Premium)';
+  } else if (metadata.is_premium === false) {
+    indicator = 'Main Model Used (Free)';
+  }
+
+  return indicator ? `\n-# ${indicator}` : '';
+}
+
+/**
  * Start typing indicator for a channel
  * @param {Object} channel - Discord channel object
  * @returns {number} Interval ID for the typing indicator
@@ -783,7 +805,7 @@ async function handlePersonalityInteraction(
       );
     }
 
-    const aiResponse = await getAiResponse(personality.fullName, finalMessageContent, {
+    const aiResponseData = await getAiResponse(personality.fullName, finalMessageContent, {
       userId: userId,
       channelId: message.channel.id,
       messageId: message.id, // Add message ID for better deduplication
@@ -800,6 +822,10 @@ async function handlePersonalityInteraction(
     // Clear typing indicator interval
     timerFunctions.clearInterval(typingInterval);
     typingInterval = null;
+
+    // Extract content and metadata from the response
+    const aiResponse = aiResponseData.content;
+    const metadata = aiResponseData.metadata;
 
     // Check for BOT_ERROR_MESSAGE marker - these should come from the bot, not the personality
     if (
@@ -857,6 +883,9 @@ async function handlePersonalityInteraction(
       logger.info(`[PersonalityHandler] Thread info: ${JSON.stringify(info)}`);
     }
 
+    // Generate model indicator for the message
+    const modelIndicator = generateModelIndicator(metadata);
+
     // Build webhook options with thread support
     const webhookOptions = threadHandler.buildThreadWebhookOptions(
       message.channel,
@@ -864,6 +893,9 @@ async function handlePersonalityInteraction(
       threadInfo,
       isReplyToDMFormattedMessage
     );
+    
+    // Add model indicator to webhook options
+    webhookOptions.modelIndicator = modelIndicator;
 
     // Send the response using appropriate method
     let result;
@@ -975,4 +1007,5 @@ module.exports = {
   setAuthService,
   clearCache,
   checkPersonalityAuth, // Export for testing
+  generateModelIndicator, // Export for testing
 };
