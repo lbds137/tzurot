@@ -404,7 +404,9 @@ describe('aiService Error Handling', () => {
         undefined,
         context
       );
-      expect(responseWithoutMessage).toBe('Test response');
+      expect(responseWithoutMessage).toHaveProperty('content');
+      expect(responseWithoutMessage).toHaveProperty('metadata');
+      expect(responseWithoutMessage.content).toBe('Test response');
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(
         expect.objectContaining({
           messages: expect.arrayContaining([
@@ -439,7 +441,9 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should get normal response, not blocked
-      expect(response).toBe('Test response');
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toBe('Test response');
 
       // API should have been called despite being in "blackout" (monitoring only)
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalled();
@@ -471,7 +475,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
     });
 
     test('getAiResponse should use personality error message for empty responses', async () => {
@@ -492,9 +499,12 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should use personality error message with reference ID
-      expect(response).toMatch(
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(
         /My circuits are fried! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/
       );
+      expect(response.metadata).toBeNull();
     });
 
     test('getAiResponse should handle non-string responses gracefully', async () => {
@@ -513,7 +523,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
     });
 
     test('getAiResponse should detect error content in API responses', async () => {
@@ -532,7 +545,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
 
       // Should track error for monitoring (but not block future requests)
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -546,7 +562,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
     });
 
     test('getAiResponse should handle network timeouts gracefully', async () => {
@@ -575,7 +594,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
     });
 
     test('getAiResponse should handle response with empty string content', async () => {
@@ -594,14 +616,17 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return an error message with reference ID (personality has error message configured)
-      expect(response).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
+      expect(response.metadata).toBeNull();
 
       // Should track for monitoring (empty_response is now tracked but doesn't block)
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
 
       // Check if personality was registered as problematic
       // It might have been cleared, so let's just check that an error was detected
-      expect(response).toContain('reference:');
+      expect(response.content).toContain('reference:');
     });
   });
 
@@ -653,10 +678,6 @@ describe('aiService Error Handling', () => {
       // Wait for both promises
       const [result1, result2] = await Promise.all([promise1, promise2]);
       
-      // Log the results to see what's happening
-      console.log('Result 1:', result1);
-      console.log('Result 2:', result2);
-      console.log('Mock calls:', mockOpenAI.chat.completions.create.mock.calls.length);
       
       // Both promises should resolve to the same value due to deduplication
       expect(result1).toBe(result2);
