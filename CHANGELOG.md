@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2025-01-18
+
+### Added
+- **Fallback Engine Indicators** - Messages now display model usage information
+  - "Main Model Used (Premium)" when using premium model with `is_premium: true`
+  - "Main Model Used (Free)" when using standard model with `is_premium: false`
+  - "Fallback Model Used" when using fallback engine with `fallback_model_used: true`
+  - Indicators appear as small Discord text (using `-#` formatting) at the end of personality messages
+  - Works across all message types: DMs, regular channels, and threads
+
+### Changed
+- **Extended Personality Reference Optimization** - Same-personality reference time window extended from 1 hour to 24 hours
+  - Personalities can now reference their own recent messages from up to 24 hours ago
+  - Improves conversation continuity for longer interactions
+  - Reduces redundant context building for active personalities
+
+### Fixed
+- **Blacklist Migration Cleanup** - Removed unnecessary migration code and tests
+  - Cleaned up deprecated `migrateBlacklistData` function and related tests
+  - Simplified FileBlacklistRepository initialization
+  - Reduced technical debt in authentication domain
+
 ## [2.1.1] - 2025-07-10
 
 ### Fixed
