@@ -639,18 +639,21 @@ async function handleMentions(message, client) {
  * @returns {Promise<boolean>} - Whether the active conversation was handled
  */
 async function handleActiveConversation(message, client) {
+  // Get the real user ID for PluralKit webhook messages
+  const userId = webhookUserTracker.getRealUserId(message) || message.author.id;
+  
   // Check if auto-response is enabled for this user
-  const autoResponseEnabled = isAutoResponseEnabled(message.author.id);
+  const autoResponseEnabled = isAutoResponseEnabled(userId);
 
   logger.debug(
-    `[MessageHandler] Checking for active conversation - User: ${message.author.id}, ` +
+    `[MessageHandler] Checking for active conversation - User: ${userId}, ` +
       `Channel: ${message.channel.id}, isDM: ${message.channel.isDMBased()}, ` +
-      `autoResponseEnabled: ${autoResponseEnabled}`
+      `autoResponseEnabled: ${autoResponseEnabled} (message.author.id: ${message.author.id})`
   );
 
   // Check for active conversation
   const activePersonalityName = getActivePersonality(
-    message.author.id,
+    userId,
     message.channel.id,
     message.channel.isDMBased(),
     autoResponseEnabled
