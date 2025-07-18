@@ -793,15 +793,15 @@ async function handlePersonalityInteraction(
     }
 
     // Get the AI response from the service
-    // Always use the message author's user ID for proper authentication
-    // This ensures that when replying to a webhook, we use the replying user's auth token
-    const userId = message.author?.id;
-    logger.debug(`[PersonalityHandler] Using user ID for authentication: ${userId || 'none'}`);
+    // For webhook messages (PluralKit), use the real user ID for authentication
+    // For regular messages, use the message author's ID
+    const userId = webhookUserTracker.getRealUserId(message) || message.author?.id;
+    logger.debug(`[PersonalityHandler] Using user ID for authentication: ${userId || 'none'} (message.author.id: ${message.author?.id})`);
 
     // Debug logging for proxy context
     if (message.webhookId) {
       logger.info(
-        `[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}"`
+        `[PersonalityHandler] Webhook message detected - webhookId: ${message.webhookId}, isProxySystem: ${isWebhookMessage}, userName: "${formattedUserName}", realUserId: ${userId}`
       );
     }
 
