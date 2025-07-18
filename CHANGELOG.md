@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3] - 2025-01-18
+
+### Fixed
+- **Personality Error Messages** - Fixed personality-specific error messages not displaying
+  - PersonalityRouter was returning raw Personality aggregate objects
+  - Added `toJSON()` serialization to access error message property
+  - Personalities now correctly show their custom error messages (e.g., "*sighs dramatically* Something went wrong!")
+  - Includes enhanced debug logging for troubleshooting
+
 ## [2.2.2] - 2025-01-18
 
 ### Changed
