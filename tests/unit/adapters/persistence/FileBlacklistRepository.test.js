@@ -17,12 +17,6 @@ jest.mock('fs', () => ({
   }
 }));
 
-// Mock the migration module
-jest.mock('../../../../src/migrations/migrateBlacklistData', () => ({
-  migrateBlacklistData: jest.fn()
-}));
-
-const { migrateBlacklistData } = require('../../../../src/migrations/migrateBlacklistData');
 
 describe('FileBlacklistRepository', () => {
   let repository;
@@ -41,7 +35,6 @@ describe('FileBlacklistRepository', () => {
     it('should create data directory and empty file if not exists', async () => {
       fs.mkdir.mockResolvedValue();
       fs.readFile.mockRejectedValue({ code: 'ENOENT' });
-      migrateBlacklistData.mockResolvedValue();
       fs.writeFile.mockResolvedValue();
       fs.rename.mockResolvedValue();
       
@@ -52,7 +45,12 @@ describe('FileBlacklistRepository', () => {
         path.join(testDataPath, testFilename),
         'utf8'
       );
-      expect(migrateBlacklistData).toHaveBeenCalledWith(testDataPath);
+      // Should write empty object when file doesn't exist
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        `${path.join(testDataPath, testFilename)}.tmp`,
+        '{}',
+        'utf8'
+      );
       // Repository should be initialized - test by calling a method that requires initialization
       await expect(repository.isBlacklisted('test')).resolves.toBe(false);
     });

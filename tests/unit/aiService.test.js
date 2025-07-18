@@ -692,10 +692,12 @@ describe('AI Service', () => {
 
       const response = await getAiResponse(personalityName, message, context);
 
-      // Verify it returned a string
-      expect(typeof response).toBe('string');
-      expect(response.length).toBeGreaterThan(0);
-      expect(response).toContain('This is a mock response');
+      // Verify it returned an object with content and metadata
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(typeof response.content).toBe('string');
+      expect(response.content.length).toBeGreaterThan(0);
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should handle empty or missing messages', async () => {
@@ -713,13 +715,17 @@ describe('AI Service', () => {
 
       // Empty message
       let response = await getAiResponse(personalityName, '', context);
-      expect(typeof response).toBe('string');
-      expect(response.length).toBeGreaterThan(0);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(typeof response.content).toBe('string');
+      expect(response.content.length).toBeGreaterThan(0);
 
       // Undefined message
       response = await getAiResponse(personalityName, undefined, context);
-      expect(typeof response).toBe('string');
-      expect(response.length).toBeGreaterThan(0);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(typeof response.content).toBe('string');
+      expect(response.content.length).toBeGreaterThan(0);
 
       // Verify warning was logged
       expect(logger.warn).toHaveBeenCalled();
@@ -769,8 +775,9 @@ describe('AI Service', () => {
 
       // API call should still go through
       const response = await getAiResponse(personalityName, message, context);
-      expect(response).toContain('This is a mock response');
-      expect(response).not.toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
+      expect(response.content).not.toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
     });
 
     it('should prevent duplicate API calls for the same request', async () => {
@@ -978,7 +985,8 @@ describe('AI Service', () => {
       const response = await getAiResponse('test-personality', 'Hello', context);
 
       expect(webhookUserTracker.shouldBypassNsfwVerification).toHaveBeenCalledWith(context.message);
-      expect(response).toContain('This is a mock response');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should handle authentication required errors from API', async () => {
@@ -1065,7 +1073,8 @@ describe('AI Service', () => {
         channelId: 'test-channel',
       });
 
-      expect(response).toContain('This is a mock response');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should log reference with author when no personality or webhook name', async () => {
@@ -1082,7 +1091,8 @@ describe('AI Service', () => {
         channelId: 'test-channel',
       });
 
-      expect(response).toContain('This is a mock response');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should log reference as unknown-source when no identifying info', async () => {
@@ -1098,7 +1108,8 @@ describe('AI Service', () => {
         channelId: 'test-channel',
       });
 
-      expect(response).toContain('This is a mock response');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should handle errors when logging reference details', async () => {
@@ -1115,7 +1126,8 @@ describe('AI Service', () => {
         channelId: 'test-channel',
       });
 
-      expect(response).toContain('This is a mock response');
+      expect(response).toHaveProperty('content');
+      expect(response.content).toContain('This is a mock response');
     });
 
     it('should throw error when AI client is not available', async () => {
@@ -1159,7 +1171,9 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
 
       // Should use personality error handler for empty response
-      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
 
     it('should handle sanitization errors', async () => {
@@ -1179,7 +1193,9 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
 
       // Should use personality error handler for sanitization errors
-      expect(response).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
     });
 
     it('should handle invalid response structure', async () => {
@@ -1203,7 +1219,9 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
 
       // Should use personality error handler for invalid response
-      expect(response).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
     });
 
     it('should handle non-string content from AI', async () => {
@@ -1232,7 +1250,9 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
 
       // Should use personality error handler for non-string content
-      expect(response).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata');
+      expect(response.content).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
     });
   });
 });
