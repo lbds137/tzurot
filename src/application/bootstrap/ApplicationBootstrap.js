@@ -149,7 +149,10 @@ class ApplicationBootstrap {
         messageHandlerConfig.setMaxAliasWordCount(maxAliasWordCount);
         logger.info(`[ApplicationBootstrap] Set max alias word count: ${maxAliasWordCount}`);
       } catch (configError) {
-        logger.warn('[ApplicationBootstrap] Failed to set max alias word count, using default:', configError.message);
+        logger.warn(
+          '[ApplicationBootstrap] Failed to set max alias word count, using default:',
+          configError.message
+        );
       }
 
       // Step 4: Wire up event handlers

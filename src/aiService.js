@@ -266,18 +266,20 @@ async function handleNormalPersonality(personalityName, message, context, modelP
   // Extract user name and proxy message flag from context if available
   const userName = context.userName || 'a user';
   const isProxyMessage = context.isProxyMessage || false;
-  
+
   // Debug logging for proxy messages
   if (isProxyMessage || context.message?.webhookId) {
-    logger.info(`[AIService] Processing potential proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}, webhookId: ${context.message?.webhookId}`);
+    logger.info(
+      `[AIService] Processing potential proxy message - userName: "${userName}", isProxyMessage: ${isProxyMessage}, webhookId: ${context.message?.webhookId}`
+    );
   }
 
   // Format the message content properly for the API
   // Note: disableContextMetadata can be passed through context if needed
   const messages = await formatApiMessages(
-    message, 
-    personalityName, 
-    userName, 
+    message,
+    personalityName,
+    userName,
     isProxyMessage,
     context.message || null,
     context.disableContextMetadata || false

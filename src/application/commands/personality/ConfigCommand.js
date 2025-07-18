@@ -186,8 +186,8 @@ function createConfigCommand() {
           switch (setting) {
             case 'context-metadata':
               updateData.disableContextMetadata = booleanValue;
-              settingDescription = booleanValue 
-                ? 'Context metadata (server/channel info) has been **disabled**' 
+              settingDescription = booleanValue
+                ? 'Context metadata (server/channel info) has been **disabled**'
                 : 'Context metadata (server/channel info) has been **enabled**';
               break;
           }
@@ -223,9 +223,11 @@ function createConfigCommand() {
           logger.info(
             `[ConfigCommand] User ${context.userId} updated ${setting} to ${value} for personality ${personality.name}`
           );
-
         } catch (personalityError) {
-          logger.error('[ConfigCommand] Error updating personality configuration:', personalityError);
+          logger.error(
+            '[ConfigCommand] Error updating personality configuration:',
+            personalityError
+          );
 
           const errorEmbed = {
             title: 'Configuration Error',
@@ -235,7 +237,6 @@ function createConfigCommand() {
 
           await context.reply({ embeds: [errorEmbed] });
         }
-
       } catch (error) {
         logger.error('[ConfigCommand] Error:', error);
 

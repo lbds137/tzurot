@@ -246,13 +246,13 @@ async function handleMessage(message, client, authManager) {
 
             // Associate the webhook with the real user for authentication
             webhookUserTracker.associateWebhookWithUser(message.webhookId, pendingReply.userId);
-            
+
             // Mark the original message as handled to prevent duplicate processing
             if (pendingReply.originalMessageId) {
               // Create a minimal message object with the required properties
-              messageTrackerHandler.markMessageAsHandled({ 
+              messageTrackerHandler.markMessageAsHandled({
                 id: pendingReply.originalMessageId,
-                channel: { id: message.channel.id }
+                channel: { id: message.channel.id },
               });
               logger.debug(
                 `[MessageHandler] Marked original message ${pendingReply.originalMessageId} as handled`

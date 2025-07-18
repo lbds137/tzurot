@@ -147,7 +147,7 @@ class Personality extends AggregateRoot {
     // If no configuration exists, create a default one from the profile
     if (!this.configuration) {
       const { PersonalityConfiguration } = require('./PersonalityConfiguration');
-      
+
       // Create default configuration from existing profile data
       this.configuration = new PersonalityConfiguration(
         this.profile?.name || this.personalityId.toString(),

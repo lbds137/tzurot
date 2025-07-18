@@ -30,7 +30,7 @@ async function resolvePersonalityName(input) {
     if (personality) {
       const fullName = personality.profile?.name || personality.name;
       const displayName = personality.profile?.displayName || fullName;
-      
+
       logger.debug(`[BackupCommand] Found personality: ${fullName}`);
       return {
         fullName: fullName,

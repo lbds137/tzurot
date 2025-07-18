@@ -1,6 +1,6 @@
 /**
  * MessageHandlerConfig
- * 
+ *
  * Configuration provider for message handling components.
  * This breaks the circular dependency by providing configuration
  * without requiring access to the full ApplicationBootstrap.

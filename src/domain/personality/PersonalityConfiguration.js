@@ -54,7 +54,9 @@ class PersonalityConfiguration extends ValueObject {
       updates.prompt !== undefined ? updates.prompt : this.prompt,
       updates.modelPath !== undefined ? updates.modelPath : this.modelPath,
       updates.maxWordCount !== undefined ? updates.maxWordCount : this.maxWordCount,
-      updates.disableContextMetadata !== undefined ? updates.disableContextMetadata : this.disableContextMetadata
+      updates.disableContextMetadata !== undefined
+        ? updates.disableContextMetadata
+        : this.disableContextMetadata
     );
   }
 
@@ -70,9 +72,9 @@ class PersonalityConfiguration extends ValueObject {
 
   static fromJSON(json) {
     return new PersonalityConfiguration(
-      json.name, 
-      json.prompt, 
-      json.modelPath, 
+      json.name,
+      json.prompt,
+      json.modelPath,
       json.maxWordCount,
       json.disableContextMetadata
     );

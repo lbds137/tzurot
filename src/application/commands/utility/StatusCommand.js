@@ -58,11 +58,15 @@ function createExecutor(dependencies = {}) {
       if (isAuthenticated) {
         // Try DDD system first
         try {
-          const { getApplicationBootstrap } = require('../../../application/bootstrap/ApplicationBootstrap');
+          const {
+            getApplicationBootstrap,
+          } = require('../../../application/bootstrap/ApplicationBootstrap');
           const bootstrap = getApplicationBootstrap();
           if (bootstrap.initialized) {
             const personalityApplicationService = bootstrap.getPersonalityApplicationService();
-            const personalities = await personalityApplicationService.listPersonalitiesByOwner(context.userId);
+            const personalities = await personalityApplicationService.listPersonalitiesByOwner(
+              context.userId
+            );
             personalityCount = personalities ? personalities.length : 0;
           }
         } catch (error) {

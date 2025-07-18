@@ -349,7 +349,9 @@ class PersonalityApplicationService {
    */
   async updatePersonality(personalityId, updates) {
     try {
-      logger.info(`[PersonalityApplicationService] Updating personality configuration: ${personalityId}`);
+      logger.info(
+        `[PersonalityApplicationService] Updating personality configuration: ${personalityId}`
+      );
 
       // Find the personality
       const personality = await this.personalityRepository.findById(personalityId);

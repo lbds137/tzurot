@@ -30,7 +30,8 @@ const EXPIRATION_TIME = 5000;
  * @param {string} [context.originalMessageId] - ID of the original message (before Pluralkit processing)
  */
 function trackPendingReply(context) {
-  const { channelId, userId, content, personality, referencedMessageId, originalMessageId } = context;
+  const { channelId, userId, content, personality, referencedMessageId, originalMessageId } =
+    context;
 
   if (!pendingReplies.has(channelId)) {
     pendingReplies.set(channelId, []);
