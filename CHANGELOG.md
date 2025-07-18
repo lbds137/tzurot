@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2025-01-18
+
+### Fixed
+- **PluralKit Authentication Issue** - Fixed authentication errors for PluralKit webhook messages
+  - Resolved error: "User [webhook_id] is not authenticated" for PluralKit users
+  - Fixed `handlePersonalityInteraction` to use real user ID instead of webhook user ID for authentication
+  - Fixed `handleActiveConversation` to properly detect active conversations for PluralKit users
+  - PluralKit users can now properly authenticate and maintain conversation continuity
+  - Enhanced debug logging to show both webhook ID and real user ID for troubleshooting
+
 ## [2.2.0] - 2025-01-18
 
 ### Added
