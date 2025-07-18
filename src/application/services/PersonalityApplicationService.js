@@ -240,10 +240,12 @@ class PersonalityApplicationService {
           const apiData = await this.profileFetcher.fetchProfileInfo(personalityName, userId);
           if (apiData) {
             // Update profile with API data
-            personality.profile = PersonalityProfile.fromApiResponse(apiData);
+            const updatedProfile = PersonalityProfile.fromApiResponse(apiData);
+            personality.updateProfile({ externalProfile: updatedProfile });
 
             // Save updated profile
             await this.personalityRepository.save(personality);
+            await this._publishEvents(personality);
 
             // Pre-download avatar if URL changed
             if (personality.profile.avatarUrl) {

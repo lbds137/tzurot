@@ -70,6 +70,9 @@ function createExecutor(dependencies = {}) {
             messageTracker,
           });
 
+        case 'personality':
+          return await checkPersonality(context);
+
         default: {
           const errorEmbed = {
             title: '❌ Unknown Subcommand',
@@ -115,6 +118,7 @@ async function showHelp(context) {
           '• `clearauth [userId]` - Revoke authentication tokens (yours or specified user)',
           '• `clearmessages` - Clear message tracking history',
           '• `stats` - Show debug statistics',
+          '• `personality <name>` - Check personality data and error message',
         ].join('\n'),
         inline: false,
       },
@@ -267,6 +271,85 @@ async function clearMessages(context, messageTracker) {
     const errorEmbed = {
       title: '❌ Clear Failed',
       description: 'Failed to clear message tracking.',
+      color: 0xf44336,
+      timestamp: new Date().toISOString(),
+    };
+    await context.respond({ embeds: [errorEmbed] });
+  }
+}
+
+async function checkPersonality(context) {
+  try {
+    // Get personality name from args
+    const personalityName = context.args?.[1];
+    
+    if (!personalityName) {
+      const errorEmbed = {
+        title: '❌ Missing Personality Name',
+        description: `Usage: \`${context.commandPrefix} debug personality <name>\``,
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
+      return;
+    }
+
+    // Get personality using DDD system
+    const {
+      getApplicationBootstrap,
+    } = require('../../../application/bootstrap/ApplicationBootstrap');
+    const bootstrap = getApplicationBootstrap();
+    const personalityRouter = bootstrap.getPersonalityRouter();
+    
+    const personality = await personalityRouter.getPersonality(personalityName);
+    
+    if (!personality) {
+      const errorEmbed = {
+        title: '❌ Personality Not Found',
+        description: `No personality found with name: \`${personalityName}\``,
+        color: 0xf44336,
+        timestamp: new Date().toISOString(),
+      };
+      await context.respond({ embeds: [errorEmbed] });
+      return;
+    }
+
+    // Build debug info
+    const debugInfo = {
+      name: personality.personalityId?.toString() || 'N/A',
+      profileMode: personality.profile?.mode || 'N/A',
+      hasProfile: !!personality.profile,
+      hasErrorMessage: !!(personality.profile && personality.profile.errorMessage),
+      errorMessage: personality.profile?.errorMessage || 'Not set',
+      profileType: personality.profile ? personality.profile.constructor.name : 'None',
+      prompt: personality.profile?.prompt ? 'Set' : 'Not set',
+      modelPath: personality.profile?.modelPath || 'Not set',
+    };
+
+    const embed = {
+      title: '🔍 Personality Debug Info',
+      description: `Debug information for **${personalityName}**`,
+      fields: [
+        { name: 'Full Name', value: debugInfo.name, inline: true },
+        { name: 'Profile Mode', value: debugInfo.profileMode, inline: true },
+        { name: 'Has Profile', value: debugInfo.hasProfile ? 'Yes' : 'No', inline: true },
+        { name: 'Has Error Message', value: debugInfo.hasErrorMessage ? 'Yes' : 'No', inline: true },
+        { name: 'Profile Type', value: debugInfo.profileType, inline: true },
+        { name: 'Has Prompt', value: debugInfo.prompt, inline: true },
+        { name: 'Model Path', value: debugInfo.modelPath, inline: true },
+        { name: 'Error Message', value: `\`\`\`${debugInfo.errorMessage}\`\`\``, inline: false },
+      ],
+      color: 0x4caf50,
+      timestamp: new Date().toISOString(),
+    };
+    
+    await context.respond({ embeds: [embed] });
+    
+  } catch (error) {
+    logger.error(`[Debug] Error checking personality: ${error.message}`);
+    const errorEmbed = {
+      title: '❌ Check Failed',
+      description: `Failed to check personality: ${error.message}`,
       color: 0xf44336,
       timestamp: new Date().toISOString(),
     };

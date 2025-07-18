@@ -487,6 +487,189 @@ describe('DebugCommand', () => {
     });
   });
 
+  describe('personality subcommand', () => {
+    let mockPersonalityRouter;
+    let mockPersonality;
+
+    beforeEach(() => {
+      // Create mock personality with full structure
+      mockPersonality = {
+        personalityId: { toString: () => 'test-personality' },
+        profile: {
+          mode: 'external',
+          errorMessage: '*sighs* Something went wrong!',
+          constructor: { name: 'PersonalityProfile' },
+          prompt: null,
+          modelPath: null,
+        },
+      };
+
+      // Mock personality router
+      mockPersonalityRouter = {
+        getPersonality: jest.fn().mockResolvedValue(mockPersonality),
+      };
+
+      // Update ApplicationBootstrap mock to include PersonalityRouter
+      getApplicationBootstrap.mockReturnValue({
+        getApplicationServices: jest.fn().mockReturnValue({
+          authenticationService: mockDDDAuthService,
+        }),
+        getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      });
+    });
+
+    it('should check personality and show debug info', async () => {
+      mockContext.args = ['personality', 'test-personality'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '🔍 Personality Debug Info',
+            description: 'Debug information for **test-personality**',
+            color: 0x4caf50,
+            fields: expect.arrayContaining([
+              { name: 'Full Name', value: 'test-personality', inline: true },
+              { name: 'Profile Mode', value: 'external', inline: true },
+              { name: 'Has Profile', value: 'Yes', inline: true },
+              { name: 'Has Error Message', value: 'Yes', inline: true },
+              { name: 'Profile Type', value: 'PersonalityProfile', inline: true },
+              { name: 'Has Prompt', value: 'Not set', inline: true },
+              { name: 'Model Path', value: 'Not set', inline: true },
+              {
+                name: 'Error Message',
+                value: '```*sighs* Something went wrong!```',
+                inline: false,
+              },
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should show error when personality name is missing', async () => {
+      mockContext.args = ['personality']; // Missing personality name
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockPersonalityRouter.getPersonality).not.toHaveBeenCalled();
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Missing Personality Name',
+            description: 'Usage: `!tz debug personality <name>`',
+            color: 0xf44336,
+          }),
+        ],
+      });
+    });
+
+    it('should handle personality not found', async () => {
+      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockContext.args = ['personality', 'nonexistent'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('nonexistent');
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Personality Not Found',
+            description: 'No personality found with name: `nonexistent`',
+            color: 0xf44336,
+          }),
+        ],
+      });
+    });
+
+    it('should handle personality without error message', async () => {
+      mockPersonality.profile.errorMessage = null;
+      mockContext.args = ['personality', 'test-personality'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              { name: 'Has Error Message', value: 'No', inline: true },
+              { name: 'Error Message', value: '```Not set```', inline: false },
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should handle personality without profile', async () => {
+      mockPersonality.profile = null;
+      mockContext.args = ['personality', 'test-personality'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              { name: 'Has Profile', value: 'No', inline: true },
+              { name: 'Profile Mode', value: 'N/A', inline: true },
+              { name: 'Has Error Message', value: 'No', inline: true },
+              { name: 'Profile Type', value: 'None', inline: true },
+              { name: 'Error Message', value: '```Not set```', inline: false },
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should handle local personality with prompt', async () => {
+      mockPersonality.profile = {
+        mode: 'local',
+        errorMessage: 'Oops, something broke!',
+        prompt: 'You are a test personality',
+        modelPath: '/custom-model',
+        constructor: { name: 'PersonalityProfile' },
+      };
+      mockContext.args = ['personality', 'local-personality'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            fields: expect.arrayContaining([
+              { name: 'Profile Mode', value: 'local', inline: true },
+              { name: 'Has Prompt', value: 'Set', inline: true },
+              { name: 'Model Path', value: '/custom-model', inline: true },
+              { name: 'Error Message', value: '```Oops, something broke!```', inline: false },
+            ]),
+          }),
+        ],
+      });
+    });
+
+    it('should handle errors when checking personality', async () => {
+      mockPersonalityRouter.getPersonality.mockRejectedValue(new Error('Database error'));
+      mockContext.args = ['personality', 'test-personality'];
+
+      await debugCommand.execute(mockContext);
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[Debug] Error checking personality: Database error'
+      );
+      expect(mockContext.respond).toHaveBeenCalledWith({
+        embeds: [
+          expect.objectContaining({
+            title: '❌ Check Failed',
+            description: 'Failed to check personality: Database error',
+            color: 0xf44336,
+          }),
+        ],
+      });
+    });
+  });
+
   describe('error handling', () => {
     it('should handle unexpected errors gracefully', async () => {
       // Create a scenario that causes an error

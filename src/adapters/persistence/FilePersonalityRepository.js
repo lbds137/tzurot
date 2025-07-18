@@ -462,21 +462,33 @@ class FilePersonalityRepository {
     // Create profile from stored data
     let profile;
     if (data.profile) {
-      // Use object constructor to preserve all fields
-      profile = new PersonalityProfile({
-        mode: data.profile.mode || 'local',
+      const profileMode = data.profile.mode || 'local';
+      
+      // Build profile data based on mode
+      const profileData = {
+        mode: profileMode,
         name: data.profile.name || data.id,
         displayName: data.profile.displayName || data.profile.name || data.id,
-        prompt: data.profile.prompt || `You are ${data.profile.name || data.id}`,
-        modelPath: data.profile.modelPath || '/default',
-        maxWordCount: data.profile.maxWordCount || 1000,
         avatarUrl: data.profile.avatarUrl,
-        bio: data.profile.bio,
-        systemPrompt: data.profile.systemPrompt,
-        temperature: data.profile.temperature,
-        maxTokens: data.profile.maxTokens,
         errorMessage: data.profile.errorMessage,
-      });
+      };
+      
+      // Only add local-mode fields if not external
+      if (profileMode !== 'external') {
+        profileData.prompt = data.profile.prompt || `You are ${data.profile.name || data.id}`;
+        profileData.modelPath = data.profile.modelPath || '/default';
+        profileData.maxWordCount = data.profile.maxWordCount || 1000;
+        profileData.bio = data.profile.bio;
+        profileData.systemPrompt = data.profile.systemPrompt;
+        profileData.temperature = data.profile.temperature;
+        profileData.maxTokens = data.profile.maxTokens;
+      } else {
+        // For external mode, include lastFetched if available
+        profileData.lastFetched = data.profile.lastFetched;
+      }
+      
+      // Use object constructor to preserve all fields
+      profile = new PersonalityProfile(profileData);
     } else {
       // No profile data - create default using object constructor
       profile = new PersonalityProfile({
