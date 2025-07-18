@@ -11,19 +11,6 @@ jest.mock('openai', () => {
     chat: {
       completions: {
         create: jest.fn().mockImplementation(async function (params) {
-          // For debugging, log the parameters
-          console.log(
-            'Mock API called with params:',
-            JSON.stringify(
-              {
-                model: params.model,
-                messageCount: params.messages?.length || 0,
-                messageContent: params.messages?.[0]?.content || 'No content',
-              },
-              null,
-              2
-            ).substring(0, 500) + '...'
-          );
 
           // Check if we should return an error
           if (mockAIClient.shouldError) {
@@ -50,6 +37,11 @@ jest.mock('openai', () => {
               prompt_tokens: 100,
               completion_tokens: 200,
               total_tokens: 300,
+              metadata: {
+                is_premium: true,
+                fallback_model_used: false,
+                zero_balance_diverted: false
+              }
             },
           };
         }),
@@ -504,8 +496,10 @@ describe('Referenced Message Media Tests', () => {
 
     // Verify we got a valid response
     expect(response).toBeTruthy();
-    expect(typeof response).toBe('string');
-    expect(response).toContain('This is a mock response');
+    expect(response).toHaveProperty('content');
+    expect(response).toHaveProperty('metadata');
+    expect(typeof response.content).toBe('string');
+    expect(response.content).toContain('This is a mock response');
 
     // Verify the API was called with the correctly formatted messages
     expect(createChatCompletionSpy).toHaveBeenCalledTimes(1);

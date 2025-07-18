@@ -8,7 +8,6 @@ const path = require('path');
 const { BlacklistRepository } = require('../../domain/blacklist/BlacklistRepository');
 const { BlacklistedUser } = require('../../domain/blacklist/BlacklistedUser');
 const logger = require('../../logger');
-const { migrateBlacklistData } = require('../../migrations/migrateBlacklistData');
 
 /**
  * @class FileBlacklistRepository
@@ -46,33 +45,10 @@ class FileBlacklistRepository extends BlacklistRepository {
         this._cache = JSON.parse(data);
       } catch (error) {
         if (error.code === 'ENOENT') {
-          // File doesn't exist, check if we need to migrate from auth
-          logger.info(
-            '[FileBlacklistRepository] Blacklist file not found, checking for migration...'
-          );
-
-          try {
-            await migrateBlacklistData(this.dataPath);
-
-            // Try to load again after migration
-            try {
-              const migratedData = await fs.readFile(this.filePath, 'utf8');
-              this._cache = JSON.parse(migratedData);
-              logger.info('[FileBlacklistRepository] Loaded migrated blacklist data');
-            } catch (loadError) {
-              // Still no file after migration, create empty
-              this._cache = {};
-              await this._persist();
-            }
-          } catch (migrationError) {
-            logger.warn(
-              '[FileBlacklistRepository] Migration failed or not needed:',
-              migrationError.message
-            );
-            // Create empty structure
-            this._cache = {};
-            await this._persist();
-          }
+          // File doesn't exist, create empty structure
+          logger.info('[FileBlacklistRepository] Blacklist file not found, creating new one');
+          this._cache = {};
+          await this._persist();
         } else {
           throw error;
         }
