@@ -1,6 +1,6 @@
 {
   "name": "tzurot",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "description": "A Discord bot that uses webhooks to represent multiple AI personalities",
   "main": "index.js",
   "scripts": {
