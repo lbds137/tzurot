@@ -9,10 +9,10 @@
 
 const { WebhookClient } = require('discord.js');
 const logger = require('../logger');
-const { splitMessage } = require('../utils/messageFormatter');
 const { isDuplicateMessage } = require('../utils/messageDeduplication');
 const { processMediaForWebhook } = require('../utils/media');
 const avatarStorage = require('../utils/avatarStorage');
+const { prepareAndSplitMessage, chunkHelpers } = require('../utils/messageSplitting');
 const config = require('../../config');
 
 // Store references to global timer functions
@@ -108,9 +108,8 @@ async function sendDirectThreadMessage(
       mediaAttachments = [];
     }
 
-    // Split message if needed
-    const contentChunks = splitMessage(processedContent);
-    logger.info(`[WebhookManager] Split thread message into ${contentChunks.length} chunks`);
+    // Use common splitting utility
+    const contentChunks = prepareAndSplitMessage(processedContent, options, 'Thread');
 
     // Track sent messages
     const sentMessageIds = [];
@@ -118,14 +117,13 @@ async function sendDirectThreadMessage(
 
     // Try multiple approaches in sequence (best webhook approach first)
     for (let i = 0; i < contentChunks.length; i++) {
-      const isFirstChunk = i === 0;
-      const isLastChunk = i === contentChunks.length - 1;
+      const isFirstChunk = chunkHelpers.isFirstChunk(i);
+      const isLastChunk = chunkHelpers.isLastChunk(i, contentChunks.length);
       const chunkContent = contentChunks[i];
 
       // Add a delay between chunks to prevent Discord from merging/replacing them
-      // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {
-        await delayFn(750);
+        await delayFn(chunkHelpers.getChunkDelay());
       }
 
       // Skip duplicate messages
@@ -140,11 +138,8 @@ async function sendDirectThreadMessage(
       // Only include embeds in last chunk
       const embeds = isLastChunk && options.embeds ? options.embeds : [];
 
-      // Append model indicator to last chunk content if provided
+      // Use chunk content directly (model indicator already included)
       let finalChunkContent = chunkContent;
-      if (isLastChunk && options.modelIndicator) {
-        finalChunkContent += options.modelIndicator;
-      }
 
       // Resolve avatar URL through storage system
       let avatarUrl = null;

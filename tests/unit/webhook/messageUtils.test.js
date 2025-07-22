@@ -586,7 +586,7 @@ describe('messageUtils', () => {
       expect(result).toEqual({ id: 'message-123' });
     });
 
-    it('should send error message for invalid form body', async () => {
+    it('should not send error message for invalid form body', async () => {
       const messageData = {
         content: 'Very long content',
         username: 'TestUser',
@@ -595,15 +595,12 @@ describe('messageUtils', () => {
       const error = new Error('Invalid form body');
       error.code = 50035;
 
-      mockWebhook.send.mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'error-msg' });
+      mockWebhook.send.mockRejectedValueOnce(error);
 
       await expect(sendMessageChunk(mockWebhook, messageData, 0, 1)).rejects.toThrow(error);
 
-      expect(mockWebhook.send).toHaveBeenCalledTimes(2);
-      expect(mockWebhook.send).toHaveBeenLastCalledWith({
-        content: expect.stringContaining('Error:'),
-        username: 'TestUser',
-      });
+      // Should only call once - no error message retry
+      expect(mockWebhook.send).toHaveBeenCalledTimes(1);
     });
 
     it('should throw original error if error message also fails', async () => {
@@ -622,18 +619,16 @@ describe('messageUtils', () => {
       await expect(sendMessageChunk(mockWebhook, { content: 'Test' }, 0, 1)).rejects.toThrow(error);
     });
 
-    it('should handle missing username in error retry', async () => {
+    it('should handle missing username gracefully', async () => {
       const error = new Error('Invalid form body');
       error.code = 50035;
 
-      mockWebhook.send.mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'error-msg' });
+      mockWebhook.send.mockRejectedValueOnce(error);
 
       await expect(sendMessageChunk(mockWebhook, { content: 'Test' }, 0, 1)).rejects.toThrow(error);
 
-      expect(mockWebhook.send).toHaveBeenLastCalledWith({
-        content: expect.stringContaining('Error:'),
-        username: 'Bot',
-      });
+      // Should only call once - no error message retry
+      expect(mockWebhook.send).toHaveBeenCalledTimes(1);
     });
   });
 

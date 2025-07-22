@@ -62,33 +62,24 @@ jest.mock('../../src/utils/avatarManager', () => ({
   warmupAvatar: jest.fn(),
 }));
 
-jest.mock('../../src/utils/messageFormatter', () => ({
-  formatContent: jest.fn(content => content),
-  trimContent: jest.fn(content => content),
-  splitMessage: jest.fn(content => [content]),
-}));
-
-jest.mock('../../src/utils/avatarManager', () => ({
-  warmupAvatarUrl: jest.fn(url => Promise.resolve(url)),
-  validateAvatarUrl: jest.fn().mockReturnValue(true),
-  getValidAvatarUrl: jest.fn(url => url),
-  preloadPersonalityAvatar: jest.fn(),
-}));
-
-jest.mock('../../src/utils/messageFormatter', () => ({
-  splitMessage: jest.fn(content => {
-    // For testing, split any content over 50 chars into chunks
-    if (!content || content.length <= 50) {
-      return [content || ''];
-    }
+jest.mock('../../src/utils/messageSplitting', () => ({
+  prepareAndSplitMessage: jest.fn((content, options, logPrefix) => {
+    // Simple mock that splits content into chunks of 50 characters for testing
+    if (!content || content.length <= 50) return [content];
     const chunks = [];
-    let remaining = content;
-    while (remaining.length > 0) {
-      chunks.push(remaining.substring(0, 50));
-      remaining = remaining.substring(50);
+    for (let i = 0; i < content.length; i += 50) {
+      chunks.push(content.slice(i, i + 50));
     }
     return chunks;
   }),
+  chunkHelpers: {
+    isFirstChunk: jest.fn(i => i === 0),
+    isLastChunk: jest.fn((i, len) => i === len - 1),
+    getChunkDelay: jest.fn(() => 750),
+  }
+}));
+
+jest.mock('../../src/utils/messageFormatter', () => ({
   markErrorContent: jest.fn(content => content || ''),
 }));
 
@@ -218,7 +209,7 @@ describe('WebhookManager - Chunk Delay Tests', () => {
     const customDelayFn = jest.fn().mockResolvedValue();
 
     // Use isolateModules to get a fresh instance
-    jest.isolateModules(() => {
+    await jest.isolateModules(async () => {
       const freshWebhookManager = require('../../src/webhookManager');
       freshWebhookManager.setDelayFunction(customDelayFn);
 
@@ -226,11 +217,11 @@ describe('WebhookManager - Chunk Delay Tests', () => {
       const content =
         'This is a message that will be split into exactly two chunks for testing purposes.';
 
-      freshWebhookManager.sendWebhookMessage(mockChannel, content, personality).then(() => {
-        // Should use custom delay function
-        expect(customDelayFn).toHaveBeenCalledTimes(1);
-        expect(customDelayFn).toHaveBeenCalledWith(750);
-      });
+      await freshWebhookManager.sendWebhookMessage(mockChannel, content, personality);
+      
+      // Should use custom delay function
+      expect(customDelayFn).toHaveBeenCalledTimes(1);
+      expect(customDelayFn).toHaveBeenCalledWith(750);
     });
   });
 

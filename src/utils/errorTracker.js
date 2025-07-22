@@ -11,6 +11,7 @@
  * - Consider adding error rate limiting to prevent log flooding
  */
 const logger = require('../logger');
+const crypto = require('crypto');
 
 // Track recent errors for detecting patterns
 const recentErrors = new Map();
@@ -115,9 +116,10 @@ function trackError(error, context = {}) {
  * @returns {string} A unique error ID
  */
 function generateErrorId(category, operation) {
-  const timestamp = Date.now();
-  const random = Math.floor(Math.random() * 10000);
-  return `ERR-${category.slice(0, 3)}-${operation.slice(0, 3)}-${timestamp.toString(36)}-${random.toString(36)}`;
+  // Use crypto.randomUUID for guaranteed uniqueness
+  const uuid = crypto.randomUUID();
+  // Keep the category and operation prefix for easier debugging
+  return `ERR-${category.slice(0, 3).toLowerCase()}-${operation.slice(0, 3).toLowerCase()}-${uuid}`;
 }
 
 /**

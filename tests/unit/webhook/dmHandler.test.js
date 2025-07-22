@@ -1,14 +1,14 @@
 // Mock all dependencies before imports
 jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/media/mediaHandler');
-jest.mock('../../../src/utils/messageFormatter');
+jest.mock('../../../src/utils/messageSplitting');
 
 const logger = require('../../../src/logger');
 const {
   processMediaForWebhook,
   prepareAttachmentOptions,
 } = require('../../../src/utils/media/mediaHandler');
-const { splitMessage } = require('../../../src/utils/messageFormatter');
+const { prepareAndSplitMessage, chunkHelpers } = require('../../../src/utils/messageSplitting');
 const { sendFormattedMessageInDM } = require('../../../src/webhook/dmHandler');
 
 describe('dmHandler', () => {
@@ -41,8 +41,8 @@ describe('dmHandler', () => {
       avatarUrl: 'https://example.com/avatar.png',
     };
 
-    // Mock splitMessage to return array
-    splitMessage.mockImplementation(content => {
+    // Mock prepareAndSplitMessage to return array
+    prepareAndSplitMessage.mockImplementation((content, options, logPrefix) => {
       if (content.length <= 2000) {
         return [content];
       }
@@ -53,6 +53,11 @@ describe('dmHandler', () => {
       }
       return chunks;
     });
+    
+    // Mock chunkHelpers
+    chunkHelpers.isFirstChunk = jest.fn(i => i === 0);
+    chunkHelpers.isLastChunk = jest.fn((i, len) => i === len - 1);
+    chunkHelpers.getChunkDelay = jest.fn(() => 750);
 
     // Mock processMediaForWebhook to return input content unchanged by default
     processMediaForWebhook.mockImplementation(async content => ({
@@ -297,7 +302,7 @@ describe('dmHandler', () => {
 
       await sendFormattedMessageInDM(mockChannel, longContent, mockPersonality, {}, mockDelayFn);
 
-      expect(splitMessage).toHaveBeenCalled();
+      expect(prepareAndSplitMessage).toHaveBeenCalled();
       expect(mockChannel.send).toHaveBeenCalledTimes(2);
     });
 
