@@ -229,7 +229,7 @@ describe('AI Service - Metadata Support', () => {
     it('should return object with null metadata on error', async () => {
       // Mock handleApiError to return a proper error message
       const { handleApiError } = require('../../src/utils/aiErrorHandler');
-      handleApiError.mockReturnValue('BOT_ERROR_MESSAGE:⚠️ An error occurred');
+      handleApiError.mockResolvedValue('Error occurred ||*(an error has occurred; reference: test123)*||');
       
       mockCreateCompletion.mockRejectedValue(new Error('API Error'));
 
@@ -243,9 +243,11 @@ describe('AI Service - Metadata Support', () => {
         }
       });
 
-      // Error responses return a string with BOT_ERROR_MESSAGE marker
-      expect(typeof result).toBe('string');
-      expect(result).toContain('BOT_ERROR_MESSAGE');
+      // Error responses now return an object with content and null metadata
+      expect(typeof result).toBe('object');
+      expect(result).toHaveProperty('content');
+      expect(result).toHaveProperty('metadata', null);
+      expect(result.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: test123\)\*\|\|$/);
     });
 
     it('should handle invalid response structure', async () => {

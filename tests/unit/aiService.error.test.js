@@ -457,9 +457,9 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should handle error and return user-friendly error message
-      expect(response).toBe(
-        'BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.'
-      );
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata', null);
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
 
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -576,9 +576,9 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should handle error and return user-friendly error message
-      expect(response).toBe(
-        'BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.'
-      );
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata', null);
+      expect(response.content).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
 
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);
@@ -643,9 +643,10 @@ describe('aiService Error Handling', () => {
       const response = await aiService.getAiResponse(personalityName, message, context);
 
       // Should return user-friendly error message
-      expect(response).toBe(
-        'BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.'
-      );
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata', null);
+      // For generic errors without personality, should get fallback message
+      expect(response.content).toMatch(/I encountered an issue.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
 
       // Should add to blackout list
       expect(aiService.isInBlackoutPeriod(personalityName, context)).toBe(true);

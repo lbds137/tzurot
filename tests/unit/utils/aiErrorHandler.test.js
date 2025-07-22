@@ -1,12 +1,4 @@
-const {
-  isErrorResponse,
-  analyzeErrorAndGenerateMessage,
-  handleApiError,
-} = require('../../../src/utils/aiErrorHandler');
-const logger = require('../../../src/logger');
-const { MARKERS } = require('../../../src/constants');
-
-// Mock dependencies
+// Mock dependencies first
 jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/errorTracker', () => ({
   ErrorCategory: {
@@ -15,6 +7,19 @@ jest.mock('../../../src/utils/errorTracker', () => ({
   },
   trackError: jest.fn(),
 }));
+jest.mock('../../../src/application/bootstrap/ApplicationBootstrap', () => ({
+  getApplicationBootstrap: jest.fn()
+}));
+
+// Then require modules
+const {
+  isErrorResponse,
+  analyzeErrorAndGenerateMessage,
+  handleApiError,
+} = require('../../../src/utils/aiErrorHandler');
+const logger = require('../../../src/logger');
+const { MARKERS } = require('../../../src/constants');
+const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 
 describe('AI Error Handler', () => {
@@ -296,58 +301,104 @@ describe('AI Error Handler', () => {
   });
 
   describe('handleApiError', () => {
-    it('should handle 404 errors', () => {
+    // Mock PersonalityRouter
+    beforeEach(() => {
+      const mockPersonality = {
+        toJSON: () => ({
+          profile: {
+            errorMessage: 'Error occurred ||*(an error has occurred)*||'
+          }
+        })
+      };
+      
+      const mockBootstrap = {
+        getPersonalityRouter: jest.fn().mockReturnValue({
+          getPersonality: jest.fn().mockResolvedValue(mockPersonality)
+        })
+      };
+      
+      getApplicationBootstrap.mockReturnValue(mockBootstrap);
+    });
+
+    it('should handle 404 errors with BOT_ERROR_MESSAGE', async () => {
       const error = { status: 404 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
       expect(result).toBe(
         `${MARKERS.BOT_ERROR_MESSAGE}⚠️ I couldn't find the personality "test-personality". The personality might not be available on the server.`
       );
     });
 
-    it('should handle 429 rate limit errors', () => {
+    it('should handle 429 rate limit errors with personality error message', async () => {
       const error = { status: 429 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toBe(
-        `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Rate limit exceeded. Please try again in a moment.`
-      );
+      // Should return personality-specific error message
+      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
     });
 
-    it('should handle 500 server errors', () => {
+    it('should handle 500 server errors with personality error message', async () => {
       const error = { status: 500 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toBe(
-        `${MARKERS.BOT_ERROR_MESSAGE}⚠️ The AI service is temporarily unavailable. Please try again later.`
-      );
+      // Should return personality-specific error message
+      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
     });
 
-    it('should handle 502 bad gateway errors', () => {
+    it('should handle 502 bad gateway errors with personality error message', async () => {
       const error = { status: 502 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toBe(
-        `${MARKERS.BOT_ERROR_MESSAGE}⚠️ The AI service is temporarily unavailable. Please try again later.`
-      );
+      // Should return personality-specific error message
+      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
     });
 
-    it('should handle 503 service unavailable errors', () => {
+    it('should handle 503 service unavailable errors with personality error message', async () => {
       const error = { status: 503 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toBe(
-        `${MARKERS.BOT_ERROR_MESSAGE}⚠️ The AI service is temporarily unavailable. Please try again later.`
-      );
+      // Should return personality-specific error message
+      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
     });
 
-    it('should handle generic errors', () => {
+    it('should handle generic errors with personality error message', async () => {
       const error = { status: 400 };
-      const result = handleApiError(error, 'test-personality', {});
+      const result = await handleApiError(error, 'test-personality', {});
 
-      expect(result).toBe(
-        `${MARKERS.BOT_ERROR_MESSAGE}⚠️ An error occurred while processing your request. Please try again later.`
-      );
+      // Should return personality-specific error message
+      expect(result).toMatch(/Error occurred.*\|\|\*\(an error has occurred; reference: \w+\)\*\|\|$/);
+    });
+
+    it('should fall back to generic message when personality not found', async () => {
+      // Mock personality not found
+      const mockBootstrap = {
+        getPersonalityRouter: jest.fn().mockReturnValue({
+          getPersonality: jest.fn().mockResolvedValue(null)
+        })
+      };
+      
+      getApplicationBootstrap.mockReturnValue(mockBootstrap);
+
+      const error = { status: 502 };
+      const result = await handleApiError(error, 'test-personality', {});
+
+      expect(result).toMatch(/The AI service seems to be having issues right now.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
+    });
+
+    it('should handle timeout errors with appropriate message', async () => {
+      // Mock personality not found for clearer test
+      const mockBootstrap = {
+        getPersonalityRouter: jest.fn().mockReturnValue({
+          getPersonality: jest.fn().mockResolvedValue(null)
+        })
+      };
+      
+      getApplicationBootstrap.mockReturnValue(mockBootstrap);
+
+      const error = { timeout: true };
+      const result = await handleApiError(error, 'test-personality', {});
+
+      expect(result).toMatch(/My response took too long to generate.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
     });
   });
 });

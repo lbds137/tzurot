@@ -838,9 +838,9 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
 
       // Verify we get the user-friendly error message
-      expect(response).toBe(
-        'BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.'
-      );
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata', null);
+      expect(response.content).toMatch(/.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
 
       // Verify the personality was added to the blackout list
       const key = createBlackoutKey(personalityName, context);
@@ -1051,9 +1051,9 @@ describe('AI Service', () => {
 
       const response = await getAiResponse(personalityName, complexMessage, context);
 
-      expect(response).toBe(
-        'BOT_ERROR_MESSAGE:⚠️ An error occurred while processing your request. Please try again later.'
-      );
+      expect(response).toHaveProperty('content');
+      expect(response).toHaveProperty('metadata', null);
+      expect(response.content).toMatch(/.*\|\|\*\(Error ID: \w+\)\*\|\|$/);
 
       // Restore
       JSON.stringify = originalStringify;
