@@ -27,6 +27,7 @@ const webhookCache = require('./utils/webhookCache');
 const messageDeduplication = require('./utils/messageDeduplication');
 const avatarManager = require('./utils/avatarManager');
 const messageFormatter = require('./utils/messageFormatter');
+const { prepareAndSplitMessage, chunkHelpers } = require('./utils/messageSplitting');
 
 // Import extracted modules
 const webhookModules = require('./webhook');
@@ -105,21 +106,6 @@ const getValidAvatarUrl = avatarManager.getValidAvatarUrl;
 
 // Avatar warmup function moved to avatarManager module
 const warmupAvatarUrl = avatarManager.warmupAvatarUrl;
-
-// Split text by character limit function moved to messageFormatter module
-const splitByCharacterLimit = messageFormatter.splitByCharacterLimit;
-
-// Process sentence function moved to messageFormatter module
-const processSentence = messageFormatter.processSentence;
-
-// Process line function moved to messageFormatter module
-const processLine = messageFormatter.processLine;
-
-// Process paragraph function moved to messageFormatter module
-const processParagraph = messageFormatter.processParagraph;
-
-// Split message function moved to messageFormatter module
-const splitMessage = messageFormatter.splitMessage;
 
 /**
  * Get or create a webhook for a specific channel
@@ -330,23 +316,17 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
         }
       }
 
-      // Split message if needed (Discord's character limit)
-      const contentChunks = splitMessage(processedContent);
-      logger.info(`[Webhook] Split message into ${contentChunks.length} chunks`);
+      // Use common splitting utility
+      const contentChunks = prepareAndSplitMessage(processedContent, options, 'Webhook');
 
       const sentMessageIds = [];
       let firstSentMessage = null;
 
       // Send each chunk as a separate message
       for (let i = 0; i < contentChunks.length; i++) {
-        const isFirstChunk = i === 0;
-        const isLastChunk = i === contentChunks.length - 1;
+        const isFirstChunk = chunkHelpers.isFirstChunk(i);
+        const isLastChunk = chunkHelpers.isLastChunk(i, contentChunks.length);
         let finalContent = contentChunks[i];
-        
-        // Append model indicator to the last chunk if provided
-        if (isLastChunk && options.modelIndicator) {
-          finalContent += options.modelIndicator;
-        }
 
         // Skip if this exact message was recently sent
         if (isDuplicateMessage(finalContent, standardizedName, channel.id)) {
@@ -356,8 +336,9 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
 
         // Add delay between chunks to maintain order
         if (i > 0) {
-          logger.info(`[Webhook] Waiting 750ms between chunks`);
-          await delayFn(750);
+          const delay = chunkHelpers.getChunkDelay();
+          logger.info(`[Webhook] Waiting ${delay}ms between chunks`);
+          await delayFn(delay);
         }
 
         // Prepare the send options
@@ -612,7 +593,6 @@ module.exports = {
   getStandardizedUsername,
   isDuplicateMessage,
   hashMessage,
-  splitMessage,
 
   // Console handling functions
   minimizeConsoleOutput,
@@ -638,10 +618,4 @@ module.exports = {
   validateAvatarUrl,
   getValidAvatarUrl,
   warmupAvatarUrl,
-
-  // For testing purposes
-  splitByCharacterLimit,
-  processSentence,
-  processLine,
-  processParagraph,
 };

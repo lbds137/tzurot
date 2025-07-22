@@ -983,7 +983,10 @@ async function handlePersonalityInteraction(
     // Send error message to user
     message
       .reply('Sorry, I encountered an error while processing your message. Check logs for details.')
-      .catch(() => {});
+      .catch((replyError) => {
+        logger.error(`[PersonalityHandler] Failed to send error message to user: ${replyError.message}`);
+        logger.error(`[PersonalityHandler] Channel type: ${message.channel.type}, ID: ${message.channel.id}`);
+      });
   } finally {
     // Clear typing indicator if it's still active
     if (typingInterval) {

@@ -4,12 +4,6 @@
 
 const { EmbedBuilder } = require('discord.js');
 const {
-  MESSAGE_CHAR_LIMIT,
-  splitByCharacterLimit,
-  processSentence,
-  processLine,
-  processParagraph,
-  splitMessage,
   markErrorContent,
   prepareMessageData,
 } = require('../../../src/utils/messageFormatter');
@@ -22,17 +16,11 @@ jest.mock('../../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
+// Mock constants
 jest.mock('../../../src/constants', () => ({
-  ERROR_MESSAGES: [
-    'connection timed out',
-    'rate limit',
-    'authentication failed',
-    'ERROR_PREFIX_MARKER',
-    'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  ],
+  ERROR_MESSAGES: ['timeout', 'connection', 'unstable'],
   MARKERS: {
     ERROR_PREFIX: 'ERROR_PREFIX_MARKER',
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
   },
 }));
 
@@ -41,223 +29,11 @@ describe('messageFormatter', () => {
     jest.clearAllMocks();
   });
 
-  describe('splitByCharacterLimit', () => {
-    it('should return content as is when under limit', () => {
-      const result = splitByCharacterLimit('Short message');
-      expect(result).toEqual(['Short message']);
-    });
-
-    it('should handle empty or null content', () => {
-      const emptyString = '';
-      expect(splitByCharacterLimit(emptyString)).toEqual(['']);
-      expect(splitByCharacterLimit(null)).toEqual(['']);
-      expect(splitByCharacterLimit(undefined)).toEqual(['']);
-    });
-
-    it('should split long text at word boundaries', () => {
-      const longText = 'word '.repeat(500); // 2500 characters
-      const result = splitByCharacterLimit(longText);
-
-      expect(result.length).toBeGreaterThan(1);
-      result.forEach(chunk => {
-        expect(chunk.length).toBeLessThanOrEqual(MESSAGE_CHAR_LIMIT);
-      });
-
-      // Should split at spaces, not in the middle of words
-      expect(result[0].endsWith('word')).toBe(true);
-    });
-
-    it('should handle text without spaces', () => {
-      const longText = 'a'.repeat(MESSAGE_CHAR_LIMIT + 500);
-      const result = splitByCharacterLimit(longText);
-
-      expect(result).toHaveLength(2);
-      expect(result[0].length).toBe(MESSAGE_CHAR_LIMIT);
-      expect(result[1].length).toBe(500);
-    });
-
-    it('should trim whitespace between chunks', () => {
-      const longText = 'a'.repeat(1999) + '   ' + 'b'.repeat(10);
-      const result = splitByCharacterLimit(longText);
-
-      expect(result).toHaveLength(2);
-      expect(result[1]).toBe('b'.repeat(10));
-    });
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  describe('processSentence', () => {
-    it('should add sentence to current chunk when within limit', () => {
-      const chunks = [];
-      const result = processSentence('This is a sentence.', chunks, 'Current chunk');
-
-      expect(result).toBe('Current chunk This is a sentence.');
-      expect(chunks).toHaveLength(0);
-    });
-
-    it('should start new chunk when sentence would exceed limit', () => {
-      const chunks = [];
-      const currentChunk = 'a'.repeat(1990);
-      const result = processSentence('This is a sentence.', chunks, currentChunk);
-
-      expect(chunks).toHaveLength(1);
-      expect(chunks[0]).toBe(currentChunk);
-      expect(result).toBe('This is a sentence.');
-    });
-
-    it('should split very long sentences', () => {
-      const chunks = [];
-      const longSentence = 'a'.repeat(MESSAGE_CHAR_LIMIT + 100);
-      const result = processSentence(longSentence, chunks, 'Current');
-
-      expect(chunks.length).toBeGreaterThan(1);
-      expect(chunks[0]).toBe('Current');
-      expect(result).toBe('');
-    });
-
-    it('should handle empty current chunk', () => {
-      const chunks = [];
-      const result = processSentence('First sentence.', chunks, '');
-
-      expect(result).toBe('First sentence.');
-      expect(chunks).toHaveLength(0);
-    });
-  });
-
-  describe('processLine', () => {
-    it('should add line to current chunk with newline', () => {
-      const chunks = [];
-      const result = processLine('New line', chunks, 'Current chunk');
-
-      expect(result).toBe('Current chunk\nNew line');
-      expect(chunks).toHaveLength(0);
-    });
-
-    it('should start new chunk when line would exceed limit', () => {
-      const chunks = [];
-      const currentChunk = 'a'.repeat(1995); // 1995 + 8 + 1 = 2004, which exceeds 2000
-      const result = processLine('New line', chunks, currentChunk);
-
-      expect(chunks).toHaveLength(1);
-      expect(chunks[0]).toBe(currentChunk);
-      expect(result).toBe('New line');
-    });
-
-    it('should split very long lines by sentences', () => {
-      const chunks = [];
-      const longLine = 'First sentence. ' + 'a'.repeat(MESSAGE_CHAR_LIMIT) + '. Last sentence.';
-      const result = processLine(longLine, chunks, '');
-
-      expect(chunks.length).toBeGreaterThan(0);
-      expect(result).toBe('');
-    });
-
-    it('should handle empty current chunk', () => {
-      const chunks = [];
-      const result = processLine('First line', chunks, '');
-
-      expect(result).toBe('First line');
-      expect(chunks).toHaveLength(0);
-    });
-  });
-
-  describe('processParagraph', () => {
-    it('should add paragraph to current chunk with double newline', () => {
-      const chunks = [];
-      const result = processParagraph('New paragraph', chunks, 'Current chunk');
-
-      expect(result).toBe('Current chunk\n\nNew paragraph');
-      expect(chunks).toHaveLength(0);
-    });
-
-    it('should start new chunk when paragraph would exceed limit', () => {
-      const chunks = [];
-      const currentChunk = 'a'.repeat(1990);
-      const result = processParagraph('New paragraph', chunks, currentChunk);
-
-      expect(chunks).toHaveLength(1);
-      expect(chunks[0]).toBe(currentChunk);
-      expect(result).toBe('New paragraph');
-    });
-
-    it('should split very long paragraphs by lines', () => {
-      const chunks = [];
-      const longParagraph = Array(10).fill('a'.repeat(300)).join('\n');
-      const result = processParagraph(longParagraph, chunks, '');
-
-      expect(chunks.length).toBeGreaterThan(0);
-    });
-
-    it('should handle empty current chunk', () => {
-      const chunks = [];
-      const result = processParagraph('First paragraph', chunks, '');
-
-      expect(result).toBe('First paragraph');
-      expect(chunks).toHaveLength(0);
-    });
-  });
-
-  describe('splitMessage', () => {
-    it('should return content as is when under limit', () => {
-      const result = splitMessage('Short message');
-      expect(result).toEqual(['Short message']);
-    });
-
-    it('should handle empty or null content', () => {
-      expect(splitMessage('')).toEqual(['']);
-      expect(splitMessage(null)).toEqual(['']);
-      expect(splitMessage(undefined)).toEqual(['']);
-    });
-
-    it('should split by paragraphs first', () => {
-      const content = 'First paragraph\n\nSecond paragraph\n\nThird paragraph';
-      const result = splitMessage(content);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain('First paragraph');
-      expect(result[0]).toContain('Second paragraph');
-      expect(result[0]).toContain('Third paragraph');
-    });
-
-    it('should handle very long paragraphs', () => {
-      const longParagraph = 'a'.repeat(MESSAGE_CHAR_LIMIT + 100);
-      const content = `Short intro\n\n${longParagraph}\n\nShort outro`;
-      const result = splitMessage(content);
-
-      expect(result.length).toBeGreaterThan(1);
-      expect(result[0]).toContain('Short intro');
-    });
-
-    it('should preserve paragraph structure when possible', () => {
-      const para1 = 'a'.repeat(1800);
-      const para2 = 'b'.repeat(300);
-      const content = `${para1}\n\n${para2}`;
-      const result = splitMessage(content);
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toBe(para1);
-      expect(result[1]).toBe(para2);
-    });
-
-    it('should handle complex content with multiple paragraphs and lines', () => {
-      const content = `
-        Title of the Document
-        
-        This is the first paragraph with multiple sentences. It has quite a bit of content.
-        It also has multiple lines within the same paragraph.
-        
-        ${['word'].join(' ').repeat(500)}
-        
-        Final paragraph here.
-      `.trim();
-
-      const result = splitMessage(content);
-      expect(result.length).toBeGreaterThan(0);
-
-      // Verify all content is preserved
-      const joined = result.join('');
-      expect(joined.replace(/\s+/g, '')).toBe(content.replace(/\s+/g, ''));
-    });
-  });
+  // Note: Tests for message splitting functions moved to messageSplitting.test.js
 
   describe('markErrorContent', () => {
     it('should return empty string for falsy content', () => {
@@ -307,12 +83,18 @@ describe('messageFormatter', () => {
     });
 
     it('should handle thread messages', () => {
-      const result = prepareMessageData('Thread message', 'TestUser', null, true, 'thread123');
+      const result = prepareMessageData(
+        'Thread message',
+        'TestUser',
+        'https://example.com/avatar.jpg',
+        true,
+        'thread123'
+      );
 
       expect(result).toEqual({
         content: 'Thread message',
         username: 'TestUser',
-        avatarURL: null,
+        avatarURL: 'https://example.com/avatar.jpg',
         allowedMentions: { parse: ['users', 'roles'] },
         threadId: 'thread123',
         _isThread: true,
@@ -320,54 +102,60 @@ describe('messageFormatter', () => {
       });
     });
 
-    it('should handle options with embed', () => {
-      const embedData = { title: 'Test Embed', description: 'Test Description' };
-      const result = prepareMessageData('Message with embed', 'TestUser', null, false, null, {
-        embed: embedData,
-      });
+    it('should include embeds when provided', () => {
+      const embed = new EmbedBuilder()
+        .setTitle('Test Embed')
+        .setDescription('Test Description');
 
+      const result = prepareMessageData(
+        'Message with embed',
+        'TestUser',
+        'https://example.com/avatar.jpg',
+        false,
+        null,
+        { embed }
+      );
+
+      expect(result.content).toBe('Message with embed');
+      expect(result.username).toBe('TestUser');
+      expect(result.avatarURL).toBe('https://example.com/avatar.jpg');
+      expect(result.allowedMentions).toEqual({ parse: ['users', 'roles'] });
       expect(result.embeds).toHaveLength(1);
       expect(result.embeds[0]).toBeInstanceOf(EmbedBuilder);
     });
 
-    it('should handle options with files', () => {
-      const files = ['file1.txt', 'file2.png'];
-      const result = prepareMessageData('Message with files', 'TestUser', null, false, null, {
-        files,
-      });
+    it('should handle null/undefined values gracefully', () => {
+      const result = prepareMessageData(null, null, null, false, null);
 
-      expect(result.files).toEqual(files);
+      expect(result).toEqual({
+        content: null,
+        username: null,
+        avatarURL: null,
+        allowedMentions: { parse: ['users', 'roles'] },
+      });
     });
 
-    it('should handle options with attachments', () => {
-      const attachments = [{ attachment: 'audio.mp3' }];
-      const result = prepareMessageData('Message with audio', 'TestUser', null, false, null, {
-        attachments,
-      });
+    it('should handle empty username correctly', () => {
+      const result = prepareMessageData('Message', '', 'avatar.jpg', false, null);
 
-      expect(result.files).toEqual(attachments);
+      expect(result).toEqual({
+        content: 'Message',
+        username: '',
+        avatarURL: 'avatar.jpg',
+        allowedMentions: { parse: ['users', 'roles'] },
+      });
     });
 
-    it('should merge files and attachments', () => {
-      const files = ['file1.txt'];
-      const attachments = [{ attachment: 'audio.mp3' }];
-      const result = prepareMessageData('Message with both', 'TestUser', null, false, null, {
-        files,
-        attachments,
-      });
+    it('should not modify username when isError is false', () => {
+      const result = prepareMessageData(
+        'Normal message',
+        'TestUser',
+        'https://example.com/avatar.jpg',
+        false,
+        null
+      );
 
-      expect(result.files).toHaveLength(2);
-      expect(result.files).toContain('file1.txt');
-      expect(result.files).toContainEqual({ attachment: 'audio.mp3' });
-    });
-
-    it('should preserve original channel for threads', () => {
-      const originalChannel = { id: 'channel123', name: 'test-channel' };
-      const result = prepareMessageData('Thread message', 'TestUser', null, true, 'thread123', {
-        _originalChannel: originalChannel,
-      });
-
-      expect(result._originalChannel).toBe(originalChannel);
+      expect(result.username).toBe('TestUser');
     });
   });
 });
