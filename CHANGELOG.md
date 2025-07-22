@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.5] - 2025-07-22
+
+### Fixed
+- **API Error Handling in Threads** - Fixed post-deployment bug where AI service API errors in threads were falling back to direct send format
+  - API errors (502, 429, etc.) now properly display personality-specific error messages via webhooks
+  - Maintains immersive experience across all contexts (channels, threads, DMs)
+  - Only 404 errors (personality not found) continue to show as bot messages
+  - Ensures consistent error handling across the entire Discord interface
+
 ## [2.2.4] - 2025-07-21
 
 ### Fixed
