@@ -295,23 +295,9 @@ async function sendMessageChunk(webhook, messageData, chunkIndex, totalChunks) {
       return await webhook.send(cleanData);
     }
 
-    // For other errors, try sending an error message
-    if (error.code === 50035) {
-      // Invalid form body
-      try {
-        const errorMessage = {
-          content: `Error: ${error.message}`,
-          username: messageData.username || 'Bot',
-        };
-        await webhook.send(errorMessage);
-        // Still throw the original error even if error message sends successfully
-        throw error;
-      } catch (retryError) {
-        // If retry also fails, throw original error
-        throw error;
-      }
-    }
-
+    // For form body errors, just throw the error
+    // Don't try to send the error message via webhook as it might also be too long
+    // or cause confusion by appearing as a message from the personality
     throw error;
   }
 }

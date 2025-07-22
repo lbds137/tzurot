@@ -6,8 +6,8 @@
  */
 
 const logger = require('../logger');
-const { splitMessage } = require('../utils/messageFormatter');
 const { processMediaForWebhook, prepareAttachmentOptions } = require('../utils/media');
+const { prepareAndSplitMessage, chunkHelpers } = require('../utils/messageSplitting');
 
 // Default delay function using global timer
 const defaultDelay = ms => {
@@ -149,28 +149,21 @@ async function sendFormattedMessageInDM(
     // Prepare the formatted content with name prefix
     const formattedContent = `**${displayName}:** ${processedContent}`;
 
-    // Split message if needed (Discord's character limit)
-    const contentChunks = splitMessage(formattedContent);
-    logger.info(`[DM Handler] Split message into ${contentChunks.length} chunks`);
+    // Use common splitting utility
+    const contentChunks = prepareAndSplitMessage(formattedContent, options, 'DM Handler');
 
     const sentMessageIds = [];
     let firstSentMessage = null;
 
     // Send each chunk as a separate message
     for (let i = 0; i < contentChunks.length; i++) {
-      const isFirstChunk = i === 0;
-      const isLastChunk = i === contentChunks.length - 1;
+      const isFirstChunk = chunkHelpers.isFirstChunk(i);
+      const isLastChunk = chunkHelpers.isLastChunk(i, contentChunks.length);
       let chunkContent = contentChunks[i];
-      
-      // Append model indicator to the last chunk if provided
-      if (isLastChunk && options.modelIndicator) {
-        chunkContent += options.modelIndicator;
-      }
 
       // Add a delay between chunks to prevent Discord from merging/replacing them
-      // 750ms delay provides a good balance between speed and reliability
       if (i > 0) {
-        await delayFn(750);
+        await delayFn(chunkHelpers.getChunkDelay());
       }
 
       // Prepare options for the message

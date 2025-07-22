@@ -2,7 +2,7 @@
 jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/media/mediaHandler');
 jest.mock('../../../src/utils/messageDeduplication');
-jest.mock('../../../src/utils/messageFormatter');
+jest.mock('../../../src/utils/messageSplitting');
 jest.mock('../../../src/utils/avatarStorage');
 jest.mock('../../../src/utils/webhookCache');
 jest.mock('../../../config', () => ({
@@ -16,7 +16,7 @@ const { WebhookClient } = require('discord.js');
 const logger = require('../../../src/logger');
 const { processMediaForWebhook } = require('../../../src/utils/media/mediaHandler');
 const { isDuplicateMessage } = require('../../../src/utils/messageDeduplication');
-const { splitMessage } = require('../../../src/utils/messageFormatter');
+const { prepareAndSplitMessage, chunkHelpers } = require('../../../src/utils/messageSplitting');
 const avatarStorage = require('../../../src/utils/avatarStorage');
 const webhookCache = require('../../../src/utils/webhookCache');
 const { sendDirectThreadMessage } = require('../../../src/webhook/threadHandler');
@@ -86,8 +86,8 @@ describe('threadHandler', () => {
       attachments: [],
     }));
 
-    // Mock splitMessage
-    splitMessage.mockImplementation(content => {
+    // Mock prepareAndSplitMessage
+    prepareAndSplitMessage.mockImplementation((content, options, logPrefix) => {
       if (!content || content.length <= 2000) {
         return [content];
       }
@@ -98,6 +98,11 @@ describe('threadHandler', () => {
       }
       return chunks;
     });
+    
+    // Mock chunkHelpers
+    chunkHelpers.isFirstChunk = jest.fn(i => i === 0);
+    chunkHelpers.isLastChunk = jest.fn((i, len) => i === len - 1);
+    chunkHelpers.getChunkDelay = jest.fn(() => 750);
 
     // Mock isDuplicateMessage - default to false
     isDuplicateMessage.mockReturnValue(false);

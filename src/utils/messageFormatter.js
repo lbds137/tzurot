@@ -1,199 +1,12 @@
 /**
  * Message formatting utilities for Discord messages
- * Handles splitting long messages and preparing message data
+ * Handles preparing message data for sending
+ * 
+ * Note: Message splitting functions have been moved to messageSplitting.js
  */
 
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../logger');
-
-// Discord limitations
-const MESSAGE_CHAR_LIMIT = 2000;
-
-/**
- * Split text by character limit with smart break points
- * @param {string} text - Text to split
- * @returns {Array<string>} Array of chunks
- */
-function splitByCharacterLimit(text) {
-  if (!text || text.length <= MESSAGE_CHAR_LIMIT) {
-    return [text || ''];
-  }
-
-  const chunks = [];
-  let remainingText = text;
-
-  while (remainingText.length > MESSAGE_CHAR_LIMIT) {
-    // Start from the character limit and work backwards
-    let splitIndex = MESSAGE_CHAR_LIMIT;
-
-    // Look for the last space before the limit (but not too far back)
-    for (let i = MESSAGE_CHAR_LIMIT - 1; i > MESSAGE_CHAR_LIMIT - 200 && i > 0; i--) {
-      if (remainingText[i] === ' ') {
-        splitIndex = i;
-        break;
-      }
-    }
-
-    // Add the chunk to our results
-    chunks.push(remainingText.substring(0, splitIndex));
-
-    // Remove the processed chunk
-    remainingText = remainingText.substring(splitIndex).trim();
-  }
-
-  // Add any remaining text
-  if (remainingText.length > 0) {
-    chunks.push(remainingText);
-  }
-
-  return chunks;
-}
-
-/**
- * Split a sentence into smaller chunks if needed
- * @param {string} sentence - Sentence to split
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processSentence(sentence, chunks, currentChunk) {
-  // If adding this sentence exceeds the limit
-  if (currentChunk.length + sentence.length + 1 > MESSAGE_CHAR_LIMIT) {
-    // If the sentence itself is too long, split by character limit
-    if (sentence.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split the sentence by character limit
-      const sentenceChunks = splitByCharacterLimit(sentence);
-      chunks.push(...sentenceChunks);
-
-      // Start with a fresh chunk
-      return '';
-    } else {
-      // Sentence is within limit but combined is too long
-      chunks.push(currentChunk);
-      return sentence;
-    }
-  } else {
-    // Add sentence to current chunk with space if needed
-    return currentChunk.length > 0 ? `${currentChunk} ${sentence}` : sentence;
-  }
-}
-
-/**
- * Process a single line of text
- * @param {string} line - Line to process
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processLine(line, chunks, currentChunk) {
-  // If adding this line exceeds the limit
-  if (currentChunk.length + line.length + 1 > MESSAGE_CHAR_LIMIT) {
-    // If the line itself is too long, need to split by sentences
-    if (line.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split by sentences and process each
-      const sentences = line.split(/(?<=[.!?])\s+/);
-      const sentenceChunk = '';
-      const processedChunk = sentences.reduce((chunk, sentence) => {
-        return processSentence(sentence, chunks, chunk);
-      }, sentenceChunk);
-
-      // Add any remaining content
-      if (processedChunk.length > 0) {
-        chunks.push(processedChunk);
-      }
-
-      return '';
-    } else {
-      // Line is within limit but combined is too long
-      chunks.push(currentChunk);
-      return line;
-    }
-  } else {
-    // Add line to current chunk with newline if needed
-    return currentChunk.length > 0 ? `${currentChunk}\n${line}` : line;
-  }
-}
-
-/**
- * Process a paragraph
- * @param {string} paragraph - Paragraph to process
- * @param {Array<string>} chunks - Array to add chunks to
- * @param {string} currentChunk - Current chunk being built
- * @returns {string} Updated current chunk
- */
-function processParagraph(paragraph, chunks, currentChunk) {
-  // If adding this paragraph exceeds the limit
-  if (currentChunk.length + paragraph.length + 2 > MESSAGE_CHAR_LIMIT) {
-    // If paragraph itself is too long, need to split further
-    if (paragraph.length > MESSAGE_CHAR_LIMIT) {
-      // Add any existing content first
-      if (currentChunk.length > 0) {
-        chunks.push(currentChunk);
-      }
-
-      // Split paragraph by lines and process each
-      const lines = paragraph.split(/\n/);
-      const lineChunk = '';
-      const processedChunk = lines.reduce((chunk, line) => {
-        return processLine(line, chunks, chunk);
-      }, lineChunk);
-
-      // Add any remaining content
-      if (processedChunk.length > 0) {
-        chunks.push(processedChunk);
-      }
-
-      return '';
-    } else {
-      // Paragraph is within limit but combined is too long
-      chunks.push(currentChunk);
-      return paragraph;
-    }
-  } else {
-    // Add paragraph to current chunk with newlines if needed
-    return currentChunk.length > 0 ? `${currentChunk}\n\n${paragraph}` : paragraph;
-  }
-}
-
-/**
- * Split a long message into chunks at natural break points
- * @param {string} content - Message content to split
- * @returns {Array<string>} Array of message chunks
- */
-function splitMessage(content) {
-  // If message is within limits, return as is
-  if (!content || content.length <= MESSAGE_CHAR_LIMIT) {
-    return [content || ''];
-  }
-
-  const chunks = [];
-  let currentChunk = '';
-
-  // First split by paragraphs (double newlines)
-  const paragraphs = content.split(/\n\s*\n/);
-
-  // Process each paragraph
-  for (const paragraph of paragraphs) {
-    currentChunk = processParagraph(paragraph, chunks, currentChunk);
-  }
-
-  // Add any remaining content
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-}
 
 /**
  * Mark content that contains error patterns
@@ -221,10 +34,8 @@ function markErrorContent(content) {
       continue;
     }
 
-    if (content.includes(pattern)) {
-      logger.info(
-        `[MessageFormatter] Detected error message with pattern "${pattern}", adding special prefix`
-      );
+    if (content.toLowerCase().includes(pattern.toLowerCase())) {
+      logger.info(`[MessageFormatter] Detected error message (${pattern}), adding special prefix`);
       return MARKERS.ERROR_PREFIX + ' ' + content;
     }
   }
@@ -305,12 +116,6 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
 }
 
 module.exports = {
-  MESSAGE_CHAR_LIMIT,
-  splitByCharacterLimit,
-  processSentence,
-  processLine,
-  processParagraph,
-  splitMessage,
   markErrorContent,
   prepareMessageData,
 };
