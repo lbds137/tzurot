@@ -354,19 +354,57 @@ async function analyzeErrorAndGenerateMessage(
  * @param {Error} apiError - The API error object
  * @param {string} personalityName - The personality name
  * @param {Object} context - Request context
- * @returns {string} - User-friendly error message with BOT_ERROR_MESSAGE marker
+ * @returns {Promise<string>} - User-friendly error message (personality-specific if available)
  */
-function handleApiError(apiError, personalityName, context) {
-  // Check for specific error types
+async function handleApiError(apiError, personalityName, context) {
+  // For 404 errors (personality not found), return a bot message
   if (apiError.status === 404) {
     return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ I couldn't find the personality "${personalityName}". The personality might not be available on the server.`;
-  } else if (apiError.status === 429) {
-    return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ Rate limit exceeded. Please try again in a moment.`;
-  } else if (apiError.status === 500 || apiError.status === 502 || apiError.status === 503) {
-    return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ The AI service is temporarily unavailable. Please try again later.`;
-  } else {
-    return `${MARKERS.BOT_ERROR_MESSAGE}⚠️ An error occurred while processing your request. Please try again later.`;
   }
+  
+  // For other API errors, try to get personality-specific error message
+  const errorId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+  
+  try {
+    // Try to get personality data for custom error message
+    const bootstrap = getApplicationBootstrap();
+    const personalityRouter = bootstrap.getPersonalityRouter();
+    const personality = await personalityRouter.getPersonality(personalityName);
+    
+    if (personality) {
+      const personalityData = personality.toJSON ? personality.toJSON() : personality;
+      const errorMessage = personalityData?.profile?.errorMessage;
+      
+      if (errorMessage) {
+        logger.info(`[AIErrorHandler] Using personality-specific error for API error`);
+        // Add error reference to the message
+        if (errorMessage.includes('||*(an error has occurred)*||')) {
+          return errorMessage.replace(
+            '||*(an error has occurred)*||',
+            `||*(an error has occurred; reference: ${errorId})*||`
+          );
+        } else {
+          return errorMessage + ` ||*(an error has occurred; reference: ${errorId})*||`;
+        }
+      }
+    }
+  } catch (err) {
+    logger.debug(`[AIErrorHandler] Could not fetch personality for API error: ${err.message}`);
+  }
+  
+  // Fall back to generic error messages based on API error type
+  let message = '';
+  if (apiError.status === 429) {
+    message = `I'm getting too many requests right now. Please wait a minute and try again.`;
+  } else if (apiError.status === 500 || apiError.status === 502 || apiError.status === 503) {
+    message = `The AI service seems to be having issues right now. Please try again in a moment!`;
+  } else if (apiError.timeout) {
+    message = `My response took too long to generate. Let's try again with a simpler request.`;
+  } else {
+    message = `I encountered an issue while processing your request. Please try again.`;
+  }
+  
+  return message + ` ||*(Error ID: ${errorId})*||`;
 }
 
 module.exports = {

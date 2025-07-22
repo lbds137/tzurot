@@ -237,7 +237,8 @@ async function getAiResponse(personalityName, message, context = {}) {
         logger.info(`[AIService] Returning error message after API error for ${personalityName}`);
 
         // Delegate to error handler for API error messages
-        return handleApiError(apiError, personalityName, context);
+        const errorMessage = await handleApiError(apiError, personalityName, context);
+        return { content: errorMessage, metadata: null };
       }
     } catch (error) {
       // Add this personality+user combo to blackout list to prevent duplicates
