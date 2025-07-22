@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.4] - 2025-01-22
+
+### Fixed
+- **Discord 2000 Character Limit Overflow** - Fixed critical bug where model indicators could push messages over Discord's limit
+  - Model indicators (e.g., "(Model: gpt-4)") are now added BEFORE message splitting
+  - Prevents messages near 2000 characters from failing to send
+  - Affects all message types: regular webhooks, threads, and DMs
+
+### Changed
+- **Message Splitting Refactored** - Centralized message splitting logic for better maintainability
+  - Created new `messageSplitting.js` utility module
+  - Removed 200+ lines of duplicate code across webhook handlers
+  - Ensures consistent splitting behavior across all message types
+
+### Improved
+- **Error Handling** - Fixed confusing behavior where errors appeared as personality messages
+  - Raw error messages no longer sent via webhook
+  - Improved error logging in personality handler
+  - Error IDs now use crypto.randomUUID() for guaranteed uniqueness
+
 ## [2.2.3] - 2025-01-18
 
 ### Fixed
