@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [2.2.4] - 2025-07-22
+## [2.2.4] - 2025-07-21
 
 ### Fixed
 - **Discord 2000 Character Limit Overflow** - Fixed critical bug where model indicators could push messages over Discord's limit
