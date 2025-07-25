@@ -106,7 +106,6 @@ jest.mock('../../src/constants', () => ({
     'KeyError',
   ],
   MARKERS: {
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
     BOT_ERROR_MESSAGE: 'BOT_ERROR_MESSAGE_PREFIX:',
   },
   DEFAULTS: {

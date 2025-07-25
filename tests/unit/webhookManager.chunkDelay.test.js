@@ -132,9 +132,6 @@ jest.mock('../../src/constants', () => ({
     MAX_ERROR_WAIT_TIME: 15000,
   },
   ERROR_MESSAGES: [],
-  MARKERS: {
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  },
 }));
 
 describe('WebhookManager - Chunk Delay Tests', () => {

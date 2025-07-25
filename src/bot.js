@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const logger = require('./logger');
 const webhookManager = require('./webhookManager');
-const errorHandler = require('./handlers/errorHandler');
 const messageHandler = require('./handlers/messageHandler');
 const pluralkitMessageStore = require('./utils/pluralkitMessageStore').instance;
 const { botConfig } = require('../config');
@@ -43,8 +42,6 @@ async function initBot() {
   // Make client available globally to avoid circular dependencies
   global.tzurotClient = client;
 
-  // Patch client for error filtering
-  errorHandler.patchClientForErrorFiltering(client);
 
   // Set up event handlers
   client.on('ready', async () => {
@@ -54,9 +51,6 @@ async function initBot() {
     // Register webhook manager event listeners AFTER client is ready
     webhookManager.registerEventListeners(client);
 
-    // Start a periodic queue cleaner to check for and remove any error messages
-    // This is a very aggressive approach to ensure no error messages appear
-    errorHandler.startQueueCleaner(client);
   });
 
   // Handle errors

@@ -79,11 +79,6 @@ const {
   // DM handling
   sendFormattedMessageInDM: _sendFormattedMessageInDM,
 
-  // Error utilities
-  isErrorContent,
-  markErrorContent,
-  isErrorWebhookMessage: _isErrorWebhookMessage,
-
   // Message utilities
   getStandardizedUsername,
   generateMessageTrackingId: _generateMessageTrackingId,
@@ -326,7 +321,7 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
       for (let i = 0; i < contentChunks.length; i++) {
         const isFirstChunk = chunkHelpers.isFirstChunk(i);
         const isLastChunk = chunkHelpers.isLastChunk(i, contentChunks.length);
-        let finalContent = contentChunks[i];
+        const finalContent = contentChunks[i];
 
         // Skip if this exact message was recently sent
         if (isDuplicateMessage(finalContent, standardizedName, channel.id)) {
@@ -599,8 +594,6 @@ module.exports = {
   restoreConsoleOutput,
 
   // Message content processing
-  isErrorContent,
-  markErrorContent,
   prepareMessageData,
   sendMessageChunk,
   createVirtualResult,

@@ -7,7 +7,6 @@
 const threadHandler = require('./threadHandler');
 const messageThrottler = require('./messageThrottler');
 const dmHandler = require('./dmHandler');
-const errorUtils = require('./errorUtils');
 const messageUtils = require('./messageUtils');
 
 module.exports = {
@@ -26,11 +25,6 @@ module.exports = {
 
   // DM handling
   sendFormattedMessageInDM: dmHandler.sendFormattedMessageInDM,
-
-  // Error utilities
-  isErrorContent: errorUtils.isErrorContent,
-  markErrorContent: errorUtils.markErrorContent,
-  isErrorWebhookMessage: errorUtils.isErrorWebhookMessage,
 
   // Message utilities
   getStandardizedUsername: messageUtils.getStandardizedUsername,

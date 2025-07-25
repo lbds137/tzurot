@@ -9,7 +9,6 @@ const referenceHandler = require('./referenceHandler');
 const personalityHandler = require('./personalityHandler');
 const messageTrackerHandler = require('./messageTrackerHandler');
 const dmHandler = require('./dmHandler');
-const errorHandler = require('./errorHandler');
 const webhookUserTracker = require('../utils/webhookUserTracker');
 const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
@@ -238,10 +237,6 @@ async function handleMessage(message, client) {
           `Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`
         );
 
-        // Filter webhook messages for errors
-        if (errorHandler.filterWebhookMessage(message)) {
-          return; // Message was filtered
-        }
 
         // Check if this is our own bot's webhook (not a proxy system like PluralKit)
         // Our bot's webhooks have applicationId matching our bot's user ID

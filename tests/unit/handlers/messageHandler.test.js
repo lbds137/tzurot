@@ -12,7 +12,6 @@ jest.mock('../../../src/handlers/referenceHandler');
 jest.mock('../../../src/handlers/personalityHandler');
 jest.mock('../../../src/handlers/messageTrackerHandler');
 jest.mock('../../../src/handlers/dmHandler');
-jest.mock('../../../src/handlers/errorHandler');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/core/conversation');
 jest.mock('../../../src/utils/channelUtils');
@@ -35,7 +34,6 @@ const referenceHandler = require('../../../src/handlers/referenceHandler');
 const personalityHandler = require('../../../src/handlers/personalityHandler');
 const messageTrackerHandler = require('../../../src/handlers/messageTrackerHandler');
 const dmHandler = require('../../../src/handlers/dmHandler');
-const errorHandler = require('../../../src/handlers/errorHandler');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const {
   getActivePersonality,
@@ -106,7 +104,6 @@ describe('messageHandler', () => {
     messageTrackerHandler.delayedProcessing.mockResolvedValue(undefined);
     dmHandler.handleDmReply.mockResolvedValue(false);
     dmHandler.handleDirectMessage.mockResolvedValue(false);
-    errorHandler.filterWebhookMessage.mockReturnValue(false);
     webhookUserTracker.isProxySystemWebhook.mockReturnValue(false);
     getActivePersonality.mockReturnValue(null);
     getActivatedPersonality.mockReturnValue(null);

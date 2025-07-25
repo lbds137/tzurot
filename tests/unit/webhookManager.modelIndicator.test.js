@@ -141,10 +141,7 @@ jest.mock('../../src/constants', () => ({
     MIN_MESSAGE_DELAY: 3000,
     MAX_ERROR_WAIT_TIME: 15000
   },
-  ERROR_MESSAGES: [],
-  MARKERS: {
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY'
-  }
+  ERROR_MESSAGES: []
 }));
 
 // Now require the modules

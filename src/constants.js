@@ -82,47 +82,12 @@ exports.ERROR_PATTERNS = [
 ];
 
 /**
- * Common error messages to filter out from webhook responses
- * Used to prevent showing error messages to users
- * @type {Array<string>}
- */
-exports.ERROR_MESSAGES = [
-  "I'm having trouble connecting",
-  'ERROR_MESSAGE_PREFIX:',
-  'trouble connecting to my brain',
-  'technical issue',
-  'Error ID:',
-  'issue with my configuration',
-  'issue with my response system',
-  'momentary lapse',
-  'try again later',
-  'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  'Please try again',
-  'connection unstable',
-  'unable to formulate',
-  // Additional webhook-specific error patterns
-  'connectivity problem',
-  'I cannot access',
-  'experiencing difficulties',
-  'system error',
-  'something went wrong',
-  'service is unavailable',
-  'not responding',
-  'failed to generate',
-  'unavailable at this time',
-];
-
-/**
  * Special markers and flags used throughout the application
  * @typedef {Object} Markers
- * @property {string} HARD_BLOCKED_RESPONSE - Special marker to completely ignore a response
- * @property {string} ERROR_PREFIX - Prefix for error messages that should be filtered
  * @property {string} BOT_ERROR_MESSAGE - Prefix for error messages that should come from the bot, not the personality
  * @type {Markers}
  */
 exports.MARKERS = {
-  HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
-  ERROR_PREFIX: 'ERROR_MESSAGE_PREFIX:',
   BOT_ERROR_MESSAGE: 'BOT_ERROR_MESSAGE:',
 };
 
