@@ -44,7 +44,7 @@ class DiscordCommandAdapter {
         channel: message.channel,
         guild: message.guild,
         args: args,
-        reply: (content, options) => message.reply(content),
+        reply: (content, _options) => message.reply(content),
         dependencies: this.applicationServices,
         // Add these missing properties for better context
         userId: message.author.id,
