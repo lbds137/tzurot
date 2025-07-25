@@ -15,11 +15,8 @@
  * - Consider implementing webhook rotation for high-volume channels
  */
 
-const { WebhookClient: _WebhookClient } = require('discord.js');
 const logger = require('./logger');
-const _errorTracker = require('./utils/errorTracker');
 const {
-  mediaHandler: _mediaHandler,
   processMediaForWebhook,
   prepareAttachmentOptions,
 } = require('./utils/media');
@@ -31,10 +28,6 @@ const { prepareAndSplitMessage, chunkHelpers } = require('./utils/messageSplitti
 
 // Import extracted modules
 const webhookModules = require('./webhook');
-const { TIME: _TIME } = require('./constants');
-
-// Get activeWebhooks from the webhookCache module (this is a Set)
-const _activeWebhooks = webhookCache.getActiveWebhooks();
 
 // Map to track active webhook messages (channel id -> message info)
 const activeWebhookMessages = new Map();
@@ -478,8 +471,6 @@ async function sendWebhookMessage(channel, content, personality, options = {}, m
             // Continue even if image message fails
           }
         }
-
-        // No longer needed as we now handle multimedia content directly
       }
 
       // Clean up tracking after a short delay
