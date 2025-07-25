@@ -28,7 +28,6 @@ function createListCommand() {
       try {
         // Extract dependencies
         const personalityService = context.dependencies.personalityApplicationService;
-        const featureFlags = context.dependencies.featureFlags;
 
         if (!personalityService) {
           throw new Error('PersonalityApplicationService not available');

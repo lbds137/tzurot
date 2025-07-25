@@ -704,5 +704,4 @@ describe('aiService Error Handling', () => {
     });
   });
 
-  // Content sanitization tests have been moved to tests/unit/utils/contentSanitizer.test.js
 });

@@ -1,5 +1,4 @@
 const logger = require('../logger');
-const { sanitizeApiText } = require('./contentSanitizer');
 const { resolvePersonality } = require('./aliasResolver');
 const { formatContextMetadata } = require('./contextMetadataFormatter');
 
@@ -46,10 +45,8 @@ async function formatApiMessages(
         // Get the name of the Discord user who is making the reference
         const userName = content.userName || 'The user';
 
-        // Sanitize the content of the referenced message (remove control characters)
-        const sanitizedReferenceContent = content.referencedMessage.content
-          ? sanitizeApiText(content.referencedMessage.content)
-          : '';
+        // Get the content of the referenced message
+        const sanitizedReferenceContent = content.referencedMessage.content || '';
 
         logger.debug(
           `[AIMessageFormatter] Processing referenced message: ${JSON.stringify({
@@ -310,7 +307,7 @@ async function formatApiMessages(
             } else {
               const sanitizedUserContent =
                 typeof userMessageContent === 'string'
-                  ? sanitizeApiText(userMessageContent)
+                  ? userMessageContent
                   : 'Message content missing';
               combinedText += sanitizedUserContent;
             }
@@ -380,7 +377,7 @@ async function formatApiMessages(
             } else {
               const sanitizedUserContent =
                 typeof userMessageContent === 'string'
-                  ? sanitizeApiText(userMessageContent)
+                  ? userMessageContent
                   : 'Message content missing';
               combinedText += sanitizedUserContent;
             }
@@ -435,7 +432,7 @@ async function formatApiMessages(
           // Fall back to just sending the user's message
           const sanitizedContent =
             typeof content.messageContent === 'string'
-              ? sanitizeApiText(content.messageContent)
+              ? content.messageContent
               : Array.isArray(content.messageContent)
                 ? content.messageContent
                 : 'There was an error processing a referenced message.';
@@ -450,7 +447,7 @@ async function formatApiMessages(
       } else {
         const sanitizedContent =
           typeof content.messageContent === 'string'
-            ? sanitizeApiText(content.messageContent)
+            ? content.messageContent
             : content.messageContent;
 
         return [{ role: 'user', content: sanitizedContent }];
@@ -518,7 +515,7 @@ async function formatApiMessages(
 
     // Simple text message - sanitize if it's a string
     if (typeof content === 'string') {
-      const sanitizedContent = sanitizeApiText(content);
+      const sanitizedContent = content;
 
       // Add context metadata if available and not disabled
       let contextPrefix = '';
@@ -563,7 +560,7 @@ async function formatApiMessages(
 
     // Fall back to a simple message
     if (typeof content === 'string') {
-      return [{ role: 'user', content: sanitizeApiText(content) }];
+      return [{ role: 'user', content }];
     } else if (Array.isArray(content)) {
       return [{ role: 'user', content }];
     } else if (content && typeof content === 'object' && content.messageContent) {
@@ -573,7 +570,7 @@ async function formatApiMessages(
           role: 'user',
           content:
             typeof content.messageContent === 'string'
-              ? sanitizeApiText(content.messageContent)
+              ? content.messageContent
               : Array.isArray(content.messageContent)
                 ? content.messageContent
                 : 'There was an error formatting my message.',

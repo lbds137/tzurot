@@ -36,10 +36,10 @@ function isValidUrlFormat(url) {
   try {
     new URL(url); // Will throw if URL is invalid
     return true;
-  } catch (_error) {
+  } catch (error) {
     // Log URL validation failure for debugging - helps track URL format issues
     logger.warn(
-      `[UrlValidator] Invalid URL format: ${url}. Validation error: ${_error.message || 'Unknown URL error'}`
+      `[UrlValidator] Invalid URL format: ${url}. Validation error: ${error.message || 'Unknown URL error'}`
     );
     return false;
   }

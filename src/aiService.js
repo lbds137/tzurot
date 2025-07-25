@@ -2,7 +2,6 @@ const { getModelPath, botPrefix } = require('../config');
 const logger = require('./logger');
 const { MARKERS, DEFAULTS } = require('./constants');
 // aiAuth utility removed - using DDD authentication directly
-const { sanitizeContent } = require('./utils/contentSanitizer');
 const aiRequestManager = require('./utils/aiRequestManager');
 const { formatApiMessages } = require('./utils/aiMessageFormatter');
 const webhookUserTracker = require('./utils/webhookUserTracker');
@@ -85,7 +84,6 @@ const addToBlackoutList = aiRequestManager.addToBlackoutList;
 // Request ID creation is now handled by aiRequestManager module
 const createRequestId = aiRequestManager.createRequestId;
 
-// Content sanitization function moved to utils/contentSanitizer.js
 
 /**
  * Gets a response from the AI service for the specified personality
@@ -290,7 +288,6 @@ async function getAiResponse(personalityName, message, context = {}) {
   return responsePromise;
 }
 
-// API text sanitization function moved to utils/contentSanitizer.js
 
 // Message formatting function moved to utils/aiMessageFormatter.js
 
@@ -443,37 +440,11 @@ async function handleNormalPersonality(personalityName, message, context, modelP
     return { content: errorMessage, metadata: null };
   }
 
-  // Apply sanitization to all personality responses to be safe
-  try {
-    // Always perform sanitization for consistency
-    logger.debug(
-      `[AIService] Starting content sanitization for ${personalityName}, original length: ${content.length}`
-    );
-
-    // Apply content sanitization
-    const sanitizedContent = sanitizeContent(content);
-    logger.debug(
-      `[AIService] After content sanitization for ${personalityName}, length: ${sanitizedContent.length}`
-    );
-
-    if (sanitizedContent.length === 0) {
-      logger.error(`[AIService] Empty content after sanitization from ${personalityName}`);
-      // Use personality error handler for empty content after sanitization
-      const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
-    return { content: errorMessage, metadata: null };
-    }
-
-    // Replace the original content with the sanitized version
-    content = sanitizedContent;
-  } catch (sanitizeError) {
-    logger.error(`[AIService] Sanitization error for ${personalityName}: ${sanitizeError.message}`);
-    // Use personality error handler for sanitization errors
-    const errorMessage = await analyzeErrorAndGenerateMessage(
-      sanitizeError.message,
-      personalityName,
-      context,
-      addToBlackoutList
-    );
+  // Check for empty content
+  if (content.length === 0) {
+    logger.error(`[AIService] Empty content received from ${personalityName}`);
+    // Use personality error handler for empty content
+    const errorMessage = await analyzeErrorAndGenerateMessage('', personalityName, context, addToBlackoutList);
     return { content: errorMessage, metadata: null };
   }
 

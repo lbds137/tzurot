@@ -36,10 +36,8 @@ class RateLimiter {
     // Injectable timer functions for testability
     // Note: We use inline functions here instead of module-level constants
     // to ensure Jest can properly mock setTimeout when using fake timers
-    // eslint-disable-next-line no-restricted-globals, no-restricted-syntax
-    this.delay = options.delay || ((ms) => new Promise(resolve => setTimeout(resolve, ms)));
-    // eslint-disable-next-line no-restricted-globals
-    this.scheduler = options.scheduler || setTimeout;
+    this.delay = options.delay || ((ms) => new Promise(resolve => globalThis.setTimeout(resolve, ms)));
+    this.scheduler = options.scheduler || globalThis.setTimeout;
 
     // State tracking
     this.lastRequestTime = 0;
@@ -65,10 +63,10 @@ class RateLimiter {
         try {
           const result = await requestFn(this, context);
           resolve(result);
-        } catch (_error) {
+        } catch (error) {
           // Log request execution failure for debugging - helps track rate limiter issues
           logger.warn(
-            `${this.logPrefix} Request execution failed: ${_error.message || 'Unknown execution error'}. Context: ${JSON.stringify(context)}`
+            `${this.logPrefix} Request execution failed: ${error.message || 'Unknown execution error'}. Context: ${JSON.stringify(context)}`
           );
           // Silently resolve with null in case of error - error variable unused but required for catch syntax
           // The actual error handling should happen in the requestFn

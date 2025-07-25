@@ -16,10 +16,6 @@ describe('AIMessageFormatter - Pluralkit Support', () => {
     
     jest.doMock('../../../src/logger', () => mockLogger);
     
-    // Mock content sanitizer
-    jest.doMock('../../../src/utils/contentSanitizer', () => ({
-      sanitizeApiText: jest.fn(text => text) // Pass through for testing
-    }));
     
     // Mock aliasResolver (PersonalityManager removed - now using DDD)
     jest.doMock('../../../src/utils/aliasResolver', () => ({

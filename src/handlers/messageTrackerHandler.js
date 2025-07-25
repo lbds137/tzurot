@@ -207,10 +207,10 @@ async function delayedProcessing(message, personality, triggeringMention, client
         let messageToProcess = null;
         try {
           messageToProcess = await message.channel.messages.fetch(message.id);
-        } catch (_fetchErr) {
+        } catch (fetchErr) {
           // Log message fetch failure for debugging - helps track message lifecycle issues
           logger.info(
-            `[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system. Fetch error: ${_fetchErr.message || 'Unknown fetch error'}`
+            `[MessageTracker] Message ${message.id} no longer exists, likely deleted by proxy system. Fetch error: ${fetchErr.message || 'Unknown fetch error'}`
           );
           resolve(); // Message was deleted, don't process
           return;

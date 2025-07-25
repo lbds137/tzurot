@@ -37,17 +37,6 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   })),
 }));
 
-// Mock contentSanitizer module
-jest.mock('../../src/utils/contentSanitizer', () => ({
-  sanitizeContent: jest.fn().mockImplementation(content => content),
-  sanitizeApiText: jest.fn().mockImplementation(content => content),
-  needsSanitization: jest.fn().mockReturnValue(false),
-  sanitizeWithInfo: jest.fn().mockImplementation(content => ({
-    content,
-    changed: false,
-    removedChars: 0,
-  })),
-}));
 
 // Mock FeatureFlags module
 jest.mock('../../src/application/services/FeatureFlags', () => ({
@@ -952,9 +941,6 @@ describe('AI Service', () => {
 
       aiService.getAiClientForUser.mockResolvedValue(mockClient);
 
-      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
-      sanitizeContent.mockImplementation(content => content);
-
       const webhookUserTracker = require('../../src/utils/webhookUserTracker');
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     });
@@ -1155,47 +1141,7 @@ describe('AI Service', () => {
       );
     });
 
-    it('should handle empty content after sanitization', async () => {
-      const personalityName = 'test-personality';
-      const message = 'Test message';
-      const context = {
-        userId: 'user-123',
-        channelId: 'channel-456',
-      };
 
-      // Mock sanitizeContent to return empty string
-      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
-      sanitizeContent.mockReturnValueOnce('');
-
-      const response = await getAiResponse(personalityName, message, context);
-
-      // Should use personality error handler for empty response
-      expect(response).toHaveProperty('content');
-      expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference:.*\)\|\|/);
-    });
-
-    it('should handle sanitization errors', async () => {
-      const personalityName = 'test-personality';
-      const message = 'Test message';
-      const context = {
-        userId: 'user-123',
-        channelId: 'channel-456',
-      };
-
-      // Mock sanitizeContent to throw error
-      const { sanitizeContent } = require('../../src/utils/contentSanitizer');
-      sanitizeContent.mockImplementationOnce(() => {
-        throw new Error('Sanitization failed');
-      });
-
-      const response = await getAiResponse(personalityName, message, context);
-
-      // Should use personality error handler for sanitization errors
-      expect(response).toHaveProperty('content');
-      expect(response).toHaveProperty('metadata');
-      expect(response.content).toMatch(/I couldn't process that request.*\|\|\(Reference:.*\)\|\|/);
-    });
 
     it('should handle invalid response structure', async () => {
       const personalityName = 'test-personality';

@@ -8,7 +8,6 @@ jest.mock('../../src/utils/contextMetadataFormatter', () => ({
 }));
 
 const { formatApiMessages } = require('../../src/aiService');
-const { sanitizeApiText } = require('../../src/utils/contentSanitizer');
 const { resolvePersonality } = require('../../src/utils/aliasResolver');
 
 describe('AI Service Reference Message Handling', () => {
@@ -22,39 +21,6 @@ describe('AI Service Reference Message Handling', () => {
         name: 'albert-einstein',
         displayName: 'Albert Einstein',
       },
-    });
-  });
-
-  describe('sanitizeApiText', () => {
-    it('should handle empty input', () => {
-      expect(sanitizeApiText(null)).toBe('');
-      expect(sanitizeApiText('')).toBe('');
-      expect(sanitizeApiText(undefined)).toBe('');
-    });
-
-    it('should pass through long text (sanitization disabled)', () => {
-      const longText = 'a'.repeat(2000);
-      const result = sanitizeApiText(longText);
-
-      // Sanitization disabled - length should be preserved
-      expect(result.length).toBe(2000);
-    });
-
-    it('should minimally sanitize problematic characters', () => {
-      const problematicText =
-        'Text with "quotes" and \\backslashes\\ and \nnewlines and control chars\u0000\u0001';
-      const result = sanitizeApiText(problematicText);
-
-      // With sanitization disabled - quotes and backslashes remain unchanged
-      expect(result.includes('"')).toBe(true);
-      expect(result.includes('\\')).toBe(true);
-
-      // Newlines should be preserved
-      expect(result.includes('\n')).toBe(true);
-
-      // Only null/control chars should be removed
-      expect(result.includes('\u0000')).toBe(false);
-      expect(result.includes('\u0001')).toBe(false);
     });
   });
 
@@ -121,7 +87,7 @@ describe('AI Service Reference Message Handling', () => {
         messageContent: "What's wrong with this message?",
         referencedMessage: {
           content:
-            'Error message with "quotes", \\backslashes\\, \nnewlines\n and control characters\u0000\u0001',
+            'Error message with "quotes", \\backslashes\\, \nnewlines\n',
           author: 'SomeUser',
           isFromBot: false,
         },
@@ -144,10 +110,8 @@ describe('AI Service Reference Message Handling', () => {
       // Should include the reference
       expect(textContent.text).toContain('SomeUser said');
 
-      // With minimal sanitization, newlines are preserved but control chars are removed
+      // Without sanitization, all characters are preserved
       expect(textContent.text.includes('\n')).toBe(true); // newlines preserved
-      expect(textContent.text.includes('\u0000')).toBe(false); // control chars still removed
-      expect(textContent.text.includes('\u0001')).toBe(false); // control chars still removed
 
       // The message should contain the word quotes (escaping syntax depends on implementation)
       expect(textContent.text.includes('quotes')).toBe(true);
