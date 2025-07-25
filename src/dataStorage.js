@@ -66,7 +66,7 @@ async function initStorage() {
         logger.info(
           `[DataStorage] Found ${files.length} files in data directory: ${files.join(', ')}`
         );
-      } catch (readError) {
+      } catch (_readError) {
         logger.info(
           '[DataStorage] No existing files in data directory (fresh volume or first run)'
         );

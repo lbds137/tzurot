@@ -101,7 +101,6 @@ class GitHubReleaseClient {
       // Filter releases between the two versions
       const releases = [];
       let foundEnd = false;
-      let reachedStart = false;
 
       // Normalize versions by removing 'v' prefix
       const normalizedFromVersion = fromVersion.replace(/^v/, '');
@@ -117,7 +116,6 @@ class GitHubReleaseClient {
 
         // Check if we reached the start version (exclusive)
         if (tagName === normalizedFromVersion) {
-          reachedStart = true;
           break; // Stop here, don't include the start version
         }
 
