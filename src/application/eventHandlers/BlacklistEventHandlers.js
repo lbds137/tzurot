@@ -61,10 +61,9 @@ function createUserBlacklistedGloballyHandler(dependencies) {
  * When a user is unblacklisted, we just log it for audit purposes.
  * The user will need to re-authenticate if they want to use NSFW features.
  *
- * @param {Object} dependencies - Injected dependencies
  * @returns {Function} Event handler function
  */
-function createUserUnblacklistedGloballyHandler(dependencies) {
+function createUserUnblacklistedGloballyHandler() {
   return async function handleUserUnblacklistedGlobally(event) {
     logger.info(
       `[BlacklistEventHandlers] Processing UserUnblacklistedGlobally for user ${event.aggregateId}`
@@ -100,7 +99,7 @@ function registerBlacklistEventHandlers(dependencies) {
 
   eventBus.subscribe(
     UserUnblacklistedGlobally.name,
-    createUserUnblacklistedGloballyHandler(dependencies)
+    createUserUnblacklistedGloballyHandler()
   );
 
   logger.info('[BlacklistEventHandlers] Registered blacklist event handlers');
