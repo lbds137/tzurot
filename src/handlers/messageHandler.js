@@ -10,7 +10,6 @@ const personalityHandler = require('./personalityHandler');
 const messageTrackerHandler = require('./messageTrackerHandler');
 const dmHandler = require('./dmHandler');
 const webhookUserTracker = require('../utils/webhookUserTracker');
-const _contentSimilarity = require('../utils/contentSimilarity');
 const channelUtils = require('../utils/channelUtils');
 const {
   getActivePersonality,
