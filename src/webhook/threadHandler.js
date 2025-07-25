@@ -7,7 +7,6 @@
  * - Managing thread-specific caching
  */
 
-const { WebhookClient } = require('discord.js');
 const logger = require('../logger');
 const { isDuplicateMessage } = require('../utils/messageDeduplication');
 const { processMediaForWebhook } = require('../utils/media');

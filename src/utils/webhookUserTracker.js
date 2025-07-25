@@ -38,16 +38,6 @@ const CACHE_EXPIRATION = 60 * 60 * 1000;
 let cleanupIntervals = [];
 
 /**
- * Initialize the webhook user tracker (now a no-op for backward compatibility)
- * @param {Object} authManagerInstance - The auth manager instance (ignored)
- * @deprecated Use DDD authentication system directly
- */
-function initialize(authManagerInstance) {
-  logger.info('[WebhookUserTracker] initialize called - using DDD authentication system');
-  // No longer needed - auth checks use DDD system
-}
-
-/**
  * Get authentication status for a user using DDD system
  * @param {string} userId - User ID to check
  * @returns {Promise<boolean>} Whether user is authenticated
@@ -482,7 +472,6 @@ async function checkProxySystemAuthentication(message) {
 }
 
 module.exports = {
-  initialize,
   associateWebhookWithUser,
   getRealUserIdFromWebhook,
   isProxySystemWebhook,

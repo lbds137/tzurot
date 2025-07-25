@@ -37,7 +37,7 @@ class Token extends ValueObject {
    * @param {Date} [currentTime] - Current time (for testing)
    * @returns {boolean} Always false - AI service handles validation
    */
-  isExpired(currentTime = new Date()) {
+  isExpired() {
     // Token validation is handled by the AI service
     // This method is kept for backward compatibility but always returns false
     return false;
@@ -49,7 +49,7 @@ class Token extends ValueObject {
    * @param {Date} [currentTime] - Current time (for testing)
    * @returns {number} Always returns Infinity - AI service handles expiry
    */
-  timeUntilExpiration(currentTime = new Date()) {
+  timeUntilExpiration() {
     // Token expiry is handled by the AI service
     return Infinity;
   }
@@ -61,7 +61,7 @@ class Token extends ValueObject {
    * @param {Date} [currentTime] - Current time (for testing)
    * @returns {boolean} Always false - AI service handles refresh
    */
-  shouldRefresh(refreshThresholdMs = 5 * 60 * 1000, currentTime = new Date()) {
+  shouldRefresh() {
     // Token refresh is handled by the AI service
     return false;
   }

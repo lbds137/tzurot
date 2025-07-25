@@ -121,7 +121,7 @@ class PersonalityDataRepository {
       try {
         const mainContent = await fs.readFile(mainDataPath, 'utf8');
         mainData = JSON.parse(mainContent);
-      } catch (error) {
+      } catch (_error) {
         logger.debug(`[PersonalityDataRepository] No main profile data for ${personalityName}`);
       }
 
