@@ -13,7 +13,7 @@ class PersonalityRepository {
    * @param {Personality} personality - Personality to save
    * @returns {Promise<void>}
    */
-  async save(personality) {
+  async save(_personality) {
     throw new Error('PersonalityRepository.save() must be implemented');
   }
 
@@ -22,7 +22,7 @@ class PersonalityRepository {
    * @param {PersonalityId} personalityId - Personality ID
    * @returns {Promise<Personality|null>} Personality or null if not found
    */
-  async findById(personalityId) {
+  async findById(_personalityId) {
     throw new Error('PersonalityRepository.findById() must be implemented');
   }
 
@@ -31,7 +31,7 @@ class PersonalityRepository {
    * @param {UserId} ownerId - Owner's user ID
    * @returns {Promise<Personality[]>} Array of personalities
    */
-  async findByOwner(ownerId) {
+  async findByOwner(_ownerId) {
     throw new Error('PersonalityRepository.findByOwner() must be implemented');
   }
 
@@ -48,7 +48,7 @@ class PersonalityRepository {
    * @param {PersonalityId} personalityId - Personality ID
    * @returns {Promise<boolean>} True if exists
    */
-  async exists(personalityId) {
+  async exists(_personalityId) {
     throw new Error('PersonalityRepository.exists() must be implemented');
   }
 
@@ -57,7 +57,7 @@ class PersonalityRepository {
    * @param {PersonalityId} personalityId - Personality ID
    * @returns {Promise<void>}
    */
-  async delete(personalityId) {
+  async delete(_personalityId) {
     throw new Error('PersonalityRepository.delete() must be implemented');
   }
 
@@ -74,7 +74,7 @@ class PersonalityRepository {
    * @param {string} nameOrAlias - Name or alias to search for
    * @returns {Promise<Personality|null>} Personality or null if not found
    */
-  async findByNameOrAlias(nameOrAlias) {
+  async findByNameOrAlias(_nameOrAlias) {
     throw new Error('PersonalityRepository.findByNameOrAlias() must be implemented');
   }
 }

@@ -14,11 +14,6 @@ const urlValidator = require('./utils/urlValidator');
 // Create factory function for dependency injection
 let fetcher = null;
 
-function initialize(authManagerInstance) {
-  // Legacy initialization - now a no-op since ProfileInfoFetcher gets auth from DDD system
-  logger.info('[ProfileInfoFetcher] initialize called - using DDD authentication system');
-}
-
 function getFetcher() {
   if (!fetcher) {
     // No longer pass authManager - ProfileInfoFetcher gets auth from DDD system
@@ -170,7 +165,6 @@ function deleteFromCache(profileName) {
 
 // Export the module
 module.exports = {
-  initialize,
   fetchProfileInfo,
   getProfileAvatarUrl,
   getProfileDisplayName,

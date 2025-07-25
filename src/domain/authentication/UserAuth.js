@@ -227,7 +227,7 @@ class UserAuth extends AggregateRoot {
   }
 
   // Event handlers
-  onUserAuthenticated(event) {
+  onUserAuthenticated() {
     // No longer tracking authentication count or last authenticated time
   }
 

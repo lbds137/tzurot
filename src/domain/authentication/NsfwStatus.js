@@ -53,11 +53,9 @@ class NsfwStatus extends ValueObject {
 
   /**
    * Check if verification is stale
-   * @param {number} maxAgeMs - Maximum age in milliseconds (ignored - verification is permanent)
-   * @param {Date} [currentTime] - Current time (for testing)
    * @returns {boolean} Always false for verified users
    */
-  isStale(maxAgeMs = 30 * 24 * 60 * 60 * 1000, currentTime = new Date()) {
+  isStale() {
     // NSFW verification is permanent - once verified, always verified
     return !this.verified;
   }

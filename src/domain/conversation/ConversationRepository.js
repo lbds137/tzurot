@@ -13,7 +13,7 @@ class ConversationRepository {
    * @param {Conversation} conversation - Conversation to save
    * @returns {Promise<void>}
    */
-  async save(conversation) {
+  async save(_conversation) {
     throw new Error('ConversationRepository.save() must be implemented');
   }
 
@@ -22,7 +22,7 @@ class ConversationRepository {
    * @param {ConversationId} conversationId - Conversation ID
    * @returns {Promise<Conversation|null>} Conversation or null if not found
    */
-  async findById(conversationId) {
+  async findById(_conversationId) {
     throw new Error('ConversationRepository.findById() must be implemented');
   }
 
@@ -31,7 +31,7 @@ class ConversationRepository {
    * @param {string} userId - User ID
    * @returns {Promise<Conversation[]>} Array of conversations
    */
-  async findActiveByUser(userId) {
+  async findActiveByUser(_userId) {
     throw new Error('ConversationRepository.findActiveByUser() must be implemented');
   }
 
@@ -40,7 +40,7 @@ class ConversationRepository {
    * @param {string} messageId - Discord message ID
    * @returns {Promise<Conversation|null>} Conversation containing the message
    */
-  async findByMessageId(messageId) {
+  async findByMessageId(_messageId) {
     throw new Error('ConversationRepository.findByMessageId() must be implemented');
   }
 
@@ -49,7 +49,7 @@ class ConversationRepository {
    * @param {PersonalityId} personalityId - Personality ID
    * @returns {Promise<Conversation[]>} Array of conversations
    */
-  async findByPersonality(personalityId) {
+  async findByPersonality(_personalityId) {
     throw new Error('ConversationRepository.findByPersonality() must be implemented');
   }
 
@@ -58,7 +58,7 @@ class ConversationRepository {
    * @param {ConversationId} conversationId - Conversation ID
    * @returns {Promise<void>}
    */
-  async delete(conversationId) {
+  async delete(_conversationId) {
     throw new Error('ConversationRepository.delete() must be implemented');
   }
 
@@ -67,7 +67,7 @@ class ConversationRepository {
    * @param {Date} expiryDate - Delete conversations ended before this date
    * @returns {Promise<number>} Number of conversations deleted
    */
-  async cleanupExpired(expiryDate) {
+  async cleanupExpired(_expiryDate) {
     throw new Error('ConversationRepository.cleanupExpired() must be implemented');
   }
 }

@@ -4,7 +4,6 @@
  */
 
 const { BackupJob, BackupStatus } = require('./BackupJob');
-const { PersonalityData } = require('./PersonalityData');
 const logger = require('../../logger');
 
 /**

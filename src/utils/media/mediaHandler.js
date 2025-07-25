@@ -16,7 +16,6 @@
 const logger = require('../../logger');
 const audioHandler = require('./audioHandler');
 const imageHandler = require('./imageHandler');
-const urlValidator = require('../urlValidator');
 
 /**
  * Detect and process media in a Discord message

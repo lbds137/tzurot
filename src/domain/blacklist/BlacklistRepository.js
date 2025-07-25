@@ -15,7 +15,7 @@ class BlacklistRepository {
    * @param {BlacklistedUser} blacklistedUser - User to blacklist
    * @returns {Promise<void>}
    */
-  async add(blacklistedUser) {
+  async add(_blacklistedUser) {
     throw new Error('BlacklistRepository.add must be implemented');
   }
 
@@ -25,7 +25,7 @@ class BlacklistRepository {
    * @param {string} userId - User ID to remove
    * @returns {Promise<void>}
    */
-  async remove(userId) {
+  async remove(_userId) {
     throw new Error('BlacklistRepository.remove must be implemented');
   }
 
@@ -35,7 +35,7 @@ class BlacklistRepository {
    * @param {string} userId - User ID to find
    * @returns {Promise<BlacklistedUser|null>}
    */
-  async find(userId) {
+  async find(_userId) {
     throw new Error('BlacklistRepository.find must be implemented');
   }
 
@@ -54,7 +54,7 @@ class BlacklistRepository {
    * @param {string} userId - User ID to check
    * @returns {Promise<boolean>}
    */
-  async isBlacklisted(userId) {
+  async isBlacklisted(_userId) {
     throw new Error('BlacklistRepository.isBlacklisted must be implemented');
   }
 }
