@@ -234,17 +234,17 @@ class UserAuth extends AggregateRoot {
     );
   }
 
-  onUserTokenExpired(event) {
+  onUserTokenExpired(_event) {
     // Mark token as expired by setting it to null
     // The token history is maintained in the event itself
     this.token = null;
   }
 
-  onUserNsfwVerified(event) {
+  onUserNsfwVerified(_event) {
     this.nsfwStatus = this.nsfwStatus.markVerified();
   }
 
-  onUserNsfwVerificationCleared(event) {
+  onUserNsfwVerificationCleared(_event) {
     this.nsfwStatus = this.nsfwStatus.clearVerification();
   }
 }

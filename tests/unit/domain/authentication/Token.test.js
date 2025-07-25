@@ -9,7 +9,8 @@
  * - No mocking needed (testing the actual implementation)
  */
 
-const { dddPresets } = require('../../../__mocks__/ddd');
+// DDD test helpers available but not needed for this value object test
+// const { dddPresets } = require('../../../__mocks__/ddd');
 
 // Domain model under test - NOT mocked!
 const { Token } = require('../../../../src/domain/authentication/Token');
