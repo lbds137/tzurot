@@ -13,7 +13,6 @@ const { BackupAPIClient } = require('../../../infrastructure/backup/BackupAPICli
 const { ZipArchiveService } = require('../../../infrastructure/backup/ZipArchiveService');
 const logger = require('../../../logger');
 const { USER_CONFIG } = require('../../../constants');
-const path = require('path');
 const { resolvePersonality } = require('../../../utils/aliasResolver');
 
 /**

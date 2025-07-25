@@ -40,9 +40,6 @@ jest.mock('openai', () => ({
 }));
 
 // Mock other AI service dependencies
-jest.mock('../../src/utils/contentSanitizer', () => ({
-  sanitizeContent: jest.fn((content) => content),
-}));
 
 jest.mock('../../src/utils/aiRequestManager', () => ({
   createRequestId: jest.fn(() => 'test-request-id'),

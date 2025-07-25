@@ -17,10 +17,6 @@ describe('AIMessageFormatter - Context Metadata', () => {
     
     jest.doMock('../../../src/logger', () => mockLogger);
     
-    // Mock content sanitizer
-    jest.doMock('../../../src/utils/contentSanitizer', () => ({
-      sanitizeApiText: jest.fn(text => text)
-    }));
     
     // Mock aliasResolver (PersonalityManager removed - now using DDD)
     jest.doMock('../../../src/utils/aliasResolver', () => ({
