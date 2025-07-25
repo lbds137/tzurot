@@ -68,7 +68,7 @@ function createBlacklistCommand(dependencies = {}) {
  */
 function createExecutor(_dependencies) {
   return async function execute(context) {
-    const { args, options, dependencies } = context;
+    const { args, options } = context;
 
     logger.info(`[BlacklistCommand] Executing for user ${context.userId}`);
 

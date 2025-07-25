@@ -52,7 +52,6 @@ function createAddCommand() {
     execute: async context => {
       // Extract dependencies early so they're in scope for error handling
       const personalityService = context.dependencies.personalityApplicationService;
-      const featureFlags = context.dependencies.featureFlags;
       const requestTracker = context.dependencies.requestTrackingService;
 
       // Variables that might be needed in error handling
@@ -387,8 +386,6 @@ function createAddCommand() {
 
           // Add next steps
           const prefix = context.commandPrefix || '!tz';
-          const displayNameForTag =
-            personality.profile.displayName || personality.profile.name || name;
           const fullName = personality.profile.name || name;
 
           // Build tagging options based on what's available

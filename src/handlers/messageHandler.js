@@ -3,7 +3,6 @@
  */
 const logger = require('../logger');
 const { botPrefix, botConfig } = require('../../config');
-// Legacy command loader removed - using DDD command system
 const { messageTracker } = require('../messageTracker');
 const referenceHandler = require('./referenceHandler');
 const personalityHandler = require('./personalityHandler');
@@ -236,7 +235,6 @@ async function handleMessage(message, client) {
           `Received message from webhook: ${message.webhookId}, content: ${message.content.substring(0, 20)}...`
         );
 
-
         // Check if this is our own bot's webhook (not a proxy system like PluralKit)
         // Our bot's webhooks have applicationId matching our bot's user ID
         const isOurBotWebhook = message.applicationId === client.user.id;
@@ -295,8 +293,6 @@ async function handleMessage(message, client) {
 
             return; // Message was handled as a reply
           }
-
-          // Continue processing - don't return here
         } else {
           // This is some other webhook we don't recognize
           logger.debug(`Ignoring unknown webhook message: ${message.webhookId}`);
@@ -709,8 +705,6 @@ async function handleActivatedChannel(message, client) {
     logger.debug(`Activated personality ignoring command message: ${message.content}`);
     return false; // Let the command handler process this message
   }
-
-  // Not a command, continue with personality response
 
   // SAFETY CHECK: Only allow activated personalities in DMs or NSFW channels
   const isDM = message.channel.isDMBased();

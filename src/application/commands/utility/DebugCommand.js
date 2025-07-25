@@ -370,7 +370,7 @@ async function showStats(context, dependencies) {
       const bootstrap = getApplicationBootstrap();
       const authService = bootstrap.getApplicationServices().authenticationService;
       authAvailable = !!authService;
-    } catch (error) {
+    } catch (_error) {
       // DDD auth not available
     }
 

@@ -41,9 +41,6 @@ function createExecutor(dependencies = {}) {
         processUtils = { uptime: () => process.uptime() },
       } = dependencies;
 
-      // Get DDD personality service from context if available
-      const personalityService = context.dependencies?.personalityApplicationService;
-
       // Get uptime info
       const uptime = processUtils.uptime();
       const formattedUptime = formatUptime(uptime);
