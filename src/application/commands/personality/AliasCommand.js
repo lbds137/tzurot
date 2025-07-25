@@ -185,16 +185,6 @@ function createAliasCommand() {
             });
           }
 
-          // Add system indicator if using new system
-          const featureFlags = context.dependencies.featureFlags;
-          if (featureFlags?.isEnabled('ddd.personality.write')) {
-            fields.push({
-              name: 'System',
-              value: '🆕 Updated with new DDD system',
-              inline: false,
-            });
-          }
-
           // Create the embed response
           const embedData = {
             title: '✅ Alias Added Successfully!',

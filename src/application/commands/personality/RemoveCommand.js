@@ -187,16 +187,6 @@ function createRemoveCommand() {
             });
           }
 
-          // Add system indicator if using new system
-          const featureFlags = context.dependencies.featureFlags;
-          if (featureFlags?.isEnabled('ddd.personality.write')) {
-            fields.push({
-              name: 'System',
-              value: '🆕 Removed from new DDD system',
-              inline: false,
-            });
-          }
-
           // Add bot owner indicator if removing someone else's personality
           const { USER_CONFIG } = require('../../../constants');
           if (
