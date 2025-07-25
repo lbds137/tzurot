@@ -332,7 +332,7 @@ class AuthenticationApplicationService {
       }
 
       // Revoke token with token service if exists
-      if (userAuth.token && !userAuth.token.isExpired()) {
+      if (userAuth.token) {
         try {
           await this.tokenService.revokeToken(userAuth.token.value);
         } catch (error) {
