@@ -13,10 +13,6 @@
  */
 const logger = require('../logger');
 
-// Default timer implementations for production use
-const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const defaultScheduler = setTimeout;
-
 class RateLimiter {
   /**
    * Creates a new rate limiter
@@ -38,8 +34,8 @@ class RateLimiter {
     this.logPrefix = options.logPrefix || '[RateLimiter]';
 
     // Injectable timer functions for testability
-    this.delay = options.delay || defaultDelay;
-    this.scheduler = options.scheduler || defaultScheduler;
+    this.delay = options.delay || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    this.scheduler = options.scheduler || setTimeout;
 
     // State tracking
     this.lastRequestTime = 0;
