@@ -830,19 +830,6 @@ describe('Bot Features', () => {
     // Mock the original emit function
     const originalEmit = jest.fn().mockReturnValue(true);
 
-    // ERROR_PATTERNS used in bot.js
-    const ERROR_PATTERNS = [
-      "I'm having trouble connecting",
-      'ERROR_MESSAGE_PREFIX:',
-      'trouble connecting to my brain',
-      'technical issue',
-      'Error ID:',
-      'issue with my configuration',
-      'issue with my response system',
-      'momentary lapse',
-      'try again later',
-      'Please try again',
-    ];
 
     // Create a mock client with overridden emit function
     class MockClient {

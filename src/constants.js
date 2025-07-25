@@ -58,30 +58,6 @@ exports.DISCORD = {
 };
 
 /**
- * Error patterns to detect in AI responses
- * These patterns indicate technical issues rather than valid responses
- * Note: The actual error detection logic uses these patterns with additional
- * context-based checks to avoid false positives.
- * @type {Array<string>}
- */
-exports.ERROR_PATTERNS = [
-  // High confidence error patterns (direct inclusion check)
-  'NoneType',
-  'AttributeError',
-  'TypeError',
-  'ValueError',
-  'KeyError',
-  'IndexError',
-  'ModuleNotFoundError',
-  'ImportError',
-
-  // Low confidence patterns (require additional context checks)
-  'Exception', // Only flagged with 'raised', 'caught', or 'thrown'
-  'Error:', // Only flagged at start of line
-  'Traceback', // Only flagged with 'line', 'File', or 'stack'
-];
-
-/**
  * Special markers and flags used throughout the application
  * @typedef {Object} Markers
  * @property {string} BOT_ERROR_MESSAGE - Prefix for error messages that should come from the bot, not the personality
