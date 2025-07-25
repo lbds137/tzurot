@@ -14,7 +14,9 @@
 const logger = require('../logger');
 
 // Default timer implementations for production use
+// eslint-disable-next-line no-restricted-globals, no-restricted-syntax
 const defaultDelay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// eslint-disable-next-line no-restricted-globals
 const defaultScheduler = setTimeout;
 
 class RateLimiter {
