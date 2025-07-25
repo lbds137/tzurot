@@ -154,8 +154,6 @@ describe('aiService Error Handling', () => {
       configurable: true
     });
     
-    // Initialize AI client (no longer requires auth manager in DDD system)
-    aiService.initAiClient();
   });
 
   describe('Initialization and environment', () => {
