@@ -267,7 +267,6 @@ async function formatApiMessages(
           }
 
           // Always combine everything into single message for better AI processing
-          let messages;
           const combinedContent = [];
 
           // Combine all text content into a single text element
@@ -331,7 +330,7 @@ async function formatApiMessages(
 
           // Create single combined message
           const userMessage = { role: 'user', content: combinedContent };
-          messages = [userMessage];
+          const messages = [userMessage];
 
           logger.debug(
             `[AIMessageFormatter] Combined reference and user message into single message for better AI processing`
