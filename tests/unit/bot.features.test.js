@@ -841,7 +841,6 @@ describe('Bot Features', () => {
       'issue with my response system',
       'momentary lapse',
       'try again later',
-      'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY',
       'Please try again',
     ];
 

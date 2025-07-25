@@ -332,41 +332,6 @@ describe('WebhookManager - Helper Functions', () => {
     });
   });
 
-  describe('Error content detection', () => {
-    test('isErrorContent should identify error messages', () => {
-      // Test error patterns
-      expect(webhookManager.isErrorContent("I'm having trouble connecting")).toBe(true);
-      expect(webhookManager.isErrorContent('ERROR_MESSAGE_PREFIX: Some error')).toBe(true);
-      expect(webhookManager.isErrorContent("I'm experiencing a technical issue")).toBe(true);
-      expect(webhookManager.isErrorContent('Error ID: 12345')).toBe(true);
-
-      // Test non-error messages
-      expect(webhookManager.isErrorContent('Hello world')).toBe(false);
-      expect(webhookManager.isErrorContent('This is a normal message')).toBe(false);
-
-      // Test edge cases
-      expect(webhookManager.isErrorContent('')).toBe(false);
-      expect(webhookManager.isErrorContent(null)).toBe(false);
-      expect(webhookManager.isErrorContent(undefined)).toBe(false);
-    });
-
-    test('markErrorContent should add prefix to error messages', () => {
-      // Should add prefix to error messages
-      expect(webhookManager.markErrorContent("I'm having trouble connecting")).toContain(
-        'ERROR_MESSAGE_PREFIX:'
-      );
-      expect(webhookManager.markErrorContent('technical issue')).toContain('ERROR_MESSAGE_PREFIX:');
-
-      // Should not modify non-error messages
-      const normalMessage = 'This is a normal message';
-      expect(webhookManager.markErrorContent(normalMessage)).toBe(normalMessage);
-
-      // Handle edge cases
-      expect(webhookManager.markErrorContent('')).toBe('');
-      expect(webhookManager.markErrorContent(null)).toBe('');
-      expect(webhookManager.markErrorContent(undefined)).toBe('');
-    });
-  });
 
   describe('Message preparation', () => {
     test('prepareMessageData should format message data correctly', () => {

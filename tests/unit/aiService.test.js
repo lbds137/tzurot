@@ -777,7 +777,6 @@ describe('AI Service', () => {
       const response = await getAiResponse(personalityName, message, context);
       expect(response).toHaveProperty('content');
       expect(response.content).toContain('This is a mock response');
-      expect(response.content).not.toBe('HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY');
     });
 
     it('should prevent duplicate API calls for the same request', async () => {

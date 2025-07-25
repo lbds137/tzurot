@@ -88,9 +88,6 @@ jest.mock('../../src/utils/messageFormatter', () => ({
     if (content.includes('trouble') || content.includes('error')) {
       return 'ERROR_MESSAGE_PREFIX: ' + content;
     }
-    if (content.includes('HARD_BLOCKED')) {
-      return 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY: ' + content;
-    }
     return content;
   })
 }));
@@ -148,7 +145,7 @@ jest.mock('../../src/webhook', () => ({
   sendFormattedMessageInDM: jest.fn().mockResolvedValue({ message: { id: 'dm-message-id' } }),
   isErrorContent: jest.fn().mockImplementation(content => {
     if (!content) return false;
-    return content.includes('error') || content.includes('trouble') || content.includes('HARD_BLOCKED');
+    return content.includes('error') || content.includes('trouble');
   }),
   markErrorContent: jest.fn().mockImplementation(content => content)
 }));
@@ -170,10 +167,7 @@ jest.mock('../../src/constants', () => ({
     MIN_MESSAGE_DELAY: 3000,
     MAX_ERROR_WAIT_TIME: 15000
   },
-  ERROR_MESSAGES: [],
-  MARKERS: {
-    HARD_BLOCKED_RESPONSE: 'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY'
-  }
+  ERROR_MESSAGES: []
 }));
 
 // Now require the modules
@@ -369,28 +363,4 @@ describe('WebhookManager - Message Sending Tests', () => {
     ).rejects.toThrow('Send failed');
   });
   
-  it('should skip messages with the HARD_BLOCKED marker', async () => {
-    const blockedMessage = 'This is a HARD_BLOCKED message';
-    
-    // Configure the message splitter to return hard blocked content
-    prepareAndSplitMessage.mockReturnValueOnce([
-      'HARD_BLOCKED_RESPONSE_DO_NOT_DISPLAY: ' + blockedMessage
-    ]);
-    
-    const result = await webhookManager.sendWebhookMessage(
-      mockChannel,
-      blockedMessage,
-      personality
-    );
-    
-    // The webhook manager should skip hard blocked messages
-    expect(result).toBeDefined();
-    
-    // Check if a virtual result was created (no actual messages sent)
-    const isVirtualResult = result.messageIds && result.messageIds.length === 1 && result.messageIds[0] === 'virtual-id';
-    if (isVirtualResult) {
-      // This is a virtual result
-      expect(mockWebhook.send).not.toHaveBeenCalled();
-    }
-  });
 });

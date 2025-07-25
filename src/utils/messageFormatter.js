@@ -8,40 +8,6 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../logger');
 
-/**
- * Mark content that contains error patterns
- * @param {string} content - Content to check
- * @returns {string} Content with error prefix if needed
- */
-function markErrorContent(content) {
-  if (!content) return '';
-
-  // Use the centralized error messages and markers from constants
-  const { ERROR_MESSAGES, MARKERS } = require('../constants');
-
-  // Special case for combined terms
-  if (content.includes('connection') && content.includes('unstable')) {
-    logger.info(
-      `[MessageFormatter] Detected error message (unstable connection), adding special prefix`
-    );
-    return MARKERS.ERROR_PREFIX + ' ' + content;
-  }
-
-  // Check for standard error patterns
-  for (const pattern of ERROR_MESSAGES) {
-    // Skip the marker patterns themselves to avoid duplication
-    if (pattern === MARKERS.ERROR_PREFIX || pattern === MARKERS.HARD_BLOCKED_RESPONSE) {
-      continue;
-    }
-
-    if (content.toLowerCase().includes(pattern.toLowerCase())) {
-      logger.info(`[MessageFormatter] Detected error message (${pattern}), adding special prefix`);
-      return MARKERS.ERROR_PREFIX + ' ' + content;
-    }
-  }
-
-  return content;
-}
 
 /**
  * Prepare message data for sending via webhook
@@ -116,6 +82,5 @@ function prepareMessageData(content, username, avatarUrl, isThread, threadId, op
 }
 
 module.exports = {
-  markErrorContent,
   prepareMessageData,
 };

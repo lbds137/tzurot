@@ -4,7 +4,6 @@
 
 const { EmbedBuilder } = require('discord.js');
 const {
-  markErrorContent,
   prepareMessageData,
 } = require('../../../src/utils/messageFormatter');
 
@@ -16,13 +15,6 @@ jest.mock('../../../src/logger', () => ({
   debug: jest.fn(),
 }));
 
-// Mock constants
-jest.mock('../../../src/constants', () => ({
-  ERROR_MESSAGES: ['timeout', 'connection', 'unstable'],
-  MARKERS: {
-    ERROR_PREFIX: 'ERROR_PREFIX_MARKER',
-  },
-}));
 
 describe('messageFormatter', () => {
   beforeEach(() => {
@@ -34,35 +26,6 @@ describe('messageFormatter', () => {
   });
 
   // Note: Tests for message splitting functions moved to messageSplitting.test.js
-
-  describe('markErrorContent', () => {
-    it('should return empty string for falsy content', () => {
-      expect(markErrorContent('')).toBe('');
-      expect(markErrorContent(null)).toBe('');
-      expect(markErrorContent(undefined)).toBe('');
-    });
-
-    it('should add error prefix for connection + unstable combination', () => {
-      const result = markErrorContent('The connection seems unstable right now');
-      expect(result).toBe('ERROR_PREFIX_MARKER The connection seems unstable right now');
-    });
-
-    it('should add error prefix for standard error patterns', () => {
-      const result = markErrorContent('Sorry, connection timed out');
-      expect(result).toBe('ERROR_PREFIX_MARKER Sorry, connection timed out');
-    });
-
-    it('should not add prefix for normal content', () => {
-      const result = markErrorContent('This is a normal message');
-      expect(result).toBe('This is a normal message');
-    });
-
-    it('should skip marker patterns to avoid duplication', () => {
-      const result = markErrorContent('ERROR_PREFIX_MARKER already present');
-      expect(result).toBe('ERROR_PREFIX_MARKER already present');
-      expect(result.match(/ERROR_PREFIX_MARKER/g)).toHaveLength(1);
-    });
-  });
 
   describe('prepareMessageData', () => {
     it('should prepare basic message data', () => {

@@ -20,10 +20,6 @@ jest.mock('../../src/core/conversation', () => ({
   getActivatedPersonality: jest.fn(),
 }));
 
-// Mock errorHandler
-jest.mock('../../src/handlers/errorHandler', () => ({
-  filterWebhookMessage: jest.fn().mockReturnValue(false),
-}));
 
 // Mock messageTracker
 jest.mock('../../src/messageTracker', () => ({

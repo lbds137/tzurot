@@ -80,10 +80,6 @@ jest.mock('../../src/messageTracker', () => ({
   },
 }));
 
-jest.mock('../../src/handlers/errorHandler', () => ({
-  patchClientForErrorFiltering: jest.fn(),
-  startQueueCleaner: jest.fn(),
-}));
 
 jest.mock('../../src/handlers/personalityHandler', () => ({
   handlePersonalityMessage: jest.fn(),
@@ -170,13 +166,6 @@ describe('Bot Core Functionality', () => {
       expect(global.tzurotClient).toBe(client);
     });
 
-    it('should patch client for error filtering', async () => {
-      const errorHandler = require('../../src/handlers/errorHandler');
-
-      await bot.initBot();
-
-      expect(errorHandler.patchClientForErrorFiltering).toHaveBeenCalledWith(bot.client);
-    });
 
     it('should login with Discord token', async () => {
       const client = await bot.initBot();
@@ -231,7 +220,6 @@ describe('Bot Core Functionality', () => {
     it('should handle ready event correctly', async () => {
       const logger = require('../../src/logger');
       const webhookManager = require('../../src/webhookManager');
-      const errorHandler = require('../../src/handlers/errorHandler');
 
       // Trigger ready event
       await eventHandlers.ready();
@@ -241,7 +229,6 @@ describe('Bot Core Functionality', () => {
         type: 'PLAYING',
       });
       expect(webhookManager.registerEventListeners).toHaveBeenCalledWith(client);
-      expect(errorHandler.startQueueCleaner).toHaveBeenCalledWith(client);
     });
 
     it('should register error event handler', () => {
