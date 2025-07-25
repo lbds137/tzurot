@@ -13,7 +13,6 @@ const { botPrefix } = require('../../../config');
 const { UserAuth } = require('../../domain/authentication/UserAuth');
 const { Token } = require('../../domain/authentication/Token');
 const { UserId } = require('../../domain/personality/UserId');
-const { AuthContext } = require('../../domain/authentication/AuthContext');
 const { DomainEventBus } = require('../../domain/shared/DomainEventBus');
 const {
   UserAuthenticated,
