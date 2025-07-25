@@ -374,16 +374,6 @@ function createAddCommand() {
             inline: true,
           });
 
-          // Add system indicator if using new system
-          const featureFlags = context.dependencies.featureFlags;
-          if (featureFlags?.isEnabled('ddd.personality.write')) {
-            fields.push({
-              name: 'System',
-              value: '🆕 Created with new DDD system',
-              inline: false,
-            });
-          }
-
           // Add next steps
           const prefix = context.commandPrefix || '!tz';
           const fullName = personality.profile.name || name;
