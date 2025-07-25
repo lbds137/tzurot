@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.6] - 2025-07-25
+
+### Fixed
+- **Message Deletion Bug** - Removed unwanted error filtering functionality that was automatically deleting AI personality responses
+  - AI responses containing common phrases like "trouble", "issue", or "feeling okay" were being incorrectly flagged as errors
+  - Removed aggressive error filtering system including errorHandler.js and related components
+  - Webhook messages are no longer monitored or deleted based on content patterns
+  - Fixes "flickering" messages that appeared briefly then disappeared
+
 ## [2.2.5] - 2025-07-22
 
 ### Fixed
