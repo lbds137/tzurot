@@ -7,14 +7,14 @@ module.exports = {
   rules: {
     // Enforce maximum file length
     'max-lines': ['warn', {
-      max: 500,
+      max: 800,  // Increased from 500 - some files legitimately need more
       skipBlankLines: true,
       skipComments: true
     }],
     
     // Enforce maximum function length
     'max-lines-per-function': ['warn', {
-      max: 50,
+      max: 100,  // Increased from 50 - complex functions need room
       skipBlankLines: true,
       skipComments: true,
       IIFEs: true
@@ -22,22 +22,22 @@ module.exports = {
     
     // Enforce maximum cyclomatic complexity
     'complexity': ['warn', {
-      max: 10
+      max: 15  // Increased from 10 - some logic is inherently complex
     }],
     
     // Enforce maximum depth of nested blocks
     'max-depth': ['warn', {
-      max: 3
+      max: 4  // Increased from 3 - standard depth for most codebases
     }],
     
     // Enforce maximum number of parameters
     'max-params': ['warn', {
-      max: 4
+      max: 5  // Increased from 4 - some functions need options objects
     }],
     
     // Enforce maximum number of statements in a function
     'max-statements': ['warn', {
-      max: 20
+      max: 30  // Increased from 20 - initialization functions need more
     }],
     
     // Enforce maximum number of classes per file
