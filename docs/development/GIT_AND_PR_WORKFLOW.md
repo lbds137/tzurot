@@ -162,7 +162,21 @@ git commit -m "docs: update API documentation"
 - `test`: Test additions/changes
 - `chore`: Maintenance tasks
 
-### 3. Push Changes
+### 3. Test Before Push
+
+**🚨 MANDATORY: Never push without running tests!**
+
+```bash
+# Run full test suite
+npm test
+
+# Quick test run without coverage
+npm test -- --no-coverage
+
+# If tests fail, fix them before pushing!
+```
+
+### 4. Push Changes
 
 ```bash
 # First push
@@ -172,7 +186,7 @@ git push -u origin feat/your-feature
 git push
 ```
 
-### 4. Create Pull Request
+### 5. Create Pull Request
 
 ```bash
 # Using GitHub CLI (recommended)
@@ -182,7 +196,7 @@ gh pr create --base develop --title "feat: your feature description"
 # ALWAYS verify base branch is 'develop'!
 ```
 
-### 5. Code Review Process
+### 6. Code Review Process
 
 1. **Automated checks** run (tests, linting, coverage)
 2. **Code review** by team members
@@ -190,7 +204,7 @@ gh pr create --base develop --title "feat: your feature description"
 4. **Approval** from at least one reviewer
 5. **Merge** using rebase (automatic via GitHub)
 
-### 6. After Merge
+### 7. After Merge
 
 ```bash
 # Clean up local branch
