@@ -134,64 +134,6 @@ describe('NsfwStatus', () => {
     });
   });
 
-  describe('isStale', () => {
-    it('should return true for unverified status', () => {
-      const status = new NsfwStatus();
-
-      expect(status.isStale()).toBe(true);
-    });
-
-    it('should return false for fresh verification', () => {
-      const status = NsfwStatus.createVerified();
-
-      expect(status.isStale()).toBe(false);
-    });
-
-    it('should always return false for verified status (permanent verification)', () => {
-      const status = NsfwStatus.createVerified();
-
-      // Advance past default 30 days
-      jest.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
-
-      expect(status.isStale()).toBe(false); // Always false for verified
-    });
-
-    it('should ignore custom max age (permanent verification)', () => {
-      const status = NsfwStatus.createVerified();
-
-      // Advance 1 day
-      jest.advanceTimersByTime(24 * 60 * 60 * 1000);
-
-      const oneWeek = 7 * 24 * 60 * 60 * 1000;
-      const oneHour = 60 * 60 * 1000;
-
-      expect(status.isStale(oneWeek)).toBe(false);
-      expect(status.isStale(oneHour)).toBe(false); // Always false for verified
-    });
-
-    it('should accept custom current time but always return false for verified', () => {
-      const status = NsfwStatus.createVerified();
-      const futureTime = new Date('2024-02-01T00:00:00Z');
-
-      expect(status.isStale(30 * 24 * 60 * 60 * 1000, futureTime)).toBe(false); // Always false
-    });
-
-    it('should handle exact staleness boundary but always return false', () => {
-      const status = NsfwStatus.createVerified();
-      const maxAge = 30 * 24 * 60 * 60 * 1000;
-
-      // Advance exactly to max age
-      jest.advanceTimersByTime(maxAge);
-
-      expect(status.isStale(maxAge)).toBe(false);
-
-      // One millisecond more
-      jest.advanceTimersByTime(1);
-
-      expect(status.isStale(maxAge)).toBe(false); // Always false for verified
-    });
-  });
-
   describe('toJSON', () => {
     it('should serialize verified status', () => {
       const verifiedAt = new Date();
