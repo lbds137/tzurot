@@ -30,7 +30,6 @@ class PersonalityDataRepository {
    */
   async load(personalityName) {
     const personalityData = new PersonalityData(personalityName);
-    const personalityDir = path.join(this.backupDir, personalityName);
 
     try {
       // Load metadata

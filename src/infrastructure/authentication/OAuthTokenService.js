@@ -54,7 +54,7 @@ class OAuthTokenService extends TokenService {
    * @param {string} state - OAuth state parameter (optional)
    * @returns {Promise<string>} Authorization URL
    */
-  async getAuthorizationUrl(state) {
+  async getAuthorizationUrl() {
     try {
       logger.info('[OAuthTokenService] Generating authorization URL');
 

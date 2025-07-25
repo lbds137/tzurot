@@ -246,11 +246,11 @@ class AIRequest extends AggregateRoot {
     this.error = event.payload.error;
   }
 
-  onAIRequestRetried(_event) {
+  onAIRequestRetried(event) {
     this.status = 'retrying';
   }
 
-  onAIRequestRateLimited(_event) {
+  onAIRequestRateLimited(event) {
     this.status = 'rate_limited';
   }
 

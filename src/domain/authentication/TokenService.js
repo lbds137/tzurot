@@ -13,7 +13,7 @@ class TokenService {
    * @param {string} userId - Discord user ID
    * @returns {Promise<{token: string, expiresAt: Date}>} Token data
    */
-  async exchangeToken(userId) {
+  async exchangeToken(_userId) {
     throw new Error('TokenService.exchangeToken() must be implemented');
   }
 
@@ -22,7 +22,7 @@ class TokenService {
    * @param {string} token - Token to validate
    * @returns {Promise<boolean>} True if valid
    */
-  async validateToken(token) {
+  async validateToken(_token) {
     throw new Error('TokenService.validateToken() must be implemented');
   }
 
@@ -31,7 +31,7 @@ class TokenService {
    * @param {string} token - Current token
    * @returns {Promise<{token: string, expiresAt: Date}>} New token data
    */
-  async refreshToken(token) {
+  async refreshToken(_token) {
     throw new Error('TokenService.refreshToken() must be implemented');
   }
 
@@ -40,7 +40,7 @@ class TokenService {
    * @param {string} token - Token to revoke
    * @returns {Promise<void>}
    */
-  async revokeToken(token) {
+  async revokeToken(_token) {
     throw new Error('TokenService.revokeToken() must be implemented');
   }
 }

@@ -13,7 +13,7 @@ class AuthenticationRepository {
    * @param {UserAuth} userAuth - User authentication to save
    * @returns {Promise<void>}
    */
-  async save(userAuth) {
+  async save(_userAuth) {
     throw new Error('AuthenticationRepository.save() must be implemented');
   }
 
@@ -22,7 +22,7 @@ class AuthenticationRepository {
    * @param {UserId} userId - User ID
    * @returns {Promise<UserAuth|null>} User auth or null
    */
-  async findByUserId(userId) {
+  async findByUserId(_userId) {
     throw new Error('AuthenticationRepository.findByUserId() must be implemented');
   }
 
@@ -40,7 +40,7 @@ class AuthenticationRepository {
    * @param {Date} expiryDate - Check tokens expired before this
    * @returns {Promise<UserAuth[]>} Users with expired tokens
    */
-  async findExpiredTokens(expiryDate) {
+  async findExpiredTokens(_expiryDate) {
     throw new Error('AuthenticationRepository.findExpiredTokens() must be implemented');
   }
 
@@ -49,7 +49,7 @@ class AuthenticationRepository {
    * @param {UserId} userId - User ID
    * @returns {Promise<void>}
    */
-  async delete(userId) {
+  async delete(_userId) {
     throw new Error('AuthenticationRepository.delete() must be implemented');
   }
 
