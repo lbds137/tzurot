@@ -11,9 +11,6 @@ jest.mock('../../src/utils/aiErrorHandler', () => ({
   analyzeErrorAndGenerateMessage: jest.fn(),
   handleApiError: jest.fn(),
 }));
-jest.mock('../../src/utils/contentSanitizer', () => ({
-  sanitizeContent: jest.fn(content => content), // Pass through content
-}));
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap');
 jest.mock('../../src/utils/aiRequestManager', () => ({
   getPendingRequest: jest.fn().mockReturnValue(null),

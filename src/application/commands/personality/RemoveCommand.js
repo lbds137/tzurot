@@ -30,7 +30,6 @@ function createRemoveCommand() {
         const personalityService = context.dependencies.personalityApplicationService;
         const profileInfoCache = context.dependencies.profileInfoCache;
         const messageTracker = context.dependencies.messageTracker;
-        const featureFlags = context.dependencies.featureFlags;
 
         if (!personalityService) {
           throw new Error('PersonalityApplicationService not available');

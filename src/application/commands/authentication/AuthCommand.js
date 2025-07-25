@@ -112,15 +112,15 @@ function createExecutor(_dependencies) {
       // Handle the various subcommands
       switch (action) {
         case 'start':
-          return await handleStart(context, auth);
+          return await handleStart(context);
         case 'code':
           return await handleCode(context, auth, options.code || args[1]);
         case 'status':
-          return await handleStatus(context, auth);
+          return await handleStatus(context);
         case 'revoke':
-          return await handleRevoke(context, auth);
+          return await handleRevoke(context);
         case 'cleanup':
-          return await handleCleanup(context, auth);
+          return await handleCleanup(context);
         default: {
           const unknownActionEmbed = {
             title: '❌ Unknown Auth Command',
@@ -224,7 +224,7 @@ async function showHelp(context) {
 /**
  * Handle auth start subcommand
  */
-async function handleStart(context, auth) {
+async function handleStart(context) {
   try {
     // Get authentication service from DDD system
     const {
@@ -575,7 +575,7 @@ async function handleCode(context, auth, code) {
 /**
  * Handle auth status subcommand
  */
-async function handleStatus(context, auth) {
+async function handleStatus(context) {
   try {
     // Get authentication service from DDD system
     const {
@@ -670,7 +670,7 @@ async function handleStatus(context, auth) {
 /**
  * Handle auth revoke subcommand
  */
-async function handleRevoke(context, auth) {
+async function handleRevoke(context) {
   try {
     // Get authentication service from DDD system
     const {
@@ -738,7 +738,7 @@ async function handleRevoke(context, auth) {
 /**
  * Handle auth cleanup subcommand (admin only)
  */
-async function handleCleanup(context, auth) {
+async function handleCleanup(context) {
   // Check if the user is an admin or bot owner
   const isAdmin = await context.hasPermission('Administrator');
   const isBotOwner = context.userId === process.env.BOT_OWNER_ID;
