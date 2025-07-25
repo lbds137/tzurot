@@ -10,7 +10,6 @@ const webhookManager = require('../../../src/webhookManager');
 const channelUtils = require('../../../src/utils/channelUtils');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
 const conversationManager = require('../../../src/core/conversation');
-const { MARKERS } = require('../../../src/constants');
 const requestTracker = require('../../../src/utils/requestTracker');
 const threadHandler = require('../../../src/utils/threadHandler');
 const { detectMedia } = require('../../../src/utils/media');
@@ -385,28 +384,9 @@ describe('Personality Handler Module', () => {
       );
     });
 
-    it('should handle error response markers', async () => {
-      getAiResponse.mockResolvedValueOnce({ content: MARKERS.HARD_BLOCKED_RESPONSE, metadata: null });
-
-      await personalityHandler.handlePersonalityInteraction(
-        mockMessage,
-        mockPersonality,
-        'Test message',
-        mockClient
-      );
-
-      // Currently the code doesn't check for HARD_BLOCKED_RESPONSE, so it will send it as a normal message
-      expect(webhookManager.sendWebhookMessage).toHaveBeenCalledWith(
-        mockMessage.channel,
-        MARKERS.HARD_BLOCKED_RESPONSE,
-        mockPersonality,
-        expect.any(Object),
-        mockMessage
-      );
-    });
 
     it('should handle error messages from AI service', async () => {
-      getAiResponse.mockResolvedValueOnce({ content: `${MARKERS.BOT_ERROR_MESSAGE}Something went wrong`, metadata: null });
+      getAiResponse.mockResolvedValueOnce({ content: `BOT_ERROR_MESSAGE:Something went wrong`, metadata: null });
 
       await personalityHandler.handlePersonalityInteraction(
         mockMessage,

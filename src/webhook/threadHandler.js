@@ -139,7 +139,7 @@ async function sendDirectThreadMessage(
       const embeds = isLastChunk && options.embeds ? options.embeds : [];
 
       // Use chunk content directly (model indicator already included)
-      let finalChunkContent = chunkContent;
+      const finalChunkContent = chunkContent;
 
       // Resolve avatar URL through storage system
       let avatarUrl = null;

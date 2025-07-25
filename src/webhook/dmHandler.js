@@ -159,7 +159,7 @@ async function sendFormattedMessageInDM(
     for (let i = 0; i < contentChunks.length; i++) {
       const isFirstChunk = chunkHelpers.isFirstChunk(i);
       const isLastChunk = chunkHelpers.isLastChunk(i, contentChunks.length);
-      let chunkContent = contentChunks[i];
+      const chunkContent = contentChunks[i];
 
       // Add a delay between chunks to prevent Discord from merging/replacing them
       if (i > 0) {

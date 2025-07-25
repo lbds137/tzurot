@@ -107,13 +107,6 @@ const createRequestId = aiRequestManager.createRequestId;
  *   channelId: '987654321'
  * });
  *
- * // Handle blocked responses
- * if (response === MARKERS.HARD_BLOCKED_RESPONSE) {
- *   // Do not display anything to the user
- * } else {
- *   // Show the response to the user
- * }
- *
  * @description
  * This is the core function that handles AI interactions with sophisticated
  * error handling and request deduplication. It provides these key features:
@@ -124,9 +117,8 @@ const createRequestId = aiRequestManager.createRequestId;
  * 4. Problematic personality detection - Tracks personalities with recurring issues
  * 5. Automatic retries - Attempts to recover from temporary errors
  *
- * The function returns either a valid AI response or a special marker (HARD_BLOCKED_RESPONSE)
- * that indicates no response should be shown to the user. This happens when an error
- * occurs or when the personality+user combination is in a blackout period.
+ * The function returns either a valid AI response or an error message prefixed with
+ * BOT_ERROR_MESSAGE that should be displayed as a bot message rather than a webhook message.
  */
 async function getAiResponse(personalityName, message, context = {}) {
   // Validate input parameters first
