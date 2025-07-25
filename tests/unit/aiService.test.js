@@ -945,14 +945,6 @@ describe('AI Service', () => {
       webhookUserTracker.shouldBypassNsfwVerification.mockReturnValue(false);
     });
 
-    it('should log when initAiClient is called', async () => {
-      const { initAiClient } = require('../../src/aiService');
-      const logger = require('../../src/logger');
-      logger.info = jest.fn();
-
-      initAiClient();
-      expect(logger.info).toHaveBeenCalledWith('[AIService] initAiClient called - using DDD authentication system');
-    });
 
     it('should bypass authentication for recognized webhook users', async () => {
       const context = {

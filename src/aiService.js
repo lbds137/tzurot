@@ -14,11 +14,6 @@ const {
 const { getPersonalityDataService } = require('./services/PersonalityDataService');
 const { createFeatureFlags } = require('./application/services/FeatureFlags');
 
-// Initialize the AI client (now a no-op since DDD handles auth)
-function initAiClient(_authManagerInstance) {
-  // Legacy initialization - DDD system handles authentication
-  logger.info('[AIService] initAiClient called - using DDD authentication system');
-}
 
 // Check if user is authenticated using DDD system
 async function isUserAuthenticated(userId) {
@@ -469,7 +464,6 @@ async function handleNormalPersonality(personalityName, message, context, modelP
 module.exports = {
   getAiResponse,
   getAiClientForUser,
-  initAiClient,
 
   // Export for testing
   handleNormalPersonality,
