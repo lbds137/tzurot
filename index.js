@@ -1,11 +1,8 @@
 // Load environment variables
 require('dotenv').config();
-const { initStorage } = require('./src/dataStorage');
-// Legacy personality system removed - using DDD only
 const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
-// Health check is now part of the modular HTTP server
 const logger = require('./src/logger');
 const { botConfig } = require('./config');
 const { releaseNotificationManager } = require('./src/core/notifications');
@@ -42,10 +39,6 @@ async function init() {
   try {
     logger.info(`Starting ${botConfig.name} initialization...`);
     
-    // Initialize data storage
-    await initStorage();
-    logger.info('Data storage initialized');
-    
     // Check if Railway volume is mounted
     const fs = require('fs').promises;
     try {
@@ -66,8 +59,7 @@ async function init() {
     // Initialize conversation manager (loads saved conversation data)
     await coreConversation.initConversationManager();
     logger.info('Conversation manager initialized');
-    
-    
+
     // Initialize application bootstrap with DDD authentication
     try {
       appBootstrap = getApplicationBootstrap();
@@ -77,27 +69,27 @@ async function init() {
       logger.error('Failed to initialize application bootstrap:', error);
       throw error; // DDD authentication is now required
     }
-    
+
     // Initialize pluralkitReplyTracker cleanup
     const pluralkitReplyTracker = require('./src/utils/pluralkitReplyTracker');
     pluralkitReplyTracker.startCleanup();
     logger.info('Pluralkit reply tracker initialized');
-    
+
     // AI client gets authentication from DDD system when needed
     logger.info('AI client will be initialized by DDD system when needed');
-    
+
     // Initialize and start the bot - this is critical for user experience
     // Bot will get authentication from the DDD system via ApplicationBootstrap
     await initBot();
     logger.info('Bot initialized and started');
-    
+
     // Now that the bot is started, we can do non-blocking background tasks
-    
+
     // Initialize release notification manager and check for updates
     try {
       await releaseNotificationManager.initialize(client);
       logger.info('Release notification manager initialized');
-      
+
       // Check for new version and send notifications in the background
       // We don't await this to avoid blocking startup
       releaseNotificationManager.checkAndNotify()
@@ -113,7 +105,7 @@ async function init() {
       logger.error('Failed to initialize release notifications:', notificationError);
       // Continue without notifications - not critical for bot operation
     }
-    
+
     // Start HTTP server for health checks, webhooks, and other endpoints
     try {
       const { createHTTPServer } = require('./src/httpServer');
