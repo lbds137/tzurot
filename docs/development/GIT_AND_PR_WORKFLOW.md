@@ -30,6 +30,19 @@ This guide consolidates all git workflow, PR rules, and branch management docume
 - Refactoring (`refactor/*`)
 - Tests (`test/*`)
 
+### ⚠️ Common Mistake: Premature Syncing
+
+**WRONG sequence:**
+1. ❌ Merge feature PR to develop
+2. ❌ Try to sync develop with main ← **NO! Main doesn't have your changes yet!**
+3. ❌ Create release PR
+
+**CORRECT sequence:**
+1. ✅ Merge feature PR to develop
+2. ✅ Create release PR (develop → main)
+3. ✅ Merge release PR
+4. ✅ NOW sync develop with main
+
 ### 🔧 Repository Settings
 
 - **Rebase-only workflow**: No merge commits allowed
@@ -264,6 +277,18 @@ Brief description of changes
 
 ## Syncing Branches
 
+### 🚨 CRITICAL: When to Sync (and When NOT to)
+
+**ONLY sync develop with main AFTER:**
+- ✅ Release PR has been merged to main
+- ✅ Hotfix PR has been merged to main
+- ✅ Any direct changes to main (rare)
+
+**NEVER sync develop with main WHEN:**
+- ❌ You've just merged a feature PR (feature → develop)
+- ❌ Before creating a release PR
+- ❌ When main is behind develop (normal state between releases)
+
 ### Why Branches Diverge
 
 After merging to `main` (releases, hotfixes), `develop` falls behind. This must be fixed immediately.
@@ -324,33 +349,48 @@ jobs:
 
 ## Release Workflow
 
+### Understanding the Release Flow
+
+**Before starting a release, understand the branch states:**
+- `develop` contains all new features/fixes ready for release
+- `main` contains the current production code
+- `develop` is AHEAD of `main` (this is normal!)
+
 ### Creating a Release
 
-1. **Create Release Branch**
+1. **Ensure Feature PRs are Merged to Develop**
    ```bash
+   # Check that all intended features are in develop
    git checkout develop
    git pull origin develop
+   git log --oneline -10  # Verify recent merges
+   ```
+
+2. **Create Release Branch FROM DEVELOP**
+   ```bash
+   # Always branch from develop, never from main!
    git checkout -b release/vX.Y.Z
    ```
 
-2. **Update Version and Changelog**
+3. **Update Version and Changelog**
    ```bash
    # Edit package.json version
    # Update CHANGELOG.md
    git commit -m "chore: bump version to X.Y.Z and update changelog"
    ```
 
-3. **Create PR to Main**
+4. **Create PR to Main**
    ```bash
+   # This brings develop's changes TO main
    gh pr create --base main --title "chore: release vX.Y.Z"
    ```
 
-4. **Handle Merge Issues**
+5. **Handle Merge Issues**
    - If GitHub UI shows false merge conflicts
    - Use command line rebase strategy (see above)
    - Never use squash for releases
 
-5. **Create GitHub Release**
+6. **Create GitHub Release**
    ```bash
    # After successful merge to main
    git checkout main && git pull origin main
@@ -519,6 +559,11 @@ Creating PR?
 ├── Normal work → Target: develop
 ├── Release → Target: main (from release branch)
 └── Not sure? → Default to develop!
+
+Just merged a PR?
+├── Feature PR (→ develop) → DON'T SYNC! Continue working
+├── Release PR (→ main) → NOW sync develop with main
+└── Hotfix PR (→ main) → NOW sync develop with main
 ```
 
 ---
