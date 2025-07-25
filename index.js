@@ -6,11 +6,9 @@ const coreConversation = require('./src/core/conversation');
 const { initBot, client } = require('./src/bot');
 const { clearAllWebhookCaches } = require('./src/webhookManager');
 // Health check is now part of the modular HTTP server
-const { initAiClient } = require('./src/aiService');
 const logger = require('./src/logger');
 const { botConfig } = require('./config');
 const { releaseNotificationManager } = require('./src/core/notifications');
-const { getDataDirectory } = require('./src/dataStorage');
 const { getApplicationBootstrap } = require('./src/application/bootstrap/ApplicationBootstrap');
 
 // Track whether app has been initialized
@@ -85,10 +83,7 @@ async function init() {
     pluralkitReplyTracker.startCleanup();
     logger.info('Pluralkit reply tracker initialized');
     
-    // Initialize the AI client with DDD auth (TODO: update this to use DDD auth)
-    // For now, we'll initialize without authManager since the AI client
-    // should get auth from the DDD system when needed
-    // initAiClient(authManager);
+    // AI client gets authentication from DDD system when needed
     logger.info('AI client will be initialized by DDD system when needed');
     
     // Initialize and start the bot - this is critical for user experience

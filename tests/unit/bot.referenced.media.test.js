@@ -1,4 +1,4 @@
-const { getAiResponse, createRequestId, formatApiMessages, initAiClient } = require('../../src/aiService');
+const { getAiResponse, createRequestId, formatApiMessages } = require('../../src/aiService');
 
 // Mock OpenAI module
 jest.mock('openai', () => {
