@@ -31,51 +31,6 @@ class Token extends ValueObject {
     this.expiresAt = expiresAt;
   }
 
-  /**
-   * Check if token is expired
-   * @deprecated Token expiry is handled by the AI service
-   * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {boolean} Always false - AI service handles validation
-   */
-  isExpired() {
-    // Token validation is handled by the AI service
-    // This method is kept for backward compatibility but always returns false
-    return false;
-  }
-
-  /**
-   * Get time until expiration in milliseconds
-   * @deprecated Token expiry is handled by the AI service
-   * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {number} Always returns Infinity - AI service handles expiry
-   */
-  timeUntilExpiration() {
-    // Token expiry is handled by the AI service
-    return Infinity;
-  }
-
-  /**
-   * Check if token should be refreshed (expires soon)
-   * @deprecated Token refresh is handled by the AI service
-   * @param {number} refreshThresholdMs - Refresh if expires within this time
-   * @param {Date} [currentTime] - Current time (for testing)
-   * @returns {boolean} Always false - AI service handles refresh
-   */
-  shouldRefresh() {
-    // Token refresh is handled by the AI service
-    return false;
-  }
-
-  /**
-   * Create a token with extended expiration
-   * @param {number} extensionMs - Milliseconds to extend
-   * @returns {Token} New token with extended expiration
-   */
-  extend(extensionMs) {
-    const newExpiration = new Date(this.expiresAt.getTime() + extensionMs);
-    return new Token(this.value, newExpiration);
-  }
-
   toString() {
     // Never expose the actual token value in logs
     return `Token[****${this.value.slice(-4)}]`;

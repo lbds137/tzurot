@@ -227,10 +227,6 @@ class UserAuth extends AggregateRoot {
   }
 
   // Event handlers
-  onUserAuthenticated() {
-    // No longer tracking authentication count or last authenticated time
-  }
-
   onUserTokenRefreshed(event) {
     this.token = new Token(
       event.payload.newToken.value,

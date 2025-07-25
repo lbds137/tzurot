@@ -51,15 +51,6 @@ class NsfwStatus extends ValueObject {
     return new NsfwStatus(false, null);
   }
 
-  /**
-   * Check if verification is stale
-   * @returns {boolean} Always false for verified users
-   */
-  isStale() {
-    // NSFW verification is permanent - once verified, always verified
-    return !this.verified;
-  }
-
   toJSON() {
     return {
       verified: this.verified,

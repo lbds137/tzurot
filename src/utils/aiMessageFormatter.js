@@ -46,20 +46,17 @@ async function formatApiMessages(
         const userName = content.userName || 'The user';
 
         // Get the content of the referenced message
-        const sanitizedReferenceContent = content.referencedMessage.content || '';
+        const referenceContent = content.referencedMessage.content || '';
 
         logger.debug(
           `[AIMessageFormatter] Processing referenced message: ${JSON.stringify({
             authorType: content.referencedMessage.isFromBot ? 'bot' : 'user',
-            contentPreview: sanitizedReferenceContent.substring(0, 50) || 'No content',
+            contentPreview: referenceContent.substring(0, 50) || 'No content',
             referencingUser: userName,
           })}`
         );
 
         try {
-          // Initialize cleaned reference content early for use throughout the function
-          const cleanedRefContent = content.referencedMessage.content;
-
           // First, check if media URLs were provided directly (from embed extraction)
           let mediaUrl = null;
           let mediaType = null;
@@ -78,19 +75,19 @@ async function formatApiMessages(
             );
           } else {
             // Fallback to extracting from text content for backward compatibility
-            const hasImage = sanitizedReferenceContent.includes('[Image:');
-            const hasAudio = sanitizedReferenceContent.includes('[Audio:');
+            const hasImage = referenceContent.includes('[Image:');
+            const hasAudio = referenceContent.includes('[Audio:');
 
             if (hasAudio) {
               // Audio has priority over images
-              const audioMatch = sanitizedReferenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)]/);
+              const audioMatch = referenceContent.match(/\[Audio: (https?:\/\/[^\s\]]+)]/);
               if (audioMatch && audioMatch[1]) {
                 mediaUrl = audioMatch[1];
                 mediaType = 'audio';
                 logger.debug(`[AIMessageFormatter] Found audio URL in reference text: ${mediaUrl}`);
               }
             } else if (hasImage) {
-              const imageMatch = sanitizedReferenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)]/);
+              const imageMatch = referenceContent.match(/\[Image: (https?:\/\/[^\s\]]+)]/);
               if (imageMatch && imageMatch[1]) {
                 mediaUrl = imageMatch[1];
                 mediaType = 'image';
@@ -100,7 +97,7 @@ async function formatApiMessages(
           }
 
           // Clean the referenced message content (remove media URLs and embed media references)
-          let cleanContent = sanitizedReferenceContent
+          let cleanContent = referenceContent
             .replace(/\[Image: https?:\/\/[^\s\]]+]/g, '')
             .replace(/\[Audio: https?:\/\/[^\s\]]+]/g, '')
             .replace(/\[Embed Image: https?:\/\/[^\s\]]+]/g, '')
@@ -216,7 +213,7 @@ async function formatApiMessages(
               // Use cleaned content to avoid media duplication
               referenceDescriptor = {
                 role: 'assistant',
-                content: assistantReferenceContent || cleanedRefContent,
+                content: assistantReferenceContent || cleanContent,
               };
               logger.debug(
                 `[AIMessageFormatter] Using assistant role for reference to same personality: ${personalityName}`
@@ -226,7 +223,7 @@ async function formatApiMessages(
               // Use cleaned content to avoid media duplication
               referenceDescriptor = {
                 role: 'user',
-                content: assistantReferenceContent || cleanedRefContent,
+                content: assistantReferenceContent || cleanContent,
               };
               logger.debug(
                 `[AIMessageFormatter] Using user role for reference to different personality: ${content.referencedMessage.personalityName}`
@@ -269,152 +266,76 @@ async function formatApiMessages(
             }
           }
 
-          // Hybrid approach: combine messages when replying to yourself, separate for different senders
-          const isReplyingToSelf = currentUserName.includes(referencedAuthor);
-
+          // Always combine everything into single message for better AI processing
           let messages;
+          const combinedContent = [];
 
-          if (isReplyingToSelf) {
-            // Same sender: combine into single message to avoid duplication
-            const combinedContent = [];
+          // Combine all text content into a single text element
+          let combinedText = '';
 
-            // Combine all text content into a single text element
-            let combinedText = '';
-
-            // Add context metadata if available and not disabled
-            if (message && !disableContextMetadata) {
-              try {
-                const contextPrefix = formatContextMetadata(message) + ' ';
-                combinedText += contextPrefix;
-                logger.debug(
-                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
-                );
-              } catch (error) {
-                logger.error(
-                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
-                );
-                // Continue without context metadata on error
-              }
-            }
-
-            if (Array.isArray(userMessageContent)) {
-              // Extract text from multimodal user content
-              const userTextParts = userMessageContent
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join(' ');
-              combinedText += userTextParts;
-            } else {
-              const sanitizedUserContent =
-                typeof userMessageContent === 'string'
-                  ? userMessageContent
-                  : 'Message content missing';
-              combinedText += sanitizedUserContent;
-            }
-
-            // Add reference context (with newline formatting)
-            combinedText += '\n\n' + referenceDescriptor.content;
-
-            // Add the combined text as first element
-            combinedContent.push({
-              type: 'text',
-              text: combinedText,
-            });
-
-            // Add user's original media content (images/audio from user's message)
-            if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(
-                item => item.type === 'image_url' || item.type === 'audio_url'
+          // Add context metadata if available and not disabled
+          if (message && !disableContextMetadata) {
+            try {
+              const contextPrefix = formatContextMetadata(message) + ' ';
+              combinedText += contextPrefix;
+              logger.debug(
+                `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
               );
-              combinedContent.push(...userMediaElements);
-            }
-
-            // Add referenced media content if present (just the media URL, not the prompt text)
-            if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(
-                item => item.type === 'audio_url' || item.type === 'image_url'
+            } catch (error) {
+              logger.error(
+                `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
               );
-              combinedContent.push(...mediaElements);
+              // Continue without context metadata on error
             }
-
-            // Create single combined message
-            const userMessage = { role: 'user', content: combinedContent };
-            messages = [userMessage];
-
-            logger.debug(
-              `[AIMessageFormatter] Same sender detected - combined into single message`
-            );
-          } else {
-            // Different senders: combine everything into single message for better AI processing
-            const combinedContent = [];
-
-            // Combine all text content into a single text element
-            let combinedText = '';
-
-            // Add context metadata if available and not disabled
-            if (message && !disableContextMetadata) {
-              try {
-                const contextPrefix = formatContextMetadata(message) + ' ';
-                combinedText += contextPrefix;
-                logger.debug(
-                  `[AIMessageFormatter] Added context metadata to reference message: ${contextPrefix}`
-                );
-              } catch (error) {
-                logger.error(
-                  `[AIMessageFormatter] Error formatting context metadata: ${error.message}`
-                );
-                // Continue without context metadata on error
-              }
-            }
-
-            if (Array.isArray(userMessageContent)) {
-              // Extract text from multimodal user content
-              const userTextParts = userMessageContent
-                .filter(item => item.type === 'text')
-                .map(item => item.text)
-                .join(' ');
-              combinedText += userTextParts;
-            } else {
-              const sanitizedUserContent =
-                typeof userMessageContent === 'string'
-                  ? userMessageContent
-                  : 'Message content missing';
-              combinedText += sanitizedUserContent;
-            }
-
-            // Add reference context (with newline formatting)
-            combinedText += '\n\n' + referenceDescriptor.content;
-
-            // Add the combined text as first element
-            combinedContent.push({
-              type: 'text',
-              text: combinedText,
-            });
-
-            // Add user's original media content (images/audio from user's message)
-            if (Array.isArray(userMessageContent)) {
-              const userMediaElements = userMessageContent.filter(
-                item => item.type === 'image_url' || item.type === 'audio_url'
-              );
-              combinedContent.push(...userMediaElements);
-            }
-
-            // Add referenced media content if present (just the media URL, not the prompt text)
-            if (mediaMessage && Array.isArray(mediaMessage.content)) {
-              const mediaElements = mediaMessage.content.filter(
-                item => item.type === 'audio_url' || item.type === 'image_url'
-              );
-              combinedContent.push(...mediaElements);
-            }
-
-            // Create single combined message
-            const userMessage = { role: 'user', content: combinedContent };
-            messages = [userMessage];
-
-            logger.debug(
-              `[AIMessageFormatter] Different senders detected - combined everything into single message for better AI processing`
-            );
           }
+
+          if (Array.isArray(userMessageContent)) {
+            // Extract text from multimodal user content
+            const userTextParts = userMessageContent
+              .filter(item => item.type === 'text')
+              .map(item => item.text)
+              .join(' ');
+            combinedText += userTextParts;
+          } else {
+            const userContent =
+              typeof userMessageContent === 'string'
+                ? userMessageContent
+                : 'Message content missing';
+            combinedText += userContent;
+          }
+
+          // Add reference context (with newline formatting)
+          combinedText += '\n\n' + referenceDescriptor.content;
+
+          // Add the combined text as first element
+          combinedContent.push({
+            type: 'text',
+            text: combinedText,
+          });
+
+          // Add user's original media content (images/audio from user's message)
+          if (Array.isArray(userMessageContent)) {
+            const userMediaElements = userMessageContent.filter(
+              item => item.type === 'image_url' || item.type === 'audio_url'
+            );
+            combinedContent.push(...userMediaElements);
+          }
+
+          // Add referenced media content if present (just the media URL, not the prompt text)
+          if (mediaMessage && Array.isArray(mediaMessage.content)) {
+            const mediaElements = mediaMessage.content.filter(
+              item => item.type === 'audio_url' || item.type === 'image_url'
+            );
+            combinedContent.push(...mediaElements);
+          }
+
+          // Create single combined message
+          const userMessage = { role: 'user', content: combinedContent };
+          messages = [userMessage];
+
+          logger.debug(
+            `[AIMessageFormatter] Combined reference and user message into single message for better AI processing`
+          );
 
           logger.info(`[DEBUG] Final messages being sent to AI API (count: ${messages.length}):`);
           messages.forEach((msg, index) => {
@@ -430,28 +351,17 @@ async function formatApiMessages(
           logger.error(`[AIMessageFormatter] Reference processing error stack: ${refError.stack}`);
 
           // Fall back to just sending the user's message
-          const sanitizedContent =
-            typeof content.messageContent === 'string'
+          const messageContent =
+            typeof content.messageContent === 'string' || Array.isArray(content.messageContent)
               ? content.messageContent
-              : Array.isArray(content.messageContent)
-                ? content.messageContent
-                : 'There was an error processing a referenced message.';
+              : 'There was an error processing a referenced message.';
 
-          return [{ role: 'user', content: sanitizedContent }];
+          return [{ role: 'user', content: messageContent }];
         }
       }
 
       // If no reference but still using the special format, process user message normally
-      if (Array.isArray(content.messageContent)) {
-        return [{ role: 'user', content: content.messageContent }];
-      } else {
-        const sanitizedContent =
-          typeof content.messageContent === 'string'
-            ? content.messageContent
-            : content.messageContent;
-
-        return [{ role: 'user', content: sanitizedContent }];
-      }
+      return [{ role: 'user', content: content.messageContent }];
     }
 
     // Standard handling for non-reference formats
@@ -513,10 +423,8 @@ async function formatApiMessages(
       }
     }
 
-    // Simple text message - sanitize if it's a string
+    // Simple text message
     if (typeof content === 'string') {
-      const sanitizedContent = content;
-
       // Add context metadata if available and not disabled
       let contextPrefix = '';
       if (message && !disableContextMetadata) {
@@ -532,8 +440,8 @@ async function formatApiMessages(
       // For proxy messages only: prepend speaker identification if we have a userName
       const contentWithProxyPrefix =
         isProxyMessage && userName !== 'a user'
-          ? `${userName}: ${sanitizedContent}`
-          : sanitizedContent;
+          ? `${userName}: ${content}`
+          : content;
 
       // Combine context metadata with content
       const finalContent = contextPrefix + contentWithProxyPrefix;
@@ -569,11 +477,9 @@ async function formatApiMessages(
         {
           role: 'user',
           content:
-            typeof content.messageContent === 'string'
+            typeof content.messageContent === 'string' || Array.isArray(content.messageContent)
               ? content.messageContent
-              : Array.isArray(content.messageContent)
-                ? content.messageContent
-                : 'There was an error formatting my message.',
+              : 'There was an error formatting my message.',
         },
       ];
     }
