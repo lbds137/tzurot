@@ -258,6 +258,20 @@ Each layer serves a specific purpose - maintain all of them
 
 ## Git Workflow - Tzurot Specific
 
+### 🚨 MANDATORY: Run Tests Before Pushing!
+
+**NEVER push without running tests first:**
+```bash
+npm test                    # Run full test suite
+# OR for quick verification:
+npm test -- --no-coverage   # Faster without coverage
+```
+
+**Why this is critical:**
+- Tests catch breaking changes that aren't obvious
+- Prevents breaking the develop branch for others
+- Avoids emergency reverts and wasted time
+
 ### 🚨 PR RULES: NEVER TO MAIN (except releases/hotfixes)!
 
 **Branch Strategy**: 
