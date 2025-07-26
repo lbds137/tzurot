@@ -15,7 +15,6 @@ jest.mock('../../../../src/adapters/persistence/FileAuthenticationRepository');
 jest.mock('../../../../src/adapters/ai/HttpAIServiceAdapter');
 jest.mock('../../../../src/application/eventHandlers/EventHandlerRegistry');
 jest.mock('../../../../src/application/services/FeatureFlags');
-jest.mock('../../../../src/application/routers/PersonalityRouter');
 jest.mock('../../../../src/application/commands/CommandIntegration');
 jest.mock('../../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../../src/infrastructure/authentication/OAuthTokenService');
@@ -68,7 +67,6 @@ const {
   EventHandlerRegistry,
 } = require('../../../../src/application/eventHandlers/EventHandlerRegistry');
 const { createFeatureFlags } = require('../../../../src/application/services/FeatureFlags');
-const { PersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
 const {
   getCommandIntegration,
 } = require('../../../../src/application/commands/CommandIntegration');
@@ -81,7 +79,7 @@ const { AuthenticationApplicationService } = require('../../../../src/applicatio
 describe('ApplicationBootstrap', () => {
   let mockEventBus;
   let mockFeatureFlags;
-  let mockPersonalityRouter;
+  let mockPersonalityApplicationService;
   let mockOAuthTokenService;
   let mockAuthenticationApplicationService;
   let mockCommandIntegration;
@@ -107,11 +105,13 @@ describe('ApplicationBootstrap', () => {
     };
     createFeatureFlags.mockReturnValue(mockFeatureFlags);
 
-    // Mock router constructor
-    mockPersonalityRouter = {
-      personalityService: null,
+    // Mock personality application service
+    mockPersonalityApplicationService = {
+      getPersonality: jest.fn(),
+      listPersonalitiesByOwner: jest.fn(),
+      registerPersonality: jest.fn(),
     };
-    PersonalityRouter.mockImplementation(() => mockPersonalityRouter);
+    PersonalityApplicationService.mockImplementation(() => mockPersonalityApplicationService);
 
     // Mock command integration
     mockCommandIntegration = {
@@ -220,14 +220,20 @@ describe('ApplicationBootstrap', () => {
       );
     });
 
-    it('should configure PersonalityRouter with application service', async () => {
+    it('should configure PersonalityApplicationService', async () => {
       const bootstrap = new ApplicationBootstrap();
 
       await bootstrap.initialize();
 
-      expect(mockPersonalityRouter.personalityService).toBeDefined();
+      // Verify PersonalityApplicationService was created with correct dependencies
+      expect(PersonalityApplicationService).toHaveBeenCalledWith({
+        personalityRepository: expect.any(Object),
+        aiService: expect.any(Object),
+        authenticationRepository: expect.any(Object),
+        eventBus: mockEventBus,
+      });
       expect(logger.info).toHaveBeenCalledWith(
-        '[ApplicationBootstrap] Configured PersonalityRouter'
+        expect.stringContaining('PersonalityApplicationService')
       );
     });
 
@@ -460,7 +466,7 @@ describe('ApplicationBootstrap', () => {
       mockLegacyManager = {
         initialized: true,
         initialize: jest.fn().mockResolvedValue(),
-        listPersonalitiesForUser: jest.fn().mockReturnValue([]),
+        listPersonalitiesByOwner: jest.fn().mockReturnValue([]),
         registerPersonality: jest.fn().mockResolvedValue({ success: true }),
       };
       // Legacy PersonalityManager removed - using DDD system now

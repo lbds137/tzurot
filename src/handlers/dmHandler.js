@@ -16,8 +16,8 @@ const { getApplicationBootstrap } = require('../application/bootstrap/Applicatio
  */
 async function getPersonality(name) {
   const bootstrap = getApplicationBootstrap();
-  const router = bootstrap.getPersonalityRouter();
-  return await router.getPersonality(name);
+  const service = bootstrap.getPersonalityApplicationService();
+  return await service.getPersonality(name);
 }
 
 /**
@@ -45,8 +45,8 @@ async function isNsfwVerified(userId) {
 async function getPersonalityByAlias(alias) {
   // DDD system searches by name or alias in one method
   const bootstrap = getApplicationBootstrap();
-  const router = bootstrap.getPersonalityRouter();
-  return await router.getPersonality(alias);
+  const service = bootstrap.getPersonalityApplicationService();
+  return await service.getPersonality(alias);
 }
 
 /**
@@ -56,8 +56,8 @@ async function getPersonalityByAlias(alias) {
  */
 async function listPersonalitiesForUser(userId) {
   const bootstrap = getApplicationBootstrap();
-  const router = bootstrap.getPersonalityRouter();
-  return await router.listPersonalitiesForUser(userId);
+  const service = bootstrap.getPersonalityApplicationService();
+  return await service.listPersonalitiesByOwner(userId);
 }
 
 /**

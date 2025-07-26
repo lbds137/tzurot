@@ -14,7 +14,7 @@ jest.mock('../../src/utils/errorTracker', () => ({
 
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
-    getPersonalityRouter: jest.fn().mockReturnValue({
+    getPersonalityApplicationService: jest.fn().mockReturnValue({
       getPersonality: jest.fn(),
     }),
   }),
@@ -38,16 +38,16 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
   describe('Personality error messages', () => {
     let mockBootstrap;
-    let mockPersonalityRouter;
+    let mockPersonalityApplicationService;
 
     beforeEach(() => {
       // Set up mocks for each test
-      mockPersonalityRouter = {
+      mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
       
       mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       };
       
       // Apply the mocks
@@ -56,7 +56,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should use personality error message when available', async () => {
       // Mock personality with error message
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: '*sighs dramatically* Something went wrong! ||*(an error has occurred)*||',
@@ -81,7 +81,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should append error marker if personality message does not have one', async () => {
       // Mock personality with error message without marker
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'Oops! My circuits are fried!',
@@ -103,7 +103,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should handle personality error messages with different spoiler patterns', async () => {
       // Mock personality with different spoiler pattern
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'Error detected! ||*(system malfunction)*||',
@@ -123,7 +123,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should fall back to default messages when personality has no error message', async () => {
       // Mock personality without error message
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test',
         profile: {
@@ -144,7 +144,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should fall back to default messages when personality is not found', async () => {
       // Mock no personality found
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await analyzeErrorAndGenerateMessage(
         '',
@@ -159,7 +159,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should handle errors when fetching personality data', async () => {
       // Mock error when getting personality
-      mockPersonalityRouter.getPersonality.mockRejectedValue(new Error('Database error'));
+      mockPersonalityApplicationService.getPersonality.mockRejectedValue(new Error('Database error'));
 
       const result = await analyzeErrorAndGenerateMessage(
         'rate limit',
@@ -176,7 +176,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
     });
 
     it('should generate unique reference IDs for each error', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'Error! ||*(an error has occurred)*||',
@@ -206,23 +206,23 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
   describe('Error type detection with personality messages', () => {
     let mockBootstrap;
-    let mockPersonalityRouter;
+    let mockPersonalityApplicationService;
 
     beforeEach(() => {
       // Set up mocks for each test
-      mockPersonalityRouter = {
+      mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
       
       mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       };
       
       // Apply the mocks
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
       // Set up personality with error message
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'Oops! Something broke! ||*(an error has occurred)*||',
@@ -264,7 +264,7 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
     it('should use personality message with existing error marker for empty responses', async () => {
       // This is the specific bug case - personality already has the error marker
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',
@@ -305,27 +305,27 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
     });
   });
 
-  describe('PersonalityRouter Integration', () => {
+  describe('PersonalityApplicationService Integration', () => {
     let mockBootstrap;
-    let mockPersonalityRouter;
+    let mockPersonalityApplicationService;
 
     beforeEach(() => {
       // Set up mocks for each test
-      mockPersonalityRouter = {
+      mockPersonalityApplicationService = {
         getPersonality: jest.fn(),
       };
       
       mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       };
       
       // Apply the mocks
       getApplicationBootstrap.mockReturnValue(mockBootstrap);
     });
 
-    it('should use PersonalityRouter to fetch personality error messages', async () => {
-      // Mock PersonalityRouter response
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+    it('should use PersonalityApplicationService to fetch personality error messages', async () => {
+      // Mock PersonalityApplicationService response
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test Personality',
         profile: {
@@ -341,20 +341,20 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
         mockAddToBlackoutList
       );
 
-      // Should use PersonalityRouter
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test-personality');
+      // Should use PersonalityApplicationService
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
 
       // Should use personality error message
       expect(result).toMatch(/Test Error! \|\|\*\(an error has occurred; reference: \w+\)\*\|\|/);
       expect(logger.debug).toHaveBeenCalledWith(
-        '[AIErrorHandler] Using PersonalityRouter for test-personality'
+        '[AIErrorHandler] Using PersonalityApplicationService for test-personality'
       );
     });
 
 
     it('should handle missing errorMessage in personality gracefully', async () => {
-      // Mock PersonalityRouter response without errorMessage
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      // Mock PersonalityApplicationService response without errorMessage
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test Personality',
         profile: {
@@ -372,16 +372,16 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
 
       // Should log warning about missing errorMessage
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('No errorMessage found in PersonalityRouter response')
+        expect.stringContaining('No errorMessage found in PersonalityApplicationService response')
       );
 
       // Should fall back to default error message
       expect(result).toMatch(/Hmm, I couldn't generate a response.*\|\|\(Reference: \w+\)\|\|/);
     });
 
-    it('should handle PersonalityRouter errors gracefully', async () => {
-      // Mock PersonalityRouter to throw error
-      mockPersonalityRouter.getPersonality.mockRejectedValue(new Error('Router error'));
+    it('should handle PersonalityApplicationService errors gracefully', async () => {
+      // Mock PersonalityApplicationService to throw error
+      mockPersonalityApplicationService.getPersonality.mockRejectedValue(new Error('Router error'));
 
       const result = await analyzeErrorAndGenerateMessage(
         'rate limit',
@@ -399,9 +399,9 @@ describe('AI Error Handler - Personality-Specific Messages', () => {
       expect(result).toMatch(/I'm getting too many requests.*\|\|\(Reference: \w+\)\|\|/);
     });
 
-    it('should use correct error message format from PersonalityRouter', async () => {
-      // Mock PersonalityRouter with different error message format
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+    it('should use correct error message format from PersonalityApplicationService', async () => {
+      // Mock PersonalityApplicationService with different error message format
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test Personality',
         profile: {

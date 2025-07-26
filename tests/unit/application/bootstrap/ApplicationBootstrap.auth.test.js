@@ -17,7 +17,6 @@ jest.mock('../../../../src/adapters/persistence/FileAuthenticationRepository');
 jest.mock('../../../../src/adapters/ai/HttpAIServiceAdapter');
 jest.mock('../../../../src/application/eventHandlers/EventHandlerRegistry');
 jest.mock('../../../../src/application/services/FeatureFlags');
-jest.mock('../../../../src/application/routers/PersonalityRouter');
 jest.mock('../../../../src/adapters/CommandIntegrationAdapter');
 jest.mock('../../../../src/profileInfoFetcher');
 jest.mock('../../../../src/messageTracker');
@@ -60,7 +59,6 @@ const { AuthenticationApplicationService } = require('../../../../src/applicatio
 const { OAuthTokenService } = require('../../../../src/infrastructure/authentication/OAuthTokenService');
 const { FileAuthenticationRepository } = require('../../../../src/adapters/persistence/FileAuthenticationRepository');
 const { FilePersonalityRepository } = require('../../../../src/adapters/persistence/FilePersonalityRepository');
-const { PersonalityRouter } = require('../../../../src/application/routers/PersonalityRouter');
 const { getCommandIntegrationAdapter } = require('../../../../src/adapters/CommandIntegrationAdapter');
 const avatarStorage = require('../../../../src/utils/avatarStorage');
 const aliasResolver = require('../../../../src/utils/aliasResolver');
@@ -124,9 +122,6 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
       initialize: jest.fn().mockResolvedValue(undefined),
     }));
 
-    // Mock personality router
-    PersonalityRouter.mockImplementation(() => ({}));
-
     // Mock personality application service
     PersonalityApplicationService.mockImplementation(() => ({
       getMaxAliasWordCount: jest.fn().mockResolvedValue(5),
@@ -153,7 +148,7 @@ describe('ApplicationBootstrap - Authentication Integration', () => {
     avatarStorage.initialize = jest.fn().mockResolvedValue(undefined);
     
     // Mock alias resolver
-    aliasResolver.setPersonalityRouter = jest.fn();
+    aliasResolver.setPersonalityApplicationService = jest.fn();
     
     // Mock message handler config
     messageHandlerConfig.setMaxAliasWordCount = jest.fn();

@@ -166,6 +166,6 @@ describe('Bot Activated Personality Webhook Handling', () => {
     expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
     // Skip this test for now since the implementation may be different
-    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
+    // Note: Would use DDD PersonalityApplicationService.getPersonality('test-personality');
   });
 });

@@ -15,7 +15,7 @@ const mockAuthService = {
   getAuthenticationStatus: jest.fn(),
 };
 
-const mockPersonalityRouter = {
+const mockPersonalityApplicationService = {
   getPersonality: jest.fn(),
 };
 
@@ -24,7 +24,7 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
     getApplicationServices: jest.fn(() => ({
       authenticationService: mockAuthService,
     })),
-    getPersonalityRouter: jest.fn(() => mockPersonalityRouter),
+    getPersonalityApplicationService: jest.fn(() => mockPersonalityApplicationService),
   })),
 }));
 
@@ -185,7 +185,7 @@ describe('AI Service - DDD Authentication Error Handling', () => {
       
       // First call succeeds (for personality lookup)
       getApplicationBootstrap.mockImplementationOnce(() => ({
-        getPersonalityRouter: jest.fn(() => mockPersonalityRouter),
+        getPersonalityApplicationService: jest.fn(() => mockPersonalityApplicationService),
       }));
       
       // Second call fails (for auth check) 
@@ -193,7 +193,7 @@ describe('AI Service - DDD Authentication Error Handling', () => {
         throw new Error('Bootstrap error');
       });
 
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         profile: { model: 'gpt-4' }
       });
 
