@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.7] - 2025-07-26
+
+### Fixed
+- Code quality improvements and linter cleanup
+- Removed deprecated domain object methods that were no longer used
+- Fixed timer pattern compliance for better test performance
+- Removed unused variables and cleaned up imports
+- Improved test coverage for message formatting (87.64% coverage)
+
+### Removed
+- Removed contentSanitizer utility that was solving a non-existent problem
+- Removed legacy dataStorage.js module and related unused code
+- Removed DDD system feature flags that were no longer needed
+
 ## [2.2.6] - 2025-07-25
 
 ### Fixed
