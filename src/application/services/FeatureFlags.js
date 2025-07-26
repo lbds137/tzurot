@@ -6,10 +6,8 @@ class FeatureFlags {
   constructor(config = {}) {
     this.flags = new Map();
     this.defaultFlags = {
-      // Example feature flags - add new features here
-      // 'features.new-ui': false,
-      // 'features.experimental-ai': false,
-      // 'features.beta-commands': false,
+      // Feature flags
+      'features.enhanced-context': false,
 
       // Override all flags from config
       ...config,

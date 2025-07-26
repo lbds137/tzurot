@@ -95,11 +95,8 @@ function createInfoCommand() {
           return await context.respond({ embeds: [errorEmbed] });
         }
 
-        // Check if using new system
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.read');
-
         logger.info(
-          `[InfoCommand] Getting info for "${personalityNameOrAlias}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[InfoCommand] Getting info for "${personalityNameOrAlias}" for user ${context.getUserId()}`
         );
 
         try {
@@ -179,14 +176,6 @@ function createInfoCommand() {
             inline: false,
           });
 
-          // Add system indicator if using new system
-          if (useNewSystem) {
-            fields.push({
-              name: 'System',
-              value: '🆕 Using new DDD system',
-              inline: false,
-            });
-          }
 
           // Create the response
           const embedData = {

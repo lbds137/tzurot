@@ -96,19 +96,6 @@ describe('ResetCommand', () => {
       });
     });
 
-    it('should show new system indicator when feature flag enabled', async () => {
-      await command.execute(mockContext);
-
-      expect(mockContext.respond).toHaveBeenCalledWith({
-        embeds: [
-          expect.objectContaining({
-            footer: expect.objectContaining({
-              text: 'Using new DDD system',
-            }),
-          }),
-        ],
-      });
-    });
 
     it('should handle missing personality name', async () => {
       mockContext.args = [];
