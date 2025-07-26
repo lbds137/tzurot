@@ -398,7 +398,7 @@ describe('processMessageLinks - Media Marker Extraction', () => {
       const { getPersonalityFromMessage } = require('../../src/core/conversation');
       getPersonalityFromMessage.mockReturnValue('test-personality');
 
-      // Legacy personalityManager removed - would use DDD PersonalityRouter now
+      // Legacy personalityManager removed - would use DDD PersonalityApplicationService now
 
       const result = await processMessageLinks(
         mockMessage,

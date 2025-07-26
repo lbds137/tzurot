@@ -299,9 +299,9 @@ async function checkPersonality(context) {
       getApplicationBootstrap,
     } = require('../../../application/bootstrap/ApplicationBootstrap');
     const bootstrap = getApplicationBootstrap();
-    const personalityRouter = bootstrap.getPersonalityRouter();
+    const personalityService = bootstrap.getPersonalityApplicationService();
     
-    const personality = await personalityRouter.getPersonality(personalityName);
+    const personality = await personalityService.getPersonality(personalityName);
     
     if (!personality) {
       const errorEmbed = {

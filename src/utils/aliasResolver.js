@@ -4,15 +4,15 @@
  */
 const logger = require('../logger');
 
-// Store router reference - will be set during initialization
-let personalityRouter = null;
+// Store service reference - will be set during initialization
+let personalityService = null;
 
 /**
- * Set the personality router instance
- * @param {Object} router - The personality router instance
+ * Set the personality service instance
+ * @param {Object} service - The personality application service instance
  */
-function setPersonalityRouter(router) {
-  personalityRouter = router;
+function setPersonalityService(service) {
+  personalityService = service;
 }
 
 /**
@@ -32,29 +32,29 @@ async function resolvePersonality(nameOrAlias) {
 
   logger.debug(`[AliasResolver] Resolving personality for: "${trimmedInput}"`);
 
-  // Check if router is initialized
-  if (!personalityRouter) {
+  // Check if service is initialized
+  if (!personalityService) {
     // Try lazy loading to avoid circular dependency
     try {
       const { getApplicationBootstrap } = require('../application/bootstrap/ApplicationBootstrap');
       const bootstrap = getApplicationBootstrap();
       if (bootstrap && bootstrap.initialized) {
-        personalityRouter = bootstrap.getPersonalityRouter();
+        personalityService = bootstrap.getPersonalityApplicationService();
       }
     } catch (error) {
-      logger.error('[AliasResolver] Failed to get personality router:', error.message);
+      logger.error('[AliasResolver] Failed to get personality service:', error.message);
       return null;
     }
   }
 
-  if (!personalityRouter) {
-    logger.warn('[AliasResolver] Personality router not available');
+  if (!personalityService) {
+    logger.warn('[AliasResolver] Personality service not available');
     return null;
   }
 
-  // Use the DDD personality router
+  // Use the DDD personality service
   try {
-    const personality = await personalityRouter.getPersonality(trimmedInput);
+    const personality = await personalityService.getPersonality(trimmedInput);
 
     if (personality) {
       logger.debug(
@@ -128,5 +128,5 @@ module.exports = {
   personalityExists,
   getFullName,
   getAliases,
-  setPersonalityRouter,
+  setPersonalityService,
 };

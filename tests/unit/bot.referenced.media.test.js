@@ -456,7 +456,7 @@ describe('Referenced Message Media Tests', () => {
       getApplicationServices: jest.fn().mockReturnValue({
         authenticationService: mockDDDAuthService
       }),
-      getPersonalityRouter: jest.fn().mockReturnValue({
+      getPersonalityApplicationService: jest.fn().mockReturnValue({
         getPersonality: jest.fn().mockResolvedValue(null)
       })
     });

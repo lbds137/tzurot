@@ -22,7 +22,6 @@ const { HttpAIServiceAdapter } = require('../../adapters/ai/HttpAIServiceAdapter
 const { OAuthTokenService } = require('../../infrastructure/authentication/OAuthTokenService');
 const { EventHandlerRegistry } = require('../eventHandlers/EventHandlerRegistry');
 const { createFeatureFlags } = require('../services/FeatureFlags');
-const { PersonalityRouter } = require('../routers/PersonalityRouter');
 const { getCommandIntegrationAdapter } = require('../../adapters/CommandIntegrationAdapter');
 
 // Import legacy dependencies for event handlers
@@ -197,18 +196,10 @@ class ApplicationBootstrap {
       this.eventHandlerRegistry.registerHandlers();
       logger.info('[ApplicationBootstrap] Registered domain event handlers');
 
-      // Step 7: Initialize PersonalityRouter with our application service
-      const personalityRouter = new PersonalityRouter();
-      personalityRouter.personalityService = personalityApplicationService;
-      logger.info('[ApplicationBootstrap] Configured PersonalityRouter');
-
-      // Store the router instance for other components to use
-      this.personalityRouter = personalityRouter;
-
-      // Set the router in aliasResolver to avoid circular dependency
+      // Step 7: Set PersonalityApplicationService in aliasResolver to avoid circular dependency
       const aliasResolver = require('../../utils/aliasResolver');
-      aliasResolver.setPersonalityRouter(personalityRouter);
-      logger.info('[ApplicationBootstrap] Set PersonalityRouter in aliasResolver');
+      aliasResolver.setPersonalityService(personalityApplicationService);
+      logger.info('[ApplicationBootstrap] Set PersonalityApplicationService in aliasResolver');
 
       // Step 8: Initialize CommandIntegrationAdapter (it will initialize CommandIntegration internally)
       const commandAdapter = getCommandIntegrationAdapter();
@@ -294,13 +285,14 @@ class ApplicationBootstrap {
   }
 
   /**
-   * Get personality router
+   * Get personality application service
+   * @returns {PersonalityApplicationService}
    */
-  getPersonalityRouter() {
+  getPersonalityApplicationService() {
     if (!this.initialized) {
       throw new Error('ApplicationBootstrap not initialized');
     }
-    return this.personalityRouter;
+    return this.personalityApplicationService;
   }
 
   /**

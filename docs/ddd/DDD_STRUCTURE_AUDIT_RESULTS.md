@@ -33,12 +33,7 @@ This service:
 
 ### 3. Domain Boundary Violations
 
-**PersonalityRouter** directly imports adapters:
-```javascript
-// In src/application/routers/PersonalityRouter.js
-const { FilePersonalityRepository } = require('../../adapters/persistence');
-// ❌ Application layer shouldn't import from adapters!
-```
+Some components violate DDD boundaries by directly importing from incorrect layers. Application layer components should receive dependencies through dependency injection, not import them directly from adapters.
 
 ## 📁 Actual DDD Structure
 
@@ -57,7 +52,7 @@ src/
 │   ├── bootstrap/
 │   ├── commands/
 │   ├── eventHandlers/
-│   ├── routers/        # ❌ PersonalityRouter violates boundaries
+│   ├── routers/        # ❌ (This directory has been removed)
 │   └── services/
 ├── adapters/           # ✅ Mostly clean
 │   ├── ai/
@@ -117,7 +112,7 @@ Infrastructure → Domain, Application
 ```
 
 **Violations Found**:
-- PersonalityRouter (Application) → Adapters ❌
+- (PersonalityRouter has been removed)
 - BackupAPIClient (Infrastructure) → ApplicationBootstrap ❌
 
 ### 2. Singleton Anti-Pattern
@@ -174,9 +169,7 @@ Two different purposes, same name:
       src/application/services/PersonalityDataApplicationService.js
    ```
 
-3. **Fix PersonalityRouter**
-   - Remove direct adapter imports
-   - Use dependency injection from ApplicationBootstrap
+3. **PersonalityRouter** - ✅ FIXED: Component has been removed entirely
 
 ### Short Term (Medium Priority)
 

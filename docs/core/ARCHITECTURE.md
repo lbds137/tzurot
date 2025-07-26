@@ -139,7 +139,7 @@ Discord Message → bot.js → messageHandler.js
 
 ### AI Interaction
 ```
-User Message → Personality Router → AI Application Service
+User Message → Personality Application Service → AI Service
                                            ↓
                AI Domain ← AI Service Adapter → External AI API
                     ↓

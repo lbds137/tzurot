@@ -47,6 +47,6 @@ This document logs the removal of the legacy command system after successful dep
 5. ✅ Clean up imports and references
    - Updated CommandIntegrationAdapter test
    - Updated messageHandler test to use new system
-   - Added PersonalityRouter mock to messageHandler test
+   - Updated tests to use PersonalityApplicationService directly
 6. 🔄 Run full test suite
 7. Deploy to development environment for testing

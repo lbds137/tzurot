@@ -62,7 +62,7 @@ describe('AI Service - Metadata Support', () => {
   let mockOpenAIClient;
   let mockCreateCompletion;
   let mockAuthService;
-  let mockPersonalityRouter;
+  let mockPersonalityApplicationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -88,7 +88,7 @@ describe('AI Service - Metadata Support', () => {
     };
 
     // Mock personality router
-    mockPersonalityRouter = {
+    mockPersonalityApplicationService = {
       getPersonality: jest.fn().mockResolvedValue({
         fullName: 'test-personality',
         profile: {
@@ -103,7 +103,7 @@ describe('AI Service - Metadata Support', () => {
       getApplicationServices: jest.fn().mockReturnValue({
         authenticationService: mockAuthService,
       }),
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
     });
 
     // Mock getAiClientForUser to return our mock client

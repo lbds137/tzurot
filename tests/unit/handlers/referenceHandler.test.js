@@ -44,7 +44,7 @@ describe('Reference Handler Module', () => {
   const mockHandlePersonalityInteraction = jest.fn();
   
   // Mock personality router that will be used in tests
-  let mockPersonalityRouter;
+  let mockPersonalityApplicationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,7 +55,7 @@ describe('Reference Handler Module', () => {
     });
 
     // Mock ApplicationBootstrap with personality router
-    mockPersonalityRouter = {
+    mockPersonalityApplicationService = {
       getPersonality: jest.fn().mockImplementation(async (name) => {
         if (name === 'test-personality') {
           return mockPersonality;
@@ -71,7 +71,7 @@ describe('Reference Handler Module', () => {
     };
     const mockBootstrap = {
       initialized: true,
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
@@ -185,7 +185,7 @@ describe('Reference Handler Module', () => {
         webhookUsername: 'Test Webhook',
       });
       // DDD system uses ApplicationBootstrap router instead of legacy getPersonality
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
 
       // Since we're mocking a non-DM channel and passing a client, delayedProcessing should be used
       // The delayedProcessing mock will call the handler with the client parameter
@@ -246,7 +246,7 @@ describe('Reference Handler Module', () => {
 
       expect(result).toEqual({ processed: true, wasReplyToNonPersonality: false });
       // DDD system uses ApplicationBootstrap router instead of legacy functions
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('angel dust');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('angel dust');
       expect(mockHandlePersonalityInteraction).toHaveBeenCalledWith(
         mockMessage,
         spaceAliasPersonality,
@@ -592,7 +592,7 @@ describe('Reference Handler Module', () => {
       // Mock the personality lookup functions
       const mockPersonalityFromMessage = jest.fn().mockReturnValue('linked-personality');
       const mockPersonalityManager = {
-        listPersonalitiesForUser: jest.fn().mockReturnValue([
+        listPersonalitiesByOwner: jest.fn().mockReturnValue([
           {
             fullName: 'linked-personality',
             displayName: 'Linked Personality',

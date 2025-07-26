@@ -301,7 +301,7 @@ describe('AI Error Handler', () => {
   });
 
   describe('handleApiError', () => {
-    // Mock PersonalityRouter
+    // Mock PersonalityApplicationService
     beforeEach(() => {
       const mockPersonality = {
         toJSON: () => ({
@@ -312,7 +312,7 @@ describe('AI Error Handler', () => {
       };
       
       const mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue({
+        getPersonalityApplicationService: jest.fn().mockReturnValue({
           getPersonality: jest.fn().mockResolvedValue(mockPersonality)
         })
       };
@@ -372,7 +372,7 @@ describe('AI Error Handler', () => {
     it('should fall back to generic message when personality not found', async () => {
       // Mock personality not found
       const mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue({
+        getPersonalityApplicationService: jest.fn().mockReturnValue({
           getPersonality: jest.fn().mockResolvedValue(null)
         })
       };
@@ -388,7 +388,7 @@ describe('AI Error Handler', () => {
     it('should handle timeout errors with appropriate message', async () => {
       // Mock personality not found for clearer test
       const mockBootstrap = {
-        getPersonalityRouter: jest.fn().mockReturnValue({
+        getPersonalityApplicationService: jest.fn().mockReturnValue({
           getPersonality: jest.fn().mockResolvedValue(null)
         })
       };

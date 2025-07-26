@@ -24,8 +24,8 @@ async function getPersonality(name) {
   if (!bootstrap.initialized) {
     throw new Error('ApplicationBootstrap not initialized - system is starting up');
   }
-  const router = bootstrap.getPersonalityRouter();
-  return await router.getPersonality(name);
+  const service = bootstrap.getPersonalityApplicationService();
+  return await service.getPersonality(name);
 }
 
 /**
@@ -39,8 +39,8 @@ async function getPersonalityByAlias(alias) {
   if (!bootstrap.initialized) {
     throw new Error('ApplicationBootstrap not initialized - system is starting up');
   }
-  const router = bootstrap.getPersonalityRouter();
-  return await router.getPersonality(alias);
+  const service = bootstrap.getPersonalityApplicationService();
+  return await service.getPersonality(alias);
 }
 
 /**

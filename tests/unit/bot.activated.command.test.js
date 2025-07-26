@@ -162,7 +162,7 @@ describe('Bot Activated Personality Command Handling', () => {
     expect(conversationManager.getActivatedPersonality).toHaveBeenCalledWith('channel-123');
 
     // Verify that personality was retrieved - this means we attempted to respond
-    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
+    // Note: Would use DDD PersonalityApplicationService.getPersonality('test-personality');
   });
 
   it(`should treat ${botPrefix} by itself as a command and ignore it`, async () => {
@@ -191,7 +191,7 @@ describe('Bot Activated Personality Command Handling', () => {
 
     // Verify that personality was retrieved - this means we attempted to respond
     // because this is NOT recognized as a command
-    // Note: Would use DDD PersonalityRouter.getPersonality('test-personality');
+    // Note: Would use DDD PersonalityApplicationService.getPersonality('test-personality');
   });
 
   it('should ignore commands without a space after prefix (bug fix)', async () => {

@@ -488,7 +488,7 @@ describe('DebugCommand', () => {
   });
 
   describe('personality subcommand', () => {
-    let mockPersonalityRouter;
+    let mockPersonalityApplicationService;
     let mockPersonality;
 
     beforeEach(() => {
@@ -505,16 +505,16 @@ describe('DebugCommand', () => {
       };
 
       // Mock personality router
-      mockPersonalityRouter = {
+      mockPersonalityApplicationService = {
         getPersonality: jest.fn().mockResolvedValue(mockPersonality),
       };
 
-      // Update ApplicationBootstrap mock to include PersonalityRouter
+      // Update ApplicationBootstrap mock to include PersonalityApplicationService
       getApplicationBootstrap.mockReturnValue({
         getApplicationServices: jest.fn().mockReturnValue({
           authenticationService: mockDDDAuthService,
         }),
-        getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+        getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       });
     });
 
@@ -523,7 +523,7 @@ describe('DebugCommand', () => {
 
       await debugCommand.execute(mockContext);
 
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test-personality');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test-personality');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -554,7 +554,7 @@ describe('DebugCommand', () => {
 
       await debugCommand.execute(mockContext);
 
-      expect(mockPersonalityRouter.getPersonality).not.toHaveBeenCalled();
+      expect(mockPersonalityApplicationService.getPersonality).not.toHaveBeenCalled();
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -567,12 +567,12 @@ describe('DebugCommand', () => {
     });
 
     it('should handle personality not found', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
       mockContext.args = ['personality', 'nonexistent'];
 
       await debugCommand.execute(mockContext);
 
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('nonexistent');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('nonexistent');
       expect(mockContext.respond).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -650,7 +650,7 @@ describe('DebugCommand', () => {
     });
 
     it('should handle errors when checking personality', async () => {
-      mockPersonalityRouter.getPersonality.mockRejectedValue(new Error('Database error'));
+      mockPersonalityApplicationService.getPersonality.mockRejectedValue(new Error('Database error'));
       mockContext.args = ['personality', 'test-personality'];
 
       await debugCommand.execute(mockContext);

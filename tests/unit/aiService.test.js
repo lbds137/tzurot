@@ -24,7 +24,7 @@ const mockDDDAuthService = {
   createAIClient: jest.fn(),
 };
 
-const mockPersonalityRouter = {
+const mockPersonalityApplicationService = {
   getPersonality: jest.fn(),
 };
 
@@ -33,7 +33,7 @@ jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
     getApplicationServices: jest.fn(() => ({
       authenticationService: mockDDDAuthService,
     })),
-    getPersonalityRouter: jest.fn(() => mockPersonalityRouter),
+    getPersonalityApplicationService: jest.fn(() => mockPersonalityApplicationService),
   })),
 }));
 
@@ -166,7 +166,7 @@ describe('AI Service', () => {
       }
     });
     
-    mockPersonalityRouter.getPersonality.mockResolvedValue({
+    mockPersonalityApplicationService.getPersonality.mockResolvedValue({
       name: 'test-personality',
       profile: {
         name: 'test-personality',
