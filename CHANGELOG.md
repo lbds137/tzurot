@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.8] - 2025-07-25
+
+### Fixed
+- **Feature Flag System** - Removed leftover DDD migration artifacts and cleaned up feature flag warnings
+  - Removed "🆕 Using new DDD system" indicators from command responses (info, list, reset commands)
+  - Fixed console warnings about unknown `features.enhanced-context` feature flag
+  - Streamlined feature flag system to only actively used flags
+  - Updated tests to match cleaned up feature flag functionality
+
 ## [2.2.7] - 2025-07-26
 
 ### Fixed
