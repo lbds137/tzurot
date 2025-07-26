@@ -154,26 +154,26 @@ Tzurot follows **Domain-Driven Design (DDD)** principles with a hybrid legacy/mo
 
 ### Migration Status
 
-**Completed DDD Migration**:
-- ✅ Authentication system (tokens, user auth, blacklist)
-- ✅ Command infrastructure and routing
-- ✅ Domain events and event handling
-- ✅ Personality management commands
-- ✅ Conversation control commands
+> **⚠️ IMPORTANT**: DDD migration is ~25% complete. Commands and authentication have been migrated. Core bot functionality remains in legacy system. See [Migration Status Reality](docs/ddd/MIGRATION_STATUS_REALITY.md) for details.
 
-**Legacy Systems Still Active**:
-- 🔄 Message processing and webhook delivery
-- 🔄 AI request handling and response generation
-- 🔄 Avatar management and profile fetching
-- 🔄 Media handling (images, audio)
-- 🔄 Core conversation management
+**Completed DDD Migration (~25%)**:
+- ✅ All 18 commands (auth, personality, conversation, utility)
+- ✅ Authentication domain (tokens, user auth, blacklist) - FULLY INTEGRATED
+- ✅ Domain infrastructure (events, repositories, services)
+- ✅ Command routing via CommandIntegrationAdapter
 
-**Architecture Goals**:
-- **Feature Parity**: All legacy functionality preserved during migration
-- **Gradual Migration**: No big-bang rewrites, incremental domain-by-domain migration
-- **Event-Driven Decoupling**: Domain events reduce coupling between bounded contexts
-- **Testability**: All components dependency-injected and mockable
-- **Performance**: No degradation during migration, maintain <30s test suite
+**Still Using Legacy System (~75%)**:
+- ❌ AI service integration (`aiService.js` - no DDD code paths)
+- ❌ Message processing (`bot.js`, `personalityHandler.js`)
+- ❌ Webhook management (`webhookManager.js`)
+- ❌ Conversation core (`conversationManager.js`)
+- ❌ All personality message flow
+
+**Current Reality**:
+- Commands use DDD, everything else uses legacy
+- No feature flags - the split is hardcoded
+- Both systems share data files but not logic
+- New features must work with the hybrid architecture
 
 ## 🚨 CIRCULAR DEPENDENCY PREVENTION
 
