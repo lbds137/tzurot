@@ -72,7 +72,7 @@ function createConfigCommand() {
               fields: [
                 {
                   name: 'Usage',
-                  value: '`!tz config <personality> <setting> <value>`',
+                  value: `\`${context.commandPrefix || '!tz'} config <personality> <setting> <value>\``,
                   inline: false,
                 },
                 {
@@ -85,8 +85,8 @@ function createConfigCommand() {
                 {
                   name: 'Examples',
                   value: [
-                    '`!tz config alice context-metadata off`',
-                    '`!tz config "My Bot" context-metadata on`',
+                    `\`${context.commandPrefix || '!tz'} config alice context-metadata off\``,
+                    `\`${context.commandPrefix || '!tz'} config "My Bot" context-metadata on\``,
                   ].join('\n'),
                   inline: false,
                 },
@@ -151,7 +151,7 @@ function createConfigCommand() {
               description: `Could not find a personality named "${personalityNameOrAlias}".`,
               color: 0xff5722, // Red color
               footer: {
-                text: 'Use "!tz list" to see available personalities.',
+                text: `Use "${context.commandPrefix || '!tz'} list" to see available personalities.`,
               },
             };
 

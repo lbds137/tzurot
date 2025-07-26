@@ -24,6 +24,7 @@ const {
 const requestTracker = require('../utils/requestTracker');
 // personalityAuth utility removed - using DDD authentication directly
 const threadHandler = require('../utils/threadHandler');
+const { botPrefix } = require('../../config');
 
 // Injectable timer functions for testability
 // Using the injectable pattern as documented in docs/core/TIMER_PATTERNS.md
@@ -104,8 +105,7 @@ async function checkPersonalityAuth(message, personality) {
       if (!proxyAuth.isAuthenticated) {
         return {
           isAllowed: false,
-          errorMessage:
-            'Authentication required for NSFW personalities. Use `!rtz auth start` to authenticate first.',
+          errorMessage: `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`,
           reason: 'auth_failed',
         };
       }
