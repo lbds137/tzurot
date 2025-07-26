@@ -29,7 +29,7 @@ jest.mock('../../../../src/application/services/FeatureFlags', () => ({
 
 jest.mock('../../../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
-    getPersonalityRouter: jest.fn().mockReturnValue({
+    getPersonalityApplicationService: jest.fn().mockReturnValue({
       registerPersonality: jest.fn(),
       getPersonality: jest.fn(),
       removePersonality: jest.fn(),

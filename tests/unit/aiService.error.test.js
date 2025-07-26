@@ -47,7 +47,7 @@ jest.mock('../../src/utils/webhookUserTracker', () => ({
 }));
 
 // Mock ApplicationBootstrap for DDD personality and auth access
-const mockPersonalityRouter = {
+const mockPersonalityApplicationService = {
   getPersonality: jest.fn(),
 };
 
@@ -64,7 +64,7 @@ const mockDDDAuthService = {
 
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
-    getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+    getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
     getApplicationServices: jest.fn().mockReturnValue({
       authenticationService: mockDDDAuthService,
     }),
@@ -138,9 +138,9 @@ describe('aiService Error Handling', () => {
     // Configure the DDD authentication service to return the mock client
     mockDDDAuthService.createAIClient.mockResolvedValue(mockOpenAI);
 
-    // Reset PersonalityRouter mock to return null by default (tests can override)
-    mockPersonalityRouter.getPersonality.mockReset();
-    mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+    // Reset PersonalityApplicationService mock to return null by default (tests can override)
+    mockPersonalityApplicationService.getPersonality.mockReset();
+    mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
     // Import the module under test after mocking
     aiService = require('../../src/aiService');
@@ -374,7 +374,7 @@ describe('aiService Error Handling', () => {
   describe('Request handling', () => {
     beforeEach(() => {
       // Mock a personality for these tests
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         name: personalityName,
         profile: {
           name: personalityName,
@@ -480,8 +480,8 @@ describe('aiService Error Handling', () => {
     });
 
     test('getAiResponse should use personality error message for empty responses', async () => {
-      // Configure personality with custom error message using PersonalityRouter
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      // Configure personality with custom error message using PersonalityApplicationService
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'test-personality',
         profile: {
           errorMessage: 'My circuits are fried! ||*(an error has occurred)*||',

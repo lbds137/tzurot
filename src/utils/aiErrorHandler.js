@@ -234,13 +234,13 @@ async function analyzeErrorAndGenerateMessage(
   let personality = null;
   let errorMessage = null;
   try {
-    // Always use PersonalityRouter (DDD system)
+    // Always use PersonalityApplicationService (DDD system)
     const bootstrap = getApplicationBootstrap();
-    const personalityRouter = bootstrap.getPersonalityRouter();
-    personality = await personalityRouter.getPersonality(personalityName);
-    logger.debug(`[AIErrorHandler] Using PersonalityRouter for ${personalityName}`);
+    const personalityService = bootstrap.getPersonalityApplicationService();
+    personality = await personalityService.getPersonality(personalityName);
+    logger.debug(`[AIErrorHandler] Using PersonalityApplicationService for ${personalityName}`);
 
-    // PersonalityRouter returns DDD format, so errorMessage is in profile
+    // PersonalityApplicationService returns DDD format, so errorMessage is in profile
     // Handle both raw Personality aggregate and serialized format
     if (personality) {
       // If it's a raw Personality aggregate, it might need to be serialized
@@ -256,7 +256,7 @@ async function analyzeErrorAndGenerateMessage(
     // Enhanced debugging to understand the issue
     if (!errorMessage && personality) {
       logger.warn(
-        `[AIErrorHandler] No errorMessage found in PersonalityRouter response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
+        `[AIErrorHandler] No errorMessage found in PersonalityApplicationService response for ${personalityName}. Personality keys: ${Object.keys(personality).join(', ')}`
       );
       
       // Log profile details if it exists
@@ -368,8 +368,8 @@ async function handleApiError(apiError, personalityName, context) {
   try {
     // Try to get personality data for custom error message
     const bootstrap = getApplicationBootstrap();
-    const personalityRouter = bootstrap.getPersonalityRouter();
-    const personality = await personalityRouter.getPersonality(personalityName);
+    const personalityService = bootstrap.getPersonalityApplicationService();
+    const personality = await personalityService.getPersonality(personalityName);
     
     if (personality) {
       const personalityData = personality.toJSON ? personality.toJSON() : personality;

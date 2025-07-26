@@ -49,10 +49,10 @@ describe('dmHandler', () => {
     // Set up router mock
     mockRouter = {
       getPersonality: jest.fn(),
-      listPersonalitiesForUser: jest.fn(),
+      listPersonalitiesByOwner: jest.fn(),
     };
     mockBootstrap = {
-      getPersonalityRouter: jest.fn().mockReturnValue(mockRouter),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockRouter),
       getApplicationServices: jest.fn().mockReturnValue({
         authenticationService: mockDDDAuthService
       })
@@ -115,7 +115,7 @@ describe('dmHandler', () => {
     getActivePersonality.mockReturnValue('test-personality');
     // Set up router mocks to return DDD format personalities
     mockRouter.getPersonality.mockResolvedValue(mockPersonality);
-    mockRouter.listPersonalitiesForUser.mockResolvedValue([mockPersonality]);
+    mockRouter.listPersonalitiesByOwner.mockResolvedValue([mockPersonality]);
     
     getStandardizedUsername.mockImplementation(personality => personality.profile?.displayName || personality.displayName);
   });
@@ -138,7 +138,7 @@ describe('dmHandler', () => {
     it('should return false when no personality is found after all lookup attempts', async () => {
       // Mock all personality lookup methods to return null
       mockRouter.getPersonality.mockResolvedValue(null);
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([]);
       
       // Mock the message to not match the personality prefix pattern
       const mockNonPersonalityMessage = {
@@ -298,7 +298,7 @@ describe('dmHandler', () => {
         fullName: 'test-personality', // dmHandler checks for fullName
         aliases: [],
       };
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDisplayName]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([personalityWithDisplayName]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -336,7 +336,7 @@ describe('dmHandler', () => {
         fullName: 'test-personality', // dmHandler checks for fullName
         aliases: [],
       };
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithLongerName]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([personalityWithLongerName]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -369,7 +369,7 @@ describe('dmHandler', () => {
         ...mockPersonality,
         fullName: 'test-personality', // This will match 'test'
       };
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithMatchingFirstPart]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([personalityWithMatchingFirstPart]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -588,7 +588,7 @@ describe('dmHandler', () => {
         displayName: 'Different Name',
         fullName: 'test-personality', // dmHandler checks for fullName
       };
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithDifferentDisplay]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([personalityWithDifferentDisplay]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -624,7 +624,7 @@ describe('dmHandler', () => {
         ...mockPersonality,
         fullName: 'test-personality', // This will match the exact full name
       };
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([personalityWithFullName]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([personalityWithFullName]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -658,7 +658,7 @@ describe('dmHandler', () => {
 
       // Set up personality lookup to fail
       mockRouter.getPersonality.mockResolvedValue(null);
-      mockRouter.listPersonalitiesForUser.mockResolvedValue([]);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue([]);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -677,7 +677,7 @@ describe('dmHandler', () => {
       // Test the behavior: The handler should filter out invalid personalities
       // when searching through the list of personalities
 
-      // Set up the scenario: Force the handler to use listPersonalitiesForUser
+      // Set up the scenario: Force the handler to use listPersonalitiesByOwner
       mockRouter.getPersonality.mockResolvedValue(null);
 
       // Create a list with invalid entries that should be filtered out
@@ -691,7 +691,7 @@ describe('dmHandler', () => {
           displayName: 'TestPersonality' // Ensure this matches what's being searched for
         }, // valid personality with fullName and displayName
       ];
-      mockRouter.listPersonalitiesForUser.mockResolvedValue(personalities);
+      mockRouter.listPersonalitiesByOwner.mockResolvedValue(personalities);
 
       // Call the handler
       const result = await dmHandler.handleDmReply(mockMessage, mockClient);
@@ -700,8 +700,8 @@ describe('dmHandler', () => {
       // 1. The handler should have tried to look up the personality
       expect(mockRouter.getPersonality).toHaveBeenCalledWith('TestPersonality');
 
-      // 2. Since that returned null, it should have used listPersonalitiesForUser
-      expect(mockRouter.listPersonalitiesForUser).toHaveBeenCalledWith('author-123');
+      // 2. Since that returned null, it should have used listPersonalitiesByOwner
+      expect(mockRouter.listPersonalitiesByOwner).toHaveBeenCalledWith('author-123');
 
       // 3. The handler filters the list checking for valid personalities
       // We can verify this worked by checking that:
@@ -711,7 +711,7 @@ describe('dmHandler', () => {
       
       // The main behavior we're testing: the handler doesn't crash when given invalid entries
       // and it properly filters them out during its search
-      expect(mockRouter.listPersonalitiesForUser).toHaveBeenCalledWith('author-123');
+      expect(mockRouter.listPersonalitiesByOwner).toHaveBeenCalledWith('author-123');
       
       // Since the test setup is complex and the actual matching behavior may vary,
       // the important thing is that the handler doesn't crash on invalid data

@@ -102,7 +102,7 @@ describe('Nested Reference Handling', () => {
     };
     createFeatureFlags.mockReturnValue(mockFeatureFlags);
 
-    const mockPersonalityRouter = {
+    const mockPersonalityApplicationService = {
       getPersonality: jest.fn().mockResolvedValue({
         fullName: 'test-personality',
         displayName: 'Test',
@@ -110,7 +110,7 @@ describe('Nested Reference Handling', () => {
     };
     const mockBootstrap = {
       initialized: true,
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 

@@ -72,7 +72,7 @@ jest.mock('path', () => ({
 // Mock ApplicationBootstrap for MessageHistory
 jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
   getApplicationBootstrap: jest.fn().mockReturnValue({
-    getPersonalityRouter: jest.fn().mockReturnValue({
+    getPersonalityApplicationService: jest.fn().mockReturnValue({
       getPersonality: jest.fn().mockImplementation(async (nameOrAlias) => {
         const normalizedName = nameOrAlias.toLowerCase();
         if (normalizedName === 'test personality one' || normalizedName === 'test-personality-one') {
@@ -657,7 +657,7 @@ describe('Conversation Manager', () => {
       // Mock ApplicationBootstrap to return null from router
       jest.mock('../../src/application/bootstrap/ApplicationBootstrap', () => ({
         getApplicationBootstrap: jest.fn().mockReturnValue({
-          getPersonalityRouter: jest.fn().mockReturnValue({
+          getPersonalityApplicationService: jest.fn().mockReturnValue({
             getPersonality: jest.fn().mockResolvedValue(null),
           }),
         }),

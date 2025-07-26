@@ -12,33 +12,33 @@ const {
   personalityExists,
   getFullName,
   getAliases,
-  setPersonalityRouter,
+  setPersonalityService,
 } = require('../../../src/utils/aliasResolver');
 
 const logger = require('../../../src/logger');
 const { getApplicationBootstrap } = require('../../../src/application/bootstrap/ApplicationBootstrap');
 
 describe('aliasResolver', () => {
-  let mockPersonalityRouter;
+  let mockPersonalityApplicationService;
   let mockBootstrap;
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    // Setup personality router mock
-    mockPersonalityRouter = {
+    // Setup personality service mock
+    mockPersonalityApplicationService = {
       getPersonality: jest.fn(),
     };
 
     // Setup bootstrap mock
     mockBootstrap = {
-      getPersonalityRouter: jest.fn().mockReturnValue(mockPersonalityRouter),
+      getPersonalityApplicationService: jest.fn().mockReturnValue(mockPersonalityApplicationService),
       initialized: true,
     };
     getApplicationBootstrap.mockReturnValue(mockBootstrap);
 
-    // Set the personality router directly to avoid lazy loading in tests
-    setPersonalityRouter(mockPersonalityRouter);
+    // Set the personality service directly to avoid lazy loading in tests
+    setPersonalityService(mockPersonalityApplicationService);
   });
 
   describe('resolvePersonality', () => {
@@ -60,28 +60,28 @@ describe('aliasResolver', () => {
       expect(await resolvePersonality([])).toBeNull();
     });
 
-    it('should resolve personality via personality router', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+    it('should resolve personality via personality service', async () => {
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('test');
 
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
       expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Resolving personality for: "test"');
       expect(logger.debug).toHaveBeenCalledWith('[AliasResolver] Found personality: Test Personality');
     });
 
     it('should trim input before resolving', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('  test  ');
 
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
     });
 
     it('should return null when personality not found', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await resolvePersonality('unknown');
 
@@ -91,14 +91,14 @@ describe('aliasResolver', () => {
     });
 
     it('should handle errors gracefully', async () => {
-      mockPersonalityRouter.getPersonality.mockImplementation(() => {
-        throw new Error('Router error');
+      mockPersonalityApplicationService.getPersonality.mockImplementation(() => {
+        throw new Error('Service error');
       });
 
       // The new implementation catches errors and returns null
       const result = await resolvePersonality('test');
       expect(result).toBeNull();
-      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Router error');
+      expect(logger.error).toHaveBeenCalledWith('[AliasResolver] Error resolving personality:', 'Service error');
     });
   });
 
@@ -107,7 +107,7 @@ describe('aliasResolver', () => {
     const mockPersonality2 = { fullName: 'Personality 2' };
 
     it('should resolve multiple personalities', async () => {
-      mockPersonalityRouter.getPersonality
+      mockPersonalityApplicationService.getPersonality
         .mockResolvedValueOnce(mockPersonality1)
         .mockResolvedValueOnce(mockPersonality2)
         .mockResolvedValueOnce(null);
@@ -115,7 +115,7 @@ describe('aliasResolver', () => {
       const result = await resolveMultiplePersonalities(['name1', 'name2', 'unknown']);
 
       expect(result).toEqual([mockPersonality1, mockPersonality2]);
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledTimes(3);
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledTimes(3);
     });
 
     it('should return empty array for non-array input', async () => {
@@ -130,11 +130,11 @@ describe('aliasResolver', () => {
       const result = await resolveMultiplePersonalities([]);
 
       expect(result).toEqual([]);
-      expect(mockPersonalityRouter.getPersonality).not.toHaveBeenCalled();
+      expect(mockPersonalityApplicationService.getPersonality).not.toHaveBeenCalled();
     });
 
     it('should filter out invalid inputs within array', async () => {
-      mockPersonalityRouter.getPersonality
+      mockPersonalityApplicationService.getPersonality
         .mockResolvedValueOnce(mockPersonality1)
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
@@ -145,7 +145,7 @@ describe('aliasResolver', () => {
     });
 
     it('should handle resolution errors gracefully', async () => {
-      mockPersonalityRouter.getPersonality
+      mockPersonalityApplicationService.getPersonality
         .mockResolvedValueOnce(mockPersonality1)
         .mockImplementationOnce(() => { throw new Error('Resolution error'); })
         .mockResolvedValueOnce(mockPersonality2);
@@ -160,7 +160,7 @@ describe('aliasResolver', () => {
   describe('personalityExists', () => {
 
     it('should return true when personality exists', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({ fullName: 'Test' });
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({ fullName: 'Test' });
 
       const result = await personalityExists('test');
 
@@ -168,7 +168,7 @@ describe('aliasResolver', () => {
     });
 
     it('should return false when personality does not exist', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await personalityExists('unknown');
 
@@ -185,7 +185,7 @@ describe('aliasResolver', () => {
   describe('getFullName', () => {
 
     it('should return full name when personality exists', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         profile: {
           name: 'Test Personality Full Name',
         },
@@ -198,7 +198,7 @@ describe('aliasResolver', () => {
     });
 
     it('should return null when personality not found', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await getFullName('unknown');
 
@@ -214,7 +214,7 @@ describe('aliasResolver', () => {
   describe('getAliases', () => {
 
     it('should return aliases when personality exists', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'Test',
         aliases: ['alias1', 'alias2', 'alias3'],
       });
@@ -225,7 +225,7 @@ describe('aliasResolver', () => {
     });
 
     it('should return empty array when personality has no aliases', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'Test',
         // No aliases property
       });
@@ -236,7 +236,7 @@ describe('aliasResolver', () => {
     });
 
     it('should return empty array when personality not found', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await getAliases('unknown');
 
@@ -249,7 +249,7 @@ describe('aliasResolver', () => {
     });
 
     it('should handle null aliases property', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue({
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue({
         fullName: 'Test',
         aliases: null,
       });
@@ -260,51 +260,51 @@ describe('aliasResolver', () => {
     });
   });
 
-  describe('integration with personality router', () => {
-    it('should use the personality router consistently', async () => {
+  describe('integration with personality service', () => {
+    it('should use the personality service consistently', async () => {
       const mockPersonality = { fullName: 'Test Personality' };
-      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('test');
       
-      // Router is already set via setPersonalityRouter, no need to call getApplicationBootstrap
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('test');
+      // Service is already set via setPersonalityService, no need to call getApplicationBootstrap
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('test');
       expect(result).toBe(mockPersonality);
     });
 
-    it('should handle router returning null', async () => {
-      mockPersonalityRouter.getPersonality.mockResolvedValue(null);
+    it('should handle service returning null', async () => {
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(null);
 
       const result = await resolvePersonality('nonexistent');
       
       expect(result).toBeNull();
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('nonexistent');
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('nonexistent');
     });
 
-    it('should use lazy loading when router not set', async () => {
-      // Reset the router to null to test lazy loading
-      setPersonalityRouter(null);
+    it('should use lazy loading when service not set', async () => {
+      // Reset the service to null to test lazy loading
+      setPersonalityService(null);
       
       const mockPersonality = { fullName: 'Lazy Loaded' };
-      mockPersonalityRouter.getPersonality.mockResolvedValue(mockPersonality);
+      mockPersonalityApplicationService.getPersonality.mockResolvedValue(mockPersonality);
 
       const result = await resolvePersonality('lazy');
       
       expect(getApplicationBootstrap).toHaveBeenCalled();
-      expect(mockBootstrap.getPersonalityRouter).toHaveBeenCalled();
-      expect(mockPersonalityRouter.getPersonality).toHaveBeenCalledWith('lazy');
+      expect(mockBootstrap.getPersonalityApplicationService).toHaveBeenCalled();
+      expect(mockPersonalityApplicationService.getPersonality).toHaveBeenCalledWith('lazy');
       expect(result).toBe(mockPersonality);
     });
 
     it('should handle bootstrap not initialized during lazy loading', async () => {
-      // Reset the router and make bootstrap not initialized
-      setPersonalityRouter(null);
+      // Reset the service and make bootstrap not initialized
+      setPersonalityService(null);
       mockBootstrap.initialized = false;
 
       const result = await resolvePersonality('notready');
       
       expect(result).toBeNull();
-      expect(logger.warn).toHaveBeenCalledWith('[AliasResolver] Personality router not available');
+      expect(logger.warn).toHaveBeenCalledWith('[AliasResolver] Personality service not available');
     });
   });
 });

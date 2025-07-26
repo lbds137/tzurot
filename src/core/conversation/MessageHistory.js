@@ -54,7 +54,7 @@ class MessageHistory {
         getApplicationBootstrap,
       } = require('../../application/bootstrap/ApplicationBootstrap');
       const bootstrap = getApplicationBootstrap();
-      const router = bootstrap.getPersonalityRouter();
+      const service = bootstrap.getPersonalityApplicationService();
 
       logger.debug('[MessageHistory] Using DDD system to lookup personalities');
 
@@ -69,7 +69,7 @@ class MessageHistory {
       }
 
       // Try different variations to find the personality
-      // The router.getPersonality method in DDD should handle both names and aliases
+      // The service.getPersonality method in DDD should handle both names and aliases
       const variations = [
         webhookUsername, // Full webhook name
         webhookBaseName, // Base name without suffix
@@ -78,17 +78,17 @@ class MessageHistory {
       ];
 
       for (const variation of variations) {
-        const personality = await router.getPersonality(variation);
+        const personality = await service.getPersonality(variation);
         if (personality) {
           logger.debug(
-            `[MessageHistory] Found personality match through DDD router for "${variation}": ${personality.fullName}`
+            `[MessageHistory] Found personality match through DDD service for "${variation}": ${personality.fullName}`
           );
           return personality.fullName;
         }
       }
 
       logger.debug(
-        '[MessageHistory] No match found through DDD router after trying all variations'
+        '[MessageHistory] No match found through DDD service after trying all variations'
       );
       return null;
     } catch (error) {
