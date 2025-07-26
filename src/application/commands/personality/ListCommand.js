@@ -132,15 +132,6 @@ function createListCommand() {
             };
           });
 
-          // Add system indicator if using new system
-          const featureFlags = context.dependencies.featureFlags;
-          if (featureFlags?.isEnabled('ddd.personality.read')) {
-            fields.push({
-              name: 'System',
-              value: '🆕 Loaded from new DDD system',
-              inline: false,
-            });
-          }
 
           // Create the list embed
           const embedData = {

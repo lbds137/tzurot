@@ -92,11 +92,8 @@ function createResetCommand() {
           return await context.respond({ embeds: [validationEmbed] });
         }
 
-        // Check if using new system for personality lookup
-        const useNewSystem = featureFlags?.isEnabled('ddd.personality.read');
-
         logger.info(
-          `[ResetCommand] Resetting conversation with "${personalityNameOrAlias}" for user ${context.getUserId()} using ${useNewSystem ? 'new' : 'legacy'} system`
+          `[ResetCommand] Resetting conversation with "${personalityNameOrAlias}" for user ${context.getUserId()}`
         );
 
         try {
@@ -187,9 +184,6 @@ function createResetCommand() {
             timestamp: new Date().toISOString(),
           };
 
-          if (useNewSystem) {
-            successEmbed.footer = { text: 'Using new DDD system' };
-          }
 
           return await context.respond({ embeds: [successEmbed] });
         } catch (error) {

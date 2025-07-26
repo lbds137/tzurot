@@ -376,16 +376,6 @@ describe('ListCommand', () => {
       });
     });
 
-    it('should show DDD feature flag status when enabled', async () => {
-      mockFeatureFlags.isEnabled.mockReturnValue(true);
-
-      await command.execute(mockContext);
-
-      const embedCall = mockContext.respond.mock.calls[0][0];
-      const systemField = embedCall.embeds[0].fields.find(f => f.name === 'System');
-      expect(systemField).toBeDefined();
-      expect(systemField.value).toBe('🆕 Loaded from new DDD system');
-    });
 
     it('should handle aliases as objects with value property', async () => {
       mockPersonalityService.listPersonalitiesByOwner.mockResolvedValue([

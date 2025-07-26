@@ -32,8 +32,9 @@ describe('FeatureFlags', () => {
     it('should initialize with default flags', () => {
       const flags = featureFlags.getAllFlags();
 
-      // No default flags should exist since DDD migration flags were removed
-      expect(Object.keys(flags)).toHaveLength(0);
+      // Should have the enhanced-context flag
+      expect(Object.keys(flags)).toHaveLength(1);
+      expect(flags['features.enhanced-context']).toBe(false);
     });
 
     it('should accept config overrides', () => {
@@ -160,6 +161,7 @@ describe('FeatureFlags', () => {
       const flags = testFlags.getAllFlags();
 
       expect(flags).toEqual({
+        'features.enhanced-context': false,
         'features.test-flag': true,
         'features.another-flag': true,
       });
@@ -179,6 +181,7 @@ describe('FeatureFlags', () => {
       const featureFlags = testFlags.getFlagsByPrefix('features');
 
       expect(featureFlags).toEqual({
+        'features.enhanced-context': false,
         'features.ui-flag': true,
         'features.api-flag': true,
       });
