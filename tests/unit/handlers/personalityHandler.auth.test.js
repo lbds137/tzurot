@@ -5,17 +5,25 @@
  * handling of different message types (direct, webhook, PluralKit).
  */
 
-const { 
-  checkPersonalityAuth,
-  setAuthService,
-  clearCache,
-} = require('../../../src/handlers/personalityHandler');
+// Mock config first, before any imports
+jest.mock('../../../config', () => ({ 
+  botPrefix: '!tz',
+  botConfig: {
+    isDevelopment: false
+  }
+}));
 
 // Mock dependencies
 jest.mock('../../../src/logger');
 jest.mock('../../../src/utils/webhookUserTracker');
 jest.mock('../../../src/utils/channelUtils');
 jest.mock('../../../src/domain/authentication/AuthContext');
+
+const { 
+  checkPersonalityAuth,
+  setAuthService,
+  clearCache,
+} = require('../../../src/handlers/personalityHandler');
 
 const logger = require('../../../src/logger');
 const webhookUserTracker = require('../../../src/utils/webhookUserTracker');
@@ -160,7 +168,7 @@ describe('PersonalityHandler - checkPersonalityAuth', () => {
 
       expect(result).toEqual({
         isAllowed: false,
-        errorMessage: 'Authentication required for NSFW personalities. Use `!rtz auth start` to authenticate first.',
+        errorMessage: 'Authentication required. Use `!tz auth start` to authenticate first.',
         reason: 'auth_failed',
       });
 

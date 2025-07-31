@@ -105,7 +105,7 @@ async function checkPersonalityAuth(message, personality) {
       if (!proxyAuth.isAuthenticated) {
         return {
           isAllowed: false,
-          errorMessage: `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`,
+          errorMessage: `Authentication required. Use \`${botPrefix} auth start\` to authenticate first.`,
           reason: 'auth_failed',
         };
       }
