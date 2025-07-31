@@ -487,7 +487,7 @@ class AuthenticationApplicationService {
       if (!userAuth) {
         return {
           allowed: false,
-          reason: `Authentication required for NSFW personalities. Use \`${botPrefix} auth start\` to authenticate first.`,
+          reason: `Authentication required. Use \`${botPrefix} auth start\` to authenticate first.`,
         };
       }
 
