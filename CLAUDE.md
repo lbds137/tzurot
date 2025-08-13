@@ -2,6 +2,8 @@
 
 @~/.claude/CLAUDE.md
 
+> **📍 ALWAYS CHECK FIRST**: Read [CURRENT_WORK.md](CURRENT_WORK.md) to understand what's actively being worked on and which documentation is currently relevant.
+
 > **⚠️ CRITICAL PR WORKFLOW**: **NEVER** create PRs directly to `main` branch! Always target `develop` for features, fixes, and updates. Only sync develop→main for releases. See [Git and PR Workflow](docs/development/GIT_AND_PR_WORKFLOW.md).
 
 ## Project Overview
@@ -399,7 +401,18 @@ See `docs/development/VERSIONING.md` for Discord bot versioning guidance.
 5. PR to main (only time allowed)
 6. After merge: `echo "y" | ./scripts/create-release.sh vX.Y.Z`
 
+## Documentation Maintenance
+
+**IMPORTANT**: When switching to work on a different area:
+1. Update `CURRENT_WORK.md` with the new focus
+2. Update the "Active Work" section in `docs/README.md`
+3. Move completed work to "Recently Completed" section
+4. Update relevant doc timestamps when making changes
+
+This keeps documentation relevance clear without complex systems.
+
 ## Import Key Project Docs
+@CURRENT_WORK.md
 @docs/development/GIT_AND_PR_WORKFLOW.md
 @docs/testing/TIMER_PATTERNS_COMPLETE.md
 @docs/development/PRIVACY_LOGGING_GUIDE.md
