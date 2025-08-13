@@ -105,4 +105,130 @@
 ## Next Steps
 - Discuss preferred approach for personality storage with team
 - Create detailed technical specifications for each feature
-- Implement features in priority order- **Express.js HTTP Framework Migration** - Consider migrating from custom HTTP server to Express.js for better routing, middleware support, and ecosystem
+- Implement features in priority order
+
+---
+
+## Additional Feature Ideas (January 2025)
+
+### 4. User Preferences System with Voice Toggle
+**Feature**: User-specific preferences command system
+- **Command**: `!tz preferences` or `!tz prefs`
+- **Primary Use Case**: Toggle !voice prefix for personalities
+- **Behavior**:
+  - Store per-user preferences including voice message generation
+  - Default: voice prefix ON (prepends !voice to personality messages)
+  - Users can toggle this off if they don't want voice messages
+  - Could expand to include timezone preferences, notification settings, etc.
+- **Implementation Notes**:
+  - Need persistence layer for user preferences
+  - Hook into message generation to conditionally add !voice prefix
+  - Consider using existing user auth infrastructure
+
+### 5. Emoji Reaction Actions
+**Feature**: Use emoji reactions on personality messages to trigger actions
+- **Behavior**:
+  - ℹ️ or ❓ emoji: Display stats/details about the personality
+  - 🔄 emoji: Regenerate the response
+  - ❌ emoji: Delete the personality message (if user has permission)
+  - 📊 emoji: Show usage statistics
+- **Implementation**:
+  - Listen for reaction add/remove events
+  - Map emojis to specific actions
+  - Check permissions before executing actions
+  - Store message-to-personality mapping for context
+
+### 6. Multiple Personality Tags
+**Feature**: Tag multiple personalities in one message for group responses
+- **Behavior**:
+  - Parse multiple @mentions in a single message
+  - Queue responses from each tagged personality
+  - Personalities respond in order mentioned
+  - Handle rate limiting appropriately
+- **Example**: "@alice @bob What do you think?" generates responses from both
+- **Considerations**:
+  - Rate limit handling for multiple API calls
+  - Message ordering and threading
+  - Cost implications of multiple AI calls
+
+### 7. Disable Replies for Disabled Tags
+**Feature**: Respect Discord's ping notification settings
+- **Behavior**:
+  - Check if user has notifications enabled for personality mentions
+  - If ping is disabled in Discord UI, optionally skip reply
+  - Could be a per-personality or global setting
+- **Implementation**:
+  - Hook into Discord's notification API
+  - Store user preference for this behavior
+
+### 8. Forwarded Message Support
+**Feature**: Parse and handle Discord's forwarded message format
+- **Behavior**:
+  - Detect forwarded message structure
+  - Include forwarded content in personality context
+  - Properly attribute original sender
+- **Implementation**:
+  - Update message parsing in messageHandler.js
+  - Handle forwarded embeds appropriately
+
+### 9. Smart Reference Inclusion
+**Feature**: Intelligent handling of webhook content references
+- **Behavior**:
+  - Track which user an AI message was replying to
+  - If different user, always include reference (bypass time check)
+  - Maintains conversation context across user switches
+- **Implementation**:
+  - Enhance conversation tracking with reply chain data
+  - Store user context in message mapping
+
+### 10. Personality Mention Stripping
+**Feature**: Smart handling of @mentions in personality messages
+- **Behavior**:
+  - Strip @mentions at beginning/end of messages
+  - Preserve @mentions in middle of sentences
+  - Prevents awkward "Hi @user" at start of responses
+- **Example**: "@alice hi there" → "hi there" sent to AI
+- **Implementation**:
+  - Regex pattern to detect position of mentions
+  - Clean message before sending to AI service
+
+### 11. Command Ordering for AI Service
+**Feature**: Ensure AI service commands appear before context metadata
+- **Behavior**:
+  - Commands like !voice, !wack, !sleep, !reset, !web must appear first
+  - Only one command per message allowed
+  - Enhanced context metadata comes after command
+- **Implementation**:
+  - Reorder message construction in aiService.js
+  - Validate command presence and position
+
+### 12. Discord Sticker Support
+**Feature**: Convert Discord stickers to images for AI processing
+- **Behavior**:
+  - Detect sticker attachments in messages
+  - Convert static stickers to images
+  - Handle animated stickers (convert to static or describe)
+  - Send to AI as image content
+- **Implementation**:
+  - Add sticker detection in messageHandler.js
+  - Implement sticker-to-image conversion
+  - Update media handling pipeline
+
+## Feature Priority Matrix
+
+### High Impact, Low Effort
+- Personality Mention Stripping (#10)
+- Command Ordering (#11)
+- User Preferences with Voice Toggle (#4)
+
+### High Impact, High Effort
+- Multiple Personality Tags (#6)
+- Emoji Reaction Actions (#5)
+- Smart Reference Inclusion (#9)
+
+### Low Impact, Low Effort
+- Forwarded Message Support (#8)
+- Disable Replies for Disabled Tags (#7)
+
+### Low Impact, High Effort
+- Discord Sticker Support (#12)
