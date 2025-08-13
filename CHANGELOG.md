@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.10] - 2025-08-13
+
+### Fixed
+- **Critical Reply Bug** - Fixed crash when replying to personality messages
+  - `getPersonalityApplicationService()` was returning undefined due to incorrect property path
+  - This affected reply processing, DM handling, alias resolution, and error handling
+  - One-line fix resolved multiple breaking issues across the bot
+
 ## [2.2.9] - 2025-08-12
 
 ### Fixed
