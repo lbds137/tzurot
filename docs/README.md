@@ -1,8 +1,21 @@
 # Tzurot Documentation
 
+> **📍 Current Focus**: Testing infrastructure and message formatting refactor - see [Active Work](#-active-work) below
+
 This directory contains the documentation for the Tzurot Discord bot project.
 
-> **🚀 Quick Navigation**: See the [Complete Documentation Index](DOCUMENTATION_INDEX.md) for fast access to any document.
+> **🚀 Quick Navigation**: See the [Complete Documentation Index](DOCUMENTATION_INDEX.md) for all documents.
+
+## 🎯 Active Work
+
+### Currently Working On
+- **[Testing Infrastructure](testing/TESTING_STRATEGY.md)** - Golden master tests for safe refactoring *(Updated: Aug 2025)*
+- **[Formatting Domain Plan](improvements/FORMATTING_DOMAIN_PLAN.md)** - Next: Pipeline pattern for messages *(Updated: Aug 2025)*
+
+### Essential References
+- **[Git & PR Workflow](development/GIT_AND_PR_WORKFLOW.md)** ⚠️ Never PR to main directly!
+- **[Timer Patterns](testing/TIMER_PATTERNS_COMPLETE.md)** - Required for all new code
+- **[CLAUDE.md](../CLAUDE.md)** - AI assistant context and rules
 
 ## 📁 Structure
 
