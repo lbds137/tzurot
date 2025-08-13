@@ -669,12 +669,12 @@ class PersonalityApplicationService {
 
   /**
    * Get the maximum word count among all aliases
-   * @returns {Promise<number>} The maximum word count (minimum 1)
+   * @returns {Promise<number>} The maximum word count (minimum 2)
    */
   async getMaxAliasWordCount() {
     try {
       const personalities = await this.personalityRepository.findAll();
-      let maxWordCount = 1; // Default to 1 if no aliases exist
+      let maxWordCount = 2; // Default to 2 to always support multi-word aliases like "@cash money"
 
       for (const personality of personalities) {
         for (const alias of personality.aliases) {
