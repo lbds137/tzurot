@@ -38,14 +38,14 @@ describe('MessageHandlerConfig', () => {
 
   describe('constructor and initialization', () => {
     it('should initialize with safe defaults', () => {
-      expect(config.getMaxAliasWordCount()).toBe(5);
+      expect(config.getMaxAliasWordCount()).toBe(2);
       expect(config.isInitialized()).toBe(false);
     });
 
     it('should return safe default when not initialized', () => {
       // Fresh instance should not be initialized
       expect(config.isInitialized()).toBe(false);
-      expect(config.getMaxAliasWordCount()).toBe(5);
+      expect(config.getMaxAliasWordCount()).toBe(2);
     });
   });
 
@@ -93,7 +93,7 @@ describe('MessageHandlerConfig', () => {
   describe('getMaxAliasWordCount', () => {
     it('should return safe default before initialization', () => {
       expect(config.isInitialized()).toBe(false);
-      expect(config.getMaxAliasWordCount()).toBe(5);
+      expect(config.getMaxAliasWordCount()).toBe(2);
     });
 
     it('should return configured value after initialization', () => {
@@ -187,14 +187,14 @@ describe('MessageHandlerConfig', () => {
       
       const value = config.getMaxAliasWordCount();
       
-      expect(value).toBe(5);
+      expect(value).toBe(2);
       expect(config.isInitialized()).toBe(false); // Should remain false
     });
 
     it('should return safe default consistently before initialization', () => {
-      expect(config.getMaxAliasWordCount()).toBe(5);
-      expect(config.getMaxAliasWordCount()).toBe(5);
-      expect(config.getMaxAliasWordCount()).toBe(5);
+      expect(config.getMaxAliasWordCount()).toBe(2);
+      expect(config.getMaxAliasWordCount()).toBe(2);
+      expect(config.getMaxAliasWordCount()).toBe(2);
       expect(config.isInitialized()).toBe(false);
     });
   });
@@ -216,7 +216,7 @@ describe('MessageHandlerConfig', () => {
     it('should handle early access before configuration gracefully', () => {
       // Component tries to get value before app initialization
       const earlyValue = config.getMaxAliasWordCount();
-      expect(earlyValue).toBe(5); // Safe default
+      expect(earlyValue).toBe(2); // Safe default
       expect(config.isInitialized()).toBe(false);
       
       // Later, app initializes
