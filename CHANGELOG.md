@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - This affected reply processing, DM handling, alias resolution, and error handling
   - One-line fix resolved multiple breaking issues across the bot
 
+### Added
+- **Testing Infrastructure** - Comprehensive test utilities for safer development
+  - Discord.js mock factories for creating test objects
+  - Message factory with fluent builder pattern
+  - 28 golden master test scenarios for message formatting
+  - Test helpers and migration utilities
+
+### Changed
+- **Documentation Organization** - Improved documentation structure and discoverability
+  - Reorganized docs into appropriate subdirectories
+  - Added CURRENT_WORK.md for tracking active development
+  - Created comprehensive documentation index
+  - Updated CLAUDE.md to reference current work tracking
+  - Improved navigation with quick links and active work sections
+
 ## [2.2.9] - 2025-08-12
 
 ### Fixed
