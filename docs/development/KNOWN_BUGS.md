@@ -110,7 +110,7 @@ When reporting a new bug, include:
 
 ## Recently Fixed
 
-- **Multi-word Tag Parsing** (Jan 2025): Fixed max alias word count calculation timing issue
+- **Multi-word Tag Parsing** (Aug 2025): Fixed max alias word count calculation timing issue
 
 ## Related Documents
 
