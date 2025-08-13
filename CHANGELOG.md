@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.9] - 2025-08-12
+
+### Fixed
+- **Multi-word Tag Parsing** - Fixed bug where multi-word personality aliases like `@cash money` weren't being recognized
+  - Max alias word count was being calculated before personalities were loaded from disk
+  - Now properly recalculates after loading personalities to support multi-word aliases
+  - Set minimum default of 2 words to ensure multi-word aliases always work
+- **Authentication Error Messages** - Improved clarity of authentication-related error messages
+  - Better error reporting when authentication fails or is required
+- **Hardcoded Bot Prefixes** - Replaced hardcoded `!tz` prefixes with dynamic configuration
+  - Bot prefix is now properly read from configuration throughout the codebase
+  - Improves flexibility for different bot instances
+
+### Changed
+- **Internal Refactoring** - Removed unnecessary PersonalityRouter abstraction layer
+  - Simplified architecture by using PersonalityApplicationService directly
+  - Improved code clarity with consistent service terminology
+  - No user-facing changes
+
+### Documentation
+- Created comprehensive bug tracking document in `docs/development/KNOWN_BUGS.md`
+- Consolidated feature ideas in `docs/improvements/post-ddd/FEATURE_IDEAS.md`
+- Updated DDD migration documentation to reflect current reality
+
 ## [2.2.8] - 2025-07-25
 
 ### Fixed
