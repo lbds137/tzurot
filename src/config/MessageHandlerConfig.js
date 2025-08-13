@@ -7,7 +7,7 @@
  */
 class MessageHandlerConfig {
   constructor() {
-    this._maxAliasWordCount = 5; // Safe default
+    this._maxAliasWordCount = 2; // Default to support multi-word aliases like "@cash money"
     this._initialized = false;
   }
 
@@ -27,8 +27,8 @@ class MessageHandlerConfig {
   getMaxAliasWordCount() {
     if (!this._initialized) {
       // Return a safe default if not initialized yet
-      // This prevents startup issues
-      return 5;
+      // This prevents startup issues and ensures multi-word aliases work
+      return 2;
     }
     return this._maxAliasWordCount;
   }

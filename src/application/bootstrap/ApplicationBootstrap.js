@@ -212,6 +212,16 @@ class ApplicationBootstrap {
       await authenticationRepository.initialize();
       await blacklistRepository.initialize();
 
+      // Step 9.5: Update max alias word count after personalities are loaded from disk
+      try {
+        const updatedMaxWordCount = await personalityApplicationService.getMaxAliasWordCount();
+        messageHandlerConfig.setMaxAliasWordCount(updatedMaxWordCount);
+        logger.info(`[ApplicationBootstrap] Updated max alias word count after loading personalities: ${updatedMaxWordCount}`);
+      } catch (configError) {
+        logger.error('[ApplicationBootstrap] Failed to update max alias word count:', configError);
+        // Continue with existing config value
+      }
+
       // Step 10: Schedule owner personality seeding in background (don't block initialization)
       this.initialized = true;
       logger.info('[ApplicationBootstrap] ✅ DDD application layer initialization complete');
