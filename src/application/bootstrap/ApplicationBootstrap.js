@@ -302,7 +302,7 @@ class ApplicationBootstrap {
     if (!this.initialized) {
       throw new Error('ApplicationBootstrap not initialized');
     }
-    return this.personalityApplicationService;
+    return this.applicationServices.personalityApplicationService;
   }
 
   /**
