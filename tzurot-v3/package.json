@@ -1,0 +1,33 @@
+{
+  "name": "tzurot-v3",
+  "version": "3.0.0-alpha.1",
+  "private": true,
+  "description": "Next-generation Discord AI bot with customizable personalities",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter './services/*' dev",
+    "build": "pnpm --filter './services/*' build",
+    "start:bot": "pnpm --filter @tzurot/bot-client start",
+    "start:gateway": "pnpm --filter @tzurot/api-gateway start",
+    "start:worker": "pnpm --filter @tzurot/ai-worker start",
+    "test": "pnpm --filter './services/*' --filter './packages/*' test",
+    "lint": "pnpm --filter './services/*' --filter './packages/*' lint",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.2.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.1"
+}

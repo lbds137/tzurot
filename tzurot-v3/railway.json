@@ -1,0 +1,31 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS"
+  },
+  "deploy": {
+    "numReplicas": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  },
+  "services": [
+    {
+      "name": "bot-client",
+      "root": "services/bot-client",
+      "startCommand": "pnpm start",
+      "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @tzurot/bot-client build"
+    },
+    {
+      "name": "api-gateway",
+      "root": "services/api-gateway",
+      "startCommand": "pnpm start",
+      "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @tzurot/api-gateway build"
+    },
+    {
+      "name": "ai-worker",
+      "root": "services/ai-worker",
+      "startCommand": "pnpm start",
+      "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @tzurot/ai-worker build"
+    }
+  ]
+}
