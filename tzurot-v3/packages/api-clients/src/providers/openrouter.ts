@@ -70,9 +70,9 @@ export class OpenRouterProvider implements AIProvider {
         clearTimeout(timeoutId);
         
         if (!response.ok) {
-          const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+          const errorData = await response.json().catch(() => ({ error: { message: response.statusText } })) as { error?: { message?: string } };
           throw new AIProviderError(
-            error.error?.message || `Request failed with status ${response.status}`,
+            errorData.error?.message || `Request failed with status ${response.status}`,
             'API_ERROR',
             response.status,
             this.name
@@ -82,8 +82,8 @@ export class OpenRouterProvider implements AIProvider {
         const data = await response.json() as ChatCompletionResponse;
         return data;
         
-      } catch (error: any) {
-        lastError = error;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
         
         // Don't retry on client errors (4xx)
         if (error instanceof AIProviderError && error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
@@ -116,9 +116,9 @@ export class OpenRouterProvider implements AIProvider {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+      const errorData = await response.json().catch(() => ({ error: { message: response.statusText } })) as { error?: { message?: string } };
       throw new AIProviderError(
-        error.error?.message || `Stream request failed with status ${response.status}`,
+        errorData.error?.message || `Stream request failed with status ${response.status}`,
         'STREAM_ERROR',
         response.status,
         this.name
@@ -174,8 +174,8 @@ export class OpenRouterProvider implements AIProvider {
       );
     }
 
-    const data = await response.json();
-    return data.data.map((model: any) => model.id);
+    const data = await response.json() as { data: Array<{ id: string }> };
+    return data.data.map((model) => model.id);
   }
 
   async healthCheck(): Promise<boolean> {
