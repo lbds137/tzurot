@@ -47,6 +47,7 @@ export const PersonalitySchema = z.object({
     description: z.string(),
     parameters: z.any() // JSON Schema
   })).optional(), // For function calling support
+  errorMessage: z.string().optional(), // Custom error message for this personality
 });
 
 export type Personality = z.infer<typeof PersonalitySchema>;

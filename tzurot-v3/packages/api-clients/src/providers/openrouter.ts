@@ -69,11 +69,25 @@ export class OpenRouterProvider implements AIProvider {
         
         clearTimeout(timeoutId);
         
+        // Handle different error types
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: { message: response.statusText } })) as { error?: { message?: string } };
+          const errorMessage = errorData.error?.message || `Request failed with status ${response.status}`;
+          
+          // Client errors (4xx) should not be retried
+          if (response.status >= 400 && response.status < 500) {
+            throw new AIProviderError(
+              errorMessage,
+              'CLIENT_ERROR',
+              response.status,
+              this.name
+            );
+          }
+          
+          // Server errors (5xx) can be retried
           throw new AIProviderError(
-            errorData.error?.message || `Request failed with status ${response.status}`,
-            'API_ERROR',
+            errorMessage,
+            'SERVER_ERROR',
             response.status,
             this.name
           );
@@ -85,19 +99,36 @@ export class OpenRouterProvider implements AIProvider {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         
-        // Don't retry on client errors (4xx)
-        if (error instanceof AIProviderError && error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+        // Don't retry on client errors or abort errors
+        if (error instanceof AIProviderError && error.code === 'CLIENT_ERROR') {
           throw error;
         }
         
-        // Exponential backoff for retries
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new AIProviderError(
+            'Request timeout',
+            'TIMEOUT',
+            undefined,
+            this.name
+          );
+        }
+        
+        // Log retry attempt
         if (attempt < this.maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+          const delay = Math.pow(2, attempt) * 1000;
+          console.warn(`Retry attempt ${attempt + 1}/${this.maxRetries} after ${delay}ms delay`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
     }
     
-    throw lastError || new AIProviderError('Request failed after retries', 'MAX_RETRIES', undefined, this.name);
+    // Throw the last error with context
+    throw new AIProviderError(
+      `Failed after ${this.maxRetries} attempts. Last error: ${lastError?.message}`,
+      'MAX_RETRIES',
+      undefined,
+      this.name
+    );
   }
 
   async *streamComplete(request: ChatCompletionRequest): AsyncIterable<StreamChunk> {
@@ -138,7 +169,7 @@ export class OpenRouterProvider implements AIProvider {
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\\n');
+      const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       for (const line of lines) {

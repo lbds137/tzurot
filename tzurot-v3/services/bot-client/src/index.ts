@@ -1,9 +1,9 @@
 import { Client, GatewayIntentBits, Message, Events } from 'discord.js';
-import pino, { Logger } from 'pino';
+import { pino } from 'pino';
 import { AIProviderFactory } from '@tzurot/api-clients';
-import { Personality } from '@tzurot/common-types';
+import { Personality, preserveCodeBlocks } from '@tzurot/common-types';
 
-// Initialize logger with proper typing
+// Initialize logger
 const logger = pino({
   transport: {
     target: 'pino-pretty',
@@ -11,7 +11,7 @@ const logger = pino({
       colorize: true
     }
   }
-}) as Logger;
+});
 
 // Initialize Discord client
 const client = new Client({
@@ -129,15 +129,10 @@ client.on(Events.MessageCreate, (message: Message) => {
         return;
       }
       
-      // Send response (split if too long for Discord)
-      if (reply.length <= 2000) {
-        await message.reply(reply);
-      } else {
-        // Split into chunks
-        const chunks = reply.match(/.{1,2000}/g) ?? [];
-        for (const chunk of chunks) {
-          await message.reply(chunk);
-        }
+      // Send response (split intelligently if too long for Discord)
+      const chunks = preserveCodeBlocks(reply);
+      for (const chunk of chunks) {
+        await message.reply(chunk);
       }
       
       logger.info({ 

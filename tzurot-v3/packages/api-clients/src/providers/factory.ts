@@ -83,21 +83,32 @@ export class AIProviderFactory {
 
   /**
    * Create a provider from environment variables
+   * Uses validated configuration to ensure all required vars are present
    */
   static fromEnv(): AIProvider {
-    const providerType = (process.env.AI_PROVIDER || 'openrouter') as ProviderType;
+    // Import dynamically to avoid circular dependencies
+    const { getConfig } = require('@tzurot/common-types/dist/config');
+    const config = getConfig();
     
-    switch (providerType) {
+    switch (config.AI_PROVIDER) {
       case 'openrouter':
         return this.create('openrouter', {
-          apiKey: process.env.OPENROUTER_API_KEY!,
-          baseUrl: process.env.OPENROUTER_BASE_URL,
-          defaultModel: process.env.DEFAULT_AI_MODEL,
+          apiKey: config.OPENROUTER_API_KEY,
+          baseUrl: config.OPENROUTER_BASE_URL,
+          defaultModel: config.DEFAULT_AI_MODEL,
         });
       
-      // Add other providers as needed
+      case 'openai':
+        throw new Error('OpenAI provider not yet implemented. Use OpenRouter for OpenAI models.');
+      
+      case 'anthropic':
+        throw new Error('Anthropic provider not yet implemented. Use OpenRouter for Claude models.');
+      
+      case 'local':
+        throw new Error('Local provider not yet implemented.');
+      
       default:
-        throw new Error(`Provider ${providerType} not configured in environment`);
+        throw new Error(`Provider ${config.AI_PROVIDER} not configured`);
     }
   }
 }
