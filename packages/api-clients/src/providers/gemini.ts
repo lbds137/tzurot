@@ -1,4 +1,4 @@
-import { AIProvider, AIProviderConfig, ChatCompletionRequest, ChatCompletionResponse, ChatMessage } from './types.js';
+import { AIProvider, AIProviderConfig, ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from './types.js';
 import { pino } from 'pino';
 
 const logger = pino({
@@ -47,6 +47,7 @@ interface GeminiResponse {
  * Implements the AIProvider interface for Gemini API
  */
 export class GeminiProvider implements AIProvider {
+  public readonly name = 'gemini';
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly defaultModel: string;
@@ -85,7 +86,7 @@ export class GeminiProvider implements AIProvider {
     return this.convertResponse(data);
   }
 
-  async *streamComplete(request: ChatCompletionRequest): AsyncGenerator<ChatCompletionResponse, void, unknown> {
+  async *streamComplete(request: ChatCompletionRequest): AsyncIterable<StreamChunk> {
     const model = request.model ?? this.defaultModel;
     const url = `${this.baseUrl}/models/${model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
 
@@ -131,7 +132,7 @@ export class GeminiProvider implements AIProvider {
 
             try {
               const data = JSON.parse(jsonStr) as GeminiResponse;
-              yield this.convertResponse(data, true);
+              yield this.convertStreamChunk(data);
             } catch (e) {
               logger.warn(`[GeminiProvider] Failed to parse SSE line: ${line}`);
             }
@@ -200,7 +201,7 @@ export class GeminiProvider implements AIProvider {
   /**
    * Convert Gemini response to OpenAI format
    */
-  private convertResponse(data: GeminiResponse, isStreaming = false): ChatCompletionResponse {
+  private convertResponse(data: GeminiResponse): ChatCompletionResponse {
     const candidate = data.candidates[0];
 
     if (candidate === undefined) {
@@ -208,6 +209,7 @@ export class GeminiProvider implements AIProvider {
     }
 
     const text = candidate.content.parts[0]?.text ?? '';
+    const finishReason = this.mapFinishReason(candidate.finishReason);
 
     return {
       id: `gemini-${Date.now()}`,
@@ -221,8 +223,7 @@ export class GeminiProvider implements AIProvider {
             role: 'assistant',
             content: text
           },
-          delta: isStreaming ? { content: text } : undefined,
-          finish_reason: candidate.finishReason?.toLowerCase() ?? 'stop'
+          finish_reason: finishReason
         }
       ],
       usage: data.usageMetadata !== undefined ? {
@@ -231,5 +232,50 @@ export class GeminiProvider implements AIProvider {
         total_tokens: data.usageMetadata.totalTokenCount
       } : undefined
     };
+  }
+
+  /**
+   * Convert Gemini response to StreamChunk format
+   */
+  private convertStreamChunk(data: GeminiResponse): StreamChunk {
+    const candidate = data.candidates[0];
+
+    if (candidate === undefined) {
+      throw new Error('No candidates in Gemini response');
+    }
+
+    const text = candidate.content.parts[0]?.text ?? '';
+    const finishReason = this.mapFinishReason(candidate.finishReason);
+
+    return {
+      id: `gemini-${Date.now()}`,
+      object: 'chat.completion.chunk',
+      created: Math.floor(Date.now() / 1000),
+      model: this.defaultModel,
+      choices: [
+        {
+          index: 0,
+          delta: {
+            role: 'assistant',
+            content: text
+          },
+          finish_reason: finishReason
+        }
+      ]
+    };
+  }
+
+  /**
+   * Map Gemini finish reason to OpenAI format
+   */
+  private mapFinishReason(reason?: string): 'stop' | 'length' | 'function_call' | 'content_filter' | null {
+    if (reason === undefined) return null;
+
+    const lowerReason = reason.toLowerCase();
+    if (lowerReason === 'stop') return 'stop';
+    if (lowerReason === 'max_tokens' || lowerReason === 'length') return 'length';
+    if (lowerReason === 'safety' || lowerReason === 'recitation') return 'content_filter';
+
+    return 'stop'; // Default fallback
   }
 }
