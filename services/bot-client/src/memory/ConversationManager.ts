@@ -2,7 +2,7 @@
  * Conversation Manager
  *
  * Tracks conversation history per channel for context-aware responses.
- * Uses LRU-style memory management to prevent unbounded growth.
+ * Keeps the last N messages per channel/personality, with no time-based expiration.
  */
 
 import { createLogger } from '@tzurot/common-types';
@@ -17,23 +17,16 @@ interface ConversationMessage {
 
 interface ConversationThread {
   messages: ConversationMessage[];
-  lastActivity: number;
 }
 
 export class ConversationManager {
   private conversations = new Map<string, ConversationThread>();
   private readonly maxMessagesPerThread: number;
-  private readonly threadTimeout: number;
-  private cleanupInterval?: NodeJS.Timeout;
 
   constructor(options: {
     maxMessagesPerThread?: number;
-    threadTimeoutMinutes?: number;
   } = {}) {
     this.maxMessagesPerThread = options.maxMessagesPerThread ?? 20; // Keep last 20 messages
-    this.threadTimeout = (options.threadTimeoutMinutes ?? 60) * 60 * 1000; // 1 hour default
-
-    this.startCleanup();
   }
 
   /**
@@ -61,8 +54,6 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    thread.lastActivity = Date.now();
-
     logger.debug(`[ConversationManager] Added user message to ${key} (${thread.messages.length} total)`);
   }
 
@@ -84,8 +75,6 @@ export class ConversationManager {
       thread.messages = thread.messages.slice(-this.maxMessagesPerThread);
     }
 
-    thread.lastActivity = Date.now();
-
     logger.debug(`[ConversationManager] Added assistant message to ${key} (${thread.messages.length} total)`);
   }
 
@@ -99,9 +88,6 @@ export class ConversationManager {
     if (thread === undefined) {
       return [];
     }
-
-    // Update last activity
-    thread.lastActivity = Date.now();
 
     // Return without timestamps (API doesn't need them)
     return thread.messages.map(({ role, content }) => ({ role, content }));
@@ -138,45 +124,13 @@ export class ConversationManager {
 
     if (thread === undefined) {
       thread = {
-        messages: [],
-        lastActivity: Date.now()
+        messages: []
       };
       this.conversations.set(key, thread);
       logger.debug(`[ConversationManager] Created new thread: ${key}`);
     }
 
     return thread;
-  }
-
-  /**
-   * Start periodic cleanup of old threads
-   */
-  private startCleanup(): void {
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredThreads();
-    }, 5 * 60 * 1000); // Clean every 5 minutes
-
-    // Allow Node.js to exit even with active interval
-    this.cleanupInterval.unref();
-  }
-
-  /**
-   * Clean up threads that haven't been active recently
-   */
-  private cleanupExpiredThreads(): void {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [key, thread] of this.conversations.entries()) {
-      if (now - thread.lastActivity > this.threadTimeout) {
-        this.conversations.delete(key);
-        cleaned++;
-      }
-    }
-
-    if (cleaned > 0) {
-      logger.info(`[ConversationManager] Cleaned up ${cleaned} expired conversation threads`);
-    }
   }
 
   /**
@@ -195,13 +149,9 @@ export class ConversationManager {
   }
 
   /**
-   * Stop cleanup interval and clear all conversations
+   * Clear all conversations (useful for shutdown/reset)
    */
   destroy(): void {
-    if (this.cleanupInterval !== undefined) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = undefined;
-    }
     this.conversations.clear();
     logger.info('[ConversationManager] Destroyed');
   }

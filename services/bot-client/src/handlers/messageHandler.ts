@@ -32,8 +32,7 @@ export class MessageHandler {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
     this.conversationManager = new ConversationManager({
-      maxMessagesPerThread: 20, // Keep last 20 messages
-      threadTimeoutMinutes: 60 // Clear after 1 hour of inactivity
+      maxMessagesPerThread: 20 // Keep last 20 messages indefinitely
     });
     this.personalities = personalities;
   }
