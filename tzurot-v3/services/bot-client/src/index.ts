@@ -1,7 +1,15 @@
-import { Client, GatewayIntentBits, Message, Events } from 'discord.js';
+import { Client, GatewayIntentBits, Events } from 'discord.js';
 import { pino } from 'pino';
-import { AIProviderFactory } from '@tzurot/api-clients';
-import { Personality, preserveCodeBlocks } from '@tzurot/common-types';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { GatewayClient } from './gateway/client.js';
+import { WebhookManager } from './webhooks/manager.js';
+import { MessageHandler } from './handlers/messageHandler.js';
+import { loadPersonalities } from './utils/personalityLoader.js';
+
+// Get directory name in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Initialize logger
 const logger = pino({
@@ -13,138 +21,38 @@ const logger = pino({
   }
 });
 
+// Configuration from environment
+const config = {
+  gatewayUrl: process.env.GATEWAY_URL ?? 'http://localhost:3000',
+  personalitiesDir: process.env.PERSONALITIES_DIR ?? join(__dirname, '../../../personalities'),
+  discordToken: process.env.DISCORD_TOKEN
+};
+
 // Initialize Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildWebhooks,
     GatewayIntentBits.DirectMessages,
   ]
 });
 
-// Initialize AI provider
-const aiProvider = AIProviderFactory.fromEnv();
+// Initialize services
+const gatewayClient = new GatewayClient(config.gatewayUrl);
+const webhookManager = new WebhookManager();
 
-// Temporary in-memory personality storage (replace with proper database later)
-const personalities = new Map<string, Personality>();
-
-// Example personality
-const examplePersonality: Personality = {
-  id: 'default-assistant',
-  name: 'Assistant',
-  displayName: 'AI Assistant',
-  systemPrompt: 'You are a helpful AI assistant in a Discord server. Be friendly, concise, and helpful.',
-  model: 'anthropic/claude-3.5-sonnet',
-  temperature: 0.7,
-  maxTokens: 500,
-  responseStyle: 'concise',
-  formality: 'neutral',
-  memoryEnabled: true,
-  contextWindow: 10,
-  blockedUsers: [],
-  nsfwAllowed: false,
-  rateLimitPerUser: 10,
-  rateLimitGlobal: 100,
-  createdBy: 'system',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  active: true,
-  aliases: ['ai', 'bot'],
-};
-
-personalities.set('default', examplePersonality);
+// These will be initialized in start()
+let messageHandler: MessageHandler;
 
 // Message handler - wrapped to handle async properly
-client.on(Events.MessageCreate, (message: Message) => {
-  // Handle async errors properly
+client.on(Events.MessageCreate, (message) => {
   void (async () => {
     try {
-      // Ignore bot messages
-      if (message.author.bot) {
-        return;
-      }
-      
-      // Check if message mentions the bot or uses a command prefix
-      if (!client.user) {
-        logger.warn('Client user not initialized');
-        return;
-      }
-      
-      const botMentioned = message.mentions.has(client.user);
-      const hasPrefix = message.content.startsWith('!ai');
-      
-      if (!botMentioned && !hasPrefix) {
-        return;
-      }
-      
-      // Clean the message content
-      let content = message.content;
-      if (botMentioned) {
-        content = content.replace(/<@!?\d+>/g, '').trim();
-      }
-      if (hasPrefix) {
-        content = content.slice(3).trim();
-      }
-      
-      if (!content) {
-        await message.reply('How can I help you?');
-        return;
-      }
-      
-      logger.info({ 
-        user: message.author.tag, 
-        channel: message.channel.id,
-        content: content.substring(0, 100) 
-      }, 'Processing message');
-      
-      // Get the personality (using default for now)
-      const personality = personalities.get('default');
-      if (!personality) {
-        logger.error('Default personality not found');
-        await message.reply('I\'m not configured properly. Please contact an administrator.');
-        return;
-      }
-      
-      // Show typing indicator (if channel supports it)
-      if ('sendTyping' in message.channel) {
-        await message.channel.sendTyping();
-      }
-      
-      // Call AI provider
-      const response = await aiProvider.complete({
-        model: personality.model,
-        messages: [
-          { role: 'system', content: personality.systemPrompt },
-          { role: 'user', content: content }
-        ],
-        temperature: personality.temperature,
-        max_tokens: personality.maxTokens,
-      });
-      
-      const reply = response.choices[0]?.message?.content;
-      
-      if (!reply) {
-        await message.reply('I couldn\'t generate a response. Please try again.');
-        return;
-      }
-      
-      // Send response (split intelligently if too long for Discord)
-      const chunks = preserveCodeBlocks(reply);
-      for (const chunk of chunks) {
-        await message.reply(chunk);
-      }
-      
-      logger.info({ 
-        user: message.author.tag,
-        responseLength: reply.length 
-      }, 'Response sent');
-      
+      await messageHandler.handleMessage(message);
     } catch (error) {
-      logger.error(error, 'Error processing message');
-      await message.reply('Sorry, I encountered an error. Please try again later.').catch(() => {
-        // Ignore errors when trying to send error message
-      });
+      logger.error(error, 'Error in message handler');
     }
   })();
 });
@@ -152,7 +60,7 @@ client.on(Events.MessageCreate, (message: Message) => {
 // Ready event
 client.once(Events.ClientReady, () => {
   logger.info(`Logged in as ${client.user?.tag ?? 'unknown'}`);
-  logger.info(`AI Provider: ${aiProvider.name}`);
+  logger.info(`Gateway URL: ${config.gatewayUrl}`);
 });
 
 // Error handling
@@ -167,21 +75,44 @@ process.on('unhandledRejection', (error) => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
-  void client.destroy(); // void operator explicitly ignores the promise
+  webhookManager.destroy();
+  void client.destroy();
   process.exit(0);
 });
 
 // Start the bot with explicit return type
 async function start(): Promise<void> {
   try {
-    // Health check AI provider
-    const isHealthy = await aiProvider.healthCheck();
+    logger.info('[Bot] Starting Tzurot v3 Bot Client...');
+    logger.info('[Bot] Configuration:', {
+      gatewayUrl: config.gatewayUrl,
+      personalitiesDir: config.personalitiesDir
+    });
+
+    // Load personalities
+    logger.info('[Bot] Loading personalities...');
+    const personalities = await loadPersonalities(config.personalitiesDir);
+    logger.info(`[Bot] Loaded ${personalities.size} personalities`);
+
+    // Initialize message handler
+    messageHandler = new MessageHandler(gatewayClient, webhookManager, personalities);
+
+    // Health check gateway
+    const isHealthy = await gatewayClient.healthCheck();
     if (!isHealthy) {
-      logger.warn('AI provider health check failed, but continuing...');
+      logger.warn('[Bot] Gateway health check failed, but continuing...');
+    } else {
+      logger.info('[Bot] Gateway is healthy');
     }
-    
+
     // Login to Discord
-    await client.login(process.env.DISCORD_TOKEN);
+    if (config.discordToken === undefined || config.discordToken.length === 0) {
+      throw new Error('DISCORD_TOKEN environment variable is required');
+    }
+
+    await client.login(config.discordToken);
+    logger.info('[Bot] Successfully logged in to Discord');
+
   } catch (error) {
     logger.error(error, 'Failed to start bot');
     process.exit(1);
