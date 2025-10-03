@@ -14,7 +14,12 @@
 
 import express from 'express';
 import { pino } from 'pino';
+import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
+
+// Import pino-http (CommonJS) via require
+const require = createRequire(import.meta.url);
+const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
 import type { HealthResponse, ErrorResponse } from './types.js';
@@ -42,20 +47,8 @@ const app = express();
 // Middleware
 app.use(express.json({ limit: '10mb' })); // Support large message payloads
 
-// Basic request logging middleware
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info({
-      method: req.method,
-      url: req.url,
-      status: res.statusCode,
-      duration: `${duration}ms`
-    });
-  });
-  next();
-});
+// HTTP request logging with pino-http
+app.use(pinoHttp({ logger }));
 
 // CORS headers (simple implementation for now)
 app.use((req, res, next) => {
