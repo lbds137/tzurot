@@ -1,0 +1,242 @@
+// Tzurot Database Schema
+// Based on docs/architecture/POSTGRES_SCHEMA.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// User Management
+// ============================================================================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  discordId String   @unique @map("discord_id") @db.VarChar(20)
+  username  String   @db.VarChar(255)
+
+  // User's global default persona (applied to all personalities unless overridden)
+  globalPersonaId String?  @map("global_persona_id") @db.Uuid
+  globalPersona   Persona? @relation("UserGlobalPersona", fields: [globalPersonaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ownedPersonalities PersonalityOwner[]
+  personalitySettings UserPersonalitySettings[]
+  ownedPersonas Persona[] @relation("PersonaOwner")
+  conversationHistory ConversationHistory[]
+  activatedChannels ActivatedChannel[]
+
+  @@index([discordId])
+  @@map("users")
+}
+
+// ============================================================================
+// Reusable Configuration Templates
+// ============================================================================
+
+model Persona {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  content     String   @db.Text // The actual persona/backstory text
+
+  // Ownership
+  ownerId  String? @map("owner_id") @db.Uuid
+  owner    User?   @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  isGlobal Boolean @default(false) @map("is_global") // System-wide vs user-specific
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  usersUsingAsGlobal User[] @relation("UserGlobalPersona")
+  userPersonalitySettings UserPersonalitySettings[]
+
+  @@index([ownerId])
+  @@index([isGlobal], map: "idx_personas_global")
+  @@map("personas")
+}
+
+model SystemPrompt {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  content     String   @db.Text
+  isDefault   Boolean  @default(false) @map("is_default")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  personalities Personality[]
+
+  @@unique([isDefault], map: "idx_system_prompts_default")
+  @@map("system_prompts")
+}
+
+model LlmConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+
+  // LLM parameters
+  model              String   @db.VarChar(255)
+  temperature        Decimal? @db.Decimal(3, 2)
+  topP               Decimal? @map("top_p") @db.Decimal(3, 2)
+  topK               Int?     @map("top_k")
+  frequencyPenalty   Decimal? @map("frequency_penalty") @db.Decimal(3, 2)
+  presencePenalty    Decimal? @map("presence_penalty") @db.Decimal(3, 2)
+  repetitionPenalty  Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
+  maxTokens          Int?     @map("max_tokens")
+
+  isDefault   Boolean  @default(false) @map("is_default")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  personalities Personality[]
+  userPersonalitySettings UserPersonalitySettings[]
+
+  @@unique([isDefault], map: "idx_llm_configs_default")
+  @@map("llm_configs")
+}
+
+// ============================================================================
+// Personalities
+// ============================================================================
+
+model Personality {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  displayName String? @map("display_name") @db.VarChar(255)
+  slug        String  @unique @db.VarChar(255)
+  avatarUrl   String? @map("avatar_url") @db.Text
+
+  // Core behavior (always use references to templates)
+  systemPromptId String?       @map("system_prompt_id") @db.Uuid
+  systemPrompt   SystemPrompt? @relation(fields: [systemPromptId], references: [id], onDelete: SetNull)
+
+  llmConfigId String?    @map("llm_config_id") @db.Uuid
+  llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
+
+  // Voice settings (for future)
+  voiceEnabled  Boolean @default(false) @map("voice_enabled")
+  voiceSettings Json?   @map("voice_settings")
+
+  // Image settings (for future)
+  imageEnabled  Boolean @default(false) @map("image_enabled")
+  imageSettings Json?   @map("image_settings")
+
+  // Memory settings
+  memoryEnabled      Boolean @default(true) @map("memory_enabled")
+  contextWindowSize  Int     @default(20) @map("context_window_size")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owners PersonalityOwner[]
+  userSettings UserPersonalitySettings[]
+  conversationHistory ConversationHistory[]
+  activatedChannels ActivatedChannel[]
+
+  @@index([slug])
+  @@map("personalities")
+}
+
+model PersonalityOwner {
+  personalityId String      @map("personality_id") @db.Uuid
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role String @default("owner") @db.VarChar(50) // 'owner', 'editor', 'viewer'
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([personalityId, userId])
+  @@index([userId])
+  @@index([personalityId])
+  @@map("personality_owners")
+}
+
+model UserPersonalitySettings {
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  personalityId String      @map("personality_id") @db.Uuid
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  // Override user's global persona for this specific personality
+  personaId String?  @map("persona_id") @db.Uuid
+  persona   Persona? @relation(fields: [personaId], references: [id], onDelete: SetNull)
+
+  // Override LLM settings for this user+personality combo
+  llmConfigId String?    @map("llm_config_id") @db.Uuid
+  llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, personalityId])
+  @@index([userId])
+  @@index([personalityId])
+  @@map("user_personality_settings")
+}
+
+// ============================================================================
+// Conversation Management
+// ============================================================================
+
+model ConversationHistory {
+  id String @id @default(uuid()) @db.Uuid
+
+  channelId String @map("channel_id") @db.VarChar(20)
+
+  personalityId String      @map("personality_id") @db.Uuid
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role    String @db.VarChar(20) // 'user', 'assistant', 'system'
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([channelId, personalityId, createdAt(sort: Desc)])
+  @@index([userId])
+  @@map("conversation_history")
+}
+
+model ActivatedChannel {
+  id String @id @default(uuid()) @db.Uuid
+
+  channelId String @map("channel_id") @db.VarChar(20)
+
+  personalityId String      @map("personality_id") @db.Uuid
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  autoRespond Boolean @default(true) @map("auto_respond")
+
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdByUser User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([channelId, personalityId])
+  @@index([channelId])
+  @@index([personalityId])
+  @@map("activated_channels")
+}
