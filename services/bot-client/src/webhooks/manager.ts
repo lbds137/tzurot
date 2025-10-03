@@ -5,16 +5,11 @@
  * Clean implementation ported from v2 webhookManager.js patterns.
  */
 
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import type { TextChannel, Webhook } from 'discord.js';
 import type { BotPersonality } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('WebhookManager');
 
 /**
  * Cached webhook info

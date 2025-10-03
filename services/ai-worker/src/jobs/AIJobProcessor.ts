@@ -9,16 +9,10 @@
 import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { VectorMemoryManager } from '../memory/VectorMemoryManager.js';
-import { Personality, MessageContent } from '@tzurot/common-types';
+import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { pino } from 'pino';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('AIJobProcessor');
 
 /**
  * Structure of data passed in the BullMQ job

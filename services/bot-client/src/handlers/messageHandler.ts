@@ -5,20 +5,14 @@
  * Routes to either command processing or AI personality responses.
  */
 
-import { pino } from 'pino';
 import type { Message } from 'discord.js';
 import { TextChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
-import { preserveCodeBlocks } from '@tzurot/common-types';
+import { preserveCodeBlocks, createLogger } from '@tzurot/common-types';
 import type { BotPersonality, MessageContext } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('MessageHandler');
 
 /**
  * Message Handler - routes Discord messages to appropriate handlers

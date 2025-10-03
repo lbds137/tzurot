@@ -1,22 +1,17 @@
-import { 
+import {
   AIProviderFactory,
   ChatCompletionRequest,
-  ChatMessage 
+  ChatMessage
 } from '@tzurot/api-clients';
-import { 
+import {
   Personality,
   ConversationHistory,
   MessageContent,
-  getConfig 
+  getConfig,
+  createLogger
 } from '@tzurot/common-types';
-import { pino } from 'pino';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('AIService');
 
 interface AIRequestContext {
   userId?: string;

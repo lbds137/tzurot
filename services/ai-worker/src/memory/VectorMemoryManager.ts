@@ -11,14 +11,9 @@ import { ChromaClient } from 'chromadb';
 import { Document } from '@langchain/core/documents';
 import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('VectorMemoryManager');
 
 export type CanonScope = 'global' | 'personal' | 'session';
 

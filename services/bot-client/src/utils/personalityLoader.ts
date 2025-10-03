@@ -6,15 +6,10 @@
 
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import type { BotPersonality } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('PersonalityLoader');
 
 /**
  * Load personalities from JSON files

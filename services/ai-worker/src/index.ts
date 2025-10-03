@@ -11,14 +11,9 @@
 import { Worker, Job } from 'bullmq';
 import { VectorMemoryManager } from './memory/VectorMemoryManager.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('ai-worker');
 
 // Configuration from environment
 const config = {

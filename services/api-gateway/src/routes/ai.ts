@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import { z } from 'zod';
 import { aiQueue } from '../queue.js';
 import {
@@ -19,12 +19,7 @@ import type {
   ErrorResponse
 } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('AIRouter');
 
 export const aiRouter: Router = Router();
 

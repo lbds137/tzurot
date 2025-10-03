@@ -7,15 +7,10 @@
  * Based on patterns from tzurot v2 messageDeduplication.js and aiService.js
  */
 
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import type { GenerateRequest, CachedRequest } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('RequestDeduplication');
 
 // Cache to track recent requests
 const requestCache = new Map<string, CachedRequest>();

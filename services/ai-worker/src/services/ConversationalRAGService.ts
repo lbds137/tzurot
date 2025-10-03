@@ -15,15 +15,9 @@ import {
   SystemMessage
 } from '@langchain/core/messages';
 import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
-import { Personality, MessageContent } from '@tzurot/common-types';
-import { pino } from 'pino';
+import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('ConversationalRAGService');
 
 export interface ConversationContext {
   userId: string;

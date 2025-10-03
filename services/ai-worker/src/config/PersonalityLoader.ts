@@ -7,17 +7,11 @@
  * - In-memory registry for testing
  */
 
-import { Personality } from '@tzurot/common-types';
+import { Personality, createLogger } from '@tzurot/common-types';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { pino } from 'pino';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('PersonalityLoader');
 
 export class PersonalityLoader {
   private personalities = new Map<string, Personality>();

@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { GatewayClient } from './gateway/client.js';
@@ -12,14 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Initialize logger
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: {
-      colorize: true
-    }
-  }
-});
+const logger = createLogger('bot-client');
 
 // Configuration from environment
 const config = {

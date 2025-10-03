@@ -4,15 +4,10 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import type { BotPersonality, MessageContext, GatewayResponse, JobResult } from '../types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('GatewayClient');
 
 /**
  * API Gateway client for making AI generation requests

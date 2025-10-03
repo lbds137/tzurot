@@ -13,7 +13,7 @@
  */
 
 import express from 'express';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
 
@@ -24,12 +24,7 @@ import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
 import type { HealthResponse, ErrorResponse } from './types.js';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('api-gateway');
 
 // Configuration from environment
 const config = {

@@ -5,14 +5,9 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('Queue');
 
 // Parse Redis URL (Railway format: redis://default:password@host:port)
 function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {

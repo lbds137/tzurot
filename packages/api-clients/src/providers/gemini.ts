@@ -1,12 +1,7 @@
 import { AIProvider, AIProviderConfig, ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from './types.js';
-import { pino } from 'pino';
+import { createLogger } from '@tzurot/common-types';
 
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-    options: { colorize: true }
-  }
-});
+const logger = createLogger('GeminiProvider');
 
 export interface GeminiConfig extends AIProviderConfig {
   apiKey: string;
