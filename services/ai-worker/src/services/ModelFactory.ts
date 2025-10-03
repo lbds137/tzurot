@@ -15,18 +15,16 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('ModelFactory');
 
 /**
- * Available Gemini models (as of 2025)
- * Using 2.0 Flash as default for cost-effectiveness
+ * Available Gemini models (2025 - only 2.5+ models)
+ * Using 2.5 Flash as default for cost-effectiveness
  */
 const GEMINI_MODELS = [
-  'gemini-2.0-flash-exp',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b',
-  'gemini-pro',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
 ];
 
-const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash-exp'; // Fast and cheap
+const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash'; // Fast, cheap, and stable
 
 /**
  * Validate and normalize model name for the current provider
@@ -62,8 +60,8 @@ function validateModelForProvider(requestedModel: string | undefined, provider: 
     }
 
     case 'openai': {
-      // Use requested model or default to GPT-4
-      return requestedModel || process.env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+      // Use requested model or default to GPT-5 Mini
+      return requestedModel || process.env.DEFAULT_AI_MODEL || 'gpt-5-mini';
     }
 
     default:
