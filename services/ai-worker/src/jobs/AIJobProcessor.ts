@@ -127,12 +127,8 @@ export class AIJobProcessor {
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;
 
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      logger.error(`[AIJobProcessor] Job ${job.id} failed: ${errorMessage}`);
-      if (errorStack) {
-        logger.error(`[AIJobProcessor] Stack trace: ${errorStack}`);
-      }
+      // Pino requires error objects to be passed with the 'err' key for proper serialization
+      logger.error({ err: error }, `[AIJobProcessor] Job ${job.id} failed`);
 
       return {
         requestId,

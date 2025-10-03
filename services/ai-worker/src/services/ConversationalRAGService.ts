@@ -153,12 +153,8 @@ export class ConversationalRAGService {
       };
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      logger.error(`[RAG] Error generating response for ${personality.name}: ${errorMessage}`);
-      if (errorStack) {
-        logger.error(`[RAG] Stack trace: ${errorStack}`);
-      }
+      // Pino requires error objects to be passed with the 'err' key for proper serialization
+      logger.error({ err: error }, `[RAG] Error generating response for ${personality.name}`);
       throw error;
     }
   }

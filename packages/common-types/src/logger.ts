@@ -12,6 +12,11 @@ export function createLogger(name?: string): Logger {
   const config: LoggerOptions = {
     level: process.env.LOG_LEVEL || 'info',
     name,
+    // Enable error serialization - pino will automatically serialize Error objects
+    // when passed with the 'err' key: logger.error({ err: error }, 'message')
+    serializers: {
+      err: pino.stdSerializers.err,
+    },
   };
 
   // Only use pino-pretty when explicitly enabled (requires pino-pretty to be installed)
