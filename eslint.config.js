@@ -1,102 +1,89 @@
-const js = require('@eslint/js');
-const eslintPluginJest = require('eslint-plugin-jest');
-const prettier = require('eslint-config-prettier');
-const globals = require('globals');
-const moduleSizeRules = require('./.eslintrc.module-size.js');
-const antipatternRules = require('./.eslintrc.antipatterns.js');
-const timerPatternRules = require('./.eslintrc.timer-patterns.js');
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import globals from 'globals';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-module.exports = [
+// Get the directory name of the current module (monorepo root)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default tseslint.config(
+  // Base configurations
   js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
+  
+  // Global ignores
   {
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/*.js',
+      '**/*.d.ts',
+      '**/*.test.ts',
+      '**/*.spec.ts',
+      'coverage/**',
+      '.pnpm-store/**'
+    ]
+  },
+  
+  // Configuration for TypeScript files
+  {
+    files: ['**/*.ts'],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: 'commonjs',
+      sourceType: 'module',
       globals: {
         ...globals.node,
-        ...globals.commonjs
+        ...globals.es2022
+      },
+      parserOptions: {
+        project: true, // Automatically find the nearest tsconfig.json
+        tsconfigRootDir: __dirname, // Use the resolved root directory
       }
     },
     rules: {
-      'no-unused-vars': ['warn', { 
-        'argsIgnorePattern': '^_', 
-        'varsIgnorePattern': '^_',
-        'caughtErrorsIgnorePattern': '^_'
+      // TypeScript specific rules
+      '@typescript-eslint/explicit-function-return-type': ['error', {
+        allowExpressions: true,
+        allowTypedFunctionExpressions: true,
+        allowHigherOrderFunctions: true
       }],
-      'no-console': 'off',
-      'no-var': 'warn',
-      'prefer-const': 'warn',
-      ...moduleSizeRules.rules,
-      ...antipatternRules.rules,
-      ...timerPatternRules.rules
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_'
+      }],
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-non-null-assertion': 'warn',
+      '@typescript-eslint/strict-boolean-expressions': ['error', {
+        allowString: true,
+        allowNumber: true,
+        allowNullableObject: true
+      }],
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'error',
+      '@typescript-eslint/array-type': ['error', { default: 'array' }],
+      '@typescript-eslint/require-await': 'error',
+      '@typescript-eslint/no-require-imports': 'error',
+      '@typescript-eslint/consistent-generic-constructors': 'error',
+      '@typescript-eslint/no-inferrable-types': 'error',
+      
+      // General code quality rules
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'prefer-const': 'error',
+      'no-var': 'error',
+      'eqeqeq': ['error', 'always'],
+      'curly': ['error', 'all'],
+      
+      // Async/Promise rules
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      'no-return-await': 'error'
     }
-  },
-  {
-    files: ['**/*.test.js', 'tests/**/*.js'],
-    plugins: {
-      jest: eslintPluginJest
-    },
-    languageOptions: {
-      globals: {
-        ...globals.jest,
-        ...globals.nodeBuiltin
-      }
-    },
-    rules: {
-      ...eslintPluginJest.configs.recommended.rules,
-      'jest/no-disabled-tests': 'warn',
-      'jest/no-focused-tests': 'error',
-      // Relax some rules for test files
-      'no-undef': 'off',
-      // Override timer pattern rules for tests
-      ...timerPatternRules.overrides[0].rules
-    }
-  },
-  {
-    files: ['tests/unit/domain/**/*.test.js', 'tests/unit/adapters/**/*.test.js', 'tests/__mocks__/**/*.js', 'tests/examples/**/*.test.js'],
-    rules: {
-      // Allow DDD tests and mock infrastructure to import from __mocks__ directory for consolidated mock system
-      'jest/no-mocks-import': 'off'
-    }
-  },
-  {
-    // Temporarily reduce timer pattern severity for existing code until Phase 3 migration
-    files: [
-      'src/commands/**/*.js',
-      'src/core/**/*.js', 
-      'src/utils/**/*.js',
-      'src/webhook/**/*.js',
-      'src/webhookManager.js',
-      'src/aiService.js',
-      'src/messageTracker.js'
-    ],
-    rules: {
-      // Override timer rules to warnings for existing code
-      'no-restricted-syntax': [
-        'warn',
-        ...antipatternRules.rules['no-restricted-syntax'].slice(1), // Keep antipattern rules
-        // Timer patterns as warnings only for existing code
-        {
-          selector: 'NewExpression[callee.name="Promise"] > ArrowFunctionExpression > CallExpression[callee.name="setTimeout"]',
-          message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
-        },
-        {
-          selector: 'NewExpression[callee.name="Promise"] > FunctionExpression > CallExpression[callee.name="setTimeout"]',
-          message: 'Avoid Promise-wrapped setTimeout. Use injectable delay functions for testability. See docs/core/TIMER_PATTERNS.md'
-        },
-        {
-          selector: 'MethodDefinition[key.name="constructor"] CallExpression[callee.name="setTimeout"]:not([callee.object.type="MemberExpression"])',
-          message: 'Timer in constructor. Accept timer functions via options for testability. See docs/core/TIMER_PATTERNS.md'
-        },
-        {
-          selector: 'MethodDefinition[key.name="constructor"] CallExpression[callee.name="setInterval"]:not([callee.object.type="MemberExpression"])',
-          message: 'Timer in constructor. Accept timer functions via options for testability. See docs/core/TIMER_PATTERNS.md'
-        }
-      ]
-    }
-  },
-  {
-    ignores: ['node_modules/**', 'coverage/**']
-  },
-  prettier
-];
+  }
+);

@@ -1,115 +1,187 @@
-# Scripts Directory
+# Deployment Scripts
 
-This directory contains utility scripts for development, testing, and maintenance of the Tzurot bot.
+Helper scripts for deploying Tzurot v3 to Railway.
 
-## Most Commonly Used Scripts
+## Prerequisites
 
-### Git Workflow
-- **`git sync-develop`** - Git alias to sync develop with main after any merge
-- **`./sync-develop.sh`** - Shell script version of the sync command
-- **`./create-release.sh`** - Automated GitHub release creation script
+1. **Railway CLI installed:**
+   ```bash
+   npm install -g @railway/cli
+   ```
 
-### Development
-- **`npm run dev`** - Start development server (uses start-dev.js internally)
-- **`npm run quality`** - Run all quality checks before committing
-- **`./setup-pre-commit.sh`** - Set up git hooks for automatic quality checks
+2. **Logged into Railway:**
+   ```bash
+   railway login
+   ```
 
-### Testing
-- **`npm test`** - Run full test suite
-- **`npx jest path/to/test.js`** - Run specific test file
-- **`./test-commands.sh`** - Test all bot commands
+3. **Environment file configured:**
+   - Copy `.env.example` to `.env`
+   - Fill in your actual API keys and tokens
 
-## Script Categories
+## Scripts
 
-### Quality Enforcement
-- `check-timer-patterns.js` - Ensures timers are injectable for testing
-- `check-test-antipatterns.js` - Detects common test anti-patterns
-- `check-module-size.sh` - Prevents files from exceeding 500 lines
-- `check-singleton-exports.js` - Detects singleton anti-patterns
-- `comprehensive-test-timing-analysis.js` - Analyzes test performance
+### `deploy-railway-dev.sh`
 
-### Git & SSH Setup
-- `setup-ssh.sh` - Configure SSH for GitHub (Steam Deck specific)
-- `git-with-ssh.sh` - Helper for git commands with SSH key handling
-- `setup-pre-commit.sh` - Install pre-commit hooks
+Main deployment script that sets up all environment variables for the development environment on Railway.
 
-### Test Infrastructure
-- `check-mock-consistency.js` - Verify mock usage patterns
-- `check-test-mock-patterns.js` - Enforce new mock patterns
-- `check-test-timeouts.js` - Ensure proper test timeouts
-- `migrate-to-consolidated-mocks.js` - Migrate to new mock system
-- `generate-mock-migration-report.js` - Track mock migration progress
+**What it does:**
+- Links to your Railway project
+- Sets environment variables for all three services:
+  - `api-gateway`: Port, logging
+  - `ai-worker`: AI provider config, Gemini API key
+  - `bot-client`: Discord token, Gateway URL
+- Provides next steps for deployment
 
-### Database & Cleanup
-- `cleanup_test_personalities.js` - Remove test personalities from DB
-- `verify_message_tracker.js` - Test message tracking functionality
-- `rollback_deduplication.sh` - Rollback deduplication changes if needed
-
-### Analysis & Reporting
-- `analyze-test-structure.js` - Analyze test organization
-- `identify-slow-tests.js` - Find performance bottlenecks in tests
-- `update-coverage-summary.js` - Update test coverage docs
-
-### Bot Testing
-- `test-commands.sh` - Test all bot commands
-- `test-standardized-commands.sh` - Test command patterns
-- `check-thread-activation.js` - Verify thread functionality
-
-### Documentation
-- `reorganize_docs.js` - Reorganize documentation structure
-
-## Usage Examples
-
-### Before Committing
+**Usage:**
 ```bash
-# Run quality checks
-npm run quality
-
-# Or manually:
-node scripts/check-timer-patterns.js
-node scripts/check-test-antipatterns.js
-./scripts/check-module-size.sh
+cd /home/deck/WebstormProjects/tzurot/tzurot-v3
+./scripts/deploy-railway-dev.sh
 ```
 
-### After Merging to Main
+**First-time setup:**
+1. Create Railway project (if you haven't already)
+2. Add Redis service via Railway dashboard
+3. Create three services: `api-gateway`, `ai-worker`, `bot-client`
+4. Run this script
+5. Deploy each service (see below)
+
+### `update-gateway-url.sh`
+
+Quick helper to update the bot-client's Gateway URL after API Gateway is deployed.
+
+**Usage:**
 ```bash
-# Sync develop with main
-git sync-develop
-# or
-./scripts/sync-develop.sh
+./scripts/update-gateway-url.sh https://your-gateway.railway.app
 ```
 
-### Setting Up Development Environment
-```bash
-# Set up SSH (Steam Deck)
-./scripts/setup-ssh.sh
+## Full Deployment Flow
 
-# Set up pre-commit hooks
-./scripts/setup-pre-commit.sh
+### 1. Initial Setup (One-time)
+
+```bash
+# Navigate to v3 directory
+cd /home/deck/WebstormProjects/tzurot/tzurot-v3
+
+# Ensure .env is configured with your keys
+cat .env  # Verify it has your Discord token and Gemini API key
+
+# Run deployment script
+./scripts/deploy-railway-dev.sh
 ```
 
-### Analyzing Tests
+### 2. Deploy Services (In Order)
+
+Railway will auto-deploy from your GitHub repo. Make sure code is pushed first:
+
 ```bash
-# Find slow tests
-node scripts/identify-slow-tests.js
-
-# Check test patterns
-node scripts/check-test-antipatterns.js
-
-# Analyze test structure
-node scripts/analyze-test-structure.js
+# Ensure all code is committed and pushed
+git status
+git push origin feat/v3-architecture-rewrite
 ```
 
-## Adding New Scripts
+Then deploy in this order:
 
-When adding new scripts:
-1. Make shell scripts executable: `chmod +x script-name.sh`
-2. Add a descriptive comment at the top of the file
-3. Update this README with the script's purpose
-4. Update `/CLAUDE.md` if the script is commonly used
+```bash
+# 1. Deploy API Gateway (needs to be first)
+railway up --service api-gateway
 
-## Script Naming Conventions
-- Use kebab-case for all scripts
-- `.sh` extension for shell scripts
-- `.js` extension for Node.js scripts
-- Descriptive names that indicate the script's purpose
+# Wait for it to deploy, then get the URL
+railway status --service api-gateway
+
+# 2. Update bot-client with the Gateway URL
+./scripts/update-gateway-url.sh https://your-actual-gateway-url.railway.app
+
+# 3. Deploy AI Worker
+railway up --service ai-worker
+
+# 4. Deploy Bot Client
+railway up --service bot-client
+```
+
+### 3. Verify Deployment
+
+```bash
+# Check API Gateway health
+curl https://your-gateway-url.railway.app/health
+
+# View logs
+railway logs --service api-gateway
+railway logs --service ai-worker
+railway logs --service bot-client
+
+# Check Railway dashboard
+railway open
+```
+
+## Environment Variables Reference
+
+### Shared (All Services)
+- `NODE_ENV`: development
+- `LOG_LEVEL`: debug
+- `REDIS_URL`: Auto-set by Railway when Redis service is added
+
+### api-gateway
+- `PORT`: 3000
+
+### ai-worker
+- `AI_PROVIDER`: gemini
+- `GEMINI_API_KEY`: Your Google Gemini API key
+- `DEFAULT_AI_MODEL`: gemini-2.5-pro
+- `ENABLE_MEMORY`: false (for now)
+- `ENABLE_STREAMING`: false (for now)
+
+### bot-client
+- `DISCORD_TOKEN`: Your Discord bot token
+- `GATEWAY_URL`: URL of deployed api-gateway
+- `PERSONALITIES_DIR`: /app/personalities
+
+## Troubleshooting
+
+**Problem:** Bot not responding to messages
+- Check `GATEWAY_URL` is correct: `railway variables --service bot-client`
+- Verify API Gateway is running: `railway logs --service api-gateway`
+- Check Discord token is valid
+
+**Problem:** AI responses failing
+- Verify `GEMINI_API_KEY` is set: `railway variables --service ai-worker`
+- Check ai-worker logs: `railway logs --service ai-worker`
+- Test Gemini API key is valid
+
+**Problem:** Services can't connect to Redis
+- Ensure Redis service is added in Railway dashboard
+- Verify `REDIS_URL` is set: `railway variables --service api-gateway`
+- Redis URL should be auto-injected: `${{Redis.REDIS_URL}}`
+
+**Problem:** "Service not found"
+- Make sure services are named exactly: `api-gateway`, `ai-worker`, `bot-client`
+- Check Railway dashboard to verify service names
+- Link to correct project: `railway link`
+
+## Updating Variables
+
+To update a single variable:
+```bash
+railway variables set KEY=value --service service-name
+```
+
+To view all variables for a service:
+```bash
+railway variables --service service-name
+```
+
+To delete a variable:
+```bash
+railway variables --delete KEY --service service-name
+```
+
+## Production Deployment
+
+For production, you'll want to:
+1. Create a separate `.env.production` file
+2. Use a different Railway environment
+3. Set `NODE_ENV=production`
+4. Set `LOG_LEVEL=info` (less verbose)
+5. Use production Discord bot token
+6. Consider adding vector database (Qdrant/Pinecone)
+
+Production deployment script coming soon!
