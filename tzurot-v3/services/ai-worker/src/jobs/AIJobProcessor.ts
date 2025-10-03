@@ -7,9 +7,9 @@
  */
 
 import { Job } from 'bullmq';
-import { ConversationalRAGService } from '../services/ConversationalRAGService';
-import { VectorMemoryManager } from '../memory/VectorMemoryManager';
-import { Personality } from '@tzurot/common-types';
+import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
+import { VectorMemoryManager } from '../memory/VectorMemoryManager.js';
+import { Personality, MessageContent } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import { pino } from 'pino';
 
@@ -102,7 +102,7 @@ export class AIJobProcessor {
       // Type assertion needed due to LangChain's complex return types
       const response = (await this.ragService.generateResponse(
         personality,
-        message,
+        message as MessageContent,
         {
           userId: context.userId,
           userName: context.userName,

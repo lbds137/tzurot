@@ -54,7 +54,7 @@ export class GeminiProvider implements AIProvider {
   constructor(config: GeminiConfig) {
     this.apiKey = config.apiKey;
     this.baseUrl = config.baseUrl ?? 'https://generativelanguage.googleapis.com/v1beta';
-    this.defaultModel = config.defaultModel ?? 'gemini-1.5-flash';
+    this.defaultModel = config.defaultModel ?? 'gemini-2.5-pro';
   }
 
   async complete(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {

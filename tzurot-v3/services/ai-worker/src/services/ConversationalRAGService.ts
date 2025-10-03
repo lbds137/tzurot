@@ -14,7 +14,7 @@ import {
   HumanMessage,
   SystemMessage
 } from '@langchain/core/messages';
-import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager';
+import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
 import { Personality, MessageContent } from '@tzurot/common-types';
 import { pino } from 'pino';
 
@@ -108,7 +108,7 @@ export class ConversationalRAGService {
       // 3. Build the prompt with memory context
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
-          relevantMemories.map(doc => `- ${doc.pageContent}`).join('\n')
+          relevantMemories.map((doc: { pageContent: string }) => `- ${doc.pageContent}`).join('\n')
         : '';
 
       // 4. Build conversation history
@@ -194,7 +194,7 @@ export class ConversationalRAGService {
 
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
-          relevantMemories.map(doc => `- ${doc.pageContent}`).join('\n')
+          relevantMemories.map((doc: { pageContent: string }) => `- ${doc.pageContent}`).join('\n')
         : '';
 
       const messages: BaseMessage[] = [];

@@ -56,7 +56,10 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
     };
   } catch (error) {
     logger.error('[Config] Failed to parse REDIS_URL:', error);
-    return {};
+    return {
+      host: 'localhost',
+      port: 6379
+    };
   }
 }
 
@@ -177,7 +180,7 @@ async function startHealthServer(
       if (req.url === '/health') {
         try {
           const chromaHealthy = await memoryManager.healthCheck();
-          const workerHealthy = !worker.isClosing();
+          const workerHealthy = !(await worker.closing);
 
           const status = chromaHealthy && workerHealthy ? 200 : 503;
           const health = {

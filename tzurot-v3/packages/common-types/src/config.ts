@@ -14,7 +14,7 @@ export const envSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().optional().default('https://openrouter.ai/api/v1'),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_BASE_URL: z.string().url().optional(),
-  DEFAULT_AI_MODEL: z.string().optional().default('gemini-1.5-flash'),
+  DEFAULT_AI_MODEL: z.string().optional().default('gemini-2.5-pro'),
   
   // Redis Configuration (for BullMQ)
   REDIS_URL: z.string().url().optional().default('redis://localhost:6379'),

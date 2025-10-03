@@ -53,11 +53,13 @@ export class VectorMemoryManager {
   private embeddings: OpenAIEmbeddings;
   private vectorStore: Chroma | null = null;
   private readonly collectionName = 'personality-memories';
+  private readonly chromaUrl: string;
 
   constructor(
     chromaUrl = 'http://localhost:8000',
     openAIApiKey?: string
   ) {
+    this.chromaUrl = chromaUrl;
     this.client = new ChromaClient({ path: chromaUrl });
     this.embeddings = new OpenAIEmbeddings({
       openAIApiKey: openAIApiKey ?? process.env.OPENAI_API_KEY,
@@ -76,7 +78,7 @@ export class VectorMemoryManager {
         this.embeddings,
         {
           collectionName: this.collectionName,
-          url: this.client.path
+          url: this.chromaUrl
         }
       ));
 
@@ -90,7 +92,7 @@ export class VectorMemoryManager {
         this.embeddings,
         {
           collectionName: this.collectionName,
-          url: this.client.path
+          url: this.chromaUrl
         }
       ));
 
