@@ -27,13 +27,24 @@ export async function loadPersonalities(personalitiesDir: string): Promise<Map<s
       try {
         const filePath = join(personalitiesDir, file);
         const content = await readFile(filePath, 'utf-8');
-        const config = JSON.parse(content) as BotPersonality;
+        const rawConfig = JSON.parse(content) as any;
+
+        // Normalize the personality config
+        const config: BotPersonality = {
+          name: rawConfig.name,
+          displayName: rawConfig.displayName || rawConfig.name, // Use name if displayName not provided
+          systemPrompt: rawConfig.systemPrompt,
+          model: rawConfig.model,
+          temperature: rawConfig.temperature,
+          maxTokens: rawConfig.maxTokens,
+          avatarUrl: rawConfig.avatarUrl || rawConfig.avatar // Support both field names
+        };
 
         // Store by lowercase name for case-insensitive lookup
         const key = config.name.toLowerCase();
         personalities.set(key, config);
 
-        logger.info(`[PersonalityLoader] Loaded personality: ${config.name}`);
+        logger.info(`[PersonalityLoader] Loaded personality: ${config.name} (display: ${config.displayName})`);
 
       } catch (error) {
         logger.error(`[PersonalityLoader] Failed to load ${file}:`, error);
