@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "pnpm install --filter ai-worker... && pnpm --filter ai-worker build"
+    "buildCommand": "pnpm install && pnpm --filter @tzurot/common-types build && pnpm --filter @tzurot/api-clients build && pnpm --filter ai-worker build"
   },
   "deploy": {
     "startCommand": "node services/ai-worker/dist/index.js",
