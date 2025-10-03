@@ -15,6 +15,7 @@
   "dependencies": {
     "@langchain/community": "^0.3.57",
     "@langchain/core": "^0.3.78",
+    "@langchain/google-genai": "^0.2.18",
     "@langchain/openai": "^0.6.14",
     "@tzurot/api-clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",

@@ -8,14 +8,15 @@
  * - Supports streaming responses
  */
 
-import { ChatOpenAI } from '@langchain/openai';
 import {
   BaseMessage,
   HumanMessage,
   SystemMessage
 } from '@langchain/core/messages';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
 import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
+import { createChatModel, getModelCacheKey } from './ModelFactory.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -37,31 +38,28 @@ export interface RAGResponse {
 
 export class ConversationalRAGService {
   private memoryManager?: VectorMemoryManager;
-  private models = new Map<string, ChatOpenAI>();
+  private models = new Map<string, BaseChatModel>();
 
   constructor(memoryManager?: VectorMemoryManager) {
     this.memoryManager = memoryManager;
   }
 
   /**
-   * Get or create a ChatOpenAI model for a specific API key
+   * Get or create a chat model for a specific configuration
    * This supports BYOK (Bring Your Own Key) - different users can use different keys
    */
   private getModel(
-    modelName: string,
-    apiKey: string,
-    baseURL?: string,
+    modelName?: string,
+    apiKey?: string,
     temperature?: number
-  ): ChatOpenAI {
-    const cacheKey = `${modelName}-${apiKey.substring(0, 10)}`;
+  ): BaseChatModel {
+    const cacheKey = getModelCacheKey({ modelName, apiKey, temperature });
 
     if (!this.models.has(cacheKey)) {
-      this.models.set(cacheKey, new ChatOpenAI({
+      this.models.set(cacheKey, createChatModel({
         modelName,
-        openAIApiKey: apiKey,
+        apiKey,
         temperature: temperature ?? 0.7,
-        configuration: baseURL ? { baseURL } : undefined,
-        streaming: true // Enable streaming by default
       }));
     }
 
@@ -127,16 +125,10 @@ export class ConversationalRAGService {
       // Add current user message
       messages.push(new HumanMessage(userMessage));
 
-      // 5. Get the appropriate model
-      const apiKey = userApiKey || process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error('No API key available - user must provide one or set OPENROUTER_API_KEY');
-      }
-
+      // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
       const model = this.getModel(
-        personality.model || 'gpt-3.5-turbo',
-        apiKey,
-        process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        personality.model,
+        userApiKey,
         personality.temperature
       );
 
@@ -209,15 +201,9 @@ export class ConversationalRAGService {
 
       messages.push(new HumanMessage(userMessage));
 
-      const apiKey = userApiKey || process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error('No API key available');
-      }
-
       const model = this.getModel(
-        personality.model || 'gpt-3.5-turbo',
-        apiKey,
-        process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        personality.model,
+        userApiKey,
         personality.temperature
       );
 
