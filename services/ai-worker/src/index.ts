@@ -173,7 +173,7 @@ async function main(): Promise<void> {
  * Start a simple HTTP server for health checks
  */
 async function startHealthServer(
-  memoryManager: VectorMemoryManager,
+  memoryManager: VectorMemoryManager | undefined,
   worker: Worker
 ): Promise<void> {
   const http = await import('http');
@@ -183,13 +183,15 @@ async function startHealthServer(
     void (async () => {
       if (req.url === '/health') {
         try {
-          const chromaHealthy = await memoryManager.healthCheck();
+          const chromaHealthy = memoryManager !== undefined
+            ? await memoryManager.healthCheck()
+            : true; // If memory is disabled, we're still healthy
           const workerHealthy = !(await worker.closing);
 
           const status = chromaHealthy && workerHealthy ? 200 : 503;
           const health = {
             status: chromaHealthy && workerHealthy ? 'healthy' : 'degraded',
-            chroma: chromaHealthy,
+            chroma: memoryManager !== undefined ? chromaHealthy : 'disabled',
             worker: workerHealthy,
             timestamp: new Date().toISOString()
           };
