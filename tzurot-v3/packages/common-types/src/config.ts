@@ -63,8 +63,6 @@ export function validateEnv(): EnvConfig {
 let _config: EnvConfig | undefined;
 
 export function getConfig(): EnvConfig {
-  if (!_config) {
-    _config = validateEnv();
-  }
+  _config ??= validateEnv();
   return _config;
 }

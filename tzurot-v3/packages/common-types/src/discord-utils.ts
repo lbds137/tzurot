@@ -29,7 +29,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
       }
       
       // Split long paragraph on sentences
-      const sentences = paragraph.match(/[^.!?]+[.!?]+/g) || [paragraph];
+      const sentences = paragraph.match(/[^.!?]+[.!?]+/g) ?? [paragraph];
       
       for (const sentence of sentences) {
         // If even a sentence is too long, split on words
@@ -92,7 +92,7 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
  */
 export function preserveCodeBlocks(content: string): string[] {
   const codeBlockRegex = /```[\s\S]*?```/g;
-  const codeBlocks = content.match(codeBlockRegex) || [];
+  const codeBlocks = content.match(codeBlockRegex) ?? [];
   
   if (codeBlocks.length === 0) {
     return splitMessage(content);

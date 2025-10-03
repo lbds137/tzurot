@@ -25,7 +25,7 @@ export interface ChatCompletionRequest {
   stream?: boolean;
   user?: string;
   // Provider-specific extensions can be added here
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ChatCompletionChoice {
@@ -52,11 +52,11 @@ export interface StreamChunk {
   object: string;
   created: number;
   model: string;
-  choices: Array<{
+  choices: {
     index: number;
     delta: Partial<ChatMessage>;
     finish_reason: string | null;
-  }>;
+  }[];
 }
 
 export interface AIProviderConfig {

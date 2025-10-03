@@ -60,6 +60,17 @@ export default tseslint.config(
         allowNumber: true,
         allowNullableObject: true
       }],
+      '@typescript-eslint/prefer-nullish-coalescing': 'error',
+      '@typescript-eslint/no-unsafe-assignment': 'error',
+      '@typescript-eslint/no-unsafe-member-access': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/restrict-template-expressions': 'error',
+      '@typescript-eslint/array-type': ['error', { default: 'array' }],
+      '@typescript-eslint/require-await': 'error',
+      '@typescript-eslint/no-require-imports': 'error',
+      '@typescript-eslint/consistent-generic-constructors': 'error',
+      '@typescript-eslint/no-inferrable-types': 'error',
       
       // General code quality rules
       'no-console': ['warn', { allow: ['warn', 'error'] }],

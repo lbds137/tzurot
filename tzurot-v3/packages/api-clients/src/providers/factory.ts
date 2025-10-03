@@ -67,11 +67,11 @@ export class AIProviderFactory {
    * Get or create a provider
    */
   static getOrCreate(name: string, type: ProviderType, config: AIProviderConfig): AIProvider {
-    let provider = this.providers.get(name);
-    if (!provider) {
-      provider = this.register(name, type, config);
+    const provider = this.providers.get(name);
+    if (provider !== undefined) {
+      return provider;
     }
-    return provider;
+    return this.register(name, type, config);
   }
 
   /**
@@ -85,30 +85,39 @@ export class AIProviderFactory {
    * Create a provider from environment variables
    * Uses validated configuration to ensure all required vars are present
    */
-  static fromEnv(): AIProvider {
+  static async fromEnv(): Promise<AIProvider> {
     // Import dynamically to avoid circular dependencies
-    const { getConfig } = require('@tzurot/common-types/dist/config');
-    const config = getConfig();
-    
-    switch (config.AI_PROVIDER) {
+    const configModule = await import('@tzurot/common-types/dist/config.js') as { getConfig: () => {
+      AI_PROVIDER: 'openrouter' | 'openai' | 'anthropic' | 'local';
+      OPENROUTER_API_KEY: string;
+      OPENROUTER_BASE_URL?: string;
+      DEFAULT_AI_MODEL?: string;
+    }};
+    const config = configModule.getConfig();
+
+    const providerType = config.AI_PROVIDER;
+
+    switch (providerType) {
       case 'openrouter':
         return this.create('openrouter', {
           apiKey: config.OPENROUTER_API_KEY,
           baseUrl: config.OPENROUTER_BASE_URL,
           defaultModel: config.DEFAULT_AI_MODEL,
         });
-      
+
       case 'openai':
         throw new Error('OpenAI provider not yet implemented. Use OpenRouter for OpenAI models.');
-      
+
       case 'anthropic':
         throw new Error('Anthropic provider not yet implemented. Use OpenRouter for Claude models.');
-      
+
       case 'local':
         throw new Error('Local provider not yet implemented.');
-      
-      default:
-        throw new Error(`Provider ${config.AI_PROVIDER} not configured`);
+
+      default: {
+        const exhaustiveCheck: never = providerType;
+        throw new Error(`Provider ${String(exhaustiveCheck)} not configured`);
+      }
     }
   }
 }

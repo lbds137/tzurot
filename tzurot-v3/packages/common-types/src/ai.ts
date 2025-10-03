@@ -4,7 +4,7 @@
 
 export interface ChatCompletionRequest {
   model: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: { role: string; content: string }[];
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
@@ -12,11 +12,11 @@ export interface ChatCompletionRequest {
 }
 
 export interface ConversationHistory {
-  messages: Array<{
+  messages: {
     role: 'user' | 'assistant' | 'system';
     content: string;
     timestamp?: Date;
-  }>;
+  }[];
 }
 
 export type MessageContent = 
@@ -27,9 +27,9 @@ export type MessageContent =
         author?: string;
         content: string;
       };
-      attachments?: Array<{
+      attachments?: {
         name?: string;
         url?: string;
         type?: string;
-      }>;
+      }[];
     };

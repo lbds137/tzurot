@@ -14,12 +14,12 @@ export interface DiscordMessage {
   channelId: string;
   guildId?: string;
   webhookId?: string;
-  attachments?: Array<{
+  attachments?: {
     name: string;
     url: string;
     contentType?: string;
     size: number;
-  }>;
+  }[];
   reference?: {
     messageId: string;
     channelId: string;

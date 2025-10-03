@@ -13,9 +13,14 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@tzurot/common-types": "workspace:*",
+    "@langchain/community": "^0.3.57",
+    "@langchain/core": "^0.3.78",
+    "@langchain/openai": "^0.6.14",
     "@tzurot/api-clients": "workspace:*",
+    "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.1.0",
+    "chromadb": "^3.0.17",
+    "langchain": "^0.3.35",
     "openai": "^4.24.0",
     "pino": "^8.17.2",
     "redis": "^4.6.12",

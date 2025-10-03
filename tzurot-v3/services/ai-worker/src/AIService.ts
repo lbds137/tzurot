@@ -46,7 +46,11 @@ export class AIService {
 
   constructor() {
     // Clean up old pending requests periodically
-    setInterval(() => this.cleanupPendingRequests(), 60000);
+    const intervalId = setInterval(() => {
+      this.cleanupPendingRequests();
+    }, 60000);
+    // Allow Node.js to exit even with active interval
+    intervalId.unref?.();
   }
 
   /**
@@ -102,14 +106,14 @@ export class AIService {
   ): Promise<AIResponse> {
     try {
       // Build messages array for the AI
-      const messages = await this.buildMessages(personality, message, context);
+      const messages = this.buildMessages(personality, message, context);
       
       // Get the AI provider
-      const provider = AIProviderFactory.fromEnv();
+      const provider = await AIProviderFactory.fromEnv();
       
       // Make the request
       const request: ChatCompletionRequest = {
-        model: personality.model || getConfig().DEFAULT_AI_MODEL,
+        model: personality.model ?? getConfig().DEFAULT_AI_MODEL,
         messages,
         temperature: personality.temperature,
         max_tokens: personality.maxTokens,
@@ -163,11 +167,11 @@ export class AIService {
   /**
    * Build the messages array for the AI request
    */
-  private async buildMessages(
+  private buildMessages(
     personality: Personality,
     message: MessageContent,
     context: AIRequestContext
-  ): Promise<ChatMessage[]> {
+  ): ChatMessage[] {
     const messages: ChatMessage[] = [];
 
     // Add system prompt
@@ -209,7 +213,7 @@ export class AIService {
     let formatted = '';
 
     // Add context if this is a proxy message
-    if (context.isProxyMessage && context.userName) {
+    if (context.isProxyMessage === true && context.userName !== undefined && context.userName.length > 0) {
       formatted += `[Message from ${context.userName}]\n`;
     }
 
@@ -223,21 +227,21 @@ export class AIService {
       }
       
       // Add reference context if available
-      if ('referencedMessage' in message && message.referencedMessage) {
+      if ('referencedMessage' in message && message.referencedMessage !== undefined && message.referencedMessage !== null) {
         const ref = message.referencedMessage;
-        const author = ref.author || 'someone';
+        const author = (ref.author !== undefined && ref.author.length > 0) ? ref.author : 'someone';
         formatted = `[Replying to ${author}: "${ref.content}"]\n${formatted}`;
       }
 
       // Note attachments if present
       if ('attachments' in message && Array.isArray(message.attachments)) {
         for (const attachment of message.attachments) {
-          formatted += `\n[Attachment: ${attachment.name || 'file'}]`;
+          formatted += `\n[Attachment: ${attachment.name ?? 'file'}]`;
         }
       }
     }
 
-    return formatted || 'Hello';
+    return formatted.length > 0 ? formatted : 'Hello';
   }
 
   /**
@@ -252,9 +256,9 @@ export class AIService {
       ? message 
       : JSON.stringify(message);
     
-    const contextStr = `${context.userId || 'anon'}-${context.channelId || 'dm'}`;
+    const contextStr = `${context.userId ?? 'anon'}-${context.channelId ?? 'dm'}`;
     const hash = this.simpleHash(`${personalityName}-${messageStr}-${contextStr}`);
-    
+
     return `${personalityName}-${hash}`;
   }
 
@@ -277,8 +281,8 @@ export class AIService {
   private isInBlackout(personalityName: string, context: AIRequestContext): boolean {
     const key = this.getBlackoutKey(personalityName, context);
     const blackoutUntil = this.blackoutPeriods.get(key);
-    
-    if (!blackoutUntil) return false;
+
+    if (blackoutUntil === undefined) {return false;}
     
     if (Date.now() > blackoutUntil) {
       this.blackoutPeriods.delete(key);
@@ -302,14 +306,14 @@ export class AIService {
    * Get blackout key for personality/context combo
    */
   private getBlackoutKey(personalityName: string, context: AIRequestContext): string {
-    return `${personalityName}-${context.userId || 'anon'}-${context.channelId || 'dm'}`;
+    return `${personalityName}-${context.userId ?? 'anon'}-${context.channelId ?? 'dm'}`;
   }
 
   /**
    * Check if error should trigger blackout
    */
   private shouldBlackout(error: unknown): boolean {
-    if (!(error instanceof Error)) return false;
+    if (!(error instanceof Error)) {return false;}
     
     const message = error.message.toLowerCase();
     
@@ -326,7 +330,7 @@ export class AIService {
    * Check if response looks like an error
    */
   private isErrorResponse(content: string): boolean {
-    if (!content || content.length === 0) return true;
+    if (content.length === 0) {return true;}
     
     const errorPatterns = [
       /^error:/i,
@@ -371,7 +375,7 @@ export class AIService {
     }
 
     // Personality-specific error message if configured
-    if (personality.errorMessage) {
+    if (personality.errorMessage !== undefined && personality.errorMessage.length > 0) {
       return personality.errorMessage;
     }
     
@@ -417,11 +421,11 @@ export class AIService {
     context: AIRequestContext = {}
   ): AsyncGenerator<string, void, unknown> {
     try {
-      const messages = await this.buildMessages(personality, message, context);
-      const provider = AIProviderFactory.fromEnv();
+      const messages = this.buildMessages(personality, message, context);
+      const provider = await AIProviderFactory.fromEnv();
       
       const request: ChatCompletionRequest = {
-        model: personality.model || getConfig().DEFAULT_AI_MODEL,
+        model: personality.model ?? getConfig().DEFAULT_AI_MODEL,
         messages,
         temperature: personality.temperature,
         max_tokens: personality.maxTokens,
@@ -431,14 +435,14 @@ export class AIService {
 
       logger.info(`[AIService] Starting stream for ${personality.name}`);
       
-      if (!provider.streamComplete) {
+      if (provider.streamComplete === undefined) {
         throw new Error('Provider does not support streaming');
       }
-      
+
       let buffer = '';
       for await (const chunk of provider.streamComplete(request)) {
-        if (chunk.choices?.[0]?.delta?.content) {
-          const content = chunk.choices[0].delta.content;
+        const content = chunk.choices?.[0]?.delta?.content;
+        if (content !== undefined && content.length > 0) {
           buffer += content;
           yield content;
         }
@@ -462,7 +466,7 @@ export class AIService {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const provider = AIProviderFactory.fromEnv();
+      const provider = await AIProviderFactory.fromEnv();
       return await provider.healthCheck();
     } catch (error) {
       logger.error('[AIService] Health check failed:', error);

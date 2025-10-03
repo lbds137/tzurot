@@ -24,20 +24,20 @@ export class OpenRouterProvider implements AIProvider {
   private readonly defaultModel: string;
 
   constructor(config: OpenRouterConfig) {
-    if (!config.apiKey) {
+    if (!config.apiKey || config.apiKey.length === 0) {
       throw new AIProviderError('API key is required', 'MISSING_API_KEY', undefined, this.name);
     }
 
-    this.baseUrl = config.baseUrl || 'https://openrouter.ai/api/v1';
-    this.timeout = config.timeout || 30000;
-    this.maxRetries = config.maxRetries || 3;
-    this.defaultModel = config.defaultModel || 'anthropic/claude-3.5-sonnet';
-    
+    this.baseUrl = config.baseUrl ?? 'https://openrouter.ai/api/v1';
+    this.timeout = config.timeout ?? 30000;
+    this.maxRetries = config.maxRetries ?? 3;
+    this.defaultModel = config.defaultModel ?? 'anthropic/claude-3.5-sonnet';
+
     this.headers = {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
-      'HTTP-Referer': config.siteUrl || 'https://github.com/your-org/tzurot',
-      'X-Title': config.siteName || 'Tzurot Discord Bot',
+      'HTTP-Referer': config.siteUrl ?? 'https://github.com/your-org/tzurot',
+      'X-Title': config.siteName ?? 'Tzurot Discord Bot',
       ...config.headers
     };
   }
@@ -72,7 +72,7 @@ export class OpenRouterProvider implements AIProvider {
         // Handle different error types
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: { message: response.statusText } })) as { error?: { message?: string } };
-          const errorMessage = errorData.error?.message || `Request failed with status ${response.status}`;
+          const errorMessage = errorData.error?.message ?? `Request failed with status ${response.status}`;
           
           // Client errors (4xx) should not be retried
           if (response.status >= 400 && response.status < 500) {
@@ -149,7 +149,7 @@ export class OpenRouterProvider implements AIProvider {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: { message: response.statusText } })) as { error?: { message?: string } };
       throw new AIProviderError(
-        errorData.error?.message || `Stream request failed with status ${response.status}`,
+        errorData.error?.message ?? `Stream request failed with status ${response.status}`,
         'STREAM_ERROR',
         response.status,
         this.name
@@ -166,21 +166,21 @@ export class OpenRouterProvider implements AIProvider {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {break;}
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      buffer = lines.pop() ?? '';
 
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
-          if (data === '[DONE]') return;
+          if (data === '[DONE]') {return;}
           
           try {
             const chunk = JSON.parse(data) as StreamChunk;
             yield chunk;
-          } catch (e) {
+          } catch {
             // Skip invalid JSON
           }
         }
@@ -205,7 +205,7 @@ export class OpenRouterProvider implements AIProvider {
       );
     }
 
-    const data = await response.json() as { data: Array<{ id: string }> };
+    const data = await response.json() as { data: { id: string }[] };
     return data.data.map((model) => model.id);
   }
 
