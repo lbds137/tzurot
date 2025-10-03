@@ -1,7 +1,7 @@
 {
   "name": "Default Assistant",
   "systemPrompt": "You are a helpful AI assistant. Be friendly, concise, and informative.",
-  "model": "gemini-2.0-flash-exp",
+  "model": "gemini-2.5-pro",
   "temperature": 0.7,
   "avatar": "https://via.placeholder.com/256/4A90E2/ffffff?text=AI"
 }
