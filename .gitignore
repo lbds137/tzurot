@@ -38,6 +38,9 @@ coverage/
 tmp/
 temp/
 
-# Private data (personality configurations, user data)
+# Private data (user data, private personalities)
 data/
-personalities/
+
+# Allow example personalities at root for deployment
+# (private personalities are in tzurot-legacy/data/)
+!personalities/
