@@ -1,11 +1,12 @@
 import { AIProvider, AIProviderConfig } from './types.js';
 import { OpenRouterProvider, OpenRouterConfig } from './openrouter.js';
+import { GeminiProvider, GeminiConfig } from './gemini.js';
 // Future providers can be imported here
 // import { OpenAIProvider } from './openai.js';
 // import { AnthropicProvider } from './anthropic.js';
 // import { LocalLlamaProvider } from './local-llama.js';
 
-export type ProviderType = 'openrouter' | 'openai' | 'anthropic' | 'local';
+export type ProviderType = 'openrouter' | 'openai' | 'anthropic' | 'gemini' | 'local';
 
 export interface ProviderFactoryConfig {
   type: ProviderType;
@@ -26,22 +27,25 @@ export class AIProviderFactory {
     switch (type) {
       case 'openrouter':
         return new OpenRouterProvider(config as OpenRouterConfig);
-      
+
+      case 'gemini':
+        return new GeminiProvider(config as GeminiConfig);
+
       case 'openai':
         // When you want to add direct OpenAI support:
         // return new OpenAIProvider(config);
         throw new Error('OpenAI provider not yet implemented. Use OpenRouter for OpenAI models.');
-      
+
       case 'anthropic':
         // When you want to add direct Anthropic support:
         // return new AnthropicProvider(config);
         throw new Error('Anthropic provider not yet implemented. Use OpenRouter for Claude models.');
-      
+
       case 'local':
         // For local models like Ollama:
         // return new LocalLlamaProvider(config);
         throw new Error('Local provider not yet implemented.');
-      
+
       default:
         throw new Error(`Unknown provider type: ${type}`);
     }
@@ -88,9 +92,11 @@ export class AIProviderFactory {
   static async fromEnv(): Promise<AIProvider> {
     // Import dynamically to avoid circular dependencies
     const configModule = await import('@tzurot/common-types/dist/config.js') as { getConfig: () => {
-      AI_PROVIDER: 'openrouter' | 'openai' | 'anthropic' | 'local';
-      OPENROUTER_API_KEY: string;
+      AI_PROVIDER: 'openrouter' | 'openai' | 'anthropic' | 'gemini' | 'local';
+      OPENROUTER_API_KEY?: string;
       OPENROUTER_BASE_URL?: string;
+      GEMINI_API_KEY?: string;
+      GEMINI_BASE_URL?: string;
       DEFAULT_AI_MODEL?: string;
     }};
     const config = configModule.getConfig();
@@ -99,9 +105,22 @@ export class AIProviderFactory {
 
     switch (providerType) {
       case 'openrouter':
+        if (!config.OPENROUTER_API_KEY) {
+          throw new Error('OPENROUTER_API_KEY is required for OpenRouter provider');
+        }
         return this.create('openrouter', {
           apiKey: config.OPENROUTER_API_KEY,
           baseUrl: config.OPENROUTER_BASE_URL,
+          defaultModel: config.DEFAULT_AI_MODEL,
+        });
+
+      case 'gemini':
+        if (!config.GEMINI_API_KEY) {
+          throw new Error('GEMINI_API_KEY is required for Gemini provider');
+        }
+        return this.create('gemini', {
+          apiKey: config.GEMINI_API_KEY,
+          baseUrl: config.GEMINI_BASE_URL,
           defaultModel: config.DEFAULT_AI_MODEL,
         });
 

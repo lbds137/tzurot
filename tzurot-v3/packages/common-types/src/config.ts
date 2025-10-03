@@ -9,10 +9,12 @@ export const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, 'Discord token is required'),
   
   // AI Provider Configuration
-  AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'local']).default('openrouter'),
-  OPENROUTER_API_KEY: z.string().min(1, 'OpenRouter API key is required when using OpenRouter'),
+  AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'gemini', 'local']).default('openrouter'),
+  OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().url().optional().default('https://openrouter.ai/api/v1'),
-  DEFAULT_AI_MODEL: z.string().optional().default('anthropic/claude-3.5-sonnet'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_BASE_URL: z.string().url().optional(),
+  DEFAULT_AI_MODEL: z.string().optional().default('gemini-1.5-flash'),
   
   // Redis Configuration (for BullMQ)
   REDIS_URL: z.string().url().optional().default('redis://localhost:6379'),
