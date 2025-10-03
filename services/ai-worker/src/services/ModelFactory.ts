@@ -14,6 +14,63 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
 
+/**
+ * Available Gemini models (as of 2025)
+ * Using 2.0 Flash as default for cost-effectiveness
+ */
+const GEMINI_MODELS = [
+  'gemini-2.0-flash-exp',
+  'gemini-1.5-pro',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-pro',
+];
+
+const GEMINI_DEFAULT_MODEL = 'gemini-2.0-flash-exp'; // Fast and cheap
+
+/**
+ * Validate and normalize model name for the current provider
+ */
+function validateModelForProvider(requestedModel: string | undefined, provider: string): string {
+  switch (provider) {
+    case 'gemini': {
+      // If no model requested, use default
+      if (!requestedModel) {
+        return GEMINI_DEFAULT_MODEL;
+      }
+
+      // Check if requested model is available for Gemini
+      const normalizedModel = requestedModel.toLowerCase();
+      const isGeminiModel = GEMINI_MODELS.some(m => normalizedModel.includes(m.toLowerCase()));
+
+      if (isGeminiModel) {
+        // Find the exact match from our list
+        const exactModel = GEMINI_MODELS.find(m => normalizedModel.includes(m.toLowerCase()));
+        return exactModel || GEMINI_DEFAULT_MODEL;
+      }
+
+      // Requested model is not a Gemini model
+      logger.warn(
+        `[ModelFactory] Model "${requestedModel}" not available for Gemini, using ${GEMINI_DEFAULT_MODEL}`
+      );
+      return GEMINI_DEFAULT_MODEL;
+    }
+
+    case 'openrouter': {
+      // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
+      return requestedModel || process.env.DEFAULT_AI_MODEL || 'google/gemini-2.0-flash-exp:free';
+    }
+
+    case 'openai': {
+      // Use requested model or default to GPT-4
+      return requestedModel || process.env.DEFAULT_AI_MODEL || 'gpt-4o-mini';
+    }
+
+    default:
+      return requestedModel || 'gpt-3.5-turbo';
+  }
+}
+
 export interface ModelConfig {
   modelName?: string;
   temperature?: number;
@@ -36,9 +93,17 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
         throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini');
       }
 
-      const modelName = config.modelName || process.env.DEFAULT_AI_MODEL || 'gemini-1.5-pro';
+      // Validate and get appropriate Gemini model
+      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const modelName = validateModelForProvider(requestedModel, 'gemini');
 
-      logger.info(`[ModelFactory] Creating Gemini model: ${modelName}`);
+      if (requestedModel && requestedModel !== modelName) {
+        logger.info(
+          `[ModelFactory] Personality requested "${requestedModel}", using validated model: ${modelName}`
+        );
+      } else {
+        logger.info(`[ModelFactory] Creating Gemini model: ${modelName}`);
+      }
 
       return new ChatGoogleGenerativeAI({
         model: modelName,
@@ -53,7 +118,8 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
         throw new Error('OPENROUTER_API_KEY is required when AI_PROVIDER=openrouter');
       }
 
-      const modelName = config.modelName || process.env.DEFAULT_AI_MODEL || 'google/gemini-2.0-flash-exp:free';
+      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const modelName = validateModelForProvider(requestedModel, 'openrouter');
       const baseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
@@ -74,7 +140,8 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
         throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
       }
 
-      const modelName = config.modelName || process.env.DEFAULT_AI_MODEL || 'gpt-4';
+      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const modelName = validateModelForProvider(requestedModel, 'openai');
 
       logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
 
