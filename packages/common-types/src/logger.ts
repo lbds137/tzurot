@@ -3,19 +3,19 @@ import type { Logger, LoggerOptions } from 'pino';
 
 /**
  * Creates a logger instance with environment-aware configuration.
- * Uses pino-pretty transport in development for readable logs,
- * plain JSON logging in production for performance and compatibility.
+ * Uses pino-pretty transport ONLY when explicitly enabled via ENABLE_PRETTY_LOGS=true.
+ * Defaults to plain JSON logging for production compatibility.
  */
 export function createLogger(name?: string): Logger {
-  const isDevelopment = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev';
+  const usePrettyLogs = process.env.ENABLE_PRETTY_LOGS === 'true';
 
   const config: LoggerOptions = {
-    level: process.env.LOG_LEVEL || (isDevelopment ? 'debug' : 'info'),
+    level: process.env.LOG_LEVEL || 'info',
     name,
   };
 
-  // Only use pino-pretty in development (it's a dev dependency)
-  if (isDevelopment) {
+  // Only use pino-pretty when explicitly enabled (requires pino-pretty to be installed)
+  if (usePrettyLogs) {
     config.transport = {
       target: 'pino-pretty',
       options: { colorize: true },
