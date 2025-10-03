@@ -49,6 +49,7 @@ railway variables \
   --set "NODE_ENV=development" \
   --set "LOG_LEVEL=debug" \
   --set "PORT=3000" \
+  --set "REDIS_URL=\${{Redis.REDIS_URL}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/api-gateway/Dockerfile" \
   --service api-gateway
 
@@ -68,6 +69,7 @@ railway variables \
   --set "ENABLE_MEMORY=false" \
   --set "ENABLE_STREAMING=false" \
   --set "CHROMA_URL=${CHROMA_URL}" \
+  --set "REDIS_URL=\${{Redis.REDIS_URL}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/ai-worker/Dockerfile" \
   --service ai-worker
 
@@ -78,25 +80,14 @@ echo "   ✓ AI Worker variables set"
 # ============================================
 echo ""
 echo "🤖 Setting up Bot Client service..."
-
-# Get the API Gateway URL from Railway
-echo "   Fetching API Gateway public URL..."
-GATEWAY_URL=$(railway variables --service api-gateway --json | jq -r '.RAILWAY_PUBLIC_DOMAIN // empty')
-
-if [ -z "$GATEWAY_URL" ]; then
-    echo "   ⚠️  API Gateway URL not found yet (service may not be deployed)"
-    echo "   Using placeholder - you'll need to update this after first deploy"
-    GATEWAY_URL="https://PLACEHOLDER-update-after-deploy.railway.app"
-else
-    GATEWAY_URL="https://${GATEWAY_URL}"
-    echo "   Found: ${GATEWAY_URL}"
-fi
+echo "   Using Railway service reference for API Gateway URL"
+echo "   (Railway will automatically set this to the api-gateway public URL)"
 
 railway variables \
   --set "NODE_ENV=development" \
   --set "LOG_LEVEL=debug" \
   --set "DISCORD_TOKEN=${DISCORD_TOKEN}" \
-  --set "GATEWAY_URL=${GATEWAY_URL}" \
+  --set "GATEWAY_URL=https://\${{api-gateway.RAILWAY_PUBLIC_DOMAIN}}" \
   --set "PERSONALITIES_DIR=/app/personalities" \
   --set "RAILWAY_DOCKERFILE_PATH=services/bot-client/Dockerfile" \
   --service bot-client
