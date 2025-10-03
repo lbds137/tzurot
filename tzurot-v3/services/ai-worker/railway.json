@@ -2,10 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd ../.. && pnpm install && cd services/ai-worker && pnpm run build"
+    "buildCommand": "pnpm install --filter ai-worker... && pnpm --filter ai-worker build"
   },
   "deploy": {
-    "startCommand": "node dist/index.js",
+    "startCommand": "node services/ai-worker/dist/index.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
