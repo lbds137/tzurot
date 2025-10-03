@@ -45,10 +45,11 @@ echo "   Redis URL will be auto-set by Railway as \${{Redis.REDIS_URL}}"
 # ============================================
 echo ""
 echo "🌐 Setting up API Gateway service..."
-railway variables set \
-  NODE_ENV=development \
-  LOG_LEVEL=debug \
-  PORT=3000 \
+railway variables \
+  --set "NODE_ENV=development" \
+  --set "LOG_LEVEL=debug" \
+  --set "PORT=3000" \
+  --set "RAILWAY_DOCKERFILE_PATH=services/api-gateway/Dockerfile" \
   --service api-gateway
 
 echo "   ✓ API Gateway variables set"
@@ -58,15 +59,16 @@ echo "   ✓ API Gateway variables set"
 # ============================================
 echo ""
 echo "🤖 Setting up AI Worker service..."
-railway variables set \
-  NODE_ENV=development \
-  LOG_LEVEL=debug \
-  AI_PROVIDER="${AI_PROVIDER}" \
-  GEMINI_API_KEY="${GEMINI_API_KEY}" \
-  DEFAULT_AI_MODEL="${DEFAULT_AI_MODEL}" \
-  ENABLE_MEMORY=false \
-  ENABLE_STREAMING=false \
-  CHROMA_URL="${CHROMA_URL}" \
+railway variables \
+  --set "NODE_ENV=development" \
+  --set "LOG_LEVEL=debug" \
+  --set "AI_PROVIDER=${AI_PROVIDER}" \
+  --set "GEMINI_API_KEY=${GEMINI_API_KEY}" \
+  --set "DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL}" \
+  --set "ENABLE_MEMORY=false" \
+  --set "ENABLE_STREAMING=false" \
+  --set "CHROMA_URL=${CHROMA_URL}" \
+  --set "RAILWAY_DOCKERFILE_PATH=services/ai-worker/Dockerfile" \
   --service ai-worker
 
 echo "   ✓ AI Worker variables set"
@@ -90,12 +92,13 @@ else
     echo "   Found: ${GATEWAY_URL}"
 fi
 
-railway variables set \
-  NODE_ENV=development \
-  LOG_LEVEL=debug \
-  DISCORD_TOKEN="${DISCORD_TOKEN}" \
-  GATEWAY_URL="${GATEWAY_URL}" \
-  PERSONALITIES_DIR="/app/personalities" \
+railway variables \
+  --set "NODE_ENV=development" \
+  --set "LOG_LEVEL=debug" \
+  --set "DISCORD_TOKEN=${DISCORD_TOKEN}" \
+  --set "GATEWAY_URL=${GATEWAY_URL}" \
+  --set "PERSONALITIES_DIR=/app/personalities" \
+  --set "RAILWAY_DOCKERFILE_PATH=services/bot-client/Dockerfile" \
   --service bot-client
 
 echo "   ✓ Bot Client variables set"
