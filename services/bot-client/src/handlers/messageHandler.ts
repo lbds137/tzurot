@@ -9,6 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
+import { ConversationManager } from '../memory/ConversationManager.js';
 import { preserveCodeBlocks, createLogger } from '@tzurot/common-types';
 import type { BotPersonality, MessageContext } from '../types.js';
 
@@ -20,6 +21,7 @@ const logger = createLogger('MessageHandler');
 export class MessageHandler {
   private gatewayClient: GatewayClient;
   private webhookManager: WebhookManager;
+  private conversationManager: ConversationManager;
   private personalities: Map<string, BotPersonality>;
 
   constructor(
@@ -29,6 +31,10 @@ export class MessageHandler {
   ) {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
+    this.conversationManager = new ConversationManager({
+      maxMessagesPerThread: 20, // Keep last 20 messages
+      threadTimeoutMinutes: 60 // Clear after 1 hour of inactivity
+    });
     this.personalities = personalities;
   }
 
@@ -94,17 +100,38 @@ export class MessageHandler {
         await message.channel.sendTyping();
       }
 
-      // Build context
+      // Get conversation history
+      const conversationHistory = this.conversationManager.getHistory(
+        message.channel.id,
+        personality.name
+      );
+
+      // Build context with conversation history
       const context: MessageContext = {
         userId: message.author.id,
         userName: message.author.username,
         channelId: message.channel.id,
         serverId: message.guild?.id,
-        messageContent: content
+        messageContent: content,
+        conversationHistory // Add conversation history
       };
+
+      // Add user message to conversation history
+      this.conversationManager.addUserMessage(
+        message.channel.id,
+        personality.name,
+        content
+      );
 
       // Call API Gateway for AI generation
       const response = await this.gatewayClient.generate(personality, context);
+
+      // Add assistant response to conversation history
+      this.conversationManager.addAssistantMessage(
+        message.channel.id,
+        personality.name,
+        response
+      );
 
       // Split response if needed (Discord 2000 char limit)
       const chunks = preserveCodeBlocks(response);
@@ -125,7 +152,7 @@ export class MessageHandler {
         }
       }
 
-      logger.info(`[MessageHandler] Response sent as ${personality.displayName}`);
+      logger.info(`[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`);
 
     } catch (error) {
       logger.error('[MessageHandler] Error handling personality message:', error);

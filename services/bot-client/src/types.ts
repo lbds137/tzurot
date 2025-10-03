@@ -28,6 +28,10 @@ export interface MessageContext {
   channelId: string;
   serverId?: string;
   messageContent: string;
+  conversationHistory?: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+  }>;
   referencedMessage?: {
     author: string;
     content: string;
