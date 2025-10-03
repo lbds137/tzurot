@@ -72,7 +72,7 @@ export interface AIJobResult {
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
 
-  constructor(memoryManager: VectorMemoryManager) {
+  constructor(memoryManager?: VectorMemoryManager) {
     // Type assertion needed due to LangChain's complex internal types
     this.ragService = new ConversationalRAGService(memoryManager) as ConversationalRAGService;
   }

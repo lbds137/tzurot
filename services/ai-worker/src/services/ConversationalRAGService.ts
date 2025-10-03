@@ -36,10 +36,10 @@ export interface RAGResponse {
 }
 
 export class ConversationalRAGService {
-  private memoryManager: VectorMemoryManager;
+  private memoryManager?: VectorMemoryManager;
   private models = new Map<string, ChatOpenAI>();
 
-  constructor(memoryManager: VectorMemoryManager) {
+  constructor(memoryManager?: VectorMemoryManager) {
     this.memoryManager = memoryManager;
   }
 
@@ -92,12 +92,16 @@ export class ConversationalRAGService {
         includeSession: !!context.sessionId
       };
 
-      const relevantMemories = await this.memoryManager.queryMemories(
-        userMessage,
-        memoryQueryOptions
-      );
+      // Query memories only if memory manager is available
+      const relevantMemories = this.memoryManager !== undefined
+        ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
+        : [];
 
-      logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
+      if (relevantMemories.length > 0) {
+        logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
+      } else {
+        logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
+      }
 
       // 3. Build the prompt with memory context
       const memoryContext = relevantMemories.length > 0
@@ -182,10 +186,9 @@ export class ConversationalRAGService {
         includeSession: !!context.sessionId
       };
 
-      const relevantMemories = await this.memoryManager.queryMemories(
-        userMessage,
-        memoryQueryOptions
-      );
+      const relevantMemories = this.memoryManager !== undefined
+        ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
+        : [];
 
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
@@ -253,21 +256,25 @@ export class ConversationalRAGService {
       // Store as a conversational exchange
       const interactionText = `User (${context.userName || context.userId}): ${userMessage}\n${personality.name}: ${aiResponse}`;
 
-      await this.memoryManager.addMemory({
-        text: interactionText,
-        metadata: {
-          personalityId: personality.name,
-          userId: context.userId,
-          sessionId: context.sessionId,
+      if (this.memoryManager !== undefined) {
+        await this.memoryManager.addMemory({
+          text: interactionText,
+          metadata: {
+            personalityId: personality.name,
+            userId: context.userId,
+            sessionId: context.sessionId,
           canonScope,
           timestamp: Date.now(),
           contextType: context.channelId ? 'channel' : 'dm',
           channelId: context.channelId,
           serverId: context.serverId
         }
-      });
+        });
 
-      logger.debug(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name}`);
+        logger.debug(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name}`);
+      } else {
+        logger.debug(`[RAG] Memory storage disabled - interaction not stored`);
+      }
 
     } catch (error) {
       logger.error('[RAG] Failed to store interaction:', error);

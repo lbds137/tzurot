@@ -33,6 +33,9 @@ const config = {
   worker: {
     concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '5'),
     queueName: process.env.QUEUE_NAME ?? 'ai-requests'
+  },
+  features: {
+    enableMemory: process.env.ENABLE_MEMORY === 'true'
   }
 };
 
@@ -69,20 +72,26 @@ async function main(): Promise<void> {
     worker: config.worker
   });
 
-  // Initialize vector memory manager
-  logger.info('[AIWorker] Initializing ChromaDB connection...');
-  const memoryManager = new VectorMemoryManager(
-    config.chroma.url,
-    config.openai.apiKey
-  );
+  // Initialize vector memory manager (only if enabled)
+  let memoryManager: VectorMemoryManager | undefined;
 
-  try {
-    await memoryManager.initialize();
-    logger.info('[AIWorker] ChromaDB initialized successfully');
-  } catch (error) {
-    logger.error('[AIWorker] Failed to initialize ChromaDB:', error);
-    logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
-    // Don't exit - we can still process jobs without memory, just with degraded functionality
+  if (config.features.enableMemory) {
+    logger.info('[AIWorker] Initializing ChromaDB connection...');
+    memoryManager = new VectorMemoryManager(
+      config.chroma.url,
+      config.openai.apiKey
+    );
+
+    try {
+      await memoryManager.initialize();
+      logger.info('[AIWorker] ChromaDB initialized successfully');
+    } catch (error) {
+      logger.error({ err: error }, '[AIWorker] Failed to initialize ChromaDB');
+      logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+      memoryManager = undefined;
+    }
+  } else {
+    logger.info('[AIWorker] Vector memory disabled (ENABLE_MEMORY=false)');
   }
 
   // Initialize job processor
