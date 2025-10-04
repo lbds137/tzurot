@@ -273,12 +273,4 @@ export class PersonalityService {
     this.cacheExpiry.set(key, Date.now() + this.CACHE_TTL);
   }
 
-  /**
-   * Clear cache (useful after personality updates)
-   */
-  clearCache(): void {
-    this.personalityCache.clear();
-    this.cacheExpiry.clear();
-    logger.debug('Personality cache cleared');
-  }
 }

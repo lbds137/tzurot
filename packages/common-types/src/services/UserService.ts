@@ -57,10 +57,4 @@ export class UserService {
     }
   }
 
-  /**
-   * Clear cache (useful for testing)
-   */
-  clearCache(): void {
-    this.userCache.clear();
-  }
 }

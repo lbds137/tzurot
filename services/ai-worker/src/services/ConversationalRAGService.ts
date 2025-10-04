@@ -14,7 +14,7 @@ import {
   SystemMessage
 } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
+import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
 import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
 import { formatAttachments } from './MultimodalFormatter.js';
@@ -53,10 +53,10 @@ export interface RAGResponse {
 }
 
 export class ConversationalRAGService {
-  private memoryManager?: VectorMemoryManager;
+  private memoryManager?: QdrantMemoryAdapter;
   private models = new Map<string, BaseChatModel>();
 
-  constructor(memoryManager?: VectorMemoryManager) {
+  constructor(memoryManager?: QdrantMemoryAdapter) {
     this.memoryManager = memoryManager;
   }
 
@@ -135,8 +135,9 @@ export class ConversationalRAGService {
         // Log each memory with ID, score, timestamp, and truncated content
         relevantMemories.forEach((doc, idx) => {
           const id = doc.metadata?.id || 'unknown';
-          const score = doc.metadata?.score || 0;
-          const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+          const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
+          const createdAt = doc.metadata?.createdAt as string | number | undefined;
+          const timestamp = this.formatMemoryTimestamp(createdAt);
           const content = doc.pageContent.substring(0, 120);
           const truncated = doc.pageContent.length > 120 ? '...' : '';
 

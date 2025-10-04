@@ -160,12 +160,3 @@ function cleanupExpiredRequests(): void {
 export function getCacheSize(): number {
   return requestCache.size;
 }
-
-/**
- * Clear all cached requests (for testing)
- */
-export function clearCache(): void {
-  const size = requestCache.size;
-  requestCache.clear();
-  logger.info(`[Deduplication] Cleared request cache (${size} entries)`);
-}
