@@ -107,7 +107,7 @@ export class MessageHandler {
       const historyLimit = personality.contextWindow || 20;
       const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
-        personality.name, // TODO: Use personality ID once we have it
+        personality.id,
         historyLimit
       );
 
@@ -130,7 +130,7 @@ export class MessageHandler {
       // Save user message to conversation history
       await this.conversationHistory.addMessage(
         message.channel.id,
-        personality.name, // TODO: Use personality ID
+        personality.id,
         message.author.id,
         'user',
         content
@@ -142,7 +142,7 @@ export class MessageHandler {
       // Save assistant response to conversation history
       await this.conversationHistory.addMessage(
         message.channel.id,
-        personality.name, // TODO: Use personality ID
+        personality.id,
         message.author.id,
         'assistant',
         response

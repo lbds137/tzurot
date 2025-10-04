@@ -13,6 +13,7 @@ const logger = createLogger('PersonalityService');
  * Simplified personality type for runtime use
  */
 export interface LoadedPersonality {
+  id: string;
   name: string;
   displayName: string;
   systemPrompt: string;
@@ -185,6 +186,7 @@ export class PersonalityService {
       : undefined;
 
     return {
+      id: db.id,
       name: db.name,
       displayName: db.displayName || db.name,
       systemPrompt: db.systemPrompt?.content || '',
