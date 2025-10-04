@@ -77,7 +77,7 @@ export class CommandHandler {
 
       if (stat.isDirectory()) {
         files.push(...this.getCommandFiles(fullPath));
-      } else if (item.endsWith('.ts') || item.endsWith('.js')) {
+      } else if ((item.endsWith('.ts') || item.endsWith('.js')) && !item.endsWith('.d.ts')) {
         files.push(fullPath);
       }
     }
