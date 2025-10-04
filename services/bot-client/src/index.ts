@@ -81,9 +81,12 @@ async function start(): Promise<void> {
     logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
 
     // Initialize message handler (personalities loaded on-demand with caching)
+    logger.info('[Bot] Initializing message handler...');
     messageHandler = new MessageHandler(gatewayClient, webhookManager);
+    logger.info('[Bot] Message handler initialized');
 
     // Health check gateway
+    logger.info('[Bot] Checking gateway health...');
     const isHealthy = await gatewayClient.healthCheck();
     if (!isHealthy) {
       logger.warn('[Bot] Gateway health check failed, but continuing...');
