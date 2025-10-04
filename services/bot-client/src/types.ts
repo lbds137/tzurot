@@ -31,6 +31,7 @@ export interface MessageContext {
   conversationHistory?: Array<{
     role: 'user' | 'assistant' | 'system';
     content: string;
+    createdAt?: string;
   }>;
   referencedMessage?: {
     author: string;

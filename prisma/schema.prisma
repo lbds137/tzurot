@@ -100,6 +100,10 @@ model LlmConfig {
   repetitionPenalty  Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
   maxTokens          Int?     @map("max_tokens")
 
+  // Memory retrieval settings
+  memoryScoreThreshold Decimal? @map("memory_score_threshold") @db.Decimal(3, 2)
+  memoryLimit          Int?     @map("memory_limit")
+
   isDefault   Boolean  @default(false) @map("is_default")
 
   createdAt DateTime @default(now()) @map("created_at")

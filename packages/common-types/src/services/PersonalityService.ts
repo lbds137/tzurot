@@ -27,6 +27,8 @@ export interface LoadedPersonality {
   contextWindow: number;
   avatarUrl?: string;
   memoryEnabled: boolean;
+  memoryScoreThreshold?: number;
+  memoryLimit?: number;
   // Character definition fields
   characterInfo: string;
   personalityTraits: string;
@@ -55,6 +57,8 @@ export interface DatabasePersonality {
     frequencyPenalty: Decimal | null;
     presencePenalty: Decimal | null;
     maxTokens: number | null;
+    memoryScoreThreshold: Decimal | null;
+    memoryLimit: number | null;
   } | null;
   memoryEnabled: boolean;
   contextWindowSize: number;
@@ -116,6 +120,8 @@ export class PersonalityService {
               frequencyPenalty: true,
               presencePenalty: true,
               maxTokens: true,
+              memoryScoreThreshold: true,
+              memoryLimit: true,
             },
           },
         },
@@ -157,6 +163,8 @@ export class PersonalityService {
               frequencyPenalty: true,
               presencePenalty: true,
               maxTokens: true,
+              memoryScoreThreshold: true,
+              memoryLimit: true,
             },
           },
         },
@@ -203,6 +211,12 @@ export class PersonalityService {
       ? parseFloat(db.llmConfig.presencePenalty.toString())
       : undefined;
 
+    const memoryScoreThreshold = db.llmConfig?.memoryScoreThreshold
+      ? parseFloat(db.llmConfig.memoryScoreThreshold.toString())
+      : undefined;
+
+    const memoryLimit = db.llmConfig?.memoryLimit ?? undefined;
+
     return {
       id: db.id,
       name: db.name,
@@ -218,6 +232,8 @@ export class PersonalityService {
       contextWindow: db.contextWindowSize,
       avatarUrl: db.avatarUrl || undefined,
       memoryEnabled: db.memoryEnabled,
+      memoryScoreThreshold,
+      memoryLimit,
       // Character definition fields
       characterInfo: db.characterInfo,
       personalityTraits: db.personalityTraits,

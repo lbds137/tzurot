@@ -122,7 +122,8 @@ export class MessageHandler {
       // Convert to format expected by AI gateway
       const conversationHistory = history.map(msg => ({
         role: msg.role,
-        content: msg.content
+        content: msg.content,
+        createdAt: msg.createdAt.toISOString() // Include timestamp for context
       }));
 
       // Build context with conversation history

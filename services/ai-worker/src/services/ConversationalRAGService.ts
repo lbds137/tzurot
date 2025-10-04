@@ -92,7 +92,8 @@ export class ConversationalRAGService {
         personalityId: personality.id, // Use personality UUID
         userId: context.userId,
         sessionId: context.sessionId,
-        limit: 10,
+        limit: personality.memoryLimit || 15, // Use personality config or default to 15
+        scoreThreshold: personality.memoryScoreThreshold || 0.15, // Use personality config or default to 0.15
         includeGlobal: true,
         includePersonal: true,
         includeSession: !!context.sessionId
@@ -119,7 +120,10 @@ export class ConversationalRAGService {
 
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
-          relevantMemories.map((doc: { pageContent: string }) => `- ${doc.pageContent}`).join('\n')
+          relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
+            const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+            return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+          }).join('\n')
         : '';
 
       // 5. Build conversation history
@@ -185,10 +189,11 @@ export class ConversationalRAGService {
       const userMessage = this.formatUserMessage(message, context);
 
       const memoryQueryOptions: MemoryQueryOptions = {
-        personalityId: personality.name,
+        personalityId: personality.id, // Use personality UUID
         userId: context.userId,
         sessionId: context.sessionId,
-        limit: 10,
+        limit: personality.memoryLimit || 15, // Use personality config or default to 15
+        scoreThreshold: personality.memoryScoreThreshold || 0.15, // Use personality config or default to 0.15
         includeGlobal: true,
         includePersonal: true,
         includeSession: !!context.sessionId
@@ -200,7 +205,10 @@ export class ConversationalRAGService {
 
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
-          relevantMemories.map((doc: { pageContent: string }) => `- ${doc.pageContent}`).join('\n')
+          relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
+            const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+            return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+          }).join('\n')
         : '';
 
       const messages: BaseMessage[] = [];
@@ -423,5 +431,26 @@ export class ConversationalRAGService {
     }
 
     return formatted || 'Hello';
+  }
+
+  /**
+   * Format a memory timestamp into a human-readable date
+   */
+  private formatMemoryTimestamp(createdAt?: string | number): string | null {
+    if (!createdAt) return null;
+
+    try {
+      // Handle both Unix timestamps (numbers) and ISO strings
+      const date = typeof createdAt === 'number'
+        ? new Date(createdAt * 1000) // Unix timestamp in seconds
+        : new Date(createdAt);
+
+      if (isNaN(date.getTime())) return null;
+
+      // Format as YYYY-MM-DD
+      return date.toISOString().split('T')[0];
+    } catch {
+      return null;
+    }
   }
 }

@@ -163,18 +163,49 @@ export class AIJobProcessor {
    * Convert simple conversation history to LangChain BaseMessage format
    */
   private convertConversationHistory(
-    history: { role: 'user' | 'assistant' | 'system'; content: string }[]
+    history: { role: 'user' | 'assistant' | 'system'; content: string; createdAt?: string }[]
   ): BaseMessage[] {
     return history.map(msg => {
+      // Format content with relative timestamp if available
+      const content = msg.createdAt
+        ? `[${this.formatRelativeTime(msg.createdAt)}] ${msg.content}`
+        : msg.content;
+
       if (msg.role === 'user') {
-        return new HumanMessage(msg.content);
+        return new HumanMessage(content);
       } else if (msg.role === 'assistant') {
-        return new AIMessage(msg.content);
+        return new AIMessage(content);
       } else {
         // System messages are handled separately in the prompt
-        return new HumanMessage(msg.content);
+        return new HumanMessage(content);
       }
     });
+  }
+
+  /**
+   * Format timestamp as relative time (e.g., "5 minutes ago", "2 hours ago")
+   */
+  private formatRelativeTime(timestamp: string): string {
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+
+      if (diffMins < 1) return 'just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `${diffDays}d ago`;
+
+      // For older messages, show absolute date
+      return date.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
   }
 
   /**

@@ -38,6 +38,7 @@ export interface MemoryQueryOptions {
   userId?: string;
   sessionId?: string;
   limit?: number;
+  scoreThreshold?: number;
   includeGlobal?: boolean;
   includePersonal?: boolean;
   includeSession?: boolean;

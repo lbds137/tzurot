@@ -13,6 +13,7 @@ export interface MemoryQueryOptions {
   userId?: string;
   sessionId?: string;
   limit?: number;
+  scoreThreshold?: number;
   includeGlobal?: boolean;
   includePersonal?: boolean;
   includeSession?: boolean;
@@ -58,7 +59,7 @@ export class QdrantMemoryAdapter {
         query,
         {
           limit: options.limit || 10,
-          scoreThreshold: 0.15, // Lowered from 0.7 - semantic similarity scores are typically 0.15-0.4 for relevant matches
+          scoreThreshold: options.scoreThreshold || 0.15, // Use personality config or default to 0.15
         }
       );
 

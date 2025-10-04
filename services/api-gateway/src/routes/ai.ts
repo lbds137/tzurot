@@ -41,6 +41,8 @@ const generateRequestSchema = z.object({
     presencePenalty: z.number().optional(),
     // Memory config
     memoryEnabled: z.boolean().optional(),
+    memoryScoreThreshold: z.number().optional(),
+    memoryLimit: z.number().optional(),
     contextWindow: z.number().optional(),
     avatarUrl: z.string().optional(),
     // Character fields from LoadedPersonality
@@ -63,7 +65,8 @@ const generateRequestSchema = z.object({
     isProxyMessage: z.boolean().optional(),
     conversationHistory: z.array(z.object({
       role: z.enum(['user', 'assistant', 'system']),
-      content: z.string()
+      content: z.string(),
+      createdAt: z.string().optional()
     })).optional()
   }),
   userApiKey: z.string().optional()
