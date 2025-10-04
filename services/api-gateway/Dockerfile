@@ -21,7 +21,6 @@ COPY services/api-gateway/ ./services/api-gateway/
 
 # Build shared packages and service
 RUN pnpm --filter @tzurot/common-types build
-RUN pnpm --filter @tzurot/api-clients build
 RUN pnpm --filter api-gateway build
 
 # Production stage
@@ -35,7 +34,6 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-types/package.json ./packages/common-types/
-COPY packages/api-clients/package.json ./packages/api-clients/
 COPY services/api-gateway/package.json ./services/api-gateway/
 
 # Install production dependencies only
@@ -43,7 +41,6 @@ RUN pnpm install --prod --frozen-lockfile
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
-COPY --from=builder /app/packages/api-clients/dist ./packages/api-clients/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 
 EXPOSE 3000
