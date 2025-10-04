@@ -54,7 +54,4 @@ COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/packages/api-clients/dist ./packages/api-clients/dist
 COPY --from=builder /app/services/ai-worker/dist ./services/ai-worker/dist
 
-# Copy personality files
-COPY personalities ./personalities
-
 CMD ["node", "services/ai-worker/dist/index.js"]

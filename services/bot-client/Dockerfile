@@ -51,7 +51,4 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/services/bot-client/dist ./services/bot-client/dist
 
-# Copy personality files
-COPY personalities ./personalities
-
 CMD ["node", "services/bot-client/dist/index.js"]

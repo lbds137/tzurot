@@ -46,9 +46,6 @@ COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/packages/api-clients/dist ./packages/api-clients/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 
-# Copy personality files
-COPY personalities ./personalities
-
 EXPOSE 3000
 
 CMD ["node", "services/api-gateway/dist/index.js"]
