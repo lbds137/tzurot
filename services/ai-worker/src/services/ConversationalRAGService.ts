@@ -107,86 +107,13 @@ export class ConversationalRAGService {
       }
 
       // 3. Query vector store for relevant memories
-      // Use oldestHistoryTimestamp to avoid retrieving memories that overlap with conversation history
-      if (context.oldestHistoryTimestamp) {
-        logger.debug(`[RAG] Excluding memories newer than ${new Date(context.oldestHistoryTimestamp).toISOString()} to avoid duplicate context`);
-      }
-
-      const memoryQueryOptions: MemoryQueryOptions = {
-        personalityId: personality.id, // Use personality UUID
-        userId: context.userId,
-        sessionId: context.sessionId,
-        limit: personality.memoryLimit || 15, // Use personality config or default to 15
-        scoreThreshold: personality.memoryScoreThreshold || 0.15, // Use personality config or default to 0.15
-        excludeNewerThan: context.oldestHistoryTimestamp, // Filter out memories that overlap with conversation history
-        includeGlobal: true,
-        includePersonal: true,
-        includeSession: !!context.sessionId
-      };
-
-      // Query memories only if memory manager is available
-      const relevantMemories = this.memoryManager !== undefined
-        ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
-        : [];
-
-      if (relevantMemories.length > 0) {
-        logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
-
-        // Log each memory with ID, score, timestamp, and truncated content
-        relevantMemories.forEach((doc, idx) => {
-          const id = doc.metadata?.id || 'unknown';
-          const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
-          const createdAt = doc.metadata?.createdAt as string | number | undefined;
-          const timestamp = this.formatMemoryTimestamp(createdAt);
-          const content = doc.pageContent.substring(0, 120);
-          const truncated = doc.pageContent.length > 120 ? '...' : '';
-
-          logger.info(`[RAG] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`);
-        });
-      } else {
-        logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
-      }
+      const relevantMemories = await this.retrieveRelevantMemories(personality, userMessage, context);
 
       // 4. Build the prompt with user persona and memory context
-      const systemPrompt = this.buildSystemPrompt(personality);
-      logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
-
-      const personaContext = userPersona
-        ? `\n\n## About the User You're Speaking With (${context.userName})\nThe following describes the user you are conversing with. This is NOT about you - this is about the person messaging you:\n\n${userPersona}`
-        : '';
-
-      const memoryContext = relevantMemories.length > 0
-        ? '\n\nRelevant memories and past interactions:\n' +
-          relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
-            const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
-            return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
-          }).join('\n')
-        : '';
+      const fullSystemPrompt = this.buildFullSystemPrompt(personality, userPersona, relevantMemories, context);
 
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
-
-      // Add current date/time context for relative timestamps
-      const now = new Date();
-      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZone: 'America/New_York',
-        timeZoneName: 'short'
-      })}`;
-
-      // System message with jailbreak/behavior rules, personality, user persona, and memory
-      const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
-
-      // Log prompt size breakdown
-      logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
-      logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
-
       messages.push(new SystemMessage(fullSystemPrompt));
 
       // Add conversation history if available
@@ -207,57 +134,8 @@ export class ConversationalRAGService {
       }
 
       // Build human message with multimodal support
-      if (processedAttachments.length > 0) {
-        // Multimodal message: send both raw media (current turn) + text description
-        const provider = process.env.AI_PROVIDER || 'openrouter';
-        const mediaContent = await formatAttachments(context.attachments!, provider);
-
-        if (mediaContent && mediaContent.length > 0) {
-          // Build content array: text first (if present), then media
-          const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [];
-
-          // Combine user message with attachment descriptions for context
-          let fullText = userMessage.trim();
-          const descriptions = processedAttachments
-            .map(a => a.description)
-            .filter(d => d && !d.startsWith('['))
-            .join('\n\n');
-
-          if (descriptions) {
-            fullText = fullText
-              ? `${fullText}\n\n[Attached media descriptions for context:\n${descriptions}]`
-              : `[Attached media:\n${descriptions}]`;
-          }
-
-          if (fullText.length > 0) {
-            content.push({ type: 'text', text: fullText });
-          }
-
-          // Add formatted media content (raw images/audio for this turn)
-          content.push(...mediaContent as any[]);
-
-          messages.push(new HumanMessage({ content }));
-
-          logger.info(
-            { attachmentCount: context.attachments!.length, hasText: userMessage.trim().length > 0, provider },
-            'Created multimodal message with descriptions'
-          );
-        } else {
-          // Fallback: use descriptions only if media formatting failed
-          const descriptions = processedAttachments
-            .map(a => a.description)
-            .join('\n\n');
-          const fullText = userMessage.trim()
-            ? `${userMessage}\n\n${descriptions}`
-            : descriptions;
-          messages.push(new HumanMessage(fullText));
-
-          logger.info('Created text-only message with attachment descriptions (media formatting failed)');
-        }
-      } else {
-        // No attachments, use plain text message
-        messages.push(new HumanMessage(userMessage));
-      }
+      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments, context);
+      messages.push(humanMessage);
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
       const model = this.getModel(
@@ -293,6 +171,163 @@ export class ConversationalRAGService {
       logger.error({ err: error }, `[RAG] Error generating response for ${personality.name}`);
       throw error;
     }
+  }
+
+  /**
+   * Build human message with attachments (multimodal or text-only)
+   */
+  private async buildHumanMessage(
+    userMessage: string,
+    processedAttachments: ProcessedAttachment[],
+    context: ConversationContext
+  ): Promise<HumanMessage> {
+    if (processedAttachments.length === 0) {
+      return new HumanMessage(userMessage);
+    }
+
+    // Multimodal message: send both raw media (current turn) + text description
+    const provider = process.env.AI_PROVIDER || 'openrouter';
+    const mediaContent = await formatAttachments(context.attachments!, provider);
+
+    if (mediaContent && mediaContent.length > 0) {
+      // Build content array: text first (if present), then media
+      const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [];
+
+      // Combine user message with attachment descriptions for context
+      let fullText = userMessage.trim();
+      const descriptions = processedAttachments
+        .map(a => a.description)
+        .filter(d => d && !d.startsWith('['))
+        .join('\n\n');
+
+      if (descriptions) {
+        fullText = fullText
+          ? `${fullText}\n\n[Attached media descriptions for context:\n${descriptions}]`
+          : `[Attached media:\n${descriptions}]`;
+      }
+
+      if (fullText.length > 0) {
+        content.push({ type: 'text', text: fullText });
+      }
+
+      // Add formatted media content (raw images/audio for this turn)
+      content.push(...mediaContent as any[]);
+
+      logger.info(
+        { attachmentCount: context.attachments!.length, hasText: userMessage.trim().length > 0, provider },
+        'Created multimodal message with descriptions'
+      );
+
+      return new HumanMessage({ content });
+    }
+
+    // Fallback: use descriptions only if media formatting failed
+    const descriptions = processedAttachments
+      .map(a => a.description)
+      .join('\n\n');
+    const fullText = userMessage.trim()
+      ? `${userMessage}\n\n${descriptions}`
+      : descriptions;
+
+    logger.info('Created text-only message with attachment descriptions (media formatting failed)');
+
+    return new HumanMessage(fullText);
+  }
+
+  /**
+   * Build full system prompt with persona, memories, and date context
+   */
+  private buildFullSystemPrompt(
+    personality: LoadedPersonality,
+    userPersona: string | null,
+    relevantMemories: any[],
+    context: ConversationContext
+  ): string {
+    const systemPrompt = this.buildSystemPrompt(personality);
+    logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
+
+    const personaContext = userPersona
+      ? `\n\n## About the User You're Speaking With (${context.userName})\nThe following describes the user you are conversing with. This is NOT about you - this is about the person messaging you:\n\n${userPersona}`
+      : '';
+
+    const memoryContext = relevantMemories.length > 0
+      ? '\n\nRelevant memories and past interactions:\n' +
+        relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
+          const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+          return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
+        }).join('\n')
+      : '';
+
+    const now = new Date();
+    const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZone: 'America/New_York',
+      timeZoneName: 'short'
+    })}`;
+
+    const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
+
+    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
+
+    return fullSystemPrompt;
+  }
+
+  /**
+   * Retrieve and log relevant memories from vector store
+   */
+  private async retrieveRelevantMemories(
+    personality: LoadedPersonality,
+    userMessage: string,
+    context: ConversationContext
+  ): Promise<any[]> {
+    // Use oldestHistoryTimestamp to avoid retrieving memories that overlap with conversation history
+    if (context.oldestHistoryTimestamp) {
+      logger.debug(`[RAG] Excluding memories newer than ${new Date(context.oldestHistoryTimestamp).toISOString()} to avoid duplicate context`);
+    }
+
+    const memoryQueryOptions: MemoryQueryOptions = {
+      personalityId: personality.id,
+      userId: context.userId,
+      sessionId: context.sessionId,
+      limit: personality.memoryLimit || 15,
+      scoreThreshold: personality.memoryScoreThreshold || 0.15,
+      excludeNewerThan: context.oldestHistoryTimestamp,
+      includeGlobal: true,
+      includePersonal: true,
+      includeSession: !!context.sessionId
+    };
+
+    // Query memories only if memory manager is available
+    const relevantMemories = this.memoryManager !== undefined
+      ? await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
+      : [];
+
+    if (relevantMemories.length > 0) {
+      logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
+
+      // Log each memory with ID, score, timestamp, and truncated content
+      relevantMemories.forEach((doc, idx) => {
+        const id = doc.metadata?.id || 'unknown';
+        const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
+        const createdAt = doc.metadata?.createdAt as string | number | undefined;
+        const timestamp = this.formatMemoryTimestamp(createdAt);
+        const content = doc.pageContent.substring(0, 120);
+        const truncated = doc.pageContent.length > 120 ? '...' : '';
+
+        logger.info(`[RAG] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`);
+      });
+    } else {
+      logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
+    }
+
+    return relevantMemories;
   }
 
   /**
