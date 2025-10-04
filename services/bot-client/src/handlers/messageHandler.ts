@@ -219,12 +219,31 @@ export class MessageHandler {
       };
 
       // Save user message to conversation history
+      // Include attachment metadata if present
+      let historyContent = content;
+      if (attachments && attachments.length > 0) {
+        const attachmentDesc = attachments.map(a => {
+          if (a.isVoiceMessage) {
+            return `[voice message: ${a.duration}s]`;
+          }
+          if (a.contentType.startsWith('image/')) {
+            return `[image: ${a.name || 'attachment'}]`;
+          }
+          if (a.contentType.startsWith('audio/')) {
+            return `[audio: ${a.name || 'attachment'}]`;
+          }
+          return `[file: ${a.name || 'attachment'}]`;
+        }).join(' ');
+
+        historyContent = content ? `${content} ${attachmentDesc}` : attachmentDesc;
+      }
+
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         userId,
         'user',
-        content
+        historyContent
       );
 
       // Call API Gateway for AI generation
