@@ -81,6 +81,11 @@ export class ConversationalRAGService {
 
       // 2. Fetch user's persona if available
       const userPersona = await this.getUserPersona(context.userId);
+      if (userPersona) {
+        logger.info(`[RAG] Loaded user persona for ${context.userId}: ${userPersona.substring(0, 100)}...`);
+      } else {
+        logger.warn(`[RAG] No user persona found for ${context.userId}`);
+      }
 
       // 3. Query vector store for relevant memories
       const memoryQueryOptions: MemoryQueryOptions = {
@@ -106,6 +111,7 @@ export class ConversationalRAGService {
 
       // 4. Build the prompt with user persona and memory context
       const systemPrompt = this.buildSystemPrompt(personality);
+      logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
 
       const personaContext = userPersona
         ? `\n\nUser context:\n${userPersona}`
