@@ -92,57 +92,43 @@ export class WebhookManager {
    * Send a message via webhook with personality avatar/name
    * Handles both regular channels and threads
    * Returns the sent message for tracking purposes
+   *
+   * NOTE: This will throw if webhook creation fails (missing MANAGE_WEBHOOKS permission).
+   * DM handling should be done in the message handler, not here.
    */
   async sendAsPersonality(
     channel: TextChannel | ThreadChannel,
     personality: BotPersonality,
     content: string
   ): Promise<any> {
-    try {
-      const webhook = await this.getWebhook(channel);
+    const webhook = await this.getWebhook(channel);
 
-      if (webhook === null) {
-        // Fallback to regular channel send if webhook fails
-        logger.warn(`[WebhookManager] Webhook unavailable, using channel.send fallback`);
-        return await channel.send(`**${personality.displayName}:** ${content}`);
-      }
-
-      // Build webhook send options
-      const webhookOptions: {
-        content: string;
-        username: string;
-        avatarURL?: string;
-        threadId?: string;
-      } = {
-        content,
-        username: personality.displayName,
-        avatarURL: personality.avatarUrl
-      };
-
-      // For threads, add threadId parameter (Discord.js v14 official API)
-      if (channel.isThread()) {
-        webhookOptions.threadId = channel.id;
-        logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${personality.displayName}`);
-      }
-
-      // Send via webhook and return message
-      const sentMessage = await webhook.send(webhookOptions);
-      logger.info(`[WebhookManager] Sent message as ${personality.displayName} in ${channel.id}`);
-      return sentMessage;
-
-    } catch (error) {
-      logger.error(`[WebhookManager] Failed to send webhook message:`, error);
-
-      // Fallback to regular send
-      try {
-        const sentMessage = await channel.send(`**${personality.displayName}:** ${content}`);
-        logger.info(`[WebhookManager] Used fallback channel.send() for ${personality.displayName}`);
-        return sentMessage;
-      } catch (fallbackError) {
-        logger.error(`[WebhookManager] Fallback send also failed:`, fallbackError);
-        return null;
-      }
+    if (webhook === null) {
+      throw new Error(`Failed to get webhook for channel ${channel.id} - missing MANAGE_WEBHOOKS permission?`);
     }
+
+    // Build webhook send options
+    const webhookOptions: {
+      content: string;
+      username: string;
+      avatarURL?: string;
+      threadId?: string;
+    } = {
+      content,
+      username: personality.displayName,
+      avatarURL: personality.avatarUrl
+    };
+
+    // For threads, add threadId parameter (Discord.js v14 official API)
+    if (channel.isThread()) {
+      webhookOptions.threadId = channel.id;
+      logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${personality.displayName}`);
+    }
+
+    // Send via webhook and return message
+    const sentMessage = await webhook.send(webhookOptions);
+    logger.info(`[WebhookManager] Sent message as ${personality.displayName} in ${channel.id}`);
+    return sentMessage;
   }
 
   /**

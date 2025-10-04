@@ -234,10 +234,11 @@ export class MessageHandler {
           }
         }
       } else {
-        // DMs don't support webhooks, use regular reply
+        // DMs don't support webhooks - use formatted message with personality name
         for (const chunk of chunks) {
-          const sentMessage = await message.reply(chunk);
-          // Track DM message for reply routing too
+          const formattedContent = `**${personality.displayName}:** ${chunk}`;
+          const sentMessage = await message.reply(formattedContent);
+          // Track DM message for reply routing
           webhookMessageMap.set(sentMessage.id, personality.name);
         }
       }
@@ -246,9 +247,14 @@ export class MessageHandler {
 
     } catch (error) {
       logger.error('[MessageHandler] Error handling personality message:', error);
-      await message.reply('Sorry, I couldn\'t generate a response right now.').catch(() => {
-        // Ignore errors
-      });
+
+      // Check if it's a webhook permission error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('MANAGE_WEBHOOKS') || errorMessage.includes('webhook')) {
+        await message.reply('I need the "Manage Webhooks" permission to send personality messages in this channel!').catch(() => {});
+      } else {
+        await message.reply('Sorry, I couldn\'t generate a response right now.').catch(() => {});
+      }
     }
   }
 
