@@ -127,7 +127,7 @@ export class MessageHandler {
 
       // Build context with conversation history
       const context: MessageContext = {
-        userId: message.author.id,
+        userId: userId, // Use database UUID, not Discord ID
         userName: message.author.username,
         channelId: message.channel.id,
         serverId: message.guild?.id,
