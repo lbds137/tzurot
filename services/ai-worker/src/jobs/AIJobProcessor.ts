@@ -141,7 +141,7 @@ export class AIJobProcessor {
 
       logger.info(`[AIJobProcessor] Job ${job.id} completed in ${processingTimeMs}ms`);
 
-      return {
+      const jobResult = {
         requestId,
         success: true,
         content: response.content,
@@ -152,6 +152,10 @@ export class AIJobProcessor {
           processingTimeMs
         }
       };
+
+      logger.debug({ jobResult }, '[AIJobProcessor] Returning job result');
+
+      return jobResult;
 
     } catch (error) {
       const processingTimeMs = Date.now() - startTime;

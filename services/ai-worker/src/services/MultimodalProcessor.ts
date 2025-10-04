@@ -253,6 +253,8 @@ export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment[]> {
+  logger.info({ attachmentCount: attachments.length, personalityModel: personality.model }, '[MultimodalProcessor] Processing attachments');
+
   const processed: ProcessedAttachment[] = [];
 
   for (const attachment of attachments) {

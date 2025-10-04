@@ -69,7 +69,15 @@ export class GatewayClient {
       // Poll for job completion
       const result = await this.pollJobResult(data.jobId);
 
+      logger.debug({ jobResult: result }, '[GatewayClient] Raw job result');
+
       if (result.result?.content === undefined) {
+        logger.error({
+          jobId: result.jobId,
+          status: result.status,
+          hasResult: !!result.result,
+          resultKeys: result.result ? Object.keys(result.result) : []
+        }, '[GatewayClient] Job result missing content');
         throw new Error('No content in job result');
       }
 
