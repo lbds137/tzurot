@@ -232,6 +232,19 @@ export class QdrantMemoryService {
         throw error;
       }
     }
+
+    // Ensure createdAt index exists (for timestamp-based filtering)
+    // This is safe to call even if the index already exists
+    try {
+      await this.qdrant.createPayloadIndex(collectionName, {
+        field_name: 'createdAt',
+        field_schema: 'integer',
+      });
+      logger.info(`Created createdAt index for collection: ${collectionName}`);
+    } catch (error) {
+      // Index might already exist, which is fine
+      logger.debug(`Index creation skipped for ${collectionName}: ${error}`);
+    }
   }
 
   /**
