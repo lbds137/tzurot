@@ -200,6 +200,7 @@ export class AIJobProcessor {
 
   /**
    * Format timestamp as relative time (e.g., "5 minutes ago", "2 hours ago")
+   * Uses Eastern timezone for absolute dates
    */
   private formatRelativeTime(timestamp: string): string {
     try {
@@ -217,8 +218,13 @@ export class AIJobProcessor {
       const diffDays = Math.floor(diffHours / 24);
       if (diffDays < 7) return `${diffDays}d ago`;
 
-      // For older messages, show absolute date
-      return date.toISOString().split('T')[0];
+      // For older messages, show absolute date in Eastern timezone (YYYY-MM-DD)
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'America/New_York'
+      }).split('/').reverse().join('-'); // Convert MM/DD/YYYY to YYYY-MM-DD
     } catch {
       return '';
     }

@@ -149,15 +149,17 @@ export class ConversationalRAGService {
 
       // Add current date/time context for relative timestamps
       const now = new Date();
-      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toISOString()} (${now.toLocaleString('en-US', {
+      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toLocaleString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        timeZone: 'UTC'
-      })})`;
+        second: '2-digit',
+        timeZone: 'America/New_York',
+        timeZoneName: 'short'
+      })}`;
 
       // System message with jailbreak/behavior rules, personality, user persona, and memory
       const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
@@ -258,15 +260,18 @@ export class ConversationalRAGService {
 
       // Add current date/time context
       const now = new Date();
-      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toISOString()} (${now.toLocaleString('en-US', {
+      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toLocaleString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        timeZone: 'UTC'
-      })})`;
+        second: '2-digit',
+        timeZone: 'America/New_York',
+        timeZoneName: 'short'
+      })}`;
+
 
       messages.push(new SystemMessage(
         `${systemPrompt}${personaContext}${memoryContext}${dateContext}`
@@ -490,21 +495,26 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Format a memory timestamp into a human-readable date
+   * Format a memory timestamp into a human-readable date (Eastern timezone)
    */
   private formatMemoryTimestamp(createdAt?: string | number): string | null {
     if (!createdAt) return null;
 
     try {
-      // Handle both Unix timestamps (numbers) and ISO strings
+      // Handle both Unix timestamps (numbers in milliseconds) and ISO strings
       const date = typeof createdAt === 'number'
-        ? new Date(createdAt * 1000) // Unix timestamp in seconds
+        ? new Date(createdAt) // Unix timestamp in milliseconds
         : new Date(createdAt);
 
       if (isNaN(date.getTime())) return null;
 
-      // Format as YYYY-MM-DD
-      return date.toISOString().split('T')[0];
+      // Format as YYYY-MM-DD in Eastern timezone
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        timeZone: 'America/New_York'
+      }).split('/').reverse().join('-'); // Convert MM/DD/YYYY to YYYY-MM-DD
     } catch {
       return null;
     }
