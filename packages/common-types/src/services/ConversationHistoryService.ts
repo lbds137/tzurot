@@ -77,7 +77,7 @@ export class ConversationHistoryService {
       });
 
       // Reverse to get chronological order (oldest first)
-      const history = messages.reverse().map(msg => ({
+      const history = messages.reverse().map((msg: { role: string; content: string; createdAt: Date }) => ({
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
         createdAt: msg.createdAt,

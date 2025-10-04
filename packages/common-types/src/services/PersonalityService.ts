@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
+import type { Decimal } from '@prisma/client/runtime/library';
 
 const logger = createLogger('PersonalityService');
 
@@ -38,11 +39,11 @@ export interface DatabasePersonality {
   } | null;
   llmConfig: {
     model: string;
-    temperature: number | null;
-    topP: number | null;
+    temperature: Decimal | null;
+    topP: Decimal | null;
     topK: number | null;
-    frequencyPenalty: number | null;
-    presencePenalty: number | null;
+    frequencyPenalty: Decimal | null;
+    presencePenalty: Decimal | null;
     maxTokens: number | null;
   } | null;
   memoryEnabled: boolean;
@@ -139,8 +140,8 @@ export class PersonalityService {
         },
       });
 
-      const personalities = dbPersonalities.map(db =>
-        this.mapToPersonality(db as DatabasePersonality)
+      const personalities = dbPersonalities.map((db: DatabasePersonality) =>
+        this.mapToPersonality(db)
       );
 
       // Cache all personalities
