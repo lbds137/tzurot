@@ -68,6 +68,15 @@ const generateRequestSchema = z.object({
       role: z.enum(['user', 'assistant', 'system']),
       content: z.string(),
       createdAt: z.string().optional()
+    })).optional(),
+    attachments: z.array(z.object({
+      url: z.string(),
+      contentType: z.string(),
+      name: z.string().optional(),
+      size: z.number().optional(),
+      isVoiceMessage: z.boolean().optional(),
+      duration: z.number().optional(),
+      waveform: z.string().optional()
     })).optional()
   }),
   userApiKey: z.string().optional()

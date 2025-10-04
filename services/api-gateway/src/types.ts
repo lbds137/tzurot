@@ -31,6 +31,7 @@ export interface GenerateRequest {
     sessionId?: string;
     isProxyMessage?: boolean;
     conversationHistory?: ConversationMessage[];
+    attachments?: AttachmentMetadata[];
   };
   userApiKey?: string;
 }
@@ -41,6 +42,19 @@ export interface GenerateRequest {
 export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+/**
+ * Attachment metadata for multimodal messages
+ */
+export interface AttachmentMetadata {
+  url: string;
+  contentType: string;
+  name?: string;
+  size?: number;
+  isVoiceMessage?: boolean;
+  duration?: number;
+  waveform?: string;
 }
 
 /**
