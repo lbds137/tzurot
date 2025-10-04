@@ -46,9 +46,9 @@ COPY prisma ./prisma
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy generated Prisma client from builder
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+# Copy generated Prisma client from builder (pnpm stores it in .pnpm directory)
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client@6.16.3_prisma@6.16.3_typescript@5.9.2/node_modules/.prisma ./node_modules/.pnpm/@prisma+client@6.16.3_prisma@6.16.3_typescript@5.9.2/node_modules/.prisma
+COPY --from=builder /app/node_modules/.pnpm/@prisma+client@6.16.3_prisma@6.16.3_typescript@5.9.2/node_modules/@prisma/client ./node_modules/.pnpm/@prisma+client@6.16.3_prisma@6.16.3_typescript@5.9.2/node_modules/@prisma/client
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
