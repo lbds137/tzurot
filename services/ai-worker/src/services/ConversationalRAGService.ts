@@ -79,9 +79,12 @@ export class ConversationalRAGService {
       // 1. Format the user's message
       const userMessage = this.formatUserMessage(message, context);
 
-      // 2. Query vector store for relevant memories
+      // 2. Fetch user's persona if available
+      const userPersona = await this.getUserPersona(context.userId);
+
+      // 3. Query vector store for relevant memories
       const memoryQueryOptions: MemoryQueryOptions = {
-        personalityId: personality.name,
+        personalityId: (personality as any).id || personality.name, // Use ID if available
         userId: context.userId,
         sessionId: context.sessionId,
         limit: 10,
@@ -101,18 +104,22 @@ export class ConversationalRAGService {
         logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
       }
 
-      // 3. Build the prompt with memory context
+      // 4. Build the prompt with user persona and memory context
+      const personaContext = userPersona
+        ? `\n\nUser context:\n${userPersona}`
+        : '';
+
       const memoryContext = relevantMemories.length > 0
         ? '\n\nRelevant memories and past interactions:\n' +
           relevantMemories.map((doc: { pageContent: string }) => `- ${doc.pageContent}`).join('\n')
         : '';
 
-      // 4. Build conversation history
+      // 5. Build conversation history
       const messages: BaseMessage[] = [];
 
-      // System message with personality and memory
+      // System message with personality, user persona, and memory
       messages.push(new SystemMessage(
-        `${personality.systemPrompt}${memoryContext}`
+        `${personality.systemPrompt}${personaContext}${memoryContext}`
       ));
 
       // Add conversation history if available
@@ -265,6 +272,30 @@ export class ConversationalRAGService {
     } catch (error) {
       logger.error('[RAG] Failed to store interaction:', error);
       // Don't throw - this is a non-critical error
+    }
+  }
+
+  /**
+   * Get user's persona from database
+   */
+  private async getUserPersona(userId: string): Promise<string | null> {
+    try {
+      const { getPrismaClient } = await import('@tzurot/common-types');
+      const prisma = getPrismaClient();
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          globalPersona: {
+            select: { content: true }
+          }
+        }
+      });
+
+      return user?.globalPersona?.content || null;
+    } catch (error) {
+      logger.error({ err: error }, '[RAG] Failed to fetch user persona');
+      return null;
     }
   }
 
