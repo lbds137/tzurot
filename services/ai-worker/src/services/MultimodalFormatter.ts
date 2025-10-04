@@ -102,7 +102,7 @@ export async function formatForGemini(
           type: attachment.contentType,
           isVoiceMessage: attachment.isVoiceMessage,
         },
-        'Formatted attachment for Gemini'
+        'Formatted multimodal attachment'
       );
     } catch (error) {
       logger.error(
