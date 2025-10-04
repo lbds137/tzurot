@@ -9,7 +9,7 @@
 import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { QdrantMemoryAdapter } from '../memory/QdrantMemoryAdapter.js';
-import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
+import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
 const logger = createLogger('AIJobProcessor');
@@ -23,7 +23,7 @@ export interface AIJobData {
   jobType: 'generate' | 'stream';
 
   // Personality
-  personality: Personality;
+  personality: LoadedPersonality;
 
   // User message
   message: string | object;

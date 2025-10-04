@@ -15,7 +15,7 @@ import {
 } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
-import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
+import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -70,7 +70,7 @@ export class ConversationalRAGService {
    * Generate a response using conversational RAG
    */
   async generateResponse(
-    personality: Personality,
+    personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
     userApiKey?: string
@@ -84,7 +84,7 @@ export class ConversationalRAGService {
 
       // 3. Query vector store for relevant memories
       const memoryQueryOptions: MemoryQueryOptions = {
-        personalityId: (personality as any).id || personality.name, // Use ID if available
+        personalityId: personality.id, // Use personality UUID
         userId: context.userId,
         sessionId: context.sessionId,
         limit: 10,
@@ -168,7 +168,7 @@ export class ConversationalRAGService {
    * Stream a response using conversational RAG
    */
   async *streamResponse(
-    personality: Personality,
+    personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
     userApiKey?: string
@@ -241,7 +241,7 @@ export class ConversationalRAGService {
    * Store an interaction in the vector database for future retrieval
    */
   private async storeInteraction(
-    personality: Personality,
+    personality: LoadedPersonality,
     userMessage: string,
     aiResponse: string,
     context: ConversationContext
@@ -282,7 +282,7 @@ export class ConversationalRAGService {
   /**
    * Build comprehensive system prompt from personality character fields
    */
-  private buildSystemPrompt(personality: Personality): string {
+  private buildSystemPrompt(personality: LoadedPersonality): string {
     const sections: string[] = [];
 
     // Start with system prompt (jailbreak/behavior rules)
@@ -291,33 +291,33 @@ export class ConversationalRAGService {
     }
 
     // Add character info (who they are, their history)
-    if ((personality as any).characterInfo) {
-      sections.push(`\n## Character Information\n${(personality as any).characterInfo}`);
+    if (personality.characterInfo) {
+      sections.push(`\n## Character Information\n${personality.characterInfo}`);
     }
 
     // Add personality traits
-    if ((personality as any).personalityTraits) {
-      sections.push(`\n## Personality Traits\n${(personality as any).personalityTraits}`);
+    if (personality.personalityTraits) {
+      sections.push(`\n## Personality Traits\n${personality.personalityTraits}`);
     }
 
     // Add tone/style
-    if ((personality as any).personalityTone) {
-      sections.push(`\n## Conversational Tone\n${(personality as any).personalityTone}`);
+    if (personality.personalityTone) {
+      sections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
     }
 
     // Add likes
-    if ((personality as any).personalityLikes) {
-      sections.push(`\n## What I Like\n${(personality as any).personalityLikes}`);
+    if (personality.personalityLikes) {
+      sections.push(`\n## What I Like\n${personality.personalityLikes}`);
     }
 
     // Add dislikes
-    if ((personality as any).personalityDislikes) {
-      sections.push(`\n## What I Dislike\n${(personality as any).personalityDislikes}`);
+    if (personality.personalityDislikes) {
+      sections.push(`\n## What I Dislike\n${personality.personalityDislikes}`);
     }
 
     // Add conversational goals
-    if ((personality as any).conversationalGoals) {
-      sections.push(`\n## Conversational Goals\n${(personality as any).conversationalGoals}`);
+    if (personality.conversationalGoals) {
+      sections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
     }
 
     return sections.join('\n');
