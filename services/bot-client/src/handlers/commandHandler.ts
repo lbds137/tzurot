@@ -7,7 +7,7 @@
 
 import { createLogger } from '@tzurot/common-types';
 import { Collection, ChatInputCommandInteraction } from 'discord.js';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
@@ -39,7 +39,9 @@ export class CommandHandler {
 
     for (const filePath of commandFiles) {
       try {
-        const command = await import(filePath);
+        // Convert file path to file URL for ESM imports
+        const fileUrl = pathToFileURL(filePath).href;
+        const command = await import(fileUrl);
 
         // Validate command structure
         if (!command.data || !command.execute) {
