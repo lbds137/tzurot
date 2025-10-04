@@ -16,6 +16,12 @@ import type { MessageContext } from '../types.js';
 const logger = createLogger('MessageHandler');
 
 /**
+ * Track which personality sent which webhook message
+ * Used for reply routing (so users can just reply instead of @mentioning)
+ */
+const webhookMessageMap = new Map<string, string>();
+
+/**
  * Message Handler - routes Discord messages to appropriate handlers
  */
 export class MessageHandler {
@@ -53,6 +59,14 @@ export class MessageHandler {
 
       logger.debug(`[MessageHandler] Processing message from ${message.author.tag}`);
 
+      // Check for replies to personality messages (best UX - no @mention needed)
+      if (message.reference !== null) {
+        const replyResult = await this.handleReply(message);
+        if (replyResult) {
+          return; // Reply was handled
+        }
+      }
+
       // Check for personality mentions (e.g., "@personality hello")
       const mentionMatch = this.findPersonalityMention(message.content);
 
@@ -88,6 +102,50 @@ export class MessageHandler {
       await message.reply('Sorry, I encountered an error processing your message.').catch(() => {
         // Ignore errors when sending error message
       });
+    }
+  }
+
+  /**
+   * Handle replies to webhook messages
+   * Returns true if reply was handled, false otherwise
+   */
+  private async handleReply(message: Message): Promise<boolean> {
+    try {
+      // Fetch the message being replied to
+      const referencedMessage = await message.channel.messages.fetch(message.reference!.messageId!);
+
+      // Check if it's from a webhook (personality message)
+      if (!referencedMessage.webhookId) {
+        logger.debug('[MessageHandler] Reply is to a non-webhook message, skipping');
+        return false;
+      }
+
+      // Look up which personality sent this webhook message
+      const personalityName = webhookMessageMap.get(referencedMessage.id);
+
+      if (!personalityName) {
+        logger.debug('[MessageHandler] No personality found for webhook message, skipping');
+        return false;
+      }
+
+      // Load the personality
+      const personality = await this.personalityService.loadPersonality(personalityName);
+
+      if (!personality) {
+        logger.warn(`[MessageHandler] Personality ${personalityName} not found for reply`);
+        return false;
+      }
+
+      logger.info(`[MessageHandler] Routing reply to ${personality.displayName}`);
+
+      // Handle the message with the personality
+      await this.handlePersonalityMessage(message, personality, message.content);
+      return true;
+
+    } catch (error) {
+      // If we can't fetch the referenced message, it might be deleted or inaccessible
+      logger.debug('[MessageHandler] Could not fetch referenced message:', error);
+      return false;
     }
   }
 
@@ -164,16 +222,23 @@ export class MessageHandler {
       // Send via webhook if in a guild text channel
       if (message.guild !== null && message.channel instanceof TextChannel) {
         for (const chunk of chunks) {
-          await this.webhookManager.sendAsPersonality(
+          const sentMessage = await this.webhookManager.sendAsPersonality(
             message.channel as TextChannel,
             personality,
             chunk
           );
+
+          // Track webhook message for reply routing
+          if (sentMessage) {
+            webhookMessageMap.set(sentMessage.id, personality.name);
+          }
         }
       } else {
         // DMs don't support webhooks, use regular reply
         for (const chunk of chunks) {
-          await message.reply(chunk);
+          const sentMessage = await message.reply(chunk);
+          // Track DM message for reply routing too
+          webhookMessageMap.set(sentMessage.id, personality.name);
         }
       }
 

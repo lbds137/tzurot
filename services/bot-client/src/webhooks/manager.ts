@@ -91,20 +91,20 @@ export class WebhookManager {
   /**
    * Send a message via webhook with personality avatar/name
    * Handles both regular channels and threads
+   * Returns the sent message for tracking purposes
    */
   async sendAsPersonality(
     channel: TextChannel | ThreadChannel,
     personality: BotPersonality,
     content: string
-  ): Promise<void> {
+  ): Promise<any> {
     try {
       const webhook = await this.getWebhook(channel);
 
       if (webhook === null) {
         // Fallback to regular channel send if webhook fails
         logger.warn(`[WebhookManager] Webhook unavailable, using channel.send fallback`);
-        await channel.send(`**${personality.displayName}:** ${content}`);
-        return;
+        return await channel.send(`**${personality.displayName}:** ${content}`);
       }
 
       // Build webhook send options
@@ -125,19 +125,22 @@ export class WebhookManager {
         logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${personality.displayName}`);
       }
 
-      // Send via webhook
-      await webhook.send(webhookOptions);
+      // Send via webhook and return message
+      const sentMessage = await webhook.send(webhookOptions);
       logger.info(`[WebhookManager] Sent message as ${personality.displayName} in ${channel.id}`);
+      return sentMessage;
 
     } catch (error) {
       logger.error(`[WebhookManager] Failed to send webhook message:`, error);
 
       // Fallback to regular send
       try {
-        await channel.send(`**${personality.displayName}:** ${content}`);
+        const sentMessage = await channel.send(`**${personality.displayName}:** ${content}`);
         logger.info(`[WebhookManager] Used fallback channel.send() for ${personality.displayName}`);
+        return sentMessage;
       } catch (fallbackError) {
         logger.error(`[WebhookManager] Fallback send also failed:`, fallbackError);
+        return null;
       }
     }
   }
