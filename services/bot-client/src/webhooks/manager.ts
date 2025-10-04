@@ -7,7 +7,7 @@
 
 import { createLogger } from '@tzurot/common-types';
 import { ChannelType } from 'discord.js';
-import type { TextChannel, ThreadChannel, Webhook } from 'discord.js';
+import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
 import type { BotPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
@@ -35,17 +35,25 @@ export class WebhookManager {
   /**
    * Get or create a webhook for a channel (or thread's parent channel)
    * Throws an error if webhook creation fails
+   * Supports TextChannel, ThreadChannel (including forum threads), and ForumChannel
    */
   async getWebhook(channel: TextChannel | ThreadChannel): Promise<Webhook> {
     // For threads, we need to get the webhook from the parent channel
-    let targetChannel: TextChannel;
+    let targetChannel: TextChannel | ForumChannel;
 
     if (channel.isThread()) {
       const parent = channel.parent;
-      if (!parent || parent.type !== ChannelType.GuildText) {
-        throw new Error(`Thread ${channel.id} has no valid text channel parent`);
+
+      // Forum threads have ForumChannel parents, regular threads have TextChannel parents
+      if (!parent) {
+        throw new Error(`Thread ${channel.id} has no parent channel`);
       }
-      targetChannel = parent as TextChannel;
+
+      if (parent.type !== ChannelType.GuildText && parent.type !== ChannelType.GuildForum) {
+        throw new Error(`Thread ${channel.id} has unsupported parent channel type: ${parent.type}`);
+      }
+
+      targetChannel = parent as TextChannel | ForumChannel;
     } else {
       // channel is TextChannel since it's not a thread
       targetChannel = channel as TextChannel;
