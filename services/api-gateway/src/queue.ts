@@ -29,8 +29,11 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
 }
 
 // Get Redis connection config from environment
-const redisConfig = process.env.REDIS_URL !== undefined && process.env.REDIS_URL.length > 0
-  ? parseRedisUrl(process.env.REDIS_URL)
+// Try REDIS_PRIVATE_URL first (Railway internal), fallback to REDIS_URL (public), then individual vars
+const redisUrl = process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_URL;
+
+const redisConfig = redisUrl !== undefined && redisUrl.length > 0
+  ? parseRedisUrl(redisUrl)
   : {
       host: process.env.REDIS_HOST ?? 'localhost',
       port: parseInt(process.env.REDIS_PORT ?? '6379'),
@@ -40,7 +43,9 @@ const redisConfig = process.env.REDIS_URL !== undefined && process.env.REDIS_URL
 logger.info('[Queue] Redis config:', {
   host: redisConfig.host,
   port: redisConfig.port,
-  hasPassword: redisConfig.password !== undefined
+  hasPassword: redisConfig.password !== undefined,
+  usingPrivateUrl: process.env.REDIS_PRIVATE_URL !== undefined,
+  usingPublicUrl: process.env.REDIS_URL !== undefined && process.env.REDIS_PRIVATE_URL === undefined
 });
 
 // Queue name
