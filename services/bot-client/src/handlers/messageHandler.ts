@@ -6,7 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { TextChannel } from 'discord.js';
+import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
 import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
@@ -219,11 +219,14 @@ export class MessageHandler {
       // Split response if needed (Discord 2000 char limit)
       const chunks = preserveCodeBlocks(response);
 
-      // Send via webhook if in a guild text channel
-      if (message.guild !== null && message.channel instanceof TextChannel) {
+      // Send via webhook if in a guild text channel or thread
+      const isWebhookChannel = message.guild !== null &&
+        (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
+
+      if (isWebhookChannel) {
         for (const chunk of chunks) {
           const sentMessage = await this.webhookManager.sendAsPersonality(
-            message.channel as TextChannel,
+            message.channel as TextChannel | ThreadChannel,
             personality,
             chunk
           );
