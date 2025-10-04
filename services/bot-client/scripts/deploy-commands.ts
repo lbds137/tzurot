@@ -9,16 +9,17 @@
  * Environment variables are loaded from .env file at monorepo root
  */
 
-import 'dotenv/config';
+import { config } from 'dotenv';
 import { REST, Routes } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../src/types.js';
 
-// Get directory name for ESM
+// Load .env from monorepo root (two levels up from this script)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+config({ path: join(__dirname, '../../../.env') });
 
 // Configuration
 const clientId = process.env.DISCORD_CLIENT_ID;
