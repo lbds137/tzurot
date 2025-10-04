@@ -73,6 +73,7 @@ export interface AIJobResult {
   requestId: string;
   success: boolean;
   content?: string;
+  attachmentDescriptions?: string;
   error?: string;
   metadata?: {
     retrievedMemories?: number;
@@ -130,10 +131,11 @@ export class AIJobProcessor {
           sessionId: context.sessionId,
           isProxyMessage: context.isProxyMessage,
           conversationHistory,
-          oldestHistoryTimestamp
+          oldestHistoryTimestamp,
+          attachments: context.attachments
         },
         userApiKey
-      )) as { content: string; retrievedMemories?: number; tokensUsed?: number };
+      )) as { content: string; retrievedMemories?: number; tokensUsed?: number; attachmentDescriptions?: string };
 
       const processingTimeMs = Date.now() - startTime;
 
@@ -143,6 +145,7 @@ export class AIJobProcessor {
         requestId,
         success: true,
         content: response.content,
+        attachmentDescriptions: response.attachmentDescriptions,
         metadata: {
           retrievedMemories: response.retrievedMemories,
           tokensUsed: response.tokensUsed,
