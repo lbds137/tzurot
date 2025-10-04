@@ -143,7 +143,9 @@ async function describeWithVisionModel(
   }
 
   // Fetch image and convert to base64 (more reliable than external URLs)
+  logger.info({ size: attachment.size, url: attachment.url, modelName }, 'Fetching image for vision processing');
   const base64Image = await fetchAsBase64(attachment.url);
+  logger.info({ originalSize: attachment.size, base64Size: base64Image.length, modelName }, 'Image converted to base64');
 
   // Request detailed, objective description
   messages.push(
@@ -163,10 +165,21 @@ async function describeWithVisionModel(
     })
   );
 
-  const response = await model.invoke(messages);
-  return typeof response.content === 'string'
-    ? response.content
-    : JSON.stringify(response.content);
+  try {
+    logger.info({ modelName }, 'Invoking vision model');
+    const response = await model.invoke(messages);
+    return typeof response.content === 'string'
+      ? response.content
+      : JSON.stringify(response.content);
+  } catch (error) {
+    logger.error({
+      err: error,
+      modelName,
+      errorType: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error'
+    }, 'Vision model invocation failed');
+    throw error;
+  }
 }
 
 /**
@@ -194,7 +207,10 @@ async function describeWithFallbackVision(
   }
 
   // Fetch image and convert to base64 (OpenRouter requires base64)
+  logger.info({ size: attachment.size, url: attachment.url }, 'Fetching image for vision processing');
   const base64Image = await fetchAsBase64(attachment.url);
+  const base64Size = base64Image.length;
+  logger.info({ originalSize: attachment.size, base64Size }, 'Image converted to base64');
 
   messages.push(
     new HumanMessage({
@@ -213,10 +229,22 @@ async function describeWithFallbackVision(
     })
   );
 
-  const response = await model.invoke(messages);
-  return typeof response.content === 'string'
-    ? response.content
-    : JSON.stringify(response.content);
+  try {
+    logger.info({ model: 'qwen/qwen3-vl-235b-a22b-instruct' }, 'Invoking fallback vision model');
+    const response = await model.invoke(messages);
+    return typeof response.content === 'string'
+      ? response.content
+      : JSON.stringify(response.content);
+  } catch (error) {
+    logger.error({
+      err: error,
+      modelName: 'qwen/qwen3-vl-235b-a22b-instruct',
+      errorType: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      apiKey: process.env.OPENROUTER_API_KEY?.substring(0, 15) + '...'
+    }, 'Fallback vision model invocation failed');
+    throw error;
+  }
 }
 
 /**
