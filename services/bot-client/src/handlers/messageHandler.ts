@@ -52,8 +52,8 @@ export class MessageHandler {
         return;
       }
 
-      // Ignore empty messages
-      if (message.content.length === 0) {
+      // Ignore empty messages (but allow attachments without text)
+      if (message.content.length === 0 && message.attachments.size === 0) {
         return;
       }
 
