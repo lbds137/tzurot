@@ -297,6 +297,9 @@ export class ConversationalRAGService {
       sections.push(personality.systemPrompt);
     }
 
+    // Add explicit identity statement
+    sections.push(`\n## Your Identity\nYou are ${personality.displayName || personality.name}.`);
+
     // Add character info (who they are, their history)
     if (personality.characterInfo) {
       sections.push(`\n## Character Information\n${personality.characterInfo}`);

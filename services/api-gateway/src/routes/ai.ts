@@ -26,15 +26,32 @@ export const aiRouter: Router = Router();
 // Validation schema for generate request
 const generateRequestSchema = z.object({
   personality: z.object({
+    // Core fields
+    id: z.string().optional(), // LoadedPersonality UUID
     name: z.string(),
     displayName: z.string().optional(),
     systemPrompt: z.string(),
+    // LLM config
     model: z.string().optional(),
     temperature: z.number().optional(),
     maxTokens: z.number().optional(),
+    topP: z.number().optional(),
+    topK: z.number().optional(),
+    frequencyPenalty: z.number().optional(),
+    presencePenalty: z.number().optional(),
+    // Memory config
     memoryEnabled: z.boolean().optional(),
     contextWindow: z.number().optional(),
-    avatarUrl: z.string().optional()
+    avatarUrl: z.string().optional(),
+    // Character fields from LoadedPersonality
+    characterInfo: z.string().optional(),
+    personalityTraits: z.string().optional(),
+    personalityTone: z.string().optional(),
+    personalityAge: z.string().optional(),
+    personalityLikes: z.string().optional(),
+    personalityDislikes: z.string().optional(),
+    conversationalGoals: z.string().optional(),
+    conversationalExamples: z.string().optional()
   }),
   message: z.union([z.string(), z.object({}).passthrough()]),
   context: z.object({
