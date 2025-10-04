@@ -9,43 +9,17 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('Queue');
 
-// Parse Redis URL (Railway format: redis://default:password@host:port)
-function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {
-  try {
-    const parsed = new URL(url);
-    return {
-      host: parsed.hostname,
-      port: parseInt(parsed.port || '6379'),
-      password: parsed.password || undefined,
-      username: parsed.username !== 'default' ? parsed.username : undefined
-    };
-  } catch (error) {
-    logger.error('[Queue] Failed to parse REDIS_URL:', error);
-    return {
-      host: 'localhost',
-      port: 6379
-    };
-  }
-}
-
-// Get Redis connection config from environment
-// Try REDIS_PRIVATE_URL first (Railway internal), fallback to REDIS_URL (public), then individual vars
-const redisUrl = process.env.REDIS_PRIVATE_URL ?? process.env.REDIS_URL;
-
-const redisConfig = redisUrl !== undefined && redisUrl.length > 0
-  ? parseRedisUrl(redisUrl)
-  : {
-      host: process.env.REDIS_HOST ?? 'localhost',
-      port: parseInt(process.env.REDIS_PORT ?? '6379'),
-      password: process.env.REDIS_PASSWORD
-    };
+// Get Redis connection config from environment (using Railway's individual variables)
+const redisConfig = {
+  host: process.env.REDIS_HOST ?? 'localhost',
+  port: parseInt(process.env.REDIS_PORT ?? '6379'),
+  password: process.env.REDIS_PASSWORD
+};
 
 logger.info('[Queue] Redis config:', {
   host: redisConfig.host,
   port: redisConfig.port,
-  hasPassword: redisConfig.password !== undefined,
-  usingPrivateUrl: process.env.REDIS_PRIVATE_URL !== undefined,
-  usingPublicUrl: process.env.REDIS_URL !== undefined && process.env.REDIS_PRIVATE_URL === undefined
+  hasPassword: redisConfig.password !== undefined
 });
 
 // Queue name
