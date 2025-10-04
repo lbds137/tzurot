@@ -147,11 +147,23 @@ export class ConversationalRAGService {
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
 
+      // Add current date/time context for relative timestamps
+      const now = new Date();
+      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toISOString()} (${now.toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'UTC'
+      })})`;
+
       // System message with jailbreak/behavior rules, personality, user persona, and memory
-      const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}`;
+      const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
 
       // Log prompt size breakdown
-      logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
+      logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
       logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
 
       messages.push(new SystemMessage(fullSystemPrompt));
@@ -238,8 +250,26 @@ export class ConversationalRAGService {
 
       const systemPrompt = this.buildSystemPrompt(personality);
 
+      // Fetch user's persona
+      const userPersona = await this.getUserPersona(context.userId);
+      const personaContext = userPersona
+        ? `\n\n## About the User You're Speaking With (${context.userName})\nThe following describes the user you are conversing with. This is NOT about you - this is about the person messaging you:\n\n${userPersona}`
+        : '';
+
+      // Add current date/time context
+      const now = new Date();
+      const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toISOString()} (${now.toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'UTC'
+      })})`;
+
       messages.push(new SystemMessage(
-        `${systemPrompt}${memoryContext}`
+        `${systemPrompt}${personaContext}${memoryContext}${dateContext}`
       ));
 
       if (context.conversationHistory && context.conversationHistory.length > 0) {
