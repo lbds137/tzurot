@@ -44,22 +44,14 @@ export class GatewayClient {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          personality: {
-            name: personality.name,
-            displayName: personality.displayName,
-            systemPrompt: personality.systemPrompt,
-            model: personality.model,
-            temperature: personality.temperature,
-            maxTokens: personality.maxTokens,
-            avatarUrl: personality.avatarUrl
-          },
+          personality: personality, // Pass entire LoadedPersonality object
           message: context.messageContent,
           context: {
             userId: context.userId,
             userName: context.userName,
             channelId: context.channelId,
             serverId: context.serverId,
-            conversationHistory: []
+            conversationHistory: context.conversationHistory || []
           }
         })
       });
