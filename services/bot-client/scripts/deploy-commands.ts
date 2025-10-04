@@ -3,10 +3,13 @@
  *
  * Registers slash commands with Discord's API
  * Usage:
- *   GUILD_ID=123456789 pnpm tsx scripts/deploy-commands.ts  # Guild-specific (dev)
- *   pnpm tsx scripts/deploy-commands.ts                     # Global (production)
+ *   GUILD_ID=123456789 pnpm deploy-commands  # Guild-specific (dev)
+ *   pnpm deploy-commands                     # Global (production)
+ *
+ * Environment variables are loaded from .env file at monorepo root
  */
 
+import 'dotenv/config';
 import { REST, Routes } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
