@@ -6,7 +6,8 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import type { TextChannel, Webhook } from 'discord.js';
+import { ChannelType } from 'discord.js';
+import type { TextChannel, ThreadChannel, Webhook } from 'discord.js';
 import type { BotPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
@@ -32,33 +33,49 @@ export class WebhookManager {
   }
 
   /**
-   * Get or create a webhook for a channel
+   * Get or create a webhook for a channel (or thread's parent channel)
    */
-  async getWebhook(channel: TextChannel): Promise<Webhook | null> {
+  async getWebhook(channel: TextChannel | ThreadChannel): Promise<Webhook | null> {
     try {
-      // Check cache first
-      const cached = this.webhookCache.get(channel.id);
+      // For threads, we need to get the webhook from the parent channel
+      let targetChannel: TextChannel;
+
+      if (channel.isThread()) {
+        const parent = channel.parent;
+        if (!parent || parent.type !== ChannelType.GuildText) {
+          logger.error(`[WebhookManager] Thread ${channel.id} has no valid text channel parent`);
+          return null;
+        }
+        targetChannel = parent as TextChannel;
+      } else {
+        // channel is TextChannel since it's not a thread
+        targetChannel = channel as TextChannel;
+      }
+
+      // Check cache first (cache by parent channel ID for threads)
+      const cacheKey = targetChannel.id;
+      const cached = this.webhookCache.get(cacheKey);
       if (cached !== undefined && Date.now() - cached.lastUsed < this.cacheTimeout) {
-        logger.debug(`[WebhookManager] Using cached webhook for channel ${channel.id}`);
+        logger.debug(`[WebhookManager] Using cached webhook for channel ${cacheKey}`);
         cached.lastUsed = Date.now();
         return cached.webhook;
       }
 
       // Fetch existing webhooks
-      const webhooks = await channel.fetchWebhooks();
-      let webhook = webhooks.find(wh => wh.owner?.id === channel.client.user?.id);
+      const webhooks = await targetChannel.fetchWebhooks();
+      let webhook = webhooks.find((wh: Webhook) => wh.owner?.id === targetChannel.client.user?.id);
 
       // Create new webhook if none exists
       if (webhook === undefined) {
-        logger.info(`[WebhookManager] Creating new webhook for channel ${channel.id}`);
-        webhook = await channel.createWebhook({
+        logger.info(`[WebhookManager] Creating new webhook for channel ${cacheKey}`);
+        webhook = await targetChannel.createWebhook({
           name: 'Tzurot Personalities',
           reason: 'Multi-personality bot system'
         });
       }
 
       // Cache the webhook
-      this.webhookCache.set(channel.id, {
+      this.webhookCache.set(cacheKey, {
         webhook,
         lastUsed: Date.now()
       });
@@ -73,9 +90,10 @@ export class WebhookManager {
 
   /**
    * Send a message via webhook with personality avatar/name
+   * Handles both regular channels and threads
    */
   async sendAsPersonality(
-    channel: TextChannel,
+    channel: TextChannel | ThreadChannel,
     personality: BotPersonality,
     content: string
   ): Promise<void> {
@@ -89,13 +107,26 @@ export class WebhookManager {
         return;
       }
 
-      // Send via webhook with personality identity
-      await webhook.send({
+      // Build webhook send options
+      const webhookOptions: {
+        content: string;
+        username: string;
+        avatarURL?: string;
+        threadId?: string;
+      } = {
         content,
         username: personality.displayName,
         avatarURL: personality.avatarUrl
-      });
+      };
 
+      // For threads, add threadId parameter (Discord.js v14 official API)
+      if (channel.isThread()) {
+        webhookOptions.threadId = channel.id;
+        logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${personality.displayName}`);
+      }
+
+      // Send via webhook
+      await webhook.send(webhookOptions);
       logger.info(`[WebhookManager] Sent message as ${personality.displayName} in ${channel.id}`);
 
     } catch (error) {
@@ -104,6 +135,7 @@ export class WebhookManager {
       // Fallback to regular send
       try {
         await channel.send(`**${personality.displayName}:** ${content}`);
+        logger.info(`[WebhookManager] Used fallback channel.send() for ${personality.displayName}`);
       } catch (fallbackError) {
         logger.error(`[WebhookManager] Fallback send also failed:`, fallbackError);
       }
