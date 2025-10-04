@@ -218,10 +218,19 @@ export class MessageHandler {
         attachments
       };
 
-      // Save user message to conversation history
-      // Include attachment metadata if present
+      // Call API Gateway for AI generation (this will process attachments and return descriptions)
+      const response = await this.gatewayClient.generate(personality, context);
+
+      // Save user message to conversation history with rich attachment descriptions
+      // If AI worker provided descriptions, use those; otherwise use placeholder
       let historyContent = content;
-      if (attachments && attachments.length > 0) {
+      if (response.attachmentDescriptions) {
+        // Use rich descriptions from vision/transcription models
+        historyContent = content
+          ? `${content}\n\n${response.attachmentDescriptions}`
+          : response.attachmentDescriptions;
+      } else if (attachments && attachments.length > 0) {
+        // Fallback to simple placeholders if processing failed
         const attachmentDesc = attachments.map(a => {
           if (a.isVoiceMessage) {
             return `[voice message: ${a.duration}s]`;
@@ -246,20 +255,17 @@ export class MessageHandler {
         historyContent
       );
 
-      // Call API Gateway for AI generation
-      const response = await this.gatewayClient.generate(personality, context);
-
       // Save assistant response to conversation history
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         userId,
         'assistant',
-        response
+        response.content
       );
 
       // Split response if needed (Discord 2000 char limit)
-      const chunks = preserveCodeBlocks(response);
+      const chunks = preserveCodeBlocks(response.content);
 
       // Send via webhook if in a guild text channel or thread
       const isWebhookChannel = message.guild !== null &&

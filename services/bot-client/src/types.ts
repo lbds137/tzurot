@@ -73,6 +73,7 @@ export interface JobResult {
   status: string;
   result?: {
     content: string;
+    attachmentDescriptions?: string; // Rich text descriptions from vision/transcription
     metadata?: {
       retrievedMemories?: number;
       tokensUsed?: number;

@@ -35,7 +35,7 @@ export class GatewayClient {
   async generate(
     personality: BotPersonality,
     context: MessageContext
-  ): Promise<string> {
+  ): Promise<{ content: string; attachmentDescriptions?: string }> {
     try {
       // Create AI generation job
       const response = await fetch(`${this.baseUrl}/ai/generate`, {
@@ -75,7 +75,10 @@ export class GatewayClient {
 
       logger.info(`[GatewayClient] Job completed: ${result.jobId}`);
 
-      return result.result.content;
+      return {
+        content: result.result.content,
+        attachmentDescriptions: result.result.attachmentDescriptions
+      };
 
     } catch (error) {
       logger.error({ err: error }, '[GatewayClient] Generation failed');

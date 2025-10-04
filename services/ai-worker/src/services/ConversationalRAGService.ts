@@ -18,6 +18,7 @@ import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryM
 import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
 import { formatAttachments } from './MultimodalFormatter.js';
+import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
 
@@ -48,6 +49,7 @@ export interface RAGResponse {
   content: string;
   retrievedMemories?: number;
   tokensUsed?: number;
+  attachmentDescriptions?: string;
 }
 
 export class ConversationalRAGService {
@@ -92,6 +94,9 @@ export class ConversationalRAGService {
     try {
       // 1. Format the user's message
       const userMessage = this.formatUserMessage(message, context);
+
+      // Process attachments early (needed for history storage later)
+      let processedAttachments: ProcessedAttachment[] = [];
 
       // 2. Fetch user's persona if available
       const userPersona = await this.getUserPersona(context.userId);
@@ -211,10 +216,16 @@ export class ConversationalRAGService {
       // 7. Store this interaction in memory (for future retrieval)
       await this.storeInteraction(personality, userMessage, content, context);
 
+      // Extract attachment descriptions for history storage
+      const attachmentDescriptions = processedAttachments.length > 0
+        ? processedAttachments.map(a => a.description).join('\n\n')
+        : undefined;
+
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed: response.response_metadata?.tokenUsage?.totalTokens
+        tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
+        attachmentDescriptions
       };
 
     } catch (error) {
@@ -296,33 +307,61 @@ export class ConversationalRAGService {
         messages.push(...recentHistory);
       }
 
-      // Build human message with multimodal support
+      // Process attachments to get text descriptions (for history/LTM)
+      let processedAttachments: ProcessedAttachment[] = [];
       if (context.attachments && context.attachments.length > 0) {
-        // Multimodal message with text + media
+        processedAttachments = await processAttachments(context.attachments, personality);
+        logger.info(
+          { count: processedAttachments.length },
+          'Processed attachments to text descriptions'
+        );
+      }
+
+      // Build human message with multimodal support
+      if (processedAttachments.length > 0) {
+        // Multimodal message: send both raw media (current turn) + text description
         const provider = process.env.AI_PROVIDER || 'openrouter';
-        const mediaContent = await formatAttachments(context.attachments, provider);
+        const mediaContent = await formatAttachments(context.attachments!, provider);
 
         if (mediaContent && mediaContent.length > 0) {
           // Build content array: text first (if present), then media
           const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [];
 
-          // Only add text if message is not empty
-          if (userMessage.trim().length > 0) {
-            content.push({ type: 'text', text: userMessage });
+          // Combine user message with attachment descriptions for context
+          let fullText = userMessage.trim();
+          const descriptions = processedAttachments
+            .map(a => a.description)
+            .filter(d => d && !d.startsWith('['))
+            .join('\n\n');
+
+          if (descriptions) {
+            fullText = fullText
+              ? `${fullText}\n\n[Attached media descriptions for context:\n${descriptions}]`
+              : `[Attached media:\n${descriptions}]`;
           }
 
-          // Add formatted media content
+          if (fullText.length > 0) {
+            content.push({ type: 'text', text: fullText });
+          }
+
+          // Add formatted media content (raw images/audio for this turn)
           content.push(...mediaContent as any[]);
 
           messages.push(new HumanMessage({ content }));
 
           logger.info(
-            { attachmentCount: context.attachments.length, hasText: userMessage.trim().length > 0, provider },
-            'Created multimodal message'
+            { attachmentCount: context.attachments!.length, hasText: userMessage.trim().length > 0, provider },
+            'Created multimodal message with descriptions'
           );
         } else {
-          // Fallback to text-only if formatting failed
-          messages.push(new HumanMessage(userMessage));
+          // Fallback: use descriptions only if media formatting failed
+          const descriptions = processedAttachments
+            .map(a => a.description)
+            .join('\n\n');
+          const fullText = userMessage.trim()
+            ? `${userMessage}\n\n${descriptions}`
+            : descriptions;
+          messages.push(new HumanMessage(fullText));
         }
       } else {
         // Text-only message
