@@ -49,14 +49,21 @@ export class CommandHandler {
           continue;
         }
 
-        // Add category based on directory structure
+        // Determine category based on directory structure
         const relativePath = filePath.replace(commandsPath, '');
         const pathParts = relativePath.split('/').filter(Boolean);
-        if (pathParts.length > 1) {
-          command.category = pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1);
-        }
+        const category = pathParts.length > 1
+          ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
+          : undefined;
 
-        this.commands.set(command.data.name, command as Command);
+        // Create command object with category (don't mutate the imported module)
+        const commandWithCategory: Command = {
+          data: command.data,
+          execute: command.execute,
+          category
+        };
+
+        this.commands.set(command.data.name, commandWithCategory);
         logger.info(`[CommandHandler] Loaded command: ${command.data.name}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
