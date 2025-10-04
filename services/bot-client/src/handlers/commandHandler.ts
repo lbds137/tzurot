@@ -59,7 +59,11 @@ export class CommandHandler {
         this.commands.set(command.data.name, command as Command);
         logger.info(`[CommandHandler] Loaded command: ${command.data.name}`);
       } catch (error) {
-        logger.error({ err: error }, `[CommandHandler] Failed to load command: ${filePath}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(
+          { err: error, filePath, errorMessage },
+          `[CommandHandler] Failed to load command: ${filePath}`
+        );
       }
     }
 
