@@ -5,6 +5,7 @@
 
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAI } from 'openai';
+import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../logger.js';
 
 const logger = createLogger('QdrantMemoryService');
@@ -16,7 +17,7 @@ export interface Memory {
     personalityId: string;
     personalityName: string;
     summaryType?: string;
-    createdAt: string;
+    createdAt: number; // Unix timestamp in milliseconds
     channelId?: string;
     guildId?: string;
     messageIds?: string[];
@@ -113,7 +114,7 @@ export class QdrantMemoryService {
           personalityId: (result.payload?.personalityId as string) || '',
           personalityName: (result.payload?.personalityName as string) || '',
           summaryType: result.payload?.summaryType as string | undefined,
-          createdAt: (result.payload?.createdAt as string) || new Date().toISOString(),
+          createdAt: (result.payload?.createdAt as number) || Date.now(),
           channelId: result.payload?.channelId as string | undefined,
           guildId: result.payload?.guildId as string | undefined,
           messageIds: result.payload?.messageIds as string[] | undefined,
@@ -179,8 +180,8 @@ export class QdrantMemoryService {
       // Generate embedding for the content
       const embedding = await this.generateEmbedding(content);
 
-      // Generate a unique ID for this memory
-      const memoryId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      // Generate a UUID for this memory (Qdrant requires UUID or unsigned integer)
+      const memoryId = uuidv4();
 
       // Upsert the memory point
       await this.qdrant.upsert(collectionName, {
