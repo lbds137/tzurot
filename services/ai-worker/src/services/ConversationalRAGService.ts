@@ -105,6 +105,8 @@ export class ConversationalRAGService {
       }
 
       // 4. Build the prompt with user persona and memory context
+      const systemPrompt = this.buildSystemPrompt(personality);
+
       const personaContext = userPersona
         ? `\n\nUser context:\n${userPersona}`
         : '';
@@ -117,9 +119,9 @@ export class ConversationalRAGService {
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
 
-      // System message with personality, user persona, and memory
+      // System message with jailbreak/behavior rules, personality, user persona, and memory
       messages.push(new SystemMessage(
-        `${personality.systemPrompt}${personaContext}${memoryContext}`
+        `${systemPrompt}${personaContext}${memoryContext}`
       ));
 
       // Add conversation history if available
@@ -196,8 +198,10 @@ export class ConversationalRAGService {
 
       const messages: BaseMessage[] = [];
 
+      const systemPrompt = this.buildSystemPrompt(personality);
+
       messages.push(new SystemMessage(
-        `${personality.systemPrompt}${memoryContext}`
+        `${systemPrompt}${memoryContext}`
       ));
 
       if (context.conversationHistory && context.conversationHistory.length > 0) {
@@ -276,6 +280,50 @@ export class ConversationalRAGService {
   }
 
   /**
+   * Build comprehensive system prompt from personality character fields
+   */
+  private buildSystemPrompt(personality: Personality): string {
+    const sections: string[] = [];
+
+    // Start with system prompt (jailbreak/behavior rules)
+    if (personality.systemPrompt) {
+      sections.push(personality.systemPrompt);
+    }
+
+    // Add character info (who they are, their history)
+    if ((personality as any).characterInfo) {
+      sections.push(`\n## Character Information\n${(personality as any).characterInfo}`);
+    }
+
+    // Add personality traits
+    if ((personality as any).personalityTraits) {
+      sections.push(`\n## Personality Traits\n${(personality as any).personalityTraits}`);
+    }
+
+    // Add tone/style
+    if ((personality as any).personalityTone) {
+      sections.push(`\n## Conversational Tone\n${(personality as any).personalityTone}`);
+    }
+
+    // Add likes
+    if ((personality as any).personalityLikes) {
+      sections.push(`\n## What I Like\n${(personality as any).personalityLikes}`);
+    }
+
+    // Add dislikes
+    if ((personality as any).personalityDislikes) {
+      sections.push(`\n## What I Dislike\n${(personality as any).personalityDislikes}`);
+    }
+
+    // Add conversational goals
+    if ((personality as any).conversationalGoals) {
+      sections.push(`\n## Conversational Goals\n${(personality as any).conversationalGoals}`);
+    }
+
+    return sections.join('\n');
+  }
+
+  /**
    * Get user's persona from database
    */
   private async getUserPersona(userId: string): Promise<string | null> {
@@ -287,12 +335,34 @@ export class ConversationalRAGService {
         where: { id: userId },
         include: {
           globalPersona: {
-            select: { content: true }
+            select: {
+              preferredName: true,
+              pronouns: true,
+              content: true
+            }
           }
         }
       });
 
-      return user?.globalPersona?.content || null;
+      const persona = user?.globalPersona;
+      if (!persona) return null;
+
+      // Build persona context with structured fields
+      const parts: string[] = [];
+
+      if (persona.preferredName) {
+        parts.push(`Name: ${persona.preferredName}`);
+      }
+
+      if (persona.pronouns) {
+        parts.push(`Pronouns: ${persona.pronouns}`);
+      }
+
+      if (persona.content) {
+        parts.push(persona.content);
+      }
+
+      return parts.length > 0 ? parts.join('\n') : null;
     } catch (error) {
       logger.error({ err: error }, '[RAG] Failed to fetch user persona');
       return null;

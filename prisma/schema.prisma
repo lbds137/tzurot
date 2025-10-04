@@ -47,6 +47,10 @@ model Persona {
   description String?  @db.Text
   content     String   @db.Text // The actual persona/backstory text
 
+  // User personalization fields (for user personas)
+  preferredName String? @map("preferred_name") @db.VarChar(255)
+  pronouns      String? @db.VarChar(100)
+
   // Ownership
   ownerId  String? @map("owner_id") @db.Uuid
   owner    User?   @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -126,6 +130,17 @@ model Personality {
 
   llmConfigId String?    @map("llm_config_id") @db.Uuid
   llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
+
+  // Character definition (from shapes.inc)
+  characterInfo           String  @map("character_info") @db.Text // Who they are (user_prompt + personality_history merged)
+  personalityTraits       String  @map("personality_traits") @db.Text // Comma-separated traits
+  personalityTone         String? @map("personality_tone") @db.VarChar(500) // Speaking style
+  personalityAge          String? @map("personality_age") @db.VarChar(100) // Character age
+  personalityLikes        String? @map("personality_likes") @db.Text // What they like
+  personalityDislikes     String? @map("personality_dislikes") @db.Text // What they dislike
+  conversationalGoals     String? @map("conversational_goals") @db.Text // Conversation objectives
+  conversationalExamples  String? @map("conversational_examples") @db.Text // Example interactions
+  customFields            Json?   @map("custom_fields") // User-defined extensions
 
   // Voice settings (for future)
   voiceEnabled  Boolean @default(false) @map("voice_enabled")

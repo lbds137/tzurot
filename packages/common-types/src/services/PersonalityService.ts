@@ -27,6 +27,15 @@ export interface LoadedPersonality {
   contextWindow: number;
   avatarUrl?: string;
   memoryEnabled: boolean;
+  // Character definition fields
+  characterInfo: string;
+  personalityTraits: string;
+  personalityTone?: string;
+  personalityAge?: string;
+  personalityLikes?: string;
+  personalityDislikes?: string;
+  conversationalGoals?: string;
+  conversationalExamples?: string;
 }
 
 export interface DatabasePersonality {
@@ -49,6 +58,15 @@ export interface DatabasePersonality {
   } | null;
   memoryEnabled: boolean;
   contextWindowSize: number;
+  // Character definition fields
+  characterInfo: string;
+  personalityTraits: string;
+  personalityTone: string | null;
+  personalityAge: string | null;
+  personalityLikes: string | null;
+  personalityDislikes: string | null;
+  conversationalGoals: string | null;
+  conversationalExamples: string | null;
 }
 
 export class PersonalityService {
@@ -200,6 +218,15 @@ export class PersonalityService {
       contextWindow: db.contextWindowSize,
       avatarUrl: db.avatarUrl || undefined,
       memoryEnabled: db.memoryEnabled,
+      // Character definition fields
+      characterInfo: db.characterInfo,
+      personalityTraits: db.personalityTraits,
+      personalityTone: db.personalityTone || undefined,
+      personalityAge: db.personalityAge || undefined,
+      personalityLikes: db.personalityLikes || undefined,
+      personalityDislikes: db.personalityDislikes || undefined,
+      conversationalGoals: db.conversationalGoals || undefined,
+      conversationalExamples: db.conversationalExamples || undefined,
     };
   }
 
