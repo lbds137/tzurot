@@ -73,10 +73,13 @@ export class PersonalityService {
     }
 
     try {
+      // Check if nameOrId is a valid UUID (to avoid Prisma UUID parsing errors)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nameOrId);
+
       const dbPersonality = await this.prisma.personality.findFirst({
         where: {
           OR: [
-            { id: nameOrId },
+            ...(isUUID ? [{ id: nameOrId }] : []),
             { name: { equals: nameOrId, mode: 'insensitive' } },
             { slug: nameOrId.toLowerCase() },
           ],

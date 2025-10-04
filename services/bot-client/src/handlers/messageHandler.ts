@@ -10,7 +10,8 @@ import { TextChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
 import { ConversationHistoryService, PersonalityService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
-import type { BotPersonality, MessageContext } from '../types.js';
+import type { LoadedPersonality } from '@tzurot/common-types';
+import type { MessageContext } from '../types.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -22,18 +23,15 @@ export class MessageHandler {
   private webhookManager: WebhookManager;
   private conversationHistory: ConversationHistoryService;
   private personalityService: PersonalityService;
-  private personalities: Map<string, BotPersonality>;
 
   constructor(
     gatewayClient: GatewayClient,
-    webhookManager: WebhookManager,
-    personalities: Map<string, BotPersonality>
+    webhookManager: WebhookManager
   ) {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
     this.conversationHistory = new ConversationHistoryService();
     this.personalityService = new PersonalityService();
-    this.personalities = personalities;
   }
 
   /**
@@ -57,14 +55,21 @@ export class MessageHandler {
       const mentionMatch = this.findPersonalityMention(message.content);
 
       if (mentionMatch !== null) {
-        await this.handlePersonalityMessage(message, mentionMatch.personality, mentionMatch.cleanContent);
+        // Load personality from database (with PersonalityService's cache)
+        const personality = await this.personalityService.loadPersonality(mentionMatch.personalityName);
+
+        if (personality !== null) {
+          await this.handlePersonalityMessage(message, personality, mentionMatch.cleanContent);
+        } else {
+          await message.reply(`I don't know a personality called "${mentionMatch.personalityName}"`);
+        }
         return;
       }
 
-      // Check for bot mention
+      // Check for bot mention - use default personality if configured
       if (message.mentions.has(message.client.user!)) {
-        const defaultPersonality = this.personalities.get('default');
-        if (defaultPersonality !== undefined) {
+        const defaultPersonality = await this.personalityService.loadPersonality('default');
+        if (defaultPersonality !== null) {
           const cleanContent = message.content.replace(/<@!?\d+>/g, '').trim();
           await this.handlePersonalityMessage(message, defaultPersonality, cleanContent);
         }
@@ -89,7 +94,7 @@ export class MessageHandler {
    */
   private async handlePersonalityMessage(
     message: Message,
-    personality: BotPersonality,
+    personality: LoadedPersonality,
     content: string
   ): Promise<void> {
     try {
@@ -98,16 +103,8 @@ export class MessageHandler {
         await message.channel.sendTyping();
       }
 
-      // Load full personality from database to get ID and contextWindowSize
-      const dbPersonality = await this.personalityService.loadPersonality(personality.name);
-      if (!dbPersonality) {
-        logger.error(`[MessageHandler] Personality ${personality.name} not found in database`);
-        await message.reply('Sorry, I couldn\'t find that personality configuration.');
-        return;
-      }
-
       // Get conversation history from PostgreSQL
-      const historyLimit = dbPersonality.contextWindow || 20;
+      const historyLimit = personality.contextWindow || 20;
       const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
         personality.name, // TODO: Use personality ID once we have it
@@ -184,19 +181,15 @@ export class MessageHandler {
    * Find personality mention in message content
    * Supports: @personality, &personality (for development)
    */
-  private findPersonalityMention(content: string): { personality: BotPersonality; cleanContent: string } | null {
+  private findPersonalityMention(content: string): { personalityName: string; cleanContent: string } | null {
     // Try @ mentions first
     const atMentionRegex = /@(\w+)/;
     const atMatch = content.match(atMentionRegex);
 
     if (atMatch !== null) {
-      const personalityName = atMatch[1].toLowerCase();
-      const personality = this.personalities.get(personalityName);
-
-      if (personality !== undefined) {
-        const cleanContent = content.replace(atMentionRegex, '').trim();
-        return { personality, cleanContent };
-      }
+      const personalityName = atMatch[1];
+      const cleanContent = content.replace(atMentionRegex, '').trim();
+      return { personalityName, cleanContent };
     }
 
     // Try & mentions (development)
@@ -204,13 +197,9 @@ export class MessageHandler {
     const ampMatch = content.match(ampMentionRegex);
 
     if (ampMatch !== null) {
-      const personalityName = ampMatch[1].toLowerCase();
-      const personality = this.personalities.get(personalityName);
-
-      if (personality !== undefined) {
-        const cleanContent = content.replace(ampMentionRegex, '').trim();
-        return { personality, cleanContent };
-      }
+      const personalityName = ampMatch[1];
+      const cleanContent = content.replace(ampMentionRegex, '').trim();
+      return { personalityName, cleanContent };
     }
 
     return null;

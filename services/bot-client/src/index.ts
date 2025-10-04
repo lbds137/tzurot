@@ -74,21 +74,14 @@ async function start(): Promise<void> {
       gatewayUrl: config.gatewayUrl
     });
 
-    // Load personalities from PostgreSQL
-    logger.info('[Bot] Loading personalities from database...');
+    // Verify we can connect to database
+    logger.info('[Bot] Verifying database connection...');
     const personalityService = new PersonalityService();
     const personalityList = await personalityService.loadAllPersonalities();
+    logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
 
-    // Convert array to Map for MessageHandler
-    const personalities = new Map();
-    for (const personality of personalityList) {
-      personalities.set(personality.name.toLowerCase(), personality);
-    }
-
-    logger.info(`[Bot] Loaded ${personalities.size} personalities from PostgreSQL`);
-
-    // Initialize message handler
-    messageHandler = new MessageHandler(gatewayClient, webhookManager, personalities);
+    // Initialize message handler (personalities loaded on-demand with caching)
+    messageHandler = new MessageHandler(gatewayClient, webhookManager);
 
     // Health check gateway
     const isHealthy = await gatewayClient.healthCheck();
