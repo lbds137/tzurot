@@ -327,6 +327,11 @@ export class ConversationalRAGService {
       sections.push(`\n## Conversational Goals\n${personality.conversationalGoals}`);
     }
 
+    // Add conversational examples
+    if (personality.conversationalExamples) {
+      sections.push(`\n## Conversational Examples\n${personality.conversationalExamples}`);
+    }
+
     return sections.join('\n');
   }
 
