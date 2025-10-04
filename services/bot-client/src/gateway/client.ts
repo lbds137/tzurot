@@ -19,8 +19,8 @@ export class GatewayClient {
 
   constructor(
     baseUrl?: string,
-    pollInterval = 500,
-    maxPollAttempts = 60
+    pollInterval = 1000,
+    maxPollAttempts = 120
   ) {
     this.baseUrl = baseUrl ?? process.env.GATEWAY_URL ?? 'http://localhost:3000';
     this.pollInterval = pollInterval;
