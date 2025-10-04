@@ -124,7 +124,7 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
 
       return new ChatOpenAI({
         modelName,
-        openAIApiKey: apiKey,
+        apiKey,
         temperature,
         configuration: {
           baseURL,
@@ -145,7 +145,7 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
 
       return new ChatOpenAI({
         modelName,
-        openAIApiKey: apiKey,
+        apiKey,
         temperature,
       });
     }

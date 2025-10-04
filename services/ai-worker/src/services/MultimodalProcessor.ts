@@ -130,7 +130,7 @@ async function describeWithPersonalityModel(
 
   const model = new ChatOpenAI({
     modelName,
-    openAIApiKey: apiKey,
+    apiKey,
     configuration: baseURL ? { baseURL } : undefined,
     temperature: 0.3, // Lower temperature for objective descriptions
   });
@@ -179,7 +179,7 @@ async function describeWithOpenRouter(
   // Use Llama 3.2 90B Vision - uncensored and powerful
   const model = new ChatOpenAI({
     modelName: 'meta-llama/llama-3.2-90b-vision-instruct',
-    openAIApiKey: process.env.OPENROUTER_API_KEY,
+    apiKey: process.env.OPENROUTER_API_KEY,
     configuration: {
       baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     },
