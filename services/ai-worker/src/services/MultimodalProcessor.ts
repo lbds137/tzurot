@@ -33,27 +33,45 @@ export interface ProcessedAttachment {
 }
 
 /**
- * Models with native vision support
- */
-const VISION_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-  'gpt-4-vision-preview',
-  'claude-3-5-sonnet',
-  'claude-3-opus',
-  'claude-3-sonnet',
-  'claude-3-haiku',
-  'gemini-1.5-pro',
-  'gemini-1.5-flash',
-  'gemini-pro-vision',
-];
-
-/**
  * Check if a model has vision support
+ * Uses flexible pattern matching instead of hardcoded lists
+ * to avoid outdated model names as vendors release new versions
  */
 function hasVisionSupport(modelName: string): boolean {
-  return VISION_MODELS.some(vm => modelName.toLowerCase().includes(vm.toLowerCase()));
+  const normalized = modelName.toLowerCase();
+
+  // OpenAI vision models (gpt-4o, gpt-4-turbo, gpt-4-vision, etc.)
+  if (normalized.includes('gpt-4') && (
+    normalized.includes('vision') ||
+    normalized.includes('4o') ||
+    normalized.includes('turbo')
+  )) {
+    return true;
+  }
+
+  // Anthropic Claude 3+ models (all have vision)
+  if (normalized.includes('claude-3') || normalized.includes('claude-4')) {
+    return true;
+  }
+
+  // Google Gemini models (1.5+, 2.0+, 2.5+ all have vision)
+  if (normalized.includes('gemini')) {
+    // Match gemini-1.5+, gemini-2.0+, gemini-2.5+, etc.
+    // Exclude old gemini-pro without vision
+    if (normalized.includes('1.5') ||
+        normalized.includes('2.') ||
+        normalized.includes('vision')) {
+      return true;
+    }
+  }
+
+  // Add more providers as needed
+  // Llama vision models
+  if (normalized.includes('llama') && normalized.includes('vision')) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
