@@ -12,14 +12,9 @@ import { WebhookManager } from '../webhooks/manager.js';
 import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
+import { storeWebhookMessage, getWebhookPersonality } from '../redis.js';
 
 const logger = createLogger('MessageHandler');
-
-/**
- * Track which personality sent which webhook message
- * Used for reply routing (so users can just reply instead of @mentioning)
- */
-const webhookMessageMap = new Map<string, string>();
 
 /**
  * Message Handler - routes Discord messages to appropriate handlers
@@ -120,8 +115,21 @@ export class MessageHandler {
         return false;
       }
 
-      // Look up which personality sent this webhook message
-      const personalityName = webhookMessageMap.get(referencedMessage.id);
+      // Try Redis lookup first
+      let personalityName = await getWebhookPersonality(referencedMessage.id);
+
+      // Fallback: Parse webhook username if Redis lookup fails
+      if (!personalityName && referencedMessage.author) {
+        const webhookUsername = referencedMessage.author.username;
+        logger.debug(`[MessageHandler] Redis lookup failed, parsing webhook username: ${webhookUsername}`);
+
+        // Extract personality name by removing bot suffix
+        // Format: "Personality | suffix" -> "Personality"
+        if (webhookUsername.includes(' | ')) {
+          personalityName = webhookUsername.split(' | ')[0].trim();
+          logger.debug(`[MessageHandler] Extracted personality name from webhook username: ${personalityName}`);
+        }
+      }
 
       if (!personalityName) {
         logger.debug('[MessageHandler] No personality found for webhook message, skipping');
@@ -246,9 +254,9 @@ export class MessageHandler {
             chunk
           );
 
-          // Track webhook message for reply routing
+          // Store webhook message in Redis for reply routing (7 day TTL)
           if (sentMessage) {
-            webhookMessageMap.set(sentMessage.id, personality.name);
+            await storeWebhookMessage(sentMessage.id, personality.name);
           }
         }
       } else {
@@ -256,8 +264,8 @@ export class MessageHandler {
         for (const chunk of chunks) {
           const formattedContent = `**${personality.displayName}:** ${chunk}`;
           const sentMessage = await message.reply(formattedContent);
-          // Track DM message for reply routing
-          webhookMessageMap.set(sentMessage.id, personality.name);
+          // Store DM message in Redis for reply routing (7 day TTL)
+          await storeWebhookMessage(sentMessage.id, personality.name);
         }
       }
 

@@ -4,6 +4,7 @@ import { GatewayClient } from './gateway/client.js';
 import { WebhookManager } from './webhooks/manager.js';
 import { MessageHandler } from './handlers/messageHandler.js';
 import { CommandHandler } from './handlers/commandHandler.js';
+import { closeRedis } from './redis.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -27,7 +28,7 @@ const client = new Client({
 
 // Initialize services
 const gatewayClient = new GatewayClient(config.gatewayUrl);
-const webhookManager = new WebhookManager();
+const webhookManager = new WebhookManager(client);
 
 // These will be initialized in start()
 let messageHandler: MessageHandler;
@@ -76,6 +77,7 @@ process.on('unhandledRejection', (error) => {
 process.on('SIGINT', () => {
   logger.info('Shutting down...');
   webhookManager.destroy();
+  void closeRedis();
   void client.destroy();
   void disconnectPrisma();
   process.exit(0);

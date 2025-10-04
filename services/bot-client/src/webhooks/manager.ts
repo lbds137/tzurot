@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { ChannelType } from 'discord.js';
+import { ChannelType, Client } from 'discord.js';
 import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
 import type { BotPersonality } from '../types.js';
 
@@ -27,9 +27,55 @@ export class WebhookManager {
   private webhookCache = new Map<string, CachedWebhook>();
   private readonly cacheTimeout = 10 * 60 * 1000; // 10 minutes
   private cleanupInterval?: NodeJS.Timeout;
+  private client: Client;
+  private botSuffix: string | null = null;
 
-  constructor() {
+  constructor(client: Client) {
+    this.client = client;
     this.startCleanup();
+  }
+
+  /**
+   * Get bot suffix from bot tag
+   * Format: "BotName | suffix" -> " | suffix"
+   * Or: "BotName" -> " | BotName"
+   */
+  private getBotSuffix(): string {
+    if (this.botSuffix !== null) {
+      return this.botSuffix;
+    }
+
+    if (!this.client.user) {
+      logger.warn('[WebhookManager] Client user not available for suffix extraction');
+      this.botSuffix = '';
+      return '';
+    }
+
+    const botTag = this.client.user.tag;
+    logger.debug(`[WebhookManager] Extracting suffix from bot tag: ${botTag}`);
+
+    // Check if tag contains " | " delimiter
+    if (botTag.includes(' | ')) {
+      const parts = botTag.split(' | ');
+      // Get the part after " | " and remove discriminator if present
+      const suffix = parts[1].replace(/\s*#\d{4}$/, '').trim();
+      this.botSuffix = ` | ${suffix}`;
+    } else {
+      // No delimiter - use full username (without discriminator) as suffix
+      const username = botTag.replace(/\s*#\d{4}$/, '').trim();
+      this.botSuffix = ` | ${username}`;
+    }
+
+    logger.debug(`[WebhookManager] Using bot suffix: "${this.botSuffix}"`);
+    return this.botSuffix;
+  }
+
+  /**
+   * Get standardized username with bot suffix
+   */
+  private getStandardizedUsername(personality: BotPersonality): string {
+    const suffix = this.getBotSuffix();
+    return `${personality.displayName}${suffix}`;
   }
 
   /**
@@ -104,6 +150,7 @@ export class WebhookManager {
     content: string
   ): Promise<any> {
     const webhook = await this.getWebhook(channel);
+    const standardizedName = this.getStandardizedUsername(personality);
 
     // Build webhook send options
     const webhookOptions: {
@@ -113,19 +160,19 @@ export class WebhookManager {
       threadId?: string;
     } = {
       content,
-      username: personality.displayName,
+      username: standardizedName,
       avatarURL: personality.avatarUrl
     };
 
     // For threads, add threadId parameter (Discord.js v14 official API)
     if (channel.isThread()) {
       webhookOptions.threadId = channel.id;
-      logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${personality.displayName}`);
+      logger.info(`[WebhookManager] Sending to thread ${channel.id} as ${standardizedName}`);
     }
 
     // Send via webhook and return message
     const sentMessage = await webhook.send(webhookOptions);
-    logger.info(`[WebhookManager] Sent message as ${personality.displayName} in ${channel.id}`);
+    logger.info(`[WebhookManager] Sent message as ${standardizedName} in ${channel.id}`);
     return sentMessage;
   }
 
