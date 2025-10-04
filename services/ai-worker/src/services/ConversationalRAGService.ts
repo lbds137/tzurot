@@ -114,7 +114,7 @@ export class ConversationalRAGService {
       logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
 
       const personaContext = userPersona
-        ? `\n\nUser context:\n${userPersona}`
+        ? `\n\n## About the User You're Speaking With (${context.userName})\nThe following describes the user you are conversing with. This is NOT about you - this is about the person messaging you:\n\n${userPersona}`
         : '';
 
       const memoryContext = relevantMemories.length > 0
