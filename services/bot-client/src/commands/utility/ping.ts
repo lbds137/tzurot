@@ -10,8 +10,10 @@ export const data = new SlashCommandBuilder()
   .setDescription('Check if bot is responding');
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const sent = await interaction.reply({ content: 'Pinging...', fetchReply: true });
-  const latency = sent.createdTimestamp - interaction.createdTimestamp;
+  // Use deferReply to get response timing
+  await interaction.deferReply();
+
+  const latency = Date.now() - interaction.createdTimestamp;
 
   await interaction.editReply(`Pong! Latency: ${latency}ms`);
 }

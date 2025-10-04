@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { Collection, ChatInputCommandInteraction } from 'discord.js';
+import { Collection, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
@@ -108,7 +108,7 @@ export class CommandHandler {
       logger.warn(`[CommandHandler] Unknown command: ${interaction.commandName}`);
       await interaction.reply({
         content: 'Unknown command!',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -128,9 +128,9 @@ export class CommandHandler {
       const errorMessage = 'There was an error executing this command!';
 
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, ephemeral: true });
+        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
       } else {
-        await interaction.reply({ content: errorMessage, ephemeral: true });
+        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
       }
     }
   }
