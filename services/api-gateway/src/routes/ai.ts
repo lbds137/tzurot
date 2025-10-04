@@ -159,7 +159,7 @@ aiRouter.post('/generate', async (req, res) => {
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
-    logger.error(`[AI] Error creating job (${processingTime}ms):`, error);
+    logger.error({ err: error }, `[AI] Error creating job (${processingTime}ms)`);
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',
@@ -205,7 +205,7 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('[AI] Error fetching job status:', error);
+    logger.error({ err: error }, '[AI] Error fetching job status');
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',

@@ -56,7 +56,7 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
 });
 
 queueEvents.on('error', (error) => {
-  logger.error('[Queue] Queue error:', error);
+  logger.error({ err: error }, '[Queue] Queue error');
 });
 
 // Graceful shutdown
@@ -74,7 +74,7 @@ export async function checkQueueHealth(): Promise<boolean> {
     await client.ping();
     return true;
   } catch (error) {
-    logger.error('[Queue] Health check failed:', error);
+    logger.error({ err: error }, '[Queue] Health check failed');
     return false;
   }
 }

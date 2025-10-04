@@ -77,7 +77,7 @@ export class GatewayClient {
       return result.result.content;
 
     } catch (error) {
-      logger.error('[GatewayClient] Generation failed:', error);
+      logger.error({ err: error }, '[GatewayClient] Generation failed');
       throw error;
     }
   }
@@ -110,7 +110,7 @@ export class GatewayClient {
         await this.delay(this.pollInterval);
 
       } catch (error) {
-        logger.error(`[GatewayClient] Poll attempt ${attempt + 1} failed:`, error);
+        logger.error({ err: error }, `[GatewayClient] Poll attempt ${attempt + 1} failed`);
 
         if (attempt === this.maxPollAttempts - 1) {
           throw error;
@@ -138,7 +138,7 @@ export class GatewayClient {
       const response = await fetch(`${this.baseUrl}/health`);
       return response.ok;
     } catch (error) {
-      logger.error('[GatewayClient] Health check failed:', error);
+      logger.error({ err: error }, '[GatewayClient] Health check failed');
       return false;
     }
   }

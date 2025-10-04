@@ -272,7 +272,7 @@ export class VectorMemoryManager {
       await this.client.heartbeat();
       return true;
     } catch (error) {
-      logger.error('[VectorMemory] Health check failed:', error);
+      logger.error({ err: error }, '[VectorMemory] Health check failed');
       return false;
     }
   }

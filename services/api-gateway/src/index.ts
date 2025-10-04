@@ -88,7 +88,7 @@ app.get('/health', async (_req, res) => {
     res.status(statusCode).json(health);
 
   } catch (error) {
-    logger.error('[Health] Health check failed:', error);
+    logger.error({ err: error }, '[Health] Health check failed');
 
     const health: HealthResponse = {
       status: 'unhealthy',
@@ -132,7 +132,7 @@ app.get('/metrics', async (_req, res) => {
     });
 
   } catch (error) {
-    logger.error('[Metrics] Failed to get metrics:', error);
+    logger.error({ err: error }, '[Metrics] Failed to get metrics');
 
     const errorResponse: ErrorResponse = {
       error: 'METRICS_ERROR',

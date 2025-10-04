@@ -96,13 +96,7 @@ export class MessageHandler {
       // For now, only respond to explicit mentions
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-
-      logger.error(`[MessageHandler] Error processing message: ${errorMessage}`, {
-        error: errorMessage,
-        stack: errorStack
-      });
+      logger.error({ err: error }, '[MessageHandler] Error processing message');
 
       // Try to send error message to user
       await message.reply('Sorry, I encountered an error processing your message.').catch(() => {
@@ -150,8 +144,7 @@ export class MessageHandler {
 
     } catch (error) {
       // If we can't fetch the referenced message, it might be deleted or inaccessible
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.debug(`[MessageHandler] Could not fetch referenced message: ${errorMessage}`);
+      logger.debug({ err: error }, '[MessageHandler] Could not fetch referenced message');
       return false;
     }
   }
@@ -256,16 +249,10 @@ export class MessageHandler {
       logger.info(`[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`);
 
     } catch (error) {
-      // Extract error details for logging
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-
-      logger.error(`[MessageHandler] Error handling personality message: ${errorMessage}`, {
-        error: errorMessage,
-        stack: errorStack
-      });
+      logger.error({ err: error }, '[MessageHandler] Error handling personality message');
 
       // Check if it's a webhook permission error
+      const errorMessage = error instanceof Error ? error.message : String(error);
       if (errorMessage.includes('MANAGE_WEBHOOKS') || errorMessage.includes('webhook')) {
         await message.reply('I need the "Manage Webhooks" permission to send personality messages in this channel!').catch(() => {});
       } else {

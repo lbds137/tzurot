@@ -305,7 +305,7 @@ export class ConversationalRAGService {
       await this.storeInteraction(personality, userMessage, fullResponse, context);
 
     } catch (error) {
-      logger.error(`[RAG] Stream error for ${personality.name}:`, error);
+      logger.error({ err: error }, `[RAG] Stream error for ${personality.name}`);
       throw error;
     }
   }
@@ -350,7 +350,7 @@ export class ConversationalRAGService {
       }
 
     } catch (error) {
-      logger.error('[RAG] Failed to store interaction:', error);
+      logger.error({ err: error }, '[RAG] Failed to store interaction');
       // Don't throw - this is a non-critical error
     }
   }

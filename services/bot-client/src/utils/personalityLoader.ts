@@ -47,7 +47,7 @@ export async function loadPersonalities(personalitiesDir: string): Promise<Map<s
         logger.info(`[PersonalityLoader] Loaded personality: ${config.name} (display: ${config.displayName})`);
 
       } catch (error) {
-        logger.error(`[PersonalityLoader] Failed to load ${file}:`, error);
+        logger.error({ err: error }, `[PersonalityLoader] Failed to load ${file}`);
       }
     }
 
@@ -60,7 +60,7 @@ export async function loadPersonalities(personalitiesDir: string): Promise<Map<s
     return personalities;
 
   } catch (error) {
-    logger.error('[PersonalityLoader] Failed to load personalities:', error);
+    logger.error({ err: error }, '[PersonalityLoader] Failed to load personalities');
 
     // Return default personality on error
     const personalities = new Map<string, BotPersonality>();

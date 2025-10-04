@@ -83,7 +83,7 @@ export class WebhookManager {
       return webhook;
 
     } catch (error) {
-      logger.error(`[WebhookManager] Failed to get/create webhook for channel ${channel.id}:`, error);
+      logger.error({ err: error }, `[WebhookManager] Failed to get/create webhook for channel ${channel.id}`);
       return null;
     }
   }

@@ -55,7 +55,7 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
       username: parsed.username !== 'default' ? parsed.username : undefined
     };
   } catch (error) {
-    logger.error('[Config] Failed to parse REDIS_URL:', error);
+    logger.error({ err: error }, '[Config] Failed to parse REDIS_URL');
     return {
       host: 'localhost',
       port: 6379
