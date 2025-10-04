@@ -66,9 +66,12 @@ railway variables \
   --set "AI_PROVIDER=${AI_PROVIDER}" \
   --set "GEMINI_API_KEY=${GEMINI_API_KEY}" \
   --set "DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL}" \
-  --set "ENABLE_MEMORY=false" \
+  --set "ENABLE_MEMORY=true" \
   --set "ENABLE_STREAMING=false" \
-  --set "CHROMA_URL=${CHROMA_URL}" \
+  --set "QDRANT_URL=${QDRANT_URL}" \
+  --set "QDRANT_API_KEY=${QDRANT_API_KEY}" \
+  --set "OPENAI_API_KEY=${OPENAI_API_KEY}" \
+  --set "DATABASE_URL=\${{Postgres.DATABASE_URL}}" \
   --set "REDIS_URL=\${{Redis.REDIS_URL}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/ai-worker/Dockerfile" \
   --service ai-worker
@@ -88,7 +91,7 @@ railway variables \
   --set "LOG_LEVEL=debug" \
   --set "DISCORD_TOKEN=${DISCORD_TOKEN}" \
   --set "GATEWAY_URL=https://\${{api-gateway.RAILWAY_PUBLIC_DOMAIN}}" \
-  --set "PERSONALITIES_DIR=/app/personalities" \
+  --set "DATABASE_URL=\${{Postgres.DATABASE_URL}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/bot-client/Dockerfile" \
   --service bot-client
 
