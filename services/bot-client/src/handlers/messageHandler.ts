@@ -9,8 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
-import { ConversationManager } from '../memory/ConversationManager.js';
-import { preserveCodeBlocks, createLogger } from '@tzurot/common-types';
+import { ConversationHistoryService, PersonalityService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
 import type { BotPersonality, MessageContext } from '../types.js';
 
 const logger = createLogger('MessageHandler');
@@ -21,7 +20,8 @@ const logger = createLogger('MessageHandler');
 export class MessageHandler {
   private gatewayClient: GatewayClient;
   private webhookManager: WebhookManager;
-  private conversationManager: ConversationManager;
+  private conversationHistory: ConversationHistoryService;
+  private personalityService: PersonalityService;
   private personalities: Map<string, BotPersonality>;
 
   constructor(
@@ -31,9 +31,8 @@ export class MessageHandler {
   ) {
     this.gatewayClient = gatewayClient;
     this.webhookManager = webhookManager;
-    this.conversationManager = new ConversationManager({
-      maxMessagesPerThread: 20 // Keep last 20 messages indefinitely
-    });
+    this.conversationHistory = new ConversationHistoryService();
+    this.personalityService = new PersonalityService();
     this.personalities = personalities;
   }
 
@@ -99,11 +98,27 @@ export class MessageHandler {
         await message.channel.sendTyping();
       }
 
-      // Get conversation history
-      const conversationHistory = this.conversationManager.getHistory(
+      // Load full personality from database to get ID and contextWindowSize
+      const dbPersonality = await this.personalityService.loadPersonality(personality.name);
+      if (!dbPersonality) {
+        logger.error(`[MessageHandler] Personality ${personality.name} not found in database`);
+        await message.reply('Sorry, I couldn\'t find that personality configuration.');
+        return;
+      }
+
+      // Get conversation history from PostgreSQL
+      const historyLimit = dbPersonality.contextWindow || 20;
+      const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
-        personality.name
+        personality.name, // TODO: Use personality ID once we have it
+        historyLimit
       );
+
+      // Convert to format expected by AI gateway
+      const conversationHistory = history.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
 
       // Build context with conversation history
       const context: MessageContext = {
@@ -112,23 +127,27 @@ export class MessageHandler {
         channelId: message.channel.id,
         serverId: message.guild?.id,
         messageContent: content,
-        conversationHistory // Add conversation history
+        conversationHistory
       };
 
-      // Add user message to conversation history
-      this.conversationManager.addUserMessage(
+      // Save user message to conversation history
+      await this.conversationHistory.addMessage(
         message.channel.id,
-        personality.name,
+        personality.name, // TODO: Use personality ID
+        message.author.id,
+        'user',
         content
       );
 
       // Call API Gateway for AI generation
       const response = await this.gatewayClient.generate(personality, context);
 
-      // Add assistant response to conversation history
-      this.conversationManager.addAssistantMessage(
+      // Save assistant response to conversation history
+      await this.conversationHistory.addMessage(
         message.channel.id,
-        personality.name,
+        personality.name, // TODO: Use personality ID
+        message.author.id,
+        'assistant',
         response
       );
 

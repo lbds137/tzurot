@@ -9,7 +9,7 @@
  */
 
 import { Worker, Job } from 'bullmq';
-import { VectorMemoryManager } from './memory/VectorMemoryManager.js';
+import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
 import { createLogger } from '@tzurot/common-types';
 
@@ -73,20 +73,24 @@ async function main(): Promise<void> {
   });
 
   // Initialize vector memory manager (only if enabled)
-  let memoryManager: VectorMemoryManager | undefined;
+  let memoryManager: QdrantMemoryAdapter | undefined;
 
   if (config.features.enableMemory) {
-    logger.info('[AIWorker] Initializing ChromaDB connection...');
-    memoryManager = new VectorMemoryManager(
-      config.chroma.url,
-      config.openai.apiKey
-    );
+    logger.info('[AIWorker] Initializing Qdrant connection...');
 
     try {
-      await memoryManager.initialize();
-      logger.info('[AIWorker] ChromaDB initialized successfully');
+      memoryManager = new QdrantMemoryAdapter();
+      const healthy = await memoryManager.healthCheck();
+
+      if (healthy) {
+        logger.info('[AIWorker] Qdrant initialized successfully');
+      } else {
+        logger.warn('[AIWorker] Qdrant health check failed');
+        logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+        memoryManager = undefined;
+      }
     } catch (error) {
-      logger.error({ err: error }, '[AIWorker] Failed to initialize ChromaDB');
+      logger.error({ err: error }, '[AIWorker] Failed to initialize Qdrant');
       logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
       memoryManager = undefined;
     }
@@ -173,7 +177,7 @@ async function main(): Promise<void> {
  * Start a simple HTTP server for health checks
  */
 async function startHealthServer(
-  memoryManager: VectorMemoryManager | undefined,
+  memoryManager: QdrantMemoryAdapter | undefined,
   worker: Worker
 ): Promise<void> {
   const http = await import('http');
@@ -183,15 +187,15 @@ async function startHealthServer(
     void (async () => {
       if (req.url === '/health') {
         try {
-          const chromaHealthy = memoryManager !== undefined
+          const qdrantHealthy = memoryManager !== undefined
             ? await memoryManager.healthCheck()
             : true; // If memory is disabled, we're still healthy
           const workerHealthy = !(await worker.closing);
 
-          const status = chromaHealthy && workerHealthy ? 200 : 503;
+          const status = qdrantHealthy && workerHealthy ? 200 : 503;
           const health = {
-            status: chromaHealthy && workerHealthy ? 'healthy' : 'degraded',
-            chroma: memoryManager !== undefined ? chromaHealthy : 'disabled',
+            status: qdrantHealthy && workerHealthy ? 'healthy' : 'degraded',
+            qdrant: memoryManager !== undefined ? qdrantHealthy : 'disabled',
             worker: workerHealthy,
             timestamp: new Date().toISOString()
           };

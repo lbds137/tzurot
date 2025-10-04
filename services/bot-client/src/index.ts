@@ -1,15 +1,8 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { createLogger, PersonalityService, disconnectPrisma } from '@tzurot/common-types';
 import { GatewayClient } from './gateway/client.js';
 import { WebhookManager } from './webhooks/manager.js';
 import { MessageHandler } from './handlers/messageHandler.js';
-import { loadPersonalities } from './utils/personalityLoader.js';
-
-// Get directory name in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -17,7 +10,6 @@ const logger = createLogger('bot-client');
 // Configuration from environment
 const config = {
   gatewayUrl: process.env.GATEWAY_URL ?? 'http://localhost:3000',
-  personalitiesDir: process.env.PERSONALITIES_DIR ?? join(__dirname, '../../../personalities'),
   discordToken: process.env.DISCORD_TOKEN
 };
 
@@ -70,6 +62,7 @@ process.on('SIGINT', () => {
   logger.info('Shutting down...');
   webhookManager.destroy();
   void client.destroy();
+  void disconnectPrisma();
   process.exit(0);
 });
 
@@ -78,14 +71,21 @@ async function start(): Promise<void> {
   try {
     logger.info('[Bot] Starting Tzurot v3 Bot Client...');
     logger.info('[Bot] Configuration:', {
-      gatewayUrl: config.gatewayUrl,
-      personalitiesDir: config.personalitiesDir
+      gatewayUrl: config.gatewayUrl
     });
 
-    // Load personalities
-    logger.info('[Bot] Loading personalities...');
-    const personalities = await loadPersonalities(config.personalitiesDir);
-    logger.info(`[Bot] Loaded ${personalities.size} personalities`);
+    // Load personalities from PostgreSQL
+    logger.info('[Bot] Loading personalities from database...');
+    const personalityService = new PersonalityService();
+    const personalityList = await personalityService.loadAllPersonalities();
+
+    // Convert array to Map for MessageHandler
+    const personalities = new Map();
+    for (const personality of personalityList) {
+      personalities.set(personality.name.toLowerCase(), personality);
+    }
+
+    logger.info(`[Bot] Loaded ${personalities.size} personalities from PostgreSQL`);
 
     // Initialize message handler
     messageHandler = new MessageHandler(gatewayClient, webhookManager, personalities);

@@ -8,7 +8,7 @@
 
 import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
-import { VectorMemoryManager } from '../memory/VectorMemoryManager.js';
+import { QdrantMemoryAdapter } from '../memory/QdrantMemoryAdapter.js';
 import { Personality, MessageContent, createLogger } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
@@ -72,9 +72,9 @@ export interface AIJobResult {
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
 
-  constructor(memoryManager?: VectorMemoryManager) {
+  constructor(memoryManager?: QdrantMemoryAdapter) {
     // Type assertion needed due to LangChain's complex internal types
-    this.ragService = new ConversationalRAGService(memoryManager) as ConversationalRAGService;
+    this.ragService = new ConversationalRAGService(memoryManager as any) as ConversationalRAGService;
   }
 
   /**
