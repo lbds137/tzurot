@@ -130,7 +130,7 @@ async function describeWithPersonalityModel(
 
   const model = new ChatOpenAI({
     modelName,
-    apiKey,
+    openAIApiKey: apiKey,
     configuration: baseURL ? { baseURL } : undefined,
     temperature: 0.3, // Lower temperature for objective descriptions
   });
@@ -142,13 +142,18 @@ async function describeWithPersonalityModel(
     messages.push(new SystemMessage(personality.systemPrompt));
   }
 
+  // Fetch image and convert to base64 (more reliable than external URLs)
+  const base64Image = await fetchAsBase64(attachment.url);
+
   // Request detailed, objective description
   messages.push(
     new HumanMessage({
       content: [
         {
           type: 'image_url',
-          image_url: { url: attachment.url },
+          image_url: {
+            url: `data:${attachment.contentType};base64,${base64Image}`,
+          },
         },
         {
           type: 'text',
@@ -174,7 +179,7 @@ async function describeWithOpenRouter(
   // Use Llama 3.2 90B Vision - uncensored and powerful
   const model = new ChatOpenAI({
     modelName: 'meta-llama/llama-3.2-90b-vision-instruct',
-    apiKey: process.env.OPENROUTER_API_KEY,
+    openAIApiKey: process.env.OPENROUTER_API_KEY,
     configuration: {
       baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     },
