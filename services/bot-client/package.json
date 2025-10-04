@@ -10,7 +10,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "deploy-commands": "tsx scripts/deploy-commands.ts"
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",

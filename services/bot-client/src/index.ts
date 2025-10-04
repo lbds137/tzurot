@@ -3,6 +3,7 @@ import { createLogger, PersonalityService, disconnectPrisma } from '@tzurot/comm
 import { GatewayClient } from './gateway/client.js';
 import { WebhookManager } from './webhooks/manager.js';
 import { MessageHandler } from './handlers/messageHandler.js';
+import { CommandHandler } from './handlers/commandHandler.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -30,6 +31,7 @@ const webhookManager = new WebhookManager();
 
 // These will be initialized in start()
 let messageHandler: MessageHandler;
+let commandHandler: CommandHandler;
 
 // Message handler - wrapped to handle async properly
 client.on(Events.MessageCreate, (message) => {
@@ -37,7 +39,20 @@ client.on(Events.MessageCreate, (message) => {
     try {
       await messageHandler.handleMessage(message);
     } catch (error) {
-      logger.error(error, 'Error in message handler');
+      logger.error({ err: error }, 'Error in message handler');
+    }
+  })();
+});
+
+// Interaction handler for slash commands
+client.on(Events.InteractionCreate, (interaction) => {
+  void (async () => {
+    try {
+      if (interaction.isChatInputCommand()) {
+        await commandHandler.handleInteraction(interaction);
+      }
+    } catch (error) {
+      logger.error({ err: error }, 'Error in interaction handler');
     }
   })();
 });
@@ -50,11 +65,11 @@ client.once(Events.ClientReady, () => {
 
 // Error handling
 client.on(Events.Error, (error) => {
-  logger.error(error, 'Discord client error');
+  logger.error({ err: error }, 'Discord client error');
 });
 
 process.on('unhandledRejection', (error) => {
-  logger.error(error, 'Unhandled rejection');
+  logger.error({ err: error }, 'Unhandled rejection');
 });
 
 // Graceful shutdown
@@ -80,6 +95,12 @@ async function start(): Promise<void> {
     const personalityList = await personalityService.loadAllPersonalities();
     logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
 
+    // Initialize command handler
+    logger.info('[Bot] Loading slash commands...');
+    commandHandler = new CommandHandler();
+    await commandHandler.loadCommands();
+    logger.info('[Bot] Command handler initialized');
+
     // Initialize message handler (personalities loaded on-demand with caching)
     logger.info('[Bot] Initializing message handler...');
     messageHandler = new MessageHandler(gatewayClient, webhookManager);
@@ -103,13 +124,13 @@ async function start(): Promise<void> {
     logger.info('[Bot] Successfully logged in to Discord');
 
   } catch (error) {
-    logger.error(error, 'Failed to start bot');
+    logger.error({ err: error }, 'Failed to start bot');
     process.exit(1);
   }
 }
 
 // Start the application
 void start().catch((error: unknown) => {
-  logger.fatal(error, 'Failed to start application');
+  logger.fatal({ err: error }, 'Failed to start application');
   process.exit(1);
 });

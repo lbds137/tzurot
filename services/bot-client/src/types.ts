@@ -64,3 +64,16 @@ export interface JobResult {
     };
   };
 }
+
+/**
+ * Slash command definition
+ */
+export interface Command {
+  data: {
+    name: string;
+    description: string;
+    toJSON: () => any;
+  };
+  category?: string;
+  execute: (interaction: any, ...args: any[]) => Promise<void>;
+}
