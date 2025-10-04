@@ -9,7 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
-import { ConversationHistoryService, PersonalityService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
+import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 
@@ -23,6 +23,7 @@ export class MessageHandler {
   private webhookManager: WebhookManager;
   private conversationHistory: ConversationHistoryService;
   private personalityService: PersonalityService;
+  private userService: UserService;
 
   constructor(
     gatewayClient: GatewayClient,
@@ -32,6 +33,7 @@ export class MessageHandler {
     this.webhookManager = webhookManager;
     this.conversationHistory = new ConversationHistoryService();
     this.personalityService = new PersonalityService();
+    this.userService = new UserService();
   }
 
   /**
@@ -103,6 +105,12 @@ export class MessageHandler {
         await message.channel.sendTyping();
       }
 
+      // Get or create user record (needed for foreign key)
+      const userId = await this.userService.getOrCreateUser(
+        message.author.id,
+        message.author.username
+      );
+
       // Get conversation history from PostgreSQL
       const historyLimit = personality.contextWindow || 20;
       const history = await this.conversationHistory.getRecentHistory(
@@ -131,7 +139,7 @@ export class MessageHandler {
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
-        message.author.id,
+        userId,
         'user',
         content
       );
@@ -143,7 +151,7 @@ export class MessageHandler {
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
-        message.author.id,
+        userId,
         'assistant',
         response
       );
