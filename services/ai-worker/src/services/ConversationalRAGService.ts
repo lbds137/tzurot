@@ -126,9 +126,10 @@ export class ConversationalRAGService {
       const messages: BaseMessage[] = [];
 
       // System message with jailbreak/behavior rules, personality, user persona, and memory
-      messages.push(new SystemMessage(
-        `${systemPrompt}${personaContext}${memoryContext}`
-      ));
+      const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}`;
+      logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
+
+      messages.push(new SystemMessage(fullSystemPrompt));
 
       // Add conversation history if available
       if (context.conversationHistory && context.conversationHistory.length > 0) {
