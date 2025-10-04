@@ -42,8 +42,8 @@ async function main() {
       id: lilith.llmConfig.id
     },
     data: {
-      memoryScoreThreshold: 0.10, // Minimum threshold for semantic similarity
-      memoryLimit: 15 // Max 15 memories to prevent prompt bloat
+      memoryScoreThreshold: 0.25, // Raised from 0.10 to filter out noise
+      memoryLimit: 10 // Reduced from 15 to prevent prompt bloat
     }
   });
 
