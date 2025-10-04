@@ -92,6 +92,7 @@ model LlmConfig {
 
   // LLM parameters
   model              String   @db.VarChar(255)
+  visionModel        String?  @map("vision_model") @db.VarChar(255) // Optional vision model for image processing
   temperature        Decimal? @db.Decimal(3, 2)
   topP               Decimal? @map("top_p") @db.Decimal(3, 2)
   topK               Int?     @map("top_k")

@@ -18,6 +18,7 @@ export interface LoadedPersonality {
   displayName: string;
   systemPrompt: string;
   model: string;
+  visionModel?: string; // Optional vision model for image processing
   temperature: number;
   maxTokens: number;
   topP?: number;
@@ -51,6 +52,7 @@ export interface DatabasePersonality {
   } | null;
   llmConfig: {
     model: string;
+    visionModel: string | null;
     temperature: Decimal | null;
     topP: Decimal | null;
     topK: number | null;
@@ -114,6 +116,7 @@ export class PersonalityService {
           llmConfig: {
             select: {
               model: true,
+              visionModel: true,
               temperature: true,
               topP: true,
               topK: true,
@@ -157,6 +160,7 @@ export class PersonalityService {
           llmConfig: {
             select: {
               model: true,
+              visionModel: true,
               temperature: true,
               topP: true,
               topK: true,
@@ -223,6 +227,7 @@ export class PersonalityService {
       displayName: db.displayName || db.name,
       systemPrompt: db.systemPrompt?.content || '',
       model: db.llmConfig?.model || 'gemini-2.5-pro',
+      visionModel: db.llmConfig?.visionModel || undefined,
       temperature,
       maxTokens,
       topP,

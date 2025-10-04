@@ -82,22 +82,22 @@ export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality
 ): Promise<string> {
-  const modelName = personality.model;
-
-  if (!modelName) {
-    throw new Error('Personality model is not configured');
-  }
-
   try {
-    if (hasVisionSupport(modelName)) {
-      // Use personality's model with their system prompt
-      logger.info({ model: modelName }, 'Using personality model for image description');
-      return await describeWithPersonalityModel(attachment, personality);
-    } else {
-      // Use uncensored OpenRouter vision model
-      logger.info({ model: modelName }, 'Using OpenRouter fallback for image description');
-      return await describeWithOpenRouter(attachment, personality.systemPrompt || '');
+    // Priority 1: Use personality's configured vision model if specified
+    if (personality.visionModel) {
+      logger.info({ visionModel: personality.visionModel }, 'Using personality vision model for image description');
+      return await describeWithVisionModel(attachment, personality, personality.visionModel);
     }
+
+    // Priority 2: Use personality's main model if it has native vision support
+    if (hasVisionSupport(personality.model)) {
+      logger.info({ model: personality.model }, 'Using personality main model for image description');
+      return await describeWithVisionModel(attachment, personality, personality.model);
+    }
+
+    // Priority 3: Fallback to uncensored Qwen3-VL
+    logger.info('Using fallback Qwen3-VL for image description');
+    return await describeWithFallbackVision(attachment, personality.systemPrompt || '');
   } catch (error) {
     logger.error({ err: error, attachment }, 'Failed to describe image');
     // Fallback to basic description
@@ -106,13 +106,13 @@ export async function describeImage(
 }
 
 /**
- * Describe image using personality's own model (includes system prompt/jailbreak)
+ * Describe image using specified vision model (includes system prompt/jailbreak)
  */
-async function describeWithPersonalityModel(
+async function describeWithVisionModel(
   attachment: AttachmentMetadata,
-  personality: LoadedPersonality
+  personality: LoadedPersonality,
+  modelName: string
 ): Promise<string> {
-  const modelName = personality.model;
 
   // Determine API key and base URL based on model
   let apiKey: string | undefined;
@@ -170,15 +170,15 @@ async function describeWithPersonalityModel(
 }
 
 /**
- * Describe image using uncensored OpenRouter vision model
+ * Describe image using uncensored Qwen3-VL fallback model
  */
-async function describeWithOpenRouter(
+async function describeWithFallbackVision(
   attachment: AttachmentMetadata,
   systemPrompt: string
 ): Promise<string> {
-  // Use Llama 3.2 90B Vision - uncensored and powerful
+  // Use Qwen3-VL-235B-A22B-Instruct - state-of-the-art, jailbreak-friendly
   const model = new ChatOpenAI({
-    modelName: 'meta-llama/llama-3.2-90b-vision-instruct',
+    modelName: 'qwen/qwen3-vl-235b-a22b-instruct',
     apiKey: process.env.OPENROUTER_API_KEY,
     configuration: {
       baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
