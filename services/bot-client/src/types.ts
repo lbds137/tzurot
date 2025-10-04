@@ -29,6 +29,7 @@ export interface MessageContext {
   serverId?: string;
   messageContent: string;
   conversationHistory?: Array<{
+    id?: string; // Internal UUID for deduplication
     role: 'user' | 'assistant' | 'system';
     content: string;
     createdAt?: string;

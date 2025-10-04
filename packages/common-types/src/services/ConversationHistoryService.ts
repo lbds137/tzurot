@@ -9,6 +9,7 @@ import { createLogger } from '../logger.js';
 const logger = createLogger('ConversationHistoryService');
 
 export interface ConversationMessage {
+  id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: Date;
@@ -70,6 +71,7 @@ export class ConversationHistoryService {
         },
         take: limit,
         select: {
+          id: true,
           role: true,
           content: true,
           createdAt: true,
@@ -77,7 +79,8 @@ export class ConversationHistoryService {
       });
 
       // Reverse to get chronological order (oldest first)
-      const history = messages.reverse().map((msg: { role: string; content: string; createdAt: Date }) => ({
+      const history = messages.reverse().map((msg: { id: string; role: string; content: string; createdAt: Date }) => ({
+        id: msg.id,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
         createdAt: msg.createdAt,

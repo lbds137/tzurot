@@ -37,8 +37,10 @@ export interface AIJobData {
     sessionId?: string;
     isProxyMessage?: boolean;
     conversationHistory?: {
+      id?: string;
       role: 'user' | 'assistant' | 'system';
       content: string;
+      createdAt?: string;
     }[];
   };
 
@@ -87,6 +89,19 @@ export class AIJobProcessor {
     logger.info(`[AIJobProcessor] Processing job ${job.id} (${requestId}) for ${personality.name}`);
 
     try {
+      // Calculate oldest timestamp from conversation history (for LTM deduplication)
+      let oldestHistoryTimestamp: number | undefined;
+      if (context.conversationHistory && context.conversationHistory.length > 0) {
+        const timestamps = context.conversationHistory
+          .map(msg => msg.createdAt ? new Date(msg.createdAt).getTime() : null)
+          .filter((t): t is number => t !== null);
+
+        if (timestamps.length > 0) {
+          oldestHistoryTimestamp = Math.min(...timestamps);
+          logger.debug(`[AIJobProcessor] Oldest conversation message: ${new Date(oldestHistoryTimestamp).toISOString()}`);
+        }
+      }
+
       // Convert conversation history to BaseMessage format
       const conversationHistory = this.convertConversationHistory(
         context.conversationHistory ?? []
@@ -104,7 +119,8 @@ export class AIJobProcessor {
           serverId: context.serverId,
           sessionId: context.sessionId,
           isProxyMessage: context.isProxyMessage,
-          conversationHistory
+          conversationHistory,
+          oldestHistoryTimestamp
         },
         userApiKey
       )) as { content: string; retrievedMemories?: number; tokensUsed?: number };

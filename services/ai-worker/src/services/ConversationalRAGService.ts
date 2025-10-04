@@ -28,6 +28,7 @@ export interface ConversationContext {
   userName?: string;
   isProxyMessage?: boolean;
   conversationHistory?: BaseMessage[];
+  oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
 }
 
 export interface RAGResponse {
@@ -88,12 +89,18 @@ export class ConversationalRAGService {
       }
 
       // 3. Query vector store for relevant memories
+      // Use oldestHistoryTimestamp to avoid retrieving memories that overlap with conversation history
+      if (context.oldestHistoryTimestamp) {
+        logger.debug(`[RAG] Excluding memories newer than ${new Date(context.oldestHistoryTimestamp).toISOString()} to avoid duplicate context`);
+      }
+
       const memoryQueryOptions: MemoryQueryOptions = {
         personalityId: personality.id, // Use personality UUID
         userId: context.userId,
         sessionId: context.sessionId,
         limit: personality.memoryLimit || 15, // Use personality config or default to 15
         scoreThreshold: personality.memoryScoreThreshold || 0.15, // Use personality config or default to 0.15
+        excludeNewerThan: context.oldestHistoryTimestamp, // Filter out memories that overlap with conversation history
         includeGlobal: true,
         includePersonal: true,
         includeSession: !!context.sessionId
@@ -209,6 +216,7 @@ export class ConversationalRAGService {
         sessionId: context.sessionId,
         limit: personality.memoryLimit || 15, // Use personality config or default to 15
         scoreThreshold: personality.memoryScoreThreshold || 0.15, // Use personality config or default to 0.15
+        excludeNewerThan: context.oldestHistoryTimestamp, // Filter out memories that overlap with conversation history
         includeGlobal: true,
         includePersonal: true,
         includeSession: !!context.sessionId

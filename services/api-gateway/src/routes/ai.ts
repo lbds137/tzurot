@@ -64,6 +64,7 @@ const generateRequestSchema = z.object({
     sessionId: z.string().optional(),
     isProxyMessage: z.boolean().optional(),
     conversationHistory: z.array(z.object({
+      id: z.string().optional(), // Internal UUID for LTM deduplication
       role: z.enum(['user', 'assistant', 'system']),
       content: z.string(),
       createdAt: z.string().optional()

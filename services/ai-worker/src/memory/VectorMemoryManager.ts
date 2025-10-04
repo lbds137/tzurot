@@ -44,6 +44,7 @@ export interface MemoryQueryOptions {
   sessionId?: string;
   limit?: number;
   scoreThreshold?: number;
+  excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
   includeGlobal?: boolean;
   includePersonal?: boolean;
   includeSession?: boolean;

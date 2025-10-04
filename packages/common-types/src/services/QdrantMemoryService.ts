@@ -28,6 +28,7 @@ export interface Memory {
 export interface MemorySearchOptions {
   limit?: number;
   scoreThreshold?: number;
+  excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
 }
 
 export class QdrantMemoryService {
@@ -71,6 +72,7 @@ export class QdrantMemoryService {
     const {
       limit = 10,
       scoreThreshold = 0.7,
+      excludeNewerThan,
     } = options;
 
     try {
@@ -80,11 +82,26 @@ export class QdrantMemoryService {
       // Get collection name for this personality
       const collectionName = `personality-${personalityId}`;
 
+      // Build filter to exclude recent memories that overlap with conversation history
+      const filter = excludeNewerThan
+        ? {
+            must: [
+              {
+                key: 'createdAt',
+                range: {
+                  lt: excludeNewerThan, // Less than (older than) the oldest conversation message
+                },
+              },
+            ],
+          }
+        : undefined;
+
       // Search in Qdrant
       const searchResults = await this.qdrant.search(collectionName, {
         vector: queryEmbedding,
         limit,
         score_threshold: scoreThreshold,
+        filter,
         with_payload: true,
       });
 
