@@ -19,6 +19,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       '**/*.js',
+      '**/*.cjs',
+      '**/*.mjs',
       '**/*.d.ts',
       '**/*.test.ts',
       '**/*.spec.ts',
@@ -83,7 +85,20 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
       '@typescript-eslint/await-thenable': 'error',
-      'no-return-await': 'error'
+      'no-return-await': 'error',
+
+      // Pino logger error handling rules
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.property.name="error"] > *.arguments:first-child:not(ObjectExpression)',
+          message: 'logger.error() must use pino format: logger.error({ err: error }, "message"). See packages/common-types/src/logger.ts for details.'
+        },
+        {
+          selector: 'CallExpression[callee.property.name="warn"] > *.arguments:first-child:not(ObjectExpression)',
+          message: 'logger.warn() with errors must use pino format: logger.warn({ err: error }, "message"). See packages/common-types/src/logger.ts for details.'
+        }
+      ]
     }
   }
 );
