@@ -26,13 +26,18 @@ export interface MemoryDocument {
 
 export interface MemoryMetadata {
   personalityId: string;
+  personalityName?: string;
   userId?: string;
   sessionId?: string;
   canonScope: 'global' | 'personal' | 'session';
   timestamp: number;
+  summaryType?: string;
   contextType?: string;
   channelId?: string;
+  guildId?: string;
   serverId?: string;
+  messageIds?: string[];
+  senders?: string[];
 }
 
 /**
@@ -85,14 +90,27 @@ export class QdrantMemoryAdapter {
   /**
    * Add a memory - for storing new interactions
    */
-  async addMemory(_data: {
+  async addMemory(data: {
     text: string;
     metadata: MemoryMetadata;
   }): Promise<void> {
-    // For now, we don't add new memories during conversation
-    // This would require generating embeddings and upserting to Qdrant
-    // TODO: Implement this when we want to store new conversation memories
-    logger.debug('Memory storage not yet implemented - conversations stored in PostgreSQL only');
+    try {
+      await this.qdrantService.addMemory(
+        data.metadata.personalityId,
+        data.metadata.personalityName || 'Unknown',
+        data.text,
+        {
+          summaryType: data.metadata.summaryType,
+          channelId: data.metadata.channelId,
+          guildId: data.metadata.guildId,
+          messageIds: data.metadata.messageIds,
+          senders: data.metadata.senders,
+        }
+      );
+    } catch (error) {
+      logger.error({ err: error }, `Failed to add memory for personality: ${data.metadata.personalityId}`);
+      // Don't throw - memory storage is non-critical, conversation should continue
+    }
   }
 
   /**

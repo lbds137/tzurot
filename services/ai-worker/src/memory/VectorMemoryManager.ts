@@ -19,13 +19,18 @@ export type CanonScope = 'global' | 'personal' | 'session';
 
 export interface MemoryMetadata {
   personalityId: string;
+  personalityName?: string;
   userId?: string;
   sessionId?: string;
   canonScope: CanonScope;
   timestamp: number;
+  summaryType?: string;
   contextType?: 'dm' | 'channel' | 'thread';
   channelId?: string;
+  guildId?: string;
   serverId?: string;
+  messageIds?: string[];
+  senders?: string[];
 }
 
 export interface MemoryDocument {

@@ -139,6 +139,84 @@ export class QdrantMemoryService {
   }
 
   /**
+   * Add a new memory to a personality's collection
+   */
+  async addMemory(
+    personalityId: string,
+    personalityName: string,
+    content: string,
+    metadata: {
+      summaryType?: string;
+      channelId?: string;
+      guildId?: string;
+      messageIds?: string[];
+      senders?: string[];
+    }
+  ): Promise<void> {
+    try {
+      const collectionName = `personality-${personalityId}`;
+
+      // Ensure collection exists (create if needed)
+      await this.ensureCollection(collectionName);
+
+      // Generate embedding for the content
+      const embedding = await this.generateEmbedding(content);
+
+      // Generate a unique ID for this memory
+      const memoryId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+      // Upsert the memory point
+      await this.qdrant.upsert(collectionName, {
+        wait: true,
+        points: [
+          {
+            id: memoryId,
+            vector: embedding,
+            payload: {
+              personalityId,
+              personalityName,
+              content,
+              summaryType: metadata.summaryType || 'conversation',
+              createdAt: Date.now(), // Unix timestamp in milliseconds
+              channelId: metadata.channelId,
+              guildId: metadata.guildId,
+              messageIds: metadata.messageIds,
+              senders: metadata.senders,
+            },
+          },
+        ],
+      });
+
+      logger.info(`Stored new memory for personality ${personalityName} (${personalityId})`);
+    } catch (error) {
+      logger.error({ err: error }, `Failed to add memory for personality: ${personalityId}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Ensure a collection exists (create if needed)
+   */
+  private async ensureCollection(collectionName: string): Promise<void> {
+    try {
+      await this.qdrant.getCollection(collectionName);
+    } catch (error) {
+      if ((error as {status?: number}).status === 404) {
+        // Collection doesn't exist, create it
+        await this.qdrant.createCollection(collectionName, {
+          vectors: {
+            size: 1536, // text-embedding-3-small dimension
+            distance: 'Cosine',
+          },
+        });
+        logger.info(`Created new memory collection: ${collectionName}`);
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  /**
    * Check if a personality has a memory collection
    */
   async hasMemories(personalityId: string): Promise<boolean> {

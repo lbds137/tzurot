@@ -287,18 +287,21 @@ export class ConversationalRAGService {
         await this.memoryManager.addMemory({
           text: interactionText,
           metadata: {
-            personalityId: personality.name,
+            personalityId: personality.id, // Use UUID, not name
+            personalityName: personality.name,
             userId: context.userId,
             sessionId: context.sessionId,
-          canonScope,
-          timestamp: Date.now(),
-          contextType: context.channelId ? 'channel' : 'dm',
-          channelId: context.channelId,
-          serverId: context.serverId
-        }
+            canonScope,
+            timestamp: Date.now(),
+            summaryType: 'conversation',
+            contextType: context.channelId ? 'channel' : 'dm',
+            channelId: context.channelId,
+            guildId: context.serverId,
+            serverId: context.serverId
+          }
         });
 
-        logger.debug(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name}`);
+        logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name}`);
       } else {
         logger.debug(`[RAG] Memory storage disabled - interaction not stored`);
       }
