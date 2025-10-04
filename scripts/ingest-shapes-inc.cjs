@@ -269,6 +269,12 @@ async function ingestMemories(memories, personalityId, personalityName) {
         // Convert memory ID to valid UUID (shapes.inc uses "uuid/uuid" format)
         const validId = uuidv5(memory.id, NAMESPACE_PERSONALITY);
 
+        // Convert timestamp to Unix milliseconds (integer)
+        // shapes.inc stores timestamps as Unix seconds (float)
+        const createdAt = memory.metadata?.created_at
+          ? Math.floor(memory.metadata.created_at * 1000)  // Convert seconds to milliseconds
+          : Date.now();
+
         memoryPoints.push({
           id: validId,
           vector: embedding,
@@ -278,7 +284,7 @@ async function ingestMemories(memories, personalityId, personalityName) {
             summaryType: memory.summary_type,
             content: memory.result,
             metadata: memory.metadata,
-            createdAt: memory.metadata?.created_at || new Date().toISOString(),
+            createdAt, // Unix timestamp in milliseconds (integer)
             channelId: memory.metadata?.discord_channel_id,
             guildId: memory.metadata?.discord_guild_id,
             messageIds: memory.metadata?.msg_ids,
