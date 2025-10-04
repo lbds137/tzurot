@@ -49,8 +49,8 @@ railway variables \
   --set "NODE_ENV=development" \
   --set "LOG_LEVEL=debug" \
   --set "PORT=3000" \
-  --set "REDIS_HOST=\${{Redis.RAILWAY_TCP_PROXY_DOMAIN}}" \
-  --set "REDIS_PORT=\${{Redis.RAILWAY_TCP_PROXY_PORT}}" \
+  --set "REDIS_HOST=\${{Redis.REDISHOST}}" \
+  --set "REDIS_PORT=\${{Redis.REDISPORT}}" \
   --set "REDIS_PASSWORD=\${{Redis.REDISPASSWORD}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/api-gateway/Dockerfile" \
   --service api-gateway
@@ -74,8 +74,8 @@ railway variables \
   --set "QDRANT_API_KEY=${QDRANT_API_KEY}" \
   --set "OPENAI_API_KEY=${OPENAI_API_KEY}" \
   --set "DATABASE_URL=\${{Postgres.DATABASE_URL}}" \
-  --set "REDIS_HOST=\${{Redis.RAILWAY_TCP_PROXY_DOMAIN}}" \
-  --set "REDIS_PORT=\${{Redis.RAILWAY_TCP_PROXY_PORT}}" \
+  --set "REDIS_HOST=\${{Redis.REDISHOST}}" \
+  --set "REDIS_PORT=\${{Redis.REDISPORT}}" \
   --set "REDIS_PASSWORD=\${{Redis.REDISPASSWORD}}" \
   --set "RAILWAY_DOCKERFILE_PATH=services/ai-worker/Dockerfile" \
   --service ai-worker
