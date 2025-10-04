@@ -303,10 +303,13 @@ export class ConversationalRAGService {
         const mediaContent = await formatAttachments(context.attachments, provider);
 
         if (mediaContent && mediaContent.length > 0) {
-          // Build content array: text first, then media
-          const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [
-            { type: 'text', text: userMessage }
-          ];
+          // Build content array: text first (if present), then media
+          const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [];
+
+          // Only add text if message is not empty
+          if (userMessage.trim().length > 0) {
+            content.push({ type: 'text', text: userMessage });
+          }
 
           // Add formatted media content
           content.push(...mediaContent as any[]);
@@ -314,7 +317,7 @@ export class ConversationalRAGService {
           messages.push(new HumanMessage({ content }));
 
           logger.info(
-            { attachmentCount: context.attachments.length, provider },
+            { attachmentCount: context.attachments.length, hasText: userMessage.trim().length > 0, provider },
             'Created multimodal message'
           );
         } else {
