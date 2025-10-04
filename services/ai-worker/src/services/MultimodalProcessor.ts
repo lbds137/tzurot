@@ -12,6 +12,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
+import sharp from 'sharp';
 
 const logger = createLogger('MultimodalProcessor');
 
@@ -172,11 +173,29 @@ async function describeWithVisionModel(
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
-    logger.error({
-      err: error,
+    // Extract detailed error information
+    const errorDetails: any = {
       modelName,
       errorType: error?.constructor?.name,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error'
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    };
+
+    // Try to extract API response details if available
+    if (error && typeof error === 'object') {
+      if ('response' in error) {
+        errorDetails.apiResponse = error.response;
+      }
+      if ('status' in error) {
+        errorDetails.statusCode = error.status;
+      }
+      if ('statusText' in error) {
+        errorDetails.statusText = error.statusText;
+      }
+    }
+
+    logger.error({
+      err: error,
+      ...errorDetails
     }, 'Vision model invocation failed');
     throw error;
   }
@@ -236,12 +255,30 @@ async function describeWithFallbackVision(
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
-    logger.error({
-      err: error,
+    // Extract detailed error information
+    const errorDetails: any = {
       modelName: 'qwen/qwen3-vl-235b-a22b-instruct',
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      apiKey: process.env.OPENROUTER_API_KEY?.substring(0, 15) + '...'
+      apiKeyPrefix: process.env.OPENROUTER_API_KEY?.substring(0, 15) + '...'
+    };
+
+    // Try to extract API response details if available
+    if (error && typeof error === 'object') {
+      if ('response' in error) {
+        errorDetails.apiResponse = error.response;
+      }
+      if ('status' in error) {
+        errorDetails.statusCode = error.status;
+      }
+      if ('statusText' in error) {
+        errorDetails.statusText = error.statusText;
+      }
+    }
+
+    logger.error({
+      err: error,
+      ...errorDetails
     }, 'Fallback vision model invocation failed');
     throw error;
   }
@@ -269,6 +306,7 @@ export async function transcribeAudio(
 
 /**
  * Fetch URL content as base64
+ * Resizes images larger than 10MB to fit within API limits
  */
 async function fetchAsBase64(url: string): Promise<string> {
   const response = await fetch(url);
@@ -276,7 +314,57 @@ async function fetchAsBase64(url: string): Promise<string> {
     throw new Error(`Failed to fetch: ${response.statusText}`);
   }
   const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer).toString('base64');
+  const originalSize = arrayBuffer.byteLength;
+
+  // If image is larger than 10MB, resize it
+  // Base64 encoding adds ~33% overhead, so 10MB → ~13.3MB base64
+  // Most vision APIs have limits around 20MB, but we'll be conservative
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+
+  let imageBuffer = Buffer.from(arrayBuffer);
+
+  if (originalSize > MAX_IMAGE_SIZE) {
+    logger.info({
+      originalSize,
+      maxSize: MAX_IMAGE_SIZE,
+      sizeMB: (originalSize / 1024 / 1024).toFixed(2)
+    }, 'Image exceeds size limit, resizing...');
+
+    // Resize image while maintaining aspect ratio
+    // Target ~8MB to leave headroom for base64 encoding
+    const targetSize = 8 * 1024 * 1024;
+    const scaleFactor = Math.sqrt(targetSize / originalSize);
+
+    const metadata = await sharp(imageBuffer).metadata();
+    const newWidth = Math.floor((metadata.width || 2048) * scaleFactor);
+
+    const resized = await sharp(imageBuffer)
+      .resize(newWidth, null, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .jpeg({ quality: 85 }) // Convert to JPEG with good quality
+      .toBuffer();
+
+    imageBuffer = Buffer.from(resized);
+
+    logger.info({
+      originalSize,
+      resizedSize: imageBuffer.length,
+      reduction: ((1 - imageBuffer.length / originalSize) * 100).toFixed(1) + '%',
+      newWidth
+    }, 'Image resized successfully');
+  }
+
+  const base64 = imageBuffer.toString('base64');
+  logger.info({
+    originalSize,
+    finalSize: imageBuffer.length,
+    base64Size: base64.length,
+    compressionRatio: (base64.length / originalSize).toFixed(2)
+  }, 'Image converted to base64');
+
+  return base64;
 }
 
 /**
