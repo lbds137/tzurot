@@ -47,7 +47,7 @@ COPY prisma ./prisma
 RUN pnpm install --prod --frozen-lockfile
 
 # Generate Prisma client (prisma is now a prod dependency)
-RUN pnpm prisma generate
+RUN npx prisma generate
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
