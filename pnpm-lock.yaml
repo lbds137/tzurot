@@ -61,25 +61,6 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.3.1)
 
-  packages/api-clients:
-    dependencies:
-      '@tzurot/common-types':
-        specifier: workspace:*
-        version: link:../common-types
-      openai:
-        specifier: ^4.24.0
-        version: 4.104.0(zod@3.25.76)
-      pino:
-        specifier: ^8.17.2
-        version: 8.21.0
-      zod:
-        specifier: ^3.22.4
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.13
-
   packages/common-types:
     dependencies:
       '@prisma/client':
@@ -122,9 +103,6 @@ importers:
       '@langchain/openai':
         specifier: ^0.6.14
         version: 0.6.14(@langchain/core@0.3.78)
-      '@tzurot/api-clients':
-        specifier: workspace:*
-        version: link:../../packages/api-clients
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
@@ -190,9 +168,6 @@ importers:
 
   services/bot-client:
     dependencies:
-      '@tzurot/api-clients':
-        specifier: workspace:*
-        version: link:../../packages/api-clients
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types

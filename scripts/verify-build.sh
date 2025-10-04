@@ -9,9 +9,6 @@ echo ""
 echo "📦 Building common-types..."
 pnpm --filter @tzurot/common-types build
 
-echo "📦 Building api-clients..."
-pnpm --filter @tzurot/api-clients build
-
 echo "🚀 Building api-gateway..."
 pnpm --filter api-gateway build
 

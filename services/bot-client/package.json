@@ -15,7 +15,6 @@
     "deploy-commands:railway": "railway run --service bot-client pnpm deploy-commands"
   },
   "dependencies": {
-    "@tzurot/api-clients": "workspace:*",
     "@tzurot/common-types": "workspace:*",
     "discord.js": "^14.14.1",
     "pino": "^8.17.2",
