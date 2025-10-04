@@ -13,7 +13,9 @@ const logger = createLogger('Queue');
 const redisConfig = {
   host: process.env.REDIS_HOST ?? 'localhost',
   port: parseInt(process.env.REDIS_PORT ?? '6379'),
-  password: process.env.REDIS_PASSWORD
+  password: process.env.REDIS_PASSWORD,
+  // Railway private networking requires IPv6
+  family: 6
 };
 
 logger.info('[Queue] Redis config:', {

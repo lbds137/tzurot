@@ -21,6 +21,8 @@ const config = {
     host: process.env.REDIS_HOST ?? 'localhost',
     port: parseInt(process.env.REDIS_PORT ?? '6379'),
     password: process.env.REDIS_PASSWORD,
+    // Railway private networking requires IPv6
+    family: 6,
     // Parse Railway's REDIS_URL if provided
     ...(process.env.REDIS_URL !== undefined && process.env.REDIS_URL.length > 0 ? parseRedisUrl(process.env.REDIS_URL) : {})
   },
@@ -143,14 +145,14 @@ async function main(): Promise<void> {
   worker.on('failed', (job: Job<AIJobData> | undefined, error: Error) => {
     if (job !== undefined) {
       const jobId = job.id ?? 'unknown';
-      logger.error(`[AIWorker] Job ${jobId} failed:`, error);
+      logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
     } else {
-      logger.error('[AIWorker] Job failed (no job data):', error);
+      logger.error({ err: error }, '[AIWorker] Job failed (no job data)');
     }
   });
 
   worker.on('error', (error: Error) => {
-    logger.error('[AIWorker] Worker error:', error);
+    logger.error({ err: error }, '[AIWorker] Worker error');
   });
 
   // Health check endpoint (for Railway health monitoring)
@@ -220,6 +222,6 @@ async function startHealthServer(
 
 // Start the worker
 main().catch((error: unknown) => {
-  logger.fatal('[AIWorker] Fatal error during startup:', error);
+  logger.fatal({ err: error }, '[AIWorker] Fatal error during startup');
   process.exit(1);
 });
