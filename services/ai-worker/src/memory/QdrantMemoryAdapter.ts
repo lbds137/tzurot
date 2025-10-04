@@ -68,6 +68,7 @@ export class QdrantMemoryAdapter {
         pageContent: memory.content,
         metadata: {
           ...memory.metadata,
+          id: memory.id, // Include memory ID for logging/debugging
           score: memory.score,
         },
       }));

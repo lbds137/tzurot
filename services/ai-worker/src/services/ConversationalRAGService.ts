@@ -106,6 +106,17 @@ export class ConversationalRAGService {
 
       if (relevantMemories.length > 0) {
         logger.info(`[RAG] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`);
+
+        // Log each memory with ID, score, timestamp, and truncated content
+        relevantMemories.forEach((doc, idx) => {
+          const id = doc.metadata?.id || 'unknown';
+          const score = doc.metadata?.score || 0;
+          const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+          const content = doc.pageContent.substring(0, 120);
+          const truncated = doc.pageContent.length > 120 ? '...' : '';
+
+          logger.info(`[RAG] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp || 'unknown'} content="${content}${truncated}"`);
+        });
       } else {
         logger.debug(`[RAG] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`);
       }
@@ -131,6 +142,9 @@ export class ConversationalRAGService {
 
       // System message with jailbreak/behavior rules, personality, user persona, and memory
       const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}`;
+
+      // Log prompt size breakdown
+      logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
       logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
 
       messages.push(new SystemMessage(fullSystemPrompt));
@@ -140,6 +154,7 @@ export class ConversationalRAGService {
         const historyLimit = personality.contextWindow || 10;
         const recentHistory = context.conversationHistory.slice(-historyLimit);
         messages.push(...recentHistory);
+        logger.info(`[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`);
       }
 
       // Add current user message
