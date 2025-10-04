@@ -219,12 +219,14 @@ export class AIJobProcessor {
       if (diffDays < 7) return `${diffDays}d ago`;
 
       // For older messages, show absolute date in Eastern timezone (YYYY-MM-DD)
-      return date.toLocaleDateString('en-US', {
+      // toLocaleDateString('en-US') returns MM/DD/YYYY, so rearrange to YYYY-MM-DD
+      const parts = date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         timeZone: 'America/New_York'
-      }).split('/').reverse().join('-'); // Convert MM/DD/YYYY to YYYY-MM-DD
+      }).split('/');
+      return `${parts[2]}-${parts[0]}-${parts[1]}`; // YYYY-MM-DD
     } catch {
       return '';
     }
