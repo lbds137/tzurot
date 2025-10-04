@@ -34,58 +34,52 @@ export class WebhookManager {
 
   /**
    * Get or create a webhook for a channel (or thread's parent channel)
+   * Throws an error if webhook creation fails
    */
-  async getWebhook(channel: TextChannel | ThreadChannel): Promise<Webhook | null> {
-    try {
-      // For threads, we need to get the webhook from the parent channel
-      let targetChannel: TextChannel;
+  async getWebhook(channel: TextChannel | ThreadChannel): Promise<Webhook> {
+    // For threads, we need to get the webhook from the parent channel
+    let targetChannel: TextChannel;
 
-      if (channel.isThread()) {
-        const parent = channel.parent;
-        if (!parent || parent.type !== ChannelType.GuildText) {
-          logger.error(`[WebhookManager] Thread ${channel.id} has no valid text channel parent`);
-          return null;
-        }
-        targetChannel = parent as TextChannel;
-      } else {
-        // channel is TextChannel since it's not a thread
-        targetChannel = channel as TextChannel;
+    if (channel.isThread()) {
+      const parent = channel.parent;
+      if (!parent || parent.type !== ChannelType.GuildText) {
+        throw new Error(`Thread ${channel.id} has no valid text channel parent`);
       }
-
-      // Check cache first (cache by parent channel ID for threads)
-      const cacheKey = targetChannel.id;
-      const cached = this.webhookCache.get(cacheKey);
-      if (cached !== undefined && Date.now() - cached.lastUsed < this.cacheTimeout) {
-        logger.debug(`[WebhookManager] Using cached webhook for channel ${cacheKey}`);
-        cached.lastUsed = Date.now();
-        return cached.webhook;
-      }
-
-      // Fetch existing webhooks
-      const webhooks = await targetChannel.fetchWebhooks();
-      let webhook = webhooks.find((wh: Webhook) => wh.owner?.id === targetChannel.client.user?.id);
-
-      // Create new webhook if none exists
-      if (webhook === undefined) {
-        logger.info(`[WebhookManager] Creating new webhook for channel ${cacheKey}`);
-        webhook = await targetChannel.createWebhook({
-          name: 'Tzurot Personalities',
-          reason: 'Multi-personality bot system'
-        });
-      }
-
-      // Cache the webhook
-      this.webhookCache.set(cacheKey, {
-        webhook,
-        lastUsed: Date.now()
-      });
-
-      return webhook;
-
-    } catch (error) {
-      logger.error({ err: error }, `[WebhookManager] Failed to get/create webhook for channel ${channel.id}`);
-      return null;
+      targetChannel = parent as TextChannel;
+    } else {
+      // channel is TextChannel since it's not a thread
+      targetChannel = channel as TextChannel;
     }
+
+    // Check cache first (cache by parent channel ID for threads)
+    const cacheKey = targetChannel.id;
+    const cached = this.webhookCache.get(cacheKey);
+    if (cached !== undefined && Date.now() - cached.lastUsed < this.cacheTimeout) {
+      logger.debug(`[WebhookManager] Using cached webhook for channel ${cacheKey}`);
+      cached.lastUsed = Date.now();
+      return cached.webhook;
+    }
+
+    // Fetch existing webhooks
+    const webhooks = await targetChannel.fetchWebhooks();
+    let webhook = webhooks.find((wh: Webhook) => wh.owner?.id === targetChannel.client.user?.id);
+
+    // Create new webhook if none exists
+    if (webhook === undefined) {
+      logger.info(`[WebhookManager] Creating new webhook for channel ${cacheKey}`);
+      webhook = await targetChannel.createWebhook({
+        name: 'Tzurot Personalities',
+        reason: 'Multi-personality bot system'
+      });
+    }
+
+    // Cache the webhook
+    this.webhookCache.set(cacheKey, {
+      webhook,
+      lastUsed: Date.now()
+    });
+
+    return webhook;
   }
 
   /**
@@ -93,7 +87,7 @@ export class WebhookManager {
    * Handles both regular channels and threads
    * Returns the sent message for tracking purposes
    *
-   * NOTE: This will throw if webhook creation fails (missing MANAGE_WEBHOOKS permission).
+   * NOTE: This will throw if webhook creation/sending fails.
    * DM handling should be done in the message handler, not here.
    */
   async sendAsPersonality(
@@ -102,10 +96,6 @@ export class WebhookManager {
     content: string
   ): Promise<any> {
     const webhook = await this.getWebhook(channel);
-
-    if (webhook === null) {
-      throw new Error(`Failed to get webhook for channel ${channel.id} - missing MANAGE_WEBHOOKS permission?`);
-    }
 
     // Build webhook send options
     const webhookOptions: {

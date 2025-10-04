@@ -251,13 +251,9 @@ export class MessageHandler {
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error handling personality message');
 
-      // Check if it's a webhook permission error
+      // Show the actual error to help with debugging
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('MANAGE_WEBHOOKS') || errorMessage.includes('webhook')) {
-        await message.reply('I need the "Manage Webhooks" permission to send personality messages in this channel!').catch(() => {});
-      } else {
-        await message.reply('Sorry, I couldn\'t generate a response right now.').catch(() => {});
-      }
+      await message.reply(`Error: ${errorMessage}`).catch(() => {});
     }
   }
 
