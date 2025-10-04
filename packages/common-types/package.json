@@ -12,6 +12,9 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@prisma/client": "^6.16.3",
+    "@qdrant/js-client-rest": "^1.15.1",
+    "openai": "^6.1.0",
     "pino": "^8.21.0",
     "zod": "^3.22.4"
   },
