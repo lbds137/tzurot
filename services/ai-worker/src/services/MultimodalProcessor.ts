@@ -13,6 +13,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import sharp from 'sharp';
+import OpenAI from 'openai';
 
 const logger = createLogger('MultimodalProcessor');
 
@@ -285,21 +286,61 @@ async function describeWithFallbackVision(
 }
 
 /**
- * Transcribe audio (voice message or audio file)
+ * Transcribe audio (voice message or audio file) using Whisper
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
   _personality: LoadedPersonality
 ): Promise<string> {
   try {
-    // Use Gemini for audio transcription (native support)
-    // Or could use Whisper API - both work well
-    logger.info({ attachment }, 'Transcribing audio');
+    logger.info({
+      url: attachment.url,
+      duration: attachment.duration,
+      contentType: attachment.contentType
+    }, 'Transcribing audio with Whisper');
 
-    // For now, return placeholder - will implement Gemini/Whisper transcription
-    return `[Voice message: ${attachment.duration || 0}s - transcription pending]`;
+    // Initialize OpenAI client for Whisper
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    // Fetch the audio file
+    const response = await fetch(attachment.url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio: ${response.statusText}`);
+    }
+
+    // Convert to buffer and create File object
+    const audioBuffer = await response.arrayBuffer();
+    const blob = new Blob([audioBuffer], { type: attachment.contentType });
+    const audioFile = new File(
+      [blob],
+      attachment.name || 'audio.ogg',
+      { type: attachment.contentType }
+    );
+
+    // Transcribe using Whisper
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: 'whisper-1',
+      language: 'en', // Can be made configurable
+      response_format: 'text',
+    });
+
+    logger.info({
+      duration: attachment.duration,
+      transcriptionLength: transcription.length
+    }, 'Audio transcribed successfully');
+
+    return transcription;
   } catch (error) {
-    logger.error({ err: error, attachment }, 'Failed to transcribe audio');
+    logger.error({
+      err: error,
+      url: attachment.url,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error'
+    }, 'Failed to transcribe audio');
+
+    // Fallback to basic description
     return `[Voice message: ${attachment.duration || 0}s]`;
   }
 }
