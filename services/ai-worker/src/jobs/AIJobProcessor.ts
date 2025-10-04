@@ -42,6 +42,16 @@ export interface AIJobData {
       content: string;
       createdAt?: string;
     }[];
+    // Multimodal support
+    attachments?: Array<{
+      url: string;
+      contentType: string;
+      name?: string;
+      size?: number;
+      isVoiceMessage?: boolean;
+      duration?: number;
+      waveform?: string;
+    }>;
   };
 
   // User's API key (for BYOK)

@@ -17,8 +17,19 @@ import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { VectorMemoryManager, MemoryQueryOptions } from '../memory/VectorMemoryManager.js';
 import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
+import { formatAttachments } from './MultimodalFormatter.js';
 
 const logger = createLogger('ConversationalRAGService');
+
+export interface AttachmentMetadata {
+  url: string;
+  contentType: string;
+  name?: string;
+  size?: number;
+  isVoiceMessage?: boolean;
+  duration?: number;
+  waveform?: string;
+}
 
 export interface ConversationContext {
   userId: string;
@@ -29,6 +40,8 @@ export interface ConversationContext {
   isProxyMessage?: boolean;
   conversationHistory?: BaseMessage[];
   oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
+  // Multimodal support
+  attachments?: AttachmentMetadata[];
 }
 
 export interface RAGResponse {
@@ -283,7 +296,35 @@ export class ConversationalRAGService {
         messages.push(...recentHistory);
       }
 
-      messages.push(new HumanMessage(userMessage));
+      // Build human message with multimodal support
+      if (context.attachments && context.attachments.length > 0) {
+        // Multimodal message with text + media
+        const provider = process.env.AI_PROVIDER || 'openrouter';
+        const mediaContent = await formatAttachments(context.attachments, provider);
+
+        if (mediaContent && mediaContent.length > 0) {
+          // Build content array: text first, then media
+          const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [
+            { type: 'text', text: userMessage }
+          ];
+
+          // Add formatted media content
+          content.push(...mediaContent as any[]);
+
+          messages.push(new HumanMessage({ content }));
+
+          logger.info(
+            { attachmentCount: context.attachments.length, provider },
+            'Created multimodal message'
+          );
+        } else {
+          // Fallback to text-only if formatting failed
+          messages.push(new HumanMessage(userMessage));
+        }
+      } else {
+        // Text-only message
+        messages.push(new HumanMessage(userMessage));
+      }
 
       const model = this.getModel(
         personality.model,

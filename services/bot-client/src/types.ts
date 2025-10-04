@@ -20,6 +20,20 @@ export interface BotPersonality {
 }
 
 /**
+ * Attachment metadata (provider-agnostic format)
+ */
+export interface AttachmentMetadata {
+  url: string;
+  contentType: string; // MIME type (image/jpeg, audio/ogg, etc)
+  name?: string;
+  size?: number;
+  // Voice message specific metadata (Discord.js v14)
+  isVoiceMessage?: boolean;
+  duration?: number; // seconds
+  waveform?: string; // base64 encoded
+}
+
+/**
  * Message context for AI generation
  */
 export interface MessageContext {
@@ -38,6 +52,8 @@ export interface MessageContext {
     author: string;
     content: string;
   };
+  // Multimodal support (images, audio, etc)
+  attachments?: AttachmentMetadata[];
 }
 
 /**

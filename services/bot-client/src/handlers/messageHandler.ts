@@ -185,14 +185,29 @@ export class MessageHandler {
         createdAt: msg.createdAt.toISOString() // Include timestamp for context
       }));
 
-      // Build context with conversation history
+      // Extract attachments if present (images, audio, etc)
+      const attachments = message.attachments.size > 0
+        ? Array.from(message.attachments.values()).map(attachment => ({
+            url: attachment.url,
+            contentType: attachment.contentType || 'application/octet-stream',
+            name: attachment.name,
+            size: attachment.size,
+            // Discord.js v14 voice message metadata
+            isVoiceMessage: attachment.duration !== null,
+            duration: attachment.duration ?? undefined,
+            waveform: attachment.waveform ?? undefined
+          }))
+        : undefined;
+
+      // Build context with conversation history and attachments
       const context: MessageContext = {
         userId: userId, // Use database UUID, not Discord ID
         userName: message.author.username,
         channelId: message.channel.id,
         serverId: message.guild?.id,
         messageContent: content,
-        conversationHistory
+        conversationHistory,
+        attachments
       };
 
       // Save user message to conversation history
