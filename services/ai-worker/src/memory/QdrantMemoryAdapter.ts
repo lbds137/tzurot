@@ -65,7 +65,7 @@ export class QdrantMemoryAdapter {
         query,
         {
           limit: options.limit || 10,
-          scoreThreshold: options.scoreThreshold || 0.15, // Use personality config or default to 0.15
+          scoreThreshold: options.scoreThreshold || 0.10, // Lowered from 0.15 to improve recall of older memories
           excludeNewerThan: options.excludeNewerThan, // Filter out memories that overlap with conversation history
           userId: options.userId, // USER ISOLATION - critical for privacy
           sessionId: options.sessionId,

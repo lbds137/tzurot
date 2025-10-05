@@ -152,17 +152,20 @@ export class QdrantMemoryService {
         ? { must: mustConditions }
         : undefined;
 
-      // Search in Qdrant
+      // Search in Qdrant with 10x limit to get more candidates for temporal diversity
+      // This helps overcome recency bias in vector similarity by giving us a larger
+      // pool to select diverse memories from
+      const candidateLimit = limit * 10;
       const searchResults = await this.qdrant.search(collectionName, {
         vector: queryEmbedding,
-        limit,
+        limit: candidateLimit,
         score_threshold: scoreThreshold,
         filter,
         with_payload: true,
       });
 
       // Map results to Memory objects
-      const memories: Memory[] = searchResults.map(result => ({
+      const candidateMemories: Memory[] = searchResults.map(result => ({
         id: result.id.toString(),
         content: (result.payload?.content as string) || '',
         metadata: {
@@ -181,7 +184,10 @@ export class QdrantMemoryService {
         score: result.score,
       }));
 
-      logger.debug(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
+      // Apply temporal diversity reranking to ensure a mix of recent and older memories
+      const memories = this.rerankWithTemporalDiversity(candidateMemories, limit);
+
+      logger.info(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
       return memories;
 
     } catch (error) {
@@ -194,6 +200,67 @@ export class QdrantMemoryService {
       logger.error({ err: error }, `Failed to search memories for personality: ${personalityId}`);
       throw error;
     }
+  }
+
+  /**
+   * Rerank memories to ensure temporal diversity
+   *
+   * Strategy: Group memories by date and use round-robin selection to ensure
+   * a mix of recent and older memories, weighted by similarity score.
+   */
+  private rerankWithTemporalDiversity(memories: Memory[], limit: number): Memory[] {
+    if (memories.length <= limit) {
+      return memories;
+    }
+
+    // Group memories by date (YYYY-MM-DD)
+    const byDate = new Map<string, Memory[]>();
+    for (const memory of memories) {
+      const date = new Date(memory.metadata.createdAt).toISOString().split('T')[0];
+      if (!byDate.has(date)) {
+        byDate.set(date, []);
+      }
+      byDate.get(date)!.push(memory);
+    }
+
+    // Sort each date group by score (highest first)
+    for (const dateGroup of byDate.values()) {
+      dateGroup.sort((a, b) => (b.score || 0) - (a.score || 0));
+    }
+
+    // Get unique dates sorted by the best score in each date
+    const datesByBestScore = Array.from(byDate.entries())
+      .map(([date, memories]) => ({
+        date,
+        memories,
+        bestScore: memories[0].score || 0,
+      }))
+      .sort((a, b) => b.bestScore - a.bestScore);
+
+    // Round-robin selection across dates to ensure temporal diversity
+    const selected: Memory[] = [];
+    const dateIterators = datesByBestScore.map(({ memories }) => ({
+      memories,
+      index: 0,
+    }));
+
+    // Keep selecting until we have enough memories
+    while (selected.length < limit && dateIterators.length > 0) {
+      // Filter out exhausted iterators
+      const activeIterators = dateIterators.filter(it => it.index < it.memories.length);
+      if (activeIterators.length === 0) break;
+
+      // Select one memory from each active date group (round-robin)
+      for (const iterator of activeIterators) {
+        if (selected.length >= limit) break;
+        selected.push(iterator.memories[iterator.index]);
+        iterator.index++;
+      }
+    }
+
+    logger.info(`Temporal diversity: ${memories.length} candidates → ${selected.length} diverse memories from ${byDate.size} unique dates`);
+
+    return selected;
   }
 
   /**
