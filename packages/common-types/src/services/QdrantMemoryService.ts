@@ -271,7 +271,7 @@ export class QdrantMemoryService {
               sessionId: metadata.sessionId, // Session-specific memories
               canonScope: metadata.canonScope || 'personal', // Default to personal scope
               summaryType: metadata.summaryType || 'conversation',
-              createdAt: Date.now(), // Unix timestamp in milliseconds
+              createdAt: Math.floor(Date.now()), // Unix timestamp in milliseconds (integer only for Qdrant index)
               channelId: metadata.channelId,
               guildId: metadata.guildId,
               messageIds: metadata.messageIds,
@@ -302,6 +302,9 @@ export class QdrantMemoryService {
             size: 1536, // text-embedding-3-small dimension
             distance: 'Cosine',
           },
+          optimizers_config: {
+            indexing_threshold: 0, // Index immediately to ensure all points are indexed
+          },
         });
         logger.info(`Created new memory collection: ${collectionName}`);
       } else {
@@ -322,6 +325,7 @@ export class QdrantMemoryService {
         await this.qdrant.createPayloadIndex(collectionName, {
           field_name: field,
           field_schema: schema,
+          wait: true, // CRITICAL: Wait for indexing to complete on all existing points
         });
         logger.info(`Created ${field} index for collection: ${collectionName}`);
       } catch (error) {
