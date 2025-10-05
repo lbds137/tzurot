@@ -316,6 +316,13 @@ export class MessageHandler {
 
     if (atMatch !== null) {
       const personalityName = atMatch[1];
+
+      // Ignore Discord user ID mentions (all digits)
+      if (/^\d+$/.test(personalityName)) {
+        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
+        return null;
+      }
+
       const cleanContent = content.replace(atMentionRegex, '').trim();
       return { personalityName, cleanContent };
     }
@@ -326,6 +333,13 @@ export class MessageHandler {
 
     if (ampMatch !== null) {
       const personalityName = ampMatch[1];
+
+      // Ignore Discord user ID mentions (all digits)
+      if (/^\d+$/.test(personalityName)) {
+        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
+        return null;
+      }
+
       const cleanContent = content.replace(ampMentionRegex, '').trim();
       return { personalityName, cleanContent };
     }
