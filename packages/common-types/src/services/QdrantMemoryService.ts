@@ -92,11 +92,15 @@ export class QdrantMemoryService {
     } = options;
 
     try {
-      // Generate embedding for the query
-      const queryEmbedding = await this.generateEmbedding(query);
-
       // Get collection name for this personality
       const collectionName = `personality-${personalityId}`;
+
+      // Ensure collection and indexes exist before searching
+      // This prevents "index required but not found" errors
+      await this.ensureCollection(collectionName);
+
+      // Generate embedding for the query
+      const queryEmbedding = await this.generateEmbedding(query);
 
       // Build filter with USER ISOLATION
       const mustConditions: any[] = [];
