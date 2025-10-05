@@ -15,13 +15,11 @@ import {
 } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
-import { MessageContent, createLogger, type LoadedPersonality, getConfig, AI_DEFAULTS, APP_SETTINGS } from '@tzurot/common-types';
+import { MessageContent, createLogger, type LoadedPersonality, AI_DEFAULTS, APP_SETTINGS } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
-import { formatAttachments } from './MultimodalFormatter.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
-const config = getConfig();
 
 export interface AttachmentMetadata {
   url: string;
@@ -134,8 +132,8 @@ export class ConversationalRAGService {
         );
       }
 
-      // Build human message with multimodal support
-      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments, context);
+      // Build human message with attachment descriptions
+      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments);
       messages.push(humanMessage);
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
@@ -175,62 +173,44 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Build human message with attachments (multimodal or text-only)
+   * Build human message with attachments
+   *
+   * For both images and voice messages, we use text descriptions instead of
+   * raw media data. This matches how we handle conversation history and:
+   * - Simplifies the code (no multimodal complexity)
+   * - Reduces API costs (vision/audio APIs are expensive)
+   * - Provides consistent behavior between current turn and history
    */
   private async buildHumanMessage(
     userMessage: string,
-    processedAttachments: ProcessedAttachment[],
-    context: ConversationContext
+    processedAttachments: ProcessedAttachment[]
   ): Promise<HumanMessage> {
     if (processedAttachments.length === 0) {
       return new HumanMessage(userMessage);
     }
 
-    // Multimodal message: send both raw media (current turn) + text description
-    const provider = config.AI_PROVIDER;
-    const mediaContent = await formatAttachments(context.attachments!, provider);
-
-    if (mediaContent && mediaContent.length > 0) {
-      // Build content array: text first (if present), then media
-      const content: Array<{ type: string; text?: string; data?: string; mime_type?: string }> = [];
-
-      // Combine user message with attachment descriptions for context
-      let fullText = userMessage.trim();
-      const descriptions = processedAttachments
-        .map(a => a.description)
-        .filter(d => d && !d.startsWith('['))
-        .join('\n\n');
-
-      if (descriptions) {
-        fullText = fullText
-          ? `${fullText}\n\n[Attached media descriptions for context:\n${descriptions}]`
-          : `[Attached media:\n${descriptions}]`;
-      }
-
-      if (fullText.length > 0) {
-        content.push({ type: 'text', text: fullText });
-      }
-
-      // Add formatted media content (raw images/audio for this turn)
-      content.push(...mediaContent as any[]);
-
-      logger.info(
-        { attachmentCount: context.attachments!.length, hasText: userMessage.trim().length > 0, provider },
-        'Created multimodal message with descriptions'
-      );
-
-      return new HumanMessage({ content });
-    }
-
-    // Fallback: use descriptions only if media formatting failed
+    // Get text descriptions for all attachments
     const descriptions = processedAttachments
       .map(a => a.description)
+      .filter(d => d && !d.startsWith('['))
       .join('\n\n');
-    const fullText = userMessage.trim()
-      ? `${userMessage}\n\n${descriptions}`
-      : descriptions;
 
-    logger.info('Created text-only message with attachment descriptions (media formatting failed)');
+    // For voice-only messages (no text), use transcription as primary message
+    // For images or mixed content, combine with user message
+    const fullText = userMessage.trim() === 'Hello' && descriptions
+      ? descriptions // Voice message with no text content
+      : userMessage.trim()
+      ? `${userMessage}\n\n${descriptions}` // Text + attachments
+      : descriptions; // Attachments only
+
+    logger.info(
+      {
+        attachmentCount: processedAttachments.length,
+        hasUserText: userMessage.trim().length > 0 && userMessage !== 'Hello',
+        attachmentTypes: processedAttachments.map(a => a.type),
+      },
+      'Built message with attachment descriptions'
+    );
 
     return new HumanMessage(fullText);
   }
