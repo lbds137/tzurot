@@ -200,8 +200,9 @@ export class AIJobProcessor {
     history: { role: 'user' | 'assistant' | 'system'; content: string; createdAt?: string }[]
   ): BaseMessage[] {
     return history.map(msg => {
-      // Format content with relative timestamp if available
-      const content = msg.createdAt
+      // Only add timestamps to user messages (not assistant responses)
+      // This prevents the AI from seeing and mimicking the timestamp format
+      const content = msg.role === 'user' && msg.createdAt
         ? `[${this.formatRelativeTime(msg.createdAt)}] ${msg.content}`
         : msg.content;
 
