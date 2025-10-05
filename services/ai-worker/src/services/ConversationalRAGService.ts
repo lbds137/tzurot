@@ -91,13 +91,24 @@ export class ConversationalRAGService {
     userApiKey?: string
   ): Promise<RAGResponse> {
     try {
-      // 1. Format the user's message
+      // 1. Process attachments FIRST to get transcriptions for memory search
+      let processedAttachments: ProcessedAttachment[] = [];
+      if (context.attachments && context.attachments.length > 0) {
+        processedAttachments = await processAttachments(context.attachments, personality);
+        logger.info(
+          { count: processedAttachments.length },
+          'Processed attachments to text descriptions'
+        );
+      }
+
+      // 2. Format the user's message (now with transcriptions available)
       const userMessage = this.formatUserMessage(message, context);
 
-      // Process attachments early (needed for history storage later)
-      let processedAttachments: ProcessedAttachment[] = [];
+      // 3. Build the actual message text for memory search
+      // For voice messages, use transcription instead of "Hello" fallback
+      const searchQuery = this.buildSearchQuery(userMessage, processedAttachments);
 
-      // 2. Fetch user's persona if available
+      // 4. Fetch user's persona if available
       const userPersona = await this.getUserPersona(context.userId);
       if (userPersona) {
         logger.info(`[RAG] Loaded user persona for ${context.userId}: ${userPersona.substring(0, 100)}...`);
@@ -105,8 +116,8 @@ export class ConversationalRAGService {
         logger.warn(`[RAG] No user persona found for ${context.userId}`);
       }
 
-      // 3. Query vector store for relevant memories
-      const relevantMemories = await this.retrieveRelevantMemories(personality, userMessage, context);
+      // 5. Query vector store for relevant memories using actual content
+      const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
       // 4. Build the prompt with user persona and memory context
       const fullSystemPrompt = this.buildFullSystemPrompt(personality, userPersona, relevantMemories, context);
@@ -123,16 +134,7 @@ export class ConversationalRAGService {
         logger.info(`[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`);
       }
 
-      // Process attachments to get text descriptions (for history/LTM)
-      if (context.attachments && context.attachments.length > 0) {
-        processedAttachments = await processAttachments(context.attachments, personality);
-        logger.info(
-          { count: processedAttachments.length },
-          'Processed attachments to text descriptions'
-        );
-      }
-
-      // Build human message with attachment descriptions
+      // Build human message with attachment descriptions (already processed earlier)
       const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments);
       messages.push(humanMessage);
 
@@ -170,6 +172,38 @@ export class ConversationalRAGService {
       logger.error({ err: error }, `[RAG] Error generating response for ${personality.name}`);
       throw error;
     }
+  }
+
+  /**
+   * Build search query for memory retrieval
+   *
+   * Uses actual transcription/description for voice messages and images,
+   * not the "Hello" fallback.
+   */
+  private buildSearchQuery(
+    userMessage: string,
+    processedAttachments: ProcessedAttachment[]
+  ): string {
+    if (processedAttachments.length === 0) {
+      return userMessage;
+    }
+
+    // Get text descriptions for all attachments
+    const descriptions = processedAttachments
+      .map(a => a.description)
+      .filter(d => d && !d.startsWith('['))
+      .join('\n\n');
+
+    // For voice-only messages (no text), use transcription as search query
+    // For images or mixed content, combine with user message
+    if (userMessage.trim() === 'Hello' && descriptions) {
+      logger.info('[RAG] Using voice transcription for memory search instead of "Hello" fallback');
+      return descriptions; // Voice message - use transcription
+    }
+
+    return userMessage.trim()
+      ? `${userMessage}\n\n${descriptions}` // Text + attachments
+      : descriptions; // Attachments only
   }
 
   /**
