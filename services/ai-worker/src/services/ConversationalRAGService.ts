@@ -117,6 +117,7 @@ export class ConversationalRAGService {
       }
 
       // 5. Query vector store for relevant memories using actual content
+      logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, 150)}${searchQuery.length > 150 ? '...' : ''}"`);
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
       // 4. Build the prompt with user persona and memory context
