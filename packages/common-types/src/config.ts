@@ -26,7 +26,7 @@ export const envSchema = z.object({
   EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
 
   // Redis Configuration
-  REDIS_URL: z.string().url().optional().default('redis://localhost:6379'),
+  REDIS_URL: z.string().url().optional(), // Railway provides this, no default!
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default('6379'),
   REDIS_PASSWORD: z.string().optional(),
