@@ -13,7 +13,7 @@
  */
 
 import express from 'express';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
 
@@ -25,12 +25,13 @@ import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplic
 import type { HealthResponse, ErrorResponse } from './types.js';
 
 const logger = createLogger('api-gateway');
+const envConfig = getConfig();
 
 // Configuration from environment
 const config = {
-  port: parseInt(process.env.PORT ?? '3000'),
-  env: process.env.NODE_ENV ?? 'development',
-  corsOrigins: process.env.CORS_ORIGINS?.split(',') ?? ['*']
+  port: envConfig.API_GATEWAY_PORT,
+  env: envConfig.NODE_ENV,
+  corsOrigins: envConfig.CORS_ORIGINS
 };
 
 // Track startup time for uptime calculation

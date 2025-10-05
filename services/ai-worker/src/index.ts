@@ -11,33 +11,34 @@
 import { Worker, Job } from 'bullmq';
 import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
+const envConfig = getConfig();
 
 // Configuration from environment
 const config = {
   redis: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.REDIS_PORT ?? '6379'),
-    password: process.env.REDIS_PASSWORD,
+    host: envConfig.REDIS_HOST,
+    port: envConfig.REDIS_PORT,
+    password: envConfig.REDIS_PASSWORD,
     // Railway private networking requires IPv6
     family: 6,
     // Parse Railway's REDIS_URL if provided
-    ...(process.env.REDIS_URL !== undefined && process.env.REDIS_URL.length > 0 ? parseRedisUrl(process.env.REDIS_URL) : {})
+    ...(envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : {})
   },
   chroma: {
-    url: process.env.CHROMA_URL ?? 'http://localhost:8000'
+    url: envConfig.CHROMA_URL
   },
   openai: {
-    apiKey: process.env.OPENAI_API_KEY // For embeddings
+    apiKey: envConfig.OPENAI_API_KEY // For embeddings
   },
   worker: {
-    concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '5'),
-    queueName: process.env.QUEUE_NAME ?? 'ai-requests'
+    concurrency: envConfig.WORKER_CONCURRENCY,
+    queueName: envConfig.QUEUE_NAME
   },
   features: {
-    enableMemory: process.env.ENABLE_MEMORY === 'true'
+    enableMemory: envConfig.ENABLE_MEMORY
   }
 };
 
@@ -157,7 +158,7 @@ async function main(): Promise<void> {
 
   // Health check endpoint (for Railway health monitoring)
   // We'll add a simple HTTP server for health checks
-  if (process.env.ENABLE_HEALTH_SERVER !== 'false') {
+  if (envConfig.ENABLE_HEALTH_SERVER) {
     await startHealthServer(memoryManager, worker);
   }
 
@@ -183,7 +184,7 @@ async function startHealthServer(
   worker: Worker
 ): Promise<void> {
   const http = await import('http');
-  const port = parseInt(process.env.PORT ?? '3001');
+  const port = envConfig.PORT;
 
   const server = http.createServer((req, res) => {
     void (async () => {

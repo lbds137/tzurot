@@ -4,10 +4,11 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
 import type { BotPersonality, MessageContext, GatewayResponse, JobResult } from '../types.js';
 
 const logger = createLogger('GatewayClient');
+const config = getConfig();
 
 /**
  * API Gateway client for making AI generation requests
@@ -19,10 +20,10 @@ export class GatewayClient {
 
   constructor(
     baseUrl?: string,
-    pollInterval = 1000,
-    maxPollAttempts = 120
+    pollInterval = TIMEOUTS.GATEWAY_POLL_INTERVAL,
+    maxPollAttempts = TIMEOUTS.GATEWAY_MAX_POLL_ATTEMPTS
   ) {
-    this.baseUrl = baseUrl ?? process.env.GATEWAY_URL ?? 'http://localhost:3000';
+    this.baseUrl = baseUrl ?? config.GATEWAY_URL;
     this.pollInterval = pollInterval;
     this.maxPollAttempts = maxPollAttempts;
 

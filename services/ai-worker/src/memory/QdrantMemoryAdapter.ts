@@ -67,6 +67,11 @@ export class QdrantMemoryAdapter {
           limit: options.limit || 10,
           scoreThreshold: options.scoreThreshold || 0.15, // Use personality config or default to 0.15
           excludeNewerThan: options.excludeNewerThan, // Filter out memories that overlap with conversation history
+          userId: options.userId, // USER ISOLATION - critical for privacy
+          sessionId: options.sessionId,
+          includeGlobal: options.includeGlobal,
+          includePersonal: options.includePersonal,
+          includeSession: options.includeSession,
         }
       );
 
@@ -102,6 +107,9 @@ export class QdrantMemoryAdapter {
         data.metadata.personalityName || 'Unknown',
         data.text,
         {
+          userId: data.metadata.userId, // USER ISOLATION - critical for privacy
+          sessionId: data.metadata.sessionId,
+          canonScope: data.metadata.canonScope,
           summaryType: data.metadata.summaryType,
           channelId: data.metadata.channelId,
           guildId: data.metadata.guildId,

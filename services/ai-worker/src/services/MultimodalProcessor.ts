@@ -10,12 +10,13 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig, MEDIA_LIMITS, AI_DEFAULTS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import sharp from 'sharp';
 import OpenAI from 'openai';
 
 const logger = createLogger('MultimodalProcessor');
+const config = getConfig();
 
 export interface AttachmentMetadata {
   url: string;
@@ -121,20 +122,20 @@ async function describeWithVisionModel(
   let baseURL: string | undefined;
 
   if (modelName.includes('gpt-') || modelName.includes('openai')) {
-    apiKey = process.env.OPENAI_API_KEY;
+    apiKey = config.OPENAI_API_KEY;
   } else if (modelName.includes('claude')) {
-    apiKey = process.env.ANTHROPIC_API_KEY;
+    apiKey = config.ANTHROPIC_API_KEY;
   } else {
     // Use OpenRouter for other models
-    apiKey = process.env.OPENROUTER_API_KEY;
-    baseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+    apiKey = config.OPENROUTER_API_KEY;
+    baseURL = config.OPENROUTER_BASE_URL;
   }
 
   const model = new ChatOpenAI({
     modelName,
     apiKey,
     configuration: baseURL ? { baseURL } : undefined,
-    temperature: 0.3, // Lower temperature for objective descriptions
+    temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
 
   const messages = [];
@@ -211,12 +212,12 @@ async function describeWithFallbackVision(
 ): Promise<string> {
   // Use Qwen3-VL-235B-A22B-Instruct - state-of-the-art, jailbreak-friendly
   const model = new ChatOpenAI({
-    modelName: 'qwen/qwen3-vl-235b-a22b-instruct',
-    apiKey: process.env.OPENROUTER_API_KEY,
+    modelName: config.VISION_FALLBACK_MODEL,
+    apiKey: config.OPENROUTER_API_KEY,
     configuration: {
-      baseURL: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      baseURL: config.OPENROUTER_BASE_URL,
     },
-    temperature: 0.3,
+    temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });
 
   const messages = [];
@@ -250,7 +251,7 @@ async function describeWithFallbackVision(
   );
 
   try {
-    logger.info({ model: 'qwen/qwen3-vl-235b-a22b-instruct' }, 'Invoking fallback vision model');
+    logger.info({ model: config.VISION_FALLBACK_MODEL }, 'Invoking fallback vision model');
     const response = await model.invoke(messages);
     return typeof response.content === 'string'
       ? response.content
@@ -258,10 +259,10 @@ async function describeWithFallbackVision(
   } catch (error) {
     // Extract detailed error information
     const errorDetails: any = {
-      modelName: 'qwen/qwen3-vl-235b-a22b-instruct',
+      modelName: config.VISION_FALLBACK_MODEL,
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      apiKeyPrefix: process.env.OPENROUTER_API_KEY?.substring(0, 15) + '...'
+      apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...'
     };
 
     // Try to extract API response details if available
@@ -301,7 +302,7 @@ export async function transcribeAudio(
 
     // Initialize OpenAI client for Whisper
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: config.OPENAI_API_KEY,
     });
 
     // Fetch the audio file
@@ -322,8 +323,8 @@ export async function transcribeAudio(
     // Transcribe using Whisper
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
-      model: 'whisper-1',
-      language: 'en', // Can be made configurable
+      model: config.WHISPER_MODEL,
+      language: AI_DEFAULTS.WHISPER_LANGUAGE,
       response_format: 'text',
     });
 
@@ -357,24 +358,21 @@ async function fetchAsBase64(url: string): Promise<string> {
   const arrayBuffer = await response.arrayBuffer();
   const originalSize = arrayBuffer.byteLength;
 
-  // If image is larger than 10MB, resize it
+  // If image is larger than configured max size, resize it
   // Base64 encoding adds ~33% overhead, so 10MB → ~13.3MB base64
   // Most vision APIs have limits around 20MB, but we'll be conservative
-  const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-
   let imageBuffer = Buffer.from(arrayBuffer);
 
-  if (originalSize > MAX_IMAGE_SIZE) {
+  if (originalSize > MEDIA_LIMITS.MAX_IMAGE_SIZE) {
     logger.info({
       originalSize,
-      maxSize: MAX_IMAGE_SIZE,
+      maxSize: MEDIA_LIMITS.MAX_IMAGE_SIZE,
       sizeMB: (originalSize / 1024 / 1024).toFixed(2)
     }, 'Image exceeds size limit, resizing...');
 
     // Resize image while maintaining aspect ratio
-    // Target ~8MB to leave headroom for base64 encoding
-    const targetSize = 8 * 1024 * 1024;
-    const scaleFactor = Math.sqrt(targetSize / originalSize);
+    // Target size leaves headroom for base64 encoding
+    const scaleFactor = Math.sqrt(MEDIA_LIMITS.IMAGE_TARGET_SIZE / originalSize);
 
     const metadata = await sharp(imageBuffer).metadata();
     const newWidth = Math.floor((metadata.width || 2048) * scaleFactor);
@@ -384,7 +382,7 @@ async function fetchAsBase64(url: string): Promise<string> {
         fit: 'inside',
         withoutEnlargement: true
       })
-      .jpeg({ quality: 85 }) // Convert to JPEG with good quality
+      .jpeg({ quality: MEDIA_LIMITS.IMAGE_QUALITY })
       .toBuffer();
 
     imageBuffer = Buffer.from(resized);

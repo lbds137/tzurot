@@ -2,6 +2,7 @@
 export * from './ai.js';
 export * from './discord.js';
 export * from './config.js';
+export * from './constants.js';
 export { splitMessage, preserveCodeBlocks } from './discord-utils.js';
 export { createLogger } from './logger.js';
 

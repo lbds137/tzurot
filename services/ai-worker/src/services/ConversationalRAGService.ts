@@ -15,12 +15,13 @@ import {
 } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
-import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import { MessageContent, createLogger, type LoadedPersonality, getConfig, AI_DEFAULTS, APP_SETTINGS } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey } from './ModelFactory.js';
 import { formatAttachments } from './MultimodalFormatter.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
+const config = getConfig();
 
 export interface AttachmentMetadata {
   url: string;
@@ -186,7 +187,7 @@ export class ConversationalRAGService {
     }
 
     // Multimodal message: send both raw media (current turn) + text description
-    const provider = process.env.AI_PROVIDER || 'openrouter';
+    const provider = config.AI_PROVIDER;
     const mediaContent = await formatAttachments(context.attachments!, provider);
 
     if (mediaContent && mediaContent.length > 0) {
@@ -267,7 +268,7 @@ export class ConversationalRAGService {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      timeZone: 'America/New_York',
+      timeZone: APP_SETTINGS.TIMEZONE,
       timeZoneName: 'short'
     })}`;
 
@@ -297,7 +298,7 @@ export class ConversationalRAGService {
       userId: context.userId,
       sessionId: context.sessionId,
       limit: personality.memoryLimit || 15,
-      scoreThreshold: personality.memoryScoreThreshold || 0.15,
+      scoreThreshold: personality.memoryScoreThreshold || AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
       excludeNewerThan: context.oldestHistoryTimestamp,
       includeGlobal: true,
       includePersonal: true,
@@ -534,7 +535,7 @@ export class ConversationalRAGService {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-        timeZone: 'America/New_York'
+        timeZone: APP_SETTINGS.TIMEZONE
       }).split('/');
       return `${parts[2]}-${parts[0]}-${parts[1]}`; // YYYY-MM-DD
     } catch {

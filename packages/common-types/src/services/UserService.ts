@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
+import { generateUserUuid } from '../deterministic-uuid.js';
 
 const logger = createLogger('UserService');
 
@@ -37,14 +38,18 @@ export class UserService {
 
       // Create if doesn't exist
       if (!user) {
+        // Generate deterministic UUID (same across all environments!)
+        const userId = generateUserUuid(discordId);
+
         user = await this.prisma.user.create({
           data: {
+            id: userId, // CRITICAL: Explicitly set UUID for cross-environment consistency
             discordId,
             username
           },
           select: { id: true }
         });
-        logger.info(`Created new user: ${username} (${discordId})`);
+        logger.info(`Created new user: ${username} (${discordId}) with deterministic UUID: ${userId}`);
       }
 
       // Cache the result

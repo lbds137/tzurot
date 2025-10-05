@@ -5,15 +5,16 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
 
 const logger = createLogger('Queue');
+const config = getConfig();
 
 // Get Redis connection config from environment (using Railway's individual variables)
 const redisConfig = {
-  host: process.env.REDIS_HOST ?? 'localhost',
-  port: parseInt(process.env.REDIS_PORT ?? '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: config.REDIS_HOST,
+  port: config.REDIS_PORT,
+  password: config.REDIS_PASSWORD,
   // Railway private networking requires IPv6
   family: 6
 };
@@ -25,7 +26,7 @@ logger.info('[Queue] Redis config:', {
 });
 
 // Queue name
-const QUEUE_NAME = process.env.QUEUE_NAME ?? 'ai-requests';
+const QUEUE_NAME = config.QUEUE_NAME;
 
 // Create the AI requests queue
 export const aiQueue = new Queue(QUEUE_NAME, {
@@ -34,7 +35,7 @@ export const aiQueue = new Queue(QUEUE_NAME, {
     attempts: 3, // Retry failed jobs up to 3 times
     backoff: {
       type: 'exponential',
-      delay: 2000 // Start with 2 second delay
+      delay: TIMEOUTS.QUEUE_RETRY_DELAY
     },
     removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
     removeOnFail: { count: 500 }      // Keep last 500 failed jobs for debugging

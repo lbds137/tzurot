@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
-import { createLogger, PersonalityService, disconnectPrisma } from '@tzurot/common-types';
+import { createLogger, PersonalityService, disconnectPrisma, getConfig } from '@tzurot/common-types';
 import { GatewayClient } from './gateway/client.js';
 import { WebhookManager } from './webhooks/manager.js';
 import { MessageHandler } from './handlers/messageHandler.js';
@@ -8,11 +8,12 @@ import { closeRedis } from './redis.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
+const envConfig = getConfig();
 
 // Configuration from environment
 const config = {
-  gatewayUrl: process.env.GATEWAY_URL ?? 'http://localhost:3000',
-  discordToken: process.env.DISCORD_TOKEN
+  gatewayUrl: envConfig.GATEWAY_URL,
+  discordToken: envConfig.DISCORD_TOKEN
 };
 
 // Initialize Discord client

@@ -7,8 +7,10 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAI } from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger } from '../logger.js';
+import { getConfig } from '../config.js';
 
 const logger = createLogger('QdrantMemoryService');
+const config = getConfig();
 
 export interface Memory {
   id: string;
@@ -16,6 +18,9 @@ export interface Memory {
   metadata: {
     personalityId: string;
     personalityName: string;
+    userId?: string; // USER ISOLATION - critical for privacy
+    sessionId?: string; // Session-specific memories
+    canonScope?: 'global' | 'personal' | 'session'; // Memory scope
     summaryType?: string;
     createdAt: number; // Unix timestamp in milliseconds
     channelId?: string;
@@ -30,17 +35,22 @@ export interface MemorySearchOptions {
   limit?: number;
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
+  userId?: string; // USER ISOLATION - filter to specific user's memories
+  sessionId?: string; // Filter to specific session
+  includeGlobal?: boolean; // Include global (non-user-specific) memories
+  includePersonal?: boolean; // Include user-specific memories
+  includeSession?: boolean; // Include session-specific memories
 }
 
 export class QdrantMemoryService {
   private qdrant: QdrantClient;
   private openai: OpenAI;
-  private readonly EMBEDDING_MODEL = 'text-embedding-3-small';
+  private readonly EMBEDDING_MODEL = config.EMBEDDING_MODEL;
 
   constructor() {
-    const qdrantUrl = process.env.QDRANT_URL;
-    const qdrantApiKey = process.env.QDRANT_API_KEY;
-    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const qdrantUrl = config.QDRANT_URL;
+    const qdrantApiKey = config.QDRANT_API_KEY;
+    const openaiApiKey = config.OPENAI_API_KEY;
 
     if (!qdrantUrl || !qdrantApiKey) {
       throw new Error('QDRANT_URL and QDRANT_API_KEY must be set');
@@ -74,6 +84,11 @@ export class QdrantMemoryService {
       limit = 10,
       scoreThreshold = 0.7,
       excludeNewerThan,
+      userId,
+      sessionId,
+      includeGlobal = true,
+      includePersonal = true,
+      includeSession = true,
     } = options;
 
     try {
@@ -83,18 +98,54 @@ export class QdrantMemoryService {
       // Get collection name for this personality
       const collectionName = `personality-${personalityId}`;
 
-      // Build filter to exclude recent memories that overlap with conversation history
-      const filter = excludeNewerThan
+      // Build filter with USER ISOLATION
+      const mustConditions: any[] = [];
+
+      // Timestamp filter - exclude recent memories that overlap with conversation history
+      if (excludeNewerThan) {
+        mustConditions.push({
+          key: 'createdAt',
+          range: {
+            lt: excludeNewerThan, // Less than (older than) the oldest conversation message
+          },
+        });
+      }
+
+      // USER ISOLATION: Build scope-based filter
+      // This ensures users only see their own memories + global memories
+      const shouldConditions: any[] = [];
+
+      if (includeGlobal) {
+        // Global memories (no userId set)
+        shouldConditions.push({
+          is_empty: { key: 'userId' }
+        });
+      }
+
+      if (includePersonal && userId) {
+        // Personal memories for this specific user
+        shouldConditions.push({
+          key: 'userId',
+          match: { value: userId }
+        });
+      }
+
+      if (includeSession && sessionId) {
+        // Session-specific memories
+        shouldConditions.push({
+          key: 'sessionId',
+          match: { value: sessionId }
+        });
+      }
+
+      // Build final filter
+      const filter: any = shouldConditions.length > 0
         ? {
-            must: [
-              {
-                key: 'createdAt',
-                range: {
-                  lt: excludeNewerThan, // Less than (older than) the oldest conversation message
-                },
-              },
-            ],
+            must: mustConditions,
+            should: shouldConditions, // At least one should condition must match
           }
+        : mustConditions.length > 0
+        ? { must: mustConditions }
         : undefined;
 
       // Search in Qdrant
@@ -113,6 +164,9 @@ export class QdrantMemoryService {
         metadata: {
           personalityId: (result.payload?.personalityId as string) || '',
           personalityName: (result.payload?.personalityName as string) || '',
+          userId: result.payload?.userId as string | undefined,
+          sessionId: result.payload?.sessionId as string | undefined,
+          canonScope: result.payload?.canonScope as 'global' | 'personal' | 'session' | undefined,
           summaryType: result.payload?.summaryType as string | undefined,
           createdAt: (result.payload?.createdAt as number) || Date.now(),
           channelId: result.payload?.channelId as string | undefined,
@@ -123,7 +177,7 @@ export class QdrantMemoryService {
         score: result.score,
       }));
 
-      logger.debug(`Found ${memories.length} memories for query (personality: ${personalityId})`);
+      logger.debug(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
       return memories;
 
     } catch (error) {
@@ -164,6 +218,9 @@ export class QdrantMemoryService {
     personalityName: string,
     content: string,
     metadata: {
+      userId?: string; // USER ISOLATION - critical for privacy
+      sessionId?: string; // Session-specific memories
+      canonScope?: 'global' | 'personal' | 'session'; // Memory scope
       summaryType?: string;
       channelId?: string;
       guildId?: string;
@@ -194,6 +251,9 @@ export class QdrantMemoryService {
               personalityId,
               personalityName,
               content,
+              userId: metadata.userId, // USER ISOLATION - store userId for filtering
+              sessionId: metadata.sessionId, // Session-specific memories
+              canonScope: metadata.canonScope || 'personal', // Default to personal scope
               summaryType: metadata.summaryType || 'conversation',
               createdAt: Date.now(), // Unix timestamp in milliseconds
               channelId: metadata.channelId,
@@ -205,7 +265,7 @@ export class QdrantMemoryService {
         ],
       });
 
-      logger.info(`Stored new memory for personality ${personalityName} (${personalityId})`);
+      logger.info(`Stored new memory for personality ${personalityName} (${personalityId}, userId: ${metadata.userId || 'global'}, scope: ${metadata.canonScope || 'personal'})`);
     } catch (error) {
       logger.error({ err: error }, `Failed to add memory for personality: ${personalityId}`);
       throw error;

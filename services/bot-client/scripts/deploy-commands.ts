@@ -9,22 +9,24 @@
  * Environment variables are loaded from .env file at monorepo root
  */
 
-import { config } from 'dotenv';
+import { config as loadDotenv } from 'dotenv';
 import { REST, Routes } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../src/types.js';
+import { getConfig } from '@tzurot/common-types';
 
 // Load .env from monorepo root (two levels up from this script)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-config({ path: join(__dirname, '../../../.env') });
+loadDotenv({ path: join(__dirname, '../../../.env') });
 
 // Configuration
-const clientId = process.env.DISCORD_CLIENT_ID;
-const token = process.env.DISCORD_TOKEN;
-const guildId = process.env.GUILD_ID; // Optional - for dev/testing
+const config = getConfig();
+const clientId = config.DISCORD_CLIENT_ID;
+const token = config.DISCORD_TOKEN;
+const guildId = config.GUILD_ID; // Optional - for dev/testing
 
 if (!clientId || !token) {
   console.error('Missing DISCORD_CLIENT_ID or DISCORD_TOKEN environment variables');

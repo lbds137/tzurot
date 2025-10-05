@@ -10,9 +10,10 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
+const config = getConfig();
 
 /**
  * Available Gemini models (2025 - only 2.5+ models)
@@ -56,16 +57,16 @@ function validateModelForProvider(requestedModel: string | undefined, provider: 
 
     case 'openrouter': {
       // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
-      return requestedModel || process.env.DEFAULT_AI_MODEL || 'google/gemini-2.0-flash-exp:free';
+      return requestedModel || config.DEFAULT_AI_MODEL;
     }
 
     case 'openai': {
-      // Use requested model or default to GPT-5 Mini
-      return requestedModel || process.env.DEFAULT_AI_MODEL || 'gpt-5-mini';
+      // Use requested model or default
+      return requestedModel || config.DEFAULT_AI_MODEL;
     }
 
     default:
-      return requestedModel || 'gpt-3.5-turbo';
+      return requestedModel || config.DEFAULT_AI_MODEL;
   }
 }
 
@@ -78,21 +79,21 @@ export interface ModelConfig {
 /**
  * Create a chat model based on environment configuration
  */
-export function createChatModel(config: ModelConfig = {}): BaseChatModel {
-  const provider = process.env.AI_PROVIDER || 'openrouter';
-  const temperature = config.temperature ?? 0.7;
+export function createChatModel(modelConfig: ModelConfig = {}): BaseChatModel {
+  const provider = config.AI_PROVIDER;
+  const temperature = modelConfig.temperature ?? 0.7;
 
   logger.debug(`[ModelFactory] Creating model for provider: ${provider}`);
 
   switch (provider) {
     case 'gemini': {
-      const apiKey = config.apiKey || process.env.GEMINI_API_KEY;
+      const apiKey = modelConfig.apiKey || config.GEMINI_API_KEY;
       if (!apiKey) {
         throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini');
       }
 
       // Validate and get appropriate Gemini model
-      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, 'gemini');
 
       if (requestedModel && requestedModel !== modelName) {
@@ -111,14 +112,14 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
     }
 
     case 'openrouter': {
-      const apiKey = config.apiKey || process.env.OPENROUTER_API_KEY;
+      const apiKey = modelConfig.apiKey || config.OPENROUTER_API_KEY;
       if (!apiKey) {
         throw new Error('OPENROUTER_API_KEY is required when AI_PROVIDER=openrouter');
       }
 
-      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, 'openrouter');
-      const baseURL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
+      const baseURL = config.OPENROUTER_BASE_URL;
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
 
@@ -133,12 +134,12 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
     }
 
     case 'openai': {
-      const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+      const apiKey = modelConfig.apiKey || config.OPENAI_API_KEY;
       if (!apiKey) {
         throw new Error('OPENAI_API_KEY is required when AI_PROVIDER=openai');
       }
 
-      const requestedModel = config.modelName || process.env.DEFAULT_AI_MODEL;
+      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, 'openai');
 
       logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
@@ -158,9 +159,9 @@ export function createChatModel(config: ModelConfig = {}): BaseChatModel {
 /**
  * Get a cache key for model instances
  */
-export function getModelCacheKey(config: ModelConfig): string {
-  const provider = process.env.AI_PROVIDER || 'openrouter';
-  const modelName = config.modelName || process.env.DEFAULT_AI_MODEL || 'default';
-  const apiKeyPrefix = config.apiKey?.substring(0, 10) || 'env';
+export function getModelCacheKey(modelConfig: ModelConfig): string {
+  const provider = config.AI_PROVIDER;
+  const modelName = modelConfig.modelName || config.DEFAULT_AI_MODEL || 'default';
+  const apiKeyPrefix = modelConfig.apiKey?.substring(0, 10) || 'env';
   return `${provider}-${modelName}-${apiKeyPrefix}`;
 }

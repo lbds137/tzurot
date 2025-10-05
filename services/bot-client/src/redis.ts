@@ -6,19 +6,20 @@
  */
 
 import { createClient, type RedisClientType } from 'redis';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
+const config = getConfig();
 
 // Get Redis connection config from environment (using Railway's individual variables)
 const redisConfig = {
   socket: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.REDIS_PORT ?? '6379'),
+    host: config.REDIS_HOST,
+    port: config.REDIS_PORT,
     // Railway private networking requires IPv6
     family: 6
   },
-  password: process.env.REDIS_PASSWORD,
+  password: config.REDIS_PASSWORD,
 };
 
 logger.info('[Redis] Redis config:', {
