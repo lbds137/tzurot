@@ -152,6 +152,10 @@ export class QdrantMemoryService {
         ? { must: mustConditions }
         : undefined;
 
+      // Log search parameters for debugging
+      logger.info(`Qdrant search params: limit=${limit}, scoreThreshold=${scoreThreshold}, excludeNewerThan=${excludeNewerThan ? new Date(excludeNewerThan).toISOString() : 'none'}, userId=${userId}, sessionId=${sessionId}, includeGlobal=${includeGlobal}, includePersonal=${includePersonal}, includeSession=${includeSession}`);
+      logger.debug(`Qdrant filter: ${JSON.stringify(filter)}`);
+
       // Search in Qdrant
       const searchResults = await this.qdrant.search(collectionName, {
         vector: queryEmbedding,
@@ -181,7 +185,15 @@ export class QdrantMemoryService {
         score: result.score,
       }));
 
-      logger.debug(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
+      // Log date distribution for debugging
+      const dateDistribution: Record<string, number> = {};
+      memories.forEach(m => {
+        const date = new Date(m.metadata.createdAt).toISOString().split('T')[0];
+        dateDistribution[date] = (dateDistribution[date] || 0) + 1;
+      });
+      logger.info(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
+      logger.info(`Memory date distribution: ${JSON.stringify(dateDistribution)}`);
+
       return memories;
 
     } catch (error) {
