@@ -76,8 +76,22 @@ export class GatewayClient {
 
       logger.info(`[GatewayClient] Job created: ${data.jobId}`);
 
+      // Calculate timeout based on number of images (voice is fast, images are slow)
+      const imageCount = context.attachments?.filter(
+        att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+      ).length ?? 0;
+
+      // Scale timeout by number of images: 120s for 1 image, multiply for more
+      const timeoutMultiplier = Math.max(1, imageCount);
+      const adjustedMaxAttempts = this.maxPollAttempts * timeoutMultiplier;
+
+      if (imageCount > 0) {
+        const timeoutSeconds = (adjustedMaxAttempts * this.pollInterval) / 1000;
+        logger.info(`[GatewayClient] Job has ${imageCount} image(s), timeout: ${timeoutSeconds}s`);
+      }
+
       // Poll for job completion
-      const result = await this.pollJobResult(data.jobId);
+      const result = await this.pollJobResult(data.jobId, adjustedMaxAttempts);
 
       logger.debug({ jobResult: result }, '[GatewayClient] Raw job result');
 
@@ -108,8 +122,8 @@ export class GatewayClient {
   /**
    * Poll for job result until completion
    */
-  private async pollJobResult(jobId: string): Promise<JobResult> {
-    for (let attempt = 0; attempt < this.maxPollAttempts; attempt++) {
+  private async pollJobResult(jobId: string, maxAttempts = this.maxPollAttempts): Promise<JobResult> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const response = await fetch(`${this.baseUrl}/ai/job/${jobId}`);
 
@@ -135,7 +149,7 @@ export class GatewayClient {
       } catch (error) {
         logger.error({ err: error }, `[GatewayClient] Poll attempt ${attempt + 1} failed`);
 
-        if (attempt === this.maxPollAttempts - 1) {
+        if (attempt === maxAttempts - 1) {
           throw error;
         }
 
@@ -143,7 +157,7 @@ export class GatewayClient {
       }
     }
 
-    throw new Error(`Job ${jobId} timed out after ${this.maxPollAttempts} attempts`);
+    throw new Error(`Job ${jobId} timed out after ${maxAttempts} attempts`);
   }
 
   /**
