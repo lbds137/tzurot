@@ -77,9 +77,17 @@ export interface ModelConfig {
 }
 
 /**
+ * Result of creating a chat model
+ */
+export interface ChatModelResult {
+  model: BaseChatModel;
+  modelName: string;
+}
+
+/**
  * Create a chat model based on environment configuration
  */
-export function createChatModel(modelConfig: ModelConfig = {}): BaseChatModel {
+export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
   const provider = config.AI_PROVIDER;
   const temperature = modelConfig.temperature ?? 0.7;
 
@@ -104,11 +112,14 @@ export function createChatModel(modelConfig: ModelConfig = {}): BaseChatModel {
         logger.info(`[ModelFactory] Creating Gemini model: ${modelName}`);
       }
 
-      return new ChatGoogleGenerativeAI({
-        model: modelName,
-        apiKey,
-        temperature,
-      });
+      return {
+        model: new ChatGoogleGenerativeAI({
+          model: modelName,
+          apiKey,
+          temperature,
+        }),
+        modelName
+      };
     }
 
     case 'openrouter': {
@@ -123,14 +134,17 @@ export function createChatModel(modelConfig: ModelConfig = {}): BaseChatModel {
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
 
-      return new ChatOpenAI({
-        modelName,
-        apiKey,
-        temperature,
-        configuration: {
-          baseURL,
-        },
-      });
+      return {
+        model: new ChatOpenAI({
+          modelName,
+          apiKey,
+          temperature,
+          configuration: {
+            baseURL,
+          },
+        }),
+        modelName
+      };
     }
 
     case 'openai': {
@@ -144,11 +158,14 @@ export function createChatModel(modelConfig: ModelConfig = {}): BaseChatModel {
 
       logger.info(`[ModelFactory] Creating OpenAI model: ${modelName}`);
 
-      return new ChatOpenAI({
-        modelName,
-        apiKey,
-        temperature,
-      });
+      return {
+        model: new ChatOpenAI({
+          modelName,
+          apiKey,
+          temperature,
+        }),
+        modelName
+      };
     }
 
     default:

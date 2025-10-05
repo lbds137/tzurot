@@ -36,7 +36,16 @@ export class GatewayClient {
   async generate(
     personality: BotPersonality,
     context: MessageContext
-  ): Promise<{ content: string; attachmentDescriptions?: string }> {
+  ): Promise<{
+    content: string;
+    attachmentDescriptions?: string;
+    metadata?: {
+      retrievedMemories?: number;
+      tokensUsed?: number;
+      processingTimeMs?: number;
+      modelUsed?: string;
+    };
+  }> {
     try {
       // Create AI generation job
       const response = await fetch(`${this.baseUrl}/ai/generate`, {
@@ -86,7 +95,8 @@ export class GatewayClient {
 
       return {
         content: result.result.content,
-        attachmentDescriptions: result.result.attachmentDescriptions
+        attachmentDescriptions: result.result.attachmentDescriptions,
+        metadata: result.result.metadata
       };
 
     } catch (error) {

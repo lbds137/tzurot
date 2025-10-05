@@ -78,6 +78,7 @@ export interface JobResult {
       retrievedMemories?: number;
       tokensUsed?: number;
       processingTimeMs?: number;
+      modelUsed?: string;
     };
   };
 }

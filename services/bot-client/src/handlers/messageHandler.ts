@@ -165,10 +165,23 @@ export class MessageHandler {
     personality: LoadedPersonality,
     content: string
   ): Promise<void> {
+    let typingInterval: NodeJS.Timeout | null = null;
+
     try {
-      // Show typing indicator
+      // Start typing indicator and keep it active until response is ready
+      // Discord's typing indicator lasts ~10 seconds, so refresh every 8 seconds
       if ('sendTyping' in message.channel) {
         await message.channel.sendTyping();
+        typingInterval = setInterval(async () => {
+          try {
+            if ('sendTyping' in message.channel) {
+              await message.channel.sendTyping();
+            }
+          } catch (error) {
+            // Ignore typing errors (channel might be deleted, etc.)
+            logger.debug({ err: error }, '[MessageHandler] Typing indicator error');
+          }
+        }, 8000);
       }
 
       // Get or create user record (needed for foreign key)
@@ -255,7 +268,7 @@ export class MessageHandler {
         historyContent
       );
 
-      // Save assistant response to conversation history
+      // Save assistant response to conversation history (without model indicator)
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
@@ -264,8 +277,14 @@ export class MessageHandler {
         response.content
       );
 
+      // Add model indicator to the message (for Discord display only, not in history)
+      let contentWithIndicator = response.content;
+      if (response.metadata?.modelUsed) {
+        contentWithIndicator += `\n-# Model used: ${response.metadata.modelUsed}`;
+      }
+
       // Split response if needed (Discord 2000 char limit)
-      const chunks = preserveCodeBlocks(response.content);
+      const chunks = preserveCodeBlocks(contentWithIndicator);
 
       // Send via webhook if in a guild text channel or thread
       const isWebhookChannel = message.guild !== null &&
@@ -302,6 +321,11 @@ export class MessageHandler {
       // Show the actual error to help with debugging
       const errorMessage = error instanceof Error ? error.message : String(error);
       await message.reply(`Error: ${errorMessage}`).catch(() => {});
+    } finally {
+      // Always clear the typing indicator interval
+      if (typingInterval) {
+        clearInterval(typingInterval);
+      }
     }
   }
 

@@ -13,10 +13,9 @@ import {
   HumanMessage,
   SystemMessage
 } from '@langchain/core/messages';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
 import { MessageContent, createLogger, type LoadedPersonality, AI_DEFAULTS, APP_SETTINGS } from '@tzurot/common-types';
-import { createChatModel, getModelCacheKey } from './ModelFactory.js';
+import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -49,11 +48,12 @@ export interface RAGResponse {
   retrievedMemories?: number;
   tokensUsed?: number;
   attachmentDescriptions?: string;
+  modelUsed?: string;
 }
 
 export class ConversationalRAGService {
   private memoryManager?: QdrantMemoryAdapter;
-  private models = new Map<string, BaseChatModel>();
+  private models = new Map<string, ChatModelResult>();
 
   constructor(memoryManager?: QdrantMemoryAdapter) {
     this.memoryManager = memoryManager;
@@ -62,12 +62,13 @@ export class ConversationalRAGService {
   /**
    * Get or create a chat model for a specific configuration
    * This supports BYOK (Bring Your Own Key) - different users can use different keys
+   * Returns both the model and the validated model name
    */
   private getModel(
     modelName?: string,
     apiKey?: string,
     temperature?: number
-  ): BaseChatModel {
+  ): ChatModelResult {
     const cacheKey = getModelCacheKey({ modelName, apiKey, temperature });
 
     if (!this.models.has(cacheKey)) {
@@ -140,7 +141,7 @@ export class ConversationalRAGService {
       messages.push(humanMessage);
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
-      const model = this.getModel(
+      const { model, modelName } = this.getModel(
         personality.model,
         userApiKey,
         personality.temperature
@@ -151,7 +152,7 @@ export class ConversationalRAGService {
 
       const content = response.content as string;
 
-      logger.info(`[RAG] Generated ${content.length} chars for ${personality.name}`);
+      logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
 
       // 7. Store this interaction in memory (for future retrieval)
       await this.storeInteraction(personality, userMessage, content, context);
@@ -165,7 +166,8 @@ export class ConversationalRAGService {
         content,
         retrievedMemories: relevantMemories.length,
         tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
-        attachmentDescriptions
+        attachmentDescriptions,
+        modelUsed: modelName
       };
 
     } catch (error) {

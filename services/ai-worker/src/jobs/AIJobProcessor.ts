@@ -7,7 +7,7 @@
  */
 
 import { Job } from 'bullmq';
-import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
+import { ConversationalRAGService, type RAGResponse } from '../services/ConversationalRAGService.js';
 import { QdrantMemoryAdapter } from '../memory/QdrantMemoryAdapter.js';
 import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
@@ -79,6 +79,7 @@ export interface AIJobResult {
     retrievedMemories?: number;
     tokensUsed?: number;
     processingTimeMs?: number;
+    modelUsed?: string;
   };
 }
 
@@ -119,8 +120,7 @@ export class AIJobProcessor {
       );
 
       // Generate response using RAG
-      // Type assertion needed due to LangChain's complex return types
-      const response = (await this.ragService.generateResponse(
+      const response: RAGResponse = await this.ragService.generateResponse(
         personality,
         message as MessageContent,
         {
@@ -135,7 +135,7 @@ export class AIJobProcessor {
           attachments: context.attachments
         },
         userApiKey
-      )) as { content: string; retrievedMemories?: number; tokensUsed?: number; attachmentDescriptions?: string };
+      );
 
       const processingTimeMs = Date.now() - startTime;
 
@@ -149,7 +149,8 @@ export class AIJobProcessor {
         metadata: {
           retrievedMemories: response.retrievedMemories,
           tokensUsed: response.tokensUsed,
-          processingTimeMs
+          processingTimeMs,
+          modelUsed: response.modelUsed
         }
       };
 
