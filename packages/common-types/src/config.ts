@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 export const envSchema = z.object({
   // Discord Configuration
-  DISCORD_TOKEN: z.string().min(1, 'Discord token is required'),
+  DISCORD_TOKEN: z.string().optional(), // Only required for bot-client
   DISCORD_CLIENT_ID: z.string().optional(),
   GUILD_ID: z.string().optional(), // Optional - for dev/testing command deployment
 

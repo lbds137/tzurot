@@ -10,6 +10,12 @@ import { closeRedis } from './redis.js';
 const logger = createLogger('bot-client');
 const envConfig = getConfig();
 
+// Validate bot-client specific required env vars
+if (!envConfig.DISCORD_TOKEN) {
+  logger.error('DISCORD_TOKEN is required for bot-client');
+  process.exit(1);
+}
+
 // Configuration from environment
 const config = {
   gatewayUrl: envConfig.GATEWAY_URL,
