@@ -93,30 +93,44 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
 export function preserveCodeBlocks(content: string): string[] {
   const codeBlockRegex = /```[\s\S]*?```/g;
   const codeBlocks = content.match(codeBlockRegex) ?? [];
-  
+
   if (codeBlocks.length === 0) {
     return splitMessage(content);
   }
-  
+
   // Replace code blocks with placeholders
   let processedContent = content;
   const placeholders: string[] = [];
-  
+
   codeBlocks.forEach((block, index) => {
     const placeholder = `__CODE_BLOCK_${index}__`;
     placeholders.push(placeholder);
     processedContent = processedContent.replace(block, placeholder);
   });
-  
+
   // Split the content
   const chunks = splitMessage(processedContent);
-  
+
   // Restore code blocks
-  return chunks.map(chunk => {
+  const restoredChunks = chunks.map(chunk => {
     let restoredChunk = chunk;
     codeBlocks.forEach((block, index) => {
       restoredChunk = restoredChunk.replace(`__CODE_BLOCK_${index}__`, block);
     });
     return restoredChunk;
   });
+
+  // Check if any restored chunks exceed the limit (can happen if code block is large)
+  // If so, re-split those chunks
+  const finalChunks: string[] = [];
+  for (const chunk of restoredChunks) {
+    if (chunk.length > DISCORD_MAX_MESSAGE_LENGTH) {
+      // Re-split this chunk normally (without code block preservation to avoid infinite loop)
+      finalChunks.push(...splitMessage(chunk));
+    } else {
+      finalChunks.push(chunk);
+    }
+  }
+
+  return finalChunks;
 }

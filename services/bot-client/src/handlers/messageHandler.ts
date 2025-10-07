@@ -283,14 +283,14 @@ export class MessageHandler {
         contentWithIndicator += `\n-# Model used: ${response.metadata.modelUsed}`;
       }
 
-      // Split response if needed (Discord 2000 char limit)
-      const chunks = preserveCodeBlocks(contentWithIndicator);
-
       // Send via webhook if in a guild text channel or thread
       const isWebhookChannel = message.guild !== null &&
         (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
 
       if (isWebhookChannel) {
+        // For webhooks, split content and send directly (no prefix needed)
+        const chunks = preserveCodeBlocks(contentWithIndicator);
+
         for (const chunk of chunks) {
           const sentMessage = await this.webhookManager.sendAsPersonality(
             message.channel as TextChannel | ThreadChannel,
@@ -304,10 +304,13 @@ export class MessageHandler {
           }
         }
       } else {
-        // DMs don't support webhooks - use formatted message with personality name
+        // DMs don't support webhooks - add personality name prefix BEFORE splitting
+        // This ensures chunks respect 2000 char limit including the prefix
+        const dmContent = `**${personality.displayName}:** ${contentWithIndicator}`;
+        const chunks = preserveCodeBlocks(dmContent);
+
         for (const chunk of chunks) {
-          const formattedContent = `**${personality.displayName}:** ${chunk}`;
-          const sentMessage = await message.reply(formattedContent);
+          const sentMessage = await message.reply(chunk);
           // Store DM message in Redis for reply routing (7 day TTL)
           await storeWebhookMessage(sentMessage.id, personality.name);
         }
