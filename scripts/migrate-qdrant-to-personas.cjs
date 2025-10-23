@@ -12,6 +12,8 @@
 require('dotenv').config();
 const { PrismaClient } = require('@prisma/client');
 const { QdrantClient } = require('@qdrant/js-client-rest');
+const fs = require('fs');
+const path = require('path');
 
 const prisma = new PrismaClient();
 
@@ -23,6 +25,22 @@ const qdrant = new QdrantClient({
 
 // Batch size for scrolling points
 const SCROLL_BATCH_SIZE = 100;
+
+/**
+ * Load UUID mappings from shapes.inc → current Postgres
+ */
+function loadUuidMappings() {
+  const mappingsPath = path.join(__dirname, 'uuid-mappings.json');
+
+  try {
+    const data = fs.readFileSync(mappingsPath, 'utf8');
+    const json = JSON.parse(data);
+    return json.mappings || {};
+  } catch (error) {
+    console.log('ℹ️  No UUID mappings file found (uuid-mappings.json), skipping legacy UUID migration');
+    return {};
+  }
+}
 
 /**
  * Get all users with their default personas
@@ -115,7 +133,7 @@ async function* scrollCollection(collectionName) {
 /**
  * Migrate a personality collection to persona-scoped collections
  */
-async function migratePersonalityCollection(collectionName, userPersonaMapping) {
+async function migratePersonalityCollection(collectionName, userPersonaMapping, uuidMappings) {
   console.log(`\n📦 Migrating ${collectionName}...`);
 
   // Extract personality ID from collection name
@@ -129,33 +147,49 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping) 
 
   if (!personality) {
     console.error(`❌ Personality ${personalityId} not found in database!`);
-    return { migrated: 0, skipped: 0 };
+    return { migrated: 0, skipped: 0, totalOriginal: 0 };
   }
 
   console.log(`   Personality: ${personality.name} (${personality.slug})`);
 
-  // Group points by userId
+  // Group points by userId (applying UUID mappings)
   const pointsByUser = {};
   let totalPoints = 0;
+  let mappedCount = 0;
 
   console.log(`   Scanning points...`);
 
   for await (const batch of scrollCollection(collectionName)) {
     for (const point of batch) {
       totalPoints++;
-      const userId = point.payload.userId;
+      let userId = point.payload.userId;
 
       if (!userId) {
         console.warn(`   ⚠️  Point ${point.id} has no userId, skipping`);
         continue;
       }
 
+      // Apply UUID mapping if exists (old shapes.inc UUID → current Postgres UUID)
+      const originalUserId = userId;
+      if (uuidMappings[userId]) {
+        userId = uuidMappings[userId].newUserId;
+        mappedCount++;
+      }
+
       if (!pointsByUser[userId]) {
         pointsByUser[userId] = [];
       }
 
-      pointsByUser[userId].push(point);
+      // Store point with metadata about original userId
+      pointsByUser[userId].push({
+        ...point,
+        _originalUserId: originalUserId
+      });
     }
+  }
+
+  if (mappedCount > 0) {
+    console.log(`   ✓ Mapped ${mappedCount} points from old UUIDs to current users`);
   }
 
   console.log(`   Total points: ${totalPoints}`);
@@ -252,12 +286,25 @@ QDRANT MIGRATION: Personality → Persona Collections
   `);
 
   try {
-    // Step 1: Get user → persona mapping from database
-    console.log(`📋 Loading user→persona mappings from database...`);
+    // Step 1: Load UUID mappings from shapes.inc imports
+    console.log(`📋 Loading UUID mappings (shapes.inc → current Postgres)...`);
+    const uuidMappings = loadUuidMappings();
+    const mappingCount = Object.keys(uuidMappings).length;
+    if (mappingCount > 0) {
+      console.log(`   Found ${mappingCount} UUID mapping(s):`);
+      for (const [oldId, mapping] of Object.entries(uuidMappings)) {
+        console.log(`     ${oldId} → ${mapping.newUserId} (${mapping.username}) ${mapping.note ? '- ' + mapping.note : ''}`);
+      }
+    } else {
+      console.log(`   No UUID mappings configured`);
+    }
+
+    // Step 2: Get user → persona mapping from database
+    console.log(`\n📋 Loading user→persona mappings from database...`);
     const userPersonaMapping = await getUserPersonaMapping();
     console.log(`   Found ${Object.keys(userPersonaMapping).length} users with default personas`);
 
-    // Step 2: Get all personality collections
+    // Step 3: Get all personality collections
     console.log(`\n📋 Discovering personality collections...`);
     const personalityCollections = await getPersonalityCollections();
     console.log(`   Found ${personalityCollections.length} personality collections:`);
@@ -271,14 +318,14 @@ QDRANT MIGRATION: Personality → Persona Collections
       return;
     }
 
-    // Step 3: Migrate each collection
+    // Step 4: Migrate each collection
     const originalCounts = {};
     const newCollections = new Set();
     let totalMigrated = 0;
     let totalSkipped = 0;
 
     for (const collectionName of personalityCollections) {
-      const result = await migratePersonalityCollection(collectionName, userPersonaMapping);
+      const result = await migratePersonalityCollection(collectionName, userPersonaMapping, uuidMappings);
       originalCounts[collectionName] = result.totalOriginal;
       totalMigrated += result.migrated;
       totalSkipped += result.skipped;
@@ -297,6 +344,7 @@ QDRANT MIGRATION: Personality → Persona Collections
 ================================================================================
 MIGRATION SUMMARY
 ================================================================================
+UUID mappings applied: ${mappingCount}
 Original collections: ${personalityCollections.length}
 New persona collections: ${newCollections.size}
 
