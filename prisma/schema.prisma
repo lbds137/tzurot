@@ -1,5 +1,5 @@
-// Tzurot Database Schema
-// Based on docs/architecture/POSTGRES_SCHEMA.md
+// Tzurot Database Schema - v3 Redesign
+// Clean architecture with no circular dependencies
 
 generator client {
   provider = "prisma-client-js"
@@ -19,17 +19,15 @@ model User {
   discordId String @unique @map("discord_id") @db.VarChar(20)
   username  String @db.VarChar(255)
 
-  // User's global default persona (applied to all personalities unless overridden)
-  globalPersonaId String?  @map("global_persona_id") @db.Uuid
-  globalPersona   Persona? @relation("UserGlobalPersona", fields: [globalPersonaId], references: [id], onDelete: SetNull)
-
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  ownedPersonalities  PersonalityOwner[]
-  personalitySettings UserPersonalitySettings[]
-  ownedPersonas       Persona[]                 @relation("PersonaOwner")
+  // Relations (no circular dependencies!)
+  ownedPersonas       Persona[]                @relation("PersonaOwner")
+  ownedLlmConfigs     LlmConfig[]              @relation("LlmConfigOwner")
+  defaultPersonaLink  UserDefaultPersona?
+  personalityOwners   PersonalityOwner[]
+  personalityConfigs  UserPersonalityConfig[]
   conversationHistory ConversationHistory[]
   activatedChannels   ActivatedChannel[]
 
@@ -47,25 +45,38 @@ model Persona {
   description String? @db.Text
   content     String  @db.Text // The actual persona/backstory text
 
-  // User personalization fields (for user personas)
+  // User personalization fields
   preferredName String? @map("preferred_name") @db.VarChar(255)
   pronouns      String? @db.VarChar(100)
 
-  // Ownership
-  ownerId  String? @map("owner_id") @db.Uuid
-  owner    User?   @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  isGlobal Boolean @default(false) @map("is_global") // System-wide vs user-specific
+  // Ownership - REQUIRED (every persona has an owner)
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  usersUsingAsGlobal      User[]                    @relation("UserGlobalPersona")
-  userPersonalitySettings UserPersonalitySettings[]
+  usersUsingAsDefault  UserDefaultPersona[]
+  personalityConfigs   UserPersonalityConfig[]
 
   @@index([ownerId])
-  @@index([isGlobal], map: "idx_personas_global")
   @@map("personas")
+}
+
+// Tracks each user's default persona (no circular dependency)
+model UserDefaultPersona {
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  personaId String  @map("persona_id") @db.Uuid
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([userId])
+  @@index([personaId])
+  @@map("user_default_personas")
 }
 
 model SystemPrompt {
@@ -81,7 +92,7 @@ model SystemPrompt {
   // Relations
   personalities Personality[]
 
-  @@index([isDefault], map: "idx_system_prompts_default")
+  @@index([isDefault])
   @@map("system_prompts")
 }
 
@@ -90,9 +101,14 @@ model LlmConfig {
   name        String  @db.VarChar(255)
   description String? @db.Text
 
+  // Ownership - nullable for global configs, set for user-owned
+  ownerId  String?  @map("owner_id") @db.Uuid
+  owner    User?    @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  isGlobal Boolean  @default(false) @map("is_global")
+
   // LLM parameters
   model             String   @db.VarChar(255)
-  visionModel       String?  @map("vision_model") @db.VarChar(255) // Optional vision model for image processing
+  visionModel       String?  @map("vision_model") @db.VarChar(255)
   temperature       Decimal? @db.Decimal(3, 2)
   topP              Decimal? @map("top_p") @db.Decimal(3, 2)
   topK              Int?     @map("top_k")
@@ -101,21 +117,36 @@ model LlmConfig {
   repetitionPenalty Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
   maxTokens         Int?     @map("max_tokens")
 
-  // Memory retrieval settings
+  // Memory settings (LTM and STM)
   memoryScoreThreshold Decimal? @map("memory_score_threshold") @db.Decimal(3, 2)
   memoryLimit          Int?     @map("memory_limit")
-
-  isDefault Boolean @default(false) @map("is_default")
+  contextWindowSize    Int      @default(20) @map("context_window_size") // Moved from Personality
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  personalities           Personality[]
-  userPersonalitySettings UserPersonalitySettings[]
+  personalitiesUsingAsDefault PersonalityDefaultConfig[]
+  userPersonalityConfigs      UserPersonalityConfig[]
 
-  @@index([isDefault], map: "idx_llm_configs_default")
+  @@index([ownerId])
+  @@index([isGlobal])
   @@map("llm_configs")
+}
+
+// Tracks each personality's default LLM config (no circular dependency)
+model PersonalityDefaultConfig {
+  personalityId String      @unique @map("personality_id") @db.Uuid
+  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+
+  llmConfigId String    @map("llm_config_id") @db.Uuid
+  llmConfig   LlmConfig @relation(fields: [llmConfigId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([personalityId])
+  @@index([llmConfigId])
+  @@map("personality_default_configs")
 }
 
 // ============================================================================
@@ -129,42 +160,42 @@ model Personality {
   slug        String  @unique @db.VarChar(255)
   avatarUrl   String? @map("avatar_url") @db.Text
 
-  // Core behavior (always use references to templates)
+  // Core behavior
   systemPromptId String?       @map("system_prompt_id") @db.Uuid
   systemPrompt   SystemPrompt? @relation(fields: [systemPromptId], references: [id], onDelete: SetNull)
 
-  llmConfigId String?    @map("llm_config_id") @db.Uuid
-  llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
+  // Default LLM config tracked in separate table (no FK here)
 
-  // Character definition (from shapes.inc)
-  characterInfo          String  @map("character_info") @db.Text // Who they are (user_prompt + personality_history merged)
-  personalityTraits      String  @map("personality_traits") @db.Text // Comma-separated traits
-  personalityTone        String? @map("personality_tone") @db.VarChar(500) // Speaking style
-  personalityAge         String? @map("personality_age") @db.VarChar(100) // Character age
-  personalityLikes       String? @map("personality_likes") @db.Text // What they like
-  personalityDislikes    String? @map("personality_dislikes") @db.Text // What they dislike
-  conversationalGoals    String? @map("conversational_goals") @db.Text // Conversation objectives
-  conversationalExamples String? @map("conversational_examples") @db.Text // Example interactions
-  customFields           Json?   @map("custom_fields") // User-defined extensions
+  // Character definition
+  characterInfo          String  @map("character_info") @db.Text
+  personalityTraits      String  @map("personality_traits") @db.Text
+  personalityTone        String? @map("personality_tone") @db.VarChar(500)
+  personalityAge         String? @map("personality_age") @db.VarChar(100)
+  personalityLikes       String? @map("personality_likes") @db.Text
+  personalityDislikes    String? @map("personality_dislikes") @db.Text
+  conversationalGoals    String? @map("conversational_goals") @db.Text
+  conversationalExamples String? @map("conversational_examples") @db.Text
+  customFields           Json?   @map("custom_fields")
 
-  // Voice settings (for future)
+  // Voice settings
   voiceEnabled  Boolean @default(false) @map("voice_enabled")
   voiceSettings Json?   @map("voice_settings")
 
-  // Image settings (for future)
+  // Image settings
   imageEnabled  Boolean @default(false) @map("image_enabled")
   imageSettings Json?   @map("image_settings")
 
   // Memory settings
-  memoryEnabled     Boolean @default(true) @map("memory_enabled")
-  contextWindowSize Int     @default(20) @map("context_window_size")
+  memoryEnabled Boolean @default(true) @map("memory_enabled")
+  // contextWindowSize removed - now in LlmConfig
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
   owners              PersonalityOwner[]
-  userSettings        UserPersonalitySettings[]
+  defaultConfigLink   PersonalityDefaultConfig?
+  userConfigs         UserPersonalityConfig[]
   conversationHistory ConversationHistory[]
   activatedChannels   ActivatedChannel[]
 
@@ -189,7 +220,8 @@ model PersonalityOwner {
   @@map("personality_owners")
 }
 
-model UserPersonalitySettings {
+// User-specific overrides for personality configuration
+model UserPersonalityConfig {
   id String @id @default(uuid()) @db.Uuid
 
   userId String @map("user_id") @db.Uuid
@@ -198,11 +230,11 @@ model UserPersonalitySettings {
   personalityId String      @map("personality_id") @db.Uuid
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
-  // Override user's global persona for this specific personality
+  // Override user's default persona for this specific personality
   personaId String?  @map("persona_id") @db.Uuid
   persona   Persona? @relation(fields: [personaId], references: [id], onDelete: SetNull)
 
-  // Override LLM settings for this user+personality combo
+  // Override LLM config for this user+personality combo
   llmConfigId String?    @map("llm_config_id") @db.Uuid
   llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
 
@@ -212,7 +244,7 @@ model UserPersonalitySettings {
   @@unique([userId, personalityId])
   @@index([userId])
   @@index([personalityId])
-  @@map("user_personality_settings")
+  @@map("user_personality_configs")
 }
 
 // ============================================================================
