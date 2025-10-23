@@ -40,6 +40,7 @@ temp/
 
 # Private data (user data, private personalities)
 data/
+backups/
 
 # Allow example personalities at root for deployment
 # (private personalities are in tzurot-legacy/data/)
