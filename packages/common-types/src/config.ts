@@ -9,6 +9,7 @@ export const envSchema = z.object({
   DISCORD_TOKEN: z.string().optional(), // Only required for bot-client
   DISCORD_CLIENT_ID: z.string().optional(),
   GUILD_ID: z.string().optional(), // Optional - for dev/testing command deployment
+  BOT_OWNER_ID: z.string().optional(), // Discord user ID of bot owner for admin commands
 
   // AI Provider Configuration
   AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'gemini', 'local']).default('openrouter'),
