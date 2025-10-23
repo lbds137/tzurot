@@ -15,9 +15,9 @@ datasource db {
 // ============================================================================
 
 model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  discordId String   @unique @map("discord_id") @db.VarChar(20)
-  username  String   @db.VarChar(255)
+  id        String @id @default(uuid()) @db.Uuid
+  discordId String @unique @map("discord_id") @db.VarChar(20)
+  username  String @db.VarChar(255)
 
   // User's global default persona (applied to all personalities unless overridden)
   globalPersonaId String?  @map("global_persona_id") @db.Uuid
@@ -27,11 +27,11 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  ownedPersonalities PersonalityOwner[]
+  ownedPersonalities  PersonalityOwner[]
   personalitySettings UserPersonalitySettings[]
-  ownedPersonas Persona[] @relation("PersonaOwner")
+  ownedPersonas       Persona[]                 @relation("PersonaOwner")
   conversationHistory ConversationHistory[]
-  activatedChannels ActivatedChannel[]
+  activatedChannels   ActivatedChannel[]
 
   @@index([discordId])
   @@map("users")
@@ -42,10 +42,10 @@ model User {
 // ============================================================================
 
 model Persona {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(255)
-  description String?  @db.Text
-  content     String   @db.Text // The actual persona/backstory text
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  content     String  @db.Text // The actual persona/backstory text
 
   // User personalization fields (for user personas)
   preferredName String? @map("preferred_name") @db.VarChar(255)
@@ -60,7 +60,7 @@ model Persona {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  usersUsingAsGlobal User[] @relation("UserGlobalPersona")
+  usersUsingAsGlobal      User[]                    @relation("UserGlobalPersona")
   userPersonalitySettings UserPersonalitySettings[]
 
   @@index([ownerId])
@@ -69,11 +69,11 @@ model Persona {
 }
 
 model SystemPrompt {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(255)
-  description String?  @db.Text
-  content     String   @db.Text
-  isDefault   Boolean  @default(false) @map("is_default")
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  content     String  @db.Text
+  isDefault   Boolean @default(false) @map("is_default")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -81,40 +81,40 @@ model SystemPrompt {
   // Relations
   personalities Personality[]
 
-  @@unique([isDefault], map: "idx_system_prompts_default")
+  @@index([isDefault], map: "idx_system_prompts_default")
   @@map("system_prompts")
 }
 
 model LlmConfig {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(255)
-  description String?  @db.Text
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  description String? @db.Text
 
   // LLM parameters
-  model              String   @db.VarChar(255)
-  visionModel        String?  @map("vision_model") @db.VarChar(255) // Optional vision model for image processing
-  temperature        Decimal? @db.Decimal(3, 2)
-  topP               Decimal? @map("top_p") @db.Decimal(3, 2)
-  topK               Int?     @map("top_k")
-  frequencyPenalty   Decimal? @map("frequency_penalty") @db.Decimal(3, 2)
-  presencePenalty    Decimal? @map("presence_penalty") @db.Decimal(3, 2)
-  repetitionPenalty  Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
-  maxTokens          Int?     @map("max_tokens")
+  model             String   @db.VarChar(255)
+  visionModel       String?  @map("vision_model") @db.VarChar(255) // Optional vision model for image processing
+  temperature       Decimal? @db.Decimal(3, 2)
+  topP              Decimal? @map("top_p") @db.Decimal(3, 2)
+  topK              Int?     @map("top_k")
+  frequencyPenalty  Decimal? @map("frequency_penalty") @db.Decimal(3, 2)
+  presencePenalty   Decimal? @map("presence_penalty") @db.Decimal(3, 2)
+  repetitionPenalty Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
+  maxTokens         Int?     @map("max_tokens")
 
   // Memory retrieval settings
   memoryScoreThreshold Decimal? @map("memory_score_threshold") @db.Decimal(3, 2)
   memoryLimit          Int?     @map("memory_limit")
 
-  isDefault   Boolean  @default(false) @map("is_default")
+  isDefault Boolean @default(false) @map("is_default")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  personalities Personality[]
+  personalities           Personality[]
   userPersonalitySettings UserPersonalitySettings[]
 
-  @@unique([isDefault], map: "idx_llm_configs_default")
+  @@index([isDefault], map: "idx_llm_configs_default")
   @@map("llm_configs")
 }
 
@@ -137,15 +137,15 @@ model Personality {
   llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
 
   // Character definition (from shapes.inc)
-  characterInfo           String  @map("character_info") @db.Text // Who they are (user_prompt + personality_history merged)
-  personalityTraits       String  @map("personality_traits") @db.Text // Comma-separated traits
-  personalityTone         String? @map("personality_tone") @db.VarChar(500) // Speaking style
-  personalityAge          String? @map("personality_age") @db.VarChar(100) // Character age
-  personalityLikes        String? @map("personality_likes") @db.Text // What they like
-  personalityDislikes     String? @map("personality_dislikes") @db.Text // What they dislike
-  conversationalGoals     String? @map("conversational_goals") @db.Text // Conversation objectives
-  conversationalExamples  String? @map("conversational_examples") @db.Text // Example interactions
-  customFields            Json?   @map("custom_fields") // User-defined extensions
+  characterInfo          String  @map("character_info") @db.Text // Who they are (user_prompt + personality_history merged)
+  personalityTraits      String  @map("personality_traits") @db.Text // Comma-separated traits
+  personalityTone        String? @map("personality_tone") @db.VarChar(500) // Speaking style
+  personalityAge         String? @map("personality_age") @db.VarChar(100) // Character age
+  personalityLikes       String? @map("personality_likes") @db.Text // What they like
+  personalityDislikes    String? @map("personality_dislikes") @db.Text // What they dislike
+  conversationalGoals    String? @map("conversational_goals") @db.Text // Conversation objectives
+  conversationalExamples String? @map("conversational_examples") @db.Text // Example interactions
+  customFields           Json?   @map("custom_fields") // User-defined extensions
 
   // Voice settings (for future)
   voiceEnabled  Boolean @default(false) @map("voice_enabled")
@@ -156,17 +156,17 @@ model Personality {
   imageSettings Json?   @map("image_settings")
 
   // Memory settings
-  memoryEnabled      Boolean @default(true) @map("memory_enabled")
-  contextWindowSize  Int     @default(20) @map("context_window_size")
+  memoryEnabled     Boolean @default(true) @map("memory_enabled")
+  contextWindowSize Int     @default(20) @map("context_window_size")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
-  owners PersonalityOwner[]
-  userSettings UserPersonalitySettings[]
+  owners              PersonalityOwner[]
+  userSettings        UserPersonalitySettings[]
   conversationHistory ConversationHistory[]
-  activatedChannels ActivatedChannel[]
+  activatedChannels   ActivatedChannel[]
 
   @@index([slug])
   @@map("personalities")
@@ -250,7 +250,7 @@ model ActivatedChannel {
 
   autoRespond Boolean @default(true) @map("auto_respond")
 
-  createdBy   String?   @map("created_by") @db.Uuid
+  createdBy     String? @map("created_by") @db.Uuid
   createdByUser User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now()) @map("created_at")
