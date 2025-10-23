@@ -397,6 +397,115 @@ railway shell
 # Now all commands have Railway env vars available
 ```
 
+### Database Backup and Replication
+
+**Dump and restore between environments** (e.g., dev → prod):
+
+```bash
+# Step 1: Dump development database
+railway environment development
+railway run pg_dump > tzurot-dev-backup.sql
+
+# Step 2: Restore to production
+railway environment production
+railway run psql < tzurot-dev-backup.sql
+```
+
+**Full clean restore** (drops existing tables first):
+
+```bash
+# Step 1: Dump with --clean flag (drops tables before restore)
+railway environment development
+railway run pg_dump --clean --if-exists > tzurot-full-backup.sql
+
+# Step 2: Restore to production
+railway environment production
+railway run psql < tzurot-full-backup.sql
+```
+
+**Schema-only dump** (no data):
+
+```bash
+railway environment development
+railway run pg_dump --schema-only > schema.sql
+
+railway environment production
+railway run psql < schema.sql
+```
+
+**Data-only dump** (no schema):
+
+```bash
+railway environment development
+railway run pg_dump --data-only > data.sql
+
+railway environment production
+railway run psql < data.sql
+```
+
+**Dump specific tables**:
+
+```bash
+railway environment development
+railway run pg_dump --table=users --table=personalities > specific-tables.sql
+```
+
+**Compress large dumps**:
+
+```bash
+# Dump and compress
+railway environment development
+railway run pg_dump | gzip > backup.sql.gz
+
+# Decompress and restore
+railway environment production
+gunzip -c backup.sql.gz | railway run psql
+```
+
+### Database Migration Workflow
+
+**Before deploying to production**:
+
+```bash
+# 1. Verify development database is clean
+railway environment development
+railway run psql -c "SELECT COUNT(*) FROM users;"
+railway run psql -c "SELECT COUNT(*) FROM personalities;"
+
+# 2. Create timestamped backup
+DATE=$(date +%Y%m%d-%H%M%S)
+railway run pg_dump > backups/tzurot-dev-$DATE.sql
+
+# 3. Switch to production and backup existing data (if any)
+railway environment production
+railway run pg_dump > backups/tzurot-prod-$DATE-before-restore.sql
+
+# 4. Restore development data to production
+railway run psql < backups/tzurot-dev-$DATE.sql
+
+# 5. Verify production data
+railway run psql -c "SELECT COUNT(*) FROM users;"
+railway run psql -c "SELECT COUNT(*) FROM personalities;"
+```
+
+### Important Notes
+
+⚠️ **Always backup production before restoring**:
+```bash
+railway environment production
+railway run pg_dump > prod-backup-$(date +%Y%m%d-%H%M%S).sql
+```
+
+⚠️ **Use --clean --if-exists for clean slate**:
+- Drops existing tables before restoring
+- Prevents conflicts with existing data
+- Safest option for full replication
+
+⚠️ **Database URLs**:
+- `railway run` automatically uses `DATABASE_URL` from environment
+- No need to specify connection string manually
+- Works with both private network and public proxy URLs
+
 ---
 
 ## Project Management
