@@ -15,7 +15,6 @@ export const envSchema = z.object({
   // AI Provider Configuration
   AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'gemini', 'local']).default('openrouter'),
   OPENROUTER_API_KEY: z.string().optional(),
-  OPENROUTER_BASE_URL: z.string().url().optional().default('https://openrouter.ai/api/v1'),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),

@@ -128,7 +128,7 @@ async function describeWithVisionModel(
   } else {
     // Use OpenRouter for other models
     apiKey = config.OPENROUTER_API_KEY;
-    baseURL = config.OPENROUTER_BASE_URL;
+    baseURL = 'https://openrouter.ai/api/v1';
   }
 
   const model = new ChatOpenAI({
@@ -215,7 +215,7 @@ async function describeWithFallbackVision(
     modelName: config.VISION_FALLBACK_MODEL,
     apiKey: config.OPENROUTER_API_KEY,
     configuration: {
-      baseURL: config.OPENROUTER_BASE_URL,
+      baseURL: 'https://openrouter.ai/api/v1',
     },
     temperature: AI_DEFAULTS.VISION_TEMPERATURE,
   });

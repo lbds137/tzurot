@@ -77,9 +77,6 @@ CHROMA_URL=http://chroma.railway.internal:8000
 # AI Provider Keys (for personalities without BYOK)
 OPENROUTER_API_KEY=your_openrouter_key
 OPENAI_API_KEY=your_openai_key (for embeddings)
-
-# Optional: Default base URL for OpenRouter
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 ```
 
 ## Deployment Steps
