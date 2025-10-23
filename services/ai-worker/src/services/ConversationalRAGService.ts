@@ -456,17 +456,21 @@ export class ConversationalRAGService {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          globalPersona: {
+          defaultPersonaLink: {
             select: {
-              preferredName: true,
-              pronouns: true,
-              content: true
+              persona: {
+                select: {
+                  preferredName: true,
+                  pronouns: true,
+                  content: true
+                }
+              }
             }
           }
         }
       });
 
-      const persona = user?.globalPersona;
+      const persona = user?.defaultPersonaLink?.persona;
       if (!persona) return null;
 
       // Build persona context with structured fields

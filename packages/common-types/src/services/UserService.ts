@@ -5,7 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
-import { generateUserUuid } from '../deterministic-uuid.js';
+import { generateUserUuid, generatePersonaUuid } from '../deterministic-uuid.js';
 
 const logger = createLogger('UserService');
 
@@ -38,18 +38,45 @@ export class UserService {
 
       // Create if doesn't exist
       if (!user) {
-        // Generate deterministic UUID (same across all environments!)
+        // Generate deterministic UUIDs (same across all environments!)
         const userId = generateUserUuid(discordId);
+        const personaId = generatePersonaUuid(`${username}'s Persona`, userId);
 
-        user = await this.prisma.user.create({
-          data: {
-            id: userId, // CRITICAL: Explicitly set UUID for cross-environment consistency
-            discordId,
-            username
-          },
-          select: { id: true }
+        // Create user, default persona, and link in a transaction
+        await this.prisma.$transaction(async (tx) => {
+          // Create user
+          await tx.user.create({
+            data: {
+              id: userId,
+              discordId,
+              username
+            }
+          });
+
+          // Create default persona for user
+          await tx.persona.create({
+            data: {
+              id: personaId,
+              name: `${username}'s Persona`,
+              description: 'Default persona',
+              content: 'A Discord user with no additional context provided',
+              ownerId: userId
+            }
+          });
+
+          // Link persona as user's default
+          await tx.userDefaultPersona.create({
+            data: {
+              userId: userId,
+              personaId: personaId,
+              updatedAt: new Date()
+            }
+          });
         });
-        logger.info(`Created new user: ${username} (${discordId}) with deterministic UUID: ${userId}`);
+
+        logger.info(`Created new user: ${username} (${discordId}) with default persona`);
+
+        user = { id: userId };
       }
 
       // Cache the result

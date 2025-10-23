@@ -50,20 +50,22 @@ export interface DatabasePersonality {
   systemPrompt: {
     content: string;
   } | null;
-  llmConfig: {
-    model: string;
-    visionModel: string | null;
-    temperature: Decimal | null;
-    topP: Decimal | null;
-    topK: number | null;
-    frequencyPenalty: Decimal | null;
-    presencePenalty: Decimal | null;
-    maxTokens: number | null;
-    memoryScoreThreshold: Decimal | null;
-    memoryLimit: number | null;
+  defaultConfigLink: {
+    llmConfig: {
+      model: string;
+      visionModel: string | null;
+      temperature: Decimal | null;
+      topP: Decimal | null;
+      topK: number | null;
+      frequencyPenalty: Decimal | null;
+      presencePenalty: Decimal | null;
+      maxTokens: number | null;
+      memoryScoreThreshold: Decimal | null;
+      memoryLimit: number | null;
+      contextWindowSize: number;
+    };
   } | null;
   memoryEnabled: boolean;
-  contextWindowSize: number;
   // Character definition fields
   characterInfo: string;
   personalityTraits: string;
@@ -113,18 +115,23 @@ export class PersonalityService {
           systemPrompt: {
             select: { content: true },
           },
-          llmConfig: {
+          defaultConfigLink: {
             select: {
-              model: true,
-              visionModel: true,
-              temperature: true,
-              topP: true,
-              topK: true,
-              frequencyPenalty: true,
-              presencePenalty: true,
-              maxTokens: true,
-              memoryScoreThreshold: true,
-              memoryLimit: true,
+              llmConfig: {
+                select: {
+                  model: true,
+                  visionModel: true,
+                  temperature: true,
+                  topP: true,
+                  topK: true,
+                  frequencyPenalty: true,
+                  presencePenalty: true,
+                  maxTokens: true,
+                  memoryScoreThreshold: true,
+                  memoryLimit: true,
+                  contextWindowSize: true,
+                },
+              },
             },
           },
         },
@@ -157,18 +164,23 @@ export class PersonalityService {
           systemPrompt: {
             select: { content: true },
           },
-          llmConfig: {
+          defaultConfigLink: {
             select: {
-              model: true,
-              visionModel: true,
-              temperature: true,
-              topP: true,
-              topK: true,
-              frequencyPenalty: true,
-              presencePenalty: true,
-              maxTokens: true,
-              memoryScoreThreshold: true,
-              memoryLimit: true,
+              llmConfig: {
+                select: {
+                  model: true,
+                  visionModel: true,
+                  temperature: true,
+                  topP: true,
+                  topK: true,
+                  frequencyPenalty: true,
+                  presencePenalty: true,
+                  maxTokens: true,
+                  memoryScoreThreshold: true,
+                  memoryLimit: true,
+                  contextWindowSize: true,
+                },
+              },
             },
           },
         },
@@ -196,45 +208,48 @@ export class PersonalityService {
    * Map database personality to LoadedPersonality type
    */
   private mapToPersonality(db: DatabasePersonality): LoadedPersonality {
+    // Extract llmConfig from defaultConfigLink
+    const llmConfig = db.defaultConfigLink?.llmConfig;
+
     // Convert Decimal types to numbers, providing defaults where needed
-    const temperature = db.llmConfig?.temperature
-      ? parseFloat(db.llmConfig.temperature.toString())
+    const temperature = llmConfig?.temperature
+      ? parseFloat(llmConfig.temperature.toString())
       : 0.7; // Default temperature
 
-    const maxTokens = db.llmConfig?.maxTokens ?? 4096; // Default max tokens
+    const maxTokens = llmConfig?.maxTokens ?? 4096; // Default max tokens
 
-    const topP = db.llmConfig?.topP
-      ? parseFloat(db.llmConfig.topP.toString())
+    const topP = llmConfig?.topP
+      ? parseFloat(llmConfig.topP.toString())
       : undefined;
 
-    const frequencyPenalty = db.llmConfig?.frequencyPenalty
-      ? parseFloat(db.llmConfig.frequencyPenalty.toString())
+    const frequencyPenalty = llmConfig?.frequencyPenalty
+      ? parseFloat(llmConfig.frequencyPenalty.toString())
       : undefined;
 
-    const presencePenalty = db.llmConfig?.presencePenalty
-      ? parseFloat(db.llmConfig.presencePenalty.toString())
+    const presencePenalty = llmConfig?.presencePenalty
+      ? parseFloat(llmConfig.presencePenalty.toString())
       : undefined;
 
-    const memoryScoreThreshold = db.llmConfig?.memoryScoreThreshold
-      ? parseFloat(db.llmConfig.memoryScoreThreshold.toString())
+    const memoryScoreThreshold = llmConfig?.memoryScoreThreshold
+      ? parseFloat(llmConfig.memoryScoreThreshold.toString())
       : undefined;
 
-    const memoryLimit = db.llmConfig?.memoryLimit ?? undefined;
+    const memoryLimit = llmConfig?.memoryLimit ?? undefined;
 
     return {
       id: db.id,
       name: db.name,
       displayName: db.displayName || db.name,
       systemPrompt: db.systemPrompt?.content || '',
-      model: db.llmConfig?.model || 'gemini-2.5-pro',
-      visionModel: db.llmConfig?.visionModel || undefined,
+      model: llmConfig?.model || 'gemini-2.5-pro',
+      visionModel: llmConfig?.visionModel || undefined,
       temperature,
       maxTokens,
       topP,
-      topK: db.llmConfig?.topK ?? undefined,
+      topK: llmConfig?.topK ?? undefined,
       frequencyPenalty,
       presencePenalty,
-      contextWindow: db.contextWindowSize,
+      contextWindow: llmConfig?.contextWindowSize ?? 20, // Now from llmConfig, not personality
       avatarUrl: db.avatarUrl || undefined,
       memoryEnabled: db.memoryEnabled,
       memoryScoreThreshold,

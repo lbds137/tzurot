@@ -53,10 +53,11 @@ export function generateLlmConfigUuid(name: string): string {
 }
 
 /**
- * Generate deterministic UUID for UserPersonalitySettings
+ * Generate deterministic UUID for UserPersonalityConfig
  * Seed: user_personality_settings:{userId}:{personalityId}
+ * Note: Seed pattern kept as 'user_personality_settings' for UUID consistency (renamed from UserPersonalitySettings)
  */
-export function generateUserPersonalitySettingsUuid(userId: string, personalityId: string): string {
+export function generateUserPersonalityConfigUuid(userId: string, personalityId: string): string {
   return uuidv5(`user_personality_settings:${userId}:${personalityId}`, TZUROT_NAMESPACE);
 }
 
