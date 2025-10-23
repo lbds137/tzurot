@@ -1,420 +1,426 @@
-# Tzurot Bot - Project Configuration
+# Tzurot v3 - Project Configuration
 
 @~/.claude/CLAUDE.md
 
 > **📍 ALWAYS CHECK FIRST**: Read [CURRENT_WORK.md](CURRENT_WORK.md) to understand what's actively being worked on and which documentation is currently relevant.
 
-> **⚠️ CRITICAL PR WORKFLOW**: **NEVER** create PRs directly to `main` branch! Always target `develop` for features, fixes, and updates. Only sync develop→main for releases. See [Git and PR Workflow](docs/development/GIT_AND_PR_WORKFLOW.md).
+> **⚠️ IMPORTANT**: v3 is deployed on Railway in a development environment for private testing. NOT open to public yet - requires BYOK implementation to prevent unexpected API costs.
 
 ## Project Overview
 
-Tzurot is a Discord bot that uses webhooks to represent multiple AI personalities. It allows users to add personalities and interact with them through Discord channels. Built with Node.js and Discord.js.
+Tzurot is a Discord bot with multiple AI personalities powered by a microservices architecture. Users interact with different personalities through @mentions, and each personality maintains long-term memory via vector database.
 
-**Project Context**: This is a **one-person project** developed and maintained by a single developer with AI assistance. Avoid team-oriented language and assumptions. This affects documentation style, decision-making processes, and collaboration patterns.
+**Project Context**: This is a **one-person project** developed and maintained by a single developer with AI assistance. Avoid team-oriented language and assumptions.
+
+**Why v3 Exists**: Shapes.inc (the AI API provider for v2) shut down, forcing a complete rewrite. v3 is vendor-agnostic and uses modern patterns.
 
 ## Tech Stack
-- Node.js 20.x
-- Discord.js 14.x  
-- Jest for testing
-- Nodemon for development
-- DDD architecture migration in progress
-- Primary language: JavaScript (no TypeScript)
+
+### Core Technologies
+- **Language**: TypeScript (all services)
+- **Runtime**: Node.js 20+
+- **Package Manager**: pnpm 8+ (workspaces)
+- **Discord**: Discord.js 14.x
+
+### Microservices Architecture
+- **bot-client**: Discord.js client + webhook management
+- **api-gateway**: Express HTTP API + BullMQ queue
+- **ai-worker**: AI processing + Qdrant vector memory
+
+### Infrastructure
+- **Database**: PostgreSQL (user data, conversation history)
+- **Vector DB**: Qdrant (long-term personality memory)
+- **Queue**: Redis + BullMQ (job processing)
+- **Deployment**: Railway (all services)
+
+### AI Providers
+- **Primary**: OpenRouter (400+ models)
+- **Alternative**: Direct Gemini API
+- **Architecture**: Vendor-agnostic provider abstraction
 
 ## Project Structure
-```
-src/
-├── bot.js                    # Discord entry point
-├── domain/                   # DDD domain models
-├── application/              # DDD services & commands
-├── adapters/                 # External integrations  
-├── infrastructure/           # Framework-specific code
-├── handlers/                 # Legacy message handlers
-└── utils/                    # Shared utilities
 
-tests/
-├── unit/                     # Unit tests (<500ms each)
-├── __mocks__/               # Consolidated mock system
-└── setup.js                 # Global test setup
+```
+tzurot/
+├── services/                    # Microservices
+│   ├── bot-client/             # Discord interface
+│   ├── api-gateway/            # HTTP API + job queue
+│   └── ai-worker/              # AI processing + memory
+│
+├── packages/                    # Shared code
+│   ├── common-types/           # TypeScript types/interfaces
+│   └── api-clients/            # External API clients
+│
+├── personalities/               # Personality configs (JSON)
+│   ├── lilith.json
+│   ├── default.json
+│   └── sarcastic.json
+│
+├── tzurot-legacy/              # v2 archived codebase
+│
+├── prisma/                     # Database schema
+├── scripts/                    # Deployment & utility scripts
+└── docs/                       # Documentation
 ```
 
 ## Essential Commands
 
 ### Development
 ```bash
-npm run dev                  # Start with nodemon (auto-restart)
-npm run quality              # Run all quality checks (lint, format, timers)
-npm test                     # Run all tests
-npm run test:watch          # Run tests in watch mode
-npx jest tests/unit/path/to/test.js  # Run specific test
+# Install dependencies
+pnpm install
+
+# Start all services in dev mode
+pnpm dev
+
+# Start individual service
+pnpm --filter @tzurot/bot-client dev
+pnpm --filter @tzurot/api-gateway dev
+pnpm --filter @tzurot/ai-worker dev
+
+# Build all services
+pnpm build
+
+# Type checking
+pnpm typecheck
+
+# Linting
+pnpm lint
+pnpm lint:fix
+
+# Formatting
+pnpm format
 ```
 
-### Git Workflow  
+### Deployment
 ```bash
-git sync-develop            # Sync develop with main after merging
-gh pr create --base develop --title "type: description"  # Create PR
+# Deploy to Railway (pushes trigger auto-deploy)
+git push origin feat/v3-continued
+
+# Check Railway status
+railway status
+
+# View logs
+railway logs --service api-gateway
+railway logs --service ai-worker
+railway logs --service bot-client
+
+# Set environment variables
+railway variables set KEY=value --service service-name
 ```
 
-### Scripts Directory
-See `./scripts/` for additional tools:
-- Quality enforcement scripts (timers, anti-patterns, module size)
-- Testing utilities (coverage, performance analysis)
-- Git workflow helpers
-- Database maintenance tools
+### Database
+```bash
+# Run migrations
+railway run npx prisma migrate dev
 
-## Code Style - Tzurot Specific
+# Generate Prisma client
+railway run npx prisma generate
 
-**Format**: 2 spaces • camelCase vars/functions • PascalCase classes • Single quotes • Semicolons • 100 char lines
-
-**Files**: <1000 lines target • <500 lines enforced • Break large files • JSDoc exports
-
-**Critical Patterns**:
-- Never hardcode bot prefixes - import `botPrefix` from config
-- Injectable timers only - no direct setTimeout/setInterval
-- Singleton exports forbidden - use factory functions
-- No NODE_ENV checks in source - use dependency injection
-
-### Anti-Patterns Enforced by CI
-1. **Singleton Exports** - Will fail pre-commit hooks
-2. **NODE_ENV Checks** - Use dependency injection instead  
-3. **Timer Existence Checks** - Inject timers as dependencies
-4. **Hardcoded Prefixes** - Always use config values
-
-See migration guides:
-- `docs/testing/TIMER_PATTERNS_COMPLETE.md`
-- `docs/improvements/SINGLETON_MIGRATION_GUIDE.md`
+# View database
+railway run psql
+```
 
 ## Architecture
 
-Tzurot follows **Domain-Driven Design (DDD)** principles with a hybrid legacy/modern architecture during migration.
+### Microservices Flow
 
-### DDD Layers (Current Implementation)
-
-#### Domain Layer (`src/domain/`)
-**Pure business logic with no external dependencies**
-
-- **AI Domain** (`domain/ai/`): AI requests, content handling, model definitions, request deduplication
-- **Authentication Domain** (`domain/authentication/`): User authentication, tokens, NSFW status, auth context
-- **Conversation Domain** (`domain/conversation/`): Messages, channel activation, conversation settings
-- **Personality Domain** (`domain/personality/`): Personality entities, profiles, aliases, configurations
-- **Backup Domain** (`domain/backup/`): Data export, backup jobs, personality data handling
-- **Shared Domain** (`domain/shared/`): Domain events, aggregate roots, value objects
-
-#### Application Layer (`src/application/`)
-**Orchestrates domain logic and coordinates between bounded contexts**
-
-- **Bootstrap** (`application/bootstrap/`): `ApplicationBootstrap.js` - Dependency injection and service wiring
-- **Commands** (`application/commands/`): Domain-organized command handlers
-  - Authentication: `AuthCommand.js`, `BlacklistCommand.js`, `VerifyCommand.js`
-  - Conversation: `ActivateCommand.js`, `AutorespondCommand.js`, `DeactivateCommand.js`, `ResetCommand.js`
-  - Personality: `AddCommand.js`, `AliasCommand.js`, `ConfigCommand.js`, `InfoCommand.js`, `ListCommand.js`, `RemoveCommand.js`
-  - Utility: `BackupCommand.js`, `DebugCommand.js`, `HelpCommand.js`, `NotificationsCommand.js`, `PingCommand.js`
-- **Services** (`application/services/`): `PersonalityApplicationService.js`, `AuthenticationApplicationService.js`
-- **Event Handlers** (`application/eventHandlers/`): Domain event processing
-- **Routers** (`application/routers/`): Request routing and dispatching
-
-#### Adapters Layer (`src/adapters/`)
-**External integrations and infrastructure abstractions**
-
-- **AI Adapters** (`adapters/ai/`): `HttpAIServiceAdapter.js`, `AIServiceAdapterFactory.js`
-- **Discord Adapters** (`adapters/discord/`): `DiscordMessageAdapter.js`, `DiscordWebhookAdapter.js`
-- **Persistence Adapters** (`adapters/persistence/`): File-based repositories for all domains
-- **Command Integration** (`CommandIntegrationAdapter.js`): Legacy command system bridge
-
-#### Infrastructure Layer (`src/infrastructure/`)
-**Framework-specific implementations and technical concerns**
-
-- **Authentication** (`infrastructure/authentication/`): `OAuthTokenService.js`
-- **Backup** (`infrastructure/backup/`): Archive services, API clients
-
-### Legacy Components (Being Migrated)
-
-#### Core Business Logic (`src/core/`)
-- **API Layer** (`core/api/`): Profile fetching, caching, client management
-- **Conversation** (`core/conversation/`): Legacy conversation management, auto-response
-- **Notifications** (`core/notifications/`): Release notifications, version tracking
-
-#### Message Handling (`src/handlers/`)
-- **Legacy Handlers**: `messageHandler.js`, `personalityHandler.js`, `dmHandler.js`
-- **Utility Handlers**: `errorHandler.js`, `referenceHandler.js`, `messageTrackerHandler.js`
-
-#### Entry Points
-- **Bot** (`bot.js`): Main Discord client, message routing, deduplication
-- **Webhook Manager** (`webhookManager.js`): Discord webhook creation, caching, message sending
-- **AI Service** (`aiService.js`): Legacy AI API interface with error handling
-
-### Data Flow
-
-#### DDD Command Flow (Current)
-1. Discord message → `bot.js` → `CommandIntegrationAdapter` → Domain-specific command handler
-2. Command handler → Application service → Domain logic → Repository → Persistence
-3. Domain events → Event handlers → Side effects (logging, caching, notifications)
-
-#### Legacy Flow (Still Active)
-1. Discord message → `bot.js` → Route by: command prefix / reply / @mention / active conversation
-2. AI generation: `aiService.js` → AI API → `webhookManager.js` → Discord
-3. Conversation tracking: `conversationManager.js` → Message history → Personality mapping
-
-### Migration Status
-
-> **⚠️ IMPORTANT**: DDD migration is ~25% complete. Commands and authentication have been migrated. Core bot functionality remains in legacy system. See [Migration Status Reality](docs/ddd/MIGRATION_STATUS_REALITY.md) for details.
-
-**Completed DDD Migration (~25%)**:
-- ✅ All 18 commands (auth, personality, conversation, utility)
-- ✅ Authentication domain (tokens, user auth, blacklist) - FULLY INTEGRATED
-- ✅ Domain infrastructure (events, repositories, services)
-- ✅ Command routing via CommandIntegrationAdapter
-
-**Still Using Legacy System (~75%)**:
-- ❌ AI service integration (`aiService.js` - no DDD code paths)
-- ❌ Message processing (`bot.js`, `personalityHandler.js`)
-- ❌ Webhook management (`webhookManager.js`)
-- ❌ Conversation core (`conversationManager.js`)
-- ❌ All personality message flow
-
-**Current Reality**:
-- Commands use DDD, everything else uses legacy
-- No feature flags - the split is hardcoded
-- Both systems share data files but not logic
-- New features must work with the hybrid architecture
-
-## 🚨 CIRCULAR DEPENDENCY PREVENTION
-
-### The Service Locator Anti-Pattern
-
-**❌ NEVER DO THIS - Causes Circular Dependencies:**
-```javascript
-// In any module that ApplicationBootstrap might import
-const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
-const service = getApplicationBootstrap().getServices().someService;
+```
+Discord User
+    ↓
+bot-client (Discord.js)
+    ↓ HTTP
+api-gateway (Express + BullMQ)
+    ↓ Redis Queue
+ai-worker (AI + Qdrant)
+    ↓
+OpenRouter/Gemini API
 ```
 
-**✅ CORRECT PATTERN - Dependency Injection:**
-```javascript
-// In constructor - let the caller inject dependencies
-class MyService {
-  constructor({ authService, personalityService }) {
-    this.authService = authService;
-    this.personalityService = personalityService;
-  }
-}
+### Key Design Principles
 
-// Or lazy loading as last resort:
-async function myFunction() {
-  const { getApplicationBootstrap } = require('./application/bootstrap/ApplicationBootstrap');
-  const service = getApplicationBootstrap().getServices().someService;
-}
-```
+1. **No DDD** - v2's DDD architecture was over-engineered. v3 uses simple, clean classes.
+2. **Vendor Independence** - AI provider abstraction layer prevents vendor lock-in
+3. **TypeScript First** - Full type safety across all services
+4. **Microservices** - Each service has single responsibility
+5. **Long-term Memory** - Qdrant vector DB for personality memory across conversations
 
-### Why This Happens
+### Service Responsibilities
 
-1. **ApplicationBootstrap imports Module A** (directly or indirectly)
-2. **Module A imports ApplicationBootstrap** to get a service
-3. **Circular dependency!** Node.js warns about this
+**bot-client**:
+- Discord message events
+- Webhook management (unique avatar/name per personality)
+- Message formatting and chunking
+- Slash command registration
 
-### Common Circular Dependency Sources
+**api-gateway**:
+- HTTP API endpoints
+- Job creation in BullMQ queue
+- Request validation
+- (Future: BYOK credential management)
 
-- `ProfileInfoFetcher.js` trying to get auth service
-- `BackupAPIClient.js` trying to get services  
-- Any utility trying to get bootstrap services
-- Command classes importing bootstrap during module load
+**ai-worker**:
+- Job processing from queue
+- Qdrant memory retrieval
+- AI provider integration (OpenRouter/Gemini)
+- Conversation history management
+- Response generation
 
-### Prevention Rules
+## Current Features (Development Deployment)
 
-1. **NEVER import ApplicationBootstrap at module level** in files that might be imported by ApplicationBootstrap
-2. **Always use constructor injection** when possible
-3. **Use lazy loading** only as a last resort
-4. **Check import chains** before adding ApplicationBootstrap imports
+### ✅ Working in Dev Deployment
+- @personality mentions (@lilith, @default, @sarcastic)
+- Reply detection (reply to bot to continue conversation)
+- Webhook management (unique appearance per personality)
+- Message chunking (Discord 2000 char limit)
+- Conversation history tracking
+- Long-term memory (Qdrant vectors)
+- Image attachment support
+- Voice transcription support
+- Model indicator in responses
+- Persistent typing indicators
+- Basic slash commands (/ping, /help)
 
-### Quick Test for Circular Dependencies
+### 📋 Not Yet Ported from v2
+- Auto-response (activated channels)
+- Full slash command suite
+- Rate limiting
+- NSFW verification
+- Request deduplication
 
+### 🚧 Required for Public Production Launch
+**Critical blockers**:
+- **BYOK (Bring Your Own Key)**: User-provided API keys to prevent bot owner paying all costs
+- **Admin Commands**: Bot owner needs ability to manage servers
+  - `/admin servers` - List all servers bot is in
+  - `/admin kick <server_id>` - Remove bot from servers
+  - `/admin usage` - Monitor API costs
+- Without these, random users can rack up expensive API bills
+
+## Code Style - Tzurot v3
+
+**TypeScript Style**:
+- 2 spaces indentation
+- Single quotes
+- Semicolons
+- 100 character line limit
+- camelCase for variables/functions
+- PascalCase for classes/types
+
+**File Organization**:
+- One class per file
+- Export at bottom of file
+- Imports grouped: external, then internal
+- Types/interfaces in separate files when shared
+
+**Logging**:
+- Use Pino logger from @tzurot/common-types
+- Structure: `logger.info({ context }, 'message')`
+- Never log secrets/tokens
+- See privacy logging guide for user data
+
+## Git Workflow
+
+### Branch Strategy
+- `main` - Production releases only
+- `feat/v3-continued` - Current v3 development branch
+- Feature branches from `feat/v3-continued`
+
+### Commit Messages
 ```bash
-node --trace-warnings -e "require('./src/application/bootstrap/ApplicationBootstrap')"
+# Format: type: description
+feat: add voice transcription support
+fix: prevent message chunks exceeding 2000 chars
+chore: update dependencies
+docs: update deployment guide
 ```
 
-## Critical Patterns - Tzurot Specific
+### Deployment Flow
+1. Push to `feat/v3-continued` branch
+2. Railway auto-deploys from GitHub
+3. Check health endpoint: https://api-gateway-development-83e8.up.railway.app/health
+4. Monitor logs via `railway logs`
 
-### Performance & Rate Limits
-- **Webhook caching**: Reduces Discord API calls (critical for rate limits)
-- **Profile caching**: Reduces AI API calls (expensive operations)  
-- **Message deduplication**: Multiple layers prevent duplicate processing
-- **Avatar storage**: Serves locally to reduce external requests
+## Environment Variables
 
-### Message Deduplication Layers
-1. Request-level deduplication in aiService.js
-2. Message tracking in messageTracker.js
-3. Webhook message tracking
-Each layer serves a specific purpose - maintain all of them
+### Required for bot-client
+- `DISCORD_TOKEN` - Discord bot token
+- `GATEWAY_URL` - API gateway URL (Railway provides)
 
-### Media Handling
-- System supports audio and image attachments
-- References to media (like replies) require special handling
-- DM channels require different media handling than guild channels
-- Always validate media URLs before processing
-- Implement size limits for media processing
+### Required for api-gateway
+- `REDIS_URL` - Redis connection (Railway provides)
+- `DATABASE_URL` - PostgreSQL connection (Railway provides)
 
-### Error Boundaries
-- Multiple layers of error handling implemented
-- Never remove error boundaries without understanding purpose
-- Log all errors with appropriate context
-- Implement retries with exponential backoff for external calls
+### Required for ai-worker
+- `REDIS_URL` - Redis connection
+- `DATABASE_URL` - PostgreSQL connection
+- `QDRANT_URL` - Qdrant cloud URL
+- `QDRANT_API_KEY` - Qdrant API key
+- `AI_PROVIDER` - "openrouter" or "gemini"
+- `OPENROUTER_API_KEY` - OpenRouter key (if using)
+- `GEMINI_API_KEY` - Gemini key (if using)
+- `OPENAI_API_KEY` - For embeddings
 
-## Git Workflow - Tzurot Specific
+## Testing
 
-### 🚨 MANDATORY: Run Tests Before Pushing!
+**Note**: Testing infrastructure is being rebuilt for v3. v2 had extensive Jest tests, but v3 is using a different approach.
 
-**NEVER push without running tests first:**
-```bash
-npm test                    # Run full test suite
-# OR for quick verification:
-npm test -- --no-coverage   # Faster without coverage
-```
+Current status: Manual testing in production + Railway health checks
 
-**Why this is critical:**
-- Tests catch breaking changes that aren't obvious
-- Prevents breaking the develop branch for others
-- Avoids emergency reverts and wasted time
+Planned: Vitest for unit tests, integration tests for service communication
 
-### 🚨 PR RULES: NEVER TO MAIN (except releases/hotfixes)!
+## Security
 
-**Branch Strategy**: 
-- `feature/` → `develop` → `main`
-- One feature = One branch
-- Branches live <1 week
-- Conventional commits required
+### Never Commit
+- API keys or tokens
+- Real user data in test files
+- `.env` files (use `.env.example`)
 
-### 🚨 NEVER DELETE BRANCHES WITHOUT PERMISSION!
+### Always Use
+- Environment variables for secrets
+- Railway's secrets management
+- Privacy-conscious logging (no PII)
 
-**Required checks before branch operations**:
-```bash
-git status && git log --oneline -5 && git diff origin/branch && git branch -vv
-```
+## Lessons Learned (v2 → v3)
 
-**If branch exists**: Ask user OR use different name OR update existing
-
-## Security - Tzurot Specific
-
-### Authentication & Authorization
-- **Never log or expose API keys/tokens** in any form
-- Always validate user permissions before executing commands
-- Use environment variables for all sensitive configuration
-- Implement rate limiting on all external API calls
-- Always use X-User-Auth header for user-specific requests
-
-### Data Privacy
-- Never store or log real user data in tests
-- Use generic test data (test@example.com, @TestUser)
-- Respect Discord's privacy guidelines
-- **Follow**: `docs/development/PRIVACY_LOGGING_GUIDE.md`
-
-## Tzurot-Specific Lessons Learned
-
-### 2025-07-08 - Lost Avatar Functionality in DDD Migration
-
-**What Happened**: DDD refactor lost avatar downloading/serving. Webhooks stopped showing avatars.
-
-**Root Cause**: 
-- avatarStorage.initialize() only called in legacy PersonalityManager
-- PersonalityApplicationService never pre-downloaded avatars
+### 2025-07-25 - The Untested Push Breaking Develop
+**What Happened**: Made "simple" linter fixes and pushed without testing, broke the develop branch.
 
 **Prevention**:
-```bash
-# Before ANY refactor:
-grep -r "initialize\|startup\|bootstrap" src/
-# Document EVERY initialization step
-```
+- ALWAYS run tests before pushing (even for "simple" changes)
+- If tests don't exist, manually test the feature
+- Never assume simple refactors don't need testing
+
+### 2025-07-21 - The Git Restore Catastrophe
+**What Happened**: Ran `git restore .` thinking it would "get changes from branch" but it DESTROYED hours of uncommitted work.
+
+**Prevention**:
+- "Get changes on branch" means COMMIT them, not DISCARD them
+- ALWAYS ask before ANY git command that discards work
+- Uncommitted changes = HOURS OF WORK - treat them as sacred
+- When in doubt, ASK
 
 ### 2025-07-16 - DDD Authentication Migration Broke Core Features
-
-**What Happened**: 
-- Bot hitting OpenAI instead of user's service (401 errors)
-- Duplicate bot responses  
-- 45+ test failures
-
-**Root Cause**:
-- createAIClient() method not implemented in new auth service
-- Return value changed from `isAuthorized` to `allowed`
-- Missing AI service routing initialization
+**What Happened**: DDD refactor changed return values and broke AI routing (45+ test failures).
 
 **Prevention**:
-- Test actual Discord bot behavior, not just unit tests
-- Verify API endpoints remain unchanged
+- Test actual behavior, not just unit tests
+- Verify API contracts remain unchanged
 - Check return value formats match exactly
+- Run full integration tests after refactors
 
-### 2025-07-08 - Exposed Vendor Dispute in Changelog
+### Why v3 Abandoned DDD
+**Lesson**: DDD was over-engineered for a one-person project. It caused:
+- Circular dependency issues
+- Excessive abstraction layers
+- Complex bootstrap/wiring
+- More time fixing architecture than building features
 
-**What Happened**: Put "Discord blocking X vendor" in public changelog
-
-**Prevention**: 
-- NEVER mention vendor disputes in public docs
-- NEVER expose business relationships
-- Just describe technical fixes
-
-## Tool Permissions - Tzurot Specific
-
-### Approved (No Permission Needed)
-- `npm run` commands (dev, test, lint, format, quality)
-- File operations (read, write, edit)
-- Search tools (grep, search, Task)
-- All MCP tools
-- Package inspection (`npm list`, `npm audit`)
-
-### Requires Approval
-- Adding/removing npm dependencies
-- Modifying package.json dependencies
-- Core config changes (.eslintrc, jest.config.js)
-- Git push operations (triggers deployment)
-- Branch creation/deletion
-
-## Testing Guidelines - Tzurot Specific
-
-### Performance Requirements
-- Test suite must run in <30 seconds
-- Individual test files <5 seconds
-- Always mock I/O operations
-- Use fake timers for all delays
-
-### Tzurot Test Patterns
-- Use `createMigrationHelper()` for DDD tests
-- Use `presets.commandTest()` for command tests
-- See test documentation for patterns
-
-### Required After Changes
-1. Run `npm run quality` - checks code, formatting, patterns
-2. Run `npm test` - verify functionality
-3. Update `docs/testing/TEST_COVERAGE_SUMMARY.md` with coverage
-4. Pre-commit hooks run automatically on staged files
-
-## Versioning - Tzurot Specific
-
-See `docs/development/VERSIONING.md` for Discord bot versioning guidance.
-
-### Quick Reference
-- **PATCH**: Bug fixes (1.2.0 → 1.2.1)
-- **MINOR**: New features (1.2.0 → 1.3.0)  
-- **MAJOR**: Breaking changes (1.2.0 → 2.0.0)
-
-### Release Process
-1. Create `release/vX.Y.Z` from develop
-2. Update version in package.json
-3. Run `npm install` to update package-lock.json
-4. Update CHANGELOG.md
-5. PR to main (only time allowed)
-6. After merge: `echo "y" | ./scripts/create-release.sh vX.Y.Z`
+**v3 Approach**: Simple classes, constructor injection, clear responsibilities. Ship features, not architecture.
 
 ## Documentation Maintenance
 
-**IMPORTANT**: When switching to work on a different area:
-1. Update `CURRENT_WORK.md` with the new focus
-2. Update the "Active Work" section in `docs/README.md`
-3. Move completed work to "Recently Completed" section
-4. Update relevant doc timestamps when making changes
+**Important**: When switching work focus:
+1. Update `CURRENT_WORK.md` with new focus
+2. Update relevant doc timestamps
+3. Archive outdated docs to `docs/archive/`
 
-This keeps documentation relevance clear without complex systems.
+## Key Documentation
 
-## Import Key Project Docs
-@CURRENT_WORK.md
-@docs/development/GIT_AND_PR_WORKFLOW.md
-@docs/testing/TIMER_PATTERNS_COMPLETE.md
-@docs/development/PRIVACY_LOGGING_GUIDE.md
-@docs/development/VERSIONING.md
-@package.json
+### Always Relevant
+- [CURRENT_WORK.md](CURRENT_WORK.md) - Current project status
+- [README.md](README.md) - v3 overview and quick start
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment guide
+- [V2_FEATURE_TRACKING.md](V2_FEATURE_TRACKING.md) - What's ported vs. not
+
+### Development Guides
+- [DEVELOPMENT.md](DEVELOPMENT.md) - Local development setup
+- [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
+
+### For AI Assistants
+- This file (CLAUDE.md) - Project-specific rules
+- ~/.claude/CLAUDE.md - Universal rules (personality, coding style, safety)
+
+## Railway Deployment Details
+
+**Project**: industrious-analysis (development environment)
+
+**Status**: Private testing only - NOT open to public (no BYOK yet)
+
+**Services**:
+- api-gateway: https://api-gateway-development-83e8.up.railway.app
+- ai-worker: (internal only)
+- bot-client: (internal only)
+
+**Databases**:
+- PostgreSQL (Railway addon)
+- Redis (Railway addon)
+- Qdrant (external cloud service)
+
+**Deployment**:
+- Auto-deploys from GitHub on push to `feat/v3-continued`
+- Each service has own Dockerfile
+- Environment variables managed via Railway CLI or dashboard
+
+**Cost Warning**: All API usage currently on bot owner's account. Random users could cause expensive bills without BYOK.
+
+## Common Operations
+
+### Adding a New Personality
+1. Create `personalities/name.json`:
+   ```json
+   {
+     "name": "PersonalityName",
+     "systemPrompt": "Your personality description...",
+     "model": "anthropic/claude-sonnet-4.5",
+     "temperature": 0.8,
+     "avatar": "https://example.com/avatar.png"
+   }
+   ```
+2. Commit and push (Railway auto-deploys)
+3. Bot auto-loads new personality on restart
+
+### Checking Service Health
+```bash
+# API Gateway health
+curl https://api-gateway-development-83e8.up.railway.app/health
+
+# Check logs
+railway logs --service api-gateway --tail 50
+railway logs --service ai-worker --tail 50
+railway logs --service bot-client --tail 50
+```
+
+### Debugging Production Issues
+1. Check service logs first: `railway logs --service <name>`
+2. Verify environment variables: `railway variables --service <name>`
+3. Check health endpoint (api-gateway only)
+4. Look for error patterns in logs
+5. Check Railway dashboard for service status
+
+## Tool Permissions
+
+### Approved (No Permission Needed)
+- `pnpm` commands (install, dev, build, test, lint)
+- File operations (read, write, edit)
+- Search tools (grep, glob, search)
+- Railway CLI read operations (status, logs, variables)
+- Git read operations (status, diff, log)
+
+### Requires Approval
+- `pnpm add/remove` (changing dependencies)
+- Railway write operations (deploy, variables set)
+- Git write operations (commit, push, branch delete)
+- Database migrations
+- Modifying package.json dependencies
+
+## Getting Help
+
+**For the user**:
+- GitHub Issues: https://github.com/anthropics/claude-code/issues
+- `/help` command in Claude Code
+
+**For AI assistants**:
+- When unsure: Check CURRENT_WORK.md for current focus
+- When stuck: Look at similar patterns in the codebase
+- When confused: Ask user for clarification rather than guessing

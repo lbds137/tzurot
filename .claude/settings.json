@@ -14,8 +14,6 @@
       "Batch(*)",
       "Fetch(*)",
       "Search(*)",
-      "WebSearch(*)",
-      "WebFetch(*)",
       "Bash(echo)",
       "Bash(echo:*)",
       "Bash(md5sum:*)",
