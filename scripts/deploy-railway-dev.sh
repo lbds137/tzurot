@@ -68,8 +68,6 @@ railway variables \
   --set "AI_PROVIDER=${AI_PROVIDER}" \
   --set "GEMINI_API_KEY=${GEMINI_API_KEY}" \
   --set "DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL}" \
-  --set "ENABLE_MEMORY=true" \
-  --set "ENABLE_STREAMING=false" \
   --set "QDRANT_URL=${QDRANT_URL}" \
   --set "QDRANT_API_KEY=${QDRANT_API_KEY}" \
   --set "OPENAI_API_KEY=${OPENAI_API_KEY}" \

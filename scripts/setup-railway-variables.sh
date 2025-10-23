@@ -141,7 +141,10 @@ echo ""
 
 # Shared Infrastructure Variables
 echo -e "${YELLOW}Shared Infrastructure Variables${NC}"
-DATABASE_URL=$(get_or_prompt "DATABASE_URL" "PostgreSQL connection string" "true")
+echo -e "${BLUE}ℹ${NC}  Note: DATABASE_URL is usually provided automatically by Railway's Postgres addon"
+echo "   If you're using Railway Postgres, you can skip this (press Enter)"
+echo "   Railway will automatically inject DATABASE_PRIVATE_URL for services"
+DATABASE_URL=$(get_or_prompt "DATABASE_URL" "PostgreSQL connection string (or leave empty to use Railway's)" "true")
 QDRANT_URL=$(get_or_prompt "QDRANT_URL" "Qdrant vector database URL" "false")
 QDRANT_API_KEY=$(get_or_prompt "QDRANT_API_KEY" "Qdrant API key (if using Qdrant Cloud)" "true")
 echo ""
@@ -150,6 +153,8 @@ echo ""
 echo -e "${YELLOW}Shared AI Configuration${NC}"
 AI_PROVIDER=$(get_or_prompt "AI_PROVIDER" "AI provider (gemini, openrouter, etc.)" "false")
 GEMINI_API_KEY=$(get_or_prompt "GEMINI_API_KEY" "Gemini API key" "true")
+OPENROUTER_API_KEY=$(get_or_prompt "OPENROUTER_API_KEY" "OpenRouter API key (if using OpenRouter)" "true")
+OPENAI_API_KEY=$(get_or_prompt "OPENAI_API_KEY" "OpenAI API key (for embeddings)" "true")
 DEFAULT_AI_MODEL=$(get_or_prompt "DEFAULT_AI_MODEL" "Default AI model to use" "false")
 WHISPER_MODEL=$(get_or_prompt "WHISPER_MODEL" "Whisper model for audio transcription" "false")
 VISION_FALLBACK_MODEL=$(get_or_prompt "VISION_FALLBACK_MODEL" "Vision model for image analysis" "false")
@@ -158,7 +163,7 @@ echo ""
 
 # Shared Application Settings
 echo -e "${YELLOW}Shared Application Settings${NC}"
-NODE_ENV=$(get_or_prompt "NODE_ENV" "Node environment (production)" "false")
+NODE_ENV=$(get_or_prompt "NODE_ENV" "Node environment (production, development)" "false")
 LOG_LEVEL=$(get_or_prompt "LOG_LEVEL" "Logging level (info, debug, etc.)" "false")
 echo ""
 
@@ -197,11 +202,13 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 echo -e "${YELLOW}Shared Variables (apply to all services):${NC}"
-echo "  DATABASE_URL: $([ -n "$DATABASE_URL" ] && echo '***set***' || echo 'NOT SET')"
+echo "  DATABASE_URL: $([ -n "$DATABASE_URL" ] && echo '***set***' || echo 'NOT SET (Railway will provide)')"
 echo "  QDRANT_URL: ${QDRANT_URL:-NOT SET}"
 echo "  QDRANT_API_KEY: $([ -n "$QDRANT_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
 echo "  AI_PROVIDER: ${AI_PROVIDER}"
 echo "  GEMINI_API_KEY: $([ -n "$GEMINI_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
+echo "  OPENROUTER_API_KEY: $([ -n "$OPENROUTER_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
+echo "  OPENAI_API_KEY: $([ -n "$OPENAI_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
 echo "  DEFAULT_AI_MODEL: ${DEFAULT_AI_MODEL}"
 echo "  WHISPER_MODEL: ${WHISPER_MODEL}"
 echo "  VISION_FALLBACK_MODEL: ${VISION_FALLBACK_MODEL}"
@@ -226,10 +233,14 @@ echo ""
 
 # Validate required variables
 MISSING_VARS=()
-[ -z "$DATABASE_URL" ] && MISSING_VARS+=("DATABASE_URL")
+# DATABASE_URL is optional - Railway Postgres addon provides it automatically
 [ -z "$QDRANT_URL" ] && MISSING_VARS+=("QDRANT_URL")
-[ -z "$GEMINI_API_KEY" ] && MISSING_VARS+=("GEMINI_API_KEY")
 [ -z "$DISCORD_TOKEN" ] && MISSING_VARS+=("DISCORD_TOKEN")
+
+# At least one AI provider API key is required
+if [ -z "$GEMINI_API_KEY" ] && [ -z "$OPENROUTER_API_KEY" ]; then
+  MISSING_VARS+=("GEMINI_API_KEY or OPENROUTER_API_KEY")
+fi
 
 if [ ${#MISSING_VARS[@]} -gt 0 ]; then
   echo -e "${RED}❌ Missing required variables:${NC}"
@@ -239,6 +250,22 @@ if [ ${#MISSING_VARS[@]} -gt 0 ]; then
   echo ""
   echo "Please set these in your .env file or provide them when prompted."
   exit 1
+fi
+
+# Warning about DATABASE_URL
+if [ -z "$DATABASE_URL" ]; then
+  echo -e "${YELLOW}⚠${NC}  DATABASE_URL not provided - Railway will use Postgres addon's URL automatically"
+  echo "   Services will use: \${{Postgres.DATABASE_PRIVATE_URL}}"
+fi
+
+# Info about AI provider
+if [ "$AI_PROVIDER" = "gemini" ] && [ -z "$GEMINI_API_KEY" ]; then
+  echo -e "${YELLOW}⚠${NC}  AI_PROVIDER is set to 'gemini' but GEMINI_API_KEY is not provided"
+  echo "   Make sure to set GEMINI_API_KEY or change AI_PROVIDER"
+fi
+if [ "$AI_PROVIDER" = "openrouter" ] && [ -z "$OPENROUTER_API_KEY" ]; then
+  echo -e "${YELLOW}⚠${NC}  AI_PROVIDER is set to 'openrouter' but OPENROUTER_API_KEY is not provided"
+  echo "   Make sure to set OPENROUTER_API_KEY or change AI_PROVIDER"
 fi
 
 echo -e "${GREEN}✓${NC} All required variables are set"
@@ -262,11 +289,14 @@ echo ""
 
 # Set shared variables
 echo -e "${YELLOW}Setting shared variables...${NC}"
-set_variable "shared" "" "DATABASE_URL" "$DATABASE_URL" "PostgreSQL connection"
+# Only set DATABASE_URL if provided (Railway Postgres addon provides it automatically otherwise)
+[ -n "$DATABASE_URL" ] && set_variable "shared" "" "DATABASE_URL" "$DATABASE_URL" "PostgreSQL connection (custom)"
 set_variable "shared" "" "QDRANT_URL" "$QDRANT_URL" "Qdrant vector database"
 [ -n "$QDRANT_API_KEY" ] && set_variable "shared" "" "QDRANT_API_KEY" "$QDRANT_API_KEY" "Qdrant API key"
 set_variable "shared" "" "AI_PROVIDER" "$AI_PROVIDER" "AI provider"
-set_variable "shared" "" "GEMINI_API_KEY" "$GEMINI_API_KEY" "Gemini API key"
+[ -n "$GEMINI_API_KEY" ] && set_variable "shared" "" "GEMINI_API_KEY" "$GEMINI_API_KEY" "Gemini API key"
+[ -n "$OPENROUTER_API_KEY" ] && set_variable "shared" "" "OPENROUTER_API_KEY" "$OPENROUTER_API_KEY" "OpenRouter API key"
+[ -n "$OPENAI_API_KEY" ] && set_variable "shared" "" "OPENAI_API_KEY" "$OPENAI_API_KEY" "OpenAI API key"
 set_variable "shared" "" "DEFAULT_AI_MODEL" "$DEFAULT_AI_MODEL" "Default AI model"
 set_variable "shared" "" "WHISPER_MODEL" "$WHISPER_MODEL" "Audio transcription model"
 set_variable "shared" "" "VISION_FALLBACK_MODEL" "$VISION_FALLBACK_MODEL" "Vision model"

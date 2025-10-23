@@ -36,9 +36,6 @@ const config = {
   worker: {
     concurrency: envConfig.WORKER_CONCURRENCY,
     queueName: envConfig.QUEUE_NAME
-  },
-  features: {
-    enableMemory: envConfig.ENABLE_MEMORY
   }
 };
 
@@ -75,30 +72,26 @@ async function main(): Promise<void> {
     worker: config.worker
   });
 
-  // Initialize vector memory manager (only if enabled)
+  // Initialize vector memory manager (fails gracefully if Qdrant not configured)
   let memoryManager: QdrantMemoryAdapter | undefined;
 
-  if (config.features.enableMemory) {
-    logger.info('[AIWorker] Initializing Qdrant connection...');
+  logger.info('[AIWorker] Initializing Qdrant connection...');
 
-    try {
-      memoryManager = new QdrantMemoryAdapter();
-      const healthy = await memoryManager.healthCheck();
+  try {
+    memoryManager = new QdrantMemoryAdapter();
+    const healthy = await memoryManager.healthCheck();
 
-      if (healthy) {
-        logger.info('[AIWorker] Qdrant initialized successfully');
-      } else {
-        logger.warn('[AIWorker] Qdrant health check failed');
-        logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
-        memoryManager = undefined;
-      }
-    } catch (error) {
-      logger.error({ err: error }, '[AIWorker] Failed to initialize Qdrant');
+    if (healthy) {
+      logger.info('[AIWorker] Qdrant initialized successfully');
+    } else {
+      logger.warn('[AIWorker] Qdrant health check failed');
       logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
       memoryManager = undefined;
     }
-  } else {
-    logger.info('[AIWorker] Vector memory disabled (ENABLE_MEMORY=false)');
+  } catch (error) {
+    logger.error({ err: error }, '[AIWorker] Failed to initialize Qdrant');
+    logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
+    memoryManager = undefined;
   }
 
   // Initialize job processor
