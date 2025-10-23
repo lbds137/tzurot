@@ -9,7 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/client.js';
 import { WebhookManager } from '../webhooks/manager.js';
-import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger } from '@tzurot/common-types';
+import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality } from '../redis.js';
@@ -72,7 +72,8 @@ export class MessageHandler {
         if (personality !== null) {
           await this.handlePersonalityMessage(message, personality, mentionMatch.cleanContent);
         } else {
-          await message.reply(`I don't know a personality called "${mentionMatch.personalityName}"`);
+          // Silently ignore unknown personality mentions (likely typos or non-bot mentions)
+          logger.debug(`[MessageHandler] Unknown personality mentioned: ${mentionMatch.personalityName}`);
         }
         return;
       }
@@ -334,32 +335,19 @@ export class MessageHandler {
 
   /**
    * Find personality mention in message content
-   * Supports: @personality, &personality (for development)
+   * Uses BOT_MENTION_CHAR from config (@ for prod, & for dev)
    */
   private findPersonalityMention(content: string): { personalityName: string; cleanContent: string } | null {
-    // Try @ mentions first
-    const atMentionRegex = /@(\w+)/;
-    const atMatch = content.match(atMentionRegex);
+    const config = getConfig();
+    const mentionChar = config.BOT_MENTION_CHAR;
 
-    if (atMatch !== null) {
-      const personalityName = atMatch[1];
+    // Escape special regex characters
+    const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const mentionRegex = new RegExp(`${escapedChar}(\\w+)`);
+    const match = content.match(mentionRegex);
 
-      // Ignore Discord user ID mentions (all digits)
-      if (/^\d+$/.test(personalityName)) {
-        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
-        return null;
-      }
-
-      const cleanContent = content.replace(atMentionRegex, '').trim();
-      return { personalityName, cleanContent };
-    }
-
-    // Try & mentions (development)
-    const ampMentionRegex = /&(\w+)/;
-    const ampMatch = content.match(ampMentionRegex);
-
-    if (ampMatch !== null) {
-      const personalityName = ampMatch[1];
+    if (match !== null) {
+      const personalityName = match[1];
 
       // Ignore Discord user ID mentions (all digits)
       if (/^\d+$/.test(personalityName)) {
@@ -367,7 +355,7 @@ export class MessageHandler {
         return null;
       }
 
-      const cleanContent = content.replace(ampMentionRegex, '').trim();
+      const cleanContent = content.replace(mentionRegex, '').trim();
       return { personalityName, cleanContent };
     }
 

@@ -10,6 +10,7 @@ export const envSchema = z.object({
   DISCORD_CLIENT_ID: z.string().optional(),
   GUILD_ID: z.string().optional(), // Optional - for dev/testing command deployment
   BOT_OWNER_ID: z.string().optional(), // Discord user ID of bot owner for admin commands
+  BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
   // AI Provider Configuration
   AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'gemini', 'local']).default('openrouter'),
