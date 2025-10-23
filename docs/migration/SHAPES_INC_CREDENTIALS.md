@@ -10,6 +10,11 @@ These were used in Tzurot v2 for AI generation and personality data storage:
 SERVICE_ID=shapesinc
 SERVICE_API_BASE_URL=https://api.shapes.inc
 SERVICE_WEBSITE=https://shapes.inc
+SERVICE_APP_ID=(your app ID - see Railway backup if needed)
+SERVICE_API_KEY=(your API key - see Railway backup if needed)
+
+# Additional v2 Configuration
+PERSONALITY_JARGON_TERM=shapes
 ```
 
 ## What These Were Used For
@@ -39,6 +44,12 @@ SERVICE_WEBSITE=https://shapes.inc
 **SERVICE_WEBSITE**: `https://shapes.inc`
 - Marketing/documentation site
 - Referenced in bot help commands and about info
+
+**PERSONALITY_JARGON_TERM**: `shapes`
+- User-facing terminology for "personalities"
+- Used in v2 bot commands and help text
+- Example: "List available shapes" instead of "List available personalities"
+- This was shapes.inc specific branding
 
 ## v2 Backup System
 
