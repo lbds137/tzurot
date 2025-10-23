@@ -59,7 +59,6 @@ export const envSchema = z.object({
   // Worker Configuration
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default('5'),
   QUEUE_NAME: z.string().default('ai-requests'),
-  ENABLE_MEMORY: z.string().transform((val) => val === 'true').default('false'),
   ENABLE_HEALTH_SERVER: z.string().transform((val) => val !== 'false').default('true'),
   PORT: z.string().regex(/^\d+$/).transform(Number).default('3001'),
 

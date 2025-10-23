@@ -127,8 +127,8 @@ railway open
 - `AI_PROVIDER`: gemini
 - `GEMINI_API_KEY`: Your Google Gemini API key
 - `DEFAULT_AI_MODEL`: gemini-2.5-pro
-- `ENABLE_MEMORY`: false (for now)
-- `ENABLE_STREAMING`: false (for now)
+- `QDRANT_URL`: Qdrant cloud URL (memory automatically enabled if configured)
+- `QDRANT_API_KEY`: Qdrant API key
 
 ### bot-client
 - `DISCORD_TOKEN`: Your Discord bot token
