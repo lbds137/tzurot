@@ -506,6 +506,173 @@ railway run pg_dump > prod-backup-$(date +%Y%m%d-%H%M%S).sql
 - No need to specify connection string manually
 - Works with both private network and public proxy URLs
 
+### Troubleshooting: Version Mismatch Issues
+
+**Problem**: `pg_dump: error: aborting because of server version mismatch`
+
+**Cause**: Railway runs PostgreSQL 17.x, but your local `pg_dump` is an older version (e.g., 16.x). `pg_dump` requires the client version to match or be newer than the server version.
+
+**Common on**: Steam Deck (SteamOS), older Linux distributions, systems with outdated PostgreSQL packages.
+
+**Why Railway CLI doesn't help**: `railway run pg_dump` executes pg_dump **locally** with Railway environment variables injected. It does NOT run the command on Railway's servers. Therefore, you still need compatible local PostgreSQL tools.
+
+#### Workaround: CSV Export/Import Method
+
+When you can't upgrade local PostgreSQL to match Railway's version, use CSV export/import:
+
+**Step 1: Deploy Schema to Production (using Prisma)**
+
+```bash
+# Switch to production environment
+railway environment production
+railway service Postgres
+
+# Get production public database URL
+PROD_DB_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
+
+# Deploy schema using Prisma (uses public URL to avoid .railway.internal)
+DATABASE_URL="$PROD_DB_URL" npx prisma migrate deploy
+```
+
+**Step 2: Export Development Data as CSV**
+
+```bash
+# Switch to development environment
+railway environment development
+railway service Postgres
+
+# Get development public database URL
+DEV_DB_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
+
+# Create backups directory
+mkdir -p backups/csv
+
+# Export all tables as CSV
+# Note: Adjust table list based on your schema
+psql "$DEV_DB_URL" << 'EOF'
+\copy users TO 'backups/csv/users.csv' CSV HEADER
+\copy personalities TO 'backups/csv/personalities.csv' CSV HEADER
+\copy personas TO 'backups/csv/personas.csv' CSV HEADER
+\copy system_prompts TO 'backups/csv/system_prompts.csv' CSV HEADER
+\copy llm_configs TO 'backups/csv/llm_configs.csv' CSV HEADER
+\copy personality_owners TO 'backups/csv/personality_owners.csv' CSV HEADER
+\copy user_personality_settings TO 'backups/csv/user_personality_settings.csv' CSV HEADER
+\copy activated_channels TO 'backups/csv/activated_channels.csv' CSV HEADER
+\copy conversation_history TO 'backups/csv/conversation_history.csv' CSV HEADER
+EOF
+
+# Verify exports
+ls -lh backups/csv/
+```
+
+**Step 3: Import to Production (with Foreign Key Constraints Handled)**
+
+```bash
+# Switch to production environment
+railway environment production
+railway service Postgres
+
+# Get production public database URL
+PROD_DB_URL=$(railway variables --kv | grep DATABASE_PUBLIC_URL | cut -d'=' -f2)
+
+# Import with constraints temporarily disabled
+psql "$PROD_DB_URL" << 'EOF'
+-- Disable foreign key checks to handle circular dependencies
+SET session_replication_role = replica;
+
+-- Clear existing data (if any)
+TRUNCATE users, personalities, personas, system_prompts, llm_configs,
+         personality_owners, user_personality_settings, activated_channels,
+         conversation_history CASCADE;
+
+-- Import in order (base tables first, then dependent tables)
+\copy system_prompts FROM 'backups/csv/system_prompts.csv' CSV HEADER
+\copy llm_configs FROM 'backups/csv/llm_configs.csv' CSV HEADER
+\copy users FROM 'backups/csv/users.csv' CSV HEADER
+\copy personalities FROM 'backups/csv/personalities.csv' CSV HEADER
+\copy personas FROM 'backups/csv/personas.csv' CSV HEADER
+\copy personality_owners FROM 'backups/csv/personality_owners.csv' CSV HEADER
+\copy user_personality_settings FROM 'backups/csv/user_personality_settings.csv' CSV HEADER
+\copy activated_channels FROM 'backups/csv/activated_channels.csv' CSV HEADER
+\copy conversation_history FROM 'backups/csv/conversation_history.csv' CSV HEADER
+
+-- Re-enable foreign key checks
+SET session_replication_role = DEFAULT;
+
+-- Verify counts
+SELECT 'users' as table, COUNT(*) as count FROM users
+UNION ALL SELECT 'personalities', COUNT(*) FROM personalities
+UNION ALL SELECT 'personas', COUNT(*) FROM personas
+UNION ALL SELECT 'conversation_history', COUNT(*) FROM conversation_history;
+EOF
+```
+
+**Step 4: Verify Data Integrity**
+
+```bash
+# Check foreign key relationships are intact
+psql "$PROD_DB_URL" -c "
+SELECT
+  'users with personas' as check,
+  COUNT(*) as count
+FROM users u
+JOIN personas p ON u.global_persona_id = p.id
+UNION ALL
+SELECT
+  'personalities with configs',
+  COUNT(*)
+FROM personalities per
+JOIN system_prompts sp ON per.system_prompt_id = sp.id
+JOIN llm_configs llm ON per.llm_config_id = llm.id
+UNION ALL
+SELECT
+  'conversation history with users',
+  COUNT(*)
+FROM conversation_history ch
+JOIN users u ON ch.user_id = u.id;
+"
+```
+
+#### Why This Workaround Works
+
+1. **Prisma handles schema**: Uses Prisma migrations to create tables (version-independent)
+2. **CSV format is universal**: Works across PostgreSQL versions
+3. **psql has broader compatibility**: Can connect to newer servers than pg_dump can dump from
+4. **Constraint handling**: Temporarily disabling foreign keys handles circular dependencies (users ↔ personas)
+5. **Public URL**: Bypasses `.railway.internal` hostname issues when running locally
+
+#### Important Notes
+
+⚠️ **Circular Dependencies**: Some schemas have circular foreign keys (e.g., users reference personas, personas reference users). The `SET session_replication_role = replica` trick disables constraint checking during import.
+
+⚠️ **Import Order Matters**: Import base tables before dependent tables when possible, but circular dependencies require constraint disabling anyway.
+
+⚠️ **Verify After Import**: Always verify foreign key relationships are intact after re-enabling constraints.
+
+⚠️ **This is a Workaround**: The proper solution is upgrading local PostgreSQL to match Railway's version. But if that's not possible (Steam Deck, corporate environments, etc.), this CSV method works reliably.
+
+⚠️ **psql vs pg_dump versions**: `psql` (for queries/imports) has better backward compatibility than `pg_dump` (for exports). Hence why `psql` works but `pg_dump` fails with version mismatches.
+
+#### Long-term Fix
+
+Install PostgreSQL 17 client tools to match Railway's server version:
+
+```bash
+# Arch Linux (if available)
+sudo pacman -S postgresql
+
+# Ubuntu/Debian
+sudo apt install postgresql-client-17
+
+# macOS (Homebrew)
+brew install postgresql@17
+
+# Or use Docker/Podman with PostgreSQL 17 image
+docker run --rm postgres:17 pg_dump --version
+```
+
+On Steam Deck specifically, you may encounter keyring/signature issues. See the "Error Messages & Solutions" section for fixes.
+
 ---
 
 ## Project Management
