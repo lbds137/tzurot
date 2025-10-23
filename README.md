@@ -1,14 +1,19 @@
-# Tzurot v3 - Clean Architecture Rewrite
+# Tzurot v3
 
-A modern, scalable Discord bot with customizable AI personalities, built with TypeScript and a clean microservices architecture.
+> **🔨 Status**: Active development deployment (private testing only)
 
-## Key Improvements Over v2
+A modern, scalable Discord bot with customizable AI personalities, powered by microservices architecture with long-term memory.
 
-- **Vendor Independence**: No more vendor lock-in! Clean abstraction layer for AI providers
+## Why v3?
+
+Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is better in every way:
+
+- **Vendor Independence**: Clean abstraction for AI providers - never locked in again
 - **TypeScript Throughout**: Full type safety and better IDE support
-- **True Microservices**: Each service has a single responsibility
-- **OpenRouter Integration**: Access to 400+ models through one API
-- **Clean Separation**: No more half-finished DDD refactoring
+- **True Microservices**: Each service has a single, clear responsibility
+- **Long-term Memory**: Qdrant vector database for personality memory across conversations
+- **Multiple Providers**: OpenRouter (400+ models) + direct Gemini support
+- **Clean Architecture**: No over-engineered DDD - just simple, maintainable code
 
 ## Architecture
 
@@ -51,7 +56,6 @@ A modern, scalable Discord bot with customizable AI personalities, built with Ty
 
 1. **Install dependencies:**
    ```bash
-   cd tzurot-v3
    pnpm install
    ```
 
@@ -59,6 +63,8 @@ A modern, scalable Discord bot with customizable AI personalities, built with Ty
    ```bash
    cp .env.example .env
    # Edit .env with your tokens and keys
+   # Required: DISCORD_TOKEN, AI provider keys (OpenRouter or Gemini)
+   # Optional: QDRANT_URL, QDRANT_API_KEY for long-term memory
    ```
 
 3. **Start services:**
@@ -83,6 +89,9 @@ A modern, scalable Discord bot with customizable AI personalities, built with Ty
   - `common-types/` - TypeScript types and schemas
   - `api-clients/` - External API client libraries
 
+- **`personalities/`** - Personality configurations (JSON)
+- **`tzurot-legacy/`** - Archived v2 codebase
+
 ## AI Provider System
 
 The system is designed to be vendor-agnostic:
@@ -100,23 +109,42 @@ const provider = AIProviderFactory.create('openai', {
 ```
 
 ### Currently Supported
-- ✅ OpenRouter (400+ models)
+- ✅ OpenRouter (400+ models via one API)
+- ✅ Gemini (direct API integration)
 
 ### Planned Support
+- ⏳ Direct Anthropic Claude
 - ⏳ Direct OpenAI
-- ⏳ Direct Anthropic
 - ⏳ Local models (Ollama)
 - ⏳ Custom endpoints
 
-## Personality System
+## Features
 
-Personalities are fully customizable with:
-- Custom system prompts
-- Model selection
-- Temperature and token limits
-- Rate limiting per personality
-- Memory and context management
-- Channel and user restrictions
+### ✅ Working in Production
+- **Multiple Personalities**: @mention different personalities (@lilith, @default, @sarcastic)
+- **Reply Detection**: Reply to bot messages to continue conversations
+- **Long-term Memory**: Qdrant vector database stores personality memories across sessions
+- **Conversation History**: Contextual responses using recent message history
+- **Webhook Avatars**: Each personality has unique name and avatar
+- **Image Support**: Send images to personalities for analysis
+- **Voice Support**: Send voice messages for transcription
+- **Message Chunking**: Automatically handles Discord's 2000 character limit
+- **Model Indicators**: Shows which AI model generated each response
+- **Slash Commands**: Basic commands (/ping, /help)
+
+### 📋 Planned Features
+- Auto-response in activated channels
+- Full slash command suite (/personality add/remove/list)
+- Rate limiting per user/channel
+- NSFW verification system
+
+### 🚧 Required for Public Launch
+- **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter/Gemini keys
+- **Admin Commands**: Bot owner slash commands
+  - `/admin servers` - List all servers bot is in
+  - `/admin kick <server_id>` - Remove bot from a server
+  - `/admin usage` - View API usage/costs
+- **Cost Protection**: Prevent unauthorized API usage
 
 ## Development
 
@@ -142,31 +170,62 @@ pnpm format
 
 ## Deployment
 
-### Railway
+### Development Deployment (Railway)
 
-The project includes Railway configuration for easy deployment:
+**Current Status**: Running in Railway's "development" environment for private testing
+- **API Gateway**: https://api-gateway-development-83e8.up.railway.app
+- **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
+
+**Note**: Not open to public yet - requires BYOK implementation to prevent unexpected API costs.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment guide.
 
 ```bash
-# Deploy all services
-railway up
+# Deploy updates (auto-deploys on push)
+git push origin feat/v3-continued
+
+# View logs
+railway logs --service api-gateway
+railway logs --service ai-worker
+railway logs --service bot-client
+
+# Check status
+railway status
 ```
 
-### Docker (Coming Soon)
+### Local Development with Docker
 
-Docker compose configuration will be added for self-hosting.
+Local development uses Docker Compose for Redis and Qdrant:
 
-## Migration from v2
+```bash
+docker-compose up -d
+pnpm dev
+```
 
-1. Export personalities from v2
-2. Convert to new schema format
-3. Import into v3 database
-4. Update Discord bot token
-5. Switch deployment
+## Documentation
+
+- **[CURRENT_WORK.md](CURRENT_WORK.md)** - Current project status and what's being worked on
+- **[CLAUDE.md](CLAUDE.md)** - Project configuration for AI assistants
+- **[ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md)** - Why v3 is designed this way
+- **[V2_FEATURE_TRACKING.md](V2_FEATURE_TRACKING.md)** - What's been ported from v2
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Railway deployment guide
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Local development setup
+
+## Project History
+
+**v2** (archived in `tzurot-legacy/`): JavaScript, DDD architecture, Shapes.inc AI provider
+- Shutdown: Shapes.inc discontinued their service, forcing migration
+- Lessons: Over-engineered architecture, vendor lock-in
+
+**v3** (current): TypeScript, microservices, vendor-agnostic
+- Complete rewrite with modern patterns
+- Production deployment: 2025-10
+- Focus: Simple, maintainable, scalable
 
 ## License
 
-[Your License]
+MIT License - See [LICENSE](LICENSE) file for details
 
-## Contributing
+## Maintainer
 
-[Your Contributing Guidelines]
+Single-developer project by Vladlena Costescu
