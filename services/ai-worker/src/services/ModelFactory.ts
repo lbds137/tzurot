@@ -130,7 +130,6 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 
       const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
       const modelName = validateModelForProvider(requestedModel, 'openrouter');
-      const baseURL = config.OPENROUTER_BASE_URL;
 
       logger.info(`[ModelFactory] Creating OpenRouter model: ${modelName}`);
 
@@ -140,7 +139,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           apiKey,
           temperature,
           configuration: {
-            baseURL,
+            baseURL: 'https://openrouter.ai/api/v1',
           },
         }),
         modelName
