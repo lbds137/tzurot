@@ -11,15 +11,33 @@ import { createLogger, getConfig } from '@tzurot/common-types';
 const logger = createLogger('Redis');
 const config = getConfig();
 
-// Get Redis connection config from environment (using Railway's individual variables)
+/**
+ * Parse Redis URL into connection config
+ * Railway provides REDIS_URL like: redis://:password@host:port
+ */
+function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
+  const parsed = new URL(url);
+  return {
+    host: parsed.hostname,
+    port: parseInt(parsed.port || '6379', 10),
+    password: parsed.password || undefined
+  };
+}
+
+// Get Redis connection config from environment
+// Prefer REDIS_URL (Railway provides this), fall back to individual variables
+const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
+  ? parseRedisUrl(config.REDIS_URL)
+  : null;
+
 const redisConfig = {
   socket: {
-    host: config.REDIS_HOST,
-    port: config.REDIS_PORT,
+    host: parsedUrl?.host || config.REDIS_HOST,
+    port: parsedUrl?.port || config.REDIS_PORT,
     // Railway private networking requires IPv6
     family: 6
   },
-  password: config.REDIS_PASSWORD,
+  password: parsedUrl?.password || config.REDIS_PASSWORD,
 };
 
 logger.info('[Redis] Redis config:', {
