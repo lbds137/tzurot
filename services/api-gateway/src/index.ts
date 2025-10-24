@@ -16,6 +16,7 @@ import express from 'express';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
+import { adminRouter } from './routes/admin.js';
 import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
@@ -69,6 +70,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/ai', aiRouter);
+app.use('/admin', adminRouter);
 
 // Serve personality avatars from Railway volume
 // Avatars are downloaded during personality import and stored in /data/avatars

@@ -40,6 +40,8 @@ export const envSchema = z.object({
 
   // Database Configuration
   DATABASE_URL: z.string().url().optional(),
+  DEV_DATABASE_URL: z.string().url().optional(), // For db-sync: development database URL
+  PROD_DATABASE_URL: z.string().url().optional(), // For db-sync: production database URL
 
   // API Gateway Configuration
   API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default('3000'),
