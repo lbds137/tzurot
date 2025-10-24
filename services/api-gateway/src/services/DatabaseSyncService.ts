@@ -210,13 +210,13 @@ export class DatabaseSyncService {
       if (!devRow && prodRow) {
         // Row only in prod - copy to dev
         if (!dryRun) {
-          await this.upsertRow(this.devClient, tableName, prodRow);
+          await this.upsertRow(this.devClient, tableName, prodRow, config.pk);
         }
         prodToDev++;
       } else if (devRow && !prodRow) {
         // Row only in dev - copy to prod
         if (!dryRun) {
-          await this.upsertRow(this.prodClient, tableName, devRow);
+          await this.upsertRow(this.prodClient, tableName, devRow, config.pk);
         }
         devToProd++;
       } else if (devRow && prodRow) {
@@ -225,13 +225,13 @@ export class DatabaseSyncService {
 
         if (comparison === 'dev-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.prodClient, tableName, devRow);
+            await this.upsertRow(this.prodClient, tableName, devRow, config.pk);
           }
           devToProd++;
           conflicts++;
         } else if (comparison === 'prod-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.devClient, tableName, prodRow);
+            await this.upsertRow(this.devClient, tableName, prodRow, config.pk);
           }
           prodToDev++;
           conflicts++;
@@ -333,7 +333,8 @@ export class DatabaseSyncService {
   private async upsertRow(
     client: PrismaClient,
     tableName: string,
-    row: unknown
+    row: unknown,
+    pkField: string | readonly string[]
   ): Promise<void> {
     if (typeof row !== 'object' || row === null) {
       throw new Error('Row is not an object');
@@ -354,8 +355,11 @@ export class DatabaseSyncService {
       .map(c => `"${c}" = EXCLUDED."${c}"`)
       .join(', ');
 
-    // Determine conflict columns (all columns for now - can optimize to just PK)
-    const conflictColumns = columns.map(c => `"${c}"`).join(', ');
+    // Determine conflict columns (primary key only)
+    const pkColumns = typeof pkField === 'string'
+      ? [pkField]
+      : Array.from(pkField);
+    const conflictColumns = pkColumns.map(c => `"${c}"`).join(', ');
 
     const query = `
       INSERT INTO "${tableName}" (${columnList})
