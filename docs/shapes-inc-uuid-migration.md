@@ -32,11 +32,27 @@ The migration script (`scripts/migrate-qdrant-to-personas.cjs`) supports UUID ma
     "note": "Snail → Fennarin (name change)",
     "oldMemories": 46,
     "newMemories": 18
+  },
+  "98a94b95-cbd0-430b-8be2-602e1c75d8b0": {
+    "newUserId": "e64fcc09-e4db-5902-b1c9-5750141e3bf2",
+    "username": "lbds137",
+    "note": "Lila's shapes.inc → current Postgres UUID",
+    "oldMemories": 4837
+  },
+  "d8f1451a-dac1-46c7-8ca2-56f8690f4dee": {
+    "newUserId": "fd228688-5fee-58d8-b907-a1800ad43bcd",
+    "username": "nevae63",
+    "note": "Lambda/Nevae (lambdadeltawitch → nevae63)",
+    "oldMemories": 34,
+    "newMemories": 404
   }
 }
 ```
 
-**Result**: Fennarin will get 46 + 18 = 64 total memories migrated to their persona.
+**Results**:
+- Fennarin will get 46 + 18 = 64 total memories
+- Lila will get 20 old memories added to current memories
+- Nevae will get 34 + 404 = 438 total memories
 
 ## Workflow for Finding Mappings
 

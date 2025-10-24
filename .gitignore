@@ -41,6 +41,7 @@ temp/
 # Private data (user data, private personalities)
 data/
 backups/
+scripts/uuid-mappings.json
 
 # Allow example personalities at root for deployment
 # (private personalities are in tzurot-legacy/data/)

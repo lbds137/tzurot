@@ -16,9 +16,9 @@ export interface Memory {
   id: string;
   content: string;
   metadata: {
-    personalityId: string;
+    personaId?: string; // Persona this memory belongs to
+    personalityId: string; // Personality this memory is about
     personalityName: string;
-    userId?: string; // USER ISOLATION - critical for privacy
     sessionId?: string; // Session-specific memories
     canonScope?: 'global' | 'personal' | 'session'; // Memory scope
     summaryType?: string;
@@ -32,14 +32,11 @@ export interface Memory {
 }
 
 export interface MemorySearchOptions {
+  personalityId?: string; // Filter to specific personality (for persona-scoped collections)
   limit?: number;
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
-  userId?: string; // USER ISOLATION - filter to specific user's memories
   sessionId?: string; // Filter to specific session
-  includeGlobal?: boolean; // Include global (non-user-specific) memories
-  includePersonal?: boolean; // Include user-specific memories
-  includeSession?: boolean; // Include session-specific memories
 }
 
 export class QdrantMemoryService {
@@ -73,27 +70,25 @@ export class QdrantMemoryService {
   }
 
   /**
-   * Search for relevant memories for a personality
+   * Search for relevant memories for a persona
+   * Uses persona-scoped collections with optional personality filtering
    */
   async searchMemories(
-    personalityId: string,
+    personaId: string,
     query: string,
     options: MemorySearchOptions = {}
   ): Promise<Memory[]> {
     const {
+      personalityId, // Filter to specific personality
       limit = 10,
       scoreThreshold = 0.7,
       excludeNewerThan,
-      userId,
       sessionId,
-      includeGlobal = true,
-      includePersonal = true,
-      includeSession = true,
     } = options;
 
     try {
-      // Get collection name for this personality
-      const collectionName = `personality-${personalityId}`;
+      // Get collection name for this persona
+      const collectionName = `persona-${personaId}`;
 
       // Ensure collection and indexes exist before searching
       // This prevents "index required but not found" errors
@@ -102,8 +97,16 @@ export class QdrantMemoryService {
       // Generate embedding for the query
       const queryEmbedding = await this.generateEmbedding(query);
 
-      // Build filter with USER ISOLATION
+      // Build filter conditions
       const mustConditions: any[] = [];
+
+      // Filter by personality if specified
+      if (personalityId) {
+        mustConditions.push({
+          key: 'personalityId',
+          match: { value: personalityId }
+        });
+      }
 
       // Timestamp filter - exclude recent memories that overlap with conversation history
       if (excludeNewerThan) {
@@ -115,45 +118,19 @@ export class QdrantMemoryService {
         });
       }
 
-      // USER ISOLATION: Build scope-based filter
-      // This ensures users only see their own memories + global memories
-      const shouldConditions: any[] = [];
-
-      if (includeGlobal) {
-        // Global memories (no userId set)
-        shouldConditions.push({
-          is_empty: { key: 'userId' }
-        });
-      }
-
-      if (includePersonal && userId) {
-        // Personal memories for this specific user
-        shouldConditions.push({
-          key: 'userId',
-          match: { value: userId }
-        });
-      }
-
-      if (includeSession && sessionId) {
-        // Session-specific memories
-        shouldConditions.push({
+      // Session filter
+      if (sessionId) {
+        mustConditions.push({
           key: 'sessionId',
           match: { value: sessionId }
         });
       }
 
       // Build final filter
-      const filter: any = shouldConditions.length > 0
-        ? {
-            must: mustConditions,
-            should: shouldConditions, // At least one should condition must match
-          }
-        : mustConditions.length > 0
-        ? { must: mustConditions }
-        : undefined;
+      const filter: any = mustConditions.length > 0 ? { must: mustConditions } : undefined;
 
       // Log search parameters for debugging
-      logger.info(`Qdrant search params: limit=${limit}, scoreThreshold=${scoreThreshold}, excludeNewerThan=${excludeNewerThan ? new Date(excludeNewerThan).toISOString() : 'none'}, userId=${userId}, sessionId=${sessionId}, includeGlobal=${includeGlobal}, includePersonal=${includePersonal}, includeSession=${includeSession}`);
+      logger.info(`Qdrant search params: limit=${limit}, scoreThreshold=${scoreThreshold}, personalityId=${personalityId || 'none'}, excludeNewerThan=${excludeNewerThan ? new Date(excludeNewerThan).toISOString() : 'none'}, sessionId=${sessionId || 'none'}`);
       logger.debug(`Qdrant filter: ${JSON.stringify(filter)}`);
 
       // Search in Qdrant
@@ -170,9 +147,9 @@ export class QdrantMemoryService {
         id: result.id.toString(),
         content: (result.payload?.content as string) || '',
         metadata: {
+          personaId: result.payload?.personaId as string | undefined,
           personalityId: (result.payload?.personalityId as string) || '',
           personalityName: (result.payload?.personalityName as string) || '',
-          userId: result.payload?.userId as string | undefined,
           sessionId: result.payload?.sessionId as string | undefined,
           canonScope: result.payload?.canonScope as 'global' | 'personal' | 'session' | undefined,
           summaryType: result.payload?.summaryType as string | undefined,
@@ -191,7 +168,7 @@ export class QdrantMemoryService {
         const date = new Date(m.metadata.createdAt).toISOString().split('T')[0];
         dateDistribution[date] = (dateDistribution[date] || 0) + 1;
       });
-      logger.info(`Found ${memories.length} memories for query (personality: ${personalityId}, userId: ${userId || 'none'})`);
+      logger.info(`Found ${memories.length} memories for query (persona: ${personaId}, personality: ${personalityId || 'all'})`);
       logger.info(`Memory date distribution: ${JSON.stringify(dateDistribution)}`);
 
       return memories;
@@ -199,11 +176,11 @@ export class QdrantMemoryService {
     } catch (error) {
       // If collection doesn't exist, return empty array
       if ((error as {status?: number}).status === 404) {
-        logger.debug(`No memory collection found for personality: ${personalityId}`);
+        logger.debug(`No memory collection found for persona: ${personaId}`);
         return [];
       }
 
-      logger.error({ err: error }, `Failed to search memories for personality: ${personalityId}`);
+      logger.error({ err: error }, `Failed to search memories for persona: ${personaId}`);
       throw error;
     }
   }
@@ -227,14 +204,15 @@ export class QdrantMemoryService {
   }
 
   /**
-   * Add a new memory to a personality's collection
+   * Add a new memory to a persona's collection
+   * Memories are scoped to personas, with personalityId stored for filtering
    */
   async addMemory(
+    personaId: string,
     personalityId: string,
     personalityName: string,
     content: string,
     metadata: {
-      userId?: string; // USER ISOLATION - critical for privacy
       sessionId?: string; // Session-specific memories
       canonScope?: 'global' | 'personal' | 'session'; // Memory scope
       summaryType?: string;
@@ -245,7 +223,7 @@ export class QdrantMemoryService {
     }
   ): Promise<void> {
     try {
-      const collectionName = `personality-${personalityId}`;
+      const collectionName = `persona-${personaId}`;
 
       // Ensure collection exists (create if needed)
       await this.ensureCollection(collectionName);
@@ -264,10 +242,10 @@ export class QdrantMemoryService {
             id: memoryId,
             vector: embedding,
             payload: {
-              personalityId,
+              personalityId, // Store for filtering within persona collection
               personalityName,
+              personaId, // Store persona ID as well
               content,
-              userId: metadata.userId, // USER ISOLATION - store userId for filtering
               sessionId: metadata.sessionId, // Session-specific memories
               canonScope: metadata.canonScope || 'personal', // Default to personal scope
               summaryType: metadata.summaryType || 'conversation',
@@ -281,9 +259,9 @@ export class QdrantMemoryService {
         ],
       });
 
-      logger.info(`Stored new memory for personality ${personalityName} (${personalityId}, userId: ${metadata.userId || 'global'}, scope: ${metadata.canonScope || 'personal'})`);
+      logger.info(`Stored new memory for persona ${personaId} (personality: ${personalityName}/${personalityId}, scope: ${metadata.canonScope || 'personal'})`);
     } catch (error) {
-      logger.error({ err: error }, `Failed to add memory for personality: ${personalityId}`);
+      logger.error({ err: error }, `Failed to add memory for persona: ${personaId}`);
       throw error;
     }
   }
@@ -315,9 +293,9 @@ export class QdrantMemoryService {
     // Ensure required indexes exist (for filtering)
     // These are safe to call even if indexes already exist
     const indexes = [
-      { field: 'createdAt', schema: 'integer' as const }, // Timestamp filtering
-      { field: 'userId', schema: 'keyword' as const },    // User isolation
-      { field: 'sessionId', schema: 'keyword' as const }, // Session filtering
+      { field: 'createdAt', schema: 'integer' as const },     // Timestamp filtering
+      { field: 'personalityId', schema: 'keyword' as const }, // Personality filtering (for persona collections)
+      { field: 'sessionId', schema: 'keyword' as const },     // Session filtering
     ];
 
     for (const { field, schema } of indexes) {
@@ -336,11 +314,11 @@ export class QdrantMemoryService {
   }
 
   /**
-   * Check if a personality has a memory collection
+   * Check if a persona has a memory collection
    */
-  async hasMemories(personalityId: string): Promise<boolean> {
+  async hasMemories(personaId: string): Promise<boolean> {
     try {
-      const collectionName = `personality-${personalityId}`;
+      const collectionName = `persona-${personaId}`;
       const collection = await this.qdrant.getCollection(collectionName);
       return (collection.points_count ?? 0) > 0;
     } catch (error) {

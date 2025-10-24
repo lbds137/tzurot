@@ -156,6 +156,19 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping, 
   const pointsByUser = {};
   let totalPoints = 0;
   let mappedCount = 0;
+  let refusalSpamCount = 0;
+
+  // Refusal spam patterns to filter out
+  const refusalPatterns = [
+    'I cannot generate',
+    'I cannot provide',
+    'I cannot create',
+    'I cannot assist',
+    'I apologize, but I cannot',
+    'I\'m not able to',
+    'I cannot help with',
+    'I\'m unable to'
+  ];
 
   console.log(`   Scanning points...`);
 
@@ -167,6 +180,24 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping, 
       if (!userId) {
         console.warn(`   ⚠️  Point ${point.id} has no userId, skipping`);
         continue;
+      }
+
+      // Filter out refusal spam (garbage memories from LLM summarizer false positives)
+      // Only match refusal patterns at the START of content (first 50 chars)
+      const content = point.payload.content || '';
+      const contentStart = content.substring(0, 50).toLowerCase();
+      let isRefusalSpam = false;
+
+      for (const pattern of refusalPatterns) {
+        if (contentStart.includes(pattern.toLowerCase())) {
+          isRefusalSpam = true;
+          refusalSpamCount++;
+          break;
+        }
+      }
+
+      if (isRefusalSpam) {
+        continue; // Skip this garbage memory
       }
 
       // Apply UUID mapping if exists (old shapes.inc UUID → current Postgres UUID)
@@ -190,6 +221,10 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping, 
 
   if (mappedCount > 0) {
     console.log(`   ✓ Mapped ${mappedCount} points from old UUIDs to current users`);
+  }
+
+  if (refusalSpamCount > 0) {
+    console.log(`   ✓ Filtered ${refusalSpamCount} refusal spam memories`);
   }
 
   console.log(`   Total points: ${totalPoints}`);
@@ -226,11 +261,19 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping, 
       }
     }));
 
-    // Upsert points to persona collection
-    await qdrant.upsert(targetCollection, {
-      wait: true,
-      points: transformedPoints
-    });
+    // Upsert points in batches to avoid Qdrant payload size limit (33MB)
+    const UPSERT_BATCH_SIZE = 100;
+    for (let i = 0; i < transformedPoints.length; i += UPSERT_BATCH_SIZE) {
+      const batch = transformedPoints.slice(i, i + UPSERT_BATCH_SIZE);
+      await qdrant.upsert(targetCollection, {
+        wait: true,
+        points: batch
+      });
+
+      if (transformedPoints.length > UPSERT_BATCH_SIZE) {
+        console.log(`   ⏳ Upserting batch ${Math.floor(i / UPSERT_BATCH_SIZE) + 1}/${Math.ceil(transformedPoints.length / UPSERT_BATCH_SIZE)}`);
+      }
+    }
 
     migratedCount += points.length;
     console.log(`   ✓ Migrated ${points.length} points from user ${userId} to ${targetCollection}`);
@@ -239,14 +282,15 @@ async function migratePersonalityCollection(collectionName, userPersonaMapping, 
   return {
     migrated: migratedCount,
     skipped: skippedCount,
-    totalOriginal: totalPoints
+    totalOriginal: totalPoints,
+    refusalSpamFiltered: refusalSpamCount
   };
 }
 
 /**
  * Validate migration results
  */
-async function validateMigration(originalCounts, newCollections) {
+async function validateMigration(originalCounts, newCollections, totalSkipped, totalRefusalSpam) {
   console.log(`\n🔍 Validating migration...`);
 
   let totalOriginal = 0;
@@ -263,14 +307,19 @@ async function validateMigration(originalCounts, newCollections) {
     console.log(`   ${collectionName}: ${count} points`);
   }
 
-  console.log(`\n   Original total: ${totalOriginal}`);
-  console.log(`   New total:      ${totalNew}`);
+  const expectedTotal = totalOriginal - totalSkipped - totalRefusalSpam;
 
-  if (totalOriginal === totalNew) {
+  console.log(`\n   Original total: ${totalOriginal}`);
+  console.log(`   Skipped (no persona): ${totalSkipped}`);
+  console.log(`   Filtered (refusal spam): ${totalRefusalSpam}`);
+  console.log(`   Expected migrated: ${expectedTotal}`);
+  console.log(`   Actual migrated:   ${totalNew}`);
+
+  if (expectedTotal === totalNew) {
     console.log(`   ✅ Point counts match!`);
     return true;
   } else {
-    console.error(`   ❌ Point count mismatch! Lost ${totalOriginal - totalNew} points`);
+    console.error(`   ❌ Point count mismatch! Difference: ${Math.abs(expectedTotal - totalNew)} points`);
     return false;
   }
 }
@@ -293,7 +342,7 @@ QDRANT MIGRATION: Personality → Persona Collections
     if (mappingCount > 0) {
       console.log(`   Found ${mappingCount} UUID mapping(s):`);
       for (const [oldId, mapping] of Object.entries(uuidMappings)) {
-        console.log(`     ${oldId} → ${mapping.newUserId} (${mapping.username}) ${mapping.note ? '- ' + mapping.note : ''}`);
+        console.log(`     ${oldId} → ${mapping.newUserId} (Discord: ${mapping.discordId}) ${mapping.note ? '- ' + mapping.note : ''}`);
       }
     } else {
       console.log(`   No UUID mappings configured`);
@@ -323,12 +372,14 @@ QDRANT MIGRATION: Personality → Persona Collections
     const newCollections = new Set();
     let totalMigrated = 0;
     let totalSkipped = 0;
+    let totalRefusalSpam = 0;
 
     for (const collectionName of personalityCollections) {
       const result = await migratePersonalityCollection(collectionName, userPersonaMapping, uuidMappings);
       originalCounts[collectionName] = result.totalOriginal;
       totalMigrated += result.migrated;
       totalSkipped += result.skipped;
+      totalRefusalSpam += result.refusalSpamFiltered;
 
       // Track new collections created
       for (const personaId of Object.values(userPersonaMapping)) {
@@ -337,7 +388,7 @@ QDRANT MIGRATION: Personality → Persona Collections
     }
 
     // Step 4: Validate migration
-    const valid = await validateMigration(originalCounts, Array.from(newCollections));
+    const valid = await validateMigration(originalCounts, Array.from(newCollections), totalSkipped, totalRefusalSpam);
 
     // Step 5: Summary
     console.log(`
@@ -349,7 +400,8 @@ Original collections: ${personalityCollections.length}
 New persona collections: ${newCollections.size}
 
 Points migrated: ${totalMigrated}
-Points skipped: ${totalSkipped}
+Points skipped (no persona): ${totalSkipped}
+Points filtered (refusal spam): ${totalRefusalSpam}
 
 Validation: ${valid ? '✅ PASSED' : '❌ FAILED'}
 ================================================================================

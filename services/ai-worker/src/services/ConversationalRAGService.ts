@@ -310,16 +310,24 @@ export class ConversationalRAGService {
       logger.debug(`[RAG] Excluding memories newer than ${new Date(context.oldestHistoryTimestamp).toISOString()} to avoid duplicate context`);
     }
 
+    // Resolve user's personaId for this personality
+    const personaId = await this.getUserPersonaForPersonality(
+      context.userId,
+      personality.id
+    );
+
+    if (!personaId) {
+      logger.warn(`[RAG] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`);
+      return [];
+    }
+
     const memoryQueryOptions: MemoryQueryOptions = {
-      personalityId: personality.id,
-      userId: context.userId,
+      personaId, // Required: which persona's memories to search
+      personalityId: personality.id, // Optional: filter to this personality's memories
       sessionId: context.sessionId,
       limit: personality.memoryLimit || 15,
       scoreThreshold: personality.memoryScoreThreshold || AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
       excludeNewerThan: context.oldestHistoryTimestamp,
-      includeGlobal: true,
-      includePersonal: true,
-      includeSession: !!context.sessionId
     };
 
     // Query memories only if memory manager is available
@@ -358,6 +366,17 @@ export class ConversationalRAGService {
     context: ConversationContext
   ): Promise<void> {
     try {
+      // Resolve user's personaId for this personality
+      const personaId = await this.getUserPersonaForPersonality(
+        context.userId,
+        personality.id
+      );
+
+      if (!personaId) {
+        logger.warn(`[RAG] No persona found for user ${context.userId}, skipping memory storage`);
+        return;
+      }
+
       // Determine canon scope
       const canonScope = context.sessionId ? 'session' : 'personal';
 
@@ -368,9 +387,9 @@ export class ConversationalRAGService {
         await this.memoryManager.addMemory({
           text: interactionText,
           metadata: {
-            personalityId: personality.id, // Use UUID, not name
+            personaId, // Persona this memory belongs to
+            personalityId: personality.id, // Personality this memory is about
             personalityName: personality.name,
-            userId: context.userId,
             sessionId: context.sessionId,
             canonScope,
             timestamp: Date.now(),
@@ -382,7 +401,7 @@ export class ConversationalRAGService {
           }
         });
 
-        logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name}`);
+        logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`);
       } else {
         logger.debug(`[RAG] Memory storage disabled - interaction not stored`);
       }
@@ -491,6 +510,57 @@ export class ConversationalRAGService {
       return parts.length > 0 ? parts.join('\n') : null;
     } catch (error) {
       logger.error({ err: error }, '[RAG] Failed to fetch user persona');
+      return null;
+    }
+  }
+
+  /**
+   * Get user's persona ID for a specific personality
+   * Checks for personality-specific override first, then falls back to default persona
+   */
+  private async getUserPersonaForPersonality(
+    userId: string,
+    personalityId: string
+  ): Promise<string | null> {
+    try {
+      const { getPrismaClient } = await import('@tzurot/common-types');
+      const prisma = getPrismaClient();
+
+      // First check if user has a personality-specific persona override
+      const userPersonalityConfig = await prisma.userPersonalityConfig.findFirst({
+        where: {
+          userId,
+          personalityId,
+          personaId: { not: null } // Has a persona override
+        },
+        select: { personaId: true }
+      });
+
+      if (userPersonalityConfig?.personaId) {
+        logger.debug(`[RAG] Using personality-specific persona override for user ${userId}, personality ${personalityId}`);
+        return userPersonalityConfig.personaId;
+      }
+
+      // Fall back to user's default persona
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          defaultPersonaLink: {
+            select: { personaId: true }
+          }
+        }
+      });
+
+      const personaId = user?.defaultPersonaLink?.personaId || null;
+      if (personaId) {
+        logger.debug(`[RAG] Using default persona for user ${userId}`);
+      } else {
+        logger.warn(`[RAG] No persona found for user ${userId}`);
+      }
+
+      return personaId;
+    } catch (error) {
+      logger.error({ err: error }, `[RAG] Failed to resolve persona for user ${userId}`);
       return null;
     }
   }

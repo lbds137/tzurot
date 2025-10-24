@@ -9,15 +9,12 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('QdrantMemoryAdapter');
 
 export interface MemoryQueryOptions {
-  personalityId: string;
-  userId?: string;
+  personaId: string; // Required: which persona's memories to search
+  personalityId?: string; // Optional: filter to specific personality within persona
   sessionId?: string;
   limit?: number;
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
-  includeGlobal?: boolean;
-  includePersonal?: boolean;
-  includeSession?: boolean;
 }
 
 export interface MemoryDocument {
@@ -26,9 +23,9 @@ export interface MemoryDocument {
 }
 
 export interface MemoryMetadata {
-  personalityId: string;
+  personaId: string; // Persona this memory belongs to
+  personalityId: string; // Personality this memory is about
   personalityName?: string;
-  userId?: string;
   sessionId?: string;
   canonScope: 'global' | 'personal' | 'session';
   timestamp: number;
@@ -61,17 +58,14 @@ export class QdrantMemoryAdapter {
   ): Promise<MemoryDocument[]> {
     try {
       const memories = await this.qdrantService.searchMemories(
-        options.personalityId,
+        options.personaId,
         query,
         {
+          personalityId: options.personalityId, // Optional filter to specific personality
           limit: options.limit || 10,
           scoreThreshold: options.scoreThreshold || 0.15, // Use personality config or default to 0.15
           excludeNewerThan: options.excludeNewerThan, // Filter out memories that overlap with conversation history
-          userId: options.userId, // USER ISOLATION - critical for privacy
           sessionId: options.sessionId,
-          includeGlobal: options.includeGlobal,
-          includePersonal: options.includePersonal,
-          includeSession: options.includeSession,
         }
       );
 
@@ -85,11 +79,11 @@ export class QdrantMemoryAdapter {
         },
       }));
 
-      logger.debug(`Retrieved ${documents.length} memories for query (personality: ${options.personalityId})`);
+      logger.debug(`Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId || 'all'})`);
       return documents;
 
     } catch (error) {
-      logger.error({ err: error }, `Failed to query memories for personality: ${options.personalityId}`);
+      logger.error({ err: error }, `Failed to query memories for persona: ${options.personaId}`);
       return [];
     }
   }
@@ -103,11 +97,11 @@ export class QdrantMemoryAdapter {
   }): Promise<void> {
     try {
       await this.qdrantService.addMemory(
+        data.metadata.personaId,
         data.metadata.personalityId,
         data.metadata.personalityName || 'Unknown',
         data.text,
         {
-          userId: data.metadata.userId, // USER ISOLATION - critical for privacy
           sessionId: data.metadata.sessionId,
           canonScope: data.metadata.canonScope,
           summaryType: data.metadata.summaryType,
@@ -118,7 +112,7 @@ export class QdrantMemoryAdapter {
         }
       );
     } catch (error) {
-      logger.error({ err: error }, `Failed to add memory for personality: ${data.metadata.personalityId}`);
+      logger.error({ err: error }, `Failed to add memory for persona: ${data.metadata.personaId}`);
       // Don't throw - memory storage is non-critical, conversation should continue
     }
   }
