@@ -105,6 +105,7 @@ export class QdrantMemoryAdapter {
           sessionId: data.metadata.sessionId,
           canonScope: data.metadata.canonScope,
           summaryType: data.metadata.summaryType,
+          timestamp: data.metadata.timestamp, // Pass through PostgreSQL timestamp for perfect sync
           channelId: data.metadata.channelId,
           guildId: data.metadata.guildId,
           messageIds: data.metadata.messageIds,

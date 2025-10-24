@@ -216,6 +216,7 @@ export class QdrantMemoryService {
       sessionId?: string; // Session-specific memories
       canonScope?: 'global' | 'personal' | 'session'; // Memory scope
       summaryType?: string;
+      timestamp?: number; // Unix timestamp in milliseconds (if not provided, uses current time)
       channelId?: string;
       guildId?: string;
       messageIds?: string[];
@@ -249,7 +250,7 @@ export class QdrantMemoryService {
               sessionId: metadata.sessionId, // Session-specific memories
               canonScope: metadata.canonScope || 'personal', // Default to personal scope
               summaryType: metadata.summaryType || 'conversation',
-              createdAt: Math.floor(Date.now()), // Unix timestamp in milliseconds (integer only for Qdrant index)
+              createdAt: Math.floor(metadata.timestamp || Date.now()), // Use provided timestamp or current time (integer only for Qdrant index)
               channelId: metadata.channelId,
               guildId: metadata.guildId,
               messageIds: metadata.messageIds,
