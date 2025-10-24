@@ -8,6 +8,7 @@
  *   pnpm qdrant search <collection> <query> [limit]
  *   pnpm qdrant count <collection>
  *   pnpm qdrant sample <collection> [limit]
+ *   pnpm qdrant delete <collection> --force
  */
 
 import { QdrantClient } from '@qdrant/js-client-rest';
@@ -38,18 +39,30 @@ async function listCollections() {
     return;
   }
 
+  // Get detailed info for each collection to get accurate point counts
+  const collectionsWithCounts = await Promise.all(
+    response.collections.map(async (c) => {
+      try {
+        const detail = await qdrant.getCollection(c.name);
+        return { name: c.name, points_count: detail.points_count };
+      } catch (error) {
+        return { name: c.name, points_count: 0 };
+      }
+    })
+  );
+
   // Group by type
-  const personality = response.collections.filter(c => c.name.startsWith('personality-'));
-  const persona = response.collections.filter(c => c.name.startsWith('persona-') && !c.name.startsWith('persona-legacy-'));
-  const legacy = response.collections.filter(c => c.name.startsWith('persona-legacy-'));
-  const other = response.collections.filter(c =>
+  const personality = collectionsWithCounts.filter(c => c.name.startsWith('personality-'));
+  const persona = collectionsWithCounts.filter(c => c.name.startsWith('persona-') && !c.name.startsWith('persona-legacy-'));
+  const legacy = collectionsWithCounts.filter(c => c.name.startsWith('persona-legacy-'));
+  const other = collectionsWithCounts.filter(c =>
     !c.name.startsWith('personality-') &&
     !c.name.startsWith('persona-')
   );
 
   if (personality.length > 0) {
     console.log('🔮 Personality Collections (OLD FORMAT - personality-{uuid}):');
-    personality.forEach(c => console.log(`  - ${c.name} (${c.points_count || 0} points)`));
+    personality.forEach(c => console.log(`  - ${c.name} (${c.points_count} points)`));
     console.log('');
   }
 
@@ -71,7 +84,8 @@ async function listCollections() {
     console.log('');
   }
 
-  console.log(`Total: ${response.collections.length} collections, ${response.collections.reduce((sum, c) => sum + (c.points_count || 0), 0)} points`);
+  const totalPoints = collectionsWithCounts.reduce((sum, c) => sum + c.points_count, 0);
+  console.log(`Total: ${response.collections.length} collections, ${totalPoints} points`);
 }
 
 /**
@@ -125,6 +139,39 @@ async function countPoints(collectionName: string) {
     console.log(`📊 ${collectionName}: ${collection.points_count} points`);
   } catch (error) {
     console.error(`❌ Collection "${collectionName}" not found`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Delete a collection
+ */
+async function deleteCollection(collectionName: string, force: boolean = false) {
+  try {
+    // Get collection info first
+    const collection = await qdrant.getCollection(collectionName);
+    const pointCount = collection.points_count;
+
+    console.log(`\n🗑️  Delete Collection: ${collectionName}`);
+    console.log(`   Points: ${pointCount}`);
+    console.log('');
+
+    if (!force) {
+      console.error('❌ Safety check: Use --force to confirm deletion');
+      console.error(`   This will permanently delete ${pointCount} points!`);
+      console.error('');
+      console.error(`   Run: pnpm qdrant delete ${collectionName} --force`);
+      process.exit(1);
+    }
+
+    console.log(`⚠️  Deleting collection ${collectionName}...`);
+    await qdrant.deleteCollection(collectionName);
+    console.log(`✅ Collection deleted successfully`);
+    console.log('');
+
+  } catch (error) {
+    console.error(`❌ Collection "${collectionName}" not found or delete failed`);
+    console.error(error);
     process.exit(1);
   }
 }
@@ -224,11 +271,12 @@ Usage:
   pnpm qdrant <command> [args]
 
 Commands:
-  list                              List all collections
-  inspect <collection>              Show collection details
-  count <collection>                Count points in collection
-  sample <collection> [limit]       Show sample points (default: 5)
+  list                                 List all collections
+  inspect <collection>                 Show collection details
+  count <collection>                   Count points in collection
+  sample <collection> [limit]          Show sample points (default: 5)
   search <collection> <query> [limit]  Search collection by text (default: 10)
+  delete <collection> --force          Delete a collection (requires --force)
 
 Examples:
   pnpm qdrant list
@@ -236,6 +284,7 @@ Examples:
   pnpm qdrant count personality-c296b337-4e67-5337-99a3-4ca105cbbd68
   pnpm qdrant sample persona-legacy-98a94b95-cbd0-430b-8be2-602e1c75d8b0 3
   pnpm qdrant search personality-c296b337-4e67-5337-99a3-4ca105cbbd68 "coding"
+  pnpm qdrant delete personality-c296b337-4e67-5337-99a3-4ca105cbbd68 --force
     `);
     process.exit(0);
   }
@@ -280,6 +329,15 @@ Examples:
           process.exit(1);
         }
         await searchCollection(args[0], args[1], args[2] ? parseInt(args[2]) : 10);
+        break;
+
+      case 'delete':
+        if (!args[0]) {
+          console.error('❌ Missing collection name');
+          console.error('Usage: pnpm qdrant delete <collection> --force');
+          process.exit(1);
+        }
+        await deleteCollection(args[0], args.includes('--force'));
         break;
 
       default:
