@@ -24,6 +24,7 @@ export interface MemoryImportOptions {
   personalityId: string; // V3 personality UUID
   personalityName: string;
   uuidMapper: UUIDMapper;
+  uuidMappings?: Map<string, { discordId: string; newUserId?: string; note?: string }>;
   qdrant?: QdrantClient; // Required for actual writes
   openai?: OpenAI; // Required for embeddings
   skipExisting?: boolean; // Don't re-import existing memories
@@ -235,7 +236,12 @@ export class MemoryImporter {
     const resolutions: UserResolutionResult[] = [];
 
     for (const shapesUserId of shapesUserIds) {
-      const resolution = await this.options.uuidMapper.resolveUser(shapesUserId);
+      // Look up Discord ID from UUID mappings if available
+      const mappingData = this.options.uuidMappings?.get(shapesUserId);
+      const shapesUserData = mappingData ? { discordId: mappingData.discordId } : undefined;
+
+      // Resolve using UUID mapper with Discord ID data if available
+      const resolution = await this.options.uuidMapper.resolveUser(shapesUserId, shapesUserData);
       resolutions.push(resolution);
     }
 
