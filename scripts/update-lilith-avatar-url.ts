@@ -18,17 +18,17 @@ async function main() {
   console.log('═'.repeat(60));
 
   const result = await prisma.personality.update({
-    where: { name: 'Lilith' },
-    data: { avatar_url: AVATAR_URL },
+    where: { slug: 'lilith-tzel-shani' },
+    data: { avatarUrl: AVATAR_URL },
     select: {
       id: true,
       name: true,
-      avatar_url: true
+      avatarUrl: true
     }
   });
 
   console.log('✓ Updated personality:', result.name);
-  console.log('  New URL:', result.avatar_url);
+  console.log('  New URL:', result.avatarUrl);
   console.log('\n═'.repeat(60));
   console.log('✅ Done!\n');
 
