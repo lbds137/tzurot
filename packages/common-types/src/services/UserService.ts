@@ -3,6 +3,7 @@
  * Manages User records - creates users on first interaction
  */
 
+import { Prisma } from '@prisma/client';
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
 import { generateUserUuid, generatePersonaUuid } from '../deterministic-uuid.js';
@@ -43,7 +44,7 @@ export class UserService {
         const personaId = generatePersonaUuid(`${username}'s Persona`, userId);
 
         // Create user, default persona, and link in a transaction
-        await this.prisma.$transaction(async (tx) => {
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           // Create user
           await tx.user.create({
             data: {
