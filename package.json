@@ -15,7 +15,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "cleanup-qdrant": "tsx scripts/import-personality/cleanup-qdrant.ts"
+    "cleanup-qdrant": "tsx scripts/import-personality/cleanup-qdrant.ts",
+    "import-personality": "tsx scripts/import-personality/import-personality.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
