@@ -17,6 +17,10 @@ let prismaClient: PrismaClient | null = null;
  */
 export function getPrismaClient(): PrismaClient {
   if (!prismaClient) {
+    // Debug: Check DATABASE_URL at runtime
+    const dbUrl = process.env.DATABASE_URL;
+    logger.info(`DATABASE_URL check: ${dbUrl ? `set (starts with: ${dbUrl.substring(0, 15)}...)` : 'NOT SET'}`);
+
     prismaClient = new PrismaClient({
       log: config.NODE_ENV === 'development'
         ? ['query', 'error', 'warn']
