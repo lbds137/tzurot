@@ -9,7 +9,12 @@
 import { Job } from 'bullmq';
 import { ConversationalRAGService, type RAGResponse } from '../services/ConversationalRAGService.js';
 import { QdrantMemoryAdapter } from '../memory/QdrantMemoryAdapter.js';
-import { MessageContent, createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  MessageContent,
+  createLogger,
+  type LoadedPersonality,
+  formatRelativeTime,
+} from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
 const logger = createLogger('AIJobProcessor');
@@ -203,7 +208,7 @@ export class AIJobProcessor {
       // Only add timestamps to user messages (not assistant responses)
       // This prevents the AI from seeing and mimicking the timestamp format
       const content = msg.role === 'user' && msg.createdAt
-        ? `[${this.formatRelativeTime(msg.createdAt)}] ${msg.content}`
+        ? `[${formatRelativeTime(msg.createdAt)}] ${msg.content}`
         : msg.content;
 
       if (msg.role === 'user') {
@@ -215,40 +220,6 @@ export class AIJobProcessor {
         return new HumanMessage(content);
       }
     });
-  }
-
-  /**
-   * Format timestamp as relative time (e.g., "5 minutes ago", "2 hours ago")
-   * Uses Eastern timezone for absolute dates
-   */
-  private formatRelativeTime(timestamp: string): string {
-    try {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-
-      if (diffMins < 1) return 'just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-
-      const diffHours = Math.floor(diffMins / 60);
-      if (diffHours < 24) return `${diffHours}h ago`;
-
-      const diffDays = Math.floor(diffHours / 24);
-      if (diffDays < 7) return `${diffDays}d ago`;
-
-      // For older messages, show absolute date in Eastern timezone (YYYY-MM-DD)
-      // toLocaleDateString('en-US') returns MM/DD/YYYY, so rearrange to YYYY-MM-DD
-      const parts = date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        timeZone: 'America/New_York'
-      }).split('/');
-      return `${parts[2]}-${parts[0]}-${parts[1]}`; // YYYY-MM-DD
-    } catch {
-      return '';
-    }
   }
 
   /**

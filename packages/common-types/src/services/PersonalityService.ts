@@ -5,6 +5,7 @@
 
 import { getPrismaClient } from './prisma.js';
 import { createLogger } from '../logger.js';
+import { MODEL_DEFAULTS } from '../modelDefaults.js';
 import type { Decimal } from '@prisma/client/runtime/library';
 
 const logger = createLogger('PersonalityService');
@@ -241,7 +242,7 @@ export class PersonalityService {
       name: db.name,
       displayName: db.displayName || db.name,
       systemPrompt: db.systemPrompt?.content || '',
-      model: llmConfig?.model || 'gemini-2.5-pro',
+      model: llmConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL,
       visionModel: llmConfig?.visionModel || undefined,
       temperature,
       maxTokens,
