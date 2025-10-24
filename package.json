@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "cleanup-qdrant": "tsx scripts/import-personality/cleanup-qdrant.ts",
     "import-personality": "tsx scripts/import-personality/import-personality.ts",
-    "migrate-legacy-persona": "tsx scripts/import-personality/migrate-legacy-persona.ts"
+    "migrate-legacy-persona": "tsx scripts/import-personality/migrate-legacy-persona.ts",
+    "qdrant": "tsx scripts/qdrant-cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
