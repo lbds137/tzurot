@@ -12,6 +12,7 @@
 
 import type { QdrantClient } from '@qdrant/js-client-rest';
 import type { OpenAI } from 'openai';
+import type { PrismaClient } from '@prisma/client';
 import type {
   ShapesIncMemory,
   V3MemoryMetadata,
@@ -19,9 +20,17 @@ import type {
 } from './types.js';
 import { v4 as uuidv4 } from 'uuid';
 
+interface UUIDMappingData {
+  discordId: string;
+  newUserId?: string;
+  note?: string;
+}
+
 export interface MemoryImportOptions {
   personalityId: string; // V3 personality UUID
   personalityName: string;
+  prisma: PrismaClient; // Required for user resolution
+  uuidMappings?: Map<string, UUIDMappingData>; // Shapes UUID → Discord ID mappings
   qdrant?: QdrantClient; // Required for actual writes
   openai?: OpenAI; // Required for embeddings
   skipExisting?: boolean; // Don't re-import existing memories
@@ -34,10 +43,13 @@ export class MemoryImporter {
     imported: 0,
     skipped: 0,
     failed: 0,
+    migratedToV3: 0,
     legacyPersonasCreated: 0,
     errors: [],
   };
   private legacyPersonas = new Set<string>(); // Track unique legacy persona IDs
+  private v3Personas = new Set<string>(); // Track unique v3 persona IDs
+  private personaCache = new Map<string, string | null>(); // Discord ID → persona ID cache
 
   constructor(options: MemoryImportOptions) {
     this.options = options;
@@ -68,9 +80,12 @@ export class MemoryImporter {
   /**
    * Import a single memory
    *
+   * HYBRID APPROACH:
+   * - Known users (in uuid-mappings.json) → Auto-migrate to v3 persona
+   * - Unknown users → Store in legacy-{shapesUserId} collection
+   *
    * For memories with multiple senders (group conversations), creates a separate
-   * entry in each sender's legacy persona collection. Each sender's shapes.inc UUID
-   * maps to a collection: persona-legacy-{shapesUserId}
+   * entry in each sender's collection.
    */
   private async importSingleMemory(memory: ShapesIncMemory): Promise<void> {
     if (!memory.senders || memory.senders.length === 0) {
@@ -89,19 +104,13 @@ export class MemoryImporter {
       embedding = await this.generateEmbedding(summaryText);
     }
 
-    // Create a separate memory entry for each sender's legacy persona
+    // Create a separate memory entry for each sender
     for (const shapesUserId of memory.senders) {
-      // Build legacy persona ID: legacy-{shapesUserId}
-      const legacyPersonaId = `legacy-${shapesUserId}`;
-
-      // Track unique legacy personas
-      if (!this.legacyPersonas.has(legacyPersonaId)) {
-        this.legacyPersonas.add(legacyPersonaId);
-        this.stats.legacyPersonasCreated++;
-      }
+      // Try to resolve to v3 persona using mappings
+      const resolution = await this.resolveShapesUser(shapesUserId);
 
       // Build v3 Qdrant metadata
-      const v3Metadata = this.buildV3Metadata(memory, shapesUserId);
+      const v3Metadata = this.buildV3Metadata(memory, shapesUserId, resolution);
 
       // Generate unique memory ID for this sender's copy
       const memoryCopyId = memory.senders.length > 1
@@ -110,7 +119,11 @@ export class MemoryImporter {
 
       if (this.options.dryRun) {
         console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
-        console.log(`     Legacy Persona: ${legacyPersonaId}`);
+        if (resolution.v3PersonaId) {
+          console.log(`     ✅ V3 Persona: ${resolution.v3PersonaId} (known user)`);
+        } else {
+          console.log(`     📦 Legacy Persona: legacy-${shapesUserId} (unknown user)`);
+        }
         console.log(`     Text length: ${summaryText.length} chars`);
         if (memory.senders.length > 1) {
           console.log(`     [Group conversation: ${memory.senders.length} participants]`);
@@ -128,8 +141,13 @@ export class MemoryImporter {
           v3Metadata
         );
 
-        console.log(`  ✅ Imported memory ${memoryCopyId}`);
-        console.log(`     Legacy Persona: ${legacyPersonaId}`);
+        if (resolution.v3PersonaId) {
+          console.log(`  ✅ Imported memory ${memoryCopyId}`);
+          console.log(`     V3 Persona: ${resolution.v3PersonaId} (known user)`);
+        } else {
+          console.log(`  ✅ Imported memory ${memoryCopyId}`);
+          console.log(`     Legacy Persona: legacy-${shapesUserId} (unknown user)`);
+        }
         if (memory.senders.length > 1) {
           console.log(`     [Group conversation: ${memory.senders.length} participants]`);
         }
@@ -137,6 +155,18 @@ export class MemoryImporter {
 
       // Track statistics
       this.stats.imported++;
+      if (resolution.v3PersonaId) {
+        this.stats.migratedToV3++;
+        if (!this.v3Personas.has(resolution.v3PersonaId)) {
+          this.v3Personas.add(resolution.v3PersonaId);
+        }
+      } else {
+        const legacyPersonaId = `legacy-${shapesUserId}`;
+        if (!this.legacyPersonas.has(legacyPersonaId)) {
+          this.legacyPersonas.add(legacyPersonaId);
+          this.stats.legacyPersonasCreated++;
+        }
+      }
     }
   }
 
@@ -245,18 +275,56 @@ export class MemoryImporter {
   }
 
   /**
+   * Resolve shapes.inc user to v3 persona (if known)
+   */
+  private async resolveShapesUser(shapesUserId: string): Promise<{
+    v3PersonaId: string | null;
+    discordId: string | null;
+  }> {
+    // Check if we have a mapping for this shapes user
+    const mapping = this.options.uuidMappings?.get(shapesUserId);
+    if (!mapping) {
+      return { v3PersonaId: null, discordId: null };
+    }
+
+    const discordId = mapping.discordId;
+
+    // Check cache
+    if (this.personaCache.has(discordId)) {
+      const personaId = this.personaCache.get(discordId);
+      return { v3PersonaId: personaId || null, discordId };
+    }
+
+    // Look up v3 user by Discord ID
+    const user = await this.options.prisma.user.findUnique({
+      where: { discordId },
+      include: {
+        defaultPersonaLink: {
+          select: { personaId: true }
+        }
+      }
+    });
+
+    const personaId = user?.defaultPersonaLink?.personaId || null;
+    this.personaCache.set(discordId, personaId);
+
+    return { v3PersonaId: personaId, discordId };
+  }
+
+  /**
    * Build v3 Qdrant metadata from shapes.inc memory
    */
   private buildV3Metadata(
     memory: ShapesIncMemory,
-    shapesUserId: string
+    shapesUserId: string,
+    resolution: { v3PersonaId: string | null; discordId: string | null }
   ): V3MemoryMetadata {
     return {
-      personaId: `legacy-${shapesUserId}`,
+      personaId: resolution.v3PersonaId || `legacy-${shapesUserId}`,
       personalityId: this.options.personalityId,
       personalityName: this.options.personalityName,
       sessionId: null, // Shapes.inc didn't have sessions
-      canonScope: 'legacy', // All imported memories are legacy scope
+      canonScope: resolution.v3PersonaId ? 'personal' : 'legacy',
       timestamp: Math.floor(memory.metadata.created_at * 1000), // Convert seconds to milliseconds
       summaryType: 'conversation',
       contextType: memory.metadata.discord_guild_id ? 'guild' : 'dm',
