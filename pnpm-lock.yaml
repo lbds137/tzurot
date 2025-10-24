@@ -162,6 +162,9 @@ importers:
 
   services/api-gateway:
     dependencies:
+      '@prisma/client':
+        specifier: ^6.0.0
+        version: 6.16.3(prisma@6.16.3)(typescript@5.9.2)
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
