@@ -14,6 +14,7 @@ import type { UUIDMapping } from './types.js';
 
 export interface UserResolutionResult {
   resolved: boolean;
+  shapesUserId: string; // Original shapes.inc UUID (for migration tracking)
   discordId: string | null;
   v3UserId: string | null;
   v3PersonaId: string | null;

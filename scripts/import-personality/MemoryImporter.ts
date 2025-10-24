@@ -12,7 +12,6 @@
 
 import type { QdrantClient } from '@qdrant/js-client-rest';
 import type { OpenAI } from 'openai';
-import { UUIDMapper, type UserResolutionResult } from './UUIDMapper.js';
 import type {
   ShapesIncMemory,
   V3MemoryMetadata,
@@ -23,8 +22,6 @@ import { v4 as uuidv4 } from 'uuid';
 export interface MemoryImportOptions {
   personalityId: string; // V3 personality UUID
   personalityName: string;
-  uuidMapper: UUIDMapper;
-  uuidMappings?: Map<string, { discordId: string; newUserId?: string; note?: string }>;
   qdrant?: QdrantClient; // Required for actual writes
   openai?: OpenAI; // Required for embeddings
   skipExisting?: boolean; // Don't re-import existing memories
@@ -37,9 +34,10 @@ export class MemoryImporter {
     imported: 0,
     skipped: 0,
     failed: 0,
-    orphaned: 0,
+    legacyPersonasCreated: 0,
     errors: [],
   };
+  private legacyPersonas = new Set<string>(); // Track unique legacy persona IDs
 
   constructor(options: MemoryImportOptions) {
     this.options = options;
@@ -71,14 +69,11 @@ export class MemoryImporter {
    * Import a single memory
    *
    * For memories with multiple senders (group conversations), creates a separate
-   * entry in each sender's persona collection. This ensures all participants
-   * have access to the memory in their own context.
+   * entry in each sender's legacy persona collection. Each sender's shapes.inc UUID
+   * maps to a collection: persona-legacy-{shapesUserId}
    */
   private async importSingleMemory(memory: ShapesIncMemory): Promise<void> {
-    // Resolve all senders to v3 personas
-    const senderResolutions = await this.resolveSenders(memory.senders);
-
-    if (senderResolutions.length === 0) {
+    if (!memory.senders || memory.senders.length === 0) {
       throw new Error('No senders found in memory');
     }
 
@@ -94,22 +89,31 @@ export class MemoryImporter {
       embedding = await this.generateEmbedding(summaryText);
     }
 
-    // Create a separate memory entry for each sender
-    for (const sender of senderResolutions) {
-      // Build v3 Qdrant metadata for this sender
-      const v3Metadata = this.buildV3Metadata(memory, sender);
+    // Create a separate memory entry for each sender's legacy persona
+    for (const shapesUserId of memory.senders) {
+      // Build legacy persona ID: legacy-{shapesUserId}
+      const legacyPersonaId = `legacy-${shapesUserId}`;
+
+      // Track unique legacy personas
+      if (!this.legacyPersonas.has(legacyPersonaId)) {
+        this.legacyPersonas.add(legacyPersonaId);
+        this.stats.legacyPersonasCreated++;
+      }
+
+      // Build v3 Qdrant metadata
+      const v3Metadata = this.buildV3Metadata(memory, shapesUserId);
 
       // Generate unique memory ID for this sender's copy
-      const memoryCopyId = senderResolutions.length > 1
-        ? `${memory.id}/sender-${sender.v3PersonaId}`
+      const memoryCopyId = memory.senders.length > 1
+        ? `${memory.id}/sender-${shapesUserId}`
         : memory.id;
 
       if (this.options.dryRun) {
         console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
-        console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${sender.isOrphaned})`);
+        console.log(`     Legacy Persona: ${legacyPersonaId}`);
         console.log(`     Text length: ${summaryText.length} chars`);
-        if (senderResolutions.length > 1) {
-          console.log(`     [Group conversation: ${senderResolutions.length} participants]`);
+        if (memory.senders.length > 1) {
+          console.log(`     [Group conversation: ${memory.senders.length} participants]`);
         }
       } else {
         // Store in Qdrant
@@ -125,17 +129,14 @@ export class MemoryImporter {
         );
 
         console.log(`  ✅ Imported memory ${memoryCopyId}`);
-        console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${sender.isOrphaned})`);
-        if (senderResolutions.length > 1) {
-          console.log(`     [Group conversation: ${senderResolutions.length} participants]`);
+        console.log(`     Legacy Persona: ${legacyPersonaId}`);
+        if (memory.senders.length > 1) {
+          console.log(`     [Group conversation: ${memory.senders.length} participants]`);
         }
       }
 
       // Track statistics
       this.stats.imported++;
-      if (sender.isOrphaned) {
-        this.stats.orphaned++;
-      }
     }
   }
 
@@ -244,39 +245,18 @@ export class MemoryImporter {
   }
 
   /**
-   * Resolve sender UUIDs to v3 personas
-   */
-  private async resolveSenders(
-    shapesUserIds: string[]
-  ): Promise<UserResolutionResult[]> {
-    const resolutions: UserResolutionResult[] = [];
-
-    for (const shapesUserId of shapesUserIds) {
-      // Look up Discord ID from UUID mappings if available
-      const mappingData = this.options.uuidMappings?.get(shapesUserId);
-      const shapesUserData = mappingData ? { discordId: mappingData.discordId } : undefined;
-
-      // Resolve using UUID mapper with Discord ID data if available
-      const resolution = await this.options.uuidMapper.resolveUser(shapesUserId, shapesUserData);
-      resolutions.push(resolution);
-    }
-
-    return resolutions;
-  }
-
-  /**
    * Build v3 Qdrant metadata from shapes.inc memory
    */
   private buildV3Metadata(
     memory: ShapesIncMemory,
-    sender: UserResolutionResult
+    shapesUserId: string
   ): V3MemoryMetadata {
     return {
-      personaId: sender.v3PersonaId!,
+      personaId: `legacy-${shapesUserId}`,
       personalityId: this.options.personalityId,
       personalityName: this.options.personalityName,
       sessionId: null, // Shapes.inc didn't have sessions
-      canonScope: sender.isOrphaned ? 'shared' : 'personal',
+      canonScope: 'legacy', // All imported memories are legacy scope
       timestamp: Math.floor(memory.metadata.created_at * 1000), // Convert seconds to milliseconds
       summaryType: 'conversation',
       contextType: memory.metadata.discord_guild_id ? 'guild' : 'dm',

@@ -22,7 +22,6 @@ import { QdrantClient } from '@qdrant/js-client-rest';
 import { OpenAI } from 'openai';
 import { PersonalityMapper } from './PersonalityMapper.js';
 import { AvatarDownloader } from './AvatarDownloader.js';
-import { UUIDMapper } from './UUIDMapper.js';
 import { MemoryImporter } from './MemoryImporter.js';
 import type {
   ShapesIncPersonalityConfig,
@@ -36,10 +35,8 @@ const config = getConfig();
 
 // Constants
 const LEGACY_DATA_PATH = 'tzurot-legacy/data/personalities';
-const ORPHANED_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 const AVATAR_STORAGE_DIR = '/data/avatars';
 const API_GATEWAY_URL = config.API_GATEWAY_URL || 'http://localhost:3000';
-const UUID_MAPPINGS_PATH = 'scripts/uuid-mappings.json';
 
 interface ImportOptions {
   slug: string;
@@ -49,23 +46,12 @@ interface ImportOptions {
   skipMemories: boolean;
 }
 
-interface UUIDMappingData {
-  newUserId: string;
-  discordId: string;
-  note?: string;
-}
-
-interface UUIDMappingsFile {
-  mappings: Record<string, UUIDMappingData>;
-}
-
 class PersonalityImportCLI {
   private prisma: PrismaClient;
   private qdrant: QdrantClient;
   private openai: OpenAI;
   private mapper: PersonalityMapper;
   private avatarDownloader: AvatarDownloader;
-  private uuidMappings: Map<string, UUIDMappingData>;
 
   constructor() {
     this.prisma = new PrismaClient();
@@ -81,27 +67,6 @@ class PersonalityImportCLI {
       storageDir: AVATAR_STORAGE_DIR,
       baseUrl: API_GATEWAY_URL,
     });
-    this.uuidMappings = new Map();
-  }
-
-  /**
-   * Load UUID mappings from scripts/uuid-mappings.json
-   */
-  private async loadUUIDMappings(): Promise<void> {
-    try {
-      const mappingsPath = path.join(process.cwd(), UUID_MAPPINGS_PATH);
-      const mappingsRaw = await fs.readFile(mappingsPath, 'utf-8');
-      const mappingsFile: UUIDMappingsFile = JSON.parse(mappingsRaw);
-
-      // Convert to Map for easy lookup
-      for (const [shapesUuid, data] of Object.entries(mappingsFile.mappings)) {
-        this.uuidMappings.set(shapesUuid, data);
-      }
-
-      console.log(`✅ Loaded ${this.uuidMappings.size} UUID mappings`);
-    } catch (error) {
-      console.warn('⚠️  No UUID mappings file found - all memories will be orphaned');
-    }
   }
 
   /**
@@ -117,10 +82,6 @@ class PersonalityImportCLI {
     console.log('');
 
     try {
-      // Load UUID mappings first
-      await this.loadUUIDMappings();
-      console.log('');
-
       // Step 1: Load and validate shapes.inc data
       console.log('Step 1: Loading shapes.inc data\n');
       const shapesData = await this.loadShapesData(options.slug);
@@ -180,7 +141,7 @@ class PersonalityImportCLI {
 
         console.log(`✅ Memory import complete:`);
         console.log(`  Imported: ${memoryResult.imported}`);
-        console.log(`  Orphaned: ${memoryResult.orphaned}`);
+        console.log(`  Legacy Personas Created: ${memoryResult.legacyPersonasCreated}`);
         console.log(`  Failed: ${memoryResult.failed}`);
         if (memoryResult.errors.length > 0) {
           console.log(`  Errors:`);
@@ -369,6 +330,9 @@ class PersonalityImportCLI {
 
   /**
    * Import memories to Qdrant
+   *
+   * Memories are imported to legacy persona collections: persona-legacy-{shapesUserId}
+   * This preserves the original shapes.inc structure and allows easy migration later.
    */
   private async importMemories(
     memories: ShapesIncMemory[],
@@ -376,24 +340,16 @@ class PersonalityImportCLI {
     personalityName: string,
     options: ImportOptions
   ): Promise<MemoryImportResult> {
-    // Create UUID mapper
-    const uuidMapper = new UUIDMapper({
-      prisma: this.prisma,
-      orphanedPersonaId: ORPHANED_PERSONA_ID,
-    });
-
     // Create memory importer
     const memoryImporter = new MemoryImporter({
       personalityId,
       personalityName,
-      uuidMapper,
-      uuidMappings: this.uuidMappings,
       qdrant: this.qdrant,
       openai: this.openai,
       dryRun: options.dryRun,
     });
 
-    // Import
+    // Import to legacy collections
     const result = await memoryImporter.importMemories(memories);
 
     return result;
