@@ -116,6 +116,13 @@ export class MessageHandler {
         return false;
       }
 
+      // Check if this webhook belongs to the current bot instance
+      // This prevents both dev and prod bots from responding to the same personality webhook
+      if (referencedMessage.applicationId && referencedMessage.applicationId !== message.client.user!.id) {
+        logger.debug(`[MessageHandler] Ignoring reply to webhook from different bot instance. Webhook applicationId: ${referencedMessage.applicationId}, Current bot ID: ${message.client.user!.id}`);
+        return false;
+      }
+
       // Try Redis lookup first
       let personalityName = await getWebhookPersonality(referencedMessage.id);
 
