@@ -69,58 +69,74 @@ export class MemoryImporter {
 
   /**
    * Import a single memory
+   *
+   * For memories with multiple senders (group conversations), creates a separate
+   * entry in each sender's persona collection. This ensures all participants
+   * have access to the memory in their own context.
    */
   private async importSingleMemory(memory: ShapesIncMemory): Promise<void> {
     // Resolve all senders to v3 personas
     const senderResolutions = await this.resolveSenders(memory.senders);
 
-    // Determine which persona this memory belongs to
-    // For now, we use the first sender's persona (or orphaned if none resolved)
-    const primarySender = senderResolutions[0];
-    if (!primarySender) {
+    if (senderResolutions.length === 0) {
       throw new Error('No senders found in memory');
     }
 
-    if (primarySender.isOrphaned) {
-      this.stats.orphaned++;
-    }
-
-    // Build v3 Qdrant metadata
-    const v3Metadata = this.buildV3Metadata(memory, primarySender);
-
-    // Extract summary text
+    // Extract summary text (shared across all sender copies)
     const summaryText = memory.result;
 
-    if (this.options.dryRun) {
-      console.log(`  🔍 [DRY RUN] Would import memory ${memory.id}`);
-      console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${primarySender.isOrphaned})`);
-      console.log(`     Text length: ${summaryText.length} chars`);
+    // Generate embedding once (shared across all sender copies)
+    let embedding: number[] | null = null;
+    if (!this.options.dryRun) {
+      if (!this.options.openai) {
+        throw new Error('OpenAI client required for embedding generation');
+      }
+      embedding = await this.generateEmbedding(summaryText);
+    }
+
+    // Create a separate memory entry for each sender
+    for (const sender of senderResolutions) {
+      // Build v3 Qdrant metadata for this sender
+      const v3Metadata = this.buildV3Metadata(memory, sender);
+
+      // Generate unique memory ID for this sender's copy
+      const memoryCopyId = senderResolutions.length > 1
+        ? `${memory.id}/sender-${sender.v3PersonaId}`
+        : memory.id;
+
+      if (this.options.dryRun) {
+        console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
+        console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${sender.isOrphaned})`);
+        console.log(`     Text length: ${summaryText.length} chars`);
+        if (senderResolutions.length > 1) {
+          console.log(`     [Group conversation: ${senderResolutions.length} participants]`);
+        }
+      } else {
+        // Store in Qdrant
+        if (!this.options.qdrant || !embedding) {
+          throw new Error('Qdrant client and embedding required for memory storage');
+        }
+
+        await this.storeInQdrant(
+          memoryCopyId,
+          summaryText,
+          embedding,
+          v3Metadata
+        );
+
+        console.log(`  ✅ Imported memory ${memoryCopyId}`);
+        console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${sender.isOrphaned})`);
+        if (senderResolutions.length > 1) {
+          console.log(`     [Group conversation: ${senderResolutions.length} participants]`);
+        }
+      }
+
+      // Track statistics
       this.stats.imported++;
-      return;
+      if (sender.isOrphaned) {
+        this.stats.orphaned++;
+      }
     }
-
-    // Generate embedding
-    if (!this.options.openai) {
-      throw new Error('OpenAI client required for embedding generation');
-    }
-
-    const embedding = await this.generateEmbedding(summaryText);
-
-    // Store in Qdrant
-    if (!this.options.qdrant) {
-      throw new Error('Qdrant client required for memory storage');
-    }
-
-    await this.storeInQdrant(
-      memory.id,
-      summaryText,
-      embedding,
-      v3Metadata
-    );
-
-    console.log(`  ✅ Imported memory ${memory.id}`);
-    console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${primarySender.isOrphaned})`);
-    this.stats.imported++;
   }
 
   /**
