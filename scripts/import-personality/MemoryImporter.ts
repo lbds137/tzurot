@@ -18,7 +18,10 @@ import type {
   V3MemoryMetadata,
   MemoryImportResult,
 } from './types.js';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+
+// UUID namespace for generating deterministic memory copy IDs
+const MEMORY_NAMESPACE = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
 
 interface UUIDMappingData {
   discordId: string;
@@ -113,9 +116,12 @@ export class MemoryImporter {
       const v3Metadata = this.buildV3Metadata(memory, shapesUserId, resolution);
 
       // Generate unique memory ID for this sender's copy
+      // Shapes.inc memory IDs have format: {uuid}/{uuid} or {uuid}/{uuid}/sender-{uuid}
+      // Extract the first UUID as the base, then create deterministic IDs for each sender
+      const baseMemoryId = memory.id.split('/')[0];
       const memoryCopyId = memory.senders.length > 1
-        ? `${memory.id}/sender-${shapesUserId}`
-        : memory.id;
+        ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
+        : baseMemoryId;
 
       if (this.options.dryRun) {
         console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);

@@ -23,6 +23,7 @@ const require = createRequire(import.meta.url);
 const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
+import { migrateAvatars } from './migrations/migrate-avatars.js';
 import type { HealthResponse, ErrorResponse } from './types.js';
 
 const logger = createLogger('api-gateway');
@@ -234,6 +235,9 @@ async function main(): Promise<void> {
 
   // Ensure avatar storage directory exists
   await ensureAvatarDirectory();
+
+  // Run one-time avatar migration
+  await migrateAvatars();
 
   // Start request deduplication cleanup
   startCleanup();
