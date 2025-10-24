@@ -44,6 +44,9 @@ COPY prisma ./prisma
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
 
+# Generate Prisma client in production stage
+RUN npx prisma generate
+
 # Copy entire pnpm store to preserve generated Prisma client
 COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
