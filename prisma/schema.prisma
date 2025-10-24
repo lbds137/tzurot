@@ -213,6 +213,7 @@ model PersonalityOwner {
   role String @default("owner") @db.VarChar(50) // 'owner', 'editor', 'viewer'
 
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@id([personalityId, userId])
   @@index([userId])
@@ -312,6 +313,7 @@ model ActivatedChannel {
   createdByUser User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([channelId, personalityId])
   @@index([channelId])
