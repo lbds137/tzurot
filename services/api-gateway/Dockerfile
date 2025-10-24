@@ -43,6 +43,9 @@ RUN pnpm install --prod --frozen-lockfile
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 
+# Copy avatars to migrate
+COPY --from=builder /app/services/api-gateway/avatars-to-migrate ./services/api-gateway/avatars-to-migrate
+
 EXPOSE 3000
 
 CMD ["node", "services/api-gateway/dist/index.js"]
