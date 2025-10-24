@@ -17,6 +17,7 @@ export interface LoadedPersonality {
   id: string;
   name: string;
   displayName: string;
+  slug: string;
   systemPrompt: string;
   model: string;
   visionModel?: string; // Optional vision model for image processing
@@ -88,6 +89,27 @@ export class PersonalityService {
     this.prisma = getPrismaClient();
     this.personalityCache = new Map();
     this.cacheExpiry = new Map();
+  }
+
+  /**
+   * Derive avatar URL from personality slug
+   * If avatarUrl is explicitly set in DB, use that (for custom/external avatars)
+   * Otherwise, derive from slug and API gateway URL
+   */
+  static deriveAvatarUrl(slug: string, dbAvatarUrl: string | null | undefined): string | undefined {
+    // If explicitly set in database, use it (for custom/external avatars)
+    if (dbAvatarUrl) {
+      return dbAvatarUrl;
+    }
+
+    // Otherwise, derive from slug
+    const gatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
+    if (!gatewayUrl) {
+      logger.warn('[PersonalityService] No API_GATEWAY_URL configured, cannot derive avatar URL');
+      return undefined;
+    }
+
+    return `${gatewayUrl}/avatars/${slug}.png`;
   }
 
   /**
@@ -241,6 +263,7 @@ export class PersonalityService {
       id: db.id,
       name: db.name,
       displayName: db.displayName || db.name,
+      slug: db.slug,
       systemPrompt: db.systemPrompt?.content || '',
       model: llmConfig?.model || MODEL_DEFAULTS.DEFAULT_MODEL,
       visionModel: llmConfig?.visionModel || undefined,
@@ -251,7 +274,7 @@ export class PersonalityService {
       frequencyPenalty,
       presencePenalty,
       contextWindow: llmConfig?.contextWindowSize ?? 20, // Now from llmConfig, not personality
-      avatarUrl: db.avatarUrl || undefined,
+      avatarUrl: PersonalityService.deriveAvatarUrl(db.slug, db.avatarUrl),
       memoryEnabled: db.memoryEnabled,
       memoryScoreThreshold,
       memoryLimit,
