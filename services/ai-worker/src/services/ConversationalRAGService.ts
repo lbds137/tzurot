@@ -14,7 +14,7 @@ import {
   SystemMessage
 } from '@langchain/core/messages';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
-import { MessageContent, createLogger, type LoadedPersonality, AI_DEFAULTS, APP_SETTINGS } from '@tzurot/common-types';
+import { MessageContent, createLogger, type LoadedPersonality, AI_DEFAULTS, APP_SETTINGS, getPrismaClient } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -49,7 +49,6 @@ export interface RAGResponse {
   tokensUsed?: number;
   attachmentDescriptions?: string;
   modelUsed?: string;
-  responseTimestamp?: number; // Timestamp for storing in conversation_history (matches LTM timestamp)
 }
 
 export class ConversationalRAGService {
@@ -93,9 +92,6 @@ export class ConversationalRAGService {
     userApiKey?: string
   ): Promise<RAGResponse> {
     try {
-      // Create single timestamp for this interaction (used for both LTM and conversation_history)
-      const responseTimestamp = Date.now();
-
       // 1. Process attachments FIRST to get transcriptions for memory search
       let processedAttachments: ProcessedAttachment[] = [];
       if (context.attachments && context.attachments.length > 0) {
@@ -159,7 +155,7 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
 
       // 7. Store this interaction in memory (for future retrieval)
-      await this.storeInteraction(personality, userMessage, content, context, responseTimestamp);
+      await this.storeInteraction(personality, userMessage, content, context);
 
       // Extract attachment descriptions for history storage
       const attachmentDescriptions = processedAttachments.length > 0
@@ -171,8 +167,7 @@ export class ConversationalRAGService {
         retrievedMemories: relevantMemories.length,
         tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
         attachmentDescriptions,
-        modelUsed: modelName,
-        responseTimestamp // Return timestamp for conversation_history to use
+        modelUsed: modelName
       };
 
     } catch (error) {
@@ -362,17 +357,39 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Store an interaction in the vector database for future retrieval
+   * Store an interaction in both conversation_history and Qdrant (with pending_memories safety)
    */
   private async storeInteraction(
     personality: LoadedPersonality,
     userMessage: string,
     aiResponse: string,
-    context: ConversationContext,
-    timestamp: number // Timestamp to use (matches conversation_history timestamp)
+    context: ConversationContext
   ): Promise<void> {
+    const prisma = getPrismaClient();
+    let conversationHistoryId: string | null = null;
+    let pendingMemoryId: string | null = null;
+
     try {
-      // Resolve user's personaId for this personality
+      // 1. Save assistant response to conversation_history first
+      const conversationRecord = await prisma.conversationHistory.create({
+        data: {
+          channelId: context.channelId || 'dm',
+          personalityId: personality.id,
+          userId: context.userId,
+          role: 'assistant',
+          content: aiResponse,
+        },
+        select: {
+          id: true,
+          createdAt: true
+        }
+      });
+      conversationHistoryId = conversationRecord.id;
+      // Use the actual timestamp from PostgreSQL for perfect sync
+      const conversationTimestamp = conversationRecord.createdAt.getTime();
+      logger.debug(`[RAG] Saved assistant response to conversation_history (${conversationHistoryId})`);
+
+      // 2. Resolve user's personaId for this personality
       const personaId = await this.getUserPersonaForPersonality(
         context.userId,
         personality.id
@@ -383,37 +400,76 @@ export class ConversationalRAGService {
         return;
       }
 
-      // Determine canon scope
-      const canonScope = context.sessionId ? 'session' : 'personal';
-
-      // Store as a conversational exchange
+      // 3. Determine canon scope and prepare memory metadata
+      const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
       const interactionText = `User (${context.userName || context.userId}): ${userMessage}\n${personality.name}: ${aiResponse}`;
 
-      if (this.memoryManager !== undefined) {
-        await this.memoryManager.addMemory({
-          text: interactionText,
-          metadata: {
-            personaId, // Persona this memory belongs to
-            personalityId: personality.id, // Personality this memory is about
-            personalityName: personality.name,
-            sessionId: context.sessionId,
-            canonScope,
-            timestamp: timestamp, // Use the passed timestamp to match conversation_history
-            summaryType: 'conversation',
-            contextType: context.channelId ? 'channel' : 'dm',
-            channelId: context.channelId,
-            guildId: context.serverId,
-            serverId: context.serverId
-          }
-        });
+      const memoryMetadata = {
+        personaId,
+        personalityId: personality.id,
+        personalityName: personality.name,
+        sessionId: context.sessionId,
+        canonScope,
+        timestamp: conversationTimestamp, // Use PostgreSQL timestamp for perfect sync
+        summaryType: 'conversation',
+        contextType: context.channelId ? 'channel' : 'dm',
+        channelId: context.channelId,
+        guildId: context.serverId,
+        serverId: context.serverId
+      };
 
-        logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`);
-      } else {
-        logger.debug(`[RAG] Memory storage disabled - interaction not stored`);
+      if (this.memoryManager === undefined) {
+        logger.debug(`[RAG] Memory storage disabled - interaction not stored in Qdrant`);
+        return;
       }
 
+      // 4. Create pending_memory record (safety net for Qdrant storage)
+      const pendingMemory = await prisma.pendingMemory.create({
+        data: {
+          conversationHistoryId,
+          personaId,
+          personalityId: personality.id,
+          personalityName: personality.name,
+          text: interactionText,
+          metadata: memoryMetadata as any, // Cast to any for Prisma Json type
+          attempts: 0,
+        }
+      });
+      pendingMemoryId = pendingMemory.id;
+      logger.debug(`[RAG] Created pending_memory (${pendingMemoryId})`);
+
+      // 5. Try to store to Qdrant
+      await this.memoryManager.addMemory({
+        text: interactionText,
+        metadata: memoryMetadata
+      });
+
+      // 6. Success! Delete the pending_memory
+      await prisma.pendingMemory.delete({
+        where: { id: pendingMemoryId }
+      });
+      logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`);
+
     } catch (error) {
-      logger.error({ err: error }, '[RAG] Failed to store interaction');
+      logger.error({ err: error }, '[RAG] Failed to store interaction to Qdrant');
+
+      // Update pending_memory with error details (for retry later)
+      if (pendingMemoryId) {
+        try {
+          await prisma.pendingMemory.update({
+            where: { id: pendingMemoryId },
+            data: {
+              attempts: { increment: 1 },
+              lastAttemptAt: new Date(),
+              error: error instanceof Error ? error.message : String(error)
+            }
+          });
+          logger.info(`[RAG] Updated pending_memory (${pendingMemoryId}) with error - will retry later`);
+        } catch (updateError) {
+          logger.error({ err: updateError }, `[RAG] Failed to update pending_memory`);
+        }
+      }
+
       // Don't throw - this is a non-critical error
     }
   }

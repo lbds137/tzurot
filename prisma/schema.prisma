@@ -267,9 +267,35 @@ model ConversationHistory {
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  // Relations
+  pendingMemory PendingMemory?
+
   @@index([channelId, personalityId, createdAt(sort: Desc)])
   @@index([userId])
   @@map("conversation_history")
+}
+
+// Pending memories - tracks memories that need to be synced to Qdrant
+// Gets cleaned up after successful Qdrant storage
+model PendingMemory {
+  id                    String   @id @default(uuid()) @db.Uuid
+  conversationHistoryId String   @unique @map("conversation_history_id") @db.Uuid
+  personaId             String   @map("persona_id") @db.Uuid
+  personalityId         String   @map("personality_id") @db.Uuid
+  personalityName       String?  @map("personality_name") @db.VarChar(255)
+  text                  String   @db.Text // The formatted interaction text
+  metadata              Json     // All the metadata for Qdrant
+  createdAt             DateTime @default(now()) @map("created_at")
+  attempts              Int      @default(0)
+  lastAttemptAt         DateTime? @map("last_attempt_at")
+  error                 String?  @db.Text
+
+  conversationHistory   ConversationHistory @relation(fields: [conversationHistoryId], references: [id], onDelete: Cascade)
+
+  @@index([personaId])
+  @@index([personalityId])
+  @@index([createdAt])
+  @@map("pending_memories")
 }
 
 model ActivatedChannel {

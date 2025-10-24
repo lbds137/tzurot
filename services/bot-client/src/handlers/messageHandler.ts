@@ -269,14 +269,8 @@ export class MessageHandler {
         historyContent
       );
 
-      // Save assistant response to conversation history (without model indicator)
-      await this.conversationHistory.addMessage(
-        message.channel.id,
-        personality.id,
-        userId,
-        'assistant',
-        response.content
-      );
+      // Note: Assistant response is now saved to conversation_history by ai-worker
+      // during the storeInteraction() call, along with pending_memory tracking
 
       // Add model indicator to the message (for Discord display only, not in history)
       let contentWithIndicator = response.content;
