@@ -49,6 +49,7 @@ export interface RAGResponse {
   tokensUsed?: number;
   attachmentDescriptions?: string;
   modelUsed?: string;
+  responseTimestamp?: number; // Timestamp for storing in conversation_history (matches LTM timestamp)
 }
 
 export class ConversationalRAGService {
@@ -92,6 +93,9 @@ export class ConversationalRAGService {
     userApiKey?: string
   ): Promise<RAGResponse> {
     try {
+      // Create single timestamp for this interaction (used for both LTM and conversation_history)
+      const responseTimestamp = Date.now();
+
       // 1. Process attachments FIRST to get transcriptions for memory search
       let processedAttachments: ProcessedAttachment[] = [];
       if (context.attachments && context.attachments.length > 0) {
@@ -155,7 +159,7 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
 
       // 7. Store this interaction in memory (for future retrieval)
-      await this.storeInteraction(personality, userMessage, content, context);
+      await this.storeInteraction(personality, userMessage, content, context, responseTimestamp);
 
       // Extract attachment descriptions for history storage
       const attachmentDescriptions = processedAttachments.length > 0
@@ -167,7 +171,8 @@ export class ConversationalRAGService {
         retrievedMemories: relevantMemories.length,
         tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
         attachmentDescriptions,
-        modelUsed: modelName
+        modelUsed: modelName,
+        responseTimestamp // Return timestamp for conversation_history to use
       };
 
     } catch (error) {
@@ -363,7 +368,8 @@ export class ConversationalRAGService {
     personality: LoadedPersonality,
     userMessage: string,
     aiResponse: string,
-    context: ConversationContext
+    context: ConversationContext,
+    timestamp: number // Timestamp to use (matches conversation_history timestamp)
   ): Promise<void> {
     try {
       // Resolve user's personaId for this personality
@@ -392,7 +398,7 @@ export class ConversationalRAGService {
             personalityName: personality.name,
             sessionId: context.sessionId,
             canonScope,
-            timestamp: Date.now(),
+            timestamp: timestamp, // Use the passed timestamp to match conversation_history
             summaryType: 'conversation',
             contextType: context.channelId ? 'channel' : 'dm',
             channelId: context.channelId,
