@@ -33,6 +33,12 @@ export const AI_DEFAULTS = {
   CONTEXT_WINDOW: 20,
   /** Default conversation history limit */
   HISTORY_LIMIT: 10,
+  /**
+   * Time buffer (in milliseconds) to prevent STM/LTM overlap
+   * Excludes LTM memories within this time window of the oldest STM message
+   * 10 seconds = 10000ms
+   */
+  STM_LTM_BUFFER_MS: 10000,
 } as const;
 
 /**

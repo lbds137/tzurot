@@ -1,0 +1,24 @@
+/**
+ * Centralized Model Configuration
+ *
+ * Single source of truth for all AI model defaults.
+ * This prevents inconsistencies across services and makes it easy to change defaults.
+ */
+
+export const MODEL_DEFAULTS = {
+  // Main generation model (used when no model specified)
+  DEFAULT_MODEL: 'anthropic/claude-haiku-4.5',
+
+  // Provider-specific defaults (when forcing a specific provider)
+  GEMINI_DEFAULT: 'gemini-2.5-flash',
+
+  // Specialized models
+  WHISPER: 'whisper-1',
+  VISION_FALLBACK: 'qwen/qwen3-vl-235b-a22b-instruct',
+  EMBEDDING: 'text-embedding-3-small',
+} as const;
+
+/**
+ * Model name type derived from defaults
+ */
+export type DefaultModelName = typeof MODEL_DEFAULTS[keyof typeof MODEL_DEFAULTS];

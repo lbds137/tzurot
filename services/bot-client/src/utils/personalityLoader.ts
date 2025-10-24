@@ -6,7 +6,7 @@
 
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, MODEL_DEFAULTS } from '@tzurot/common-types';
 import type { BotPersonality } from '../types.js';
 
 const logger = createLogger('PersonalityLoader');
@@ -77,7 +77,7 @@ function createDefaultPersonality(): BotPersonality {
     name: 'Assistant',
     displayName: 'AI Assistant',
     systemPrompt: 'You are a helpful AI assistant in a Discord server. Be friendly, concise, and helpful.',
-    model: 'anthropic/claude-3.5-sonnet',
+    model: MODEL_DEFAULTS.DEFAULT_MODEL,
     temperature: 0.7,
     maxTokens: 500,
     avatarUrl: undefined

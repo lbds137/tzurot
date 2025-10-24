@@ -14,11 +14,21 @@ import {
   SystemMessage
 } from '@langchain/core/messages';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
-import { MessageContent, createLogger, type LoadedPersonality, AI_DEFAULTS, APP_SETTINGS, getPrismaClient } from '@tzurot/common-types';
+import {
+  MessageContent,
+  createLogger,
+  type LoadedPersonality,
+  AI_DEFAULTS,
+  getPrismaClient,
+  formatFullDateTime,
+  formatMemoryTimestamp,
+  getConfig,
+} from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
+const config = getConfig();
 
 export interface AttachmentMetadata {
   url: string;
@@ -271,28 +281,55 @@ export class ConversationalRAGService {
     const memoryContext = relevantMemories.length > 0
       ? '\n\nRelevant memories and past interactions:\n' +
         relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
-          const timestamp = this.formatMemoryTimestamp(doc.metadata?.createdAt);
+          const timestamp = doc.metadata?.createdAt
+            ? formatMemoryTimestamp(doc.metadata.createdAt)
+            : null;
           return `- ${timestamp ? `[${timestamp}] ` : ''}${doc.pageContent}`;
         }).join('\n')
       : '';
 
-    const now = new Date();
-    const dateContext = `\n\n## Current Context\nCurrent date and time: ${now.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZone: APP_SETTINGS.TIMEZONE,
-      timeZoneName: 'short'
-    })}`;
+    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
 
     const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
 
+    // Basic prompt composition logging (always)
     logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
-    logger.debug(`[RAG] Full system prompt:\n${fullSystemPrompt.substring(0, 1000)}...\n[truncated, total length: ${fullSystemPrompt.length}]`);
+
+    // Detailed prompt assembly logging (development only)
+    if (config.NODE_ENV === 'development') {
+      logger.debug('[RAG] Detailed prompt assembly:', {
+        personalityId: personality.id,
+        personalityName: personality.name,
+        systemPromptLength: systemPrompt.length,
+        hasUserPersona: !!userPersona,
+        userPersonaLength: userPersona?.length || 0,
+        memoryCount: relevantMemories.length,
+        memoryIds: relevantMemories.map((m: any) => m.metadata?.id || 'unknown'),
+        memoryTimestamps: relevantMemories.map((m: any) =>
+          m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
+        ),
+        totalMemoryChars: memoryContext.length,
+        dateContextLength: dateContext.length,
+        totalSystemPromptLength: fullSystemPrompt.length,
+        // Include STM info for duplication detection
+        stmCount: context.conversationHistory?.length || 0,
+        stmOldestTimestamp: context.oldestHistoryTimestamp
+          ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
+          : null,
+      });
+
+      // Show full prompt in debug mode (truncated to avoid massive logs)
+      const maxPreviewLength = 2000;
+      if (fullSystemPrompt.length <= maxPreviewLength) {
+        logger.debug('[RAG] Full system prompt:\n' + fullSystemPrompt);
+      } else {
+        logger.debug(
+          `[RAG] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
+          fullSystemPrompt.substring(0, maxPreviewLength) +
+          `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
+        );
+      }
+    }
 
     return fullSystemPrompt;
   }
@@ -305,9 +342,19 @@ export class ConversationalRAGService {
     userMessage: string,
     context: ConversationContext
   ): Promise<any[]> {
-    // Use oldestHistoryTimestamp to avoid retrieving memories that overlap with conversation history
-    if (context.oldestHistoryTimestamp) {
-      logger.debug(`[RAG] Excluding memories newer than ${new Date(context.oldestHistoryTimestamp).toISOString()} to avoid duplicate context`);
+    // Calculate cutoff timestamp with buffer to prevent STM/LTM overlap
+    // If conversation history exists, exclude memories within buffer window of oldest message
+    let excludeNewerThan: number | undefined = context.oldestHistoryTimestamp;
+
+    if (excludeNewerThan !== undefined) {
+      // Apply time buffer to ensure no overlap
+      // If oldest STM message is at timestamp T, exclude LTM memories after (T - buffer)
+      excludeNewerThan = excludeNewerThan - AI_DEFAULTS.STM_LTM_BUFFER_MS;
+
+      logger.debug(
+        `[RAG] STM/LTM deduplication: excluding memories newer than ${formatMemoryTimestamp(excludeNewerThan)} ` +
+        `(${AI_DEFAULTS.STM_LTM_BUFFER_MS}ms buffer applied)`
+      );
     }
 
     // Resolve user's personaId for this personality
@@ -327,7 +374,7 @@ export class ConversationalRAGService {
       sessionId: context.sessionId,
       limit: personality.memoryLimit || 15,
       scoreThreshold: personality.memoryScoreThreshold || AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
-      excludeNewerThan: context.oldestHistoryTimestamp,
+      excludeNewerThan,
     };
 
     // Query memories only if memory manager is available
@@ -343,7 +390,7 @@ export class ConversationalRAGService {
         const id = doc.metadata?.id || 'unknown';
         const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
         const createdAt = doc.metadata?.createdAt as string | number | undefined;
-        const timestamp = this.formatMemoryTimestamp(createdAt);
+        const timestamp = createdAt ? formatMemoryTimestamp(createdAt) : null;
         const content = doc.pageContent.substring(0, 120);
         const truncated = doc.pageContent.length > 120 ? '...' : '';
 
@@ -668,31 +715,4 @@ export class ConversationalRAGService {
     return formatted || 'Hello';
   }
 
-  /**
-   * Format a memory timestamp into a human-readable date (Eastern timezone)
-   */
-  private formatMemoryTimestamp(createdAt?: string | number): string | null {
-    if (!createdAt) return null;
-
-    try {
-      // Handle both Unix timestamps (numbers in milliseconds) and ISO strings
-      const date = typeof createdAt === 'number'
-        ? new Date(createdAt) // Unix timestamp in milliseconds
-        : new Date(createdAt);
-
-      if (isNaN(date.getTime())) return null;
-
-      // Format as YYYY-MM-DD in Eastern timezone
-      // toLocaleDateString('en-US') returns MM/DD/YYYY, so rearrange to YYYY-MM-DD
-      const parts = date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        timeZone: APP_SETTINGS.TIMEZONE
-      }).split('/');
-      return `${parts[2]}-${parts[0]}-${parts[1]}`; // YYYY-MM-DD
-    } catch {
-      return null;
-    }
-  }
 }

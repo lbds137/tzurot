@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MODEL_DEFAULTS } from './modelDefaults.js';
 
 /**
  * Environment variable validation schema
@@ -20,12 +21,12 @@ export const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_BASE_URL: z.string().url().optional(),
-  DEFAULT_AI_MODEL: z.string().optional().default('gemini-2.5-pro'),
+  DEFAULT_AI_MODEL: z.string().optional().default(MODEL_DEFAULTS.DEFAULT_MODEL),
 
   // AI Model Defaults
-  WHISPER_MODEL: z.string().default('whisper-1'),
-  VISION_FALLBACK_MODEL: z.string().default('qwen/qwen3-vl-235b-a22b-instruct'),
-  EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  WHISPER_MODEL: z.string().default(MODEL_DEFAULTS.WHISPER),
+  VISION_FALLBACK_MODEL: z.string().default(MODEL_DEFAULTS.VISION_FALLBACK),
+  EMBEDDING_MODEL: z.string().default(MODEL_DEFAULTS.EMBEDDING),
 
   // Redis Configuration
   REDIS_URL: z.string().url().optional(), // Railway provides this, no default!

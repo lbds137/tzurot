@@ -188,7 +188,7 @@ echo ""
 NODE_ENV=${NODE_ENV:-"production"}
 LOG_LEVEL=${LOG_LEVEL:-"info"}
 AI_PROVIDER=${AI_PROVIDER:-"gemini"}
-DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL:-"gemini-2.5-pro"}
+DEFAULT_AI_MODEL=${DEFAULT_AI_MODEL:-"anthropic/claude-haiku-4.5"}
 WHISPER_MODEL=${WHISPER_MODEL:-"whisper-1"}
 VISION_FALLBACK_MODEL=${VISION_FALLBACK_MODEL:-"qwen/qwen3-vl-235b-a22b-instruct"}
 EMBEDDING_MODEL=${EMBEDDING_MODEL:-"text-embedding-3-small"}
