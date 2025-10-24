@@ -74,6 +74,12 @@ export interface HealthResponse {
   services: {
     redis: boolean;
     queue: boolean;
+    avatarStorage?: boolean;
+  };
+  avatars?: {
+    status: string;
+    count?: number;
+    error?: string;
   };
   timestamp: string;
   uptime: number;
