@@ -16,7 +16,7 @@ import express from 'express';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
-import { access, readdir } from 'fs/promises';
+import { access, readdir, mkdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
@@ -77,6 +77,25 @@ app.use('/avatars', express.static('/data/avatars', {
   lastModified: true,
   fallthrough: false, // Return 404 if avatar not found
 }));
+
+/**
+ * Ensure avatar storage directory exists
+ */
+async function ensureAvatarDirectory(): Promise<void> {
+  try {
+    await access('/data/avatars');
+    logger.info('[Gateway] Avatar storage directory exists');
+  } catch (error) {
+    // Directory doesn't exist, create it
+    try {
+      await mkdir('/data/avatars', { recursive: true });
+      logger.info('[Gateway] Created avatar storage directory at /data/avatars');
+    } catch (createError) {
+      logger.error({ err: createError }, '[Gateway] Failed to create avatar storage directory');
+      throw createError;
+    }
+  }
+}
 
 /**
  * Check avatar storage health
@@ -212,6 +231,9 @@ async function main(): Promise<void> {
     env: config.env,
     corsOrigins: config.corsOrigins
   });
+
+  // Ensure avatar storage directory exists
+  await ensureAvatarDirectory();
 
   // Start request deduplication cleanup
   startCleanup();
