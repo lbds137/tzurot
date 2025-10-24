@@ -152,11 +152,11 @@ export interface V3PersonalityData {
 }
 
 export interface V3MemoryMetadata {
-  personaId: string; // V3 persona UUID
+  personaId: string; // Format: "legacy-{shapes-uuid}" for imported memories
   personalityId: string; // V3 personality UUID
   personalityName: string;
   sessionId: string | null;
-  canonScope: 'personal' | 'shared';
+  canonScope: 'legacy'; // All imported memories are legacy scope
   timestamp: number; // Milliseconds
   summaryType: 'conversation';
   contextType: 'dm' | 'guild';
@@ -185,7 +185,7 @@ export interface MemoryImportResult {
   imported: number;
   skipped: number;
   failed: number;
-  orphaned: number;
+  legacyPersonasCreated: number; // Number of unique legacy persona collections created
   errors: Array<{ memoryId: string; error: string }>;
 }
 
