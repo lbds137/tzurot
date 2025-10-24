@@ -5,6 +5,7 @@ import { WebhookManager } from './webhooks/manager.js';
 import { MessageHandler } from './handlers/messageHandler.js';
 import { CommandHandler } from './handlers/commandHandler.js';
 import { closeRedis } from './redis.js';
+import { deployCommands } from './utils/deployCommands.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -103,6 +104,17 @@ async function start(): Promise<void> {
     const personalityService = new PersonalityService();
     const personalityList = await personalityService.loadAllPersonalities();
     logger.info(`[Bot] Found ${personalityList.length} personalities in database`);
+
+    // Auto-deploy commands if enabled
+    if (envConfig.AUTO_DEPLOY_COMMANDS === 'true') {
+      logger.info('[Bot] Auto-deploying slash commands...');
+      try {
+        await deployCommands(true); // Always deploy globally in production
+        logger.info('[Bot] Slash commands deployed successfully');
+      } catch (error) {
+        logger.warn({ err: error }, '[Bot] Failed to deploy commands, but continuing startup...');
+      }
+    }
 
     // Initialize command handler
     logger.info('[Bot] Loading slash commands...');
