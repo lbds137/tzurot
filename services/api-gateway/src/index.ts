@@ -16,6 +16,7 @@ import express from 'express';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { createRequire } from 'module';
 import { aiRouter } from './routes/ai.js';
+import { access, readdir } from 'fs/promises';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
@@ -68,19 +69,47 @@ app.use((req, res, next) => {
 // Routes
 app.use('/ai', aiRouter);
 
+// Serve personality avatars from Railway volume
+// Avatars are downloaded during personality import and stored in /data/avatars
+app.use('/avatars', express.static('/data/avatars', {
+  maxAge: '7d', // Cache for 7 days
+  etag: true,
+  lastModified: true,
+  fallthrough: false, // Return 404 if avatar not found
+}));
+
+/**
+ * Check avatar storage health
+ */
+async function checkAvatarStorage(): Promise<{ status: string; count?: number; error?: string }> {
+  try {
+    await access('/data/avatars');
+    const files = await readdir('/data/avatars');
+    return { status: 'ok', count: files.length };
+  } catch (error) {
+    return {
+      status: 'error',
+      error: error instanceof Error ? error.message : 'Avatar storage not accessible'
+    };
+  }
+}
+
 /**
  * GET /health - Health check endpoint
  */
 app.get('/health', async (_req, res) => {
   try {
     const queueHealthy = await checkQueueHealth();
+    const avatarStorage = await checkAvatarStorage();
 
     const health: HealthResponse = {
       status: queueHealthy ? 'healthy' : 'degraded',
       services: {
         redis: queueHealthy,
-        queue: queueHealthy
+        queue: queueHealthy,
+        avatarStorage: avatarStorage.status === 'ok'
       },
+      avatars: avatarStorage,
       timestamp: new Date().toISOString(),
       uptime: Date.now() - startTime
     };
