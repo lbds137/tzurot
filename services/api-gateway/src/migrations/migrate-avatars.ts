@@ -18,6 +18,11 @@ const MIGRATIONS = [
     source: join(__dirname, '../../avatars-to-migrate/lilith-tzel-shani.png'),
     dest: '/data/avatars/lilith-tzel-shani.png',
     name: 'lilith-tzel-shani'
+  },
+  {
+    source: join(__dirname, '../../avatars-to-migrate/cold-kerach-batuach.png'),
+    dest: '/data/avatars/cold-kerach-batuach.png',
+    name: 'cold-kerach-batuach'
   }
 ];
 
