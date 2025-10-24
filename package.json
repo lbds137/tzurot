@@ -15,6 +15,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "update-deps": "pnpm update --latest && pnpm build && echo '\n✅ Dependencies updated and verified. Ready to commit!'",
     "cleanup-qdrant": "tsx scripts/import-personality/cleanup-qdrant.ts",
     "import-personality": "tsx scripts/import-personality/import-personality.ts",
     "migrate-legacy-persona": "tsx scripts/import-personality/migrate-legacy-persona.ts",
