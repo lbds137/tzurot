@@ -158,7 +158,6 @@ model Personality {
   name        String  @db.VarChar(255)
   displayName String? @map("display_name") @db.VarChar(255)
   slug        String  @unique @db.VarChar(255)
-  avatarUrl   String? @map("avatar_url") @db.Text
 
   // Core behavior
   systemPromptId String?       @map("system_prompt_id") @db.Uuid
