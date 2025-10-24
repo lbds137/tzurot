@@ -10,22 +10,19 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, MODEL_DEFAULTS } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
  * Available Gemini models (2025 - only 2.5+ models)
- * Using 2.5 Flash as default for cost-effectiveness
  */
 const GEMINI_MODELS = [
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
   'gemini-2.5-pro',
 ];
-
-const GEMINI_DEFAULT_MODEL = 'gemini-2.5-flash'; // Fast, cheap, and stable
 
 /**
  * Validate and normalize model name for the current provider
@@ -35,7 +32,7 @@ function validateModelForProvider(requestedModel: string | undefined, provider: 
     case 'gemini': {
       // If no model requested, use default
       if (!requestedModel) {
-        return GEMINI_DEFAULT_MODEL;
+        return MODEL_DEFAULTS.GEMINI_DEFAULT;
       }
 
       // Check if requested model is available for Gemini
@@ -45,14 +42,14 @@ function validateModelForProvider(requestedModel: string | undefined, provider: 
       if (isGeminiModel) {
         // Find the exact match from our list
         const exactModel = GEMINI_MODELS.find(m => normalizedModel.includes(m.toLowerCase()));
-        return exactModel || GEMINI_DEFAULT_MODEL;
+        return exactModel || MODEL_DEFAULTS.GEMINI_DEFAULT;
       }
 
       // Requested model is not a Gemini model
       logger.warn(
-        `[ModelFactory] Model "${requestedModel}" not available for Gemini, using ${GEMINI_DEFAULT_MODEL}`
+        `[ModelFactory] Model "${requestedModel}" not available for Gemini, using ${MODEL_DEFAULTS.GEMINI_DEFAULT}`
       );
-      return GEMINI_DEFAULT_MODEL;
+      return MODEL_DEFAULTS.GEMINI_DEFAULT;
     }
 
     case 'openrouter': {
