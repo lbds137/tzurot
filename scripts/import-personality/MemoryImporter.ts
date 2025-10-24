@@ -10,17 +10,22 @@
  * - Qdrant storage
  */
 
+import type { QdrantClient } from '@qdrant/js-client-rest';
+import type { OpenAI } from 'openai';
 import { UUIDMapper, type UserResolutionResult } from './UUIDMapper.js';
 import type {
   ShapesIncMemory,
   V3MemoryMetadata,
   MemoryImportResult,
 } from './types.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export interface MemoryImportOptions {
   personalityId: string; // V3 personality UUID
   personalityName: string;
   uuidMapper: UUIDMapper;
+  qdrant?: QdrantClient; // Required for actual writes
+  openai?: OpenAI; // Required for embeddings
   skipExisting?: boolean; // Don't re-import existing memories
   dryRun?: boolean; // Parse but don't write to Qdrant
 }
@@ -93,17 +98,132 @@ export class MemoryImporter {
       return;
     }
 
-    // TODO: Generate embedding and store in Qdrant
-    // For now, just log what we would do
-    console.log(`  ✅ Memory ${memory.id} ready for import`);
+    // Generate embedding
+    if (!this.options.openai) {
+      throw new Error('OpenAI client required for embedding generation');
+    }
+
+    const embedding = await this.generateEmbedding(summaryText);
+
+    // Store in Qdrant
+    if (!this.options.qdrant) {
+      throw new Error('Qdrant client required for memory storage');
+    }
+
+    await this.storeInQdrant(
+      memory.id,
+      summaryText,
+      embedding,
+      v3Metadata
+    );
+
+    console.log(`  ✅ Imported memory ${memory.id}`);
     console.log(`     Persona: ${v3Metadata.personaId} (orphaned: ${primarySender.isOrphaned})`);
     this.stats.imported++;
+  }
 
-    // NOTE: Actual Qdrant import will be implemented in the full CLI tool
-    // This requires:
-    // 1. OpenAI embedding generation
-    // 2. Qdrant client initialization
-    // 3. Point insertion with vector + metadata
+  /**
+   * Generate embedding for memory text
+   */
+  private async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.options.openai) {
+      throw new Error('OpenAI client not configured');
+    }
+
+    const response = await this.options.openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: text,
+    });
+
+    return response.data[0].embedding;
+  }
+
+  /**
+   * Store memory in Qdrant
+   */
+  private async storeInQdrant(
+    memoryId: string,
+    content: string,
+    embedding: number[],
+    metadata: V3MemoryMetadata
+  ): Promise<void> {
+    if (!this.options.qdrant) {
+      throw new Error('Qdrant client not configured');
+    }
+
+    // Collection name is persona-scoped
+    const collectionName = `persona-${metadata.personaId}`;
+
+    // Ensure collection exists
+    await this.ensureCollection(collectionName, embedding.length);
+
+    // Generate point ID (use shapes.inc memory ID or generate new UUID)
+    const pointId = memoryId || uuidv4();
+
+    // Store point with vector and metadata
+    await this.options.qdrant.upsert(collectionName, {
+      points: [
+        {
+          id: pointId,
+          vector: embedding,
+          payload: {
+            content,
+            personaId: metadata.personaId,
+            personalityId: metadata.personalityId,
+            personalityName: metadata.personalityName,
+            sessionId: metadata.sessionId,
+            canonScope: metadata.canonScope,
+            createdAt: metadata.timestamp,
+            summaryType: metadata.summaryType,
+            contextType: metadata.contextType,
+            channelId: metadata.channelId,
+            guildId: metadata.guildId,
+            serverId: metadata.serverId,
+          },
+        },
+      ],
+    });
+  }
+
+  /**
+   * Ensure Qdrant collection exists with proper configuration
+   */
+  private async ensureCollection(
+    collectionName: string,
+    vectorSize: number
+  ): Promise<void> {
+    if (!this.options.qdrant) {
+      throw new Error('Qdrant client not configured');
+    }
+
+    try {
+      // Check if collection exists
+      await this.options.qdrant.getCollection(collectionName);
+    } catch (error) {
+      // Collection doesn't exist, create it
+      await this.options.qdrant.createCollection(collectionName, {
+        vectors: {
+          size: vectorSize,
+          distance: 'Cosine',
+        },
+      });
+
+      // Create payload indexes for filtering
+      await this.options.qdrant.createPayloadIndex(collectionName, {
+        field_name: 'personalityId',
+        field_schema: 'keyword',
+      });
+
+      await this.options.qdrant.createPayloadIndex(collectionName, {
+        field_name: 'createdAt',
+        field_schema: 'integer',
+      });
+
+      await this.options.qdrant.createPayloadIndex(collectionName, {
+        field_name: 'sessionId',
+        field_schema: 'keyword',
+      });
+    }
   }
 
   /**
