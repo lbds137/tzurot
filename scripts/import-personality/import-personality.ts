@@ -350,6 +350,8 @@ class PersonalityImportCLI {
       personalityId,
       personalityName,
       uuidMapper,
+      qdrant: this.qdrant,
+      openai: this.openai,
       dryRun: options.dryRun,
     });
 
