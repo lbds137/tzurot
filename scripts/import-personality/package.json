@@ -6,7 +6,7 @@
   "description": "Import scripts for shapes.inc personality data",
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
-    "@prisma/client": "^6.16.3",
+    "@prisma/client": "^6.18.0",
     "@qdrant/js-client-rest": "^1.15.1",
     "openai": "^6.1.0",
     "uuid": "^11.0.5"
