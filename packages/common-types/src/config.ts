@@ -9,6 +9,7 @@ export const envSchema = z.object({
   DISCORD_TOKEN: z.string().optional(), // Only required for bot-client
   DISCORD_CLIENT_ID: z.string().optional(),
   GUILD_ID: z.string().optional(), // Optional - for dev/testing command deployment
+  AUTO_DEPLOY_COMMANDS: z.string().optional(), // 'true' to auto-deploy slash commands on bot startup
   BOT_OWNER_ID: z.string().optional(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
