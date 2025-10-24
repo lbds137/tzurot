@@ -48,7 +48,6 @@ export interface DatabasePersonality {
   name: string;
   displayName: string | null;
   slug: string;
-  avatarUrl: string | null;
   systemPrompt: {
     content: string;
   } | null;
@@ -93,16 +92,9 @@ export class PersonalityService {
 
   /**
    * Derive avatar URL from personality slug
-   * If avatarUrl is explicitly set in DB, use that (for custom/external avatars)
-   * Otherwise, derive from slug and API gateway URL
+   * Avatar files are named by slug: ${slug}.png
    */
-  static deriveAvatarUrl(slug: string, dbAvatarUrl: string | null | undefined): string | undefined {
-    // If explicitly set in database, use it (for custom/external avatars)
-    if (dbAvatarUrl) {
-      return dbAvatarUrl;
-    }
-
-    // Otherwise, derive from slug
+  static deriveAvatarUrl(slug: string): string | undefined {
     const gatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
     if (!gatewayUrl) {
       logger.warn('[PersonalityService] No API_GATEWAY_URL configured, cannot derive avatar URL');
@@ -274,7 +266,7 @@ export class PersonalityService {
       frequencyPenalty,
       presencePenalty,
       contextWindow: llmConfig?.contextWindowSize ?? 20, // Now from llmConfig, not personality
-      avatarUrl: PersonalityService.deriveAvatarUrl(db.slug, db.avatarUrl),
+      avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
       memoryEnabled: db.memoryEnabled,
       memoryScoreThreshold,
       memoryLimit,
