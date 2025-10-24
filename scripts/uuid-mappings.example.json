@@ -1,0 +1,39 @@
+{
+  "description": "Maps old shapes.inc user UUIDs to current Postgres user UUIDs. Use Discord IDs to identify users (these are already in the database and not private).",
+  "mappings": {
+    "OLD-SHAPES-INC-UUID-1": {
+      "newUserId": "CURRENT-POSTGRES-UUID",
+      "discordId": "278863839632818186",
+      "note": "Description of this mapping",
+      "oldMemories": 0,
+      "newMemories": 0,
+      "discoveredVia": "How you found this mapping"
+    },
+    "OLD-SHAPES-INC-UUID-2": {
+      "newUserId": "CURRENT-POSTGRES-UUID",
+      "discordId": "1235289405829414993",
+      "note": "Multiple old UUIDs can map to same new UUID",
+      "oldMemories": 0,
+      "discoveredVia": "confirmed by user from shapes.inc profile URL"
+    }
+  },
+  "instructions": [
+    "Add mappings here as you discover old shapes.inc UUIDs",
+    "Use Discord IDs instead of usernames for user identification",
+    "Format: { 'old-uuid': { newUserId: 'current-uuid', discordId: 'discord-id', note: 'context', discoveredVia: 'method' } }",
+    "The migration script will consolidate all memories under the newUserId",
+    "Multiple old UUIDs can map to the same newUserId (e.g., user had multiple shapes.inc accounts)"
+  ],
+  "tools": {
+    "find-user-memories.cjs": "Search memories by keyword to identify UUID owners",
+    "analyze-senders-for-uuid-mapping.cjs": "Find co-occurrence patterns in group conversations",
+    "analyze-qdrant-users.cjs": "List all Qdrant userIds vs Postgres users"
+  },
+  "workflow": [
+    "1. Run analyze-senders-for-uuid-mapping.cjs to find orphaned UUIDs that co-occur with known users",
+    "2. Use find-user-memories.cjs to search for identifying keywords in memories",
+    "3. Confirm identity via first-person narrative and username mentions",
+    "4. Add mapping to uuid-mappings.json with discoveredVia documentation",
+    "5. Migration script will apply mappings automatically"
+  ]
+}
