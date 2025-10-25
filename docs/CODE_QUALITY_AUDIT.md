@@ -319,11 +319,47 @@ export enum AttachmentType {
 
 ---
 
-## 5. TESTABILITY ISSUES
+## 5. FILE NAMING CONSISTENCY
+
+### Severity: Low
+
+### Issue
+
+TypeScript file naming is inconsistent across the codebase. The standard convention is:
+- **PascalCase** for files exporting a single class/component
+- **camelCase** for utilities, helpers, or files with multiple exports
+- **kebab-case** for scripts and configuration files
+
+### Files Needing Rename
+
+**bot-client service:**
+- `src/webhooks/manager.ts` → `WebhookManager.ts` (exports WebhookManager class)
+- `src/handlers/messageHandler.ts` → `MessageHandler.ts` (exports MessageHandler class)
+- `src/handlers/commandHandler.ts` → `CommandHandler.ts` (exports CommandHandler class)
+- `src/memory/ConversationManager.ts` → ✅ Already correct
+- `src/gateway/client.ts` → `GatewayClient.ts` (exports GatewayClient class)
+
+**api-gateway service:**
+- `src/services/DatabaseSyncService.ts` → ✅ Already correct
+- `src/utils/tempAttachmentStorage.ts` → Keep as-is (utility functions, not a class)
+- `src/utils/requestDeduplication.ts` → Keep as-is (utility functions, not a class)
+
+**ai-worker service:**
+- All service files already follow PascalCase ✅
+
+### Recommendation
+
+Rename files to match the exported class name. This improves discoverability and follows TypeScript/Node.js conventions.
+
+**Priority**: Low (Phase 1 - quick win, ~10 minutes)
+
+---
+
+## 6. TESTABILITY ISSUES
 
 ### Severity: Medium
 
-### 5.1 Tightly Coupled Dependencies
+### 6.1 Tightly Coupled Dependencies
 
 **File**: `services/bot-client/src/handlers/messageHandler.ts`
 - **Line 12**: Imports 5 services directly
@@ -334,7 +370,7 @@ export enum AttachmentType {
 
 **Priority**: Low (defer until adding unit tests)
 
-### 5.2 Direct Database Access
+### 6.2 Direct Database Access
 
 **File**: `services/ai-worker/src/services/ConversationalRAGService.ts`
 - **Lines 454-560**: Direct Prisma calls for interaction storage
@@ -343,7 +379,7 @@ export enum AttachmentType {
 
 **Recommendation**: Create data access layer (defer until adding unit tests)
 
-### 5.3 Global State / Module-Level Variables
+### 6.3 Global State / Module-Level Variables
 
 **File**: `services/api-gateway/src/utils/requestDeduplication.ts`
 - **Line 17**: `const requestCache = new Map<string, CachedRequest>();`
@@ -354,7 +390,7 @@ export enum AttachmentType {
 
 ---
 
-## 6. TODO ITEMS
+## 7. TODO ITEMS
 
 ### Found TODOs
 
@@ -395,6 +431,13 @@ Priority order for implementation:
 7. ✅ **Replace all magic numbers with named constants**
    - Update all files to use the new constants
 
+8. **Rename files for consistency**
+   - Rename `manager.ts` → `WebhookManager.ts`
+   - Rename `messageHandler.ts` → `MessageHandler.ts`
+   - Rename `commandHandler.ts` → `CommandHandler.ts`
+   - Rename `client.ts` → `GatewayClient.ts`
+   - Update all imports
+
 ### Phase 2: Medium Effort (4-6 hours) - **DEFER FOR NOW**
 
 1. Extract image URL resolution helper (MultimodalProcessor)
@@ -428,6 +471,7 @@ Priority order for implementation:
 | Duplicate Code | 4 patterns | Low-Med | Low | 2 |
 | Test Coupling | 6 locations | Medium | High | 3 |
 | Config Strings | 20+ instances | Low | Low | 1 |
+| File Naming | 4 files | Low | Low | 1 |
 | Global State | 2 locations | Medium | Medium | 3 |
 | TODO Items | 2 | Low | Low | - |
 

@@ -1,9 +1,9 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import { createLogger, PersonalityService, disconnectPrisma, getConfig } from '@tzurot/common-types';
-import { GatewayClient } from './gateway/client.js';
-import { WebhookManager } from './webhooks/manager.js';
-import { MessageHandler } from './handlers/messageHandler.js';
-import { CommandHandler } from './handlers/commandHandler.js';
+import { GatewayClient } from './gateway/GatewayClient.js';
+import { WebhookManager } from './webhooks/WebhookManager.js';
+import { MessageHandler } from './handlers/MessageHandler.js';
+import { CommandHandler } from './handlers/CommandHandler.js';
 import { closeRedis } from './redis.js';
 import { deployCommands } from './utils/deployCommands.js';
 
