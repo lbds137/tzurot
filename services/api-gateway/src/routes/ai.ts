@@ -8,7 +8,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { createLogger } from '@tzurot/common-types';
 import { z } from 'zod';
-import { aiQueue } from '../queue.js';
+import { aiQueue, queueEvents } from '../queue.js';
 import {
   checkDuplicate,
   cacheRequest
@@ -85,13 +85,21 @@ const generateRequestSchema = z.object({
 /**
  * POST /ai/generate
  *
- * Create an AI generation job and return the job ID.
+ * Create an AI generation job and optionally wait for completion.
+ *
+ * Query parameters:
+ * - wait=true: Wait for job completion using Redis pub/sub (no polling)
+ * - wait=false (default): Return job ID immediately
+ *
  * Handles request deduplication - identical requests within 5s return the same job.
  */
 aiRouter.post('/generate', async (req, res) => {
   const startTime = Date.now();
   let userId: string | undefined;
   let personalityName: string | undefined;
+
+  // Check if client wants to wait for completion
+  const waitForCompletion = req.query.wait === 'true';
 
   try {
     // Validate request body
@@ -163,13 +171,72 @@ aiRouter.post('/generate', async (req, res) => {
     // Cache request to prevent duplicates
     cacheRequest(request, requestId, job.id ?? requestId);
 
-    const processingTime = Date.now() - startTime;
+    const creationTime = Date.now() - startTime;
 
     logger.info(
-      `[AI] Created job ${job.id} for ${request.personality.name} (${processingTime}ms)`
+      `[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`
     );
 
-    // Return job info
+    // If client wants to wait, use Redis pub/sub to wait for completion
+    if (waitForCompletion) {
+      try {
+        // Calculate timeout based on attachments (images take longer)
+        const imageCount = request.context.attachments?.filter(
+          att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+        ).length ?? 0;
+
+        // Base timeout: 2 minutes, scale by image count
+        const timeoutMs = 120000 * Math.max(1, imageCount);
+
+        logger.debug(
+          `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
+        );
+
+        // Wait for job completion via Redis pub/sub (no HTTP polling!)
+        const result = await job.waitUntilFinished(queueEvents, timeoutMs);
+
+        const totalTime = Date.now() - startTime;
+
+        logger.info(
+          `[AI] Job ${job.id} completed after ${totalTime}ms`
+        );
+
+        // Return result directly
+        res.json({
+          jobId: job.id ?? requestId,
+          requestId,
+          status: 'completed',
+          result,
+          timestamp: new Date().toISOString()
+        });
+        return;
+
+      } catch (error) {
+        const totalTime = Date.now() - startTime;
+
+        logger.error(
+          {
+            err: error,
+            jobId: job.id,
+            userId,
+            personalityName,
+            totalTimeMs: totalTime
+          },
+          `[AI] Job ${job.id} failed or timed out after ${totalTime}ms`
+        );
+
+        const errorResponse: ErrorResponse = {
+          error: 'JOB_FAILED',
+          message: error instanceof Error ? error.message : 'Job failed or timed out',
+          timestamp: new Date().toISOString()
+        };
+
+        res.status(500).json(errorResponse);
+        return;
+      }
+    }
+
+    // Default behavior: return job ID immediately (backward compatible)
     const response: GenerateResponse = {
       jobId: job.id ?? requestId,
       requestId,

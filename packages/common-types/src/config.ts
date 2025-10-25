@@ -2,24 +2,38 @@ import { z } from 'zod';
 import { MODEL_DEFAULTS } from './modelDefaults.js';
 
 /**
+ * Helper for optional string fields that must be non-empty if provided
+ * Rejects empty strings, but allows undefined
+ */
+const optionalNonEmptyString = () =>
+  z.string().min(1).optional().or(z.literal('').transform(() => undefined));
+
+/**
+ * Helper for optional Discord IDs (must be all digits if provided)
+ */
+const optionalDiscordId = () =>
+  z.string().regex(/^\d+$/, 'Must be a valid Discord ID (all digits)').optional()
+    .or(z.literal('').transform(() => undefined));
+
+/**
  * Environment variable validation schema
  * Validates all required configuration at startup
  */
 export const envSchema = z.object({
   // Discord Configuration
-  DISCORD_TOKEN: z.string().optional(), // Only required for bot-client
-  DISCORD_CLIENT_ID: z.string().optional(),
-  GUILD_ID: z.string().optional(), // Optional - for dev/testing command deployment
-  AUTO_DEPLOY_COMMANDS: z.string().optional(), // 'true' to auto-deploy slash commands on bot startup
-  BOT_OWNER_ID: z.string().optional(), // Discord user ID of bot owner for admin commands
+  DISCORD_TOKEN: optionalNonEmptyString(), // Only required for bot-client
+  DISCORD_CLIENT_ID: optionalDiscordId(),
+  GUILD_ID: optionalDiscordId(), // Optional - for dev/testing command deployment
+  AUTO_DEPLOY_COMMANDS: z.enum(['true', 'false']).optional().or(z.literal('').transform(() => undefined)), // 'true' to auto-deploy slash commands on bot startup
+  BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
   // AI Provider Configuration
   AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'local']).default('openrouter'),
-  OPENROUTER_API_KEY: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  ANTHROPIC_API_KEY: z.string().optional(),
-  DEFAULT_AI_MODEL: z.string().optional().default(MODEL_DEFAULTS.DEFAULT_MODEL),
+  OPENROUTER_API_KEY: optionalNonEmptyString(),
+  OPENAI_API_KEY: optionalNonEmptyString(),
+  ANTHROPIC_API_KEY: optionalNonEmptyString(),
+  DEFAULT_AI_MODEL: optionalNonEmptyString().transform((val) => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
 
   // AI Model Defaults
   WHISPER_MODEL: z.string().default(MODEL_DEFAULTS.WHISPER),
@@ -27,24 +41,24 @@ export const envSchema = z.object({
   EMBEDDING_MODEL: z.string().default(MODEL_DEFAULTS.EMBEDDING),
 
   // Redis Configuration
-  REDIS_URL: z.string().url().optional(), // Railway provides this, no default!
+  REDIS_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // Railway provides this, no default!
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(6379),
-  REDIS_PASSWORD: z.string().optional(),
+  REDIS_PASSWORD: optionalNonEmptyString(),
 
   // Qdrant Configuration
-  QDRANT_URL: z.string().url().optional(),
-  QDRANT_API_KEY: z.string().optional(),
+  QDRANT_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+  QDRANT_API_KEY: optionalNonEmptyString(),
 
   // Database Configuration
-  DATABASE_URL: z.string().url().optional(),
-  DEV_DATABASE_URL: z.string().url().optional(), // For db-sync: development database URL
-  PROD_DATABASE_URL: z.string().url().optional(), // For db-sync: production database URL
+  DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
+  DEV_DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For db-sync: development database URL
+  PROD_DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For db-sync: production database URL
 
   // API Gateway Configuration
   API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(3000),
-  GATEWAY_URL: z.string().url().optional().default('http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
-  PUBLIC_GATEWAY_URL: z.string().url().optional(), // Public HTTPS URL for external resources (Discord avatar fetching)
+  GATEWAY_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)).transform((val) => val ?? 'http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
+  PUBLIC_GATEWAY_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // Public HTTPS URL for external resources (Discord avatar fetching)
   CORS_ORIGINS: z.string().optional().transform((val) => val?.split(',') ?? ['*']).default(['*']),
 
   // Environment
@@ -54,8 +68,8 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
   // Optional Services
-  ELEVENLABS_API_KEY: z.string().optional(),
-  IMAGE_GENERATION_API_KEY: z.string().optional(),
+  ELEVENLABS_API_KEY: optionalNonEmptyString(),
+  IMAGE_GENERATION_API_KEY: optionalNonEmptyString(),
 
   // Worker Configuration
   WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default(5),
