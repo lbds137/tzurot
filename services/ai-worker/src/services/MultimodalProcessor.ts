@@ -93,41 +93,36 @@ function hasVisionSupport(modelName: string): boolean {
 /**
  * Describe an image using vision model
  * Uses personality's model if it has vision, otherwise uses uncensored fallback
+ * Throws errors to allow retry logic to handle them
  */
 export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality
 ): Promise<string> {
-  try {
-    // Priority 1: Use personality's configured vision model if specified
-    if (personality.visionModel) {
-      logger.info(
-        { visionModel: personality.visionModel },
-        'Using configured vision model (personality override)'
-      );
-      return await describeWithVisionModel(attachment, personality, personality.visionModel);
-    }
-
-    // Priority 2: Use personality's main model if it has native vision support
-    if (hasVisionSupport(personality.model)) {
-      logger.info(
-        { model: personality.model },
-        'Using main LLM for vision (native vision support detected)'
-      );
-      return await describeWithVisionModel(attachment, personality, personality.model);
-    }
-
-    // Priority 3: Use default vision model (Qwen3-VL)
+  // Priority 1: Use personality's configured vision model if specified
+  if (personality.visionModel) {
     logger.info(
-      { mainModel: personality.model },
-      'Using default vision model (Qwen3-VL) - main LLM lacks vision support'
+      { visionModel: personality.visionModel },
+      'Using configured vision model (personality override)'
     );
-    return await describeWithFallbackVision(attachment, personality.systemPrompt || '');
-  } catch (error) {
-    logger.error({ err: error, attachment }, 'Failed to describe image');
-    // Fallback to basic description
-    return `[Image: ${attachment.name || 'attachment'}]`;
+    return await describeWithVisionModel(attachment, personality, personality.visionModel);
   }
+
+  // Priority 2: Use personality's main model if it has native vision support
+  if (hasVisionSupport(personality.model)) {
+    logger.info(
+      { model: personality.model },
+      'Using main LLM for vision (native vision support detected)'
+    );
+    return await describeWithVisionModel(attachment, personality, personality.model);
+  }
+
+  // Priority 3: Use default vision model (Qwen3-VL)
+  logger.info(
+    { mainModel: personality.model },
+    'Using default vision model (Qwen3-VL) - main LLM lacks vision support'
+  );
+  return await describeWithFallbackVision(attachment, personality.systemPrompt || '');
 }
 
 /**
@@ -329,62 +324,52 @@ async function describeWithFallbackVision(
 
 /**
  * Transcribe audio (voice message or audio file) using Whisper
+ * Throws errors to allow retry logic to handle them
  */
 export async function transcribeAudio(
   attachment: AttachmentMetadata,
   _personality: LoadedPersonality
 ): Promise<string> {
-  try {
-    logger.info({
-      url: attachment.url,
-      duration: attachment.duration,
-      contentType: attachment.contentType
-    }, 'Transcribing audio with Whisper');
+  logger.info({
+    url: attachment.url,
+    duration: attachment.duration,
+    contentType: attachment.contentType
+  }, 'Transcribing audio with Whisper');
 
-    // Initialize OpenAI client for Whisper
-    const openai = new OpenAI({
-      apiKey: config.OPENAI_API_KEY,
-    });
+  // Initialize OpenAI client for Whisper
+  const openai = new OpenAI({
+    apiKey: config.OPENAI_API_KEY,
+  });
 
-    // Fetch the audio file
-    const response = await fetch(attachment.url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch audio: ${response.statusText}`);
-    }
-
-    // Convert to buffer and create File object
-    const audioBuffer = await response.arrayBuffer();
-    const blob = new Blob([audioBuffer], { type: attachment.contentType });
-    const audioFile = new File(
-      [blob],
-      attachment.name || 'audio.ogg',
-      { type: attachment.contentType }
-    );
-
-    // Transcribe using Whisper
-    const transcription = await openai.audio.transcriptions.create({
-      file: audioFile,
-      model: config.WHISPER_MODEL,
-      language: AI_DEFAULTS.WHISPER_LANGUAGE,
-      response_format: 'text',
-    });
-
-    logger.info({
-      duration: attachment.duration,
-      transcriptionLength: transcription.length
-    }, 'Audio transcribed successfully');
-
-    return transcription;
-  } catch (error) {
-    logger.error({
-      err: error,
-      url: attachment.url,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error'
-    }, 'Failed to transcribe audio');
-
-    // Fallback to basic description
-    return `[Voice message: ${attachment.duration || 0}s]`;
+  // Fetch the audio file
+  const response = await fetch(attachment.url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch audio: ${response.statusText}`);
   }
+
+  // Convert to buffer and create File object
+  const audioBuffer = await response.arrayBuffer();
+  const blob = new Blob([audioBuffer], { type: attachment.contentType });
+  const audioFile = new File(
+    [blob],
+    attachment.name || 'audio.ogg',
+    { type: attachment.contentType }
+  );
+
+  // Transcribe using Whisper
+  const transcription = await openai.audio.transcriptions.create({
+    file: audioFile,
+    model: config.WHISPER_MODEL,
+    language: AI_DEFAULTS.WHISPER_LANGUAGE,
+    response_format: 'text',
+  });
+
+  logger.info({
+    duration: attachment.duration,
+    transcriptionLength: transcription.length
+  }, 'Audio transcribed successfully');
+
+  return transcription;
 }
 
 /**
@@ -523,116 +508,111 @@ export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment[]> {
-  logger.info({ attachmentCount: attachments.length, personalityModel: personality.model }, '[MultimodalProcessor] Processing attachments in parallel');
-
-  // First pass: Process all attachments in parallel
-  const firstPassPromises = attachments.map((attachment) =>
-    processSingleAttachment(attachment, personality)
+  const MAX_ATTEMPTS = 3;
+  logger.info(
+    {
+      attachmentCount: attachments.length,
+      personalityModel: personality.model,
+      maxAttempts: MAX_ATTEMPTS
+    },
+    '[MultimodalProcessor] Processing attachments in parallel'
   );
 
-  const firstPassResults = await Promise.allSettled(firstPassPromises);
-
-  // Collect successes and track failures for retry
   const succeeded: ProcessedAttachment[] = [];
-  const failedIndices: number[] = [];
+  let failedIndices = Array.from({ length: attachments.length }, (_, i) => i);
 
-  firstPassResults.forEach((result, index) => {
-    if (result.status === 'fulfilled' && result.value !== null) {
-      succeeded.push(result.value);
-    } else if (result.status === 'rejected') {
-      failedIndices.push(index);
-      logger.warn(
-        {
-          err: result.reason,
-          attachment: attachments[index].name
-        },
-        '[MultimodalProcessor] Attachment processing failed, will retry'
-      );
-    }
-  });
+  // Retry loop: up to MAX_ATTEMPTS passes
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (failedIndices.length === 0) break;
 
-  // Second pass: Retry failed attachments in parallel
-  if (failedIndices.length > 0) {
     logger.info(
       {
+        attempt,
+        maxAttempts: MAX_ATTEMPTS,
         failedCount: failedIndices.length,
         succeededCount: succeeded.length
       },
-      '[MultimodalProcessor] Retrying failed attachments'
+      `[MultimodalProcessor] Pass ${attempt}: Processing ${failedIndices.length} attachment(s)`
     );
 
-    const retryPromises = failedIndices.map((index) =>
+    // Process all failed attachments in parallel
+    const promises = failedIndices.map((index) =>
       processSingleAttachment(attachments[index], personality)
     );
 
-    const retryResults = await Promise.allSettled(retryPromises);
+    const results = await Promise.allSettled(promises);
 
-    // Collect retry successes and track failures for third pass
-    const secondPassFailures: number[] = [];
+    // Separate successes from failures for next iteration
+    const stillFailing: number[] = [];
 
-    retryResults.forEach((result, i) => {
+    results.forEach((result, i) => {
       const originalIndex = failedIndices[i];
+      const attachment = attachments[originalIndex];
+
       if (result.status === 'fulfilled' && result.value !== null) {
         succeeded.push(result.value);
         logger.info(
-          { attachment: attachments[originalIndex].name },
-          '[MultimodalProcessor] Second pass retry succeeded'
+          {
+            attachment: attachment.name,
+            attempt
+          },
+          `[MultimodalProcessor] Pass ${attempt} succeeded`
         );
       } else {
-        secondPassFailures.push(originalIndex);
-        logger.warn(
-          {
-            err: result.status === 'rejected' ? result.reason : 'Unknown error',
-            attachment: attachments[originalIndex].name
-          },
-          '[MultimodalProcessor] Second pass retry failed, will try third pass'
-        );
-      }
-    });
+        stillFailing.push(originalIndex);
+        const error = result.status === 'rejected' ? result.reason : 'Unknown error';
 
-    // Third pass: Final retry for attachments that failed twice
-    if (secondPassFailures.length > 0) {
-      logger.info(
-        {
-          failedCount: secondPassFailures.length,
-          succeededCount: succeeded.length
-        },
-        '[MultimodalProcessor] Third pass: Final retry for failed attachments'
-      );
-
-      const thirdPassPromises = secondPassFailures.map((index) =>
-        processSingleAttachment(attachments[index], personality)
-      );
-
-      const thirdPassResults = await Promise.allSettled(thirdPassPromises);
-
-      // Collect third pass results
-      thirdPassResults.forEach((result, i) => {
-        const originalIndex = secondPassFailures[i];
-        if (result.status === 'fulfilled' && result.value !== null) {
-          succeeded.push(result.value);
-          logger.info(
-            { attachment: attachments[originalIndex].name },
-            '[MultimodalProcessor] Third pass retry succeeded'
+        if (attempt < MAX_ATTEMPTS) {
+          logger.warn(
+            {
+              err: error,
+              attachment: attachment.name,
+              attempt,
+              willRetry: true
+            },
+            `[MultimodalProcessor] Pass ${attempt} failed, will retry`
           );
         } else {
           logger.error(
             {
-              err: result.status === 'rejected' ? result.reason : 'Unknown error',
-              attachment: attachments[originalIndex]
+              err: error,
+              attachment: attachment.name,
+              attempt
             },
-            '[MultimodalProcessor] Third pass retry failed, giving up on attachment after 3 attempts'
+            `[MultimodalProcessor] Pass ${attempt} failed, giving up after ${MAX_ATTEMPTS} attempts`
           );
         }
-      });
-    }
+      }
+    });
+
+    failedIndices = stillFailing;
+  }
+
+  // Add fallback placeholders for attachments that failed all attempts
+  for (const index of failedIndices) {
+    const attachment = attachments[index];
+    const fallbackDescription = attachment.contentType.startsWith('image/')
+      ? `[Image: ${attachment.name || 'attachment'}]`
+      : `[Voice message: ${attachment.duration || 0}s]`;
+
+    succeeded.push({
+      type: attachment.contentType.startsWith('image/') ? 'image' : 'audio',
+      description: fallbackDescription,
+      originalUrl: attachment.url,
+      metadata: attachment,
+    });
+
+    logger.info(
+      { attachment: attachment.name },
+      '[MultimodalProcessor] Using fallback description after all retries failed'
+    );
   }
 
   logger.info(
     {
       total: attachments.length,
       succeeded: succeeded.length,
-      failed: attachments.length - succeeded.length
+      failed: failedIndices.length
     },
     '[MultimodalProcessor] Parallel processing complete'
   );
