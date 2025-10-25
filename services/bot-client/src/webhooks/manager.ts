@@ -46,13 +46,14 @@ export class WebhookManager {
       return this.botSuffix;
     }
 
-    if (!this.client.user) {
+    const clientUser = this.client.user;
+    if (!clientUser) {
       logger.warn('[WebhookManager] Client user not available for suffix extraction');
       this.botSuffix = '';
       return '';
     }
 
-    const botTag = this.client.user.tag;
+    const botTag = clientUser.tag;
     logger.debug(`[WebhookManager] Extracting suffix from bot tag: ${botTag}`);
 
     // Check if tag contains " | " delimiter
