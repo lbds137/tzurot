@@ -7,6 +7,7 @@ export * from './modelDefaults.js';
 export * from './dateFormatting.js';
 export { splitMessage, preserveCodeBlocks } from './discord-utils.js';
 export { createLogger } from './logger.js';
+export { parseRedisUrl, type RedisConnectionConfig } from './redis-utils.js';
 
 // Export services
 export * from './services/prisma.js';

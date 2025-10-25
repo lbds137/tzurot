@@ -11,7 +11,7 @@
 import { Worker, Job } from 'bullmq';
 import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
@@ -35,28 +35,6 @@ const config = {
     queueName: envConfig.QUEUE_NAME
   }
 };
-
-/**
- * Parse Railway's REDIS_URL format
- * Format: redis://default:password@host:port
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {
-  try {
-    const parsed = new URL(url);
-    return {
-      host: parsed.hostname,
-      port: parseInt(parsed.port || '6379'),
-      password: parsed.password || undefined,
-      username: parsed.username !== 'default' ? parsed.username : undefined
-    };
-  } catch (error) {
-    logger.error({ err: error }, '[Config] Failed to parse REDIS_URL');
-    return {
-      host: 'localhost',
-      port: 6379
-    };
-  }
-}
 
 /**
  * Initialize the AI worker

@@ -6,23 +6,10 @@
  */
 
 import { createClient, type RedisClientType } from 'redis';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
 const config = getConfig();
-
-/**
- * Parse Redis URL into connection config
- * Railway provides REDIS_URL like: redis://:password@host:port
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
-  const parsed = new URL(url);
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || '6379', 10),
-    password: parsed.password || undefined
-  };
-}
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
