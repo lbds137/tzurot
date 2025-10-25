@@ -83,9 +83,7 @@ export const INTERVALS = {
  * Buffer times for various operations
  */
 export const BUFFERS = {
-  /** Discord CDN URL expiration safety buffer (5 minutes) */
-  DISCORD_URL_EXPIRATION: 5 * 60 * 1000,
-  /** STM/LTM overlap prevention buffer (10 seconds) - from AI_DEFAULTS */
+  /** STM/LTM overlap prevention buffer (10 seconds) */
   STM_LTM: 10000,
 } as const;
 
