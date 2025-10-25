@@ -11,9 +11,13 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY packages/ ./packages/
 COPY services/api-gateway/package.json ./services/api-gateway/
+COPY prisma ./prisma
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
+
+# Generate Prisma client
+RUN npx prisma generate
 
 # Copy source code
 COPY packages/ ./packages/
@@ -35,9 +39,13 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-types/package.json ./packages/common-types/
 COPY services/api-gateway/package.json ./services/api-gateway/
+COPY prisma ./prisma
 
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
+
+# Copy entire pnpm store to preserve generated Prisma client
+COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
