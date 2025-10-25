@@ -9,7 +9,8 @@ import type {
   AttachmentMetadata,
   ApiConversationMessage,
   JobResult,
-  GenerateResponse
+  GenerateResponse,
+  LoadedPersonality
 } from '@tzurot/common-types';
 
 // Re-export shared API types
@@ -18,20 +19,11 @@ export type {
   ApiConversationMessage,
   JobResult,
   GenerateResponse as GatewayResponse, // Alias for backward compatibility
+  LoadedPersonality, // Personality type from database
 };
 
-/**
- * Simple personality configuration
- */
-export interface BotPersonality {
-  name: string;
-  displayName: string;
-  avatarUrl?: string;
-  systemPrompt: string;
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-}
+// Deprecated: Use LoadedPersonality instead
+export type BotPersonality = LoadedPersonality;
 
 /**
  * Message context for AI generation
