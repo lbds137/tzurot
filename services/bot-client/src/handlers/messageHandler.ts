@@ -239,45 +239,26 @@ export class MessageHandler {
         attachments
       };
 
-      // Call API Gateway for AI generation (this will process attachments and return descriptions)
-      const response = await this.gatewayClient.generate(personality, context);
-
-      // Save user message to conversation history with rich attachment descriptions
-      // If AI worker provided descriptions, use those; otherwise use placeholder
-      let historyContent = content;
-      if (response.attachmentDescriptions) {
-        // Use rich descriptions from vision/transcription models
-        historyContent = content
-          ? `${content}\n\n${response.attachmentDescriptions}`
-          : response.attachmentDescriptions;
-      } else if (attachments && attachments.length > 0) {
-        // Fallback to simple placeholders if processing failed
-        const attachmentDesc = attachments.map(a => {
-          if (a.isVoiceMessage) {
-            return `[voice message: ${a.duration}s]`;
-          }
-          if (a.contentType.startsWith('image/')) {
-            return `[image: ${a.name || 'attachment'}]`;
-          }
-          if (a.contentType.startsWith('audio/')) {
-            return `[audio: ${a.name || 'attachment'}]`;
-          }
-          return `[file: ${a.name || 'attachment'}]`;
-        }).join(' ');
-
-        historyContent = content ? `${content} ${attachmentDesc}` : attachmentDesc;
-      }
-
+      // Save user message to conversation history BEFORE calling AI
+      // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
+      // We'll update it later with rich attachment descriptions if needed
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         userId,
         'user',
-        historyContent
+        content || '[no text content]'
       );
 
-      // Note: Assistant response is now saved to conversation_history by ai-worker
+      // Call API Gateway for AI generation (this will process attachments and return descriptions)
+      const response = await this.gatewayClient.generate(personality, context);
+
+      // Note: User message already saved above (before AI call) to ensure proper timestamp ordering
+      // Note: Assistant response is saved to conversation_history by ai-worker
       // during the storeInteraction() call, along with pending_memory tracking
+      //
+      // TODO: Consider updating the user message with rich attachment descriptions
+      // from response.attachmentDescriptions for better conversation history quality
 
       // Add model indicator to the message (for Discord display only, not in history)
       let contentWithIndicator = response.content;
