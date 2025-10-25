@@ -22,71 +22,72 @@ interface SyncOptions {
 
 /**
  * Tables to sync with their primary key field(s), timestamp fields, and UUID columns
+ * NOTE: Column names must match database schema (snake_case), not Prisma model fields (camelCase)
  */
 const SYNC_CONFIG = {
   users: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['id', 'globalPersonaId'],
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'global_persona_id'],
   },
   personas: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['id', 'systemPromptId', 'llmConfigId'],
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id'],
   },
   user_default_personas: {
-    pk: 'userId',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['userId', 'personaId'],
+    pk: 'user_id',
+    updatedAt: 'updated_at',
+    uuidColumns: ['user_id', 'persona_id'],
   },
   system_prompts: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     uuidColumns: ['id'],
   },
   llm_configs: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
     uuidColumns: ['id'],
   },
   personalities: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['id', 'systemPromptId', 'llmConfigId', 'personaId'],
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id', 'persona_id'],
   },
   personality_default_configs: {
-    pk: 'personalityId',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['personalityId', 'systemPromptId', 'llmConfigId', 'personaId'],
+    pk: 'personality_id',
+    updatedAt: 'updated_at',
+    uuidColumns: ['personality_id', 'system_prompt_id', 'llm_config_id', 'persona_id'],
   },
   personality_owners: {
-    pk: ['personalityId', 'userId'], // Composite key
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['personalityId', 'userId'],
+    pk: ['personality_id', 'user_id'], // Composite key
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['personality_id', 'user_id'],
   },
   user_personality_configs: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['id', 'userId', 'personalityId', 'systemPromptId', 'llmConfigId'],
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'user_id', 'personality_id', 'system_prompt_id', 'llm_config_id'],
   },
   conversation_history: {
     pk: 'id',
-    createdAt: 'createdAt',
+    createdAt: 'created_at',
     // No updatedAt - append-only
-    uuidColumns: ['id', 'userId', 'personalityId'],
+    uuidColumns: ['id', 'user_id', 'personality_id'],
   },
   activated_channels: {
     pk: 'id',
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt',
-    uuidColumns: ['id', 'personalityId'],
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    uuidColumns: ['id', 'personality_id'],
   },
   // Skip pending_memories - transient queue data
 } as const;
