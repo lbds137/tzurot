@@ -21,61 +21,72 @@ interface SyncOptions {
 }
 
 /**
- * Tables to sync with their primary key field(s) and timestamp fields
+ * Tables to sync with their primary key field(s), timestamp fields, and UUID columns
  */
 const SYNC_CONFIG = {
   users: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id', 'globalPersonaId'],
   },
   personas: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id', 'systemPromptId', 'llmConfigId'],
   },
   user_default_personas: {
     pk: 'userId',
     updatedAt: 'updatedAt',
+    uuidColumns: ['userId', 'personaId'],
   },
   system_prompts: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id'],
   },
   llm_configs: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id'],
   },
   personalities: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id', 'systemPromptId', 'llmConfigId', 'personaId'],
   },
   personality_default_configs: {
     pk: 'personalityId',
     updatedAt: 'updatedAt',
+    uuidColumns: ['personalityId', 'systemPromptId', 'llmConfigId', 'personaId'],
   },
   personality_owners: {
     pk: ['personalityId', 'userId'], // Composite key
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['personalityId', 'userId'],
   },
   user_personality_configs: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id', 'userId', 'personalityId', 'systemPromptId', 'llmConfigId'],
   },
   conversation_history: {
     pk: 'id',
     createdAt: 'createdAt',
     // No updatedAt - append-only
+    uuidColumns: ['id', 'userId', 'personalityId'],
   },
   activated_channels: {
     pk: 'id',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
+    uuidColumns: ['id', 'personalityId'],
   },
   // Skip pending_memories - transient queue data
 } as const;
@@ -210,13 +221,13 @@ export class DatabaseSyncService {
       if (!devRow && prodRow) {
         // Row only in prod - copy to dev
         if (!dryRun) {
-          await this.upsertRow(this.devClient, tableName, prodRow, config.pk);
+          await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns);
         }
         prodToDev++;
       } else if (devRow && !prodRow) {
         // Row only in dev - copy to prod
         if (!dryRun) {
-          await this.upsertRow(this.prodClient, tableName, devRow, config.pk);
+          await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns);
         }
         devToProd++;
       } else if (devRow && prodRow) {
@@ -225,13 +236,13 @@ export class DatabaseSyncService {
 
         if (comparison === 'dev-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.prodClient, tableName, devRow, config.pk);
+            await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns);
           }
           devToProd++;
           conflicts++;
         } else if (comparison === 'prod-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.devClient, tableName, prodRow, config.pk);
+            await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns);
           }
           prodToDev++;
           conflicts++;
@@ -334,7 +345,8 @@ export class DatabaseSyncService {
     client: PrismaClient,
     tableName: string,
     row: unknown,
-    pkField: string | readonly string[]
+    pkField: string | readonly string[],
+    uuidColumns: readonly string[] = []
   ): Promise<void> {
     if (typeof row !== 'object' || row === null) {
       throw new Error('Row is not an object');
@@ -346,8 +358,12 @@ export class DatabaseSyncService {
     const columns = Object.keys(rowObj);
     const values = Object.values(rowObj);
 
-    // Build parameterized query
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    // Build parameterized query with UUID casting where needed
+    const placeholders = columns.map((col, i) => {
+      const placeholder = `$${i + 1}`;
+      // Cast to UUID if this column is a UUID type
+      return uuidColumns.includes(col) ? `${placeholder}::uuid` : placeholder;
+    }).join(', ');
     const columnList = columns.map(c => `"${c}"`).join(', ');
 
     // Build UPDATE SET clause for conflict resolution
