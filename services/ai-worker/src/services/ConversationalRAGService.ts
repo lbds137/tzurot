@@ -144,11 +144,27 @@ export class ConversationalRAGService {
         const recentHistory = context.conversationHistory.slice(-historyLimit);
         messages.push(...recentHistory);
         logger.info(`[RAG] Including ${recentHistory.length} conversation history messages (limit: ${historyLimit})`);
+
+        // DEBUG: Log each history message to detect duplication
+        if (config.NODE_ENV === 'development') {
+          logger.debug('[RAG] Conversation history contents:');
+          recentHistory.forEach((msg, idx) => {
+            const role = msg._getType();
+            const content = msg.content.toString().substring(0, 150);
+            logger.debug(`  [${idx}] ${role}: ${content}${msg.content.toString().length > 150 ? '...' : ''}`);
+          });
+        }
       }
 
       // Build human message with attachment descriptions (already processed earlier)
       const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments);
       messages.push(humanMessage);
+
+      // DEBUG: Log current message to verify it's not duplicating history
+      if (config.NODE_ENV === 'development') {
+        const currentContent = humanMessage.content.toString();
+        logger.debug(`[RAG] Current user message (${currentContent.length} chars): ${currentContent.substring(0, 150)}${currentContent.length > 150 ? '...' : ''}`);
+      }
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
       const { model, modelName } = this.getModel(
