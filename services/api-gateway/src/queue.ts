@@ -5,7 +5,7 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { createLogger, getConfig, TIMEOUTS, parseRedisUrl } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS, INTERVALS, QUEUE_CONFIG, parseRedisUrl } from '@tzurot/common-types';
 import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
 
 const logger = createLogger('Queue');
@@ -41,8 +41,8 @@ export const aiQueue = new Queue(QUEUE_NAME, {
       type: 'exponential',
       delay: TIMEOUTS.QUEUE_RETRY_DELAY
     },
-    removeOnComplete: { count: 100 }, // Keep last 100 completed jobs
-    removeOnFail: { count: 500 }      // Keep last 500 failed jobs for debugging
+    removeOnComplete: { count: QUEUE_CONFIG.COMPLETED_HISTORY_LIMIT },
+    removeOnFail: { count: QUEUE_CONFIG.FAILED_HISTORY_LIMIT }
   }
 });
 
@@ -62,7 +62,7 @@ queueEvents.on('completed', ({ jobId }) => {
     const requestId = jobId.substring(4);
     setTimeout(() => {
       void cleanupAttachments(requestId);
-    }, 5000); // 5 second delay
+    }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
   }
 });
 
@@ -74,7 +74,7 @@ queueEvents.on('failed', ({ jobId, failedReason }) => {
     const requestId = jobId.substring(4);
     setTimeout(() => {
       void cleanupAttachments(requestId);
-    }, 5000); // 5 second delay
+    }, INTERVALS.ATTACHMENT_CLEANUP_DELAY);
   }
 });
 
