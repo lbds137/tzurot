@@ -9,7 +9,7 @@ import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/GatewayClient.js';
 import { WebhookManager } from '../webhooks/WebhookManager.js';
-import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig } from '@tzurot/common-types';
+import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig, INTERVALS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality } from '../redis.js';
@@ -193,7 +193,7 @@ export class MessageHandler {
               typingInterval = null;
             }
           }
-        }, 8000);
+        }, INTERVALS.TYPING_INDICATOR_REFRESH);
       }
 
       // Get or create user record (needed for foreign key)
