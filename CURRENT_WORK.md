@@ -1,8 +1,11 @@
 # 🎯 Current Work
 
-> Last updated: 2025-10-22
+> Last updated: 2025-10-25
 
-## Status: v3 Development Deployment Active
+## Status: Code Quality Audit & Cleanup
+
+**Branch**: `chore/code-quality-audit`
+**Focus**: Consolidating constants, reducing magic numbers, preparing for future unit testing
 
 **v3 has been deployed and running on Railway for 14+ days (development environment)**
 
@@ -55,14 +58,32 @@
 - Usage quotas to prevent abuse
 - Better error messages for missing API keys
 
-## Recent Work (Past 2 Weeks)
+## Current Focus: Code Quality Audit
 
-Fixing dev deployment issues:
-- ✅ Message chunking (Discord 2000 char limit handling)
-- ✅ Job timeout scaling based on image count
-- ✅ Conversation history timestamp fixes
-- ✅ Model indicators and typing indicators
-- ✅ Qdrant memory retrieval improvements
+**Goal**: Improve code maintainability and prepare for unit testing phase
+
+**Phase 1 (Current)**: Quick wins - consolidating constants and removing magic numbers
+- Create centralized TIMEOUTS constants (30s, 270s, 120s vision/job timeouts)
+- Create INTERVALS constants (cache TTLs, cleanup intervals)
+- Create TEXT_LIMITS constants (log preview lengths, truncation limits)
+- Create enums for MessageRole, JobStatus, AttachmentType
+- Replace all magic numbers throughout codebase
+
+**See**: [CODE_QUALITY_AUDIT.md](docs/CODE_QUALITY_AUDIT.md) for full findings and recommendations
+
+## Recent Work (Past Week)
+
+**v3.0.0-alpha.5 Release** (2025-10-25):
+- ✅ Fixed completely broken retry mechanism (errors now propagate correctly)
+- ✅ Refactored retry logic to clean loop instead of nested ifs
+- ✅ Fixed duplicate placeholder entries in conversation history
+- ✅ Improved logging with attempt numbers and retry flags
+
+**v3.0.0-alpha.4 Release** (2025-10-25):
+- ✅ Fixed LangChain timeout bug (moved timeout to invoke() call)
+- ✅ Added third retry pass for industry-standard 3 total attempts
+- ✅ Increased gateway timeout from 240s to 270s
+- ✅ Added filename context to attachment descriptions
 
 ## Quick Links to Relevant Docs
 
