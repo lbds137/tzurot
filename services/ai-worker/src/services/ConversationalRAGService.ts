@@ -18,6 +18,7 @@ import {
   createLogger,
   type LoadedPersonality,
   AI_DEFAULTS,
+  TEXT_LIMITS,
   getPrismaClient,
   formatFullDateTime,
   formatMemoryTimestamp,
@@ -132,13 +133,13 @@ export class ConversationalRAGService {
       // 4. Fetch user's persona if available
       const userPersona = await this.getUserPersona(context.userId);
       if (userPersona) {
-        logger.info(`[RAG] Loaded user persona for ${context.userId}: ${userPersona.substring(0, 100)}...`);
+        logger.info(`[RAG] Loaded user persona for ${context.userId}: ${userPersona.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
       } else {
         logger.warn(`[RAG] No user persona found for ${context.userId}`);
       }
 
       // 5. Query vector store for relevant memories using actual content
-      logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, 150)}${searchQuery.length > 150 ? '...' : ''}"`);
+      logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`);
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
       // 4. Build the prompt with user persona and memory context
@@ -160,8 +161,8 @@ export class ConversationalRAGService {
           logger.debug('[RAG] Conversation history contents:');
           recentHistory.forEach((msg, idx) => {
             const role = msg._getType();
-            const content = msg.content.toString().substring(0, 150);
-            logger.debug(`  [${idx}] ${role}: ${content}${msg.content.toString().length > 150 ? '...' : ''}`);
+            const content = msg.content.toString().substring(0, TEXT_LIMITS.LOG_PREVIEW);
+            logger.debug(`  [${idx}] ${role}: ${content}${msg.content.toString().length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
           });
         }
       }
@@ -173,7 +174,7 @@ export class ConversationalRAGService {
       // DEBUG: Log current message to verify it's not duplicating history
       if (config.NODE_ENV === 'development') {
         const currentContent = humanMessage.content.toString();
-        logger.debug(`[RAG] Current user message (${currentContent.length} chars): ${currentContent.substring(0, 150)}${currentContent.length > 150 ? '...' : ''}`);
+        logger.debug(`[RAG] Current user message (${currentContent.length} chars): ${currentContent.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${currentContent.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
       }
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
@@ -358,7 +359,7 @@ export class ConversationalRAGService {
       }, '[RAG] Detailed prompt assembly:');
 
       // Show full prompt in debug mode (truncated to avoid massive logs)
-      const maxPreviewLength = 2000;
+      const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
       if (fullSystemPrompt.length <= maxPreviewLength) {
         logger.debug('[RAG] Full system prompt:\n' + fullSystemPrompt);
       } else {

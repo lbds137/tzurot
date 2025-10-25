@@ -10,7 +10,7 @@ import {
   EmbedBuilder,
   MessageFlags
 } from 'discord.js';
-import { getConfig, createLogger } from '@tzurot/common-types';
+import { getConfig, createLogger, TEXT_LIMITS } from '@tzurot/common-types';
 
 const logger = createLogger('admin-command');
 
@@ -173,7 +173,7 @@ async function handleDbSync(
     if (dryRun && result.changes) {
       summary.push('\n**Changes Preview**:');
       summary.push('```');
-      summary.push(JSON.stringify(result.changes, null, 2).slice(0, 1000));
+      summary.push(JSON.stringify(result.changes, null, 2).slice(0, TEXT_LIMITS.ADMIN_SUMMARY_TRUNCATE));
       summary.push('```');
       summary.push('\n*Run without `--dry-run` to apply these changes.*');
     }
@@ -183,7 +183,7 @@ async function handleDbSync(
     if (result.warnings && result.warnings.length > 0) {
       embed.addFields({
         name: '⚠️ Warnings',
-        value: result.warnings.join('\n').slice(0, 1024),
+        value: result.warnings.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
       });
     }
 
