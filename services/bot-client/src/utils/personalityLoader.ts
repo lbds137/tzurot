@@ -27,17 +27,38 @@ export async function loadPersonalities(personalitiesDir: string): Promise<Map<s
       try {
         const filePath = join(personalitiesDir, file);
         const content = await readFile(filePath, 'utf-8');
-        const rawConfig = JSON.parse(content) as any;
+        const rawConfig = JSON.parse(content) as unknown;
+
+        // Validate structure - TypeScript will enforce type checking with 'unknown'
+        if (
+          typeof rawConfig !== 'object' || rawConfig === null ||
+          !('name' in rawConfig) || typeof rawConfig.name !== 'string' ||
+          !('systemPrompt' in rawConfig) || typeof rawConfig.systemPrompt !== 'string'
+        ) {
+          throw new Error(`Invalid personality config in ${file}: missing required fields`);
+        }
 
         // Normalize the personality config
         const config: BotPersonality = {
           name: rawConfig.name,
-          displayName: rawConfig.displayName || rawConfig.name, // Use name if displayName not provided
+          displayName: ('displayName' in rawConfig && typeof rawConfig.displayName === 'string')
+            ? rawConfig.displayName
+            : rawConfig.name,
           systemPrompt: rawConfig.systemPrompt,
-          model: rawConfig.model,
-          temperature: rawConfig.temperature,
-          maxTokens: rawConfig.maxTokens,
-          avatarUrl: rawConfig.avatarUrl || rawConfig.avatar // Support both field names
+          model: ('model' in rawConfig && typeof rawConfig.model === 'string')
+            ? rawConfig.model
+            : MODEL_DEFAULTS.DEFAULT_MODEL,
+          temperature: ('temperature' in rawConfig && typeof rawConfig.temperature === 'number')
+            ? rawConfig.temperature
+            : 0.7,
+          maxTokens: ('maxTokens' in rawConfig && typeof rawConfig.maxTokens === 'number')
+            ? rawConfig.maxTokens
+            : 500,
+          avatarUrl: (('avatarUrl' in rawConfig && typeof rawConfig.avatarUrl === 'string')
+            ? rawConfig.avatarUrl
+            : ('avatar' in rawConfig && typeof rawConfig.avatar === 'string')
+              ? rawConfig.avatar
+              : undefined)
         };
 
         // Store by lowercase name for case-insensitive lookup

@@ -92,8 +92,7 @@ export class AIJobProcessor {
   private ragService: ConversationalRAGService;
 
   constructor(memoryManager?: QdrantMemoryAdapter) {
-    // Type assertion needed due to LangChain's complex internal types
-    this.ragService = new ConversationalRAGService(memoryManager as any) as ConversationalRAGService;
+    this.ragService = new ConversationalRAGService(memoryManager);
   }
 
   /**

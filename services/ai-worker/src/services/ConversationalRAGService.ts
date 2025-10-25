@@ -40,6 +40,17 @@ export interface AttachmentMetadata {
   waveform?: string;
 }
 
+/**
+ * Memory document structure from Qdrant vector search
+ */
+export interface MemoryDocument {
+  pageContent: string;
+  metadata?: {
+    id?: string;
+    createdAt?: string | number;
+  };
+}
+
 export interface ConversationContext {
   userId: string;
   channelId?: string;
@@ -284,7 +295,7 @@ export class ConversationalRAGService {
   private buildFullSystemPrompt(
     personality: LoadedPersonality,
     userPersona: string | null,
-    relevantMemories: any[],
+    relevantMemories: MemoryDocument[],
     context: ConversationContext
   ): string {
     const systemPrompt = this.buildSystemPrompt(personality);
@@ -296,7 +307,7 @@ export class ConversationalRAGService {
 
     const memoryContext = relevantMemories.length > 0
       ? '\n\nRelevant memories and past interactions:\n' +
-        relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
+        relevantMemories.map((doc) => {
           const timestamp = doc.metadata?.createdAt
             ? formatMemoryTimestamp(doc.metadata.createdAt)
             : null;
@@ -320,8 +331,8 @@ export class ConversationalRAGService {
         hasUserPersona: !!userPersona,
         userPersonaLength: userPersona?.length || 0,
         memoryCount: relevantMemories.length,
-        memoryIds: relevantMemories.map((m: any) => m.metadata?.id || 'unknown'),
-        memoryTimestamps: relevantMemories.map((m: any) =>
+        memoryIds: relevantMemories.map((m) => m.metadata?.id || 'unknown'),
+        memoryTimestamps: relevantMemories.map((m) =>
           m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
         ),
         totalMemoryChars: memoryContext.length,

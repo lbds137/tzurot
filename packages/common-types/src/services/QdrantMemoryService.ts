@@ -12,6 +12,21 @@ import { getConfig } from '../config.js';
 const logger = createLogger('QdrantMemoryService');
 const config = getConfig();
 
+/**
+ * Qdrant filter condition types (simplified from Qdrant SDK)
+ */
+interface FieldCondition {
+  key: string;
+  match?: { value: string | number };
+  range?: { lt?: number; lte?: number; gt?: number; gte?: number };
+}
+
+interface Filter {
+  must?: FieldCondition[];
+  should?: FieldCondition[];
+  must_not?: FieldCondition[];
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -98,7 +113,7 @@ export class QdrantMemoryService {
       const queryEmbedding = await this.generateEmbedding(query);
 
       // Build filter conditions
-      const mustConditions: any[] = [];
+      const mustConditions: FieldCondition[] = [];
 
       // Filter by personality if specified
       if (personalityId) {
@@ -127,7 +142,7 @@ export class QdrantMemoryService {
       }
 
       // Build final filter
-      const filter: any = mustConditions.length > 0 ? { must: mustConditions } : undefined;
+      const filter: Filter | undefined = mustConditions.length > 0 ? { must: mustConditions } : undefined;
 
       // Log search parameters for debugging
       logger.info(`Qdrant search params: limit=${limit}, scoreThreshold=${scoreThreshold}, personalityId=${personalityId || 'none'}, excludeNewerThan=${excludeNewerThan ? new Date(excludeNewerThan).toISOString() : 'none'}, sessionId=${sessionId || 'none'}`);

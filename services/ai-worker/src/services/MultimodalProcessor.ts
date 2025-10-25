@@ -36,6 +36,19 @@ export interface ProcessedAttachment {
 }
 
 /**
+ * Error details structure for logging API errors
+ */
+interface ErrorDetails {
+  modelName?: string;
+  errorType?: string;
+  errorMessage: string;
+  apiKeyPrefix?: string;
+  apiResponse?: unknown;
+  statusCode?: unknown;
+  statusText?: unknown;
+}
+
+/**
  * Check if a model has vision support
  * Uses flexible pattern matching instead of hardcoded lists
  * to avoid outdated model names as vendors release new versions
@@ -176,7 +189,7 @@ async function describeWithVisionModel(
       : JSON.stringify(response.content);
   } catch (error) {
     // Extract detailed error information
-    const errorDetails: any = {
+    const errorDetails: ErrorDetails = {
       modelName,
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -258,7 +271,7 @@ async function describeWithFallbackVision(
       : JSON.stringify(response.content);
   } catch (error) {
     // Extract detailed error information
-    const errorDetails: any = {
+    const errorDetails: ErrorDetails = {
       modelName: config.VISION_FALLBACK_MODEL,
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
