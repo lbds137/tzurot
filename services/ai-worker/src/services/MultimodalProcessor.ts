@@ -592,8 +592,8 @@ export async function processAttachments(
   for (const index of failedIndices) {
     const attachment = attachments[index];
     const fallbackDescription = attachment.contentType.startsWith('image/')
-      ? `[Image: ${attachment.name || 'attachment'}]`
-      : `[Voice message: ${attachment.duration || 0}s]`;
+      ? `Image processing failed after ${MAX_ATTEMPTS} attempts`
+      : `Audio transcription failed after ${MAX_ATTEMPTS} attempts`;
 
     succeeded.push({
       type: attachment.contentType.startsWith('image/') ? 'image' : 'audio',
