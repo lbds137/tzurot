@@ -93,15 +93,17 @@ export class PersonalityService {
   /**
    * Derive avatar URL from personality slug
    * Avatar files are named by slug: ${slug}.png
+   * Uses PUBLIC_GATEWAY_URL if available (for external access like Discord avatars),
+   * falls back to GATEWAY_URL for local development
    */
   static deriveAvatarUrl(slug: string): string | undefined {
-    const gatewayUrl = process.env.GATEWAY_URL;
-    if (!gatewayUrl) {
-      logger.warn('[PersonalityService] No GATEWAY_URL configured, cannot derive avatar URL');
+    const publicUrl = process.env.PUBLIC_GATEWAY_URL || process.env.GATEWAY_URL;
+    if (!publicUrl) {
+      logger.warn('[PersonalityService] No PUBLIC_GATEWAY_URL or GATEWAY_URL configured, cannot derive avatar URL');
       return undefined;
     }
 
-    return `${gatewayUrl}/avatars/${slug}.png`;
+    return `${publicUrl}/avatars/${slug}.png`;
   }
 
   /**
