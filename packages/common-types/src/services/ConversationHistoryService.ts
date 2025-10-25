@@ -52,6 +52,54 @@ export class ConversationHistoryService {
   }
 
   /**
+   * Update the most recent message for a user in a channel
+   * Used to enrich user messages with attachment descriptions after AI processing
+   */
+  async updateLastUserMessage(
+    channelId: string,
+    personalityId: string,
+    userId: string,
+    newContent: string
+  ): Promise<boolean> {
+    try {
+      // Find the most recent user message
+      const lastMessage = await this.prisma.conversationHistory.findFirst({
+        where: {
+          channelId,
+          personalityId,
+          userId,
+          role: 'user',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (!lastMessage) {
+        logger.warn(`No user message found to update (channel: ${channelId}, personality: ${personalityId})`);
+        return false;
+      }
+
+      // Update the content
+      await this.prisma.conversationHistory.update({
+        where: {
+          id: lastMessage.id,
+        },
+        data: {
+          content: newContent,
+        },
+      });
+
+      logger.debug(`Updated user message ${lastMessage.id} with enriched content`);
+      return true;
+
+    } catch (error) {
+      logger.error({ err: error }, `Failed to update user message`);
+      return false;
+    }
+  }
+
+  /**
    * Get recent conversation history for a channel + personality
    * Returns messages in chronological order (oldest first)
    */
