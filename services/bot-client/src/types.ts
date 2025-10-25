@@ -4,7 +4,7 @@
  * Type definitions for Discord bot client.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
+import type { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 
 // Types for Discord bot client
 
@@ -89,11 +89,7 @@ export interface JobResult {
  * Slash command definition
  */
 export interface Command {
-  data: {
-    name: string;
-    description: string;
-    toJSON: () => Record<string, unknown>;
-  };
+  data: SlashCommandBuilder;
   category?: string;
   execute: (interaction: ChatInputCommandInteraction, ...args: unknown[]) => Promise<void>;
 }
