@@ -82,12 +82,15 @@ export class PersonalityService {
   private prisma;
   private personalityCache: Map<string, LoadedPersonality>;
   private cacheExpiry: Map<string, number>;
+  private cacheLastAccess: Map<string, number>;
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly MAX_CACHE_SIZE = 100; // Maximum personalities to cache
 
   constructor() {
     this.prisma = getPrismaClient();
     this.personalityCache = new Map();
     this.cacheExpiry = new Map();
+    this.cacheLastAccess = new Map();
   }
 
   /**
@@ -292,18 +295,55 @@ export class PersonalityService {
     if (!expiry || Date.now() > expiry) {
       this.personalityCache.delete(key);
       this.cacheExpiry.delete(key);
+      this.cacheLastAccess.delete(key);
       return null;
     }
 
+    // Update last access time for LRU tracking
+    this.cacheLastAccess.set(key, Date.now());
     return this.personalityCache.get(key) || null;
   }
 
   /**
-   * Set cache with expiry
+   * Set cache with expiry and LRU eviction
    */
   private setCache(key: string, personality: LoadedPersonality): void {
+    // Evict least recently used entries if cache is full
+    if (this.personalityCache.size >= this.MAX_CACHE_SIZE && !this.personalityCache.has(key)) {
+      this.evictLRU();
+    }
+
     this.personalityCache.set(key, personality);
     this.cacheExpiry.set(key, Date.now() + this.CACHE_TTL);
+    this.cacheLastAccess.set(key, Date.now());
+  }
+
+  /**
+   * Evict least recently used cache entries
+   */
+  private evictLRU(): void {
+    if (this.cacheLastAccess.size === 0) {
+      return;
+    }
+
+    // Find the least recently used entry
+    let lruKey: string | null = null;
+    let lruTime = Infinity;
+
+    for (const [key, lastAccess] of this.cacheLastAccess.entries()) {
+      if (lastAccess < lruTime) {
+        lruTime = lastAccess;
+        lruKey = key;
+      }
+    }
+
+    // Remove the LRU entry
+    if (lruKey) {
+      this.personalityCache.delete(lruKey);
+      this.cacheExpiry.delete(lruKey);
+      this.cacheLastAccess.delete(lruKey);
+      logger.debug(`[PersonalityService] Evicted LRU cache entry: ${lruKey}`);
+    }
   }
 
 }
