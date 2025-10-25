@@ -406,9 +406,11 @@ Rename files to match the exported class name. This improves discoverability and
 
 ## REFACTORING PHASES
 
-### Phase 1: Quick Wins (2-3 hours) - **CURRENT FOCUS**
+### Phase 1: Quick Wins - ✅ **COMPLETED**
 
-Priority order for implementation:
+All Phase 1 items have been implemented on branch `chore/code-quality-audit`.
+
+Completed work:
 
 1. ✅ **Create centralized TIMEOUTS constants**
    - Extract `30000`, `270000`, `120000` from MultimodalProcessor and ai.ts
@@ -431,12 +433,19 @@ Priority order for implementation:
 7. ✅ **Replace all magic numbers with named constants**
    - Update all files to use the new constants
 
-8. **Rename files for consistency**
+8. ✅ **Rename files for consistency**
    - Rename `manager.ts` → `WebhookManager.ts`
    - Rename `messageHandler.ts` → `MessageHandler.ts`
    - Rename `commandHandler.ts` → `CommandHandler.ts`
    - Rename `client.ts` → `GatewayClient.ts`
    - Update all imports
+
+9. ✅ **Move image resizing to api-gateway**
+   - Extract resizing logic from MultimodalProcessor
+   - Add sharp dependency to api-gateway
+   - Resize images during download from Discord CDN
+   - Remove dead code (isDiscordUrlExpired, fetchAsBase64)
+   - Remove unused BUFFERS.DISCORD_URL_EXPIRATION constant
 
 ### Phase 2: Medium Effort (4-6 hours) - **DEFER FOR NOW**
 
