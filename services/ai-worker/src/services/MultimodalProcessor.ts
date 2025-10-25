@@ -10,7 +10,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { createLogger, getConfig, MEDIA_LIMITS, AI_DEFAULTS } from '@tzurot/common-types';
+import { createLogger, getConfig, MEDIA_LIMITS, AI_DEFAULTS, TIMEOUTS, BUFFERS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import sharp from 'sharp';
 import OpenAI from 'openai';
@@ -197,7 +197,7 @@ async function describeWithVisionModel(
   try {
     logger.info({ modelName }, 'Invoking vision model with 30s timeout');
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
-    const response = await model.invoke(messages, { timeout: 30000 });
+    const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
     return typeof response.content === 'string'
       ? response.content
       : JSON.stringify(response.content);
@@ -288,7 +288,7 @@ async function describeWithFallbackVision(
   try {
     logger.info({ model: config.VISION_FALLBACK_MODEL }, 'Invoking fallback vision model with 30s timeout');
     // Timeout must be passed to invoke(), not constructor (LangChain requirement)
-    const response = await model.invoke(messages, { timeout: 30000 });
+    const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
     return typeof response.content === 'string'
       ? response.content
       : JSON.stringify(response.content);
@@ -398,7 +398,7 @@ function isDiscordUrlExpired(url: string): boolean {
     const now = Date.now();
 
     // Add 5-minute buffer to be safe (if expiring in <5min, treat as expired)
-    const bufferMs = 5 * 60 * 1000;
+    const bufferMs = BUFFERS.DISCORD_URL_EXPIRATION;
 
     return now >= (expiryTimestamp - bufferMs);
   } catch (error) {
