@@ -10,9 +10,8 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { createLogger, getConfig, MEDIA_LIMITS, AI_DEFAULTS, TIMEOUTS, BUFFERS } from '@tzurot/common-types';
+import { createLogger, getConfig, AI_DEFAULTS, TIMEOUTS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import sharp from 'sharp';
 import OpenAI from 'openai';
 
 const logger = createLogger('MultimodalProcessor');
@@ -162,19 +161,8 @@ async function describeWithVisionModel(
     messages.push(new SystemMessage(personality.systemPrompt));
   }
 
-  // Hybrid approach: Use direct URLs for fresh Discord links (faster),
-  // fall back to base64 for expired URLs or edge cases
-  let imageUrl: string;
-
-  if (isDiscordUrlExpired(attachment.url)) {
-    logger.info({ url: attachment.url, modelName }, 'Discord URL expired or expiring soon, using base64 fallback');
-    const base64Image = await fetchAsBase64(attachment.url);
-    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
-    logger.info({ base64Size: base64Image.length, modelName }, 'Image converted to base64');
-  } else {
-    logger.info({ url: attachment.url, modelName }, 'Using direct Discord URL (fresh, valid for 24h)');
-    imageUrl = attachment.url;
-  }
+  // Use direct URL (attachment is already downloaded and resized by api-gateway)
+  logger.info({ url: attachment.url, modelName }, 'Using direct attachment URL');
 
   // Request detailed, objective description
   messages.push(
@@ -183,7 +171,7 @@ async function describeWithVisionModel(
         {
           type: 'image_url',
           image_url: {
-            url: imageUrl,
+            url: attachment.url,
           },
         },
         {
@@ -254,19 +242,8 @@ async function describeWithFallbackVision(
     messages.push(new SystemMessage(systemPrompt));
   }
 
-  // Hybrid approach: Use direct URLs when possible (faster),
-  // fall back to base64 for expired Discord CDN URLs
-  let imageUrl: string;
-
-  if (isDiscordUrlExpired(attachment.url)) {
-    logger.info({ url: attachment.url }, 'URL expired or expiring soon, using base64 fallback');
-    const base64Image = await fetchAsBase64(attachment.url);
-    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
-    logger.info({ base64Size: base64Image.length }, 'Image converted to base64');
-  } else {
-    logger.info({ url: attachment.url }, 'Using direct URL for image');
-    imageUrl = attachment.url;
-  }
+  // Use direct URL (attachment is already downloaded and resized by api-gateway)
+  logger.info({ url: attachment.url }, 'Using direct attachment URL for fallback vision model');
 
   messages.push(
     new HumanMessage({
@@ -274,7 +251,7 @@ async function describeWithFallbackVision(
         {
           type: 'image_url',
           image_url: {
-            url: imageUrl,
+            url: attachment.url,
           },
         },
         {
@@ -370,101 +347,6 @@ export async function transcribeAudio(
   }, 'Audio transcribed successfully');
 
   return transcription;
-}
-
-/**
- * Check if a Discord CDN URL has expired or will expire soon
- * Discord URLs expire after 24 hours (changed Dec 2023)
- * URL format: ?ex=<hex_timestamp>&is=<issued>&hm=<hash>
- */
-function isDiscordUrlExpired(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-
-    // Only check Discord CDN URLs
-    if (!urlObj.hostname.includes('discord')) {
-      return false; // Not a Discord URL, assume it's safe
-    }
-
-    const exHex = urlObj.searchParams.get('ex');
-
-    if (!exHex) {
-      logger.warn({ url }, 'Discord URL missing expiry parameter, treating as expired');
-      return true; // No expiry param = assume unsafe/old format
-    }
-
-    // Convert hex timestamp to milliseconds
-    const expiryTimestamp = parseInt(exHex, 16) * 1000;
-    const now = Date.now();
-
-    // Add 5-minute buffer to be safe (if expiring in <5min, treat as expired)
-    const bufferMs = BUFFERS.DISCORD_URL_EXPIRATION;
-
-    return now >= (expiryTimestamp - bufferMs);
-  } catch (error) {
-    logger.warn({ err: error, url }, 'Failed to parse Discord URL, treating as expired');
-    return true; // If we can't parse it, be safe and use base64
-  }
-}
-
-/**
- * Fetch URL content as base64
- * Resizes images larger than 10MB to fit within API limits
- */
-async function fetchAsBase64(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch: ${response.statusText}`);
-  }
-  const arrayBuffer = await response.arrayBuffer();
-  const originalSize = arrayBuffer.byteLength;
-
-  // If image is larger than configured max size, resize it
-  // Base64 encoding adds ~33% overhead, so 10MB → ~13.3MB base64
-  // Most vision APIs have limits around 20MB, but we'll be conservative
-  let imageBuffer = Buffer.from(arrayBuffer);
-
-  if (originalSize > MEDIA_LIMITS.MAX_IMAGE_SIZE) {
-    logger.info({
-      originalSize,
-      maxSize: MEDIA_LIMITS.MAX_IMAGE_SIZE,
-      sizeMB: (originalSize / 1024 / 1024).toFixed(2)
-    }, 'Image exceeds size limit, resizing...');
-
-    // Resize image while maintaining aspect ratio
-    // Target size leaves headroom for base64 encoding
-    const scaleFactor = Math.sqrt(MEDIA_LIMITS.IMAGE_TARGET_SIZE / originalSize);
-
-    const metadata = await sharp(imageBuffer).metadata();
-    const newWidth = Math.floor((metadata.width || 2048) * scaleFactor);
-
-    const resized = await sharp(imageBuffer)
-      .resize(newWidth, null, {
-        fit: 'inside',
-        withoutEnlargement: true
-      })
-      .jpeg({ quality: MEDIA_LIMITS.IMAGE_QUALITY })
-      .toBuffer();
-
-    imageBuffer = Buffer.from(resized);
-
-    logger.info({
-      originalSize,
-      resizedSize: imageBuffer.length,
-      reduction: ((1 - imageBuffer.length / originalSize) * 100).toFixed(1) + '%',
-      newWidth
-    }, 'Image resized successfully');
-  }
-
-  const base64 = imageBuffer.toString('base64');
-  logger.info({
-    originalSize,
-    finalSize: imageBuffer.length,
-    base64Size: base64.length,
-    compressionRatio: (base64.length / originalSize).toFixed(2)
-  }, 'Image converted to base64');
-
-  return base64;
 }
 
 /**
