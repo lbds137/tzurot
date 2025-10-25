@@ -253,12 +253,45 @@ export class MessageHandler {
       // Call API Gateway for AI generation (this will process attachments and return descriptions)
       const response = await this.gatewayClient.generate(personality, context);
 
-      // Note: User message already saved above (before AI call) to ensure proper timestamp ordering
+      // Update user message with rich attachment descriptions if available
+      // The AI worker processes attachments and returns rich descriptions
+      if (response.attachmentDescriptions || (attachments && attachments.length > 0)) {
+        let enrichedContent = content;
+
+        if (response.attachmentDescriptions) {
+          // Use rich descriptions from vision/transcription models
+          enrichedContent = content
+            ? `${content}\n\n${response.attachmentDescriptions}`
+            : response.attachmentDescriptions;
+        } else if (attachments) {
+          // Fallback to simple placeholders if processing failed
+          const attachmentDesc = attachments.map(a => {
+            if (a.isVoiceMessage) {
+              return `[voice message: ${a.duration}s]`;
+            }
+            if (a.contentType.startsWith('image/')) {
+              return `[image: ${a.name || 'attachment'}]`;
+            }
+            if (a.contentType.startsWith('audio/')) {
+              return `[audio: ${a.name || 'attachment'}]`;
+            }
+            return `[file: ${a.name || 'attachment'}]`;
+          }).join(' ');
+
+          enrichedContent = content ? `${content} ${attachmentDesc}` : attachmentDesc;
+        }
+
+        // Update the message we saved earlier with enriched content
+        await this.conversationHistory.updateLastUserMessage(
+          message.channel.id,
+          personality.id,
+          userId,
+          enrichedContent
+        );
+      }
+
       // Note: Assistant response is saved to conversation_history by ai-worker
       // during the storeInteraction() call, along with pending_memory tracking
-      //
-      // TODO: Consider updating the user message with rich attachment descriptions
-      // from response.attachmentDescriptions for better conversation history quality
 
       // Add model indicator to the message (for Discord display only, not in history)
       let contentWithIndicator = response.content;
