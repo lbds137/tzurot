@@ -35,7 +35,7 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id'],
+    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id', 'owner_id'],
   },
   user_default_personas: {
     pk: 'user_id',
@@ -52,7 +52,7 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id'],
+    uuidColumns: ['id', 'owner_id'],
   },
   personalities: {
     pk: 'id',
