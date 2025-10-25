@@ -9,7 +9,7 @@ Tzurot v3 is a complete rewrite implementing a modern, scalable Discord bot arch
 - **Multi-layered canon system** (global/personal/session memories)
 - **BYOK support** (users can bring their own API keys)
 - **Microservices architecture** (bot-client, api-gateway, ai-worker)
-- **Vector database** (ChromaDB) for long-term memory
+- **Vector database** (Qdrant) for long-term memory
 - **BullMQ** job queue for async processing
 - **Railway-ready** deployment configuration
 
@@ -32,7 +32,7 @@ Tzurot v3 is a complete rewrite implementing a modern, scalable Discord bot arch
 │   ai-worker     │  LangChain - Processes AI requests with RAG
 │                 │
 │  ┌───────────┐  │
-│  │ ChromaDB  │  │  Vector memory (global/personal/session canons)
+│  │  Qdrant   │  │  Vector memory (global/personal/session canons)
 │  └───────────┘  │
 └─────────────────┘
 ```
@@ -70,7 +70,7 @@ tzurot-v3/
 ├── personalities/           # Personality configs (JSON)
 │   └── lilith.json          # Example personality
 │
-├── docker-compose.yml       # Local dev services (Redis, Chroma, Postgres)
+├── docker-compose.yml       # Local dev services (Redis, Qdrant, Postgres)
 ├── railway.json             # Railway deployment config
 ├── .env.example             # Environment variables template
 └── RAILWAY_DEPLOYMENT.md    # Railway deployment guide
@@ -97,7 +97,7 @@ cp .env.example .env
 
 ### 4. Start Local Services
 ```bash
-# Start Redis, ChromaDB, and PostgreSQL
+# Start Redis, Qdrant, and PostgreSQL
 docker-compose up -d
 
 # Verify services are running
@@ -193,7 +193,7 @@ await queue.add('generate', {
 });
 ```
 
-### Adding Memories to ChromaDB
+### Adding Memories to Qdrant
 
 The ai-worker automatically stores interactions as memories. To pre-seed memories (e.g., from Shapes.inc backup):
 
@@ -223,7 +223,8 @@ See `.env.example` for all available environment variables.
 - `OPENROUTER_API_KEY` - For LLM completions
 - `OPENAI_API_KEY` - For embeddings
 - `REDIS_URL` / `REDIS_HOST` - Redis connection
-- `CHROMA_URL` - ChromaDB connection
+- `QDRANT_URL` - Qdrant connection (cloud or local)
+- `QDRANT_API_KEY` - Qdrant API key (for cloud)
 - `DATABASE_URL` - PostgreSQL for BYOK credentials
 
 ## Next Steps
@@ -264,10 +265,11 @@ pnpm --filter @tzurot/ai-worker dev  # Logs to stdout
 
 ### Common Issues
 
-**"Cannot connect to ChromaDB"**
+**"Cannot connect to Qdrant"**
 - Ensure Docker Compose is running: `docker-compose ps`
-- Check ChromaDB logs: `docker-compose logs chroma`
-- Verify CHROMA_URL in .env matches Docker port mapping
+- Check Qdrant logs: `docker-compose logs qdrant`
+- Verify QDRANT_URL in .env (should be `http://localhost:6333` for local)
+- For Qdrant Cloud, verify QDRANT_API_KEY is set correctly
 
 **"No API key available"**
 - Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env
@@ -308,11 +310,12 @@ When making changes:
 - Tool calling for agentic behavior
 - Active community and updates
 
-### Why ChromaDB?
-- Easy local development (Docker)
-- Managed cloud option available
-- Good performance for <1M vectors
-- Simple API
+### Why Qdrant?
+- Production-grade vector database
+- Excellent performance and scalability
+- Managed cloud option with generous free tier
+- Rich filtering capabilities
+- Good local development support (Docker)
 
 ### Why BullMQ?
 - Redis-based (Railway has Redis addon)

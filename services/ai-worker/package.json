@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/ai-worker",
-  "version": "3.0.0-alpha.3",
+  "version": "3.0.0-alpha.4",
   "private": true,
   "type": "module",
   "description": "AI processing worker service for Tzurot bot",
@@ -13,19 +13,17 @@
     "lint": "eslint src"
   },
   "dependencies": {
-    "@langchain/community": "^0.3.57",
-    "@langchain/core": "^0.3.78",
-    "@langchain/google-genai": "^0.2.18",
-    "@langchain/openai": "^0.6.14",
+    "@langchain/community": "^1.0.0",
+    "@langchain/core": "^1.0.1",
+    "@langchain/openai": "^1.0.0",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.1.0",
-    "chromadb": "^3.0.17",
-    "langchain": "^0.3.35",
-    "openai": "^4.24.0",
-    "pino": "^8.17.2",
-    "redis": "^4.6.12",
+    "langchain": "^1.0.1",
+    "openai": "^6.7.0",
+    "pino": "^10.1.0",
+    "redis": "^5.9.0",
     "sharp": "^0.34.4",
-    "zod": "^3.22.4"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20.11.0"

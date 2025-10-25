@@ -144,6 +144,83 @@ export class ConversationHistoryService {
   }
 
   /**
+   * Get paginated conversation history with cursor support
+   * Returns messages in chronological order (oldest first)
+   *
+   * @param channelId Channel ID
+   * @param personalityId Personality ID
+   * @param limit Number of messages to fetch (default: 20, max: 100)
+   * @param cursor Optional cursor (message ID) to fetch messages before
+   * @returns Paginated messages and cursor for next page
+   */
+  async getHistory(
+    channelId: string,
+    personalityId: string,
+    limit: number = 20,
+    cursor?: string
+  ): Promise<{
+    messages: ConversationMessage[];
+    hasMore: boolean;
+    nextCursor?: string;
+  }> {
+    try {
+      // Enforce max limit to prevent excessive queries
+      const safeLimit = Math.min(limit, 100);
+
+      const messages = await this.prisma.conversationHistory.findMany({
+        where: {
+          channelId,
+          personalityId,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: safeLimit + 1, // Fetch one extra to check if there are more
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        select: {
+          id: true,
+          role: true,
+          content: true,
+          createdAt: true,
+        },
+      });
+
+      // Check if there are more messages
+      const hasMore = messages.length > safeLimit;
+      const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
+
+      // Reverse to get chronological order (oldest first)
+      const history = resultMessages.reverse().map((msg: { id: string; role: string; content: string; createdAt: Date }) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+        createdAt: msg.createdAt,
+      }));
+
+      // Next cursor is the ID of the last message (in desc order, before reversal)
+      const nextCursor = hasMore ? resultMessages[resultMessages.length - 1].id : undefined;
+
+      logger.debug(
+        `Retrieved ${history.length} messages (hasMore: ${hasMore}, cursor: ${cursor || 'none'}) ` +
+        `from history (channel: ${channelId}, personality: ${personalityId})`
+      );
+
+      return {
+        messages: history,
+        hasMore,
+        nextCursor,
+      };
+
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get paginated conversation history`);
+      return {
+        messages: [],
+        hasMore: false,
+      };
+    }
+  }
+
+  /**
    * Clear conversation history for a channel + personality
    * (useful for /reset command)
    */

@@ -5,7 +5,6 @@
  * - Uses vector store for long-term memory retrieval
  * - Manages conversation history
  * - Builds prompts with system message, memory, and history
- * - Supports streaming responses
  */
 
 import {
@@ -38,6 +37,17 @@ export interface AttachmentMetadata {
   isVoiceMessage?: boolean;
   duration?: number;
   waveform?: string;
+}
+
+/**
+ * Memory document structure from Qdrant vector search
+ */
+export interface MemoryDocument {
+  pageContent: string;
+  metadata?: {
+    id?: string;
+    createdAt?: string | number;
+  };
 }
 
 export interface ConversationContext {
@@ -183,15 +193,28 @@ export class ConversationalRAGService {
       // 7. Store this interaction in memory (for future retrieval)
       await this.storeInteraction(personality, userMessage, content, context);
 
-      // Extract attachment descriptions for history storage
+      // Extract attachment descriptions for history storage with context
       const attachmentDescriptions = processedAttachments.length > 0
-        ? processedAttachments.map(a => a.description).join('\n\n')
+        ? processedAttachments.map(a => {
+            // Add filename/type context before each description
+            let header = '';
+            if (a.type === 'image') {
+              header = `[Image: ${a.metadata.name || 'attachment'}]`;
+            } else if (a.type === 'audio') {
+              if (a.metadata.isVoiceMessage && a.metadata.duration) {
+                header = `[Voice message: ${a.metadata.duration.toFixed(1)}s]`;
+              } else {
+                header = `[Audio: ${a.metadata.name || 'attachment'}]`;
+              }
+            }
+            return `${header}\n${a.description}`;
+          }).join('\n\n')
         : undefined;
 
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
+        tokensUsed: response.usage_metadata?.total_tokens,
         attachmentDescriptions,
         modelUsed: modelName
       };
@@ -284,7 +307,7 @@ export class ConversationalRAGService {
   private buildFullSystemPrompt(
     personality: LoadedPersonality,
     userPersona: string | null,
-    relevantMemories: any[],
+    relevantMemories: MemoryDocument[],
     context: ConversationContext
   ): string {
     const systemPrompt = this.buildSystemPrompt(personality);
@@ -296,7 +319,7 @@ export class ConversationalRAGService {
 
     const memoryContext = relevantMemories.length > 0
       ? '\n\nRelevant memories and past interactions:\n' +
-        relevantMemories.map((doc: { pageContent: string; metadata?: { createdAt?: string | number } }) => {
+        relevantMemories.map((doc) => {
           const timestamp = doc.metadata?.createdAt
             ? formatMemoryTimestamp(doc.metadata.createdAt)
             : null;
@@ -313,15 +336,15 @@ export class ConversationalRAGService {
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
-      logger.debug('[RAG] Detailed prompt assembly:', {
+      logger.debug({
         personalityId: personality.id,
         personalityName: personality.name,
         systemPromptLength: systemPrompt.length,
         hasUserPersona: !!userPersona,
         userPersonaLength: userPersona?.length || 0,
         memoryCount: relevantMemories.length,
-        memoryIds: relevantMemories.map((m: any) => m.metadata?.id || 'unknown'),
-        memoryTimestamps: relevantMemories.map((m: any) =>
+        memoryIds: relevantMemories.map((m) => m.metadata?.id || 'unknown'),
+        memoryTimestamps: relevantMemories.map((m) =>
           m.metadata?.createdAt ? formatMemoryTimestamp(m.metadata.createdAt) : 'unknown'
         ),
         totalMemoryChars: memoryContext.length,
@@ -332,7 +355,7 @@ export class ConversationalRAGService {
         stmOldestTimestamp: context.oldestHistoryTimestamp
           ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
           : null,
-      });
+      }, '[RAG] Detailed prompt assembly:');
 
       // Show full prompt in debug mode (truncated to avoid massive logs)
       const maxPreviewLength = 2000;

@@ -4,8 +4,8 @@
  * Handles HTTP requests to the API Gateway service for AI generation.
  */
 
-import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
-import type { BotPersonality, MessageContext, GatewayResponse, JobResult } from '../types.js';
+import { createLogger, getConfig } from '@tzurot/common-types';
+import type { BotPersonality, MessageContext, JobResult } from '../types.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
@@ -15,17 +15,9 @@ const config = getConfig();
  */
 export class GatewayClient {
   private readonly baseUrl: string;
-  private readonly pollInterval: number;
-  private readonly maxPollAttempts: number;
 
-  constructor(
-    baseUrl?: string,
-    pollInterval = TIMEOUTS.GATEWAY_POLL_INTERVAL,
-    maxPollAttempts = TIMEOUTS.GATEWAY_MAX_POLL_ATTEMPTS
-  ) {
+  constructor(baseUrl?: string) {
     this.baseUrl = baseUrl ?? config.GATEWAY_URL;
-    this.pollInterval = pollInterval;
-    this.maxPollAttempts = maxPollAttempts;
 
     logger.info(`[GatewayClient] Initialized with base URL: ${this.baseUrl}`);
   }
@@ -47,8 +39,9 @@ export class GatewayClient {
     };
   }> {
     try {
-      // Create AI generation job
-      const response = await fetch(`${this.baseUrl}/ai/generate`, {
+      // Use wait=true to eliminate polling and use Redis pub/sub instead
+      // Gateway will wait for job completion internally using BullMQ's waitUntilFinished
+      const response = await fetch(`${this.baseUrl}/ai/generate?wait=true`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -72,99 +65,41 @@ export class GatewayClient {
         throw new Error(`Gateway request failed: ${response.status} ${errorText}`);
       }
 
-      const data = await response.json() as GatewayResponse;
+      // With wait=true, the response contains the result directly (no polling needed!)
+      const data = await response.json() as JobResult;
 
-      logger.info(`[GatewayClient] Job created: ${data.jobId}`);
+      logger.debug({ jobResult: data }, '[GatewayClient] Received job result');
 
-      // Calculate timeout based on number of images (voice is fast, images are slow)
-      const imageCount = context.attachments?.filter(
-        att => att.contentType.startsWith('image/') && !att.isVoiceMessage
-      ).length ?? 0;
-
-      // Scale timeout by number of images: 120s for 1 image, multiply for more
-      const timeoutMultiplier = Math.max(1, imageCount);
-      const adjustedMaxAttempts = this.maxPollAttempts * timeoutMultiplier;
-
-      if (imageCount > 0) {
-        const timeoutSeconds = (adjustedMaxAttempts * this.pollInterval) / 1000;
-        logger.info(`[GatewayClient] Job has ${imageCount} image(s), timeout: ${timeoutSeconds}s`);
+      // Validate result
+      if (data.status !== 'completed') {
+        logger.error({
+          jobId: data.jobId,
+          status: data.status
+        }, '[GatewayClient] Job not completed');
+        throw new Error(`Job ${data.jobId} status: ${data.status}`);
       }
 
-      // Poll for job completion
-      const result = await this.pollJobResult(data.jobId, adjustedMaxAttempts);
-
-      logger.debug({ jobResult: result }, '[GatewayClient] Raw job result');
-
-      if (result.result?.content === undefined) {
+      if (data.result?.content === undefined) {
         logger.error({
-          jobId: result.jobId,
-          status: result.status,
-          hasResult: !!result.result,
-          resultKeys: result.result ? Object.keys(result.result) : []
+          jobId: data.jobId,
+          hasResult: !!data.result,
+          resultKeys: data.result ? Object.keys(data.result) : []
         }, '[GatewayClient] Job result missing content');
         throw new Error('No content in job result');
       }
 
-      logger.info(`[GatewayClient] Job completed: ${result.jobId}`);
+      logger.info(`[GatewayClient] Job completed: ${data.jobId}`);
 
       return {
-        content: result.result.content,
-        attachmentDescriptions: result.result.attachmentDescriptions,
-        metadata: result.result.metadata
+        content: data.result.content,
+        attachmentDescriptions: data.result.attachmentDescriptions,
+        metadata: data.result.metadata
       };
 
     } catch (error) {
       logger.error({ err: error }, '[GatewayClient] Generation failed');
       throw error;
     }
-  }
-
-  /**
-   * Poll for job result until completion
-   */
-  private async pollJobResult(jobId: string, maxAttempts = this.maxPollAttempts): Promise<JobResult> {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch(`${this.baseUrl}/ai/job/${jobId}`);
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch job status: ${response.status}`);
-        }
-
-        const result = await response.json() as JobResult;
-
-        // Check if job is completed
-        if (result.status === 'completed') {
-          return result;
-        }
-
-        // Check if job failed
-        if (result.status === 'failed') {
-          throw new Error(`Job ${jobId} failed`);
-        }
-
-        // Wait before next poll
-        await this.delay(this.pollInterval);
-
-      } catch (error) {
-        logger.error({ err: error }, `[GatewayClient] Poll attempt ${attempt + 1} failed`);
-
-        if (attempt === maxAttempts - 1) {
-          throw error;
-        }
-
-        await this.delay(this.pollInterval);
-      }
-    }
-
-    throw new Error(`Job ${jobId} timed out after ${maxAttempts} attempts`);
-  }
-
-  /**
-   * Delay helper
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**

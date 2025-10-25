@@ -186,8 +186,12 @@ export class MessageHandler {
               await message.channel.sendTyping();
             }
           } catch (error) {
-            // Ignore typing errors (channel might be deleted, etc.)
-            logger.debug({ err: error }, '[MessageHandler] Typing indicator error');
+            // Channel might be deleted or inaccessible - stop trying
+            logger.debug({ err: error }, '[MessageHandler] Typing indicator error, clearing interval');
+            if (typingInterval) {
+              clearInterval(typingInterval);
+              typingInterval = null;
+            }
           }
         }, 8000);
       }

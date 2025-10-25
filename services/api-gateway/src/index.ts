@@ -81,6 +81,15 @@ app.use('/avatars', express.static('/data/avatars', {
   fallthrough: false, // Return 404 if avatar not found
 }));
 
+// Serve temporary attachments from Railway volume
+// Attachments are downloaded when requests are received and cleaned up after processing
+app.use('/temp-attachments', express.static('/data/temp-attachments', {
+  maxAge: 0, // Don't cache (temporary files)
+  etag: false,
+  lastModified: false,
+  fallthrough: false, // Return 404 if file not found
+}));
+
 /**
  * Ensure avatar storage directory exists
  */
@@ -95,6 +104,25 @@ async function ensureAvatarDirectory(): Promise<void> {
       logger.info('[Gateway] Created avatar storage directory at /data/avatars');
     } catch (createError) {
       logger.error({ err: createError }, '[Gateway] Failed to create avatar storage directory');
+      throw createError;
+    }
+  }
+}
+
+/**
+ * Ensure temp attachment storage directory exists
+ */
+async function ensureTempAttachmentDirectory(): Promise<void> {
+  try {
+    await access('/data/temp-attachments');
+    logger.info('[Gateway] Temp attachment storage directory exists');
+  } catch (error) {
+    // Directory doesn't exist, create it
+    try {
+      await mkdir('/data/temp-attachments', { recursive: true });
+      logger.info('[Gateway] Created temp attachment storage directory');
+    } catch (createError) {
+      logger.error({ err: createError }, '[Gateway] Failed to create temp attachment directory');
       throw createError;
     }
   }
@@ -213,7 +241,7 @@ app.use((req, res) => {
  * Error handler
  */
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error('[Server] Unhandled error:', err);
+  logger.error({ err }, '[Server] Unhandled error:');
 
   const errorResponse: ErrorResponse = {
     error: 'INTERNAL_ERROR',
@@ -229,14 +257,17 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
  */
 async function main(): Promise<void> {
   logger.info('[Gateway] Starting API Gateway service...');
-  logger.info('[Gateway] Configuration:', {
+  logger.info({
     port: config.port,
     env: config.env,
     corsOrigins: config.corsOrigins
-  });
+  }, '[Gateway] Configuration:');
 
   // Ensure avatar storage directory exists
   await ensureAvatarDirectory();
+
+  // Ensure temp attachment storage directory exists
+  await ensureTempAttachmentDirectory();
 
   // Run one-time avatar migration
   await migrateAvatars();
@@ -246,10 +277,19 @@ async function main(): Promise<void> {
   logger.info('[Gateway] Request deduplication started');
 
   // Start HTTP server
-  const server = app.listen(config.port, () => {
+  const server = app.listen(config.port, (err?: Error) => {
+    if (err) {
+      logger.error({ err }, '[Gateway] Failed to start server');
+      process.exit(1);
+    }
     logger.info(`[Gateway] Server listening on port ${config.port}`);
     logger.info(`[Gateway] Health check: http://localhost:${config.port}/health`);
     logger.info(`[Gateway] Metrics: http://localhost:${config.port}/metrics`);
+  });
+
+  // Handle server errors
+  server.on('error', (err: Error) => {
+    logger.error({ err }, '[Gateway] Server error');
   });
 
   // Graceful shutdown
@@ -281,12 +321,12 @@ async function main(): Promise<void> {
 
   // Handle uncaught errors
   process.on('uncaughtException', (error) => {
-    logger.fatal('[Gateway] Uncaught exception:', error);
+    logger.fatal({ err: error }, '[Gateway] Uncaught exception:');
     void shutdown();
   });
 
   process.on('unhandledRejection', (reason) => {
-    logger.fatal('[Gateway] Unhandled rejection:', reason);
+    logger.fatal({ reason }, '[Gateway] Unhandled rejection:');
     void shutdown();
   });
 
@@ -295,6 +335,6 @@ async function main(): Promise<void> {
 
 // Start the server
 main().catch((error: unknown) => {
-  logger.fatal('[Gateway] Fatal error during startup:', error);
+  logger.fatal({ err: error }, '[Gateway] Fatal error during startup:');
   process.exit(1);
 });

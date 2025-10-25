@@ -12,6 +12,21 @@ import { getConfig } from '../config.js';
 const logger = createLogger('QdrantMemoryService');
 const config = getConfig();
 
+/**
+ * Qdrant filter condition types (simplified from Qdrant SDK)
+ */
+interface FieldCondition {
+  key: string;
+  match?: { value: string | number };
+  range?: { lt?: number; lte?: number; gt?: number; gte?: number };
+}
+
+interface Filter {
+  must?: FieldCondition[];
+  should?: FieldCondition[];
+  must_not?: FieldCondition[];
+}
+
 export interface Memory {
   id: string;
   content: string;
@@ -38,6 +53,27 @@ export interface MemorySearchOptions {
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
   sessionId?: string; // Filter to specific session
 }
+
+/**
+ * Safely extract and validate a Qdrant payload field
+ */
+function validatePayloadField<T>(
+  payload: Record<string, unknown> | undefined,
+  field: string,
+  validator: (val: unknown) => val is T,
+  defaultValue: T
+): T {
+  const value = payload?.[field];
+  return validator(value) ? value : defaultValue;
+}
+
+// Type guards for validation
+const isString = (val: unknown): val is string => typeof val === 'string';
+const isNumber = (val: unknown): val is number => typeof val === 'number';
+const isStringArray = (val: unknown): val is string[] =>
+  Array.isArray(val) && val.every(item => typeof item === 'string');
+const isCanonScope = (val: unknown): val is 'global' | 'personal' | 'session' =>
+  val === 'global' || val === 'personal' || val === 'session';
 
 export class QdrantMemoryService {
   private qdrant: QdrantClient;
@@ -98,7 +134,7 @@ export class QdrantMemoryService {
       const queryEmbedding = await this.generateEmbedding(query);
 
       // Build filter conditions
-      const mustConditions: any[] = [];
+      const mustConditions: FieldCondition[] = [];
 
       // Filter by personality if specified
       if (personalityId) {
@@ -127,7 +163,7 @@ export class QdrantMemoryService {
       }
 
       // Build final filter
-      const filter: any = mustConditions.length > 0 ? { must: mustConditions } : undefined;
+      const filter: Filter | undefined = mustConditions.length > 0 ? { must: mustConditions } : undefined;
 
       // Log search parameters for debugging
       logger.info(`Qdrant search params: limit=${limit}, scoreThreshold=${scoreThreshold}, personalityId=${personalityId || 'none'}, excludeNewerThan=${excludeNewerThan ? new Date(excludeNewerThan).toISOString() : 'none'}, sessionId=${sessionId || 'none'}`);
@@ -142,25 +178,29 @@ export class QdrantMemoryService {
         with_payload: true,
       });
 
-      // Map results to Memory objects
-      const memories: Memory[] = searchResults.map(result => ({
-        id: result.id.toString(),
-        content: (result.payload?.content as string) || '',
-        metadata: {
-          personaId: result.payload?.personaId as string | undefined,
-          personalityId: (result.payload?.personalityId as string) || '',
-          personalityName: (result.payload?.personalityName as string) || '',
-          sessionId: result.payload?.sessionId as string | undefined,
-          canonScope: result.payload?.canonScope as 'global' | 'personal' | 'session' | undefined,
-          summaryType: result.payload?.summaryType as string | undefined,
-          createdAt: (result.payload?.createdAt as number) || Date.now(),
-          channelId: result.payload?.channelId as string | undefined,
-          guildId: result.payload?.guildId as string | undefined,
-          messageIds: result.payload?.messageIds as string[] | undefined,
-          senders: result.payload?.senders as string[] | undefined,
-        },
-        score: result.score,
-      }));
+      // Map results to Memory objects with validated payload extraction
+      const memories: Memory[] = searchResults.map(result => {
+        const payload = result.payload as Record<string, unknown> | undefined;
+
+        return {
+          id: result.id.toString(),
+          content: validatePayloadField(payload, 'content', isString, ''),
+          metadata: {
+            personaId: payload?.personaId !== undefined && isString(payload.personaId) ? payload.personaId : undefined,
+            personalityId: validatePayloadField(payload, 'personalityId', isString, ''),
+            personalityName: validatePayloadField(payload, 'personalityName', isString, ''),
+            sessionId: payload?.sessionId !== undefined && isString(payload.sessionId) ? payload.sessionId : undefined,
+            canonScope: payload?.canonScope !== undefined && isCanonScope(payload.canonScope) ? payload.canonScope : undefined,
+            summaryType: payload?.summaryType !== undefined && isString(payload.summaryType) ? payload.summaryType : undefined,
+            createdAt: validatePayloadField(payload, 'createdAt', isNumber, Date.now()),
+            channelId: payload?.channelId !== undefined && isString(payload.channelId) ? payload.channelId : undefined,
+            guildId: payload?.guildId !== undefined && isString(payload.guildId) ? payload.guildId : undefined,
+            messageIds: payload?.messageIds !== undefined && isStringArray(payload.messageIds) ? payload.messageIds : undefined,
+            senders: payload?.senders !== undefined && isStringArray(payload.senders) ? payload.senders : undefined,
+          },
+          score: result.score,
+        };
+      });
 
       // Log date distribution for debugging
       const dateDistribution: Record<string, number> = {};

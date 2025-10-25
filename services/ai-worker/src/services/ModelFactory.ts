@@ -2,56 +2,22 @@
  * Model Factory - Creates appropriate LangChain chat models based on environment configuration
  *
  * Supports:
- * - Gemini (Google AI) - via AI_PROVIDER=gemini
  * - OpenRouter - via AI_PROVIDER=openrouter or OPENROUTER_API_KEY
  * - OpenAI - via AI_PROVIDER=openai or OPENAI_API_KEY
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { createLogger, getConfig, MODEL_DEFAULTS } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
-
-/**
- * Available Gemini models (2025 - only 2.5+ models)
- */
-const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
-];
 
 /**
  * Validate and normalize model name for the current provider
  */
 function validateModelForProvider(requestedModel: string | undefined, provider: string): string {
   switch (provider) {
-    case 'gemini': {
-      // If no model requested, use default
-      if (!requestedModel) {
-        return MODEL_DEFAULTS.GEMINI_DEFAULT;
-      }
-
-      // Check if requested model is available for Gemini
-      const normalizedModel = requestedModel.toLowerCase();
-      const isGeminiModel = GEMINI_MODELS.some(m => normalizedModel.includes(m.toLowerCase()));
-
-      if (isGeminiModel) {
-        // Find the exact match from our list
-        const exactModel = GEMINI_MODELS.find(m => normalizedModel.includes(m.toLowerCase()));
-        return exactModel || MODEL_DEFAULTS.GEMINI_DEFAULT;
-      }
-
-      // Requested model is not a Gemini model
-      logger.warn(
-        `[ModelFactory] Model "${requestedModel}" not available for Gemini, using ${MODEL_DEFAULTS.GEMINI_DEFAULT}`
-      );
-      return MODEL_DEFAULTS.GEMINI_DEFAULT;
-    }
-
     case 'openrouter': {
       // OpenRouter supports many models, use DEFAULT_AI_MODEL or requested model
       return requestedModel || config.DEFAULT_AI_MODEL;
@@ -91,34 +57,6 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   logger.debug(`[ModelFactory] Creating model for provider: ${provider}`);
 
   switch (provider) {
-    case 'gemini': {
-      const apiKey = modelConfig.apiKey || config.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('GEMINI_API_KEY is required when AI_PROVIDER=gemini');
-      }
-
-      // Validate and get appropriate Gemini model
-      const requestedModel = modelConfig.modelName || config.DEFAULT_AI_MODEL;
-      const modelName = validateModelForProvider(requestedModel, 'gemini');
-
-      if (requestedModel && requestedModel !== modelName) {
-        logger.info(
-          `[ModelFactory] Personality requested "${requestedModel}", using validated model: ${modelName}`
-        );
-      } else {
-        logger.info(`[ModelFactory] Creating Gemini model: ${modelName}`);
-      }
-
-      return {
-        model: new ChatGoogleGenerativeAI({
-          model: modelName,
-          apiKey,
-          temperature,
-        }),
-        modelName
-      };
-    }
-
     case 'openrouter': {
       const apiKey = modelConfig.apiKey || config.OPENROUTER_API_KEY;
       if (!apiKey) {
@@ -165,7 +103,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
     }
 
     default:
-      throw new Error(`Unknown AI provider: ${provider}. Supported: gemini, openrouter, openai`);
+      throw new Error(`Unknown AI provider: ${provider}. Supported: openrouter, openai`);
   }
 }
 

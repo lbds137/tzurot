@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/common-types",
-  "version": "3.0.0-alpha.3",
+  "version": "3.0.0-alpha.4",
   "private": true,
   "type": "module",
   "description": "Shared types and validation schemas for Tzurot",
@@ -14,10 +14,10 @@
   "dependencies": {
     "@prisma/client": "^6.18.0",
     "@qdrant/js-client-rest": "^1.15.1",
-    "openai": "^6.1.0",
-    "pino": "^8.21.0",
+    "openai": "^6.7.0",
+    "pino": "^10.1.0",
     "prisma": "^6.18.0",
-    "zod": "^3.22.4"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
