@@ -45,8 +45,7 @@ export const envSchema = z.object({
 
   // API Gateway Configuration
   API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default('3000'),
-  API_GATEWAY_URL: z.string().url().optional().default('http://localhost:3000'),
-  GATEWAY_URL: z.string().url().optional().default('http://localhost:3000'), // Alias for bot-client
+  GATEWAY_URL: z.string().url().optional().default('http://localhost:3000'), // URL where api-gateway is accessible (for bot-client, avatar URLs, etc)
   CORS_ORIGINS: z.string().optional().transform((val) => val?.split(',') ?? ['*']).default('*'),
 
   // Environment

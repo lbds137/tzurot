@@ -95,9 +95,9 @@ export class PersonalityService {
    * Avatar files are named by slug: ${slug}.png
    */
   static deriveAvatarUrl(slug: string): string | undefined {
-    const gatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
+    const gatewayUrl = process.env.GATEWAY_URL;
     if (!gatewayUrl) {
-      logger.warn('[PersonalityService] No API_GATEWAY_URL configured, cannot derive avatar URL');
+      logger.warn('[PersonalityService] No GATEWAY_URL configured, cannot derive avatar URL');
       return undefined;
     }
 
