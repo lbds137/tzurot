@@ -58,16 +58,22 @@
 - Usage quotas to prevent abuse
 - Better error messages for missing API keys
 
-## Current Focus: Code Quality Audit
+## Current Focus: Code Quality Audit - Phase 1 Complete ✅
 
+**Branch**: `chore/code-quality-audit`
 **Goal**: Improve code maintainability and prepare for unit testing phase
 
-**Phase 1 (Current)**: Quick wins - consolidating constants and removing magic numbers
-- Create centralized TIMEOUTS constants (30s, 270s, 120s vision/job timeouts)
-- Create INTERVALS constants (cache TTLs, cleanup intervals)
-- Create TEXT_LIMITS constants (log preview lengths, truncation limits)
-- Create enums for MessageRole, JobStatus, AttachmentType
-- Replace all magic numbers throughout codebase
+**Phase 1 Status**: ✅ **COMPLETED**
+- ✅ Created centralized TIMEOUTS constants (30s, 270s, 120s vision/job timeouts)
+- ✅ Created INTERVALS constants (cache TTLs, cleanup intervals)
+- ✅ Created TEXT_LIMITS constants (log preview lengths, truncation limits)
+- ✅ Created enums for MessageRole, JobStatus, AttachmentType
+- ✅ Replaced all magic numbers throughout codebase (15+ across 9 files)
+- ✅ Standardized file naming (PascalCase for class exports)
+- ✅ Moved image resizing to api-gateway (architectural improvement)
+- ✅ Removed dead code (isDiscordUrlExpired, fetchAsBase64)
+
+**Next Steps**: Review, test on Railway, merge when ready. Phase 2-3 deferred.
 
 **See**: [CODE_QUALITY_AUDIT.md](docs/CODE_QUALITY_AUDIT.md) for full findings and recommendations
 
