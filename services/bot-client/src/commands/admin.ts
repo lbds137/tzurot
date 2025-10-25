@@ -120,7 +120,7 @@ async function handleDbSync(
   try {
     // Call API Gateway sync endpoint
     // (API gateway will validate that database URLs are configured)
-    const gatewayUrl = config.API_GATEWAY_URL || config.GATEWAY_URL;
+    const gatewayUrl = config.GATEWAY_URL;
     const response = await fetch(`${gatewayUrl}/admin/db-sync`, {
       method: 'POST',
       headers: {
@@ -288,7 +288,7 @@ async function handleUsage(
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    const gatewayUrl = config.API_GATEWAY_URL || config.GATEWAY_URL;
+    const gatewayUrl = config.GATEWAY_URL;
     const response = await fetch(`${gatewayUrl}/admin/usage?timeframe=${timeframe}`, {
       headers: {
         'X-Owner-Id': interaction.user.id,
