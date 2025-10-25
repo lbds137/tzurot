@@ -10,9 +10,10 @@
  */
 
 import { mkdir, writeFile, rm } from 'fs/promises';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, MEDIA_LIMITS } from '@tzurot/common-types';
 import type { AttachmentMetadata } from '@tzurot/common-types';
 import { join } from 'path';
+import sharp from 'sharp';
 
 const logger = createLogger('TempAttachmentStorage');
 const config = getConfig();
@@ -20,7 +21,66 @@ const config = getConfig();
 const TEMP_STORAGE_BASE = '/data/temp-attachments';
 
 /**
+ * Resize image if it exceeds the maximum size limit
+ * Returns the resized buffer or original if no resize needed
+ */
+async function resizeImageIfNeeded(
+  buffer: Buffer,
+  contentType: string
+): Promise<Buffer> {
+  const originalSize = buffer.byteLength;
+
+  // Only resize images
+  if (!contentType.startsWith('image/')) {
+    return buffer;
+  }
+
+  // Check if resize is needed
+  if (originalSize <= MEDIA_LIMITS.MAX_IMAGE_SIZE) {
+    logger.info({ originalSize }, 'Image within size limit, no resize needed');
+    return buffer;
+  }
+
+  logger.info(
+    {
+      originalSize,
+      maxSize: MEDIA_LIMITS.MAX_IMAGE_SIZE,
+      sizeMB: (originalSize / 1024 / 1024).toFixed(2),
+    },
+    'Image exceeds size limit, resizing...'
+  );
+
+  // Resize image while maintaining aspect ratio
+  // Target size leaves headroom for potential base64 encoding later
+  const scaleFactor = Math.sqrt(MEDIA_LIMITS.IMAGE_TARGET_SIZE / originalSize);
+
+  const metadata = await sharp(buffer).metadata();
+  const newWidth = Math.floor((metadata.width || 2048) * scaleFactor);
+
+  const resized = await sharp(buffer)
+    .resize(newWidth, null, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: MEDIA_LIMITS.IMAGE_QUALITY })
+    .toBuffer();
+
+  logger.info(
+    {
+      originalSize,
+      resizedSize: resized.byteLength,
+      reduction: ((1 - resized.byteLength / originalSize) * 100).toFixed(1) + '%',
+      newWidth,
+    },
+    'Image resized successfully'
+  );
+
+  return resized;
+}
+
+/**
  * Download Discord CDN attachments and store them locally
+ * Automatically resizes images larger than 10MB
  * Returns updated attachment metadata with local URLs
  */
 export async function downloadAndStoreAttachments(
@@ -52,20 +112,25 @@ export async function downloadAndStoreAttachments(
     const filename = attachment.name || `attachment-${index}-${Date.now()}.bin`;
     const localPath = join(requestDir, filename);
 
-    // Save to disk
-    const buffer = await response.arrayBuffer();
-    await writeFile(localPath, Buffer.from(buffer));
+    // Download and optionally resize if it's a large image
+    const originalBuffer = Buffer.from(await response.arrayBuffer());
+    const originalSize = originalBuffer.byteLength;
+
+    const buffer = await resizeImageIfNeeded(originalBuffer, attachment.contentType);
+
+    // Save to disk (resized if applicable)
+    await writeFile(localPath, buffer);
 
     // Build our gateway URL
     const gatewayUrl = config.PUBLIC_GATEWAY_URL || config.GATEWAY_URL;
     const localUrl = `${gatewayUrl}/temp-attachments/${requestId}/${encodeURIComponent(filename)}`;
 
     logger.info(
-      { originalUrl: attachment.url, localUrl, size: buffer.byteLength },
-      'Downloaded attachment'
+      { originalUrl: attachment.url, localUrl, originalSize, finalSize: buffer.byteLength },
+      'Downloaded and stored attachment'
     );
 
-    // Return updated attachment with local URL
+    // Return updated attachment with local URL and final size
     return {
       ...attachment,
       url: localUrl,

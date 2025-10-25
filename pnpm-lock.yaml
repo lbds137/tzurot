@@ -177,6 +177,9 @@ importers:
       redis:
         specifier: ^5.9.0
         version: 5.9.0
+      sharp:
+        specifier: ^0.34.4
+        version: 0.34.4
       zod:
         specifier: ^4.1.12
         version: 4.1.12
@@ -4273,7 +4276,7 @@ packages:
     dependencies:
       '@img/colour': 1.0.0
       detect-libc: 2.1.1
-      semver: 7.7.2
+      semver: 7.7.3
     optionalDependencies:
       '@img/sharp-darwin-arm64': 0.34.4
       '@img/sharp-darwin-x64': 0.34.4
