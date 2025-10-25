@@ -90,6 +90,8 @@ const generateRequestSchema = z.object({
  */
 aiRouter.post('/generate', async (req, res) => {
   const startTime = Date.now();
+  let userId: string | undefined;
+  let personalityName: string | undefined;
 
   try {
     // Validate request body
@@ -101,12 +103,23 @@ aiRouter.post('/generate', async (req, res) => {
         message: 'Invalid request body',
         timestamp: new Date().toISOString()
       };
-      logger.warn({ errors: validationResult.error.issues }, '[AI] Validation error:');
+      logger.warn(
+        {
+          errors: validationResult.error.issues,
+          userId: req.body?.context?.userId,
+          personalityName: req.body?.personality?.name
+        },
+        '[AI] Validation error'
+      );
       res.status(400).json(errorResponse);
       return;
     }
 
     const request = validationResult.data as GenerateRequest;
+
+    // Capture context for error logging
+    userId = request.context.userId;
+    personalityName = request.personality.name;
 
     // Check for duplicate requests
     const duplicate = checkDuplicate(request);
@@ -168,7 +181,15 @@ aiRouter.post('/generate', async (req, res) => {
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
-    logger.error({ err: error }, `[AI] Error creating job (${processingTime}ms)`);
+    logger.error(
+      {
+        err: error,
+        userId,
+        personalityName,
+        processingTimeMs: processingTime
+      },
+      `[AI] Error creating job (${processingTime}ms)`
+    );
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',
@@ -186,9 +207,9 @@ aiRouter.post('/generate', async (req, res) => {
  * Get the status of a specific job.
  */
 aiRouter.get('/job/:jobId', async (req, res) => {
-  try {
-    const { jobId } = req.params;
+  const { jobId } = req.params;
 
+  try {
     const job = await aiQueue.getJob(jobId);
 
     if (job === undefined) {
@@ -214,7 +235,13 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error({ err: error }, '[AI] Error fetching job status');
+    logger.error(
+      {
+        err: error,
+        jobId
+      },
+      '[AI] Error fetching job status'
+    );
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',
