@@ -116,8 +116,8 @@ export class CommandHandler {
     try {
       logger.info(`[CommandHandler] Executing command: ${interaction.commandName}`);
 
-      // Pass commands collection to help command
-      if (interaction.commandName === 'help') {
+      // Pass commands collection to utility command (for help subcommand)
+      if (interaction.commandName === 'utility') {
         await command.execute(interaction, this.commands);
       } else {
         await command.execute(interaction);
