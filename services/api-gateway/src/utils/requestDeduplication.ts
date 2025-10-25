@@ -7,6 +7,7 @@
  * Based on patterns from tzurot v2 messageDeduplication.js and aiService.js
  */
 
+import { createHash } from 'node:crypto';
 import { createLogger } from '@tzurot/common-types';
 import type { GenerateRequest, CachedRequest } from '../types.js';
 
@@ -52,6 +53,7 @@ export function stopCleanup(): void {
 
 /**
  * Create a hash for a request to detect duplicates
+ * Uses SHA-256 for stable, collision-resistant hashing
  */
 function hashRequest(request: GenerateRequest): string {
   const {
@@ -67,20 +69,12 @@ function hashRequest(request: GenerateRequest): string {
     : JSON.stringify(message);
   const contextStr = `${context.userId}-${context.channelId ?? 'dm'}`;
 
-  // For longer messages, sample start/middle/end like v2
-  const messageLength = messageStr.length;
-  let messageHash: string;
-
-  if (messageLength > 100) {
-    const start = messageStr.substring(0, 30).replace(/\s+/g, '');
-    const middle = messageStr
-      .substring(Math.floor(messageLength / 2), Math.floor(messageLength / 2) + 20)
-      .replace(/\s+/g, '');
-    const end = messageStr.substring(messageLength - 20).replace(/\s+/g, '');
-    messageHash = `${start}_${middle}_${end}_${messageLength}`;
-  } else {
-    messageHash = messageStr.replace(/\s+/g, '');
-  }
+  // Create stable hash using SHA-256 for the entire message
+  // This prevents false positives from substring sampling
+  const messageHash = createHash('sha256')
+    .update(messageStr)
+    .digest('hex')
+    .substring(0, 16); // Take first 16 chars for brevity
 
   return `${personalityName}:${contextStr}:${messageHash}`;
 }

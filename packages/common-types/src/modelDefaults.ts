@@ -9,9 +9,6 @@ export const MODEL_DEFAULTS = {
   // Main generation model (used when no model specified)
   DEFAULT_MODEL: 'anthropic/claude-haiku-4.5',
 
-  // Provider-specific defaults (when forcing a specific provider)
-  GEMINI_DEFAULT: 'gemini-2.5-flash',
-
   // Specialized models
   WHISPER: 'whisper-1',
   VISION_FALLBACK: 'qwen/qwen3-vl-235b-a22b-instruct',

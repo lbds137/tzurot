@@ -99,10 +99,10 @@ async function handleHelp(
 
         // Check if this is a command with subcommands
         if ('options' in cmd.data && Array.isArray(cmd.data.options)) {
-          const options = cmd.data.options as Array<{ type: number; name: string; description: string }>;
-          const subcommands = options
-            .filter(opt => opt.type === 1) // Type 1 = Subcommand
-            .map(sub => `  • \`/${cmdName} ${sub.name}\` - ${sub.description}`)
+          const subcommands = cmd.data.options
+            .filter(opt => 'type' in opt && opt.type === 1) // Type 1 = Subcommand
+            .filter(opt => 'name' in opt && 'description' in opt)
+            .map(sub => `  • \`/${cmdName} ${'name' in sub ? sub.name : ''}\` - ${'description' in sub ? sub.description : ''}`)
             .join('\n');
 
           if (subcommands) {

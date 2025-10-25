@@ -6,23 +6,10 @@
  */
 
 import { createClient, type RedisClientType } from 'redis';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
 const config = getConfig();
-
-/**
- * Parse Redis URL into connection config
- * Railway provides REDIS_URL like: redis://:password@host:port
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
-  const parsed = new URL(url);
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || '6379', 10),
-    password: parsed.password || undefined
-  };
-}
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
@@ -40,11 +27,11 @@ const redisConfig = {
   password: parsedUrl?.password || config.REDIS_PASSWORD,
 };
 
-logger.info('[Redis] Redis config:', {
+logger.info({
   host: redisConfig.socket.host,
   port: redisConfig.socket.port,
   hasPassword: redisConfig.password !== undefined
-});
+}, '[Redis] Redis config:');
 
 // Create Redis client with explicit type
 export const redis: RedisClientType = createClient(redisConfig) as RedisClientType;
@@ -126,6 +113,6 @@ export async function checkRedisHealth(): Promise<boolean> {
  */
 export async function closeRedis(): Promise<void> {
   logger.info('[Redis] Closing Redis connection...');
-  await redis.quit();
+  await redis.close();
   logger.info('[Redis] Redis connection closed');
 }

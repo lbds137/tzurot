@@ -1,70 +1,18 @@
 /**
  * API Gateway Types
  *
- * Type definitions for API requests, responses, and internal structures.
+ * Type definitions for API responses and internal structures.
+ * Request types are now in @tzurot/common-types for sharing across services.
  */
 
-import type { MessageContent } from '@tzurot/common-types';
-
-/**
- * Request body for /ai/generate endpoint
- * Uses a simplified personality type that matches validation schema
- */
-export interface GenerateRequest {
-  personality: {
-    name: string;
-    displayName?: string;
-    systemPrompt: string;
-    model?: string;
-    temperature?: number;
-    maxTokens?: number;
-    memoryEnabled?: boolean;
-    contextWindow?: number;
-    avatarUrl?: string;
-  };
-  message: MessageContent;
-  context: {
-    userId: string;
-    userName?: string;
-    channelId?: string;
-    serverId?: string;
-    sessionId?: string;
-    isProxyMessage?: boolean;
-    conversationHistory?: ConversationMessage[];
-    attachments?: AttachmentMetadata[];
-  };
-  userApiKey?: string;
-}
-
-/**
- * Conversation message format
- */
-export interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
-/**
- * Attachment metadata for multimodal messages
- */
-export interface AttachmentMetadata {
-  url: string;
-  contentType: string;
-  name?: string;
-  size?: number;
-  isVoiceMessage?: boolean;
-  duration?: number;
-  waveform?: string;
-}
-
-/**
- * Response from /ai/generate endpoint
- */
-export interface GenerateResponse {
-  jobId: string;
-  requestId: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
-}
+// Re-export shared API types from common-types
+export type {
+  GenerateRequest,
+  GenerateResponse,
+  ApiConversationMessage,
+  AttachmentMetadata,
+  JobResult
+} from '@tzurot/common-types';
 
 /**
  * Health check response

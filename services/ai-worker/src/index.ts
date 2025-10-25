@@ -2,7 +2,7 @@
  * AI Worker - Main Entry Point
  *
  * This service:
- * 1. Connects to ChromaDB for vector memory
+ * 1. Connects to Qdrant for vector memory
  * 2. Initializes the RAG service
  * 3. Listens to BullMQ queue for AI generation jobs
  * 4. Processes jobs and returns results
@@ -11,7 +11,7 @@
 import { Worker, Job } from 'bullmq';
 import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
@@ -27,9 +27,6 @@ const config = {
     // Parse Railway's REDIS_URL if provided
     ...(envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : {})
   },
-  chroma: {
-    url: envConfig.CHROMA_URL
-  },
   openai: {
     apiKey: envConfig.OPENAI_API_KEY // For embeddings
   },
@@ -40,37 +37,14 @@ const config = {
 };
 
 /**
- * Parse Railway's REDIS_URL format
- * Format: redis://default:password@host:port
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {
-  try {
-    const parsed = new URL(url);
-    return {
-      host: parsed.hostname,
-      port: parseInt(parsed.port || '6379'),
-      password: parsed.password || undefined,
-      username: parsed.username !== 'default' ? parsed.username : undefined
-    };
-  } catch (error) {
-    logger.error({ err: error }, '[Config] Failed to parse REDIS_URL');
-    return {
-      host: 'localhost',
-      port: 6379
-    };
-  }
-}
-
-/**
  * Initialize the AI worker
  */
 async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
-  logger.info('[AIWorker] Configuration:', {
+  logger.info({
     redis: { ...config.redis, password: config.redis.password ? '***' : undefined },
-    chroma: config.chroma,
     worker: config.worker
-  });
+  }, '[AIWorker] Configuration:');
 
   // Initialize vector memory manager (fails gracefully if Qdrant not configured)
   let memoryManager: QdrantMemoryAdapter | undefined;
@@ -102,12 +76,7 @@ async function main(): Promise<void> {
   const worker = new Worker<AIJobData, AIJobResult>(
     config.worker.queueName,
     async (job: Job<AIJobData>) => {
-      // Process the job based on type
-      if (job.data.jobType === 'stream') {
-        return await jobProcessor.processStreamJob(job);
-      } else {
-        return await jobProcessor.processJob(job);
-      }
+      return await jobProcessor.processJob(job);
     },
     {
       connection: config.redis,
@@ -130,10 +99,10 @@ async function main(): Promise<void> {
 
   worker.on('completed', (job: Job<AIJobData>, result: AIJobResult) => {
     const jobId = job.id ?? 'unknown';
-    logger.info(`[AIWorker] Job ${jobId} completed successfully`, {
+    logger.info({
       requestId: result.requestId,
       processingTime: result.metadata?.processingTimeMs
-    });
+    }, `[AIWorker] Job ${jobId} completed successfully`);
   });
 
   worker.on('failed', (job: Job<AIJobData> | undefined, error: Error) => {

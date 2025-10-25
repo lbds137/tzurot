@@ -5,24 +5,11 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { createLogger, getConfig, TIMEOUTS } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS, parseRedisUrl } from '@tzurot/common-types';
+import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
 
 const logger = createLogger('Queue');
 const config = getConfig();
-
-/**
- * Parse Redis URL into connection config
- * Railway provides REDIS_URL like: redis://:password@host:port
- */
-function parseRedisUrl(url: string): { host: string; port: number; password?: string; username?: string } {
-  const parsed = new URL(url);
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || '6379', 10),
-    password: parsed.password || undefined,
-    username: parsed.username || undefined
-  };
-}
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
@@ -36,11 +23,11 @@ const redisConfig = {
   ...(config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : {})
 };
 
-logger.info('[Queue] Redis config:', {
+logger.info({
   host: redisConfig.host,
   port: redisConfig.port,
   hasPassword: redisConfig.password !== undefined
-});
+}, '[Queue] Redis config:');
 
 // Queue name
 const QUEUE_NAME = config.QUEUE_NAME;
@@ -67,10 +54,28 @@ export const queueEvents = new QueueEvents(QUEUE_NAME, {
 // Event handlers
 queueEvents.on('completed', ({ jobId }) => {
   logger.info(`[Queue] Job ${jobId} completed`);
+
+  // Clean up temporary attachments after a short delay
+  // This ensures ai-worker has finished all async operations
+  // Job ID format is req-{requestId}
+  if (jobId.startsWith('req-')) {
+    const requestId = jobId.substring(4);
+    setTimeout(() => {
+      void cleanupAttachments(requestId);
+    }, 5000); // 5 second delay
+  }
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
-  logger.error(`[Queue] Job ${jobId} failed:`, failedReason);
+  logger.error({ failedReason }, `[Queue] Job ${jobId} failed:`);
+
+  // Clean up temporary attachments even on failure
+  if (jobId.startsWith('req-')) {
+    const requestId = jobId.substring(4);
+    setTimeout(() => {
+      void cleanupAttachments(requestId);
+    }, 5000); // 5 second delay
+  }
 });
 
 queueEvents.on('error', (error) => {

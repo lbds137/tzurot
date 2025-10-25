@@ -8,11 +8,12 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { createLogger } from '@tzurot/common-types';
 import { z } from 'zod';
-import { aiQueue } from '../queue.js';
+import { aiQueue, queueEvents } from '../queue.js';
 import {
   checkDuplicate,
   cacheRequest
 } from '../utils/requestDeduplication.js';
+import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import type {
   GenerateRequest,
   GenerateResponse,
@@ -85,11 +86,21 @@ const generateRequestSchema = z.object({
 /**
  * POST /ai/generate
  *
- * Create an AI generation job and return the job ID.
+ * Create an AI generation job and optionally wait for completion.
+ *
+ * Query parameters:
+ * - wait=true: Wait for job completion using Redis pub/sub (no polling)
+ * - wait=false (default): Return job ID immediately
+ *
  * Handles request deduplication - identical requests within 5s return the same job.
  */
 aiRouter.post('/generate', async (req, res) => {
   const startTime = Date.now();
+  let userId: string | undefined;
+  let personalityName: string | undefined;
+
+  // Check if client wants to wait for completion
+  const waitForCompletion = req.query.wait === 'true';
 
   try {
     // Validate request body
@@ -101,12 +112,23 @@ aiRouter.post('/generate', async (req, res) => {
         message: 'Invalid request body',
         timestamp: new Date().toISOString()
       };
-      logger.warn('[AI] Validation error:', validationResult.error.errors);
+      logger.warn(
+        {
+          errors: validationResult.error.issues,
+          userId: req.body?.context?.userId,
+          personalityName: req.body?.personality?.name
+        },
+        '[AI] Validation error'
+      );
       res.status(400).json(errorResponse);
       return;
     }
 
     const request = validationResult.data as GenerateRequest;
+
+    // Capture context for error logging
+    userId = request.context.userId;
+    personalityName = request.personality.name;
 
     // Check for duplicate requests
     const duplicate = checkDuplicate(request);
@@ -128,13 +150,27 @@ aiRouter.post('/generate', async (req, res) => {
     // Generate unique request ID
     const requestId = randomUUID();
 
-    // Create job data
+    // Download Discord CDN attachments to local storage
+    // This prevents CDN expiration issues and unreliable external fetches
+    let localAttachments = request.context.attachments;
+    if (localAttachments && localAttachments.length > 0) {
+      logger.info(
+        { requestId, count: localAttachments.length },
+        '[AI] Downloading attachments to local storage'
+      );
+      localAttachments = await downloadAndStoreAttachments(requestId, localAttachments);
+    }
+
+    // Create job data with local attachment URLs
     const jobData = {
       requestId,
       jobType: 'generate' as const,
       personality: request.personality,
       message: request.message,
-      context: request.context,
+      context: {
+        ...request.context,
+        attachments: localAttachments // Use local URLs instead of Discord CDN
+      },
       userApiKey: request.userApiKey,
       responseDestination: {
         type: 'api' as const,
@@ -150,13 +186,78 @@ aiRouter.post('/generate', async (req, res) => {
     // Cache request to prevent duplicates
     cacheRequest(request, requestId, job.id ?? requestId);
 
-    const processingTime = Date.now() - startTime;
+    const creationTime = Date.now() - startTime;
 
     logger.info(
-      `[AI] Created job ${job.id} for ${request.personality.name} (${processingTime}ms)`
+      `[AI] Created job ${job.id} for ${request.personality.name} (${creationTime}ms)`
     );
 
-    // Return job info
+    // If client wants to wait, use Redis pub/sub to wait for completion
+    if (waitForCompletion) {
+      try {
+        // Calculate timeout based on attachments (images take longer)
+        const imageCount = request.context.attachments?.filter(
+          att => att.contentType.startsWith('image/') && !att.isVoiceMessage
+        ).length ?? 0;
+
+        // Base timeout: 2 minutes, scale by image count
+        // Cap at 4.5 minutes (270s) - allows 3 retry passes + 30s buffer under Railway's 5-minute limit
+        const timeoutMs = Math.min(270000, 120000 * Math.max(1, imageCount));
+
+        logger.debug(
+          `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
+        );
+
+        // Wait for job completion via Redis pub/sub (no HTTP polling!)
+        const result = await job.waitUntilFinished(queueEvents, timeoutMs);
+
+        const totalTime = Date.now() - startTime;
+
+        logger.info(
+          `[AI] Job ${job.id} completed after ${totalTime}ms`
+        );
+
+        // Note: Cleanup happens via queue event listener, not here
+        // This ensures ai-worker has finished fetching all attachments
+
+        // Return result directly
+        res.json({
+          jobId: job.id ?? requestId,
+          requestId,
+          status: 'completed',
+          result,
+          timestamp: new Date().toISOString()
+        });
+        return;
+
+      } catch (error) {
+        const totalTime = Date.now() - startTime;
+
+        logger.error(
+          {
+            err: error,
+            jobId: job.id,
+            userId,
+            personalityName,
+            totalTimeMs: totalTime
+          },
+          `[AI] Job ${job.id} failed or timed out after ${totalTime}ms`
+        );
+
+        // Note: Cleanup happens via queue event listener, not here
+
+        const errorResponse: ErrorResponse = {
+          error: 'JOB_FAILED',
+          message: error instanceof Error ? error.message : 'Job failed or timed out',
+          timestamp: new Date().toISOString()
+        };
+
+        res.status(500).json(errorResponse);
+        return;
+      }
+    }
+
+    // Default behavior: return job ID immediately (backward compatible)
     const response: GenerateResponse = {
       jobId: job.id ?? requestId,
       requestId,
@@ -168,7 +269,15 @@ aiRouter.post('/generate', async (req, res) => {
   } catch (error) {
     const processingTime = Date.now() - startTime;
 
-    logger.error({ err: error }, `[AI] Error creating job (${processingTime}ms)`);
+    logger.error(
+      {
+        err: error,
+        userId,
+        personalityName,
+        processingTimeMs: processingTime
+      },
+      `[AI] Error creating job (${processingTime}ms)`
+    );
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',
@@ -186,9 +295,9 @@ aiRouter.post('/generate', async (req, res) => {
  * Get the status of a specific job.
  */
 aiRouter.get('/job/:jobId', async (req, res) => {
-  try {
-    const { jobId } = req.params;
+  const { jobId } = req.params;
 
+  try {
     const job = await aiQueue.getJob(jobId);
 
     if (job === undefined) {
@@ -214,7 +323,13 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error({ err: error }, '[AI] Error fetching job status');
+    logger.error(
+      {
+        err: error,
+        jobId
+      },
+      '[AI] Error fetching job status'
+    );
 
     const errorResponse: ErrorResponse = {
       error: 'INTERNAL_ERROR',

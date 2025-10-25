@@ -36,6 +36,19 @@ export interface ProcessedAttachment {
 }
 
 /**
+ * Error details structure for logging API errors
+ */
+interface ErrorDetails {
+  modelName?: string;
+  errorType?: string;
+  errorMessage: string;
+  apiKeyPrefix?: string;
+  apiResponse?: unknown;
+  statusCode?: unknown;
+  statusText?: unknown;
+}
+
+/**
  * Check if a model has vision support
  * Uses flexible pattern matching instead of hardcoded lists
  * to avoid outdated model names as vendors release new versions
@@ -88,18 +101,27 @@ export async function describeImage(
   try {
     // Priority 1: Use personality's configured vision model if specified
     if (personality.visionModel) {
-      logger.info({ visionModel: personality.visionModel }, 'Using personality vision model for image description');
+      logger.info(
+        { visionModel: personality.visionModel },
+        'Using configured vision model (personality override)'
+      );
       return await describeWithVisionModel(attachment, personality, personality.visionModel);
     }
 
     // Priority 2: Use personality's main model if it has native vision support
     if (hasVisionSupport(personality.model)) {
-      logger.info({ model: personality.model }, 'Using personality main model for image description');
+      logger.info(
+        { model: personality.model },
+        'Using main LLM for vision (native vision support detected)'
+      );
       return await describeWithVisionModel(attachment, personality, personality.model);
     }
 
-    // Priority 3: Fallback to uncensored Qwen3-VL
-    logger.info('Using fallback Qwen3-VL for image description');
+    // Priority 3: Use default vision model (Qwen3-VL)
+    logger.info(
+      { mainModel: personality.model },
+      'Using default vision model (Qwen3-VL) - main LLM lacks vision support'
+    );
     return await describeWithFallbackVision(attachment, personality.systemPrompt || '');
   } catch (error) {
     logger.error({ err: error, attachment }, 'Failed to describe image');
@@ -145,10 +167,19 @@ async function describeWithVisionModel(
     messages.push(new SystemMessage(personality.systemPrompt));
   }
 
-  // Fetch image and convert to base64 (more reliable than external URLs)
-  logger.info({ size: attachment.size, url: attachment.url, modelName }, 'Fetching image for vision processing');
-  const base64Image = await fetchAsBase64(attachment.url);
-  logger.info({ originalSize: attachment.size, base64Size: base64Image.length, modelName }, 'Image converted to base64');
+  // Hybrid approach: Use direct URLs for fresh Discord links (faster),
+  // fall back to base64 for expired URLs or edge cases
+  let imageUrl: string;
+
+  if (isDiscordUrlExpired(attachment.url)) {
+    logger.info({ url: attachment.url, modelName }, 'Discord URL expired or expiring soon, using base64 fallback');
+    const base64Image = await fetchAsBase64(attachment.url);
+    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
+    logger.info({ base64Size: base64Image.length, modelName }, 'Image converted to base64');
+  } else {
+    logger.info({ url: attachment.url, modelName }, 'Using direct Discord URL (fresh, valid for 24h)');
+    imageUrl = attachment.url;
+  }
 
   // Request detailed, objective description
   messages.push(
@@ -157,7 +188,7 @@ async function describeWithVisionModel(
         {
           type: 'image_url',
           image_url: {
-            url: `data:${attachment.contentType};base64,${base64Image}`,
+            url: imageUrl,
           },
         },
         {
@@ -169,14 +200,15 @@ async function describeWithVisionModel(
   );
 
   try {
-    logger.info({ modelName }, 'Invoking vision model');
-    const response = await model.invoke(messages);
+    logger.info({ modelName }, 'Invoking vision model with 30s timeout');
+    // Timeout must be passed to invoke(), not constructor (LangChain requirement)
+    const response = await model.invoke(messages, { timeout: 30000 });
     return typeof response.content === 'string'
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
     // Extract detailed error information
-    const errorDetails: any = {
+    const errorDetails: ErrorDetails = {
       modelName,
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -227,11 +259,19 @@ async function describeWithFallbackVision(
     messages.push(new SystemMessage(systemPrompt));
   }
 
-  // Fetch image and convert to base64 (OpenRouter requires base64)
-  logger.info({ size: attachment.size, url: attachment.url }, 'Fetching image for vision processing');
-  const base64Image = await fetchAsBase64(attachment.url);
-  const base64Size = base64Image.length;
-  logger.info({ originalSize: attachment.size, base64Size }, 'Image converted to base64');
+  // Hybrid approach: Use direct URLs when possible (faster),
+  // fall back to base64 for expired Discord CDN URLs
+  let imageUrl: string;
+
+  if (isDiscordUrlExpired(attachment.url)) {
+    logger.info({ url: attachment.url }, 'URL expired or expiring soon, using base64 fallback');
+    const base64Image = await fetchAsBase64(attachment.url);
+    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
+    logger.info({ base64Size: base64Image.length }, 'Image converted to base64');
+  } else {
+    logger.info({ url: attachment.url }, 'Using direct URL for image');
+    imageUrl = attachment.url;
+  }
 
   messages.push(
     new HumanMessage({
@@ -239,7 +279,7 @@ async function describeWithFallbackVision(
         {
           type: 'image_url',
           image_url: {
-            url: `data:${attachment.contentType};base64,${base64Image}`,
+            url: imageUrl,
           },
         },
         {
@@ -251,14 +291,15 @@ async function describeWithFallbackVision(
   );
 
   try {
-    logger.info({ model: config.VISION_FALLBACK_MODEL }, 'Invoking fallback vision model');
-    const response = await model.invoke(messages);
+    logger.info({ model: config.VISION_FALLBACK_MODEL }, 'Invoking fallback vision model with 30s timeout');
+    // Timeout must be passed to invoke(), not constructor (LangChain requirement)
+    const response = await model.invoke(messages, { timeout: 30000 });
     return typeof response.content === 'string'
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
     // Extract detailed error information
-    const errorDetails: any = {
+    const errorDetails: ErrorDetails = {
       modelName: config.VISION_FALLBACK_MODEL,
       errorType: error?.constructor?.name,
       errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -347,6 +388,41 @@ export async function transcribeAudio(
 }
 
 /**
+ * Check if a Discord CDN URL has expired or will expire soon
+ * Discord URLs expire after 24 hours (changed Dec 2023)
+ * URL format: ?ex=<hex_timestamp>&is=<issued>&hm=<hash>
+ */
+function isDiscordUrlExpired(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+
+    // Only check Discord CDN URLs
+    if (!urlObj.hostname.includes('discord')) {
+      return false; // Not a Discord URL, assume it's safe
+    }
+
+    const exHex = urlObj.searchParams.get('ex');
+
+    if (!exHex) {
+      logger.warn({ url }, 'Discord URL missing expiry parameter, treating as expired');
+      return true; // No expiry param = assume unsafe/old format
+    }
+
+    // Convert hex timestamp to milliseconds
+    const expiryTimestamp = parseInt(exHex, 16) * 1000;
+    const now = Date.now();
+
+    // Add 5-minute buffer to be safe (if expiring in <5min, treat as expired)
+    const bufferMs = 5 * 60 * 1000;
+
+    return now >= (expiryTimestamp - bufferMs);
+  } catch (error) {
+    logger.warn({ err: error, url }, 'Failed to parse Discord URL, treating as expired');
+    return true; // If we can't parse it, be safe and use base64
+  }
+}
+
+/**
  * Fetch URL content as base64
  * Resizes images larger than 10MB to fit within API limits
  */
@@ -407,45 +483,159 @@ async function fetchAsBase64(url: string): Promise<string> {
 }
 
 /**
+ * Process a single attachment (helper function for retry logic)
+ */
+async function processSingleAttachment(
+  attachment: AttachmentMetadata,
+  personality: LoadedPersonality
+): Promise<ProcessedAttachment | null> {
+  if (attachment.contentType.startsWith('image/')) {
+    const description = await describeImage(attachment, personality);
+    logger.info({ name: attachment.name }, 'Processed image attachment');
+    return {
+      type: 'image' as const,
+      description,
+      originalUrl: attachment.url,
+      metadata: attachment,
+    };
+  } else if (
+    attachment.contentType.startsWith('audio/') ||
+    attachment.isVoiceMessage
+  ) {
+    const description = await transcribeAudio(attachment, personality);
+    logger.info({ name: attachment.name }, 'Processed audio attachment');
+    return {
+      type: 'audio' as const,
+      description,
+      originalUrl: attachment.url,
+      metadata: attachment,
+    };
+  }
+  // Unsupported type
+  return null;
+}
+
+/**
  * Process all attachments to extract text descriptions
+ * Processes attachments in parallel with up to 2 retries (3 total attempts)
  */
 export async function processAttachments(
   attachments: AttachmentMetadata[],
   personality: LoadedPersonality
 ): Promise<ProcessedAttachment[]> {
-  logger.info({ attachmentCount: attachments.length, personalityModel: personality.model }, '[MultimodalProcessor] Processing attachments');
+  logger.info({ attachmentCount: attachments.length, personalityModel: personality.model }, '[MultimodalProcessor] Processing attachments in parallel');
 
-  const processed: ProcessedAttachment[] = [];
+  // First pass: Process all attachments in parallel
+  const firstPassPromises = attachments.map((attachment) =>
+    processSingleAttachment(attachment, personality)
+  );
 
-  for (const attachment of attachments) {
-    try {
-      if (attachment.contentType.startsWith('image/')) {
-        const description = await describeImage(attachment, personality);
-        processed.push({
-          type: 'image',
-          description,
-          originalUrl: attachment.url,
-          metadata: attachment,
-        });
-        logger.info({ name: attachment.name }, 'Processed image attachment');
-      } else if (
-        attachment.contentType.startsWith('audio/') ||
-        attachment.isVoiceMessage
-      ) {
-        const description = await transcribeAudio(attachment, personality);
-        processed.push({
-          type: 'audio',
-          description,
-          originalUrl: attachment.url,
-          metadata: attachment,
-        });
-        logger.info({ name: attachment.name }, 'Processed audio attachment');
+  const firstPassResults = await Promise.allSettled(firstPassPromises);
+
+  // Collect successes and track failures for retry
+  const succeeded: ProcessedAttachment[] = [];
+  const failedIndices: number[] = [];
+
+  firstPassResults.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value !== null) {
+      succeeded.push(result.value);
+    } else if (result.status === 'rejected') {
+      failedIndices.push(index);
+      logger.warn(
+        {
+          err: result.reason,
+          attachment: attachments[index].name
+        },
+        '[MultimodalProcessor] Attachment processing failed, will retry'
+      );
+    }
+  });
+
+  // Second pass: Retry failed attachments in parallel
+  if (failedIndices.length > 0) {
+    logger.info(
+      {
+        failedCount: failedIndices.length,
+        succeededCount: succeeded.length
+      },
+      '[MultimodalProcessor] Retrying failed attachments'
+    );
+
+    const retryPromises = failedIndices.map((index) =>
+      processSingleAttachment(attachments[index], personality)
+    );
+
+    const retryResults = await Promise.allSettled(retryPromises);
+
+    // Collect retry successes and track failures for third pass
+    const secondPassFailures: number[] = [];
+
+    retryResults.forEach((result, i) => {
+      const originalIndex = failedIndices[i];
+      if (result.status === 'fulfilled' && result.value !== null) {
+        succeeded.push(result.value);
+        logger.info(
+          { attachment: attachments[originalIndex].name },
+          '[MultimodalProcessor] Second pass retry succeeded'
+        );
+      } else {
+        secondPassFailures.push(originalIndex);
+        logger.warn(
+          {
+            err: result.status === 'rejected' ? result.reason : 'Unknown error',
+            attachment: attachments[originalIndex].name
+          },
+          '[MultimodalProcessor] Second pass retry failed, will try third pass'
+        );
       }
-    } catch (error) {
-      logger.error({ err: error, attachment }, 'Failed to process attachment');
-      // Continue with other attachments
+    });
+
+    // Third pass: Final retry for attachments that failed twice
+    if (secondPassFailures.length > 0) {
+      logger.info(
+        {
+          failedCount: secondPassFailures.length,
+          succeededCount: succeeded.length
+        },
+        '[MultimodalProcessor] Third pass: Final retry for failed attachments'
+      );
+
+      const thirdPassPromises = secondPassFailures.map((index) =>
+        processSingleAttachment(attachments[index], personality)
+      );
+
+      const thirdPassResults = await Promise.allSettled(thirdPassPromises);
+
+      // Collect third pass results
+      thirdPassResults.forEach((result, i) => {
+        const originalIndex = secondPassFailures[i];
+        if (result.status === 'fulfilled' && result.value !== null) {
+          succeeded.push(result.value);
+          logger.info(
+            { attachment: attachments[originalIndex].name },
+            '[MultimodalProcessor] Third pass retry succeeded'
+          );
+        } else {
+          logger.error(
+            {
+              err: result.status === 'rejected' ? result.reason : 'Unknown error',
+              attachment: attachments[originalIndex]
+            },
+            '[MultimodalProcessor] Third pass retry failed, giving up on attachment after 3 attempts'
+          );
+        }
+      });
     }
   }
 
-  return processed;
+  logger.info(
+    {
+      total: attachments.length,
+      succeeded: succeeded.length,
+      failed: attachments.length - succeeded.length
+    },
+    '[MultimodalProcessor] Parallel processing complete'
+  );
+
+  return succeeded;
 }

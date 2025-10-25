@@ -21,19 +21,20 @@ services:
       timeout: 3s
       retries: 5
 
-  # ChromaDB - vector database for long-term memory
-  chroma:
-    image: chromadb/chroma:latest
-    container_name: tzurot-chroma
+  # Qdrant - vector database for long-term memory
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: tzurot-qdrant
     ports:
-      - "8000:8000"
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC API
     volumes:
-      - chroma-data:/chroma/chroma
+      - qdrant-data:/qdrant/storage
     environment:
-      - IS_PERSISTENT=TRUE
-      - ANONYMIZED_TELEMETRY=FALSE
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,7 +60,7 @@ services:
 volumes:
   redis-data:
     driver: local
-  chroma-data:
+  qdrant-data:
     driver: local
   postgres-data:
     driver: local
