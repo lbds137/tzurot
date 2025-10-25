@@ -120,6 +120,8 @@ export function getConfig(): EnvConfig {
 /**
  * Reset the cached config (primarily for testing)
  * Allows tests to inject different environment variables
+ *
+ * IMPORTANT: Call this in afterEach() to prevent test pollution
  */
 export function resetConfig(): void {
   _config = undefined;
@@ -127,9 +129,69 @@ export function resetConfig(): void {
 
 /**
  * Create config with custom values (for testing)
- * Bypasses environment validation and uses provided values
+ * Uses safe test defaults instead of reading from process.env
+ * This prevents test pollution and ensures isolated test environments
  */
-export function createTestConfig(overrides: Partial<EnvConfig>): EnvConfig {
-  const defaults = validateEnv();
-  return { ...defaults, ...overrides };
+export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig {
+  // Sensible test defaults (don't read from process.env!)
+  const testDefaults: EnvConfig = {
+    // Discord
+    DISCORD_TOKEN: undefined,
+    DISCORD_CLIENT_ID: undefined,
+    GUILD_ID: undefined,
+    AUTO_DEPLOY_COMMANDS: undefined,
+    BOT_OWNER_ID: undefined,
+    BOT_MENTION_CHAR: '@',
+
+    // AI Provider
+    AI_PROVIDER: 'openrouter',
+    OPENROUTER_API_KEY: undefined,
+    OPENAI_API_KEY: undefined,
+    ANTHROPIC_API_KEY: undefined,
+    DEFAULT_AI_MODEL: MODEL_DEFAULTS.DEFAULT_MODEL,
+
+    // AI Model Defaults
+    WHISPER_MODEL: MODEL_DEFAULTS.WHISPER,
+    VISION_FALLBACK_MODEL: MODEL_DEFAULTS.VISION_FALLBACK,
+    EMBEDDING_MODEL: MODEL_DEFAULTS.EMBEDDING,
+
+    // Redis
+    REDIS_URL: undefined,
+    REDIS_HOST: 'localhost',
+    REDIS_PORT: 6379,
+    REDIS_PASSWORD: undefined,
+
+    // Qdrant
+    QDRANT_URL: undefined,
+    QDRANT_API_KEY: undefined,
+
+    // Database
+    DATABASE_URL: undefined,
+    DEV_DATABASE_URL: undefined,
+    PROD_DATABASE_URL: undefined,
+
+    // API Gateway
+    API_GATEWAY_PORT: 3000,
+    GATEWAY_URL: 'http://localhost:3000',
+    PUBLIC_GATEWAY_URL: undefined,
+    CORS_ORIGINS: ['*'],
+
+    // Environment
+    NODE_ENV: 'test',
+
+    // Logging
+    LOG_LEVEL: 'error', // Quiet logs in tests
+
+    // Optional Services
+    ELEVENLABS_API_KEY: undefined,
+    IMAGE_GENERATION_API_KEY: undefined,
+
+    // Worker
+    WORKER_CONCURRENCY: 5,
+    QUEUE_NAME: 'ai-requests',
+    ENABLE_HEALTH_SERVER: false,
+    PORT: 3001,
+  };
+
+  return { ...testDefaults, ...overrides };
 }
