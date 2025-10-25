@@ -44,17 +44,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    // Validate that database URLs are configured
-    if (!config.DEV_DATABASE_URL || !config.PROD_DATABASE_URL) {
-      await interaction.editReply(
-        '❌ Database sync not configured.\n\n' +
-        'Both `DEV_DATABASE_URL` and `PROD_DATABASE_URL` environment variables must be set.\n' +
-        'See `.env.example` for configuration details.'
-      );
-      return;
-    }
-
     // Call API Gateway sync endpoint
+    // (API gateway will validate that database URLs are configured)
     const gatewayUrl = config.API_GATEWAY_URL || config.GATEWAY_URL;
     const response = await fetch(`${gatewayUrl}/admin/db-sync`, {
       method: 'POST',
