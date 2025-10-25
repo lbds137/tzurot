@@ -19,7 +19,7 @@
     "express": "^4.18.2",
     "pino": "^8.17.2",
     "pino-http": "^9.0.0",
-    "redis": "^4.6.12",
+    "redis": "^5.9.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@ Tzurot v3 is a monorepo with 3 microservices that need to be deployed to Railway
 
 1. **bot-client** - Discord bot (Discord.js)
 2. **api-gateway** - HTTP API (Express)
-3. **ai-worker** - AI processing with vector memory (LangChain + ChromaDB)
+3. **ai-worker** - AI processing with vector memory (LangChain + Qdrant)
 
 ## Required Railway Services
 
@@ -24,28 +24,27 @@ Used for BullMQ job queue and caching
 - **Name**: `redis`
 - **Environment Variable**: Automatically sets `REDIS_URL`
 
-### 3. ChromaDB (Vector Database)
+### 3. Qdrant (Vector Database)
 Used for long-term memory and RAG
 
-**Option A: Self-hosted on Railway** (Recommended for MVP)
+**Option A: Qdrant Cloud** (Recommended - generous free tier)
+- Sign up at https://qdrant.tech/
+- Create a cluster (free tier: 1GB storage)
+- Get cluster URL and API key
+- Set `QDRANT_URL` and `QDRANT_API_KEY` environment variables
+
+**Option B: Self-hosted on Railway**
 ```yaml
 # Add a new service with custom Docker container
-Docker Image: chromadb/chroma:latest
-Port: 8000
-Environment Variables:
-  - IS_PERSISTENT=TRUE
-  - ANONYMIZED_TELEMETRY=FALSE
+Docker Image: qdrant/qdrant:latest
+Port: 6333
 ```
 
-Set Railway internal URL as `CHROMA_URL` for other services:
+Set Railway internal URL for other services:
 ```
-CHROMA_URL=http://chroma.railway.internal:8000
+QDRANT_URL=http://qdrant.railway.internal:6333
 ```
-
-**Option B: External Chroma Cloud**
-- Sign up at https://www.trychroma.com/
-- Get API key and URL
-- Set `CHROMA_URL` and `CHROMA_API_KEY` environment variables
+(Note: No API key needed for internal Railway deployment)
 
 ## Environment Variables
 
@@ -72,7 +71,8 @@ AI_WORKER_URL=http://ai-worker.railway.internal:3001
 ```
 PORT=3001
 REDIS_URL=<set by Railway Redis addon>
-CHROMA_URL=http://chroma.railway.internal:8000
+QDRANT_URL=<your Qdrant Cloud URL or http://qdrant.railway.internal:6333>
+QDRANT_API_KEY=<your Qdrant API key if using cloud>
 
 # AI Provider Keys (for personalities without BYOK)
 OPENROUTER_API_KEY=your_openrouter_key
@@ -91,7 +91,7 @@ OPENAI_API_KEY=your_openai_key (for embeddings)
 ### 2. Add Database Services
 1. Click "+ New Service" → "Database" → "Add PostgreSQL"
 2. Click "+ New Service" → "Database" → "Add Redis"
-3. Click "+ New Service" → "Docker" → Use `chromadb/chroma:latest`
+3. For Qdrant: Either use Qdrant Cloud (recommended) or add "+ New Service" → "Docker" → Use `qdrant/qdrant:latest`
 
 ### 3. Deploy Application Services
 Railway should auto-detect the 3 services from `railway.json`:
@@ -136,7 +136,7 @@ Each service should log on startup:
 **ai-worker**:
 ```
 [AIWorker] BullMQ worker started
-[AIWorker] ChromaDB connection: OK
+[AIWorker] Qdrant connection: OK
 [AIWorker] Vector store initialized
 ```
 
@@ -145,15 +145,15 @@ Each service should log on startup:
 2. Check logs:
    - bot-client receives message and sends to api-gateway
    - api-gateway creates job in Redis queue
-   - ai-worker picks up job, queries Chroma, generates response
+   - ai-worker picks up job, queries Qdrant, generates response
    - Response flows back to Discord
 
 ## Troubleshooting
 
-### "Cannot connect to ChromaDB"
-- Verify ChromaDB service is running
-- Check `CHROMA_URL` is set correctly
-- Use Railway internal URL: `http://chroma.railway.internal:8000`
+### "Cannot connect to Qdrant"
+- For Qdrant Cloud: Verify `QDRANT_URL` and `QDRANT_API_KEY` are set correctly
+- For self-hosted: Verify Qdrant service is running on Railway
+- Use Railway internal URL: `http://qdrant.railway.internal:6333`
 
 ### "No API key available"
 - Make sure `OPENROUTER_API_KEY` or `OPENAI_API_KEY` is set in ai-worker
@@ -174,12 +174,12 @@ Each service should log on startup:
 ### For Production
 1. **Increase replicas** for bot-client (horizontal scaling)
 2. **Upgrade database** tiers as usage grows
-3. **Consider Chroma Cloud** for better vector search performance
+3. **Use Qdrant Cloud** for production-grade vector search performance
 4. **Add monitoring** (Railway integrates with Sentry, LogDNA, etc.)
 
 ### Cost Optimization
 - Use BYOK for all users to avoid paying for their AI usage
-- Monitor Chroma storage usage
+- Monitor Qdrant storage usage (free tier: 1GB)
 - Use Redis for aggressive caching to reduce vector DB queries
 
 ## Monitoring

@@ -4,6 +4,8 @@
  * Type definitions for Discord bot client.
  */
 
+import type { ChatInputCommandInteraction } from 'discord.js';
+
 // Types for Discord bot client
 
 /**
@@ -90,8 +92,8 @@ export interface Command {
   data: {
     name: string;
     description: string;
-    toJSON: () => any;
+    toJSON: () => Record<string, unknown>;
   };
   category?: string;
-  execute: (interaction: any, ...args: any[]) => Promise<void>;
+  execute: (interaction: ChatInputCommandInteraction, ...args: unknown[]) => Promise<void>;
 }

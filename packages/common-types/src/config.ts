@@ -64,9 +64,6 @@ export const envSchema = z.object({
   QUEUE_NAME: z.string().default('ai-requests'),
   ENABLE_HEALTH_SERVER: z.string().transform((val) => val !== 'false').default('true'),
   PORT: z.string().regex(/^\d+$/).transform(Number).default('3001'),
-
-  // Vector Store Configuration (legacy Chroma support)
-  CHROMA_URL: z.string().url().optional().default('http://localhost:8000'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

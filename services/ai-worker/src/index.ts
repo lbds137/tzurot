@@ -2,7 +2,7 @@
  * AI Worker - Main Entry Point
  *
  * This service:
- * 1. Connects to ChromaDB for vector memory
+ * 1. Connects to Qdrant for vector memory
  * 2. Initializes the RAG service
  * 3. Listens to BullMQ queue for AI generation jobs
  * 4. Processes jobs and returns results
@@ -26,9 +26,6 @@ const config = {
     family: 6,
     // Parse Railway's REDIS_URL if provided
     ...(envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : {})
-  },
-  chroma: {
-    url: envConfig.CHROMA_URL
   },
   openai: {
     apiKey: envConfig.OPENAI_API_KEY // For embeddings
@@ -68,7 +65,6 @@ async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
   logger.info('[AIWorker] Configuration:', {
     redis: { ...config.redis, password: config.redis.password ? '***' : undefined },
-    chroma: config.chroma,
     worker: config.worker
   });
 

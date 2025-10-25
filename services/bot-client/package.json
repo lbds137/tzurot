@@ -19,7 +19,7 @@
     "discord.js": "^14.14.1",
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
-    "redis": "^4.6.12",
+    "redis": "^5.9.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

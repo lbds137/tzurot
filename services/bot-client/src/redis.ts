@@ -126,6 +126,6 @@ export async function checkRedisHealth(): Promise<boolean> {
  */
 export async function closeRedis(): Promise<void> {
   logger.info('[Redis] Closing Redis connection...');
-  await redis.quit();
+  await redis.close();
   logger.info('[Redis] Redis connection closed');
 }

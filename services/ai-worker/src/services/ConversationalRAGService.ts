@@ -191,7 +191,7 @@ export class ConversationalRAGService {
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed: response.response_metadata?.tokenUsage?.totalTokens,
+        tokensUsed: response.usage_metadata?.total_tokens,
         attachmentDescriptions,
         modelUsed: modelName
       };
