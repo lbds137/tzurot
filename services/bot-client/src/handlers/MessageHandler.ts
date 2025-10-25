@@ -7,8 +7,8 @@
 
 import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
-import { GatewayClient } from '../gateway/client.js';
-import { WebhookManager } from '../webhooks/manager.js';
+import { GatewayClient } from '../gateway/GatewayClient.js';
+import { WebhookManager } from '../webhooks/WebhookManager.js';
 import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
