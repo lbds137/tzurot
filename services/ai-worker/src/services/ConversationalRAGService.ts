@@ -5,7 +5,6 @@
  * - Uses vector store for long-term memory retrieval
  * - Manages conversation history
  * - Builds prompts with system message, memory, and history
- * - Supports streaming responses
  */
 
 import {

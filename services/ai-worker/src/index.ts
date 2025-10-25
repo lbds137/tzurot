@@ -98,12 +98,7 @@ async function main(): Promise<void> {
   const worker = new Worker<AIJobData, AIJobResult>(
     config.worker.queueName,
     async (job: Job<AIJobData>) => {
-      // Process the job based on type
-      if (job.data.jobType === 'stream') {
-        return await jobProcessor.processStreamJob(job);
-      } else {
-        return await jobProcessor.processJob(job);
-      }
+      return await jobProcessor.processJob(job);
     },
     {
       connection: config.redis,

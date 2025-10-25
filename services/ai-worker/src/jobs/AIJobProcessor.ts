@@ -25,7 +25,7 @@ const logger = createLogger('AIJobProcessor');
 export interface AIJobData {
   // Request identification
   requestId: string;
-  jobType: 'generate' | 'stream';
+  jobType: 'generate';
 
   // Personality
   personality: LoadedPersonality;
@@ -177,24 +177,6 @@ export class AIJobProcessor {
         }
       };
     }
-  }
-
-  /**
-   * Process a streaming job
-   * Note: BullMQ doesn't natively support streaming, so we'll need to handle this differently
-   * For now, we'll just generate the full response and return it
-   *
-   * TODO: Implement actual streaming via WebSockets or Server-Sent Events
-   */
-  async processStreamJob(job: Job<AIJobData>): Promise<AIJobResult> {
-    // For now, just use regular generation
-    // In the future, we could:
-    // 1. Open a WebSocket connection to the api-gateway
-    // 2. Stream chunks as they're generated
-    // 3. Close connection when done
-
-    logger.warn(`[AIJobProcessor] Stream job ${job.id} - falling back to regular generation`);
-    return this.processJob(job);
   }
 
   /**
