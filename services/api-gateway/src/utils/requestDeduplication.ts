@@ -8,19 +8,19 @@
  */
 
 import { createHash } from 'node:crypto';
-import { createLogger } from '@tzurot/common-types';
-import type { GenerateRequest, CachedRequest } from '../types.js';
+import { createLogger, INTERVALS } from '@tzurot/common-types';
+import type { GenerateRequest, CachedRequest} from '../types.js';
 
 const logger = createLogger('RequestDeduplication');
 
 // Cache to track recent requests
 const requestCache = new Map<string, CachedRequest>();
 
-// Time window for duplicate detection (5 seconds)
-const DUPLICATE_DETECTION_WINDOW = 5000;
+// Time window for duplicate detection
+const DUPLICATE_DETECTION_WINDOW = INTERVALS.REQUEST_DEDUP_WINDOW;
 
-// Cleanup interval (10 seconds)
-const CLEANUP_INTERVAL = 10000;
+// Cleanup interval
+const CLEANUP_INTERVAL = INTERVALS.REQUEST_DEDUP_CLEANUP;
 
 // Start cleanup timer
 let cleanupTimer: NodeJS.Timeout | undefined;
