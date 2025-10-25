@@ -95,9 +95,9 @@ process.on('SIGINT', () => {
 async function start(): Promise<void> {
   try {
     logger.info('[Bot] Starting Tzurot v3 Bot Client...');
-    logger.info('[Bot] Configuration:', {
+    logger.info({
       gatewayUrl: config.gatewayUrl
-    });
+    }, '[Bot] Configuration:');
 
     // Verify we can connect to database
     logger.info('[Bot] Verifying database connection...');

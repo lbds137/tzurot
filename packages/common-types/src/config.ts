@@ -15,12 +15,10 @@ export const envSchema = z.object({
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
   // AI Provider Configuration
-  AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'gemini', 'local']).default('openrouter'),
+  AI_PROVIDER: z.enum(['openrouter', 'openai', 'anthropic', 'local']).default('openrouter'),
   OPENROUTER_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  GEMINI_API_KEY: z.string().optional(),
-  GEMINI_BASE_URL: z.string().url().optional(),
   DEFAULT_AI_MODEL: z.string().optional().default(MODEL_DEFAULTS.DEFAULT_MODEL),
 
   // AI Model Defaults
@@ -31,7 +29,7 @@ export const envSchema = z.object({
   // Redis Configuration
   REDIS_URL: z.string().url().optional(), // Railway provides this, no default!
   REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default('6379'),
+  REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(6379),
   REDIS_PASSWORD: z.string().optional(),
 
   // Qdrant Configuration
@@ -44,10 +42,10 @@ export const envSchema = z.object({
   PROD_DATABASE_URL: z.string().url().optional(), // For db-sync: production database URL
 
   // API Gateway Configuration
-  API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default('3000'),
+  API_GATEWAY_PORT: z.string().regex(/^\d+$/).transform(Number).default(3000),
   GATEWAY_URL: z.string().url().optional().default('http://localhost:3000'), // Internal URL for API calls (bot-client -> api-gateway)
   PUBLIC_GATEWAY_URL: z.string().url().optional(), // Public HTTPS URL for external resources (Discord avatar fetching)
-  CORS_ORIGINS: z.string().optional().transform((val) => val?.split(',') ?? ['*']).default('*'),
+  CORS_ORIGINS: z.string().optional().transform((val) => val?.split(',') ?? ['*']).default(['*']),
 
   // Environment
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -60,10 +58,10 @@ export const envSchema = z.object({
   IMAGE_GENERATION_API_KEY: z.string().optional(),
 
   // Worker Configuration
-  WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default('5'),
+  WORKER_CONCURRENCY: z.string().regex(/^\d+$/).transform(Number).default(5),
   QUEUE_NAME: z.string().default('ai-requests'),
-  ENABLE_HEALTH_SERVER: z.string().transform((val) => val !== 'false').default('true'),
-  PORT: z.string().regex(/^\d+$/).transform(Number).default('3001'),
+  ENABLE_HEALTH_SERVER: z.string().transform((val) => val !== 'false').default(true),
+  PORT: z.string().regex(/^\d+$/).transform(Number).default(3001),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

@@ -101,7 +101,7 @@ aiRouter.post('/generate', async (req, res) => {
         message: 'Invalid request body',
         timestamp: new Date().toISOString()
       };
-      logger.warn('[AI] Validation error:', validationResult.error.errors);
+      logger.warn({ errors: validationResult.error.issues }, '[AI] Validation error:');
       res.status(400).json(errorResponse);
       return;
     }

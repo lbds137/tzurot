@@ -40,11 +40,11 @@ const redisConfig = {
   password: parsedUrl?.password || config.REDIS_PASSWORD,
 };
 
-logger.info('[Redis] Redis config:', {
+logger.info({
   host: redisConfig.socket.host,
   port: redisConfig.socket.port,
   hasPassword: redisConfig.password !== undefined
-});
+}, '[Redis] Redis config:');
 
 // Create Redis client with explicit type
 export const redis: RedisClientType = createClient(redisConfig) as RedisClientType;

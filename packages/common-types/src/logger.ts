@@ -35,6 +35,7 @@ export function createLogger(name?: string): Logger {
     // Enable error serialization - pino will automatically serialize Error objects
     // when passed with the 'err' key: logger.error({ err: error }, 'message')
     serializers: {
+      // @ts-expect-error - stdSerializers exists at runtime in Pino 10 but types are incomplete
       err: pino.stdSerializers.err,
     },
   };

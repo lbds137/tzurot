@@ -63,10 +63,10 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
  */
 async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
-  logger.info('[AIWorker] Configuration:', {
+  logger.info({
     redis: { ...config.redis, password: config.redis.password ? '***' : undefined },
     worker: config.worker
-  });
+  }, '[AIWorker] Configuration:');
 
   // Initialize vector memory manager (fails gracefully if Qdrant not configured)
   let memoryManager: QdrantMemoryAdapter | undefined;
@@ -126,10 +126,10 @@ async function main(): Promise<void> {
 
   worker.on('completed', (job: Job<AIJobData>, result: AIJobResult) => {
     const jobId = job.id ?? 'unknown';
-    logger.info(`[AIWorker] Job ${jobId} completed successfully`, {
+    logger.info({
       requestId: result.requestId,
       processingTime: result.metadata?.processingTimeMs
-    });
+    }, `[AIWorker] Job ${jobId} completed successfully`);
   });
 
   worker.on('failed', (job: Job<AIJobData> | undefined, error: Error) => {

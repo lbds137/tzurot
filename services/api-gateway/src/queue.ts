@@ -36,11 +36,11 @@ const redisConfig = {
   ...(config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : {})
 };
 
-logger.info('[Queue] Redis config:', {
+logger.info({
   host: redisConfig.host,
   port: redisConfig.port,
   hasPassword: redisConfig.password !== undefined
-});
+}, '[Queue] Redis config:');
 
 // Queue name
 const QUEUE_NAME = config.QUEUE_NAME;
@@ -70,7 +70,7 @@ queueEvents.on('completed', ({ jobId }) => {
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
-  logger.error(`[Queue] Job ${jobId} failed:`, failedReason);
+  logger.error({ failedReason }, `[Queue] Job ${jobId} failed:`);
 });
 
 queueEvents.on('error', (error) => {

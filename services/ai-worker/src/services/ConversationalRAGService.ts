@@ -313,7 +313,7 @@ export class ConversationalRAGService {
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
-      logger.debug('[RAG] Detailed prompt assembly:', {
+      logger.debug({
         personalityId: personality.id,
         personalityName: personality.name,
         systemPromptLength: systemPrompt.length,
@@ -332,7 +332,7 @@ export class ConversationalRAGService {
         stmOldestTimestamp: context.oldestHistoryTimestamp
           ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
           : null,
-      });
+      }, '[RAG] Detailed prompt assembly:');
 
       // Show full prompt in debug mode (truncated to avoid massive logs)
       const maxPreviewLength = 2000;
