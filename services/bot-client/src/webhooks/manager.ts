@@ -26,6 +26,7 @@ interface CachedWebhook {
 export class WebhookManager {
   private webhookCache = new Map<string, CachedWebhook>();
   private readonly cacheTimeout = 10 * 60 * 1000; // 10 minutes
+  private readonly maxCacheSize = 100; // Maximum number of cached webhooks
   private cleanupInterval?: NodeJS.Timeout;
   private client: Client;
   private botSuffix: string | null = null;
@@ -133,6 +134,9 @@ export class WebhookManager {
       lastUsed: Date.now()
     });
 
+    // Enforce size limit to prevent unbounded growth
+    this.enforceCacheLimit();
+
     return webhook;
   }
 
@@ -208,6 +212,27 @@ export class WebhookManager {
     if (cleanedCount > 0) {
       logger.debug(`[WebhookManager] Cleaned up ${cleanedCount} expired webhook cache entries`);
     }
+  }
+
+  /**
+   * Enforce cache size limit by removing least recently used entries
+   */
+  private enforceCacheLimit(): void {
+    if (this.webhookCache.size <= this.maxCacheSize) {
+      return;
+    }
+
+    // Sort entries by lastUsed (oldest first)
+    const sortedEntries = Array.from(this.webhookCache.entries())
+      .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+
+    // Remove oldest entries until we're under the limit
+    const entriesToRemove = this.webhookCache.size - this.maxCacheSize;
+    for (let i = 0; i < entriesToRemove; i++) {
+      this.webhookCache.delete(sortedEntries[i][0]);
+    }
+
+    logger.debug(`[WebhookManager] Evicted ${entriesToRemove} least recently used webhook cache entries (limit: ${this.maxCacheSize})`);
   }
 
   /**
