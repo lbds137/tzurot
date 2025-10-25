@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, TIMEOUTS } from '@tzurot/common-types';
 import { z } from 'zod';
 import { aiQueue, queueEvents } from '../queue.js';
 import {
@@ -201,8 +201,8 @@ aiRouter.post('/generate', async (req, res) => {
         ).length ?? 0;
 
         // Base timeout: 2 minutes, scale by image count
-        // Cap at 4.5 minutes (270s) - allows 3 retry passes + 30s buffer under Railway's 5-minute limit
-        const timeoutMs = Math.min(270000, 120000 * Math.max(1, imageCount));
+        // Cap at 4.5 minutes - allows 3 retry passes + 30s buffer under Railway's 5-minute limit
+        const timeoutMs = Math.min(TIMEOUTS.JOB_WAIT, TIMEOUTS.JOB_BASE * Math.max(1, imageCount));
 
         logger.debug(
           `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
