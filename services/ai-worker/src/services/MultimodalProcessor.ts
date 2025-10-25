@@ -158,10 +158,19 @@ async function describeWithVisionModel(
     messages.push(new SystemMessage(personality.systemPrompt));
   }
 
-  // Fetch image and convert to base64 (more reliable than external URLs)
-  logger.info({ size: attachment.size, url: attachment.url, modelName }, 'Fetching image for vision processing');
-  const base64Image = await fetchAsBase64(attachment.url);
-  logger.info({ originalSize: attachment.size, base64Size: base64Image.length, modelName }, 'Image converted to base64');
+  // Hybrid approach: Use direct URLs for fresh Discord links (faster),
+  // fall back to base64 for expired URLs or edge cases
+  let imageUrl: string;
+
+  if (isDiscordUrlExpired(attachment.url)) {
+    logger.info({ url: attachment.url, modelName }, 'Discord URL expired or expiring soon, using base64 fallback');
+    const base64Image = await fetchAsBase64(attachment.url);
+    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
+    logger.info({ base64Size: base64Image.length, modelName }, 'Image converted to base64');
+  } else {
+    logger.info({ url: attachment.url, modelName }, 'Using direct Discord URL (fresh, valid for 24h)');
+    imageUrl = attachment.url;
+  }
 
   // Request detailed, objective description
   messages.push(
@@ -170,7 +179,7 @@ async function describeWithVisionModel(
         {
           type: 'image_url',
           image_url: {
-            url: `data:${attachment.contentType};base64,${base64Image}`,
+            url: imageUrl,
           },
         },
         {
@@ -240,11 +249,19 @@ async function describeWithFallbackVision(
     messages.push(new SystemMessage(systemPrompt));
   }
 
-  // Fetch image and convert to base64 (OpenRouter requires base64)
-  logger.info({ size: attachment.size, url: attachment.url }, 'Fetching image for vision processing');
-  const base64Image = await fetchAsBase64(attachment.url);
-  const base64Size = base64Image.length;
-  logger.info({ originalSize: attachment.size, base64Size }, 'Image converted to base64');
+  // Hybrid approach: Use direct URLs for fresh Discord links (faster),
+  // fall back to base64 for expired URLs or edge cases
+  let imageUrl: string;
+
+  if (isDiscordUrlExpired(attachment.url)) {
+    logger.info({ url: attachment.url }, 'Discord URL expired or expiring soon, using base64 fallback');
+    const base64Image = await fetchAsBase64(attachment.url);
+    imageUrl = `data:${attachment.contentType};base64,${base64Image}`;
+    logger.info({ base64Size: base64Image.length }, 'Image converted to base64');
+  } else {
+    logger.info({ url: attachment.url }, 'Using direct Discord URL (fresh, valid for 24h)');
+    imageUrl = attachment.url;
+  }
 
   messages.push(
     new HumanMessage({
@@ -252,7 +269,7 @@ async function describeWithFallbackVision(
         {
           type: 'image_url',
           image_url: {
-            url: `data:${attachment.contentType};base64,${base64Image}`,
+            url: imageUrl,
           },
         },
         {
@@ -356,6 +373,41 @@ export async function transcribeAudio(
 
     // Fallback to basic description
     return `[Voice message: ${attachment.duration || 0}s]`;
+  }
+}
+
+/**
+ * Check if a Discord CDN URL has expired or will expire soon
+ * Discord URLs expire after 24 hours (changed Dec 2023)
+ * URL format: ?ex=<hex_timestamp>&is=<issued>&hm=<hash>
+ */
+function isDiscordUrlExpired(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+
+    // Only check Discord CDN URLs
+    if (!urlObj.hostname.includes('discord')) {
+      return false; // Not a Discord URL, assume it's safe
+    }
+
+    const exHex = urlObj.searchParams.get('ex');
+
+    if (!exHex) {
+      logger.warn({ url }, 'Discord URL missing expiry parameter, treating as expired');
+      return true; // No expiry param = assume unsafe/old format
+    }
+
+    // Convert hex timestamp to milliseconds
+    const expiryTimestamp = parseInt(exHex, 16) * 1000;
+    const now = Date.now();
+
+    // Add 5-minute buffer to be safe (if expiring in <5min, treat as expired)
+    const bufferMs = 5 * 60 * 1000;
+
+    return now >= (expiryTimestamp - bufferMs);
+  } catch (error) {
+    logger.warn({ err: error, url }, 'Failed to parse Discord URL, treating as expired');
+    return true; // If we can't parse it, be safe and use base64
   }
 }
 

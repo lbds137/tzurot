@@ -186,7 +186,8 @@ aiRouter.post('/generate', async (req, res) => {
         ).length ?? 0;
 
         // Base timeout: 2 minutes, scale by image count
-        const timeoutMs = 120000 * Math.max(1, imageCount);
+        // Cap at 4 minutes to stay under Railway's 5-minute HTTP timeout limit
+        const timeoutMs = Math.min(240000, 120000 * Math.max(1, imageCount));
 
         logger.debug(
           `[AI] Waiting for job ${job.id} completion (timeout: ${timeoutMs}ms, images: ${imageCount})`
