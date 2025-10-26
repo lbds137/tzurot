@@ -125,8 +125,11 @@ export class DatabaseSyncService {
       const schemaVersion = await this.checkSchemaVersions();
       logger.info({ schemaVersion }, '[Sync] Schema versions verified');
 
+      // Validate SYNC_CONFIG matches actual schema
+      const configWarnings = await this.validateSyncConfig();
+
       const stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }> = {};
-      const warnings: string[] = [];
+      const warnings: string[] = [...configWarnings];
 
       // Sync each table
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
@@ -190,6 +193,84 @@ export class DatabaseSyncService {
     }
 
     return devVersion;
+  }
+
+  /**
+   * Validate that SYNC_CONFIG matches actual database schema
+   * Returns warnings for any mismatches
+   */
+  private async validateSyncConfig(): Promise<string[]> {
+    const warnings: string[] = [];
+
+    // Get actual UUID columns from database schema
+    const actualUuidColumns = await this.devClient.$queryRaw<
+      Array<{ table_name: string; column_name: string }>
+    >`
+      SELECT table_name, column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND data_type = 'uuid'
+      ORDER BY table_name, column_name
+    `;
+
+    // Build map of table -> UUID columns
+    const schemaMap = new Map<string, Set<string>>();
+    for (const row of actualUuidColumns) {
+      if (!schemaMap.has(row.table_name)) {
+        schemaMap.set(row.table_name, new Set());
+      }
+      schemaMap.get(row.table_name)!.add(row.column_name);
+    }
+
+    // Check each table in SYNC_CONFIG
+    for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+      const actualColumns = schemaMap.get(tableName);
+
+      if (!actualColumns) {
+        warnings.push(`⚠️  SYNC_CONFIG has table '${tableName}' but it doesn't exist in database schema`);
+        continue;
+      }
+
+      // Check for missing UUID columns in SYNC_CONFIG
+      const configColumns = config.uuidColumns as readonly string[];
+      for (const actualColumn of actualColumns) {
+        if (!configColumns.includes(actualColumn)) {
+          warnings.push(
+            `⚠️  Table '${tableName}' has UUID column '${actualColumn}' in schema but not in SYNC_CONFIG.uuidColumns`
+          );
+        }
+      }
+
+      // Check for extra UUID columns in SYNC_CONFIG
+      for (const configColumn of config.uuidColumns) {
+        if (!actualColumns.has(configColumn)) {
+          warnings.push(
+            `⚠️  Table '${tableName}' has '${configColumn}' in SYNC_CONFIG.uuidColumns but it's not a UUID column in schema (or doesn't exist)`
+          );
+        }
+      }
+    }
+
+    // Check for tables in schema but not in SYNC_CONFIG
+    const syncedTables = new Set(Object.keys(SYNC_CONFIG));
+    for (const tableName of schemaMap.keys()) {
+      // Skip Prisma internal tables
+      if (tableName.startsWith('_prisma')) continue;
+
+      if (!syncedTables.has(tableName)) {
+        warnings.push(
+          `💡 Table '${tableName}' exists in database but is not in SYNC_CONFIG (will not be synced)`
+        );
+      }
+    }
+
+    if (warnings.length > 0) {
+      logger.warn({ warnings }, '[Sync] SYNC_CONFIG validation warnings detected');
+    } else {
+      logger.info('[Sync] SYNC_CONFIG validation passed - all UUID columns match schema');
+    }
+
+    return warnings;
   }
 
   /**
