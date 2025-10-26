@@ -133,20 +133,25 @@ export class ConversationalRAGService {
       // For voice messages, use transcription instead of "Hello" fallback
       const searchQuery = this.buildSearchQuery(userMessage, processedAttachments);
 
-      // 4. Fetch user's persona if available
-      const userPersona = await this.getUserPersona(context.userId);
-      if (userPersona) {
-        logger.info(`[RAG] Loaded user persona for ${context.userId}: ${userPersona.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
+      // 4. Fetch ACTIVE persona if available (not default - might be personality-specific override)
+      let activePersonaContent: string | null = null;
+      if (context.activePersonaId) {
+        activePersonaContent = await this.getPersonaContent(context.activePersonaId);
+        if (activePersonaContent) {
+          logger.info(`[RAG] Loaded active persona ${context.activePersonaName || context.activePersonaId.substring(0, 8)}: ${activePersonaContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
+        } else {
+          logger.warn(`[RAG] No persona content found for active persona ${context.activePersonaId}`);
+        }
       } else {
-        logger.warn(`[RAG] No user persona found for ${context.userId}`);
+        logger.debug(`[RAG] No active persona ID provided in context`);
       }
 
       // 5. Query vector store for relevant memories using actual content
       logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`);
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
-      // 4. Build the prompt with user persona and memory context
-      const fullSystemPrompt = this.buildFullSystemPrompt(personality, userPersona, relevantMemories, context);
+      // 6. Build the prompt with active persona and memory context
+      const fullSystemPrompt = this.buildFullSystemPrompt(personality, activePersonaContent, relevantMemories, context);
 
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
@@ -310,19 +315,28 @@ export class ConversationalRAGService {
    */
   private buildFullSystemPrompt(
     personality: LoadedPersonality,
-    userPersona: string | null,
+    activePersonaContent: string | null,
     relevantMemories: MemoryDocument[],
     context: ConversationContext
   ): string {
     const systemPrompt = this.buildSystemPrompt(personality);
     logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
 
-    const personaContext = userPersona
-      ? `\n\n## About the User You're Speaking With (${context.userName})\nThe following describes the user you are conversing with. This is NOT about you - this is about the person messaging you:\n\n${userPersona}`
+    // Current date/time context (place early for better awareness)
+    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
+
+    // Active speaker context - who you're talking to RIGHT NOW
+    const activePersonaContext = activePersonaContent && context.activePersonaName
+      ? `\n\n## About ${context.activePersonaName} (Current Speaker)\n${activePersonaContent}\n\nNote: In group conversations, you'll see messages prefixed with persona names like "${context.activePersonaName}: [timestamp] message". This shows who said what.`
+      : activePersonaContent
+      ? `\n\n## About the Current Speaker\n${activePersonaContent}\n\nNote: In group conversations, messages are prefixed with persona names to show who said what.`
+      : context.activePersonaName
+      ? `\n\n## Current Conversation Context\nYou are speaking with ${context.activePersonaName}. In group conversations, messages are prefixed with persona names (e.g., "${context.activePersonaName}: message").`
       : '';
 
+    // Relevant memories from past interactions
     const memoryContext = relevantMemories.length > 0
-      ? '\n\nRelevant memories and past interactions:\n' +
+      ? '\n\n## Relevant Memories\n' +
         relevantMemories.map((doc) => {
           const timestamp = doc.metadata?.createdAt
             ? formatMemoryTimestamp(doc.metadata.createdAt)
@@ -331,17 +345,10 @@ export class ConversationalRAGService {
         }).join('\n')
       : '';
 
-    const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
-
-    // Add active speaker context if available
-    const activePersonaContext = context.activePersonaName
-      ? `\n\nIMPORTANT: You are currently speaking with ${context.activePersonaName}. In the conversation history, you'll see messages prefixed with persona names (e.g., "${context.activePersonaName}: [timestamp] message"). This helps you understand who said what in group conversations. The current message you're responding to is from ${context.activePersonaName}.`
-      : '';
-
-    const fullSystemPrompt = `${systemPrompt}${personaContext}${activePersonaContext}${memoryContext}${dateContext}`;
+    const fullSystemPrompt = `${systemPrompt}${dateContext}${activePersonaContext}${memoryContext}`;
 
     // Basic prompt composition logging (always)
-    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} activePersona=${activePersonaContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
@@ -349,8 +356,9 @@ export class ConversationalRAGService {
         personalityId: personality.id,
         personalityName: personality.name,
         systemPromptLength: systemPrompt.length,
-        hasUserPersona: !!userPersona,
-        userPersonaLength: userPersona?.length || 0,
+        hasActivePersona: !!activePersonaContent,
+        activePersonaLength: activePersonaContent?.length || 0,
+        activePersonaName: context.activePersonaName,
         memoryCount: relevantMemories.length,
         memoryIds: relevantMemories.map((m) => m.metadata?.id || 'unknown'),
         memoryTimestamps: relevantMemories.map((m) =>
@@ -358,6 +366,7 @@ export class ConversationalRAGService {
         ),
         totalMemoryChars: memoryContext.length,
         dateContextLength: dateContext.length,
+        activePersonaContextLength: activePersonaContext.length,
         totalSystemPromptLength: fullSystemPrompt.length,
         // Include STM info for duplication detection
         stmCount: context.conversationHistory?.length || 0,
@@ -623,31 +632,23 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Get user's persona from database
+   * Get persona content by personaId
+   * This fetches the ACTIVE persona (which might be a personality-specific override)
    */
-  private async getUserPersona(userId: string): Promise<string | null> {
+  private async getPersonaContent(personaId: string): Promise<string | null> {
     try {
       const { getPrismaClient } = await import('@tzurot/common-types');
       const prisma = getPrismaClient();
 
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          defaultPersonaLink: {
-            select: {
-              persona: {
-                select: {
-                  preferredName: true,
-                  pronouns: true,
-                  content: true
-                }
-              }
-            }
-          }
+      const persona = await prisma.persona.findUnique({
+        where: { id: personaId },
+        select: {
+          preferredName: true,
+          pronouns: true,
+          content: true
         }
       });
 
-      const persona = user?.defaultPersonaLink?.persona;
       if (!persona) return null;
 
       // Build persona context with structured fields
@@ -667,7 +668,7 @@ export class ConversationalRAGService {
 
       return parts.length > 0 ? parts.join('\n') : null;
     } catch (error) {
-      logger.error({ err: error }, '[RAG] Failed to fetch user persona');
+      logger.error({ err: error }, `[RAG] Failed to fetch persona ${personaId}`);
       return null;
     }
   }
