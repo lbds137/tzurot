@@ -49,16 +49,11 @@ export class GatewayClient {
         body: JSON.stringify({
           personality: personality, // Pass entire LoadedPersonality object
           message: context.messageContent,
+          // Pass entire context object - let TypeScript enforce completeness
           context: {
-            userId: context.userId,
-            userName: context.userName,
-            channelId: context.channelId,
-            serverId: context.serverId,
-            activePersonaId: context.activePersonaId,
-            activePersonaName: context.activePersonaName,
-            conversationHistory: context.conversationHistory || [],
-            attachments: context.attachments,
-            environment: context.environment
+            ...context,
+            // Ensure conversationHistory is always an array
+            conversationHistory: context.conversationHistory || []
           }
         })
       });
