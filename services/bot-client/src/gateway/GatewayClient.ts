@@ -54,8 +54,11 @@ export class GatewayClient {
             userName: context.userName,
             channelId: context.channelId,
             serverId: context.serverId,
+            activePersonaId: context.activePersonaId,
+            activePersonaName: context.activePersonaName,
             conversationHistory: context.conversationHistory || [],
-            attachments: context.attachments
+            attachments: context.attachments,
+            environment: context.environment
           }
         })
       });
