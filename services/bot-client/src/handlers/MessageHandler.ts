@@ -196,11 +196,14 @@ export class MessageHandler {
         }, INTERVALS.TYPING_INDICATOR_REFRESH);
       }
 
-      // Get or create user record (needed for foreign key)
+      // Get or create user record
       const userId = await this.userService.getOrCreateUser(
         message.author.id,
         message.author.username
       );
+
+      // Get the persona for this user + personality combination
+      const personaId = await this.userService.getPersonaForUser(userId, personality.id);
 
       // Get conversation history from PostgreSQL
       const historyLimit = personality.contextWindow || 20;
@@ -249,7 +252,7 @@ export class MessageHandler {
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
-        userId,
+        personaId,
         'user',
         content || '[no text content]'
       );
@@ -289,7 +292,7 @@ export class MessageHandler {
         await this.conversationHistory.updateLastUserMessage(
           message.channel.id,
           personality.id,
-          userId,
+          personaId,
           enrichedContent
         );
       }
