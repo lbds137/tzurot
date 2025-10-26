@@ -64,11 +64,17 @@ const generateRequestSchema = z.object({
     serverId: z.string().optional(),
     sessionId: z.string().optional(),
     isProxyMessage: z.boolean().optional(),
+    // Active speaker persona
+    activePersonaId: z.string().optional(),
+    activePersonaName: z.string().optional(),
     conversationHistory: z.array(z.object({
       id: z.string().optional(), // Internal UUID for LTM deduplication
       role: z.enum(['user', 'assistant', 'system']),
       content: z.string(),
-      createdAt: z.string().optional()
+      createdAt: z.string().optional(),
+      // Persona info for multi-participant conversations
+      personaId: z.string().optional(),
+      personaName: z.string().optional()
     })).optional(),
     attachments: z.array(z.object({
       url: z.string(),
@@ -78,7 +84,33 @@ const generateRequestSchema = z.object({
       isVoiceMessage: z.boolean().optional(),
       duration: z.number().optional(),
       waveform: z.string().optional()
-    })).optional()
+    })).optional(),
+    // Discord environment context
+    environment: z.object({
+      type: z.enum(['dm', 'guild']),
+      guild: z.object({
+        id: z.string(),
+        name: z.string()
+      }).optional(),
+      category: z.object({
+        id: z.string(),
+        name: z.string()
+      }).optional(),
+      channel: z.object({
+        id: z.string(),
+        name: z.string(),
+        type: z.string()
+      }),
+      thread: z.object({
+        id: z.string(),
+        name: z.string(),
+        parentChannel: z.object({
+          id: z.string(),
+          name: z.string(),
+          type: z.string()
+        })
+      }).optional()
+    }).optional()
   }),
   userApiKey: z.string().optional()
 });
