@@ -6,8 +6,7 @@
 
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { createLogger, TIMEOUTS } from '@tzurot/common-types';
-import { z } from 'zod';
+import { createLogger, TIMEOUTS, generateRequestSchema } from '@tzurot/common-types';
 import { aiQueue, queueEvents } from '../queue.js';
 import {
   checkDuplicate,
@@ -23,97 +22,6 @@ import type {
 const logger = createLogger('AIRouter');
 
 export const aiRouter: Router = Router();
-
-// Validation schema for generate request
-const generateRequestSchema = z.object({
-  personality: z.object({
-    // Core fields
-    id: z.string().optional(), // LoadedPersonality UUID
-    name: z.string(),
-    displayName: z.string().optional(),
-    systemPrompt: z.string(),
-    // LLM config
-    model: z.string().optional(),
-    temperature: z.number().optional(),
-    maxTokens: z.number().optional(),
-    topP: z.number().optional(),
-    topK: z.number().optional(),
-    frequencyPenalty: z.number().optional(),
-    presencePenalty: z.number().optional(),
-    // Memory config
-    memoryEnabled: z.boolean().optional(),
-    memoryScoreThreshold: z.number().optional(),
-    memoryLimit: z.number().optional(),
-    contextWindow: z.number().optional(),
-    avatarUrl: z.string().optional(),
-    // Character fields from LoadedPersonality
-    characterInfo: z.string().optional(),
-    personalityTraits: z.string().optional(),
-    personalityTone: z.string().optional(),
-    personalityAge: z.string().optional(),
-    personalityLikes: z.string().optional(),
-    personalityDislikes: z.string().optional(),
-    conversationalGoals: z.string().optional(),
-    conversationalExamples: z.string().optional()
-  }),
-  message: z.union([z.string(), z.object({}).passthrough()]),
-  context: z.object({
-    userId: z.string(),
-    userName: z.string().optional(),
-    channelId: z.string().optional(),
-    serverId: z.string().optional(),
-    sessionId: z.string().optional(),
-    isProxyMessage: z.boolean().optional(),
-    // Active speaker persona
-    activePersonaId: z.string().optional(),
-    activePersonaName: z.string().optional(),
-    conversationHistory: z.array(z.object({
-      id: z.string().optional(), // Internal UUID for LTM deduplication
-      role: z.enum(['user', 'assistant', 'system']),
-      content: z.string(),
-      createdAt: z.string().optional(),
-      // Persona info for multi-participant conversations
-      personaId: z.string().optional(),
-      personaName: z.string().optional()
-    })).optional(),
-    attachments: z.array(z.object({
-      url: z.string(),
-      contentType: z.string(),
-      name: z.string().optional(),
-      size: z.number().optional(),
-      isVoiceMessage: z.boolean().optional(),
-      duration: z.number().optional(),
-      waveform: z.string().optional()
-    })).optional(),
-    // Discord environment context
-    environment: z.object({
-      type: z.enum(['dm', 'guild']),
-      guild: z.object({
-        id: z.string(),
-        name: z.string()
-      }).optional(),
-      category: z.object({
-        id: z.string(),
-        name: z.string()
-      }).optional(),
-      channel: z.object({
-        id: z.string(),
-        name: z.string(),
-        type: z.string()
-      }),
-      thread: z.object({
-        id: z.string(),
-        name: z.string(),
-        parentChannel: z.object({
-          id: z.string(),
-          name: z.string(),
-          type: z.string()
-        })
-      }).optional()
-    }).optional()
-  }),
-  userApiKey: z.string().optional()
-});
 
 /**
  * POST /ai/generate

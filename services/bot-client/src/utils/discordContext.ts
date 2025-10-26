@@ -7,49 +7,14 @@
 
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type DiscordEnvironment } from '@tzurot/common-types';
 
 const logger = createLogger('DiscordContext');
-
-export interface DiscordEnvironmentContext {
-  /** Whether this is a DM or guild conversation */
-  type: 'dm' | 'guild';
-
-  /** Guild information (null for DMs) */
-  guild?: {
-    id: string;
-    name: string;
-  };
-
-  /** Channel category (null if uncategorized or in DMs) */
-  category?: {
-    id: string;
-    name: string;
-  };
-
-  /** Channel information */
-  channel: {
-    id: string;
-    name: string;
-    type: string; // "text", "voice", "forum", "announcement", etc.
-  };
-
-  /** Thread information (null if not in a thread) */
-  thread?: {
-    id: string;
-    name: string;
-    parentChannel: {
-      id: string;
-      name: string;
-      type: string;
-    };
-  };
-}
 
 /**
  * Extract environment context from a Discord message
  */
-export function extractDiscordEnvironment(message: Message): DiscordEnvironmentContext {
+export function extractDiscordEnvironment(message: Message): DiscordEnvironment {
   const channel = message.channel;
 
   // Debug logging to diagnose DM vs guild detection
@@ -95,7 +60,7 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironmentC
     channelName: 'name' in channel && channel.name ? channel.name : 'Unknown'
   }, 'Detected as guild channel');
 
-  const context: DiscordEnvironmentContext = {
+  const context: DiscordEnvironment = {
     type: 'guild',
     guild: {
       id: message.guild.id,
@@ -188,7 +153,7 @@ function getChannelTypeName(type: ChannelType): string {
 /**
  * Format environment context for display in system prompt
  */
-export function formatEnvironmentForPrompt(context: DiscordEnvironmentContext): string {
+export function formatEnvironmentForPrompt(context: DiscordEnvironment): string {
   if (context.type === 'dm') {
     return 'This conversation is taking place in a **Direct Message** (private one-on-one chat).';
   }

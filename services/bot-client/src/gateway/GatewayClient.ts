@@ -5,7 +5,7 @@
  */
 
 import { createLogger, getConfig } from '@tzurot/common-types';
-import type { BotPersonality, MessageContext, JobResult } from '../types.js';
+import type { LoadedPersonality, MessageContext, JobResult } from '../types.js';
 
 const logger = createLogger('GatewayClient');
 const config = getConfig();
@@ -26,7 +26,7 @@ export class GatewayClient {
    * Request AI generation from the gateway
    */
   async generate(
-    personality: BotPersonality,
+    personality: LoadedPersonality,
     context: MessageContext
   ): Promise<{
     content: string;
