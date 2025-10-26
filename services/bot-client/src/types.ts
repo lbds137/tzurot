@@ -35,11 +35,16 @@ export interface MessageContext {
   channelId: string;
   serverId?: string;
   messageContent: string;
+  // Active speaker - the persona making the current request
+  activePersonaId?: string;
+  activePersonaName?: string;
   conversationHistory?: Array<{
     id?: string; // Internal UUID for deduplication
     role: 'user' | 'assistant' | 'system';
     content: string;
     createdAt?: string;
+    personaId?: string; // Which persona said this message
+    personaName?: string; // Persona's name for context
   }>;
   referencedMessage?: {
     author: string;

@@ -93,6 +93,32 @@ export class UserService {
   }
 
   /**
+   * Get persona name by ID
+   * @param personaId Persona UUID
+   * @returns Persona name (preferredName if set, otherwise name)
+   */
+  async getPersonaName(personaId: string): Promise<string | null> {
+    try {
+      const persona = await this.prisma.persona.findUnique({
+        where: { id: personaId },
+        select: {
+          name: true,
+          preferredName: true,
+        },
+      });
+
+      if (!persona) {
+        return null;
+      }
+
+      return persona.preferredName || persona.name;
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get persona name for ${personaId}`);
+      return null;
+    }
+  }
+
+  /**
    * Get the personaId for a user when interacting with a specific personality
    * Checks for personality-specific persona override, falls back to default persona
    *
