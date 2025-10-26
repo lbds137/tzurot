@@ -8,7 +8,7 @@
 import { createLogger } from '@tzurot/common-types';
 import { ChannelType, Client } from 'discord.js';
 import type { TextChannel, ThreadChannel, ForumChannel, Webhook } from 'discord.js';
-import type { BotPersonality } from '../types.js';
+import type { LoadedPersonality } from '../types.js';
 
 const logger = createLogger('WebhookManager');
 
@@ -75,7 +75,7 @@ export class WebhookManager {
   /**
    * Get standardized username with bot suffix
    */
-  private getStandardizedUsername(personality: BotPersonality): string {
+  private getStandardizedUsername(personality: LoadedPersonality): string {
     const suffix = this.getBotSuffix();
     return `${personality.displayName}${suffix}`;
   }
@@ -151,7 +151,7 @@ export class WebhookManager {
    */
   async sendAsPersonality(
     channel: TextChannel | ThreadChannel,
-    personality: BotPersonality,
+    personality: LoadedPersonality,
     content: string
   ): Promise<any> {
     const webhook = await this.getWebhook(channel);

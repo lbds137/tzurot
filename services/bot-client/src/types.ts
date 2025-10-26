@@ -10,7 +10,9 @@ import type {
   ApiConversationMessage,
   JobResult,
   GenerateResponse,
-  LoadedPersonality
+  LoadedPersonality,
+  DiscordEnvironment,
+  RequestContext
 } from '@tzurot/common-types';
 
 // Re-export shared API types
@@ -18,56 +20,18 @@ export type {
   AttachmentMetadata,
   ApiConversationMessage,
   JobResult,
-  GenerateResponse as GatewayResponse, // Alias for backward compatibility
-  LoadedPersonality, // Personality type from database
+  GenerateResponse,
+  LoadedPersonality,
+  DiscordEnvironment,
 };
-
-// Deprecated: Use LoadedPersonality instead
-export type BotPersonality = LoadedPersonality;
-
-/**
- * Discord environment context
- * Describes where the conversation is taking place
- */
-export interface DiscordEnvironmentContext {
-  type: 'dm' | 'guild';
-  guild?: {
-    id: string;
-    name: string;
-  };
-  category?: {
-    id: string;
-    name: string;
-  };
-  channel: {
-    id: string;
-    name: string;
-    type: string;
-  };
-  thread?: {
-    id: string;
-    name: string;
-    parentChannel: {
-      id: string;
-      name: string;
-      type: string;
-    };
-  };
-}
 
 /**
  * Message context for AI generation
  * Bot-specific context that gets sent to api-gateway
+ * Extends RequestContext from common-types with bot-specific messageContent field
  */
-export interface MessageContext {
-  userId: string;
-  userName: string;
-  channelId: string;
-  serverId?: string;
+export interface MessageContext extends Omit<RequestContext, 'conversationHistory'> {
   messageContent: string;
-  // Active speaker - the persona making the current request
-  activePersonaId?: string;
-  activePersonaName?: string;
   conversationHistory?: Array<{
     id?: string; // Internal UUID for deduplication
     role: 'user' | 'assistant' | 'system';
@@ -80,10 +44,6 @@ export interface MessageContext {
     author: string;
     content: string;
   };
-  // Multimodal support (images, audio, etc)
-  attachments?: AttachmentMetadata[];
-  // Discord environment context (DMs vs guild, channel info, etc)
-  environment?: DiscordEnvironmentContext;
 }
 
 /**
