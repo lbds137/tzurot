@@ -51,6 +51,12 @@ export interface MemoryDocument {
   };
 }
 
+export interface ParticipantPersona {
+  personaId: string;
+  personaName: string;
+  isActive: boolean;
+}
+
 export interface ConversationContext {
   userId: string;
   channelId?: string;
@@ -63,6 +69,8 @@ export interface ConversationContext {
   activePersonaName?: string;
   conversationHistory?: BaseMessage[];
   oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
+  // All conversation participants (extracted from history before BaseMessage conversion)
+  participants?: ParticipantPersona[];
   // Multimodal support
   attachments?: AttachmentMetadata[];
 }
@@ -133,25 +141,20 @@ export class ConversationalRAGService {
       // For voice messages, use transcription instead of "Hello" fallback
       const searchQuery = this.buildSearchQuery(userMessage, processedAttachments);
 
-      // 4. Fetch ACTIVE persona if available (not default - might be personality-specific override)
-      let activePersonaContent: string | null = null;
-      if (context.activePersonaId) {
-        activePersonaContent = await this.getPersonaContent(context.activePersonaId);
-        if (activePersonaContent) {
-          logger.info(`[RAG] Loaded active persona ${context.activePersonaName || context.activePersonaId.substring(0, 8)}: ${activePersonaContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
-        } else {
-          logger.warn(`[RAG] No persona content found for active persona ${context.activePersonaId}`);
-        }
+      // 4. Fetch ALL participant personas from conversation history
+      const participantPersonas = await this.getAllParticipantPersonas(context);
+      if (participantPersonas.size > 0) {
+        logger.info(`[RAG] Loaded ${participantPersonas.size} participant persona(s): ${Array.from(participantPersonas.keys()).join(', ')}`);
       } else {
-        logger.debug(`[RAG] No active persona ID provided in context`);
+        logger.debug(`[RAG] No participant personas found in conversation history`);
       }
 
       // 5. Query vector store for relevant memories using actual content
       logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`);
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
-      // 6. Build the prompt with active persona and memory context
-      const fullSystemPrompt = this.buildFullSystemPrompt(personality, activePersonaContent, relevantMemories, context);
+      // 6. Build the prompt with ALL participant personas and memory context
+      const fullSystemPrompt = this.buildFullSystemPrompt(personality, participantPersonas, relevantMemories, context);
 
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
@@ -311,11 +314,11 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Build full system prompt with persona, memories, and date context
+   * Build full system prompt with personas, memories, and date context
    */
   private buildFullSystemPrompt(
     personality: LoadedPersonality,
-    activePersonaContent: string | null,
+    participantPersonas: Map<string, { content: string; isActive: boolean }>,
     relevantMemories: MemoryDocument[],
     context: ConversationContext
   ): string {
@@ -325,14 +328,22 @@ export class ConversationalRAGService {
     // Current date/time context (place early for better awareness)
     const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
 
-    // Active speaker context - who you're talking to RIGHT NOW
-    const activePersonaContext = activePersonaContent && context.activePersonaName
-      ? `\n\n## About ${context.activePersonaName} (Current Speaker)\n${activePersonaContent}\n\nNote: In group conversations, you'll see messages prefixed with persona names like "${context.activePersonaName}: [timestamp] message". This shows who said what.`
-      : activePersonaContent
-      ? `\n\n## About the Current Speaker\n${activePersonaContent}\n\nNote: In group conversations, messages are prefixed with persona names to show who said what.`
-      : context.activePersonaName
-      ? `\n\n## Current Conversation Context\nYou are speaking with ${context.activePersonaName}. In group conversations, messages are prefixed with persona names (e.g., "${context.activePersonaName}: message").`
-      : '';
+    // Conversation participants - ALL people involved
+    let participantsContext = '';
+    if (participantPersonas.size > 0) {
+      const participantsList: string[] = [];
+
+      for (const [personaName, { content, isActive }] of participantPersonas.entries()) {
+        const activeIndicator = isActive ? ' **(CURRENT SPEAKER)**' : '';
+        participantsList.push(`### ${personaName}${activeIndicator}\n${content}`);
+      }
+
+      const pluralNote = participantPersonas.size > 1
+        ? `\n\nNote: This is a group conversation. Messages are prefixed with persona names (e.g., "${context.activePersonaName || 'Alice'}: message") to show who said what.`
+        : '';
+
+      participantsContext = `\n\n## Conversation Participants\nThe following ${participantPersonas.size === 1 ? 'person is' : 'people are'} involved in this conversation:\n\n${participantsList.join('\n\n')}${pluralNote}`;
+    }
 
     // Relevant memories from past interactions
     const memoryContext = relevantMemories.length > 0
@@ -345,10 +356,10 @@ export class ConversationalRAGService {
         }).join('\n')
       : '';
 
-    const fullSystemPrompt = `${systemPrompt}${dateContext}${activePersonaContext}${memoryContext}`;
+    const fullSystemPrompt = `${systemPrompt}${dateContext}${participantsContext}${memoryContext}`;
 
     // Basic prompt composition logging (always)
-    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} activePersona=${activePersonaContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
@@ -356,8 +367,8 @@ export class ConversationalRAGService {
         personalityId: personality.id,
         personalityName: personality.name,
         systemPromptLength: systemPrompt.length,
-        hasActivePersona: !!activePersonaContent,
-        activePersonaLength: activePersonaContent?.length || 0,
+        participantCount: participantPersonas.size,
+        participantsContextLength: participantsContext.length,
         activePersonaName: context.activePersonaName,
         memoryCount: relevantMemories.length,
         memoryIds: relevantMemories.map((m) => m.metadata?.id || 'unknown'),
@@ -366,7 +377,6 @@ export class ConversationalRAGService {
         ),
         totalMemoryChars: memoryContext.length,
         dateContextLength: dateContext.length,
-        activePersonaContextLength: activePersonaContext.length,
         totalSystemPromptLength: fullSystemPrompt.length,
         // Include STM info for duplication detection
         stmCount: context.conversationHistory?.length || 0,
@@ -629,6 +639,40 @@ export class ConversationalRAGService {
     }
 
     return sections.join('\n');
+  }
+
+  /**
+   * Get ALL participant personas from conversation
+   * Returns a Map of personaName -> persona content for all users in the conversation
+   */
+  private async getAllParticipantPersonas(
+    context: ConversationContext
+  ): Promise<Map<string, { content: string; isActive: boolean }>> {
+    const personaMap = new Map<string, { content: string; isActive: boolean }>();
+
+    if (!context.participants || context.participants.length === 0) {
+      logger.debug(`[RAG] No participants provided in context`);
+      return personaMap;
+    }
+
+    logger.debug(`[RAG] Fetching content for ${context.participants.length} participant(s)`);
+
+    // Fetch content for each participant
+    for (const participant of context.participants) {
+      const content = await this.getPersonaContent(participant.personaId);
+      if (content) {
+        personaMap.set(participant.personaName, {
+          content,
+          isActive: participant.isActive
+        });
+
+        logger.debug(`[RAG] Loaded persona ${participant.personaName} (${participant.personaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`);
+      } else {
+        logger.warn(`[RAG] No content found for participant ${participant.personaName} (${participant.personaId})`);
+      }
+    }
+
+    return personaMap;
   }
 
   /**
