@@ -28,7 +28,6 @@ model User {
   defaultPersonaLink  UserDefaultPersona?
   personalityOwners   PersonalityOwner[]
   personalityConfigs  UserPersonalityConfig[]
-  conversationHistory ConversationHistory[]
   activatedChannels   ActivatedChannel[]
 
   @@index([discordId])
@@ -59,6 +58,7 @@ model Persona {
   // Relations
   usersUsingAsDefault  UserDefaultPersona[]
   personalityConfigs   UserPersonalityConfig[]
+  conversationHistory  ConversationHistory[]
 
   @@index([ownerId])
   @@map("personas")
@@ -259,8 +259,10 @@ model ConversationHistory {
   personalityId String      @map("personality_id") @db.Uuid
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
-  userId String @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Persona isolation - conversations are segmented by persona, not user
+  // This aligns STM (PostgreSQL) with LTM (Qdrant vector store)
+  personaId String  @map("persona_id") @db.Uuid
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
 
   role    String @db.VarChar(20) // 'user', 'assistant', 'system'
   content String @db.Text
@@ -271,7 +273,7 @@ model ConversationHistory {
   pendingMemory PendingMemory?
 
   @@index([channelId, personalityId, createdAt(sort: Desc)])
-  @@index([userId])
+  @@index([personaId])
   @@map("conversation_history")
 }
 

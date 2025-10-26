@@ -28,7 +28,7 @@ export class ConversationHistoryService {
   async addMessage(
     channelId: string,
     personalityId: string,
-    userId: string,
+    personaId: string,
     role: 'user' | 'assistant' | 'system',
     content: string
   ): Promise<void> {
@@ -37,13 +37,13 @@ export class ConversationHistoryService {
         data: {
           channelId,
           personalityId,
-          userId,
+          personaId,
           role,
           content,
         },
       });
 
-      logger.debug(`Added ${role} message to history (channel: ${channelId}, personality: ${personalityId})`);
+      logger.debug(`Added ${role} message to history (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
 
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);
@@ -52,22 +52,22 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Update the most recent message for a user in a channel
+   * Update the most recent message for a persona in a channel
    * Used to enrich user messages with attachment descriptions after AI processing
    */
   async updateLastUserMessage(
     channelId: string,
     personalityId: string,
-    userId: string,
+    personaId: string,
     newContent: string
   ): Promise<boolean> {
     try {
-      // Find the most recent user message
+      // Find the most recent user message for this persona
       const lastMessage = await this.prisma.conversationHistory.findFirst({
         where: {
           channelId,
           personalityId,
-          userId,
+          personaId,
           role: 'user',
         },
         orderBy: {
@@ -76,7 +76,7 @@ export class ConversationHistoryService {
       });
 
       if (!lastMessage) {
-        logger.warn(`No user message found to update (channel: ${channelId}, personality: ${personalityId})`);
+        logger.warn(`No user message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
         return false;
       }
 
