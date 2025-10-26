@@ -123,6 +123,13 @@ export class AIJobProcessor {
         }
       }
 
+      // Extract unique participants BEFORE converting to BaseMessage
+      const participants = this.extractParticipants(
+        context.conversationHistory ?? [],
+        context.activePersonaId,
+        context.activePersonaName
+      );
+
       // Convert conversation history to BaseMessage format
       const conversationHistory = this.convertConversationHistory(
         context.conversationHistory ?? []
@@ -143,6 +150,7 @@ export class AIJobProcessor {
           activePersonaName: context.activePersonaName,
           conversationHistory,
           oldestHistoryTimestamp,
+          participants,
           attachments: context.attachments
         },
         userApiKey
@@ -184,6 +192,44 @@ export class AIJobProcessor {
         }
       };
     }
+  }
+
+  /**
+   * Extract unique participants from conversation history
+   * Returns list of all personas involved in the conversation
+   */
+  private extractParticipants(
+    history: {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      personaId?: string;
+      personaName?: string;
+    }[],
+    activePersonaId?: string,
+    activePersonaName?: string
+  ): Array<{ personaId: string; personaName: string; isActive: boolean }> {
+    const uniquePersonas = new Map<string, string>(); // personaId -> personaName
+
+    // Extract from history
+    for (const msg of history) {
+      if (msg.role === 'user' && msg.personaId && msg.personaName) {
+        uniquePersonas.set(msg.personaId, msg.personaName);
+      }
+    }
+
+    // Ensure active persona is included (even if not in history yet)
+    if (activePersonaId && activePersonaName) {
+      uniquePersonas.set(activePersonaId, activePersonaName);
+    }
+
+    logger.debug(`[AIJobProcessor] Found ${uniquePersonas.size} unique participant(s)`);
+
+    // Convert to array with isActive flag
+    return Array.from(uniquePersonas.entries()).map(([personaId, personaName]) => ({
+      personaId,
+      personaName,
+      isActive: personaId === activePersonaId
+    }));
   }
 
   /**
