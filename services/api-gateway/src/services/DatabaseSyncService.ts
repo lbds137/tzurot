@@ -81,7 +81,7 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     // No updatedAt - append-only
-    uuidColumns: ['id', 'user_id', 'personality_id'],
+    uuidColumns: ['id', 'persona_id', 'personality_id'],
   },
   activated_channels: {
     pk: 'id',
