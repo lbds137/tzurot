@@ -13,6 +13,7 @@ import { ConversationHistoryService, PersonalityService, UserService, preserveCo
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality } from '../redis.js';
+import { extractDiscordEnvironment } from '../utils/discordContext.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -239,6 +240,9 @@ export class MessageHandler {
           }))
         : undefined;
 
+      // Extract Discord environment context (DM vs guild, channel info, etc)
+      const environment = extractDiscordEnvironment(message);
+
       // Build context with conversation history and attachments
       const context: MessageContext = {
         userId: userId, // Use database UUID, not Discord ID
@@ -249,7 +253,8 @@ export class MessageHandler {
         activePersonaId: personaId, // Current speaker's persona
         activePersonaName: personaName || undefined,
         conversationHistory,
-        attachments
+        attachments,
+        environment
       };
 
       // Save user message to conversation history BEFORE calling AI

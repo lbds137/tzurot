@@ -57,6 +57,32 @@ export interface ParticipantPersona {
   isActive: boolean;
 }
 
+export interface DiscordEnvironment {
+  type: 'dm' | 'guild';
+  guild?: {
+    id: string;
+    name: string;
+  };
+  category?: {
+    id: string;
+    name: string;
+  };
+  channel: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  thread?: {
+    id: string;
+    name: string;
+    parentChannel: {
+      id: string;
+      name: string;
+      type: string;
+    };
+  };
+}
+
 export interface ConversationContext {
   userId: string;
   channelId?: string;
@@ -73,6 +99,8 @@ export interface ConversationContext {
   participants?: ParticipantPersona[];
   // Multimodal support
   attachments?: AttachmentMetadata[];
+  // Discord environment context (DMs vs guild, channel info, etc)
+  environment?: DiscordEnvironment;
 }
 
 export interface RAGResponse {
@@ -328,6 +356,11 @@ export class ConversationalRAGService {
     // Current date/time context (place early for better awareness)
     const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
 
+    // Discord environment context (where conversation is happening)
+    const environmentContext = context.environment
+      ? `\n\n${this.formatEnvironmentContext(context.environment)}`
+      : '';
+
     // Conversation participants - ALL people involved
     let participantsContext = '';
     if (participantPersonas.size > 0) {
@@ -356,10 +389,10 @@ export class ConversationalRAGService {
         }).join('\n')
       : '';
 
-    const fullSystemPrompt = `${systemPrompt}${dateContext}${participantsContext}${memoryContext}`;
+    const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${participantsContext}${memoryContext}`;
 
     // Basic prompt composition logging (always)
-    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
@@ -399,6 +432,37 @@ export class ConversationalRAGService {
     }
 
     return fullSystemPrompt;
+  }
+
+  /**
+   * Format Discord environment context for inclusion in system prompt
+   */
+  private formatEnvironmentContext(environment: DiscordEnvironment): string {
+    if (environment.type === 'dm') {
+      return '## Conversation Location\nThis conversation is taking place in a **Direct Message** (private one-on-one chat).';
+    }
+
+    const parts: string[] = [];
+    parts.push('## Conversation Location');
+    parts.push('This conversation is taking place in a Discord server:\n');
+
+    // Guild name
+    parts.push(`**Server**: ${environment.guild!.name}`);
+
+    // Category (if exists)
+    if (environment.category) {
+      parts.push(`**Category**: ${environment.category.name}`);
+    }
+
+    // Channel
+    parts.push(`**Channel**: #${environment.channel.name} (${environment.channel.type})`);
+
+    // Thread (if exists)
+    if (environment.thread) {
+      parts.push(`**Thread**: ${environment.thread.name}`);
+    }
+
+    return parts.join('\n');
   }
 
   /**
