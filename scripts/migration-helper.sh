@@ -59,7 +59,6 @@ done
 # Configuration
 ENVIRONMENT=${1:-development}
 MIGRATION_SCRIPT=${2}
-BACKUP_DIR="backups"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
 # Validate inputs
@@ -85,11 +84,32 @@ echo -e "${BLUE}Timestamp:${NC} $TIMESTAMP"
 echo -e "${BLUE}Mode:${NC} $([ "$YES_FLAG" = true ] && echo "Non-interactive (--yes)" || echo "Interactive")"
 echo ""
 
-# Step 1: Confirm
+# Step 1: Verify Railway backups
+echo -e "${BLUE}💾 Backup Status Check${NC}"
+echo -e "${YELLOW}⚠️  This script relies on Railway's automatic database backups.${NC}"
+echo ""
+echo -e "${BLUE}Verify backups exist:${NC}"
+echo "  1. Go to https://railway.app"
+echo "  2. Open project 'industrious-analysis'"
+echo "  3. Click on the PostgreSQL service"
+echo "  4. Go to 'Backups' tab"
+echo "  5. Verify recent backups exist (Pro plan feature)"
+echo ""
+echo -e "${YELLOW}If migration fails, you can restore from Railway dashboard:${NC}"
+echo "  Backups → Select backup → Restore"
+echo ""
+
+# Step 2: Confirm
 if [ "$YES_FLAG" = false ]; then
     echo -e "${YELLOW}⚠️  WARNING: You are about to run a database migration on $ENVIRONMENT${NC}"
     echo ""
-    read -p "Do you want to continue? (yes/no): " CONFIRM
+    read -p "Have you verified Railway backups exist? (yes/no): " BACKUP_CONFIRM
+    if [ "$BACKUP_CONFIRM" != "yes" ]; then
+        echo -e "${RED}❌ Migration cancelled - please verify backups first${NC}"
+        exit 0
+    fi
+    echo ""
+    read -p "Do you want to continue with migration? (yes/no): " CONFIRM
     if [ "$CONFIRM" != "yes" ]; then
         echo -e "${RED}❌ Migration cancelled${NC}"
         exit 0
@@ -97,32 +117,11 @@ if [ "$YES_FLAG" = false ]; then
     echo ""
 else
     echo -e "${YELLOW}⚠️  Running migration on $ENVIRONMENT (--yes flag provided)${NC}"
+    echo -e "${BLUE}💡 Assuming Railway backups have been verified${NC}"
     echo ""
 fi
 
-# Step 2: Create backup directory
-echo -e "${BLUE}📁 Creating backup directory...${NC}"
-mkdir -p "$BACKUP_DIR"
-echo -e "${GREEN}✅ Backup directory ready${NC}"
-echo ""
-
-# Step 3: Backup database using Railway's pg_dump (avoids version mismatch)
-echo -e "${BLUE}💾 Creating database backup using Railway's pg_dump...${NC}"
-BACKUP_FILE="$BACKUP_DIR/backup-$ENVIRONMENT-$TIMESTAMP.sql"
-
-# Use railway run pg_dump instead of local pg_dump to avoid version mismatches
-railway run --environment "$ENVIRONMENT" pg_dump > "$BACKUP_FILE" 2>&1
-
-if [ -f "$BACKUP_FILE" ]; then
-    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-    echo -e "${GREEN}✅ Backup created: $BACKUP_FILE ($BACKUP_SIZE)${NC}"
-else
-    echo -e "${RED}❌ Backup failed!${NC}"
-    exit 1
-fi
-echo ""
-
-# Step 4: Show database stats before migration
+# Step 3: Show database stats before migration
 echo -e "${BLUE}📊 Database stats before migration...${NC}"
 railway run --environment "$ENVIRONMENT" psql -c "
 SELECT
@@ -136,25 +135,7 @@ LIMIT 5;
 " 2>&1 || echo "(Stats query failed, continuing...)"
 echo ""
 
-# Step 5: Final confirmation (only in interactive mode)
-if [ "$YES_FLAG" = false ]; then
-    echo -e "${YELLOW}⚠️  FINAL CONFIRMATION${NC}"
-    echo -e "Backup created: ${GREEN}$BACKUP_FILE${NC}"
-    echo -e "Migration script: ${BLUE}$MIGRATION_SCRIPT${NC}"
-    echo ""
-    read -p "Proceed with migration? (yes/no): " FINAL_CONFIRM
-    if [ "$FINAL_CONFIRM" != "yes" ]; then
-        echo -e "${RED}❌ Migration cancelled${NC}"
-        echo -e "${BLUE}💡 Backup preserved at: $BACKUP_FILE${NC}"
-        exit 0
-    fi
-    echo ""
-else
-    echo -e "${BLUE}🚀 Proceeding with migration (--yes flag provided)${NC}"
-    echo ""
-fi
-
-# Step 6: Run migration
+# Step 4: Run migration
 echo -e "${BLUE}🚀 Running migration script...${NC}"
 railway run --environment "$ENVIRONMENT" psql < "$MIGRATION_SCRIPT" 2>&1
 
@@ -165,15 +146,21 @@ if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
     echo -e "${GREEN}✅ Migration completed successfully${NC}"
 else
     echo -e "${RED}❌ Migration failed with exit code $MIGRATION_EXIT_CODE${NC}"
-    echo -e "${YELLOW}💡 Backup available for rollback: $BACKUP_FILE${NC}"
     echo ""
-    echo -e "${YELLOW}To rollback, run:${NC}"
-    echo -e "${BLUE}railway run --environment $ENVIRONMENT psql < $BACKUP_FILE${NC}"
+    echo -e "${YELLOW}To rollback:${NC}"
+    echo "  1. Go to https://railway.app"
+    echo "  2. Open project 'industrious-analysis' → PostgreSQL"
+    echo "  3. Click 'Backups' tab"
+    echo "  4. Select most recent backup (before this migration)"
+    echo "  5. Click 'Restore'"
+    echo ""
+    echo -e "${YELLOW}Or use SQL rollback if migration includes rollback script:${NC}"
+    echo "  railway run --environment $ENVIRONMENT psql < scripts/rollback-[name].sql"
     exit $MIGRATION_EXIT_CODE
 fi
 echo ""
 
-# Step 7: Post-migration verification
+# Step 5: Post-migration verification
 echo -e "${BLUE}🔍 Post-migration verification...${NC}"
 
 # Check migration status
@@ -195,20 +182,21 @@ LIMIT 5;
 " 2>&1 || echo "(Stats query failed, continuing...)"
 echo ""
 
-# Step 8: Summary
+# Step 6: Summary
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║           Migration Complete!                              ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${BLUE}Backup Location:${NC} $BACKUP_FILE"
 echo -e "${BLUE}Environment:${NC} $ENVIRONMENT"
 echo -e "${BLUE}Timestamp:${NC} $TIMESTAMP"
+echo -e "${BLUE}Backup:${NC} Railway automatic backups (Pro plan)"
 echo ""
 echo -e "${YELLOW}📝 Next Steps:${NC}"
 echo "1. Test the application to ensure everything works"
 echo "2. Monitor logs for errors:"
 echo "   railway logs --service api-gateway --environment $ENVIRONMENT"
-echo "3. If issues occur, rollback with:"
-echo "   railway run --environment $ENVIRONMENT psql < $BACKUP_FILE"
+echo "   railway logs --service ai-worker --environment $ENVIRONMENT"
+echo "3. If issues occur, restore from Railway dashboard:"
+echo "   https://railway.app → industrious-analysis → PostgreSQL → Backups"
 echo ""
 echo -e "${GREEN}✅ Migration process completed${NC}"
