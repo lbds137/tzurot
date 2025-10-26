@@ -58,6 +58,9 @@ export interface ConversationContext {
   sessionId?: string;
   userName?: string;
   isProxyMessage?: boolean;
+  // Active speaker - the persona making the current request
+  activePersonaId?: string;
+  activePersonaName?: string;
   conversationHistory?: BaseMessage[];
   oldestHistoryTimestamp?: number; // Unix timestamp of oldest message in conversation history (for LTM deduplication)
   // Multimodal support
@@ -330,7 +333,12 @@ export class ConversationalRAGService {
 
     const dateContext = `\n\n## Current Context\nCurrent date and time: ${formatFullDateTime(new Date())}`;
 
-    const fullSystemPrompt = `${systemPrompt}${personaContext}${memoryContext}${dateContext}`;
+    // Add active speaker context if available
+    const activePersonaContext = context.activePersonaName
+      ? `\n\nIMPORTANT: You are currently speaking with ${context.activePersonaName}. In the conversation history, you'll see messages prefixed with persona names (e.g., "${context.activePersonaName}: [timestamp] message"). This helps you understand who said what in group conversations. The current message you're responding to is from ${context.activePersonaName}.`
+      : '';
+
+    const fullSystemPrompt = `${systemPrompt}${personaContext}${activePersonaContext}${memoryContext}${dateContext}`;
 
     // Basic prompt composition logging (always)
     logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} persona=${personaContext.length} memories=${memoryContext.length} dateContext=${dateContext.length} total=${fullSystemPrompt.length} chars`);
