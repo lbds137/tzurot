@@ -7,6 +7,9 @@
 
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
+import { createLogger } from '@tzurot/common-types';
+
+const logger = createLogger('DiscordContext');
 
 export interface DiscordEnvironmentContext {
   /** Whether this is a DM or guild conversation */
@@ -49,8 +52,17 @@ export interface DiscordEnvironmentContext {
 export function extractDiscordEnvironment(message: Message): DiscordEnvironmentContext {
   const channel = message.channel;
 
+  // Debug logging to diagnose DM vs guild detection
+  logger.debug({
+    channelType: channel.type,
+    hasGuild: !!message.guild,
+    guildName: message.guild?.name,
+    channelId: channel.id
+  }, 'Extracting Discord environment');
+
   // DM Channel
   if (channel.type === ChannelType.DM) {
+    logger.info('Detected as DM');
     return {
       type: 'dm',
       channel: {
@@ -64,6 +76,10 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironmentC
   // Guild-based channels
   if (!message.guild) {
     // Shouldn't happen, but handle gracefully
+    logger.warn({
+      channelType: channel.type,
+      channelId: channel.id
+    }, 'No guild found for non-DM channel (fallback to DM)');
     return {
       type: 'dm',
       channel: {
@@ -73,6 +89,11 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironmentC
       }
     };
   }
+
+  logger.info({
+    guildName: message.guild.name,
+    channelName: 'name' in channel && channel.name ? channel.name : 'Unknown'
+  }, 'Detected as guild channel');
 
   const context: DiscordEnvironmentContext = {
     type: 'guild',
