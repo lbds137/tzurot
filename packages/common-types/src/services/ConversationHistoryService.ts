@@ -13,6 +13,8 @@ export interface ConversationMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   createdAt: Date;
+  personaId: string;
+  personaName?: string; // The persona's name for display in context
 }
 
 export class ConversationHistoryService {
@@ -123,15 +125,24 @@ export class ConversationHistoryService {
           role: true,
           content: true,
           createdAt: true,
+          personaId: true,
+          persona: {
+            select: {
+              name: true,
+              preferredName: true,
+            },
+          },
         },
       });
 
       // Reverse to get chronological order (oldest first)
-      const history = messages.reverse().map((msg: { id: string; role: string; content: string; createdAt: Date }) => ({
+      const history = messages.reverse().map((msg) => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
         createdAt: msg.createdAt,
+        personaId: msg.personaId,
+        personaName: msg.persona.preferredName || msg.persona.name,
       }));
 
       logger.debug(`Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`);
@@ -182,6 +193,13 @@ export class ConversationHistoryService {
           role: true,
           content: true,
           createdAt: true,
+          personaId: true,
+          persona: {
+            select: {
+              name: true,
+              preferredName: true,
+            },
+          },
         },
       });
 
@@ -190,11 +208,13 @@ export class ConversationHistoryService {
       const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
 
       // Reverse to get chronological order (oldest first)
-      const history = resultMessages.reverse().map((msg: { id: string; role: string; content: string; createdAt: Date }) => ({
+      const history = resultMessages.reverse().map((msg) => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
         createdAt: msg.createdAt,
+        personaId: msg.personaId,
+        personaName: msg.persona.preferredName || msg.persona.name,
       }));
 
       // Next cursor is the ID of the last message (in desc order, before reversal)

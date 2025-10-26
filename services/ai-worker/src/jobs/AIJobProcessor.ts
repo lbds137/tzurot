@@ -41,11 +41,16 @@ export interface AIJobData {
     serverId?: string;
     sessionId?: string;
     isProxyMessage?: boolean;
+    // Active speaker - the persona making the current request
+    activePersonaId?: string;
+    activePersonaName?: string;
     conversationHistory?: {
       id?: string;
       role: 'user' | 'assistant' | 'system';
       content: string;
       createdAt?: string;
+      personaId?: string;
+      personaName?: string;
     }[];
     // Multimodal support
     attachments?: Array<{
@@ -134,6 +139,8 @@ export class AIJobProcessor {
           serverId: context.serverId,
           sessionId: context.sessionId,
           isProxyMessage: context.isProxyMessage,
+          activePersonaId: context.activePersonaId,
+          activePersonaName: context.activePersonaName,
           conversationHistory,
           oldestHistoryTimestamp,
           attachments: context.attachments
@@ -181,16 +188,37 @@ export class AIJobProcessor {
 
   /**
    * Convert simple conversation history to LangChain BaseMessage format
+   * Includes persona names to help the AI understand who is speaking
    */
   private convertConversationHistory(
-    history: { role: 'user' | 'assistant' | 'system'; content: string; createdAt?: string }[]
+    history: {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      createdAt?: string;
+      personaId?: string;
+      personaName?: string;
+    }[]
   ): BaseMessage[] {
     return history.map(msg => {
-      // Only add timestamps to user messages (not assistant responses)
-      // This prevents the AI from seeing and mimicking the timestamp format
-      const content = msg.role === 'user' && msg.createdAt
-        ? `[${formatRelativeTime(msg.createdAt)}] ${msg.content}`
-        : msg.content;
+      // Format message with persona name and timestamp
+      let content = msg.content;
+
+      // For user messages, include persona name and timestamp
+      if (msg.role === 'user') {
+        const parts: string[] = [];
+
+        if (msg.personaName) {
+          parts.push(`${msg.personaName}:`);
+        }
+
+        if (msg.createdAt) {
+          parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
+        }
+
+        if (parts.length > 0) {
+          content = `${parts.join(' ')} ${msg.content}`;
+        }
+      }
 
       if (msg.role === 'user') {
         return new HumanMessage(content);

@@ -204,6 +204,7 @@ export class MessageHandler {
 
       // Get the persona for this user + personality combination
       const personaId = await this.userService.getPersonaForUser(userId, personality.id);
+      const personaName = await this.userService.getPersonaName(personaId);
 
       // Get conversation history from PostgreSQL
       const historyLimit = personality.contextWindow || 20;
@@ -214,11 +215,14 @@ export class MessageHandler {
       );
 
       // Convert to format expected by AI gateway
+      // Include persona info so AI knows which persona is speaking in each message
       const conversationHistory = history.map(msg => ({
         id: msg.id, // Include UUID for deduplication in LTM
         role: msg.role,
         content: msg.content,
-        createdAt: msg.createdAt.toISOString() // Include timestamp for context
+        createdAt: msg.createdAt.toISOString(), // Include timestamp for context
+        personaId: msg.personaId,
+        personaName: msg.personaName // Persona's name for context
       }));
 
       // Extract attachments if present (images, audio, etc)
@@ -242,6 +246,8 @@ export class MessageHandler {
         channelId: message.channel.id,
         serverId: message.guild?.id,
         messageContent: content,
+        activePersonaId: personaId, // Current speaker's persona
+        activePersonaName: personaName || undefined,
         conversationHistory,
         attachments
       };
