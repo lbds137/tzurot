@@ -62,6 +62,32 @@ export interface AIJobData {
       duration?: number;
       waveform?: string;
     }>;
+    // Discord environment context
+    environment?: {
+      type: 'dm' | 'guild';
+      guild?: {
+        id: string;
+        name: string;
+      };
+      category?: {
+        id: string;
+        name: string;
+      };
+      channel: {
+        id: string;
+        name: string;
+        type: string;
+      };
+      thread?: {
+        id: string;
+        name: string;
+        parentChannel: {
+          id: string;
+          name: string;
+          type: string;
+        };
+      };
+    };
   };
 
   // User's API key (for BYOK)
@@ -151,7 +177,8 @@ export class AIJobProcessor {
           conversationHistory,
           oldestHistoryTimestamp,
           participants,
-          attachments: context.attachments
+          attachments: context.attachments,
+          environment: context.environment
         },
         userApiKey
       );

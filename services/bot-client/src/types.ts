@@ -26,6 +26,36 @@ export type {
 export type BotPersonality = LoadedPersonality;
 
 /**
+ * Discord environment context
+ * Describes where the conversation is taking place
+ */
+export interface DiscordEnvironmentContext {
+  type: 'dm' | 'guild';
+  guild?: {
+    id: string;
+    name: string;
+  };
+  category?: {
+    id: string;
+    name: string;
+  };
+  channel: {
+    id: string;
+    name: string;
+    type: string;
+  };
+  thread?: {
+    id: string;
+    name: string;
+    parentChannel: {
+      id: string;
+      name: string;
+      type: string;
+    };
+  };
+}
+
+/**
  * Message context for AI generation
  * Bot-specific context that gets sent to api-gateway
  */
@@ -52,6 +82,8 @@ export interface MessageContext {
   };
   // Multimodal support (images, audio, etc)
   attachments?: AttachmentMetadata[];
+  // Discord environment context (DMs vs guild, channel info, etc)
+  environment?: DiscordEnvironmentContext;
 }
 
 /**
