@@ -207,6 +207,8 @@ export class MessageHandler {
       const personaId = await this.userService.getPersonaForUser(userId, personality.id);
       const personaName = await this.userService.getPersonaName(personaId);
 
+      logger.info(`[MessageHandler] User persona lookup: personaId=${personaId}, personaName=${personaName}, userId=${userId}, personalityId=${personality.id}`);
+
       // Get conversation history from PostgreSQL
       const historyLimit = personality.contextWindow || 20;
       const history = await this.conversationHistory.getRecentHistory(
@@ -225,6 +227,10 @@ export class MessageHandler {
         personaId: msg.personaId,
         personaName: msg.personaName // Persona's name for context
       }));
+
+      // Debug: check how many messages have personaName
+      const messagesWithPersonaName = conversationHistory.filter(m => m.personaName).length;
+      logger.info(`[MessageHandler] Conversation history: ${conversationHistory.length} messages, ${messagesWithPersonaName} have personaName`);
 
       // Extract attachments if present (images, audio, etc)
       const attachments = message.attachments.size > 0
@@ -256,6 +262,8 @@ export class MessageHandler {
         attachments,
         environment
       };
+
+      logger.info(`[MessageHandler] Built context: activePersonaId=${context.activePersonaId}, activePersonaName=${context.activePersonaName}, historyLength=${conversationHistory.length}`);
 
       // Save user message to conversation history BEFORE calling AI
       // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
