@@ -438,9 +438,18 @@ export class ConversationalRAGService {
    * Format Discord environment context for inclusion in system prompt
    */
   private formatEnvironmentContext(environment: DiscordEnvironment): string {
+    logger.debug({ environment }, '[RAG] Formatting environment context');
+
     if (environment.type === 'dm') {
+      logger.info('[RAG] Environment type: DM');
       return '## Conversation Location\nThis conversation is taking place in a **Direct Message** (private one-on-one chat).';
     }
+
+    logger.info({
+      guildName: environment.guild?.name,
+      channelName: environment.channel.name,
+      channelType: environment.channel.type
+    }, '[RAG] Environment type: Guild');
 
     const parts: string[] = [];
     parts.push('## Conversation Location');
