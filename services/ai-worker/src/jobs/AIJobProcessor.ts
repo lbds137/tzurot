@@ -237,7 +237,7 @@ export class AIJobProcessor {
   ): Array<{ personaId: string; personaName: string; isActive: boolean }> {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
-    logger.debug({
+    logger.info({
       activePersonaId,
       activePersonaName,
       historyLength: history.length,
@@ -247,19 +247,21 @@ export class AIJobProcessor {
     // Extract from history
     for (const msg of history) {
       if (msg.role === 'user' && msg.personaId && msg.personaName) {
-        logger.debug({ personaId: msg.personaId, personaName: msg.personaName }, '[AIJobProcessor] Found participant in history');
+        logger.info({ personaId: msg.personaId, personaName: msg.personaName }, '[AIJobProcessor] Found participant in history');
         uniquePersonas.set(msg.personaId, msg.personaName);
       }
     }
 
     // Ensure active persona is included (even if not in history yet)
     if (activePersonaId && activePersonaName) {
-      logger.debug({ activePersonaId, activePersonaName }, '[AIJobProcessor] Including active persona');
+      logger.info({ activePersonaId, activePersonaName }, '[AIJobProcessor] Including active persona');
       uniquePersonas.set(activePersonaId, activePersonaName);
     } else {
       logger.warn({
         hasActivePersonaId: !!activePersonaId,
-        hasActivePersonaName: !!activePersonaName
+        hasActivePersonaName: !!activePersonaName,
+        activePersonaIdValue: activePersonaId,
+        activePersonaNameValue: activePersonaName
       }, '[AIJobProcessor] Active persona not included - missing required fields');
     }
 
