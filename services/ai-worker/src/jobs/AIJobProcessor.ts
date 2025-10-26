@@ -238,22 +238,22 @@ export class AIJobProcessor {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
     const userMessagesWithPersona = history.filter(m => m.role === 'user' && m.personaId && m.personaName).length;
-    logger.info(`[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`);
+    logger.debug(`[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`);
 
     // Extract from history
     for (const msg of history) {
       if (msg.role === 'user' && msg.personaId && msg.personaName) {
-        logger.info(`[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`);
+        logger.debug(`[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`);
         uniquePersonas.set(msg.personaId, msg.personaName);
       }
     }
 
     // Ensure active persona is included (even if not in history yet)
     if (activePersonaId && activePersonaName) {
-      logger.info(`[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`);
+      logger.debug(`[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`);
       uniquePersonas.set(activePersonaId, activePersonaName);
     } else {
-      logger.warn(`[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`);
+      logger.debug(`[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`);
     }
 
     logger.debug(`[AIJobProcessor] Found ${uniquePersonas.size} unique participant(s)`);
