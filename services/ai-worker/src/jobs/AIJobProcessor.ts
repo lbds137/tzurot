@@ -237,32 +237,23 @@ export class AIJobProcessor {
   ): Array<{ personaId: string; personaName: string; isActive: boolean }> {
     const uniquePersonas = new Map<string, string>(); // personaId -> personaName
 
-    logger.info({
-      activePersonaId,
-      activePersonaName,
-      historyLength: history.length,
-      userMessagesWithPersona: history.filter(m => m.role === 'user' && m.personaId && m.personaName).length
-    }, '[AIJobProcessor] Extracting participants');
+    const userMessagesWithPersona = history.filter(m => m.role === 'user' && m.personaId && m.personaName).length;
+    logger.info(`[AIJobProcessor] Extracting participants: activePersonaId=${activePersonaId}, activePersonaName=${activePersonaName}, historyLength=${history.length}, userMessagesWithPersona=${userMessagesWithPersona}`);
 
     // Extract from history
     for (const msg of history) {
       if (msg.role === 'user' && msg.personaId && msg.personaName) {
-        logger.info({ personaId: msg.personaId, personaName: msg.personaName }, '[AIJobProcessor] Found participant in history');
+        logger.info(`[AIJobProcessor] Found participant in history: ${msg.personaName} (${msg.personaId})`);
         uniquePersonas.set(msg.personaId, msg.personaName);
       }
     }
 
     // Ensure active persona is included (even if not in history yet)
     if (activePersonaId && activePersonaName) {
-      logger.info({ activePersonaId, activePersonaName }, '[AIJobProcessor] Including active persona');
+      logger.info(`[AIJobProcessor] Including active persona: ${activePersonaName} (${activePersonaId})`);
       uniquePersonas.set(activePersonaId, activePersonaName);
     } else {
-      logger.warn({
-        hasActivePersonaId: !!activePersonaId,
-        hasActivePersonaName: !!activePersonaName,
-        activePersonaIdValue: activePersonaId,
-        activePersonaNameValue: activePersonaName
-      }, '[AIJobProcessor] Active persona not included - missing required fields');
+      logger.warn(`[AIJobProcessor] Active persona not included - hasActivePersonaId: ${!!activePersonaId}, hasActivePersonaName: ${!!activePersonaName}, activePersonaId: ${activePersonaId}, activePersonaName: ${activePersonaName}`);
     }
 
     logger.debug(`[AIJobProcessor] Found ${uniquePersonas.size} unique participant(s)`);
