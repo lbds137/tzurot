@@ -457,12 +457,23 @@ export class ConversationalRAGService {
     let pendingMemoryId: string | null = null;
 
     try {
-      // 1. Save assistant response to conversation_history first
+      // 1. Resolve user's personaId for this personality FIRST
+      const personaId = await this.getUserPersonaForPersonality(
+        context.userId,
+        personality.id
+      );
+
+      if (!personaId) {
+        logger.warn(`[RAG] No persona found for user ${context.userId}, skipping conversation history and memory storage`);
+        return;
+      }
+
+      // 2. Save assistant response to conversation_history
       const conversationRecord = await prisma.conversationHistory.create({
         data: {
           channelId: context.channelId || 'dm',
           personalityId: personality.id,
-          userId: context.userId,
+          personaId: personaId,
           role: 'assistant',
           content: aiResponse,
         },
@@ -474,18 +485,8 @@ export class ConversationalRAGService {
       conversationHistoryId = conversationRecord.id;
       // Use the actual timestamp from PostgreSQL for perfect sync
       const conversationTimestamp = conversationRecord.createdAt.getTime();
-      logger.debug(`[RAG] Saved assistant response to conversation_history (${conversationHistoryId})`);
+      logger.debug(`[RAG] Saved assistant response to conversation_history (${conversationHistoryId}, persona: ${personaId.substring(0, 8)}...)`);
 
-      // 2. Resolve user's personaId for this personality
-      const personaId = await this.getUserPersonaForPersonality(
-        context.userId,
-        personality.id
-      );
-
-      if (!personaId) {
-        logger.warn(`[RAG] No persona found for user ${context.userId}, skipping memory storage`);
-        return;
-      }
 
       // 3. Determine canon scope and prepare memory metadata
       const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
