@@ -29,13 +29,13 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'global_persona_id'],
+    uuidColumns: ['id'],
   },
   personas: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id', 'owner_id'],
+    uuidColumns: ['id', 'owner_id'],
   },
   user_default_personas: {
     pk: 'user_id',
@@ -58,12 +58,12 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'system_prompt_id', 'llm_config_id', 'persona_id'],
+    uuidColumns: ['id', 'system_prompt_id'],
   },
   personality_default_configs: {
     pk: 'personality_id',
     updatedAt: 'updated_at',
-    uuidColumns: ['personality_id', 'system_prompt_id', 'llm_config_id', 'persona_id'],
+    uuidColumns: ['personality_id', 'llm_config_id'],
   },
   personality_owners: {
     pk: ['personality_id', 'user_id'], // Composite key
@@ -75,7 +75,7 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'user_id', 'personality_id', 'system_prompt_id', 'llm_config_id'],
+    uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
   },
   conversation_history: {
     pk: 'id',
@@ -87,9 +87,9 @@ const SYNC_CONFIG = {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    uuidColumns: ['id', 'personality_id'],
+    uuidColumns: ['id', 'personality_id', 'created_by'],
   },
-  // Skip pending_memories - transient queue data
+  // Skip pending_memories - transient queue data, doesn't need syncing
 } as const;
 
 export class DatabaseSyncService {
