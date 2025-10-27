@@ -23,6 +23,7 @@ export interface ShapesIncPersonalityConfig {
   personality_traits: string;
   personality_tone?: string;
   personality_age?: string;
+  personality_appearance?: string;
   personality_likes?: string;
   personality_dislikes?: string;
   personality_conversational_goals?: string;
@@ -112,6 +113,7 @@ export interface V3PersonalityData {
     personalityTraits: string;
     personalityTone: string | null;
     personalityAge: string | null;
+    personalityAppearance: string | null;
     personalityLikes: string | null;
     personalityDislikes: string | null;
     conversationalGoals: string | null;

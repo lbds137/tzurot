@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.10] - 2025-10-27
+
+### Added
+- **Database-Based Avatar Storage** - Store personality avatars directly in PostgreSQL
+  - Avatars stored as base64-encoded PNGs in `avatar_data` column
+  - Automatic image processing: resize to 256x256, optimize to <200KB target
+  - Migration script to populate avatars from Railway volume
+  - Eliminates dependency on external avatar URLs
+- **Personality Management Commands** - Owner-only Discord commands for personality administration
+  - `/personality create` - Create personalities via slash commands (supports avatars)
+  - `/personality edit` - Edit existing personalities
+  - `/personality import` - Import from JSON files (bypasses Discord's 6000 char limit)
+  - `/personality create-modal` - Interactive modal forms (4000 chars per text input)
+- **Personality Appearance Field** - New database field for physical descriptions
+  - Added `personality_appearance` TEXT column to personalities table
+  - Included in AI system prompts under "## Physical Appearance" section
+  - Supported in all creation/editing workflows
+- **Enhanced Personality Data Support** - Complete field coverage for personality import
+  - All personality fields flow through: database → types → API → commands → AI prompts
+  - Fields: characterInfo, personalityTraits, tone, age, appearance, likes, dislikes, conversationalGoals, conversationalExamples
+  - shapes.inc import scripts updated to support appearance field
+- **Qdrant Memory Management Tools** - Comprehensive CLI for vector database operations
+  - Unified `scripts/qdrant-cli.ts` with 10+ commands
+  - List/export/import/delete collections
+  - Inspect points with filtering (by persona, personality, date range)
+  - Collection stats and health checks
+  - Batch operations with progress tracking
+  - Individual management scripts for specific operations
+  - Full documentation in `scripts/QDRANT_CLI.md`
+- **Default LLM Config Support** - Global default configuration system
+  - Added `is_default` boolean to llm_configs table
+  - Unique constraint ensures only one default config globally
+  - Automatic assignment of default config to new personalities
+  - Verification and setup scripts
+
+### Changed
+- **API Gateway Personality Endpoints** - Enhanced POST/PATCH `/admin/personality` endpoints
+  - Accept all personality fields including appearance, goals, examples
+  - Avatar processing with automatic optimization
+  - Comprehensive validation and error handling
+- **Command Handler** - Updated to support both slash commands and modal interactions
+  - Single handler processes ChatInputCommandInteraction and ModalSubmitInteraction
+  - Modal submissions route to appropriate command handlers
+  - Type-safe interaction handling
+- **AI Prompt Generation** - Include age and appearance in system prompts
+  - Added "## Age" section (was in database but not prompts)
+  - Added "## Physical Appearance" section for new appearance field
+  - Prompts now include complete personality data
+
+### Documentation
+- **Git Workflow Guide** - Critical clarifications in CLAUDE.md
+  - Prominent warnings: REBASE-ONLY workflow (no squash, no merge)
+  - Always target `develop` for feature PRs, never `main`
+  - Complete PR workflow examples
+  - Rebase conflict resolution procedures
+  - Prevents confusion from duplicate commits with different hashes
+
+### Migration Notes
+- Run migrations: `npx prisma migrate deploy`
+  - `20251027155005_add_avatar_data_to_personalities` - Adds avatar_data TEXT
+  - `20251027163723_add_is_default_to_llm_configs` - Adds is_default BOOLEAN + unique index
+  - `20251027174139_add_personality_appearance` - Adds personality_appearance TEXT
+- All migrations are additive (new nullable columns)
+- No data migrations required
+- Safe for db-sync between dev and prod
+
 ## [3.0.0-alpha.9] - 2025-10-26
 
 ### Added

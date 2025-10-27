@@ -33,6 +33,7 @@ export class PersonalityMapper {
       personalityTraits: config.personality_traits || '',
       personalityTone: config.personality_tone || null,
       personalityAge: config.personality_age || null,
+      personalityAppearance: config.personality_appearance || null,
       personalityLikes: config.personality_likes || null,
       personalityDislikes: config.personality_dislikes || null,
       conversationalGoals: config.personality_conversational_goals || null,
