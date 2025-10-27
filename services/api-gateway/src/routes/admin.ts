@@ -104,8 +104,12 @@ router.post('/personality', async (req: Request, res: Response) => {
       displayName,
       personalityTone,
       personalityAge,
+      personalityAppearance,
       personalityLikes,
       personalityDislikes,
+      conversationalGoals,
+      conversationalExamples,
+      customFields,
       avatarData
     } = req.body;
 
@@ -211,8 +215,12 @@ router.post('/personality', async (req: Request, res: Response) => {
         personalityTraits,
         personalityTone: personalityTone || null,
         personalityAge: personalityAge || null,
+        personalityAppearance: personalityAppearance || null,
         personalityLikes: personalityLikes || null,
         personalityDislikes: personalityDislikes || null,
+        conversationalGoals: conversationalGoals || null,
+        conversationalExamples: conversationalExamples || null,
+        customFields: customFields || null,
         avatarData: processedAvatarData || null,
         memoryEnabled: true,
         voiceEnabled: false,
@@ -300,8 +308,12 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
       displayName,
       personalityTone,
       personalityAge,
+      personalityAppearance,
       personalityLikes,
       personalityDislikes,
+      conversationalGoals,
+      conversationalExamples,
+      customFields,
       avatarData
     } = req.body;
 
@@ -382,8 +394,12 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
     if (displayName !== undefined) updateData.displayName = displayName;
     if (personalityTone !== undefined) updateData.personalityTone = personalityTone;
     if (personalityAge !== undefined) updateData.personalityAge = personalityAge;
+    if (personalityAppearance !== undefined) updateData.personalityAppearance = personalityAppearance;
     if (personalityLikes !== undefined) updateData.personalityLikes = personalityLikes;
     if (personalityDislikes !== undefined) updateData.personalityDislikes = personalityDislikes;
+    if (conversationalGoals !== undefined) updateData.conversationalGoals = conversationalGoals;
+    if (conversationalExamples !== undefined) updateData.conversationalExamples = conversationalExamples;
+    if (customFields !== undefined) updateData.customFields = customFields;
     if (processedAvatarData !== undefined) updateData.avatarData = processedAvatarData;
 
     // Update personality in database

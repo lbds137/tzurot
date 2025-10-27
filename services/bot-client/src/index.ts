@@ -53,11 +53,11 @@ client.on(Events.MessageCreate, (message) => {
   })();
 });
 
-// Interaction handler for slash commands
+// Interaction handler for slash commands and modals
 client.on(Events.InteractionCreate, (interaction) => {
   void (async () => {
     try {
-      if (interaction.isChatInputCommand()) {
+      if (interaction.isChatInputCommand() || interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
       }
     } catch (error) {
