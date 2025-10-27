@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Served via api-gateway at /avatars endpoint
 
 ### Fixed
+- **Personality Mention Regex** - Support hyphens in personality names (@Ha-Shem, @emily-tzudad-seraph-ditza)
+  - Updated regex pattern from `\w+` to `[\w-]+` with proper word boundaries
+  - Matches v2 behavior for hyphenated personality names
 - **Import Script Schema Mismatch** - PersonalityMapper was using avatarUrl field that doesn't exist in v3 schema
   - v3 uses Discord webhooks for avatars, not database-stored URLs
   - Avatar URLs preserved in customFields for reference
