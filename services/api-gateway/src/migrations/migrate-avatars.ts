@@ -1,8 +1,15 @@
 /**
- * One-time migration: Copy avatars from repo to volume
+ * DEPRECATED: Use sync-avatars.ts instead
  *
- * This migration copies avatar files bundled with the deployment
- * to the persistent /data/avatars volume.
+ * This was the old approach that bundled avatar files in the deployment
+ * and copied them to /data/avatars volume on startup.
+ *
+ * New approach (sync-avatars.ts):
+ * - Avatars are stored as base64 in PostgreSQL database
+ * - Filesystem (/data/avatars) is just a performance cache
+ * - On startup, avatars are synced from DB to filesystem if missing
+ *
+ * This file is kept for reference only.
  */
 
 import { copyFile, mkdir, access } from 'fs/promises';

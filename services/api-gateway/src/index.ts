@@ -24,7 +24,7 @@ const require = createRequire(import.meta.url);
 const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
-import { migrateAvatars } from './migrations/migrate-avatars.js';
+import { syncAvatars } from './migrations/sync-avatars.js';
 import type { HealthResponse, ErrorResponse } from './types.js';
 
 const logger = createLogger('api-gateway');
@@ -72,14 +72,69 @@ app.use((req, res, next) => {
 app.use('/ai', aiRouter);
 app.use('/admin', adminRouter);
 
-// Serve personality avatars from Railway volume
-// Avatars are downloaded during personality import and stored in /data/avatars
-app.use('/avatars', express.static('/data/avatars', {
-  maxAge: '7d', // Cache for 7 days
-  etag: true,
-  lastModified: true,
-  fallthrough: false, // Return 404 if avatar not found
-}));
+// Serve personality avatars with DB fallback
+// Avatars are primarily served from filesystem (/data/avatars)
+// If not found on filesystem, fall back to database and cache to filesystem
+app.get('/avatars/:slug.png', async (req, res) => {
+  const slug = req.params.slug;
+  const avatarPath = `/data/avatars/${slug}.png`;
+
+  try {
+    // Try to serve from filesystem first
+    await access(avatarPath);
+    res.sendFile(avatarPath, {
+      maxAge: '7d', // Cache for 7 days
+      etag: true,
+      lastModified: true
+    });
+  } catch {
+    // File not found on filesystem, check database
+    try {
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
+
+      const personality = await prisma.personality.findUnique({
+        where: { slug },
+        select: { avatarData: true }
+      });
+
+      await prisma.$disconnect();
+
+      if (!personality || !personality.avatarData) {
+        // Not in DB either, return 404
+        const errorResponse: ErrorResponse = {
+          error: 'NOT_FOUND',
+          message: `Avatar not found for personality: ${slug}`,
+          timestamp: new Date().toISOString()
+        };
+        res.status(404).json(errorResponse);
+        return;
+      }
+
+      // Decode base64 and serve
+      const buffer = Buffer.from(personality.avatarData, 'base64');
+
+      // Cache to filesystem for future requests
+      const { writeFile } = await import('fs/promises');
+      await writeFile(avatarPath, buffer);
+      logger.info(`[Gateway] Cached avatar from DB to filesystem: ${slug}`);
+
+      // Serve the image
+      res.set('Content-Type', 'image/png');
+      res.set('Cache-Control', 'max-age=604800'); // 7 days
+      res.send(buffer);
+
+    } catch (error) {
+      logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
+      const errorResponse: ErrorResponse = {
+        error: 'INTERNAL_ERROR',
+        message: 'Failed to retrieve avatar',
+        timestamp: new Date().toISOString()
+      };
+      res.status(500).json(errorResponse);
+    }
+  }
+});
 
 // Serve temporary attachments from Railway volume
 // Attachments are downloaded when requests are received and cleaned up after processing
@@ -269,8 +324,8 @@ async function main(): Promise<void> {
   // Ensure temp attachment storage directory exists
   await ensureTempAttachmentDirectory();
 
-  // Run one-time avatar migration
-  await migrateAvatars();
+  // Sync avatars from database to filesystem cache
+  await syncAvatars();
 
   // Start request deduplication cleanup
   startCleanup();
