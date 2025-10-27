@@ -258,6 +258,229 @@ async function searchCollection(collectionName: string, query: string, limit: nu
 }
 
 /**
+ * Delete specific points by filters
+ */
+async function deletePoints(options: {
+  collection: string;
+  personalityId?: string;
+  startTime?: string;
+  endTime?: string;
+  dryRun: boolean;
+}) {
+  const { collection, personalityId, startTime, endTime, dryRun } = options;
+
+  console.log(`\n🗑️  Delete Points from ${collection}`);
+  console.log('═'.repeat(80));
+
+  if (personalityId) console.log(`  Personality: ${personalityId}`);
+  if (startTime) console.log(`  Time range: ${startTime} to ${endTime}`);
+  console.log(`  Mode: ${dryRun ? 'DRY RUN' : 'LIVE DELETION'}`);
+  console.log('');
+
+  try {
+    // Build filter
+    const must: any[] = [];
+
+    if (personalityId) {
+      must.push({
+        key: 'personalityId',
+        match: { value: personalityId }
+      });
+    }
+
+    if (startTime && endTime) {
+      const startTimestamp = new Date(startTime).getTime();
+      const endTimestamp = new Date(endTime).getTime();
+      must.push({
+        key: 'createdAt',
+        range: {
+          gte: startTimestamp,
+          lte: endTimestamp
+        }
+      });
+    }
+
+    if (must.length === 0) {
+      console.error('❌ Must provide at least one filter (personalityId or time range)');
+      process.exit(1);
+    }
+
+    // Search for matching points
+    const scrollResult = await qdrant.scroll(collection, {
+      filter: { must },
+      limit: 100,
+      with_payload: true,
+      with_vector: false
+    });
+
+    const points = scrollResult.points;
+
+    if (points.length === 0) {
+      console.log('✨ No matching points found');
+      return;
+    }
+
+    console.log(`Found ${points.length} points:\n`);
+
+    // Display points
+    for (const point of points) {
+      const payload = point.payload as any;
+      console.log(`  ID: ${point.id}`);
+      if (payload.createdAt) {
+        console.log(`    Timestamp: ${new Date(payload.createdAt).toISOString()}`);
+      }
+      if (payload.personalityId) {
+        console.log(`    Personality: ${payload.personalityId}`);
+      }
+      if (payload.content) {
+        const preview = payload.content.substring(0, 150).replace(/\n/g, ' ');
+        console.log(`    Content: ${preview}${payload.content.length > 150 ? '...' : ''}`);
+      }
+      console.log('');
+    }
+
+    if (dryRun) {
+      console.log('🔍 [DRY RUN] Would delete these points. Run without --dry-run to actually delete.');
+      return;
+    }
+
+    // Actually delete
+    const pointIds = points.map(p => p.id);
+    console.log(`⚠️  Deleting ${pointIds.length} points...`);
+
+    await qdrant.delete(collection, {
+      points: pointIds
+    });
+
+    console.log('✅ Points deleted successfully\n');
+
+  } catch (error) {
+    console.error('❌ Failed to delete points:', error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
+}
+
+/**
+ * Show statistics for a collection
+ */
+async function showStats(collectionName: string) {
+  try {
+    const collection = await qdrant.getCollection(collectionName);
+
+    console.log(`\n📊 Statistics for ${collectionName}\n`);
+    console.log('═'.repeat(80));
+
+    console.log(`Total points: ${collection.points_count}`);
+    console.log(`Indexed vectors: ${collection.indexed_vectors_count}`);
+    console.log(`Segments: ${collection.segments_count}`);
+
+    // Sample some points to analyze payload structure
+    const sample = await qdrant.scroll(collectionName, {
+      limit: 100,
+      with_payload: true,
+      with_vector: false
+    });
+
+    if (sample.points.length > 0) {
+      // Analyze personalities
+      const personalities = new Map<string, number>();
+      const timeRange = { earliest: Infinity, latest: 0 };
+
+      for (const point of sample.points) {
+        const payload = point.payload as any;
+
+        if (payload.personalityId) {
+          personalities.set(
+            payload.personalityId,
+            (personalities.get(payload.personalityId) || 0) + 1
+          );
+        }
+
+        if (payload.createdAt) {
+          timeRange.earliest = Math.min(timeRange.earliest, payload.createdAt);
+          timeRange.latest = Math.max(timeRange.latest, payload.createdAt);
+        }
+      }
+
+      console.log('\n' + '═'.repeat(80));
+      console.log('SAMPLE ANALYSIS (from first 100 points):');
+      console.log('═'.repeat(80));
+
+      if (personalities.size > 0) {
+        console.log('\nPersonalities:');
+        Array.from(personalities.entries())
+          .sort((a, b) => b[1] - a[1])
+          .forEach(([id, count]) => {
+            console.log(`  ${id}: ${count} points`);
+          });
+      }
+
+      if (timeRange.earliest !== Infinity) {
+        console.log('\nTime range:');
+        console.log(`  Earliest: ${new Date(timeRange.earliest).toISOString()}`);
+        console.log(`  Latest: ${new Date(timeRange.latest).toISOString()}`);
+      }
+    }
+
+    console.log('\n');
+
+  } catch (error) {
+    console.error(`❌ Collection "${collectionName}" not found`);
+    process.exit(1);
+  }
+}
+
+/**
+ * Clean up empty collections
+ */
+async function vacuum(dryRun: boolean = false) {
+  console.log(`\n🧹 Vacuum: ${dryRun ? 'Finding' : 'Removing'} empty collections\n`);
+  console.log('═'.repeat(80));
+
+  const response = await qdrant.getCollections();
+
+  const emptyCollections: string[] = [];
+
+  for (const collection of response.collections) {
+    try {
+      const detail = await qdrant.getCollection(collection.name);
+      if (detail.points_count === 0) {
+        emptyCollections.push(collection.name);
+      }
+    } catch (error) {
+      // Skip if can't access
+    }
+  }
+
+  if (emptyCollections.length === 0) {
+    console.log('✨ No empty collections found\n');
+    return;
+  }
+
+  console.log(`Found ${emptyCollections.length} empty collections:\n`);
+  emptyCollections.forEach(name => console.log(`  - ${name}`));
+  console.log('');
+
+  if (dryRun) {
+    console.log('🔍 [DRY RUN] Run without --dry-run to delete these collections\n');
+    return;
+  }
+
+  console.log('⚠️  Deleting empty collections...');
+
+  for (const name of emptyCollections) {
+    try {
+      await qdrant.deleteCollection(name);
+      console.log(`  ✅ Deleted ${name}`);
+    } catch (error) {
+      console.log(`  ❌ Failed to delete ${name}`);
+    }
+  }
+
+  console.log('\n✅ Vacuum complete\n');
+}
+
+/**
  * Main CLI entry point
  */
 async function main() {
@@ -265,25 +488,44 @@ async function main() {
 
   if (!command || command === '--help' || command === '-h') {
     console.log(`
-Qdrant CLI - Reusable tool for inspecting Qdrant collections
+Qdrant CLI - Comprehensive tool for managing Qdrant vector memories
 
 Usage:
   pnpm qdrant <command> [args]
 
-Commands:
-  list                                 List all collections
-  inspect <collection>                 Show collection details
+COLLECTION COMMANDS:
+  list                                 List all collections with grouping
+  inspect <collection>                 Show detailed collection info
   count <collection>                   Count points in collection
   sample <collection> [limit]          Show sample points (default: 5)
-  search <collection> <query> [limit]  Search collection by text (default: 10)
-  delete <collection> --force          Delete a collection (requires --force)
+  stats <collection>                   Show collection statistics
+  delete <collection> --force          Delete entire collection (requires --force)
+  vacuum [--dry-run]                   Remove empty collections
+
+POINT COMMANDS:
+  search <collection> <query> [limit]  Search points by text (default: 10)
+  delete-points <collection> [options] Delete specific points by filters
+    --personality-id <uuid>            Filter by personality
+    --start-time <ISO timestamp>       Filter by start time
+    --end-time <ISO timestamp>         Filter by end time
+    --dry-run                          Preview deletions without executing
 
 Examples:
+  # Collection management
   pnpm qdrant list
   pnpm qdrant inspect persona-3bd86394-20d8-5992-8201-e621856e9087
-  pnpm qdrant count personality-c296b337-4e67-5337-99a3-4ca105cbbd68
-  pnpm qdrant sample persona-legacy-98a94b95-cbd0-430b-8be2-602e1c75d8b0 3
-  pnpm qdrant search personality-c296b337-4e67-5337-99a3-4ca105cbbd68 "coding"
+  pnpm qdrant stats persona-3bd86394-20d8-5992-8201-e621856e9087
+  pnpm qdrant vacuum --dry-run
+
+  # Point operations
+  pnpm qdrant search persona-782be8b4-9fd9-5005-9358-5605f63ead99 "coding"
+  pnpm qdrant delete-points persona-782be8b4-9fd9-5005-9358-5605f63ead99 \\
+    --personality-id c296b337-4e67-5337-99a3-4ca105cbbd68 \\
+    --start-time "2025-10-27T05:00:00Z" \\
+    --end-time "2025-10-27T06:00:00Z" \\
+    --dry-run
+
+  # Dangerous operations (require --force)
   pnpm qdrant delete personality-c296b337-4e67-5337-99a3-4ca105cbbd68 --force
     `);
     process.exit(0);
@@ -313,6 +555,15 @@ Examples:
         await countPoints(args[0]);
         break;
 
+      case 'stats':
+        if (!args[0]) {
+          console.error('❌ Missing collection name');
+          console.error('Usage: pnpm qdrant stats <collection>');
+          process.exit(1);
+        }
+        await showStats(args[0]);
+        break;
+
       case 'sample':
         if (!args[0]) {
           console.error('❌ Missing collection name');
@@ -329,6 +580,33 @@ Examples:
           process.exit(1);
         }
         await searchCollection(args[0], args[1], args[2] ? parseInt(args[2]) : 10);
+        break;
+
+      case 'delete-points': {
+        if (!args[0]) {
+          console.error('❌ Missing collection name');
+          console.error('Usage: pnpm qdrant delete-points <collection> [options]');
+          process.exit(1);
+        }
+
+        // Parse options
+        const getOption = (flag: string) => {
+          const index = args.indexOf(flag);
+          return index !== -1 ? args[index + 1] : undefined;
+        };
+
+        await deletePoints({
+          collection: args[0],
+          personalityId: getOption('--personality-id'),
+          startTime: getOption('--start-time'),
+          endTime: getOption('--end-time'),
+          dryRun: args.includes('--dry-run')
+        });
+        break;
+      }
+
+      case 'vacuum':
+        await vacuum(args.includes('--dry-run'));
         break;
 
       case 'delete':
