@@ -171,6 +171,7 @@ model Personality {
   personalityTraits      String  @map("personality_traits") @db.Text
   personalityTone        String? @map("personality_tone") @db.VarChar(500)
   personalityAge         String? @map("personality_age") @db.VarChar(100)
+  personalityAppearance  String? @map("personality_appearance") @db.Text
   personalityLikes       String? @map("personality_likes") @db.Text
   personalityDislikes    String? @map("personality_dislikes") @db.Text
   conversationalGoals    String? @map("conversational_goals") @db.Text

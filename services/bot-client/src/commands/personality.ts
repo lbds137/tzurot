@@ -6,8 +6,13 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  ModalSubmitInteraction,
   EmbedBuilder,
-  MessageFlags
+  MessageFlags,
+  ModalBuilder,
+  ActionRowBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } from 'discord.js';
 import { getConfig, createLogger } from '@tzurot/common-types';
 
@@ -145,9 +150,25 @@ export const data = new SlashCommandBuilder()
           .setDescription('Things this personality dislikes')
           .setRequired(false)
       )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('import')
+      .setDescription('Import a personality from JSON file')
+      .addAttachmentOption(option =>
+        option
+          .setName('file')
+          .setDescription('JSON file containing personality data')
+          .setRequired(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('create-modal')
+      .setDescription('Create a new AI personality using an interactive form')
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction | ModalSubmitInteraction): Promise<void> {
   const config = getConfig();
   const ownerId = config.BOT_OWNER_ID;
 
@@ -160,6 +181,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
+  // Handle modal submissions
+  if (interaction.isModalSubmit()) {
+    await handleModalSubmit(interaction, config);
+    return;
+  }
+
   const subcommand = interaction.options.getSubcommand();
 
   switch (subcommand) {
@@ -168,6 +195,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       break;
     case 'edit':
       await handleEdit(interaction, config);
+      break;
+    case 'import':
+      await handleImport(interaction, config);
+      break;
+    case 'create-modal':
+      await handleCreateModal(interaction);
       break;
     default:
       await interaction.reply({
@@ -477,6 +510,336 @@ async function handleEdit(
     logger.error({ err: error }, 'Error editing personality');
     await interaction.editReply(
       '❌ An unexpected error occurred while editing the personality.\n' +
+      'Check bot logs for details.'
+    );
+  }
+}
+
+/**
+ * Handle /personality import subcommand
+ */
+async function handleImport(
+  interaction: ChatInputCommandInteraction,
+  config: ReturnType<typeof getConfig>
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    const fileAttachment = interaction.options.getAttachment('file', true);
+
+    // Validate file type
+    if (!fileAttachment.contentType?.includes('json') && !fileAttachment.name.endsWith('.json')) {
+      await interaction.editReply('❌ File must be a JSON file (.json)');
+      return;
+    }
+
+    // Validate file size (10MB limit from Discord)
+    if (fileAttachment.size > 10 * 1024 * 1024) {
+      await interaction.editReply('❌ File is too large (max 10MB)');
+      return;
+    }
+
+    // Download and parse JSON
+    let personalityData: Record<string, unknown>;
+    try {
+      const response = await fetch(fileAttachment.url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const text = await response.text();
+      personalityData = JSON.parse(text);
+
+      logger.info(`[Personality Import] Downloaded JSON: ${fileAttachment.name} (${(text.length / 1024).toFixed(2)} KB)`);
+
+    } catch (error) {
+      logger.error({ err: error }, 'Failed to download or parse JSON');
+      await interaction.editReply(
+        '❌ Failed to parse JSON file.\n' +
+        'Make sure the file is valid JSON format.'
+      );
+      return;
+    }
+
+    // Validate required fields
+    const requiredFields = ['name', 'slug', 'characterInfo', 'personalityTraits'];
+    const missingFields = requiredFields.filter(field => !personalityData[field]);
+
+    if (missingFields.length > 0) {
+      await interaction.editReply(
+        `❌ Missing required fields: ${missingFields.join(', ')}\n` +
+        'JSON must include: name, slug, characterInfo, personalityTraits'
+      );
+      return;
+    }
+
+    // Validate slug format
+    const slug = personalityData.slug as string;
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      await interaction.editReply(
+        '❌ Invalid slug format in JSON. Use only lowercase letters, numbers, and hyphens.\n' +
+        `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+      );
+      return;
+    }
+
+    // Build payload for API
+    const payload = {
+      name: personalityData.name,
+      slug: personalityData.slug,
+      characterInfo: personalityData.characterInfo,
+      personalityTraits: personalityData.personalityTraits,
+      displayName: personalityData.displayName || undefined,
+      personalityTone: personalityData.personalityTone || undefined,
+      personalityAge: personalityData.personalityAge || undefined,
+      personalityAppearance: personalityData.personalityAppearance || undefined,
+      personalityLikes: personalityData.personalityLikes || undefined,
+      personalityDislikes: personalityData.personalityDislikes || undefined,
+      conversationalGoals: personalityData.conversationalGoals || undefined,
+      conversationalExamples: personalityData.conversationalExamples || undefined,
+      customFields: personalityData.customFields || undefined,
+      avatarData: personalityData.avatarData || undefined,
+      ownerId: interaction.user.id
+    };
+
+    // Call API Gateway to create personality
+    const gatewayUrl = config.GATEWAY_URL;
+    const response = await fetch(`${gatewayUrl}/admin/personality`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Id': interaction.user.id
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error({ status: response.status, error: errorText }, 'Failed to import personality');
+
+      // Check for common errors
+      if (response.status === 409) {
+        await interaction.editReply(
+          `❌ A personality with the slug \`${slug}\` already exists.\n` +
+          'Either change the slug in the JSON file or delete the existing personality first.'
+        );
+        return;
+      }
+
+      await interaction.editReply(
+        `❌ Failed to import personality (HTTP ${response.status}):\n` +
+        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+      );
+      return;
+    }
+
+    await response.json();
+
+    // Build success embed
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('✅ Personality Imported Successfully')
+      .setDescription(`Imported personality: **${payload.name}** (\`${slug}\`)`)
+      .setTimestamp();
+
+    // Show what was imported
+    const importedFields: string[] = [];
+    if (payload.characterInfo) importedFields.push('Character Info');
+    if (payload.personalityTraits) importedFields.push('Personality Traits');
+    if (payload.displayName) importedFields.push('Display Name');
+    if (payload.personalityTone) importedFields.push('Tone');
+    if (payload.personalityAge) importedFields.push('Age');
+    if (payload.personalityAppearance) importedFields.push('Appearance');
+    if (payload.personalityLikes) importedFields.push('Likes');
+    if (payload.personalityDislikes) importedFields.push('Dislikes');
+    if (payload.conversationalGoals) importedFields.push('Conversational Goals');
+    if (payload.conversationalExamples) importedFields.push('Conversational Examples');
+    if (payload.customFields) importedFields.push('Custom Fields');
+    if (payload.avatarData) importedFields.push('Avatar Data');
+
+    embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
+
+    await interaction.editReply({ embeds: [embed] });
+
+    logger.info(`[Personality Import] Imported personality: ${slug} by ${interaction.user.tag}`);
+
+  } catch (error) {
+    logger.error({ err: error }, 'Error importing personality');
+    await interaction.editReply(
+      '❌ An unexpected error occurred while importing the personality.\n' +
+      'Check bot logs for details.'
+    );
+  }
+}
+
+/**
+ * Handle /personality create-modal subcommand
+ * Shows a modal with text inputs for personality creation
+ */
+async function handleCreateModal(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Create modal with text inputs
+  const modal = new ModalBuilder()
+    .setCustomId('personality-create')
+    .setTitle('Create New Personality');
+
+  // Name input (required)
+  const nameInput = new TextInputBuilder()
+    .setCustomId('name')
+    .setLabel('Name')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Lilith')
+    .setRequired(true)
+    .setMaxLength(255);
+
+  // Slug input (required)
+  const slugInput = new TextInputBuilder()
+    .setCustomId('slug')
+    .setLabel('Slug (lowercase, hyphens only)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('lilith')
+    .setRequired(true)
+    .setMaxLength(255);
+
+  // Character Info input (required, paragraph style for long text)
+  const characterInfoInput = new TextInputBuilder()
+    .setCustomId('characterInfo')
+    .setLabel('Character Info')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Background, description, and context for this personality...')
+    .setRequired(true)
+    .setMaxLength(4000);
+
+  // Personality Traits input (required, paragraph style for long text)
+  const personalityTraitsInput = new TextInputBuilder()
+    .setCustomId('personalityTraits')
+    .setLabel('Personality Traits')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Key traits, behaviors, and characteristics...')
+    .setRequired(true)
+    .setMaxLength(4000);
+
+  // Display Name input (optional)
+  const displayNameInput = new TextInputBuilder()
+    .setCustomId('displayName')
+    .setLabel('Display Name (optional)')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Leave empty to use Name')
+    .setRequired(false)
+    .setMaxLength(255);
+
+  // Add inputs to action rows (max 1 input per row)
+  const rows = [
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(slugInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(characterInfoInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(personalityTraitsInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(displayNameInput)
+  ];
+
+  modal.addComponents(...rows);
+
+  // Show modal to user
+  await interaction.showModal(modal);
+  logger.info(`[Personality Create Modal] Modal shown to ${interaction.user.tag}`);
+}
+
+/**
+ * Handle modal submission for personality creation
+ */
+async function handleModalSubmit(
+  interaction: ModalSubmitInteraction,
+  config: ReturnType<typeof getConfig>
+): Promise<void> {
+  // Only handle personality-create modal
+  if (interaction.customId !== 'personality-create') {
+    await interaction.reply({
+      content: '❌ Unknown modal submission',
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // Extract values from modal
+    const name = interaction.fields.getTextInputValue('name');
+    const slug = interaction.fields.getTextInputValue('slug');
+    const characterInfo = interaction.fields.getTextInputValue('characterInfo');
+    const personalityTraits = interaction.fields.getTextInputValue('personalityTraits');
+    const displayName = interaction.fields.getTextInputValue('displayName') || undefined;
+
+    // Validate slug format
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      await interaction.editReply(
+        '❌ Invalid slug format. Use only lowercase letters, numbers, and hyphens.\n' +
+        `Example: \`${slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')}\``
+      );
+      return;
+    }
+
+    // Build payload for API
+    const payload = {
+      name,
+      slug,
+      characterInfo,
+      personalityTraits,
+      displayName,
+      ownerId: interaction.user.id
+    };
+
+    // Call API Gateway to create personality
+    const gatewayUrl = config.GATEWAY_URL;
+    const response = await fetch(`${gatewayUrl}/admin/personality`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Owner-Id': interaction.user.id
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error({ status: response.status, error: errorText }, 'Failed to create personality');
+
+      if (response.status === 409) {
+        await interaction.editReply(
+          `❌ A personality with the slug \`${slug}\` already exists.\n` +
+          'Either use a different slug or delete the existing personality first.'
+        );
+        return;
+      }
+
+      await interaction.editReply(
+        `❌ Failed to create personality (HTTP ${response.status}):\n` +
+        `\`\`\`\n${errorText.slice(0, 1500)}\n\`\`\``
+      );
+      return;
+    }
+
+    await response.json();
+
+    // Success!
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('✅ Personality Created Successfully')
+      .setDescription(`Created personality: **${name}** (\`${slug}\`)`)
+      .addFields(
+        { name: 'Character Info', value: `${characterInfo.substring(0, 200)}...`, inline: false },
+        { name: 'Personality Traits', value: `${personalityTraits.substring(0, 200)}...`, inline: false }
+      )
+      .setFooter({ text: 'Use /personality edit to add more details (appearance, likes, etc.)' })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+
+    logger.info(`[Personality Create Modal] Created personality: ${slug} by ${interaction.user.tag}`);
+
+  } catch (error) {
+    logger.error({ err: error }, 'Error creating personality from modal');
+    await interaction.editReply(
+      '❌ An unexpected error occurred while creating the personality.\n' +
       'Check bot logs for details.'
     );
   }

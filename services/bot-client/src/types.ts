@@ -4,7 +4,7 @@
  * Type definitions for Discord bot client.
  */
 
-import type { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import type { ChatInputCommandInteraction, ModalSubmitInteraction, SlashCommandBuilder } from 'discord.js';
 import type {
   AttachmentMetadata,
   ApiConversationMessage,
@@ -52,5 +52,5 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
 export interface Command {
   data: SlashCommandBuilder;
   category?: string;
-  execute: (interaction: ChatInputCommandInteraction, ...args: unknown[]) => Promise<void>;
+  execute: (interaction: ChatInputCommandInteraction | ModalSubmitInteraction, ...args: unknown[]) => Promise<void>;
 }
