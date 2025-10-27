@@ -23,6 +23,21 @@ const MIGRATIONS = [
     source: join(__dirname, '../../avatars-to-migrate/cold-kerach-batuach.png'),
     dest: '/data/avatars/cold-kerach-batuach.png',
     name: 'cold-kerach-batuach'
+  },
+  {
+    source: join(__dirname, '../../avatars-to-migrate/ha-shem-keev-ima.png'),
+    dest: '/data/avatars/ha-shem-keev-ima.png',
+    name: 'ha-shem-keev-ima'
+  },
+  {
+    source: join(__dirname, '../../avatars-to-migrate/emily-tzudad-seraph-ditza.png'),
+    dest: '/data/avatars/emily-tzudad-seraph-ditza.png',
+    name: 'emily-tzudad-seraph-ditza'
+  },
+  {
+    source: join(__dirname, '../../avatars-to-migrate/lucifer-kochav-shenafal.png'),
+    dest: '/data/avatars/lucifer-kochav-shenafal.png',
+    name: 'lucifer-kochav-shenafal'
   }
 ];
 
