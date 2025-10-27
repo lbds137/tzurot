@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import { Collection, ChatInputCommandInteraction, MessageFlags } from 'discord.js';
+import { Collection, ChatInputCommandInteraction, ModalSubmitInteraction, MessageFlags } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
@@ -99,13 +99,18 @@ export class CommandHandler {
   }
 
   /**
-   * Handle a slash command interaction
+   * Handle a slash command or modal submit interaction
    */
-  async handleInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
-    const command = this.commands.get(interaction.commandName);
+  async handleInteraction(interaction: ChatInputCommandInteraction | ModalSubmitInteraction): Promise<void> {
+    // For modal submits, extract command name from customId (format: "commandName-modalType")
+    const commandName = interaction.isModalSubmit()
+      ? interaction.customId.split('-')[0]
+      : interaction.commandName;
+
+    const command = this.commands.get(commandName);
 
     if (!command) {
-      logger.warn(`[CommandHandler] Unknown command: ${interaction.commandName}`);
+      logger.warn(`[CommandHandler] Unknown command: ${commandName}`);
       await interaction.reply({
         content: 'Unknown command!',
         flags: MessageFlags.Ephemeral
@@ -114,16 +119,16 @@ export class CommandHandler {
     }
 
     try {
-      logger.info(`[CommandHandler] Executing command: ${interaction.commandName}`);
+      logger.info(`[CommandHandler] Executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`);
 
       // Pass commands collection to utility command (for help subcommand)
-      if (interaction.commandName === 'utility') {
+      if (commandName === 'utility' && interaction.isChatInputCommand()) {
         await command.execute(interaction, this.commands);
       } else {
         await command.execute(interaction);
       }
     } catch (error) {
-      logger.error({ err: error }, `[CommandHandler] Error executing command: ${interaction.commandName}`);
+      logger.error({ err: error }, `[CommandHandler] Error executing ${interaction.isModalSubmit() ? 'modal' : 'command'}: ${commandName}`);
 
       const errorMessage = 'There was an error executing this command!';
 
