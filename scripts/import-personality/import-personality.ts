@@ -137,7 +137,7 @@ class PersonalityImportCLI {
           options
         );
         console.log(`✅ Personality imported: ${personalityResult.v3PersonalityId}`);
-        console.log(`  Avatar: ${personalityResult.avatarUrl}`);
+        console.log(`  Note: Avatar URL preserved in customFields`);
         console.log('');
       } else {
         // Memories-only mode: look up existing personality
@@ -278,8 +278,6 @@ class PersonalityImportCLI {
         systemPromptId: 'dry-run-system-prompt-id',
         llmConfigId: 'dry-run-llm-config-id',
         defaultLinkId: 'dry-run-link-id',
-        avatarPath: '/data/avatars/dry-run.png',
-        avatarUrl: `${API_GATEWAY_URL}/avatars/dry-run.png`,
       };
     }
 
@@ -294,19 +292,9 @@ class PersonalityImportCLI {
       );
     }
 
-    // Download avatar
-    console.log('  Downloading avatar...');
-    const avatarResult = await this.avatarDownloader.download(
-      config.avatar,
-      config.username
-    );
-
-    if (!avatarResult.success) {
-      console.warn(`  ⚠️  Avatar download failed: ${avatarResult.error}`);
-      console.warn(`     Using fallback`);
-    } else {
-      console.log(`  ✅ Avatar saved: ${avatarResult.localPath}`);
-    }
+    // Note: Avatar downloading skipped - v3 uses Discord webhooks for avatars
+    // Avatar URL is preserved in customFields.shapesIncAvatarUrl for reference
+    console.log('  Skipping avatar download (v3 uses Discord webhooks)');
 
     // Create in database (wrapped in transaction)
     const result = await this.prisma.$transaction(async (tx) => {
@@ -326,14 +314,12 @@ class PersonalityImportCLI {
             where: { id: existing.id },
             data: {
               ...v3Data.personality,
-              avatarUrl: avatarResult.publicUrl || v3Data.personality.avatarUrl,
               systemPromptId: systemPrompt.id,
             },
           })
         : await tx.personality.create({
             data: {
               ...v3Data.personality,
-              avatarUrl: avatarResult.publicUrl || v3Data.personality.avatarUrl,
               systemPromptId: systemPrompt.id,
             },
           });
@@ -358,8 +344,7 @@ class PersonalityImportCLI {
         systemPromptId: systemPrompt.id,
         llmConfigId: llmConfig.id,
         defaultLinkId: defaultLink.personalityId,
-        avatarPath: avatarResult.localPath || '',
-        avatarUrl: avatarResult.publicUrl || v3Data.personality.avatarUrl,
+        // Avatar info preserved in customFields for reference
       };
     });
 

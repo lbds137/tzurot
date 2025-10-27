@@ -27,7 +27,8 @@ export class PersonalityMapper {
       name: config.name, // Display name (e.g., "COLD")
       displayName: config.name, // Same as name for now
       slug: config.username, // URL-friendly slug (e.g., "cold-kerach-batuach")
-      avatarUrl: config.avatar, // Will be replaced with local URL after download
+      // Note: avatarUrl removed - v3 handles avatars through Discord webhooks
+      // Avatar URL preserved in customFields.shapesIncAvatarUrl for reference
       characterInfo: config.user_prompt || '',
       personalityTraits: config.personality_traits || '',
       personalityTone: config.personality_tone || null,
@@ -79,6 +80,11 @@ export class PersonalityMapper {
     // Preserve shapes.inc ID for reference
     if (config.id) {
       customFields.shapesIncId = config.id;
+    }
+
+    // Preserve avatar URL for reference (v3 uses webhooks instead)
+    if (config.avatar) {
+      customFields.shapesIncAvatarUrl = config.avatar;
     }
 
     // Return null if no custom fields to store

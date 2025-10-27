@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.9] - 2025-10-26
+
+### Added
+- **Personality Import Tool** - Import personalities and memories from shapes.inc backups
+  - Imported Ha-shem, Emily, and Lucifer personalities with full memory history
+  - Fixed schema compatibility issues (removed avatarUrl field)
+  - Hybrid UUID mapping: known users → v3 personas, unknown → legacy collections
+  - Imported 1,710 total memories (1,396 to user persona, 104 legacy collections)
+- **Avatar Migration** - Added Ha-shem, Emily, and Lucifer avatars to Railway volume
+  - Avatars bundled with deployment and copied to persistent /data volume
+  - Served via api-gateway at /avatars endpoint
+
+### Fixed
+- **Import Script Schema Mismatch** - PersonalityMapper was using avatarUrl field that doesn't exist in v3 schema
+  - v3 uses Discord webhooks for avatars, not database-stored URLs
+  - Avatar URLs preserved in customFields for reference
+- **Avatar Storage Paths** - Disabled local avatar download (v3 uses Discord webhooks)
+  - Preserved shapes.inc avatar URLs in personality customFields
+
 ## [2.2.10] - 2025-08-13
 
 ### Fixed
