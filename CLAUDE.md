@@ -223,10 +223,43 @@ OpenRouter/Gemini API
 
 ## Git Workflow
 
+### 🚨 CRITICAL: Rebase-Only Workflow
+
+**THIS PROJECT USES REBASE-ONLY. NO SQUASH. NO MERGE. ONLY REBASE.**
+
+GitHub repository settings enforce this:
+- ✅ **Rebase and merge** - ONLY option enabled
+- ❌ **Squash and merge** - DISABLED
+- ❌ **Create a merge commit** - DISABLED
+
+**Why this matters**: Squash/merge creates duplicate commits with different hashes, causing rebase conflicts and confusion.
+
+### 🚨 CRITICAL: Always Target `develop` for PRs
+
+**NEVER create PRs directly to `main`!**
+
+- ✅ **Feature PRs → `develop`** (v3 is still in testing)
+- ❌ **Feature PRs → `main`** (only for releases)
+
+**Example PR creation**:
+```bash
+# ✅ CORRECT - Always target develop
+gh pr create --base develop --title "feat: your feature"
+
+# ❌ WRONG - Don't target main for features!
+gh pr create --base main --title "feat: your feature"
+```
+
 ### Branch Strategy
-- `main` - Production releases only
-- `feat/v3-continued` - Current v3 development branch
-- Feature branches from `feat/v3-continued`
+- `main` - Production releases only (v3 not ready yet)
+- `develop` - Active development branch (current v3 work)
+- Feature branches from `develop`
+
+**Common branch prefixes**:
+- `feat/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation updates
+- `refactor/` - Code refactoring
 
 ### Commit Messages
 ```bash
@@ -237,8 +270,51 @@ chore: update dependencies
 docs: update deployment guide
 ```
 
+### Standard PR Workflow
+
+1. **Create feature branch from develop**:
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feat/your-feature
+```
+
+2. **Make changes and commit**:
+```bash
+# Make changes
+git add .
+git commit -m "feat: your changes"
+```
+
+3. **Push and create PR to develop**:
+```bash
+git push -u origin feat/your-feature
+gh pr create --base develop --title "feat: your feature"
+```
+
+4. **After PR is merged**:
+```bash
+git checkout develop
+git pull origin develop  # This gets the rebased commits
+git branch -d feat/your-feature  # Clean up local branch
+```
+
+### Handling Rebase Conflicts
+
+If you need to rebase your feature branch onto latest develop:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout feat/your-feature
+git rebase develop  # May need to resolve conflicts
+git push --force-with-lease origin feat/your-feature
+```
+
+**Important**: GitHub will automatically update the PR when you force-push.
+
 ### Deployment Flow
-1. Push to `feat/v3-continued` branch
+1. Merge PR to `develop` branch
 2. Railway auto-deploys from GitHub
 3. Check health endpoint: https://api-gateway-development-83e8.up.railway.app/health
 4. Monitor logs via `railway logs`
