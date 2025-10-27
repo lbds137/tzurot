@@ -37,6 +37,7 @@ export interface LoadedPersonality {
   personalityTraits: string;
   personalityTone?: string;
   personalityAge?: string;
+  personalityAppearance?: string;
   personalityLikes?: string;
   personalityDislikes?: string;
   conversationalGoals?: string;
@@ -72,6 +73,7 @@ export interface DatabasePersonality {
   personalityTraits: string;
   personalityTone: string | null;
   personalityAge: string | null;
+  personalityAppearance: string | null;
   personalityLikes: string | null;
   personalityDislikes: string | null;
   conversationalGoals: string | null;
@@ -280,6 +282,7 @@ export class PersonalityService {
       personalityTraits: db.personalityTraits,
       personalityTone: db.personalityTone || undefined,
       personalityAge: db.personalityAge || undefined,
+      personalityAppearance: db.personalityAppearance || undefined,
       personalityLikes: db.personalityLikes || undefined,
       personalityDislikes: db.personalityDislikes || undefined,
       conversationalGoals: db.conversationalGoals || undefined,
