@@ -384,11 +384,17 @@ export class MessageHandler {
 
     // Escape special regex characters
     const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const mentionRegex = new RegExp(`${escapedChar}(\\w+)`);
+    // Match personality names with hyphens (e.g., @Ha-Shem)
+    // Pattern: @name followed by punctuation, whitespace, or end of string
+    const mentionRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
     const match = content.match(mentionRegex);
 
     if (match !== null) {
-      const personalityName = match[1];
+      // Extract just the personality name (remove mention char and trailing punctuation)
+      const fullMatch = match[0];
+      const personalityName = fullMatch
+        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
+        .replace(/[.,!?;:)"'\s]+$/, ''); // Remove trailing punctuation/whitespace
 
       // Ignore Discord user ID mentions (all digits)
       if (/^\d+$/.test(personalityName)) {
