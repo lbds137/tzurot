@@ -105,6 +105,7 @@ model LlmConfig {
   ownerId  String?  @map("owner_id") @db.Uuid
   owner    User?    @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   isGlobal Boolean  @default(false) @map("is_global")
+  isDefault Boolean @default(false) @map("is_default")
 
   // LLM parameters
   model             String   @db.VarChar(255)
@@ -183,6 +184,9 @@ model Personality {
   // Image settings
   imageEnabled  Boolean @default(false) @map("image_enabled")
   imageSettings Json?   @map("image_settings")
+
+  // Avatar (stored as base64-encoded PNG)
+  avatarData String? @map("avatar_data") @db.Text
 
   // Memory settings
   memoryEnabled Boolean @default(true) @map("memory_enabled")
