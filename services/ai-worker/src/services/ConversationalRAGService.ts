@@ -691,6 +691,16 @@ export class ConversationalRAGService {
       sections.push(`\n## Conversational Tone\n${personality.personalityTone}`);
     }
 
+    // Add age
+    if (personality.personalityAge) {
+      sections.push(`\n## Age\n${personality.personalityAge}`);
+    }
+
+    // Add appearance
+    if (personality.personalityAppearance) {
+      sections.push(`\n## Physical Appearance\n${personality.personalityAppearance}`);
+    }
+
     // Add likes
     if (personality.personalityLikes) {
       sections.push(`\n## What I Like\n${personality.personalityLikes}`);
