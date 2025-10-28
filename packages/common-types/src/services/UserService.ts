@@ -24,8 +24,12 @@ export class UserService {
   /**
    * Get or create a user by Discord ID
    * Returns the user's UUID for use in foreign keys
+   * @param discordId Discord user ID
+   * @param username Discord username (e.g., "alt_hime")
+   * @param displayName Discord display name (e.g., "Alt Hime") - falls back to username if not provided
+   * @param bio Discord user's profile bio/about me - if provided, used for persona content
    */
-  async getOrCreateUser(discordId: string, username: string): Promise<string> {
+  async getOrCreateUser(discordId: string, username: string, displayName?: string, bio?: string): Promise<string> {
     // Check cache first
     const cached = this.userCache.get(discordId);
     if (cached) {
@@ -43,7 +47,7 @@ export class UserService {
       if (!user) {
         // Generate deterministic UUIDs (same across all environments!)
         const userId = generateUserUuid(discordId);
-        const personaId = generatePersonaUuid(`${username}'s Persona`, userId);
+        const personaId = generatePersonaUuid(username, userId);
 
         // Create user, default persona, and link in a transaction
         await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -57,12 +61,17 @@ export class UserService {
           });
 
           // Create default persona for user
+          // Use display name (e.g., "Alt Hime") as preferredName, fallback to username
+          const personaDisplayName = displayName || username;
+          // Use Discord bio if available, otherwise leave empty
+          const personaContent = bio || '';
           await tx.persona.create({
             data: {
               id: personaId,
-              name: `${username}'s Persona`,
+              name: username, // Keep username as identifier
+              preferredName: personaDisplayName, // Use display name for showing to AI
               description: 'Default persona',
-              content: 'A Discord user with no additional context provided',
+              content: personaContent,
               ownerId: userId
             }
           });

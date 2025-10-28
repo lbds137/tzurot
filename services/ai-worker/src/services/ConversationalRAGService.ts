@@ -590,7 +590,9 @@ export class ConversationalRAGService {
 
       // 3. Determine canon scope and prepare memory metadata
       const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
-      const interactionText = `User (${context.userName || context.userId}): ${userMessage}\n${personality.name}: ${aiResponse}`;
+      // Use persona name (not Discord username) so AI can properly identify speakers
+      const speakerName = context.activePersonaName || context.userName || 'User';
+      const interactionText = `${speakerName}: ${userMessage}\n${personality.name}: ${aiResponse}`;
 
       const memoryMetadata = {
         personaId,
