@@ -198,9 +198,15 @@ export class MessageHandler {
       }
 
       // Get or create user record
+      // Use display name: server nickname > global display name > username
+      const displayName = message.member?.displayName || message.author.globalName || message.author.username;
+
+      // Note: Discord API doesn't expose user bios to bots (privacy restriction)
+      // Bio parameter left undefined, so persona content will be empty
       const userId = await this.userService.getOrCreateUser(
         message.author.id,
-        message.author.username
+        message.author.username,
+        displayName
       );
 
       // Get the persona for this user + personality combination
