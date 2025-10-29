@@ -418,32 +418,8 @@ export class MessageHandler {
     // Escape special regex characters
     const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    // Try single-word mentions first (e.g., @Lilith, @Ha-Shem)
-    // Pattern: @name followed by punctuation, whitespace, or end of string
-    const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
-    let match = content.match(singleWordRegex);
-
-    if (match !== null) {
-      const fullMatch = match[0];
-      const personalityName = fullMatch
-        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
-        .replace(/[.,!?;:)"'\s]+$/, ''); // Remove trailing punctuation/whitespace
-
-      // Ignore Discord user ID mentions (all digits)
-      if (/^\d+$/.test(personalityName)) {
-        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
-        return null;
-      }
-
-      // Check if this personality exists
-      const personality = await this.personalityService.loadPersonality(personalityName);
-      if (personality) {
-        const cleanContent = content.replace(singleWordRegex, '').trim();
-        return { personalityName, cleanContent };
-      }
-    }
-
-    // Try multi-word mentions (e.g., @Angel Dust, @Bambi Prime)
+    // Try multi-word mentions FIRST (e.g., @Angel Dust, @Bambi Prime)
+    // This ensures "@Bambi Prime" matches "Bambi Prime" instead of just "Bambi"
     // Capture up to 4 words after the mention char
     const MAX_MENTION_WORDS = 4;
     const multiWordRegex = new RegExp(
@@ -476,6 +452,31 @@ export class MessageHandler {
           const cleanContent = content.replace(matchRegex, '').trim();
           return { personalityName: potentialName, cleanContent };
         }
+      }
+    }
+
+    // Fall back to single-word mentions (e.g., @Lilith, @Ha-Shem)
+    // Pattern: @name followed by punctuation, whitespace, or end of string
+    const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+    let match = content.match(singleWordRegex);
+
+    if (match !== null) {
+      const fullMatch = match[0];
+      const personalityName = fullMatch
+        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
+        .replace(/[.,!?;:)"'\s]+$/, ''); // Remove trailing punctuation/whitespace
+
+      // Ignore Discord user ID mentions (all digits)
+      if (/^\d+$/.test(personalityName)) {
+        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
+        return null;
+      }
+
+      // Check if this personality exists
+      const personality = await this.personalityService.loadPersonality(personalityName);
+      if (personality) {
+        const cleanContent = content.replace(singleWordRegex, '').trim();
+        return { personalityName, cleanContent };
       }
     }
 
