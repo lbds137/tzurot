@@ -131,9 +131,11 @@ export async function downloadAndStoreAttachments(
     );
 
     // Return updated attachment with local URL and final size
+    // Preserve original URL for transcript caching
     return {
       ...attachment,
-      url: localUrl,
+      originalUrl: attachment.url, // Discord CDN URL (for caching lookups)
+      url: localUrl, // Local Railway URL (for fetching)
       size: buffer.byteLength
     };
   });

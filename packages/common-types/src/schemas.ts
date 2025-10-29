@@ -42,6 +42,7 @@ export const discordEnvironmentSchema = z.object({
  */
 export const attachmentMetadataSchema = z.object({
   url: z.string(),
+  originalUrl: z.string().optional(), // Discord CDN URL (preserved for caching)
   contentType: z.string(),
   name: z.string().optional(),
   size: z.number().optional(),
