@@ -190,7 +190,7 @@ model Personality {
   avatarData Bytes? @map("avatar_data")
 
   // Memory settings
-  memoryEnabled Boolean @default(true) @map("memory_enabled")
+  // Memory is always enabled for all personalities
   // contextWindowSize removed - now in LlmConfig
 
   createdAt DateTime @default(now()) @map("created_at")

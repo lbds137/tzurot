@@ -38,7 +38,6 @@ export class PersonalityMapper {
       personalityDislikes: config.personality_dislikes || null,
       conversationalGoals: config.personality_conversational_goals || null,
       conversationalExamples: config.personality_conversational_examples || null,
-      memoryEnabled: config.ltm_enabled ?? true,
       voiceEnabled: false, // v3 doesn't support voice yet
       imageEnabled: false, // v3 doesn't support images yet
       customFields: this.extractCustomFields(config),

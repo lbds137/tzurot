@@ -29,7 +29,6 @@ export interface LoadedPersonality {
   presencePenalty?: number;
   contextWindow: number;
   avatarUrl?: string;
-  memoryEnabled: boolean;
   memoryScoreThreshold?: number;
   memoryLimit?: number;
   // Character definition fields
@@ -67,7 +66,6 @@ export interface DatabasePersonality {
       contextWindowSize: number;
     };
   } | null;
-  memoryEnabled: boolean;
   // Character definition fields
   characterInfo: string;
   personalityTraits: string;
@@ -274,7 +272,6 @@ export class PersonalityService {
       presencePenalty,
       contextWindow: llmConfig?.contextWindowSize ?? 20, // Now from llmConfig, not personality
       avatarUrl: PersonalityService.deriveAvatarUrl(db.slug),
-      memoryEnabled: db.memoryEnabled,
       memoryScoreThreshold,
       memoryLimit,
       // Character definition fields
