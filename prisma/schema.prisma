@@ -169,8 +169,8 @@ model Personality {
   // Character definition
   characterInfo          String  @map("character_info") @db.Text
   personalityTraits      String  @map("personality_traits") @db.Text
-  personalityTone        String? @map("personality_tone") @db.VarChar(500)
-  personalityAge         String? @map("personality_age") @db.VarChar(100)
+  personalityTone        String? @map("personality_tone") @db.Text
+  personalityAge         String? @map("personality_age") @db.Text
   personalityAppearance  String? @map("personality_appearance") @db.Text
   personalityLikes       String? @map("personality_likes") @db.Text
   personalityDislikes    String? @map("personality_dislikes") @db.Text
