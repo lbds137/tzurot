@@ -146,13 +146,16 @@ export class ConversationalRAGService {
   /**
    * Invoke LLM with timeout and retry logic for transient errors
    * Retries up to 2 times on ECONNRESET (connection reset by peer)
+   *
+   * TODO: Improve type safety - replace `any` with proper LangChain types
+   * (e.g., ReturnType<typeof createChatModel>['model'])
    */
   private async invokeModelWithRetry(
-    model: any,
+    model: any, // TODO: Type as BaseChatModel or ChatModelResult['model']
     messages: BaseMessage[],
     modelName: string,
     maxRetries: number = 2
-  ): Promise<any> {
+  ): Promise<any> { // TODO: Type as proper LangChain response type
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -183,7 +186,7 @@ export class ConversationalRAGService {
            error.message.includes('ENOTFOUND'));
 
         if (isTransientError && attempt < maxRetries) {
-          const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s...
+          const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s (maxRetries=2)
           logger.warn({
             err: error,
             modelName,
