@@ -396,6 +396,29 @@ Planned: Vitest for unit tests, integration tests for service communication
 
 **v3 Approach**: Simple classes, constructor injection, clear responsibilities. Ship features, not architecture.
 
+## Documentation Structure
+
+**Organization:** All documentation is in `docs/` organized by category. See [docs/README.md](docs/README.md) for the full structure guide.
+
+**Key directories:**
+- `docs/architecture/` - Design decisions and technical patterns
+- `docs/deployment/` - Railway deployment and infrastructure
+- `docs/guides/` - Developer how-tos (setup, testing)
+- `docs/migration/` - Data migration procedures
+- `docs/planning/` - Project roadmaps and feature tracking
+- `docs/features/` - Feature specifications
+- `docs/improvements/` - Enhancement proposals
+- `docs/operations/` - Operational procedures (backups, monitoring)
+- `docs/reference/` - Reference docs (CLI, APIs)
+- `docs/templates/` - Reusable document templates
+- `docs/archive/` - Completed/obsolete documentation
+
+**When creating docs:**
+- Follow the categorization in [docs/README.md](docs/README.md)
+- Update EXISTING docs instead of creating new ones when possible
+- Use descriptive names: `memory-and-context-redesign.md` not `memory.md`
+- Keep the root clean - only `README.md`, `CHANGELOG.md`, `CLAUDE.md`, `CURRENT_WORK.md` belong there
+
 ## Documentation Maintenance
 
 **Important**: When switching work focus:
@@ -408,12 +431,16 @@ Planned: Vitest for unit tests, integration tests for service communication
 ### Always Relevant
 - [CURRENT_WORK.md](CURRENT_WORK.md) - Current project status
 - [README.md](README.md) - v3 overview and quick start
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Railway deployment guide
-- [V2_FEATURE_TRACKING.md](V2_FEATURE_TRACKING.md) - What's ported vs. not
+- [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - Railway deployment guide
+- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - What's ported vs. not
 
 ### Development Guides
-- [DEVELOPMENT.md](DEVELOPMENT.md) - Local development setup
-- [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
+- [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) - Local development setup
+- [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
+
+### Planning & Roadmap
+- [docs/planning/V3_REFINEMENT_ROADMAP.md](docs/planning/V3_REFINEMENT_ROADMAP.md) - Prioritized improvement roadmap
+- [docs/planning/gemini-code-review.md](docs/planning/gemini-code-review.md) - Comprehensive code review
 
 ### For AI Assistants
 - This file (CLAUDE.md) - Project-specific rules
