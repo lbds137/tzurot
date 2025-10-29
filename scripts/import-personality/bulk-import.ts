@@ -49,6 +49,7 @@ interface BulkImportOptions {
   dryRun: boolean;
   force: boolean;
   skipMemories: boolean;
+  skipExisting: boolean;
 }
 
 interface UUIDMappingData {
@@ -303,6 +304,7 @@ class BulkPersonalityImporter {
             qdrant: this.qdrant,
             openai: this.openai,
             dryRun: options.dryRun,
+            skipExisting: options.skipExisting,
           });
 
           const memoryResult = await memoryImporter.importMemories(memories);
@@ -415,12 +417,14 @@ Options:
   --dry-run        Parse and validate without making changes
   --force          Overwrite existing personalities
   --skip-memories  Import personalities but skip memories
+  --skip-existing  Skip memories that already exist in Qdrant (saves OpenAI credits)
 
 Examples:
   pnpm tsx scripts/import-personality/bulk-import.ts --dry-run
   pnpm tsx scripts/import-personality/bulk-import.ts
   pnpm tsx scripts/import-personality/bulk-import.ts --force
   pnpm tsx scripts/import-personality/bulk-import.ts --skip-memories
+  pnpm tsx scripts/import-personality/bulk-import.ts --force --skip-existing
     `);
     process.exit(0);
   }
@@ -429,6 +433,7 @@ Examples:
     dryRun: args.includes('--dry-run'),
     force: args.includes('--force'),
     skipMemories: args.includes('--skip-memories'),
+    skipExisting: args.includes('--skip-existing'),
   };
 
   const importer = new BulkPersonalityImporter();
