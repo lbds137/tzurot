@@ -111,8 +111,8 @@ app.get('/avatars/:slug.png', async (req, res) => {
         return;
       }
 
-      // Decode base64 and serve
-      const buffer = Buffer.from(personality.avatarData, 'base64');
+      // avatarData is already raw bytes (Buffer)
+      const buffer = Buffer.from(personality.avatarData);
 
       // Cache to filesystem for future requests
       const { writeFile } = await import('fs/promises');

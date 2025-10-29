@@ -151,7 +151,7 @@ router.post('/personality', async (req: Request, res: Response) => {
     }
 
     // Process avatar if provided
-    let processedAvatarData: string | undefined;
+    let processedAvatarData: Buffer | undefined;
     if (avatarData) {
       try {
         logger.info(`[Admin] Processing avatar for personality: ${slug}`);
@@ -191,7 +191,7 @@ router.post('/personality', async (req: Request, res: Response) => {
           logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${processedSizeKB} KB`);
         }
 
-        processedAvatarData = processed.toString('base64');
+        processedAvatarData = processed;
 
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
@@ -221,7 +221,7 @@ router.post('/personality', async (req: Request, res: Response) => {
         conversationalGoals: conversationalGoals || null,
         conversationalExamples: conversationalExamples || null,
         customFields: customFields || null,
-        avatarData: processedAvatarData || null,
+        avatarData: processedAvatarData ? new Uint8Array(processedAvatarData) : null,
         memoryEnabled: true,
         voiceEnabled: false,
         imageEnabled: false
@@ -333,7 +333,7 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
     }
 
     // Process avatar if provided
-    let processedAvatarData: string | undefined;
+    let processedAvatarData: Buffer | undefined;
     if (avatarData) {
       try {
         logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
@@ -372,7 +372,7 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
           logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${processedSizeKB} KB`);
         }
 
-        processedAvatarData = processed.toString('base64');
+        processedAvatarData = processed;
 
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
@@ -400,7 +400,7 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
     if (conversationalGoals !== undefined) updateData.conversationalGoals = conversationalGoals;
     if (conversationalExamples !== undefined) updateData.conversationalExamples = conversationalExamples;
     if (customFields !== undefined) updateData.customFields = customFields;
-    if (processedAvatarData !== undefined) updateData.avatarData = processedAvatarData;
+    if (processedAvatarData !== undefined) updateData.avatarData = new Uint8Array(processedAvatarData);
 
     // Update personality in database
     const personality = await prisma.personality.update({

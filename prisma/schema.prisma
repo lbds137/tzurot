@@ -186,8 +186,8 @@ model Personality {
   imageEnabled  Boolean @default(false) @map("image_enabled")
   imageSettings Json?   @map("image_settings")
 
-  // Avatar (stored as base64-encoded PNG)
-  avatarData String? @map("avatar_data") @db.Text
+  // Avatar (stored as raw binary data)
+  avatarData Bytes? @map("avatar_data")
 
   // Memory settings
   memoryEnabled Boolean @default(true) @map("memory_enabled")

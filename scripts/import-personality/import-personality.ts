@@ -260,9 +260,9 @@ class PersonalityImportCLI {
   }
 
   /**
-   * Load avatar as base64 from legacy data
+   * Load avatar as raw bytes from legacy data
    */
-  private async loadAvatarBase64(slug: string): Promise<string | null> {
+  private async loadAvatarBytes(slug: string): Promise<Buffer | null> {
     try {
       // Load metadata to find the avatar filename
       const metadataPath = path.join(process.cwd(), 'tzurot-legacy/data/avatars/metadata.json');
@@ -276,14 +276,13 @@ class PersonalityImportCLI {
       const filename = metadata[slug].localFilename;
       const avatarPath = path.join(process.cwd(), 'tzurot-legacy/data/avatars/images', filename);
 
-      // Read the PNG file and convert to base64
+      // Read the PNG file as raw bytes
       const buffer = await fs.readFile(avatarPath);
-      const base64 = buffer.toString('base64');
 
       const sizeKB = (buffer.length / 1024).toFixed(2);
       console.log(`  Loaded avatar: ${filename} (${sizeKB} KB)`);
 
-      return base64;
+      return buffer;
     } catch (error: any) {
       console.warn(`  ⚠️  Could not load avatar: ${error.message}`);
       return null;
@@ -346,8 +345,8 @@ class PersonalityImportCLI {
     console.log(`  Using system prompt: ${defaultSystemPrompt.name}`);
     console.log(`  Using LLM config: ${defaultLlmConfig.name}`);
 
-    // Load avatar as base64 from legacy data
-    const avatarBase64 = await this.loadAvatarBase64(v3Data.personality.slug);
+    // Load avatar as raw bytes from legacy data
+    const avatarBytes = await this.loadAvatarBytes(v3Data.personality.slug);
 
     // Create in database (wrapped in transaction)
     const result = await this.prisma.$transaction(async (tx) => {
@@ -358,14 +357,14 @@ class PersonalityImportCLI {
             data: {
               ...v3Data.personality,
               systemPromptId: defaultSystemPrompt.id,
-              avatarData: avatarBase64 || existing.avatarData, // Preserve existing if no new avatar
+              avatarData: avatarBytes || existing.avatarData, // Preserve existing if no new avatar
             },
           })
         : await tx.personality.create({
             data: {
               ...v3Data.personality,
               systemPromptId: defaultSystemPrompt.id,
-              avatarData: avatarBase64,
+              avatarData: avatarBytes,
             },
           });
 
