@@ -55,6 +55,29 @@ export class MessageHandler {
 
       logger.debug(`[MessageHandler] Processing message from ${message.author.tag}`);
 
+      // Check for voice message auto-transcription (if enabled)
+      const config = getConfig();
+      const hasVoiceAttachment = message.attachments.some(a =>
+        a.contentType?.startsWith('audio/') || a.duration !== null
+      );
+
+      if (hasVoiceAttachment && config.AUTO_TRANSCRIBE_VOICE === 'true') {
+        // Check if this message ALSO targets a personality
+        const isReply = message.reference !== null;
+        const hasMention = this.findPersonalityMention(message.content) !== null || message.mentions.has(message.client.user!);
+
+        if (isReply || hasMention) {
+          // Voice message + personality mention: Handle normally
+          // The personality handler will process the voice attachment
+          logger.debug('[MessageHandler] Voice message with personality mention - routing to personality handler');
+        } else {
+          // Voice-only: Transcribe and reply as bot
+          logger.debug('[MessageHandler] Auto-transcribing voice message');
+          await this.handleVoiceTranscription(message);
+          return; // Done - don't process further
+        }
+      }
+
       // Check for replies to personality messages (best UX - no @mention needed)
       if (message.reference !== null) {
         const replyResult = await this.handleReply(message);
@@ -413,5 +436,50 @@ export class MessageHandler {
     }
 
     return null;
+  }
+
+  /**
+   * Handle voice message transcription
+   * Sends transcription job to api-gateway and replies with chunked transcript
+   */
+  private async handleVoiceTranscription(message: Message): Promise<void> {
+    try {
+      // Show typing indicator (if channel supports it)
+      if ('sendTyping' in message.channel) {
+        await message.channel.sendTyping();
+      }
+
+      // Extract voice attachment metadata
+      const attachments = Array.from(message.attachments.values()).map(attachment => ({
+        url: attachment.url,
+        contentType: attachment.contentType || 'application/octet-stream',
+        name: attachment.name,
+        size: attachment.size,
+        isVoiceMessage: attachment.duration !== null,
+        duration: attachment.duration ?? undefined,
+        waveform: attachment.waveform ?? undefined
+      }));
+
+      // Send transcribe job to api-gateway
+      const response = await this.gatewayClient.transcribe(attachments);
+
+      if (!response || !response.content) {
+        throw new Error('No transcript returned from transcription service');
+      }
+
+      // Chunk the transcript (respecting 2000 char Discord limit)
+      const chunks = preserveCodeBlocks(response.content);
+
+      logger.info(`[MessageHandler] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`);
+
+      // Send each chunk as a reply
+      for (const chunk of chunks) {
+        await message.reply(chunk);
+      }
+
+    } catch (error) {
+      logger.error({ err: error }, '[MessageHandler] Error transcribing voice message');
+      await message.reply('Sorry, I couldn\'t transcribe that voice message.').catch(() => {});
+    }
   }
 }

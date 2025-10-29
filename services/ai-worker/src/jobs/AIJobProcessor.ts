@@ -25,7 +25,7 @@ const logger = createLogger('AIJobProcessor');
 export interface AIJobData {
   // Request identification
   requestId: string;
-  jobType: 'generate';
+  jobType: 'generate' | 'transcribe';
 
   // Personality
   personality: LoadedPersonality;
@@ -130,10 +130,77 @@ export class AIJobProcessor {
    * Process a single AI generation job
    */
   async processJob(job: Job<AIJobData>): Promise<AIJobResult> {
+    const { jobType } = job.data;
+
+    // Route to appropriate handler based on job type
+    if (jobType === 'transcribe') {
+      return this.processTranscribeJob(job);
+    }
+
+    // Default: generate job
+    return this.processGenerateJob(job);
+  }
+
+  /**
+   * Process a transcribe-only job (no LLM, just Whisper transcription)
+   */
+  private async processTranscribeJob(job: Job<AIJobData>): Promise<AIJobResult> {
+    const startTime = Date.now();
+    const { requestId, context } = job.data;
+
+    logger.info(`[AIJobProcessor] Processing transcribe job ${job.id} (${requestId})`);
+
+    try {
+      // Find voice attachment
+      const voiceAttachment = context.attachments?.find(a =>
+        a.contentType.startsWith('audio/') || a.isVoiceMessage
+      );
+
+      if (!voiceAttachment) {
+        throw new Error('No voice attachment found in transcribe job');
+      }
+
+      // Import transcribeAudio dynamically to avoid circular dependencies
+      const { transcribeAudio } = await import('../services/MultimodalProcessor.js');
+
+      // Transcribe the audio (we don't need a real personality, just pass a minimal one)
+      const transcript = await transcribeAudio(voiceAttachment, {} as LoadedPersonality);
+
+      const processingTimeMs = Date.now() - startTime;
+      logger.info(`[AIJobProcessor] Transcribe job ${job.id} completed in ${processingTimeMs}ms`);
+
+      return {
+        requestId,
+        success: true,
+        content: transcript,
+        metadata: {
+          processingTimeMs
+        }
+      };
+
+    } catch (error) {
+      const processingTimeMs = Date.now() - startTime;
+      logger.error({ err: error }, `[AIJobProcessor] Transcribe job ${job.id} failed`);
+
+      return {
+        requestId,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        metadata: {
+          processingTimeMs
+        }
+      };
+    }
+  }
+
+  /**
+   * Process a standard AI generation job
+   */
+  private async processGenerateJob(job: Job<AIJobData>): Promise<AIJobResult> {
     const startTime = Date.now();
     const { requestId, personality, message, context, userApiKey } = job.data;
 
-    logger.info(`[AIJobProcessor] Processing job ${job.id} (${requestId}) for ${personality.name}`);
+    logger.info(`[AIJobProcessor] Processing generate job ${job.id} (${requestId}) for ${personality.name}`);
 
     try {
       // Calculate oldest timestamp from conversation history (for LTM deduplication)
