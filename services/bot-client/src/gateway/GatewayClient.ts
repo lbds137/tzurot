@@ -101,6 +101,64 @@ export class GatewayClient {
   }
 
   /**
+   * Request voice transcription from the gateway
+   */
+  async transcribe(
+    attachments: Array<{
+      url: string;
+      contentType: string;
+      name?: string;
+      size?: number;
+      isVoiceMessage?: boolean;
+      duration?: number;
+      waveform?: string;
+    }>
+  ): Promise<{
+    content: string;
+    metadata?: {
+      processingTimeMs?: number;
+    };
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/ai/transcribe?wait=true`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          attachments
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Transcription request failed: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json() as JobResult;
+
+      if (data.status !== 'completed') {
+        throw new Error(`Transcription job ${data.jobId} status: ${data.status}`);
+      }
+
+      if (!data.result?.content) {
+        throw new Error('No transcript in job result');
+      }
+
+      logger.info(`[GatewayClient] Transcription completed: ${data.jobId}`);
+
+      return {
+        content: data.result.content,
+        metadata: data.result.metadata
+      };
+
+    } catch (error) {
+      logger.error({ err: error }, '[GatewayClient] Transcription failed');
+      throw error;
+    }
+  }
+
+  /**
    * Health check
    */
   async healthCheck(): Promise<boolean> {

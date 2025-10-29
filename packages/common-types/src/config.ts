@@ -25,6 +25,7 @@ export const envSchema = z.object({
   DISCORD_CLIENT_ID: optionalDiscordId(),
   GUILD_ID: optionalDiscordId(), // Optional - for dev/testing command deployment
   AUTO_DEPLOY_COMMANDS: z.enum(['true', 'false']).optional().or(z.literal('').transform(() => undefined)), // 'true' to auto-deploy slash commands on bot startup
+  AUTO_TRANSCRIBE_VOICE: z.enum(['true', 'false']).optional().or(z.literal('').transform(() => undefined)), // 'true' to automatically transcribe voice messages as bot
   BOT_OWNER_ID: optionalDiscordId(), // Discord user ID of bot owner for admin commands
   BOT_MENTION_CHAR: z.string().length(1).default('@'), // Character used for personality mentions (@personality or &personality)
 
@@ -140,6 +141,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     DISCORD_CLIENT_ID: undefined,
     GUILD_ID: undefined,
     AUTO_DEPLOY_COMMANDS: undefined,
+    AUTO_TRANSCRIBE_VOICE: undefined,
     BOT_OWNER_ID: undefined,
     BOT_MENTION_CHAR: '@',
 

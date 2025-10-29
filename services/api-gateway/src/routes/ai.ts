@@ -230,6 +230,107 @@ aiRouter.post('/generate', async (req, res) => {
 });
 
 /**
+ * POST /ai/transcribe
+ *
+ * Transcribe audio attachments using Whisper.
+ *
+ * Query parameters:
+ * - wait=true: Wait for job completion using Redis pub/sub (no polling)
+ * - wait=false (default): Return job ID immediately
+ */
+aiRouter.post('/transcribe', async (req, res) => {
+  const startTime = Date.now();
+  const waitForCompletion = req.query.wait === 'true';
+
+  try {
+    // Validate request has attachments
+    if (!req.body.attachments || !Array.isArray(req.body.attachments) || req.body.attachments.length === 0) {
+      const errorResponse: ErrorResponse = {
+        error: 'VALIDATION_ERROR',
+        message: 'Missing or invalid attachments array',
+        timestamp: new Date().toISOString()
+      };
+      res.status(400).json(errorResponse);
+      return;
+    }
+
+    const requestId = randomUUID();
+
+    // Download attachments to local storage
+    const localAttachments = await downloadAndStoreAttachments(requestId, req.body.attachments);
+
+    // Create transcribe job
+    const jobData = {
+      requestId,
+      jobType: 'transcribe' as const,
+      personality: {}, // Not used for transcription
+      message: '',
+      context: {
+        userId: 'system',
+        attachments: localAttachments
+      },
+      responseDestination: {
+        type: 'api' as const
+      }
+    };
+
+    const job = await aiQueue.add('transcribe', jobData, {
+      jobId: `transcribe-${requestId}`
+    });
+
+    logger.info(`[AI] Created transcribe job ${job.id} (${Date.now() - startTime}ms)`);
+
+    // If client wants to wait, use Redis pub/sub
+    if (waitForCompletion) {
+      try {
+        const result = await job.waitUntilFinished(queueEvents, TIMEOUTS.JOB_WAIT);
+
+        logger.info(`[AI] Transcribe job ${job.id} completed after ${Date.now() - startTime}ms`);
+
+        res.json({
+          jobId: job.id ?? requestId,
+          requestId,
+          status: 'completed',
+          result,
+          timestamp: new Date().toISOString()
+        });
+        return;
+
+      } catch (error) {
+        logger.error({ err: error, jobId: job.id }, `[AI] Transcribe job ${job.id} failed`);
+
+        const errorResponse: ErrorResponse = {
+          error: 'JOB_FAILED',
+          message: error instanceof Error ? error.message : 'Transcription failed or timed out',
+          timestamp: new Date().toISOString()
+        };
+
+        res.status(500).json(errorResponse);
+        return;
+      }
+    }
+
+    // Default: return job ID immediately
+    res.json({
+      jobId: job.id ?? requestId,
+      requestId,
+      status: 'queued'
+    });
+
+  } catch (error) {
+    logger.error({ err: error }, '[AI] Error creating transcribe job');
+
+    const errorResponse: ErrorResponse = {
+      error: 'INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
+/**
  * GET /ai/job/:jobId
  *
  * Get the status of a specific job.
