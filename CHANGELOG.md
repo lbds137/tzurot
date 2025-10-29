@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.13] - 2025-10-29
+
+### Fixed
+- **LLM API Timeout** - Added 3-minute timeout for LLM API calls
+  - Prevents hanging requests when LLM provider is slow or unresponsive
+  - Applies to all personality response generation
+  - Previously had no timeout, could hang indefinitely
+- **Transient Error Retry Logic** - Automatic retry for network errors
+  - Retries up to 2 times on ECONNRESET, ETIMEDOUT, ENOTFOUND
+  - Exponential backoff (1s, 2s delays between retries)
+  - Better logging of retry attempts and failures
+  - Handles connection resets from LLM providers gracefully
+
 ## [3.0.0-alpha.12] - 2025-10-28
 
 ### Added

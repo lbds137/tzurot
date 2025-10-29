@@ -19,6 +19,7 @@ import {
   type LoadedPersonality,
   AI_DEFAULTS,
   TEXT_LIMITS,
+  TIMEOUTS,
   getPrismaClient,
   formatFullDateTime,
   formatMemoryTimestamp,
@@ -143,6 +144,74 @@ export class ConversationalRAGService {
   }
 
   /**
+   * Invoke LLM with timeout and retry logic for transient errors
+   * Retries up to 2 times on ECONNRESET (connection reset by peer)
+   */
+  private async invokeModelWithRetry(
+    model: any,
+    messages: BaseMessage[],
+    modelName: string,
+    maxRetries: number = 2
+  ): Promise<any> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        logger.info({
+          modelName,
+          attempt: attempt + 1,
+          maxAttempts: maxRetries + 1
+        }, `[RAG] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1})`);
+
+        // Invoke with 3-minute timeout
+        const response = await model.invoke(messages, { timeout: TIMEOUTS.LLM_API });
+
+        if (attempt > 0) {
+          logger.info({ modelName, attempt: attempt + 1 }, '[RAG] LLM invocation succeeded after retry');
+        }
+
+        return response;
+
+      } catch (error) {
+        lastError = error as Error;
+
+        // Check if this is a transient network error worth retrying
+        const isTransientError =
+          error instanceof Error &&
+          (error.message.includes('ECONNRESET') ||
+           error.message.includes('ETIMEDOUT') ||
+           error.message.includes('ENOTFOUND'));
+
+        if (isTransientError && attempt < maxRetries) {
+          const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s...
+          logger.warn({
+            err: error,
+            modelName,
+            attempt: attempt + 1,
+            nextRetryInMs: delayMs
+          }, `[RAG] LLM invocation failed with transient error, retrying in ${delayMs}ms`);
+
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          continue;
+        }
+
+        // Non-retryable error or out of retries
+        if (attempt === maxRetries) {
+          logger.error({
+            err: error,
+            modelName,
+            attempts: maxRetries + 1
+          }, `[RAG] LLM invocation failed after ${maxRetries + 1} attempts`);
+        }
+
+        throw error;
+      }
+    }
+
+    throw lastError || new Error('LLM invocation failed with unknown error');
+  }
+
+  /**
    * Generate a response using conversational RAG
    */
   async generateResponse(
@@ -223,8 +292,8 @@ export class ConversationalRAGService {
         personality.temperature
       );
 
-      // 6. Invoke the model
-      const response = await model.invoke(messages);
+      // 6. Invoke the model with timeout and retry logic
+      const response = await this.invokeModelWithRetry(model, messages, modelName);
 
       const content = response.content as string;
 
