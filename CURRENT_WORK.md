@@ -70,13 +70,14 @@ Two options:
 1. Resize Amaterasu and Bambi Prime avatars before import (compress PNGs)
 2. Increase database column size for `avatar_data` (requires migration)
 
-**Step 5: Fix @Bambi Prime tagging**
-Current issue: `@Bambi Prime` triggers `@Bambi` due to single-word matching first.
-Fix: Reverse mention regex to try multi-word matches BEFORE single-word matches (prioritize longest match).
-File: `services/bot-client/src/handlers/MessageHandler.ts:findPersonalityMention()`
+**Step 5: Fix @Bambi Prime tagging** ✅ **COMPLETE**
+~~Current issue: `@Bambi Prime` triggers `@Bambi` due to single-word matching first.~~
+Fix applied: Reversed mention regex to try multi-word matches BEFORE single-word matches (prioritizes longest match).
+File: `services/bot-client/src/handlers/MessageHandler.ts:findPersonalityMention()` (line 414)
+Commit: `6291128` on `feat/v2-personality-import` branch
 
 ### Files Modified Today
-- `services/bot-client/src/handlers/MessageHandler.ts` - Added multi-word mention support
+- `services/bot-client/src/handlers/MessageHandler.ts` - Added multi-word mention support, then reversed order to prioritize longest matches
 - `scripts/import-personality/import-personality.ts` - Added `--skip-existing` flag
 - `scripts/import-personality/bulk-import.ts` - Created bulk import script
 - `scripts/import-personality/MemoryImporter.ts` - Added `checkMemoryExists()` to skip existing memories
