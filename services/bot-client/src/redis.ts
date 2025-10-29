@@ -96,6 +96,43 @@ export async function getWebhookPersonality(messageId: string): Promise<string |
 }
 
 /**
+ * Store voice transcript cache
+ * @param attachmentUrl Discord CDN attachment URL
+ * @param transcript Transcribed text
+ * @param ttlSeconds Time to live in seconds (default: 5 minutes)
+ */
+export async function storeVoiceTranscript(
+  attachmentUrl: string,
+  transcript: string,
+  ttlSeconds: number = 5 * 60 // 5 minutes
+): Promise<void> {
+  try {
+    await redis.setEx(`transcript:${attachmentUrl}`, ttlSeconds, transcript);
+    logger.debug(`[Redis] Stored voice transcript cache for: ${attachmentUrl.substring(0, 50)}...`);
+  } catch (error) {
+    logger.error({ err: error }, '[Redis] Failed to store voice transcript');
+  }
+}
+
+/**
+ * Get cached voice transcript
+ * @param attachmentUrl Discord CDN attachment URL
+ * @returns Transcript text or null if not found
+ */
+export async function getVoiceTranscript(attachmentUrl: string): Promise<string | null> {
+  try {
+    const transcript = await redis.get(`transcript:${attachmentUrl}`);
+    if (transcript) {
+      logger.debug(`[Redis] Retrieved cached voice transcript for: ${attachmentUrl.substring(0, 50)}...`);
+    }
+    return transcript;
+  } catch (error) {
+    logger.error({ err: error }, '[Redis] Failed to get voice transcript');
+    return null;
+  }
+}
+
+/**
  * Health check
  */
 export async function checkRedisHealth(): Promise<boolean> {

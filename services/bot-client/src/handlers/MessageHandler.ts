@@ -12,7 +12,7 @@ import { WebhookManager } from '../webhooks/WebhookManager.js';
 import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig, INTERVALS } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
-import { storeWebhookMessage, getWebhookPersonality } from '../redis.js';
+import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 
 const logger = createLogger('MessageHandler');
@@ -62,20 +62,22 @@ export class MessageHandler {
       );
 
       if (hasVoiceAttachment && config.AUTO_TRANSCRIBE_VOICE === 'true') {
+        // ALWAYS transcribe and send transcript as bot first
+        logger.debug('[MessageHandler] Auto-transcribing voice message');
+        await this.handleVoiceTranscription(message);
+
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
         const hasMention = this.findPersonalityMention(message.content) !== null || message.mentions.has(message.client.user!);
 
-        if (isReply || hasMention) {
-          // Voice message + personality mention: Handle normally
-          // The personality handler will process the voice attachment
-          logger.debug('[MessageHandler] Voice message with personality mention - routing to personality handler');
-        } else {
-          // Voice-only: Transcribe and reply as bot
-          logger.debug('[MessageHandler] Auto-transcribing voice message');
-          await this.handleVoiceTranscription(message);
-          return; // Done - don't process further
+        if (!isReply && !hasMention) {
+          // Voice-only: Transcription already sent, we're done
+          return;
         }
+
+        // Voice + personality mention: Continue to personality handler
+        // The transcript will be included in the attachment descriptions
+        logger.debug('[MessageHandler] Voice message with personality mention - continuing to personality handler');
       }
 
       // Check for replies to personality messages (best UX - no @mention needed)
@@ -441,8 +443,9 @@ export class MessageHandler {
   /**
    * Handle voice message transcription
    * Sends transcription job to api-gateway and replies with chunked transcript
+   * Returns the transcript text for potential caching
    */
-  private async handleVoiceTranscription(message: Message): Promise<void> {
+  private async handleVoiceTranscription(message: Message): Promise<string | undefined> {
     try {
       // Show typing indicator (if channel supports it)
       if ('sendTyping' in message.channel) {
@@ -472,14 +475,25 @@ export class MessageHandler {
 
       logger.info(`[MessageHandler] Transcription complete: ${response.content.length} chars, ${chunks.length} chunks`);
 
-      // Send each chunk as a reply
+      // Send each chunk as a reply (these will appear BEFORE personality webhook response)
       for (const chunk of chunks) {
         await message.reply(chunk);
       }
 
+      // Cache transcript in Redis to avoid re-transcribing if this voice message also targets a personality
+      // Key by attachment URL with 5 min TTL (long enough for personality processing)
+      const voiceAttachment = attachments[0]; // We know there's at least one
+      if (voiceAttachment) {
+        await storeVoiceTranscript(voiceAttachment.url, response.content);
+        logger.debug(`[MessageHandler] Cached transcript for attachment: ${voiceAttachment.url.substring(0, 50)}...`);
+      }
+
+      return response.content;
+
     } catch (error) {
       logger.error({ err: error }, '[MessageHandler] Error transcribing voice message');
       await message.reply('Sorry, I couldn\'t transcribe that voice message.').catch(() => {});
+      return undefined;
     }
   }
 }

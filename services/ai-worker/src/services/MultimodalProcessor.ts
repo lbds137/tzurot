@@ -19,6 +19,7 @@ const config = getConfig();
 
 export interface AttachmentMetadata {
   url: string;
+  originalUrl?: string; // Discord CDN URL (preserved for caching lookups)
   contentType: string;
   name?: string;
   size?: number;
@@ -307,11 +308,31 @@ export async function transcribeAudio(
   attachment: AttachmentMetadata,
   _personality: LoadedPersonality
 ): Promise<string> {
+  // Check Redis cache first (if originalUrl is available)
+  if (attachment.originalUrl) {
+    try {
+      const { getVoiceTranscript } = await import('../redis.js');
+      const cachedTranscript = await getVoiceTranscript(attachment.originalUrl);
+
+      if (cachedTranscript) {
+        logger.info({
+          originalUrl: attachment.originalUrl,
+          transcriptLength: cachedTranscript.length
+        }, 'Using cached voice transcript from Redis');
+        return cachedTranscript;
+      }
+    } catch (error) {
+      // Redis errors shouldn't break transcription - just log and continue
+      logger.warn({ err: error }, 'Failed to check Redis cache, proceeding with transcription');
+    }
+  }
+
   logger.info({
     url: attachment.url,
+    originalUrl: attachment.originalUrl,
     duration: attachment.duration,
     contentType: attachment.contentType
-  }, 'Transcribing audio with Whisper');
+  }, 'Transcribing audio with Whisper (no cache)');
 
   // Initialize OpenAI client for Whisper
   const openai = new OpenAI({
