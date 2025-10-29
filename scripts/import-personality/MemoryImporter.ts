@@ -98,15 +98,6 @@ export class MemoryImporter {
     // Extract summary text (shared across all sender copies)
     const summaryText = memory.result;
 
-    // Generate embedding once (shared across all sender copies)
-    let embedding: number[] | null = null;
-    if (!this.options.dryRun) {
-      if (!this.options.openai) {
-        throw new Error('OpenAI client required for embedding generation');
-      }
-      embedding = await this.generateEmbedding(summaryText);
-    }
-
     // Create a separate memory entry for each sender
     for (const shapesUserId of memory.senders) {
       // Try to resolve to v3 persona using mappings
@@ -122,6 +113,25 @@ export class MemoryImporter {
       const memoryCopyId = memory.senders.length > 1
         ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
         : baseMemoryId;
+
+      // Check if skipExisting is enabled and memory already exists
+      if (this.options.skipExisting && !this.options.dryRun) {
+        const exists = await this.checkMemoryExists(memoryCopyId, v3Metadata.personaId);
+        if (exists) {
+          console.log(`  ⏭️  Skipping existing memory ${memoryCopyId}`);
+          this.stats.skipped++;
+          continue;
+        }
+      }
+
+      // Generate embedding only if we need it (not in dry run, not skipped)
+      let embedding: number[] | null = null;
+      if (!this.options.dryRun) {
+        if (!this.options.openai) {
+          throw new Error('OpenAI client required for embedding generation');
+        }
+        embedding = await this.generateEmbedding(summaryText);
+      }
 
       if (this.options.dryRun) {
         console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
@@ -173,6 +183,37 @@ export class MemoryImporter {
           this.stats.legacyPersonasCreated++;
         }
       }
+    }
+  }
+
+  /**
+   * Check if a memory already exists in Qdrant
+   */
+  private async checkMemoryExists(memoryId: string, personaId: string): Promise<boolean> {
+    if (!this.options.qdrant) {
+      return false;
+    }
+
+    try {
+      const collectionName = `persona-${personaId}`;
+
+      // Check if collection exists
+      try {
+        await this.options.qdrant.getCollection(collectionName);
+      } catch {
+        // Collection doesn't exist, so memory doesn't exist
+        return false;
+      }
+
+      // Try to retrieve the specific point
+      const result = await this.options.qdrant.retrieve(collectionName, {
+        ids: [memoryId],
+      });
+
+      return result.length > 0;
+    } catch (error) {
+      // If any error occurs, assume memory doesn't exist
+      return false;
     }
   }
 

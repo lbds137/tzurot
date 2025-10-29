@@ -68,7 +68,8 @@ export class MessageHandler {
 
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
-        const hasMention = this.findPersonalityMention(message.content) !== null || message.mentions.has(message.client.user!);
+        const mentionCheck = await this.findPersonalityMention(message.content);
+        const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
 
         if (!isReply && !hasMention) {
           // Voice-only: Transcription already sent, we're done
@@ -89,7 +90,7 @@ export class MessageHandler {
       }
 
       // Check for personality mentions (e.g., "@personality hello")
-      const mentionMatch = this.findPersonalityMention(message.content);
+      const mentionMatch = await this.findPersonalityMention(message.content);
 
       if (mentionMatch !== null) {
         // Load personality from database (with PersonalityService's cache)
@@ -407,21 +408,22 @@ export class MessageHandler {
 
   /**
    * Find personality mention in message content
+   * Supports multi-word names with spaces (e.g., @Angel Dust, @Bambi Prime)
    * Uses BOT_MENTION_CHAR from config (@ for prod, & for dev)
    */
-  private findPersonalityMention(content: string): { personalityName: string; cleanContent: string } | null {
+  private async findPersonalityMention(content: string): Promise<{ personalityName: string; cleanContent: string } | null> {
     const config = getConfig();
     const mentionChar = config.BOT_MENTION_CHAR;
 
     // Escape special regex characters
     const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Match personality names with hyphens (e.g., @Ha-Shem)
+
+    // Try single-word mentions first (e.g., @Lilith, @Ha-Shem)
     // Pattern: @name followed by punctuation, whitespace, or end of string
-    const mentionRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
-    const match = content.match(mentionRegex);
+    const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+    let match = content.match(singleWordRegex);
 
     if (match !== null) {
-      // Extract just the personality name (remove mention char and trailing punctuation)
       const fullMatch = match[0];
       const personalityName = fullMatch
         .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
@@ -433,8 +435,48 @@ export class MessageHandler {
         return null;
       }
 
-      const cleanContent = content.replace(mentionRegex, '').trim();
-      return { personalityName, cleanContent };
+      // Check if this personality exists
+      const personality = await this.personalityService.loadPersonality(personalityName);
+      if (personality) {
+        const cleanContent = content.replace(singleWordRegex, '').trim();
+        return { personalityName, cleanContent };
+      }
+    }
+
+    // Try multi-word mentions (e.g., @Angel Dust, @Bambi Prime)
+    // Capture up to 4 words after the mention char
+    const MAX_MENTION_WORDS = 4;
+    const multiWordRegex = new RegExp(
+      `${escapedChar}([^\\s${escapedChar}\\n]+(?:\\s+[^\\s${escapedChar}\\n]+){0,${MAX_MENTION_WORDS - 1}})`,
+      'gi'
+    );
+
+    const multiWordMatch = content.match(multiWordRegex);
+    if (multiWordMatch !== null) {
+      // Try longest match first (prioritize "Bambi Prime" over "Bambi")
+      const fullMatch = multiWordMatch[0];
+      const capturedText = fullMatch
+        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
+        .replace(/[.,!?;:)"']+$/, ''); // Remove trailing punctuation
+
+      const words = capturedText.split(/\s+/);
+
+      // Try combinations from longest to shortest
+      for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
+        const potentialName = words.slice(0, wordCount).join(' ');
+
+        // Check if this personality exists
+        const personality = await this.personalityService.loadPersonality(potentialName);
+        if (personality) {
+          // Create regex to match this specific mention for cleaning
+          const matchRegex = new RegExp(
+            `${escapedChar}${potentialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
+            'gi'
+          );
+          const cleanContent = content.replace(matchRegex, '').trim();
+          return { personalityName: potentialName, cleanContent };
+        }
+      }
     }
 
     return null;
