@@ -1,11 +1,86 @@
 # 🎯 Current Work
 
-> Last updated: 2025-10-25
+> Last updated: 2025-10-29
 
-## Status: Code Quality Audit & Cleanup
+## Status: v2 Personality Import (In Progress)
 
-**Branch**: `chore/code-quality-audit`
-**Focus**: Consolidating constants, reducing magic numbers, preparing for future unit testing
+**Branch**: `feat/v2-personality-import`
+**Focus**: Importing all 66 v2 personalities from shapes.inc backups into v3 database + Qdrant memory
+
+**Important**: Do NOT run personality imports until this branch is merged - we don't want personalities available without their memories.
+
+### Import Progress (2025-10-29)
+
+**Current Status**: Paused due to AWS/Qdrant service issues
+
+**What's Complete**:
+- ✅ Fixed v3 mention regex to support multi-word names (@Angel Dust, @Bambi Prime)
+- ✅ Updated import scripts to use global default system prompt + LLM config
+- ✅ Created bulk import script with memory migration
+- ✅ **27 personalities** fully imported with memories
+- ✅ **Lila** partially imported (~1,767 memories, stuck on AWS timeout)
+- ✅ Duplicate Emily renamed to "Emily (Fallen)"
+- ✅ Added `--skip-existing` flag to avoid re-generating embeddings (saves OpenAI credits)
+
+**Issues Encountered**:
+- ❌ **Amaterasu** - Avatar too large (138 KB exceeds database column limit)
+- ❌ **Bambi Prime** - Avatar too large (95 KB exceeds database column limit)
+- ⏸️ **Lila** - Import stuck on Qdrant timeouts (AWS us-east-1 issues today)
+- ⏸️ **33 personalities** not yet attempted
+
+**Personalities with completed memory imports** (saved to `scripts/import-personality/completed-personalities.txt`):
+adora, alastor, andrew, angel-dust, aria, ashley, azazel, bambi, baphomet, bartzabel, beelzebub, borunol, bune, catra, cerridwen, charlie, data, dionysus, disposal-chute, eido, emberlynn, emily-seraph, ereshkigal, eris, haniel, hecate, hyun-ae
+
+### Next Steps (Resume Tomorrow When AWS/Qdrant Stable)
+
+**Step 1: Finish personality configs** (no memories, quick)
+```bash
+export DATABASE_URL="postgresql://postgres:JxVSaWPVZAeloPdYEZcfwadLZxjTohep@nozomi.proxy.rlwy.net:48102/railway"
+npx tsx scripts/import-personality/bulk-import.ts --skip-memories
+```
+This will create all 66 personality database entries without importing memories.
+
+**Step 2: Complete Lila's memories** (resume where it left off, no duplicates)
+```bash
+export DATABASE_URL="postgresql://postgres:JxVSaWPVZAeloPdYEZcfwadLZxjTohep@nozomi.proxy.rlwy.net:48102/railway"
+pnpm import-personality lila-ani-tzuratech --memories-only --skip-existing
+```
+The `--skip-existing` flag checks Qdrant before generating embeddings, avoiding waste of OpenAI credits on the ~1,767 memories already imported.
+
+**Step 3: Import remaining memories**
+Create a script to loop through all personalities, skipping the 27 that completed:
+```bash
+# Read completed list
+COMPLETED=$(cat scripts/import-personality/completed-personalities.txt)
+
+# Get all personality slugs
+ALL=$(ls tzurot-legacy/data/personalities/)
+
+# Import memories for personalities not in completed list
+for slug in $ALL; do
+  if ! grep -q "$slug" scripts/import-personality/completed-personalities.txt; then
+    echo "Importing memories for $slug..."
+    pnpm import-personality "$slug" --memories-only --skip-existing
+  fi
+done
+```
+
+**Step 4: Fix avatar size issues**
+Two options:
+1. Resize Amaterasu and Bambi Prime avatars before import (compress PNGs)
+2. Increase database column size for `avatar_data` (requires migration)
+
+**Step 5: Fix @Bambi Prime tagging**
+Current issue: `@Bambi Prime` triggers `@Bambi` due to single-word matching first.
+Fix: Reverse mention regex to try multi-word matches BEFORE single-word matches (prioritize longest match).
+File: `services/bot-client/src/handlers/MessageHandler.ts:findPersonalityMention()`
+
+### Files Modified Today
+- `services/bot-client/src/handlers/MessageHandler.ts` - Added multi-word mention support
+- `scripts/import-personality/import-personality.ts` - Added `--skip-existing` flag
+- `scripts/import-personality/bulk-import.ts` - Created bulk import script
+- `scripts/import-personality/MemoryImporter.ts` - Added `checkMemoryExists()` to skip existing memories
+- `scripts/import-personality/completed-personalities.txt` - List of personalities with complete memory imports
 
 **v3 has been deployed and running on Railway for 14+ days (development environment)**
 
@@ -58,46 +133,37 @@
 - Usage quotas to prevent abuse
 - Better error messages for missing API keys
 
-## Current Focus: Code Quality Audit - Phase 1 Complete ✅
+## Recent Completed Work
 
-**Branch**: `chore/code-quality-audit`
-**Goal**: Improve code maintainability and prepare for unit testing phase
-
-**Phase 1 Status**: ✅ **COMPLETED**
-- ✅ Created centralized TIMEOUTS constants (30s, 270s, 120s vision/job timeouts)
-- ✅ Created INTERVALS constants (cache TTLs, cleanup intervals)
-- ✅ Created TEXT_LIMITS constants (log preview lengths, truncation limits)
+**Code Quality Audit** (2025-10-25, merged):
+- ✅ Created centralized TIMEOUTS, INTERVALS, TEXT_LIMITS constants
 - ✅ Created enums for MessageRole, JobStatus, AttachmentType
-- ✅ Replaced all magic numbers throughout codebase (15+ across 9 files)
+- ✅ Replaced all magic numbers throughout codebase
 - ✅ Standardized file naming (PascalCase for class exports)
 - ✅ Moved image resizing to api-gateway (architectural improvement)
-- ✅ Removed dead code (isDiscordUrlExpired, fetchAsBase64)
-
-**Next Steps**: Review, test on Railway, merge when ready. Phase 2-3 deferred.
-
-**See**: [CODE_QUALITY_AUDIT.md](docs/CODE_QUALITY_AUDIT.md) for full findings and recommendations
-
-## Recent Work (Past Week)
 
 **v3.0.0-alpha.5 Release** (2025-10-25):
 - ✅ Fixed completely broken retry mechanism (errors now propagate correctly)
 - ✅ Refactored retry logic to clean loop instead of nested ifs
 - ✅ Fixed duplicate placeholder entries in conversation history
-- ✅ Improved logging with attempt numbers and retry flags
 
 **v3.0.0-alpha.4 Release** (2025-10-25):
 - ✅ Fixed LangChain timeout bug (moved timeout to invoke() call)
 - ✅ Added third retry pass for industry-standard 3 total attempts
 - ✅ Increased gateway timeout from 240s to 270s
-- ✅ Added filename context to attachment descriptions
 
 ## Quick Links to Relevant Docs
 
+### Current Work
+- [scripts/import-personality/](scripts/import-personality/) - Import scripts and utilities
+- [scripts/import-personality/completed-personalities.txt](scripts/import-personality/completed-personalities.txt) - List of completed imports
+- [bulk-import.log](bulk-import.log) - Import log (too large for Git)
+
 ### v3 Documentation
-- [Architecture Decisions](ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
-- [Deployment Guide](DEPLOYMENT.md) - How to deploy to Railway
-- [v2 Feature Tracking](V2_FEATURE_TRACKING.md) - What's ported vs. what's not
-- [Development Guide](DEVELOPMENT.md) - Local development setup
+- [docs/architecture/ARCHITECTURE_DECISIONS.md](docs/architecture/ARCHITECTURE_DECISIONS.md) - Why v3 is designed this way
+- [docs/deployment/DEPLOYMENT.md](docs/deployment/DEPLOYMENT.md) - How to deploy to Railway
+- [docs/planning/V2_FEATURE_TRACKING.md](docs/planning/V2_FEATURE_TRACKING.md) - What's ported vs. what's not
+- [docs/guides/DEVELOPMENT.md](docs/guides/DEVELOPMENT.md) - Local development setup
 
 ### Always Relevant
 - [CLAUDE.md](CLAUDE.md) - AI assistant rules and project context
@@ -107,13 +173,17 @@
 - **API Gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
 
-## Next Steps (When Ready to Continue)
+## Priorities After Import Complete
 
-Priority features to port from v2:
-1. Auto-response system (activated channels)
-2. Full slash command suite
-3. Rate limiting
-4. NSFW verification
+Once all 66 personalities are imported with memories:
+1. **Fix @Bambi Prime tagging** - Multi-word mentions triggering single-word matches
+2. **Deploy to production** - All personalities available for testing
+3. **Port remaining v2 features**:
+   - Auto-response system (activated channels)
+   - Full slash command suite
+   - Rate limiting
+   - NSFW verification
+4. **BYOK implementation** - Required before public launch
 
 ---
 

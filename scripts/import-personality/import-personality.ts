@@ -45,6 +45,7 @@ interface ImportOptions {
   memoriesOnly: boolean;
   force: boolean;
   skipMemories: boolean;
+  skipExisting: boolean;
 }
 
 interface UUIDMappingData {
@@ -259,7 +260,39 @@ class PersonalityImportCLI {
   }
 
   /**
+   * Load avatar as base64 from legacy data
+   */
+  private async loadAvatarBase64(slug: string): Promise<string | null> {
+    try {
+      // Load metadata to find the avatar filename
+      const metadataPath = path.join(process.cwd(), 'tzurot-legacy/data/avatars/metadata.json');
+      const metadataRaw = await fs.readFile(metadataPath, 'utf-8');
+      const metadata = JSON.parse(metadataRaw);
+
+      if (!metadata[slug]) {
+        return null; // No avatar for this personality
+      }
+
+      const filename = metadata[slug].localFilename;
+      const avatarPath = path.join(process.cwd(), 'tzurot-legacy/data/avatars/images', filename);
+
+      // Read the PNG file and convert to base64
+      const buffer = await fs.readFile(avatarPath);
+      const base64 = buffer.toString('base64');
+
+      const sizeKB = (buffer.length / 1024).toFixed(2);
+      console.log(`  Loaded avatar: ${filename} (${sizeKB} KB)`);
+
+      return base64;
+    } catch (error: any) {
+      console.warn(`  ⚠️  Could not load avatar: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Import personality to PostgreSQL
+   * Uses global default system prompt and LLM config instead of creating new ones
    */
   private async importPersonality(
     config: ShapesIncPersonalityConfig,
@@ -292,47 +325,59 @@ class PersonalityImportCLI {
       );
     }
 
-    // Note: Avatar downloading skipped - v3 uses Discord webhooks for avatars
-    // Avatar URL is preserved in customFields.shapesIncAvatarUrl for reference
-    console.log('  Skipping avatar download (v3 uses Discord webhooks)');
+    // Look up global defaults
+    console.log('  Looking up global defaults (system prompt + LLM config)...');
+    const defaultSystemPrompt = await this.prisma.systemPrompt.findFirst({
+      where: { isDefault: true },
+    });
+
+    if (!defaultSystemPrompt) {
+      throw new Error('No default system prompt found! Please create one with isDefault=true');
+    }
+
+    const defaultLlmConfig = await this.prisma.llmConfig.findFirst({
+      where: { isDefault: true, isGlobal: true },
+    });
+
+    if (!defaultLlmConfig) {
+      throw new Error('No default LLM config found! Please create one with isDefault=true and isGlobal=true');
+    }
+
+    console.log(`  Using system prompt: ${defaultSystemPrompt.name}`);
+    console.log(`  Using LLM config: ${defaultLlmConfig.name}`);
+
+    // Load avatar as base64 from legacy data
+    const avatarBase64 = await this.loadAvatarBase64(v3Data.personality.slug);
 
     // Create in database (wrapped in transaction)
     const result = await this.prisma.$transaction(async (tx) => {
-      // Create system prompt
-      const systemPrompt = await tx.systemPrompt.create({
-        data: v3Data.systemPrompt,
-      });
-
-      // Create LLM config
-      const llmConfig = await tx.llmConfig.create({
-        data: v3Data.llmConfig,
-      });
-
-      // Create or update personality
+      // Create or update personality (using global defaults)
       const personality = existing
         ? await tx.personality.update({
             where: { id: existing.id },
             data: {
               ...v3Data.personality,
-              systemPromptId: systemPrompt.id,
+              systemPromptId: defaultSystemPrompt.id,
+              avatarData: avatarBase64 || existing.avatarData, // Preserve existing if no new avatar
             },
           })
         : await tx.personality.create({
             data: {
               ...v3Data.personality,
-              systemPromptId: systemPrompt.id,
+              systemPromptId: defaultSystemPrompt.id,
+              avatarData: avatarBase64,
             },
           });
 
-      // Create default config link
+      // Create default config link (using global default LLM config)
       const defaultLink = await tx.personalityDefaultConfig.upsert({
         where: { personalityId: personality.id },
         create: {
           personalityId: personality.id,
-          llmConfigId: llmConfig.id,
+          llmConfigId: defaultLlmConfig.id,
         },
         update: {
-          llmConfigId: llmConfig.id,
+          llmConfigId: defaultLlmConfig.id,
         },
       });
 
@@ -341,8 +386,8 @@ class PersonalityImportCLI {
         shapesPersonalityId: config.id,
         name: personality.name,
         slug: personality.slug,
-        systemPromptId: systemPrompt.id,
-        llmConfigId: llmConfig.id,
+        systemPromptId: defaultSystemPrompt.id,
+        llmConfigId: defaultLlmConfig.id,
         defaultLinkId: defaultLink.personalityId,
         // Avatar info preserved in customFields for reference
       };
@@ -373,6 +418,7 @@ class PersonalityImportCLI {
       qdrant: this.qdrant,
       openai: this.openai,
       dryRun: options.dryRun,
+      skipExisting: options.skipExisting,
     });
 
     // Import with hybrid approach
@@ -399,12 +445,14 @@ Options:
   --memories-only     Skip personality import, only import memories
   --force             Overwrite existing personality
   --skip-memories     Import personality but skip memories
+  --skip-existing     Skip memories that already exist in Qdrant (saves OpenAI credits)
 
 Examples:
   pnpm import-personality cold-kerach-batuach --dry-run
   pnpm import-personality cold-kerach-batuach
   pnpm import-personality cold-kerach-batuach --memories-only
   pnpm import-personality cold-kerach-batuach --force
+  pnpm import-personality lila-ani-tzuratech --memories-only --skip-existing
     `);
     process.exit(0);
   }
@@ -416,6 +464,7 @@ Examples:
     memoriesOnly: args.includes('--memories-only'),
     force: args.includes('--force'),
     skipMemories: args.includes('--skip-memories'),
+    skipExisting: args.includes('--skip-existing'),
   };
 
   const cli = new PersonalityImportCLI();
