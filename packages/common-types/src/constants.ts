@@ -104,6 +104,18 @@ export const QUEUE_CONFIG = {
 } as const;
 
 /**
+ * Retry configuration for transient errors
+ */
+export const RETRY_CONFIG = {
+  /** Maximum retry attempts for transient LLM errors */
+  LLM_MAX_RETRIES: 2,
+  /** Base delay for exponential backoff (milliseconds) */
+  LLM_RETRY_BASE_DELAY: 1000,
+  /** Global timeout for all LLM retry attempts combined (2 minutes) */
+  LLM_GLOBAL_TIMEOUT: 120000,
+} as const;
+
+/**
  * Text truncation and preview limits
  */
 export const TEXT_LIMITS = {
