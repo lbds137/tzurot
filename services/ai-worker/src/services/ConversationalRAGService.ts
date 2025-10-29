@@ -21,6 +21,7 @@ import {
   AI_DEFAULTS,
   TEXT_LIMITS,
   TIMEOUTS,
+  RETRY_CONFIG,
   getPrismaClient,
   formatFullDateTime,
   formatMemoryTimestamp,
@@ -146,30 +147,50 @@ export class ConversationalRAGService {
 
   /**
    * Invoke LLM with timeout and retry logic for transient errors
-   * Retries up to 2 times on transient network errors (ECONNRESET, ETIMEDOUT, ENOTFOUND)
    *
-   * TODO: Consider extracting retry config to constants (maxRetries, backoff base)
-   * TODO: Consider global timeout wrapper to prevent 9+ minute delays
-   * (current: 3min * 3 attempts + delays = ~9min total)
+   * Features:
+   * - Retries on transient network errors (ECONNRESET, ETIMEDOUT, ENOTFOUND)
+   * - Exponential backoff between retries
+   * - Global timeout to prevent exceeding gateway JOB_WAIT limit
+   * - Per-attempt timeout reduction based on remaining time
    */
   private async invokeModelWithRetry(
     model: BaseChatModel,
     messages: BaseMessage[],
-    modelName: string,
-    maxRetries: number = 2 // TODO: Move to RETRY_CONFIG constant
+    modelName: string
   ): Promise<BaseMessage> {
-    // TODO: Add global timeout check (startTime + maxGlobalTime)
+    const startTime = Date.now();
+    const maxRetries = RETRY_CONFIG.LLM_MAX_RETRIES;
+    const globalTimeoutMs = RETRY_CONFIG.LLM_GLOBAL_TIMEOUT;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // Check if we've exceeded global timeout before attempting
+      const elapsedMs = Date.now() - startTime;
+      if (elapsedMs >= globalTimeoutMs) {
+        logger.error({
+          modelName,
+          elapsedMs,
+          globalTimeoutMs,
+          attempt: attempt + 1
+        }, `[RAG] Global timeout exceeded after ${elapsedMs}ms (limit: ${globalTimeoutMs}ms)`);
+        throw new Error(`LLM invocation global timeout exceeded after ${elapsedMs}ms`);
+      }
+
+      // Calculate remaining time for this attempt
+      const remainingMs = globalTimeoutMs - elapsedMs;
+      const attemptTimeoutMs = Math.min(TIMEOUTS.LLM_API, remainingMs);
+
       try {
         logger.info({
           modelName,
           attempt: attempt + 1,
-          maxAttempts: maxRetries + 1
-        }, `[RAG] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1})`);
+          maxAttempts: maxRetries + 1,
+          attemptTimeoutMs,
+          remainingMs
+        }, `[RAG] Invoking LLM (attempt ${attempt + 1}/${maxRetries + 1}, timeout: ${attemptTimeoutMs}ms)`);
 
-        // Invoke with 3-minute timeout
-        const response = await model.invoke(messages, { timeout: TIMEOUTS.LLM_API });
+        // Invoke with calculated timeout (respects global timeout)
+        const response = await model.invoke(messages, { timeout: attemptTimeoutMs });
 
         if (attempt > 0) {
           logger.info({ modelName, attempt: attempt + 1 }, '[RAG] LLM invocation succeeded after retry');
@@ -186,17 +207,19 @@ export class ConversationalRAGService {
           errorCode === 'ECONNRESET' ||
           errorCode === 'ETIMEDOUT' ||
           errorCode === 'ENOTFOUND' ||
+          errorCode === 'ECONNREFUSED' ||
           errorMessage.includes('ECONNRESET') ||
           errorMessage.includes('ETIMEDOUT') ||
           errorMessage.includes('ENOTFOUND');
 
         if (isTransientError && attempt < maxRetries) {
-          const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s (maxRetries=2)
+          const delayMs = Math.pow(2, attempt) * RETRY_CONFIG.LLM_RETRY_BASE_DELAY;
           logger.warn({
             err: error,
             modelName,
             attempt: attempt + 1,
-            nextRetryInMs: delayMs
+            nextRetryInMs: delayMs,
+            elapsedMs: Date.now() - startTime
           }, `[RAG] LLM invocation failed with transient error, retrying in ${delayMs}ms`);
 
           await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -208,7 +231,8 @@ export class ConversationalRAGService {
           logger.error({
             err: error,
             modelName,
-            attempts: maxRetries + 1
+            attempts: maxRetries + 1,
+            totalElapsedMs: Date.now() - startTime
           }, `[RAG] LLM invocation failed after ${maxRetries + 1} attempts`);
         }
 
