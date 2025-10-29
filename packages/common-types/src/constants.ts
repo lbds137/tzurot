@@ -59,8 +59,8 @@ export const TIMEOUTS = {
   WHISPER_API: 300000,
   /** Audio file download timeout (2 minutes) */
   AUDIO_FETCH: 120000,
-  /** LLM API call timeout (3 minutes for long context generation) */
-  LLM_API: 180000,
+  /** LLM API call timeout per attempt (1 minute - allows retries within global timeout) */
+  LLM_API: 60000,
   /** Job wait timeout in gateway (4.5 minutes) */
   JOB_WAIT: 270000,
   /** Base timeout for job calculations (2 minutes) */
