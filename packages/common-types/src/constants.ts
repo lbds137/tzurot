@@ -55,6 +55,10 @@ export const TIMEOUTS = {
   CACHE_TTL: 5 * 60 * 1000,
   /** Vision model invocation timeout (30 seconds) */
   VISION_MODEL: 30000,
+  /** Whisper transcription timeout (5 minutes for long audio files) */
+  WHISPER_API: 300000,
+  /** Audio file download timeout (2 minutes) */
+  AUDIO_FETCH: 120000,
   /** Job wait timeout in gateway (4.5 minutes) */
   JOB_WAIT: 270000,
   /** Base timeout for job calculations (2 minutes) */
