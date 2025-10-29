@@ -12,6 +12,7 @@ import {
   HumanMessage,
   SystemMessage
 } from '@langchain/core/messages';
+import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
 import {
   MessageContent,
@@ -145,21 +146,18 @@ export class ConversationalRAGService {
 
   /**
    * Invoke LLM with timeout and retry logic for transient errors
-   * Retries up to 2 times on ECONNRESET (connection reset by peer)
+   * Retries up to 2 times on transient network errors (ECONNRESET, ETIMEDOUT, ENOTFOUND)
    *
-   * TODO: Improve type safety - replace `any` with proper LangChain types
-   * (e.g., ReturnType<typeof createChatModel>['model'])
    * TODO: Consider extracting retry config to constants (maxRetries, backoff base)
    * TODO: Consider global timeout wrapper to prevent 9+ minute delays
    * (current: 3min * 3 attempts + delays = ~9min total)
    */
   private async invokeModelWithRetry(
-    model: any, // TODO: Type as BaseChatModel or ChatModelResult['model']
+    model: BaseChatModel,
     messages: BaseMessage[],
     modelName: string,
     maxRetries: number = 2 // TODO: Move to RETRY_CONFIG constant
-  ): Promise<any> { // TODO: Type as proper LangChain response type
-    let lastError: Error | undefined;
+  ): Promise<BaseMessage> {
     // TODO: Add global timeout check (startTime + maxGlobalTime)
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -180,14 +178,17 @@ export class ConversationalRAGService {
         return response;
 
       } catch (error) {
-        lastError = error as Error;
-
         // Check if this is a transient network error worth retrying
+        // Check both error.code (Node.js native errors) and error.message (wrapped errors)
+        const errorCode = (error as any).code;
+        const errorMessage = error instanceof Error ? error.message : '';
         const isTransientError =
-          error instanceof Error &&
-          (error.message.includes('ECONNRESET') ||
-           error.message.includes('ETIMEDOUT') ||
-           error.message.includes('ENOTFOUND'));
+          errorCode === 'ECONNRESET' ||
+          errorCode === 'ETIMEDOUT' ||
+          errorCode === 'ENOTFOUND' ||
+          errorMessage.includes('ECONNRESET') ||
+          errorMessage.includes('ETIMEDOUT') ||
+          errorMessage.includes('ENOTFOUND');
 
         if (isTransientError && attempt < maxRetries) {
           const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s (maxRetries=2)
@@ -215,7 +216,8 @@ export class ConversationalRAGService {
       }
     }
 
-    throw lastError || new Error('LLM invocation failed with unknown error');
+    // This line is unreachable (loop always returns or throws), but TypeScript doesn't know that
+    throw new Error('LLM invocation failed - all retries exhausted');
   }
 
   /**
@@ -330,7 +332,7 @@ export class ConversationalRAGService {
       return {
         content,
         retrievedMemories: relevantMemories.length,
-        tokensUsed: response.usage_metadata?.total_tokens,
+        tokensUsed: (response as any).usage_metadata?.total_tokens,
         attachmentDescriptions,
         modelUsed: modelName
       };
