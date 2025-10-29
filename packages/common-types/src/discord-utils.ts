@@ -28,8 +28,8 @@ export function splitMessage(content: string, maxLength = DISCORD_MAX_MESSAGE_LE
         currentChunk = '';
       }
       
-      // Split long paragraph on sentences
-      const sentences = paragraph.match(/[^.!?]+[.!?]+/g) ?? [paragraph];
+      // Split long paragraph on sentences (preserving all text including unpunctuated parts)
+      const sentences = paragraph.split(/(?<=[.!?])\s+/);
       
       for (const sentence of sentences) {
         // If even a sentence is too long, split on words
