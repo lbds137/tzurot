@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.12] - 2025-10-28
+
+### Added
+- **Automatic Voice Message Transcription** - Bot can now transcribe voice messages and reply with searchable text
+  - Environment toggle via `AUTO_TRANSCRIBE_VOICE=true` to prevent conflicts with dev/prod bots in same server
+  - Voice messages automatically transcribed using Whisper API
+  - Transcripts sent as bot replies with proper chunking (respects 2000 char Discord limit)
+  - Dual-purpose handling: Voice messages targeting personalities get transcript FIRST (as bot), then personality response (via webhook)
+  - Replaces external transcription bots that upload files instead of sending searchable text
+- **Voice Transcription Cost Optimization** - Redis caching prevents double transcription
+  - 5-minute TTL cache keyed by Discord CDN URL
+  - When voice message targets personality, Whisper API called only once (~50% cost savings)
+  - Cache failures gracefully degrade to direct Whisper API calls
+- **New Transcribe Endpoint** - `POST /ai/transcribe` in api-gateway
+  - Dedicated endpoint for voice transcription without LLM processing
+  - Supports `?wait=true` for synchronous responses
+  - Creates `transcribe` job type in BullMQ queue
+- **Enhanced Attachment Metadata** - Preserve original Discord CDN URLs for caching
+  - Added `originalUrl` field to `AttachmentMetadata` schema
+  - Local Railway URLs used for fetching, original URLs for cache keys
+  - Temporary attachment storage preserves both URLs
+
+### Changed
+- **AIJobProcessor** - Added routing for `transcribe` job type
+  - New `processTranscribeJob()` handler for voice-only processing
+  - Existing `processGenerateJob()` unchanged for personality responses
+- **MultimodalProcessor** - Check Redis cache before calling Whisper API
+  - Cache lookup using `originalUrl` if available
+  - Graceful degradation if Redis unavailable
+  - Enhanced logging for cache hits/misses
+
+### Documentation
+- **GitHub Workflows** - Added Claude Code PR review automation
+  - Automatic code review on pull requests
+  - Claude PR assistant workflow
+
 ## [3.0.0-alpha.10] - 2025-10-27
 
 ### Added
