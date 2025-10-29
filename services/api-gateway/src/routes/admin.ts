@@ -222,7 +222,6 @@ router.post('/personality', async (req: Request, res: Response) => {
         conversationalExamples: conversationalExamples || null,
         customFields: customFields || null,
         avatarData: processedAvatarData ? new Uint8Array(processedAvatarData) : null,
-        memoryEnabled: true,
         voiceEnabled: false,
         imageEnabled: false
       }
