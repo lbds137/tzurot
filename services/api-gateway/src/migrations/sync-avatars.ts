@@ -53,8 +53,8 @@ export async function syncAvatars(): Promise<void> {
         // File doesn't exist, create it from DB
       }
 
-      // Decode base64 and write file
-      const buffer = Buffer.from(personality.avatarData!, 'base64');
+      // avatarData is already raw bytes, just write to file
+      const buffer = Buffer.from(personality.avatarData!);
       await writeFile(avatarPath, buffer);
 
       const sizeKB = (buffer.length / 1024).toFixed(2);
