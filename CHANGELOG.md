@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Graceful degradation if Redis unavailable
   - Enhanced logging for cache hits/misses
 
+### Fixed
+- **Message Chunking Bug** - Fixed critical text loss in long transcripts
+  - Sentence splitting regex was silently dropping unpunctuated text
+  - Changed from `.match()` to `.split()` approach to preserve all content
+  - Fixes issue where 4-minute voice messages were truncated to ~2000 chars
+- **Whisper API Timeouts** - Added explicit timeouts for long audio files
+  - 5-minute timeout for Whisper transcription (was using SDK defaults)
+  - 2-minute timeout for audio file downloads
+  - Better error messages for timeout scenarios
+
 ### Documentation
 - **GitHub Workflows** - Added Claude Code PR review automation
   - Automatic code review on pull requests
