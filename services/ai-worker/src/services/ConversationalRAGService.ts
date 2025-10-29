@@ -149,14 +149,18 @@ export class ConversationalRAGService {
    *
    * TODO: Improve type safety - replace `any` with proper LangChain types
    * (e.g., ReturnType<typeof createChatModel>['model'])
+   * TODO: Consider extracting retry config to constants (maxRetries, backoff base)
+   * TODO: Consider global timeout wrapper to prevent 9+ minute delays
+   * (current: 3min * 3 attempts + delays = ~9min total)
    */
   private async invokeModelWithRetry(
     model: any, // TODO: Type as BaseChatModel or ChatModelResult['model']
     messages: BaseMessage[],
     modelName: string,
-    maxRetries: number = 2
+    maxRetries: number = 2 // TODO: Move to RETRY_CONFIG constant
   ): Promise<any> { // TODO: Type as proper LangChain response type
     let lastError: Error | undefined;
+    // TODO: Add global timeout check (startTime + maxGlobalTime)
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
