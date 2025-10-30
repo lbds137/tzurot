@@ -56,6 +56,7 @@ interface BulkImportOptions {
   skipMemories: boolean;
   skipExisting: boolean;
   delayMs: number; // Delay between personality imports to avoid overwhelming Qdrant
+  memoryDelayMs: number; // Delay between individual memory imports (default: 200ms)
 }
 
 interface UUIDMappingData {
@@ -311,6 +312,7 @@ class BulkPersonalityImporter {
             openai: this.openai,
             dryRun: options.dryRun,
             skipExisting: options.skipExisting,
+            memoryDelayMs: options.memoryDelayMs,
           });
 
           const memoryResult = await memoryImporter.importMemories(memories);
@@ -433,6 +435,8 @@ Options:
   --skip-existing    Skip memories that already exist in Qdrant (saves OpenAI credits)
   --delay <ms>       Delay in milliseconds between personality imports (default: 2000)
                      Use 0 to disable delays. Higher values reduce Qdrant load.
+  --memory-delay <ms> Delay in milliseconds between individual memory imports (default: 200)
+                     Prevents overwhelming Qdrant with rapid-fire upserts.
 
 Examples:
   pnpm tsx scripts/import-personality/bulk-import.ts --dry-run
@@ -445,11 +449,16 @@ Examples:
     process.exit(0);
   }
 
-  // Parse delay argument
+  // Parse delay arguments
   const delayIndex = args.indexOf('--delay');
   const delayMs = delayIndex !== -1 && args[delayIndex + 1]
     ? parseInt(args[delayIndex + 1], 10)
     : 2000; // Default 2 second delay
+
+  const memoryDelayIndex = args.indexOf('--memory-delay');
+  const memoryDelayMs = memoryDelayIndex !== -1 && args[memoryDelayIndex + 1]
+    ? parseInt(args[memoryDelayIndex + 1], 10)
+    : 200; // Default 200ms delay between memories
 
   const options: BulkImportOptions = {
     dryRun: args.includes('--dry-run'),
@@ -457,6 +466,7 @@ Examples:
     skipMemories: args.includes('--skip-memories'),
     skipExisting: args.includes('--skip-existing'),
     delayMs,
+    memoryDelayMs,
   };
 
   const importer = new BulkPersonalityImporter();

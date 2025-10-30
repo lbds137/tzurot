@@ -38,6 +38,7 @@ export interface MemoryImportOptions {
   openai?: OpenAI; // Required for embeddings
   skipExisting?: boolean; // Don't re-import existing memories
   dryRun?: boolean; // Parse but don't write to Qdrant
+  memoryDelayMs?: number; // Delay between individual memory imports (default: 200ms)
 }
 
 export class MemoryImporter {
@@ -53,6 +54,7 @@ export class MemoryImporter {
   private legacyPersonas = new Set<string>(); // Track unique legacy persona IDs
   private v3Personas = new Set<string>(); // Track unique v3 persona IDs
   private personaCache = new Map<string, string | null>(); // Discord ID → persona ID cache
+  private ensuredCollections = new Set<string>(); // Track collections already created/verified
 
   constructor(options: MemoryImportOptions) {
     this.options = options;
@@ -60,28 +62,245 @@ export class MemoryImporter {
 
   /**
    * Import memories from shapes.inc format
+   * NEW: Batched approach to avoid HTTP overhead - collect all points, then batch upsert
    */
   async importMemories(shapesMemories: ShapesIncMemory[]): Promise<MemoryImportResult> {
     console.log(`\n📦 Importing ${shapesMemories.length} memories...`);
 
+    // Phase 1: Collect all points to insert (grouped by collection)
+    console.log('  Phase 1: Preparing memory points...');
+    const pointsByCollection = new Map<string, Array<{
+      id: string;
+      vector: number[];
+      payload: Record<string, any>;
+      memoryId: string;
+      shapesUserId: string;
+    }>>();
+
     for (const memory of shapesMemories) {
       try {
-        await this.importSingleMemory(memory);
+        const points = await this.prepareMemoryPoints(memory);
+
+        // Group points by collection
+        for (const point of points) {
+          const collectionName = `persona-${point.payload.personaId}`;
+          if (!pointsByCollection.has(collectionName)) {
+            pointsByCollection.set(collectionName, []);
+          }
+          pointsByCollection.get(collectionName)!.push(point);
+        }
       } catch (error) {
         this.stats.failed++;
         this.stats.errors.push({
           memoryId: memory.id,
           error: error instanceof Error ? error.message : String(error),
         });
-        console.error(`  ❌ Failed to import memory ${memory.id}:`, error);
+        console.error(`  ❌ Failed to prepare memory ${memory.id}:`, error);
       }
+    }
+
+    // Phase 2: Batch upsert points by collection
+    console.log(`  Phase 2: Batch upserting to ${pointsByCollection.size} collections...`);
+    for (const [collectionName, points] of pointsByCollection.entries()) {
+      await this.batchUpsertPoints(collectionName, points);
     }
 
     return this.stats;
   }
 
   /**
-   * Import a single memory
+   * Prepare memory points for batched insert (doesn't actually upsert)
+   * Returns array of points ready to be batched
+   */
+  private async prepareMemoryPoints(memory: ShapesIncMemory): Promise<Array<{
+    id: string;
+    vector: number[];
+    payload: Record<string, any>;
+    memoryId: string;
+    shapesUserId: string;
+  }>> {
+    if (!memory.senders || memory.senders.length === 0) {
+      throw new Error('No senders found in memory');
+    }
+
+    const summaryText = memory.result;
+
+    // Generate embedding ONCE for the memory (shared across all sender copies)
+    let embedding: number[] | null = null;
+    if (!this.options.dryRun) {
+      if (!this.options.openai) {
+        throw new Error('OpenAI client required for embedding generation');
+      }
+      embedding = await this.generateEmbedding(summaryText);
+    }
+
+    const points: Array<{
+      id: string;
+      vector: number[];
+      payload: Record<string, any>;
+      memoryId: string;
+      shapesUserId: string;
+    }> = [];
+
+    // Create a separate memory entry for each sender
+    for (const shapesUserId of memory.senders) {
+      // Try to resolve to v3 persona using mappings
+      const resolution = await this.resolveShapesUser(shapesUserId);
+
+      // Build v3 Qdrant metadata
+      const v3Metadata = this.buildV3Metadata(memory, shapesUserId, resolution);
+
+      // Generate unique memory ID for this sender's copy
+      const baseMemoryId = memory.id.split('/')[0];
+      const memoryCopyId = memory.senders.length > 1
+        ? uuidv5(`${baseMemoryId}:${shapesUserId}`, MEMORY_NAMESPACE)
+        : baseMemoryId;
+
+      // Check if skipExisting is enabled and memory already exists
+      if (this.options.skipExisting && !this.options.dryRun) {
+        const exists = await this.checkMemoryExists(memoryCopyId, v3Metadata.personaId);
+        if (exists) {
+          console.log(`  ⏭️  Skipping existing memory ${memoryCopyId}`);
+          this.stats.skipped++;
+          continue;
+        }
+      }
+
+      if (this.options.dryRun || !embedding) {
+        console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
+        if (resolution.v3PersonaId) {
+          console.log(`     ✅ V3 Persona: ${resolution.v3PersonaId} (known user)`);
+        } else {
+          console.log(`     📦 Legacy Persona: legacy-${shapesUserId} (unknown user)`);
+        }
+        continue;
+      }
+
+      // Add point to collection
+      points.push({
+        id: memoryCopyId,
+        vector: embedding,
+        payload: {
+          content: summaryText,
+          personaId: v3Metadata.personaId,
+          personalityId: v3Metadata.personalityId,
+          personalityName: v3Metadata.personalityName,
+          sessionId: v3Metadata.sessionId,
+          canonScope: v3Metadata.canonScope,
+          createdAt: v3Metadata.timestamp,
+          summaryType: v3Metadata.summaryType,
+          contextType: v3Metadata.contextType,
+          channelId: v3Metadata.channelId,
+          guildId: v3Metadata.guildId,
+          serverId: v3Metadata.serverId,
+        },
+        memoryId: memoryCopyId,
+        shapesUserId,
+      });
+
+      // Track stats (we'll log after batching)
+      this.stats.imported++;
+      if (resolution.v3PersonaId) {
+        this.stats.migratedToV3++;
+        if (!this.v3Personas.has(resolution.v3PersonaId)) {
+          this.v3Personas.add(resolution.v3PersonaId);
+        }
+      } else {
+        const legacyPersonaId = `legacy-${shapesUserId}`;
+        if (!this.legacyPersonas.has(legacyPersonaId)) {
+          this.legacyPersonas.add(legacyPersonaId);
+          this.stats.legacyPersonasCreated++;
+        }
+      }
+    }
+
+    return points;
+  }
+
+  /**
+   * Batch upsert points to a single collection
+   * Splits into batches of 100 points to avoid overwhelming Qdrant
+   */
+  private async batchUpsertPoints(
+    collectionName: string,
+    points: Array<{
+      id: string;
+      vector: number[];
+      payload: Record<string, any>;
+      memoryId: string;
+      shapesUserId: string;
+    }>
+  ): Promise<void> {
+    if (!this.options.qdrant || this.options.dryRun) {
+      return;
+    }
+
+    // Ensure collection exists (get vector size from first point)
+    if (points.length > 0) {
+      await this.ensureCollection(collectionName, points[0].vector.length);
+    }
+
+    // Batch size: 250 points (Gemini recommended 50-1024, balancing throughput vs. request size)
+    const BATCH_SIZE = 250;
+    const batches: typeof points[] = [];
+
+    for (let i = 0; i < points.length; i += BATCH_SIZE) {
+      batches.push(points.slice(i, i + BATCH_SIZE));
+    }
+
+    console.log(`  📤 Upserting ${points.length} points to ${collectionName} in ${batches.length} batches...`);
+
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      const isLastBatch = i === batches.length - 1;
+
+      try {
+        // Strategy: Use wait=false for ALL batches during bulk import
+        // Qdrant will process indexing in background, preventing resource exhaustion
+        // (Gemini recommendation: Never block on indexing during bulk operations)
+        const shouldWait = false;
+
+        // Timeout: 30s for all batches (no indexing wait)
+        const timeoutMs = 30000;
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Batch upsert timed out after ${timeoutMs/1000}s`)), timeoutMs)
+        );
+
+        await Promise.race([
+          this.options.qdrant.upsert(collectionName, {
+            wait: shouldWait, // Only wait on last batch to verify completion
+            points: batch.map(p => ({
+              id: p.id,
+              vector: p.vector,
+              payload: p.payload,
+            })),
+          }),
+          timeoutPromise
+        ]);
+
+        console.log(`     ✅ Batch ${i + 1}/${batches.length} ${shouldWait ? '(verified)' : '(sent)'} (${batch.length} points)`);
+
+        // Add small delay between batches (skip after last batch)
+        if (!isLastBatch) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      } catch (error) {
+        console.error(`     ❌ Batch ${i + 1}/${batches.length} failed:`, error);
+        // Mark all points in failed batch as failed
+        for (const point of batch) {
+          this.stats.failed++;
+          this.stats.imported--; // Undo the optimistic increment
+          this.stats.errors.push({
+            memoryId: point.memoryId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * DEPRECATED: Import a single memory (old single-point upsert approach)
    *
    * HYBRID APPROACH:
    * - Known users (in uuid-mappings.json) → Auto-migrate to v3 persona
@@ -98,8 +317,20 @@ export class MemoryImporter {
     // Extract summary text (shared across all sender copies)
     const summaryText = memory.result;
 
+    // Generate embedding ONCE for the memory (shared across all sender copies)
+    let embedding: number[] | null = null;
+    if (!this.options.dryRun) {
+      if (!this.options.openai) {
+        throw new Error('OpenAI client required for embedding generation');
+      }
+      embedding = await this.generateEmbedding(summaryText);
+    }
+
     // Create a separate memory entry for each sender
-    for (const shapesUserId of memory.senders) {
+    const delayMs = this.options.memoryDelayMs ?? 200;
+    for (let i = 0; i < memory.senders.length; i++) {
+      const shapesUserId = memory.senders[i];
+
       // Try to resolve to v3 persona using mappings
       const resolution = await this.resolveShapesUser(shapesUserId);
 
@@ -124,15 +355,6 @@ export class MemoryImporter {
         }
       }
 
-      // Generate embedding only if we need it (not in dry run, not skipped)
-      let embedding: number[] | null = null;
-      if (!this.options.dryRun) {
-        if (!this.options.openai) {
-          throw new Error('OpenAI client required for embedding generation');
-        }
-        embedding = await this.generateEmbedding(summaryText);
-      }
-
       if (this.options.dryRun) {
         console.log(`  🔍 [DRY RUN] Would import memory ${memoryCopyId}`);
         if (resolution.v3PersonaId) {
@@ -150,38 +372,59 @@ export class MemoryImporter {
           throw new Error('Qdrant client and embedding required for memory storage');
         }
 
-        await this.storeInQdrant(
-          memoryCopyId,
-          summaryText,
-          embedding,
-          v3Metadata
+        // Wrap Qdrant operation with timeout (30 seconds)
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Qdrant operation timed out after 30s')), 30000)
         );
 
-        if (resolution.v3PersonaId) {
-          console.log(`  ✅ Imported memory ${memoryCopyId}`);
-          console.log(`     V3 Persona: ${resolution.v3PersonaId} (known user)`);
-        } else {
-          console.log(`  ✅ Imported memory ${memoryCopyId}`);
-          console.log(`     Legacy Persona: legacy-${shapesUserId} (unknown user)`);
-        }
-        if (memory.senders.length > 1) {
-          console.log(`     [Group conversation: ${memory.senders.length} participants]`);
+        try {
+          await Promise.race([
+            this.storeInQdrant(memoryCopyId, summaryText, embedding, v3Metadata),
+            timeoutPromise
+          ]);
+
+          if (resolution.v3PersonaId) {
+            console.log(`  ✅ Imported memory ${memoryCopyId}`);
+            console.log(`     V3 Persona: ${resolution.v3PersonaId} (known user)`);
+          } else {
+            console.log(`  ✅ Imported memory ${memoryCopyId}`);
+            console.log(`     Legacy Persona: legacy-${shapesUserId} (unknown user)`);
+          }
+          if (memory.senders.length > 1) {
+            console.log(`     [Group conversation: ${memory.senders.length} participants]`);
+          }
+
+          // Track success statistics
+          this.stats.imported++;
+          if (resolution.v3PersonaId) {
+            this.stats.migratedToV3++;
+            if (!this.v3Personas.has(resolution.v3PersonaId)) {
+              this.v3Personas.add(resolution.v3PersonaId);
+            }
+          } else {
+            const legacyPersonaId = `legacy-${shapesUserId}`;
+            if (!this.legacyPersonas.has(legacyPersonaId)) {
+              this.legacyPersonas.add(legacyPersonaId);
+              this.stats.legacyPersonasCreated++;
+            }
+          }
+        } catch (error) {
+          // If Qdrant times out or fails, log and skip this sender's copy
+          console.error(`  ⚠️  Failed to import memory ${memoryCopyId} for sender ${shapesUserId}:`);
+          console.error(`     ${error instanceof Error ? error.message : String(error)}`);
+          this.stats.failed++;
+          this.stats.errors.push({
+            memoryId: `${memoryCopyId} (sender: ${shapesUserId})`,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          continue; // Skip to next sender
         }
       }
 
-      // Track statistics
-      this.stats.imported++;
-      if (resolution.v3PersonaId) {
-        this.stats.migratedToV3++;
-        if (!this.v3Personas.has(resolution.v3PersonaId)) {
-          this.v3Personas.add(resolution.v3PersonaId);
-        }
-      } else {
-        const legacyPersonaId = `legacy-${shapesUserId}`;
-        if (!this.legacyPersonas.has(legacyPersonaId)) {
-          this.legacyPersonas.add(legacyPersonaId);
-          this.stats.legacyPersonasCreated++;
-        }
+      // Add delay between sender copies in group conversations (except after the last one)
+      // Use 2x the normal delay for group conversations to give Qdrant more breathing room
+      if (memory.senders.length > 1 && i < memory.senders.length - 1 && delayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * 2));
       }
     }
   }
@@ -255,8 +498,9 @@ export class MemoryImporter {
     // Generate point ID (use shapes.inc memory ID or generate new UUID)
     const pointId = memoryId || uuidv4();
 
-    // Store point with vector and metadata
+    // Store point with vector and metadata (wait=false for async processing)
     await this.options.qdrant.upsert(collectionName, {
+      wait: false,
       points: [
         {
           id: pointId,
@@ -291,15 +535,26 @@ export class MemoryImporter {
       throw new Error('Qdrant client not configured');
     }
 
+    // Check cache first to avoid redundant API calls
+    if (this.ensuredCollections.has(collectionName)) {
+      return;
+    }
+
     try {
       // Check if collection exists
       await this.options.qdrant.getCollection(collectionName);
+      // Collection exists, add to cache
+      this.ensuredCollections.add(collectionName);
     } catch (error) {
-      // Collection doesn't exist, create it
+      // Collection doesn't exist, create it with disk storage for vectors and HNSW index
       await this.options.qdrant.createCollection(collectionName, {
         vectors: {
           size: vectorSize,
           distance: 'Cosine',
+          on_disk: true, // Store vectors on disk to avoid RAM exhaustion
+        },
+        hnsw_config: {
+          on_disk: true, // Store HNSW index on disk to avoid RAM exhaustion
         },
       });
 
@@ -318,6 +573,9 @@ export class MemoryImporter {
         field_name: 'sessionId',
         field_schema: 'keyword',
       });
+
+      // Add to cache after successful creation
+      this.ensuredCollections.add(collectionName);
     }
   }
 
