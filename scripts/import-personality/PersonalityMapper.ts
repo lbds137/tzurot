@@ -33,7 +33,7 @@ export class PersonalityMapper {
       personalityTraits: config.personality_traits || '',
       personalityTone: config.personality_tone || null,
       personalityAge: config.personality_age || null,
-      personalityAppearance: config.appearance || null,
+      personalityAppearance: config.shape_settings?.appearance || null,
       personalityLikes: config.personality_likes || null,
       personalityDislikes: config.personality_dislikes || null,
       conversationalGoals: config.personality_conversational_goals || null,
@@ -85,6 +85,16 @@ export class PersonalityMapper {
     // Preserve avatar URL for reference (v3 uses webhooks instead)
     if (config.avatar) {
       customFields.shapesIncAvatarUrl = config.avatar;
+    }
+
+    // Preserve personality history/backstory
+    if (config.personality_history) {
+      customFields.personalityHistory = config.personality_history;
+    }
+
+    // Preserve initial greeting message
+    if (config.shape_settings?.shape_initial_message) {
+      customFields.shapeInitialMessage = config.shape_settings.shape_initial_message;
     }
 
     // Return null if no custom fields to store
