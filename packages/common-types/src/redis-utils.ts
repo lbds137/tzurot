@@ -95,9 +95,12 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
     socket: {
       host: config.host,
       port: config.port,
-      family: config.family || 6, // Railway private network uses IPv6
-      connectTimeout: 10000,      // 10s to establish connection
-      commandTimeout: 5000,       // 5s per command
+      // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
+      // IPv4 (family: 4) is NOT supported for Railway private networking
+      // See: https://docs.railway.app/reference/private-networking
+      family: config.family || 6,
+      connectTimeout: 20000,      // 20s to establish connection (increased for Railway latency)
+      commandTimeout: 15000,      // 15s per command (increased for Railway latency)
       keepAlive: true,            // Enable TCP keepalive
       keepAliveInitialDelay: 30000, // 30s before first keepalive probe
       reconnectStrategy: (retries: number) => {
@@ -134,9 +137,12 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     port: config.port,
     password: config.password,
     username: config.username,
-    family: config.family || 6,  // Railway private network uses IPv6
-    connectTimeout: 10000,       // 10s to establish connection
-    commandTimeout: 5000,        // 5s per command
+    // REQUIRED: Railway private network requires IPv6 (family: 6) for internal service communication
+    // IPv4 (family: 4) is NOT supported for Railway private networking
+    // See: https://docs.railway.app/reference/private-networking
+    family: config.family || 6,
+    connectTimeout: 20000,       // 20s to establish connection (increased for Railway latency)
+    commandTimeout: 15000,       // 15s per command (increased for Railway latency)
     keepAlive: 30000,            // 30s TCP keepalive
     reconnectStrategy: (retries: number) => {
       if (retries > 10) {
