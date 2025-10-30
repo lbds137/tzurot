@@ -4,6 +4,12 @@
  * Prevents cascading failures by temporarily blocking operations
  * when a service is experiencing repeated failures.
  *
+ * **NOTE**: This implementation is provided for future use but is NOT currently
+ * integrated into any services. The timeout configurations added to Redis
+ * connections are the critical fix. This circuit breaker can be optionally
+ * integrated later if Redis instability continues, particularly for non-critical
+ * operations like webhook tracking and transcript caching.
+ *
  * States:
  * - CLOSED: Normal operation, requests flow through
  * - OPEN: Too many failures, all requests rejected immediately
