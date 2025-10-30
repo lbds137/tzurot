@@ -26,6 +26,11 @@ import { getConfig } from '@tzurot/common-types';
 
 const config = getConfig();
 
+// Utility: Sleep for rate limiting
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Constants
 const LEGACY_DATA_PATH = 'tzurot-legacy/data/personalities';
 const AVATAR_STORAGE_DIR = '/data/avatars';
@@ -50,6 +55,7 @@ interface BulkImportOptions {
   force: boolean;
   skipMemories: boolean;
   skipExisting: boolean;
+  delayMs: number; // Delay between personality imports to avoid overwhelming Qdrant
 }
 
 interface UUIDMappingData {
@@ -371,7 +377,8 @@ class BulkPersonalityImporter {
     };
 
     // Import each personality
-    for (const slug of slugsToImport) {
+    for (let i = 0; i < slugsToImport.length; i++) {
+      const slug = slugsToImport[i];
       const result = await this.importOne(slug, options);
       summary.results.push({ slug, status: result.status, reason: result.reason, name: result.name });
 
@@ -379,6 +386,12 @@ class BulkPersonalityImporter {
         summary.successful++;
       } else {
         summary.failed++;
+      }
+
+      // Add delay between imports to avoid overwhelming Qdrant (except after last one)
+      if (options.delayMs > 0 && i < slugsToImport.length - 1) {
+        console.log(`⏸️  Waiting ${options.delayMs}ms before next personality...\n`);
+        await sleep(options.delayMs);
       }
     }
 
@@ -414,10 +427,12 @@ async function main() {
 Usage: pnpm tsx scripts/import-personality/bulk-import.ts [options]
 
 Options:
-  --dry-run        Parse and validate without making changes
-  --force          Overwrite existing personalities
-  --skip-memories  Import personalities but skip memories
-  --skip-existing  Skip memories that already exist in Qdrant (saves OpenAI credits)
+  --dry-run          Parse and validate without making changes
+  --force            Overwrite existing personalities
+  --skip-memories    Import personalities but skip memories
+  --skip-existing    Skip memories that already exist in Qdrant (saves OpenAI credits)
+  --delay <ms>       Delay in milliseconds between personality imports (default: 2000)
+                     Use 0 to disable delays. Higher values reduce Qdrant load.
 
 Examples:
   pnpm tsx scripts/import-personality/bulk-import.ts --dry-run
@@ -425,15 +440,23 @@ Examples:
   pnpm tsx scripts/import-personality/bulk-import.ts --force
   pnpm tsx scripts/import-personality/bulk-import.ts --skip-memories
   pnpm tsx scripts/import-personality/bulk-import.ts --force --skip-existing
+  pnpm tsx scripts/import-personality/bulk-import.ts --force --skip-existing --delay 5000
     `);
     process.exit(0);
   }
+
+  // Parse delay argument
+  const delayIndex = args.indexOf('--delay');
+  const delayMs = delayIndex !== -1 && args[delayIndex + 1]
+    ? parseInt(args[delayIndex + 1], 10)
+    : 2000; // Default 2 second delay
 
   const options: BulkImportOptions = {
     dryRun: args.includes('--dry-run'),
     force: args.includes('--force'),
     skipMemories: args.includes('--skip-memories'),
     skipExisting: args.includes('--skip-existing'),
+    delayMs,
   };
 
   const importer = new BulkPersonalityImporter();
