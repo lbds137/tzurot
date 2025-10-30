@@ -12,6 +12,40 @@ export interface RedisConnectionConfig {
   port: number;
   password?: string;
   username?: string;
+  family?: 4 | 6;
+}
+
+export interface RedisSocketConfig {
+  socket: {
+    host: string;
+    port: number;
+    family: 4 | 6;
+    connectTimeout: number;
+    commandTimeout: number;
+    keepAlive: boolean;
+    keepAliveInitialDelay: number;
+    reconnectStrategy: (retries: number) => number | Error;
+  };
+  password?: string;
+  username?: string;
+  maxRetriesPerRequest: number;
+  lazyConnect: boolean;
+  enableReadyCheck: boolean;
+}
+
+export interface BullMQRedisConfig {
+  host: string;
+  port: number;
+  password?: string;
+  username?: string;
+  family: 4 | 6;
+  connectTimeout: number;
+  commandTimeout: number;
+  keepAlive: number;
+  reconnectStrategy: (retries: number) => number | Error;
+  maxRetriesPerRequest: number;
+  lazyConnect: boolean;
+  enableReadyCheck: boolean;
 }
 
 /**
@@ -40,4 +74,77 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
       port: 6379
     };
   }
+}
+
+/**
+ * Create standardized Redis socket configuration with timeouts and reconnection strategy
+ *
+ * Used by direct redis clients (not BullMQ)
+ *
+ * @param config Basic Redis connection config
+ * @returns Full socket configuration with timeouts
+ */
+export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSocketConfig {
+  return {
+    socket: {
+      host: config.host,
+      port: config.port,
+      family: config.family || 6, // Railway private network uses IPv6
+      connectTimeout: 10000,      // 10s to establish connection
+      commandTimeout: 5000,       // 5s per command
+      keepAlive: true,            // Enable TCP keepalive
+      keepAliveInitialDelay: 30000, // 30s before first keepalive probe
+      reconnectStrategy: (retries: number) => {
+        if (retries > 10) {
+          // After 10 retries (30+ seconds), give up
+          logger.error('[RedisUtils] Max reconnection attempts reached');
+          return new Error('Max reconnection attempts reached');
+        }
+        // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
+        const delay = Math.min(retries * 100, 3000);
+        logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
+        return delay;
+      }
+    },
+    password: config.password,
+    username: config.username,
+    maxRetriesPerRequest: 3,     // Retry commands up to 3 times
+    lazyConnect: false,           // Connect immediately to fail fast
+    enableReadyCheck: true,       // Verify Redis is ready
+  };
+}
+
+/**
+ * Create standardized Redis configuration for BullMQ
+ *
+ * BullMQ uses IORedis format (flattened, not nested socket)
+ *
+ * @param config Basic Redis connection config
+ * @returns BullMQ-compatible Redis configuration
+ */
+export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRedisConfig {
+  return {
+    host: config.host,
+    port: config.port,
+    password: config.password,
+    username: config.username,
+    family: config.family || 6,  // Railway private network uses IPv6
+    connectTimeout: 10000,       // 10s to establish connection
+    commandTimeout: 5000,        // 5s per command
+    keepAlive: 30000,            // 30s TCP keepalive
+    reconnectStrategy: (retries: number) => {
+      if (retries > 10) {
+        // After 10 retries (30+ seconds), give up
+        logger.error('[RedisUtils] Max reconnection attempts reached');
+        return new Error('Max reconnection attempts reached');
+      }
+      // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
+      const delay = Math.min(retries * 100, 3000);
+      logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
+      return delay;
+    },
+    maxRetriesPerRequest: 3,     // Retry commands up to 3 times
+    lazyConnect: false,           // Connect immediately to fail fast
+    enableReadyCheck: true,       // Verify Redis is ready
+  };
 }
