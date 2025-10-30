@@ -11,22 +11,27 @@
 import { Worker, Job } from 'bullmq';
 import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
-import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
 const envConfig = getConfig();
 
+// Get Redis connection config from environment
+const parsedUrl = envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0
+  ? parseRedisUrl(envConfig.REDIS_URL)
+  : null;
+
+const redisConfig = createBullMQRedisConfig({
+  host: parsedUrl?.host || envConfig.REDIS_HOST,
+  port: parsedUrl?.port || envConfig.REDIS_PORT,
+  password: parsedUrl?.password || envConfig.REDIS_PASSWORD,
+  username: parsedUrl?.username,
+  family: 6, // Railway private network uses IPv6
+});
+
 // Configuration from environment
 const config = {
-  redis: {
-    host: envConfig.REDIS_HOST,
-    port: envConfig.REDIS_PORT,
-    password: envConfig.REDIS_PASSWORD,
-    // Railway private networking requires IPv6
-    family: 6,
-    // Parse Railway's REDIS_URL if provided
-    ...(envConfig.REDIS_URL && envConfig.REDIS_URL.length > 0 ? parseRedisUrl(envConfig.REDIS_URL) : {})
-  },
+  redis: redisConfig,
   openai: {
     apiKey: envConfig.OPENAI_API_KEY // For embeddings
   },
@@ -42,7 +47,13 @@ const config = {
 async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
   logger.info({
-    redis: { ...config.redis, password: config.redis.password ? '***' : undefined },
+    redis: {
+      host: config.redis.host,
+      port: config.redis.port,
+      hasPassword: config.redis.password !== undefined,
+      connectTimeout: config.redis.connectTimeout,
+      commandTimeout: config.redis.commandTimeout
+    },
     worker: config.worker
   }, '[AIWorker] Configuration:');
 

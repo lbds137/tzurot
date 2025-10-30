@@ -5,7 +5,7 @@
  */
 
 import { createClient, type RedisClientType } from 'redis';
-import { createLogger, getConfig, parseRedisUrl } from '@tzurot/common-types';
+import { createLogger, getConfig, parseRedisUrl, createRedisSocketConfig } from '@tzurot/common-types';
 
 const logger = createLogger('Redis');
 const config = getConfig();
@@ -15,19 +15,20 @@ const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
   ? parseRedisUrl(config.REDIS_URL)
   : null;
 
-const redisConfig = {
-  socket: {
-    host: parsedUrl?.host || config.REDIS_HOST,
-    port: parsedUrl?.port || config.REDIS_PORT,
-    family: 6 // Railway private networking requires IPv6
-  },
+const redisConfig = createRedisSocketConfig({
+  host: parsedUrl?.host || config.REDIS_HOST,
+  port: parsedUrl?.port || config.REDIS_PORT,
   password: parsedUrl?.password || config.REDIS_PASSWORD,
-};
+  username: parsedUrl?.username,
+  family: 6, // Railway private network uses IPv6
+});
 
 logger.info({
   host: redisConfig.socket.host,
   port: redisConfig.socket.port,
-  hasPassword: redisConfig.password !== undefined
+  hasPassword: redisConfig.password !== undefined,
+  connectTimeout: redisConfig.socket.connectTimeout,
+  commandTimeout: redisConfig.socket.commandTimeout
 }, '[Redis] Redis config:');
 
 // Create Redis client
