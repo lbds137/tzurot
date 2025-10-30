@@ -9,7 +9,15 @@ export * from './api-types.js';
 export * from './schemas.js';
 export { splitMessage, preserveCodeBlocks } from './discord-utils.js';
 export { createLogger } from './logger.js';
-export { parseRedisUrl, type RedisConnectionConfig } from './redis-utils.js';
+export {
+  parseRedisUrl,
+  createRedisSocketConfig,
+  createBullMQRedisConfig,
+  type RedisConnectionConfig,
+  type RedisSocketConfig,
+  type BullMQRedisConfig
+} from './redis-utils.js';
+export { CircuitBreaker, type CircuitState, type CircuitBreakerOptions } from './circuit-breaker.js';
 
 // Export services
 export * from './services/prisma.js';

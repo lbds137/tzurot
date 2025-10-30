@@ -29,7 +29,6 @@
     { "path": "./services/bot-client" },
     { "path": "./services/api-gateway" },
     { "path": "./services/ai-worker" },
-    { "path": "./packages/common-types" },
-    { "path": "./packages/api-clients" }
+    { "path": "./packages/common-types" }
   ]
 }

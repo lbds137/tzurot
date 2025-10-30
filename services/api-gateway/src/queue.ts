@@ -5,7 +5,7 @@
  */
 
 import { Queue, QueueEvents } from 'bullmq';
-import { createLogger, getConfig, TIMEOUTS, INTERVALS, QUEUE_CONFIG, parseRedisUrl } from '@tzurot/common-types';
+import { createLogger, getConfig, TIMEOUTS, INTERVALS, QUEUE_CONFIG, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
 import { cleanupAttachments } from './utils/tempAttachmentStorage.js';
 
 const logger = createLogger('Queue');
@@ -13,20 +13,24 @@ const config = getConfig();
 
 // Get Redis connection config from environment
 // Prefer REDIS_URL (Railway provides this), fall back to individual variables
-const redisConfig = {
-  host: config.REDIS_HOST,
-  port: config.REDIS_PORT,
-  password: config.REDIS_PASSWORD,
-  // Railway private networking requires IPv6
-  family: 6,
-  // Parse Railway's REDIS_URL if provided (overrides individual variables)
-  ...(config.REDIS_URL && config.REDIS_URL.length > 0 ? parseRedisUrl(config.REDIS_URL) : {})
-};
+const parsedUrl = config.REDIS_URL && config.REDIS_URL.length > 0
+  ? parseRedisUrl(config.REDIS_URL)
+  : null;
+
+const redisConfig = createBullMQRedisConfig({
+  host: parsedUrl?.host || config.REDIS_HOST,
+  port: parsedUrl?.port || config.REDIS_PORT,
+  password: parsedUrl?.password || config.REDIS_PASSWORD,
+  username: parsedUrl?.username,
+  family: 6, // Railway private network uses IPv6
+});
 
 logger.info({
   host: redisConfig.host,
   port: redisConfig.port,
-  hasPassword: redisConfig.password !== undefined
+  hasPassword: redisConfig.password !== undefined,
+  connectTimeout: redisConfig.connectTimeout,
+  commandTimeout: redisConfig.commandTimeout
 }, '[Queue] Redis config:');
 
 // Queue name

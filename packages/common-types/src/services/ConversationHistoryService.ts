@@ -136,7 +136,7 @@ export class ConversationHistoryService {
       });
 
       // Reverse to get chronological order (oldest first)
-      const history = messages.reverse().map((msg) => ({
+      const history = messages.reverse().map((msg: typeof messages[number]) => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
@@ -208,7 +208,7 @@ export class ConversationHistoryService {
       const resultMessages = hasMore ? messages.slice(0, safeLimit) : messages;
 
       // Reverse to get chronological order (oldest first)
-      const history = resultMessages.reverse().map((msg) => ({
+      const history = resultMessages.reverse().map((msg: typeof messages[number]) => ({
         id: msg.id,
         role: msg.role as 'user' | 'assistant' | 'system',
         content: msg.content,
