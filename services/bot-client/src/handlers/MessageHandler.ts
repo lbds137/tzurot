@@ -435,7 +435,8 @@ export class MessageHandler {
         .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
         .replace(/[.,!?;:)"']+$/, ''); // Remove trailing punctuation
 
-      const words = capturedText.split(/\s+/);
+      // Split into words and remove punctuation from each word
+      const words = capturedText.split(/\s+/).map(word => word.replace(/[.,!?;:)"']+$/g, ''));
 
       // Try combinations from longest to shortest
       for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
