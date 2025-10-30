@@ -35,14 +35,14 @@ adora, alastor, andrew, angel-dust, aria, ashley, azazel, bambi, baphomet, bartz
 
 **Step 1: Finish personality configs** (no memories, quick)
 ```bash
-export DATABASE_URL="postgresql://postgres:JxVSaWPVZAeloPdYEZcfwadLZxjTohep@nozomi.proxy.rlwy.net:48102/railway"
+# Use Railway-provided DATABASE_URL environment variable
 npx tsx scripts/import-personality/bulk-import.ts --skip-memories
 ```
 This will create all 66 personality database entries without importing memories.
 
 **Step 2: Complete Lila's memories** (resume where it left off, no duplicates)
 ```bash
-export DATABASE_URL="postgresql://postgres:JxVSaWPVZAeloPdYEZcfwadLZxjTohep@nozomi.proxy.rlwy.net:48102/railway"
+# Use Railway-provided DATABASE_URL environment variable
 pnpm import-personality lila-ani-tzuratech --memories-only --skip-existing
 ```
 The `--skip-existing` flag checks Qdrant before generating embeddings, avoiding waste of OpenAI credits on the ~1,767 memories already imported.
