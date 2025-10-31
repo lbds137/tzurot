@@ -8,6 +8,7 @@ import { createLogger, getConfig } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
+import { QdrantSyncService } from '../services/QdrantSyncService.js';
 import type { ErrorResponse } from '../types.js';
 
 const logger = createLogger('admin-routes');
@@ -69,6 +70,70 @@ router.post('/db-sync', async (req: Request, res: Response) => {
     const errorResponse: ErrorResponse = {
       error: 'SYNC_ERROR',
       message: error instanceof Error ? error.message : 'Database sync failed',
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
+/**
+ * POST /admin/qdrant-sync
+ * Bidirectional Qdrant synchronization between dev and prod
+ */
+router.post('/qdrant-sync', async (req: Request, res: Response) => {
+  try {
+    const { dryRun = false, ownerId } = req.body;
+    const config = getConfig();
+
+    // Verify owner authorization
+    if (!ownerId || !config.BOT_OWNER_ID || ownerId !== config.BOT_OWNER_ID) {
+      const errorResponse: ErrorResponse = {
+        error: 'UNAUTHORIZED',
+        message: 'This endpoint is only available to the bot owner',
+        timestamp: new Date().toISOString()
+      };
+      res.status(403).json(errorResponse);
+      return;
+    }
+
+    // Verify Qdrant URLs are configured
+    if (!config.DEV_QDRANT_URL || !config.DEV_QDRANT_API_KEY || !config.PROD_QDRANT_URL || !config.PROD_QDRANT_API_KEY) {
+      const errorResponse: ErrorResponse = {
+        error: 'CONFIGURATION_ERROR',
+        message: 'DEV_QDRANT_URL, DEV_QDRANT_API_KEY, PROD_QDRANT_URL, and PROD_QDRANT_API_KEY must all be configured',
+        timestamp: new Date().toISOString()
+      };
+      res.status(500).json(errorResponse);
+      return;
+    }
+
+    logger.info({ dryRun }, '[Admin] Starting Qdrant sync');
+
+    // Execute sync
+    const syncService = new QdrantSyncService(
+      config.DEV_QDRANT_URL,
+      config.DEV_QDRANT_API_KEY,
+      config.PROD_QDRANT_URL,
+      config.PROD_QDRANT_API_KEY
+    );
+
+    const result = await syncService.sync({ dryRun });
+
+    logger.info({ result }, '[Admin] Qdrant sync complete');
+
+    res.json({
+      success: true,
+      ...result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error({ err: error }, '[Admin] Qdrant sync failed');
+
+    const errorResponse: ErrorResponse = {
+      error: 'SYNC_ERROR',
+      message: error instanceof Error ? error.message : 'Qdrant sync failed',
       timestamp: new Date().toISOString()
     };
 

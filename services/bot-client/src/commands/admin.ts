@@ -19,6 +19,8 @@ interface SyncResult {
   stats?: Record<string, { devToProd?: number; prodToDev?: number; conflicts?: number }>;
   warnings?: string[];
   changes?: unknown;
+  totalPoints?: number;
+  totalCollections?: number;
 }
 
 export const data = new SlashCommandBuilder()
@@ -28,6 +30,17 @@ export const data = new SlashCommandBuilder()
     subcommand
       .setName('db-sync')
       .setDescription('Sync database between dev and prod environments')
+      .addBooleanOption(option =>
+        option
+          .setName('dry-run')
+          .setDescription('Show what would be synced without making changes')
+          .setRequired(false)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('qdrant-sync')
+      .setDescription('Sync Qdrant vector database between dev and prod environments')
       .addBooleanOption(option =>
         option
           .setName('dry-run')
@@ -88,6 +101,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   switch (subcommand) {
     case 'db-sync':
       await handleDbSync(interaction, config);
+      break;
+    case 'qdrant-sync':
+      await handleQdrantSync(interaction, config);
       break;
     case 'servers':
       await handleServers(interaction);
@@ -193,6 +209,97 @@ async function handleDbSync(
     logger.error({ err: error }, 'Error during database sync');
     await interaction.editReply(
       '❌ Error during database sync.\n' +
+      'Check API gateway logs for details.'
+    );
+  }
+}
+
+/**
+ * Handle /admin qdrant-sync subcommand
+ */
+async function handleQdrantSync(
+  interaction: ChatInputCommandInteraction,
+  config: ReturnType<typeof getConfig>
+): Promise<void> {
+  const dryRun = interaction.options.getBoolean('dry-run') ?? false;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // Call API Gateway sync endpoint
+    const gatewayUrl = config.GATEWAY_URL;
+    const response = await fetch(`${gatewayUrl}/admin/qdrant-sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dryRun,
+        ownerId: interaction.user.id,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error({ status: response.status, error: errorText }, 'Qdrant sync failed');
+
+      await interaction.editReply(
+        `❌ Qdrant sync failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``
+      );
+      return;
+    }
+
+    const result = await response.json() as SyncResult;
+
+    // Build result embed
+    const embed = new EmbedBuilder()
+      .setColor(dryRun ? 0xFFA500 : 0x00FF00)
+      .setTitle(dryRun ? '🔍 Qdrant Sync Preview (Dry Run)' : '✅ Qdrant Sync Complete')
+      .setTimestamp();
+
+    // Add sync summary
+    const summary: string[] = [];
+
+    if (result.totalCollections !== undefined) {
+      summary.push(`**Total Collections**: ${result.totalCollections}`);
+    }
+
+    if (result.totalPoints !== undefined) {
+      summary.push(`**Total Points Synced**: ${result.totalPoints}`);
+    }
+
+    if (result.stats) {
+      summary.push('\n**Sync Statistics**:');
+      for (const [collection, stats] of Object.entries(result.stats)) {
+        const collStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
+        summary.push(
+          `\`${collection}\`: ` +
+          `${collStats.devToProd || 0} dev→prod, ` +
+          `${collStats.prodToDev || 0} prod→dev` +
+          (collStats.conflicts ? `, ${collStats.conflicts} conflicts` : '')
+        );
+      }
+    }
+
+    if (dryRun) {
+      summary.push('\n*Run without `--dry-run` to apply these changes.*');
+    }
+
+    embed.setDescription(summary.join('\n'));
+
+    if (result.warnings && result.warnings.length > 0) {
+      embed.addFields({
+        name: '⚠️ Warnings',
+        value: result.warnings.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
+      });
+    }
+
+    await interaction.editReply({ embeds: [embed] });
+
+  } catch (error) {
+    logger.error({ err: error }, 'Error during Qdrant sync');
+    await interaction.editReply(
+      '❌ Error during Qdrant sync.\n' +
       'Check API gateway logs for details.'
     );
   }
