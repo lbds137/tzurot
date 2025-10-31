@@ -44,7 +44,7 @@ export interface AttachmentMetadata {
 }
 
 /**
- * Memory document structure from Qdrant vector search
+ * Memory document structure from vector search
  */
 export interface MemoryDocument {
   pageContent: string;
@@ -648,7 +648,7 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Store an interaction in both conversation_history and Qdrant (with pending_memories safety)
+   * Store an interaction in conversation_history and pgvector (with pending_memories safety)
    */
   private async storeInteraction(
     personality: LoadedPersonality,
@@ -712,11 +712,11 @@ export class ConversationalRAGService {
       };
 
       if (this.memoryManager === undefined) {
-        logger.debug(`[RAG] Memory storage disabled - interaction not stored in Qdrant`);
+        logger.debug(`[RAG] Memory storage disabled - interaction not stored in vector database`);
         return;
       }
 
-      // 4. Create pending_memory record (safety net for Qdrant storage)
+      // 4. Create pending_memory record (safety net for vector storage)
       const pendingMemory = await prisma.pendingMemory.create({
         data: {
           conversationHistoryId,
@@ -730,7 +730,7 @@ export class ConversationalRAGService {
       pendingMemoryId = pendingMemory.id;
       logger.debug(`[RAG] Created pending_memory (${pendingMemoryId})`);
 
-      // 5. Try to store to Qdrant
+      // 5. Try to store to vector database
       await this.memoryManager.addMemory({
         text: interactionText,
         metadata: memoryMetadata
@@ -743,7 +743,7 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Stored interaction in ${canonScope} canon for ${personality.name} (persona: ${personaId})`);
 
     } catch (error) {
-      logger.error({ err: error }, '[RAG] Failed to store interaction to Qdrant');
+      logger.error({ err: error }, '[RAG] Failed to store interaction to vector database');
 
       // Update pending_memory with error details (for retry later)
       if (pendingMemoryId) {
