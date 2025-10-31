@@ -6,11 +6,13 @@
  * 2. Initializes the RAG service
  * 3. Listens to BullMQ queue for AI generation jobs
  * 4. Processes jobs and returns results
+ * 5. Runs scheduled job to retry pending memory storage
  */
 
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, Queue } from 'bullmq';
 import { PgvectorMemoryAdapter } from './memory/PgvectorMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
+import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { createLogger, getConfig, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
 
 const logger = createLogger('ai-worker');
@@ -129,6 +131,69 @@ async function main(): Promise<void> {
     logger.error({ err: error }, '[AIWorker] Worker error');
   });
 
+  // Set up pending memory retry system
+  logger.info('[AIWorker] Setting up pending memory retry system...');
+  const pendingMemoryProcessor = new PendingMemoryProcessor(memoryManager);
+
+  // Log initial stats
+  const initialStats = await pendingMemoryProcessor.getStats();
+  logger.info({ stats: initialStats }, '[AIWorker] Initial pending memory stats');
+
+  // Process pending memories on startup (don't wait, run async)
+  if (initialStats.total > 0) {
+    logger.info(`[AIWorker] Processing ${initialStats.total} pending memories on startup...`);
+    void pendingMemoryProcessor.processPendingMemories().then((stats) => {
+      logger.info({ stats }, '[AIWorker] Startup pending memory processing complete');
+    }).catch((error) => {
+      logger.error({ err: error }, '[AIWorker] Startup pending memory processing failed');
+    });
+  }
+
+  // Create a separate queue for scheduled jobs
+  const scheduledQueue = new Queue('scheduled-jobs', {
+    connection: config.redis
+  });
+
+  // Create worker for scheduled jobs
+  const scheduledWorker = new Worker(
+    'scheduled-jobs',
+    async (job: Job) => {
+      if (job.name === 'process-pending-memories') {
+        logger.debug('[Scheduled] Running pending memory processor');
+        const stats = await pendingMemoryProcessor.processPendingMemories();
+        return stats;
+      }
+      return null;
+    },
+    {
+      connection: config.redis,
+      removeOnComplete: { count: 10 }, // Keep fewer completed scheduled jobs
+      removeOnFail: { count: 50 }
+    }
+  );
+
+  scheduledWorker.on('completed', (job: Job, result: any) => {
+    logger.info({ result }, `[Scheduled] Job ${job.name} completed`);
+  });
+
+  scheduledWorker.on('failed', (job: Job | undefined, error: Error) => {
+    logger.error({ err: error }, `[Scheduled] Job ${job?.name} failed`);
+  });
+
+  // Add repeatable job to process pending memories every 10 minutes
+  await scheduledQueue.add(
+    'process-pending-memories',
+    {},
+    {
+      repeat: {
+        pattern: '*/10 * * * *' // Every 10 minutes (cron format)
+      },
+      jobId: 'process-pending-memories' // Ensure only one instance
+    }
+  );
+
+  logger.info('[AIWorker] Pending memory retry system configured (runs every 10 minutes)');
+
   // Health check endpoint (for Railway health monitoring)
   // We'll add a simple HTTP server for health checks
   if (envConfig.ENABLE_HEALTH_SERVER) {
@@ -139,7 +204,10 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     logger.info('[AIWorker] Shutting down gracefully...');
     await worker.close();
-    logger.info('[AIWorker] Worker closed');
+    await scheduledWorker.close();
+    await scheduledQueue.close();
+    await pendingMemoryProcessor.disconnect();
+    logger.info('[AIWorker] All workers and connections closed');
     process.exit(0);
   };
 
