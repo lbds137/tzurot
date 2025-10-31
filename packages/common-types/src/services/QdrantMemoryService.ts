@@ -97,6 +97,7 @@ export class QdrantMemoryService {
     this.qdrant = new QdrantClient({
       url: qdrantUrl,
       apiKey: qdrantApiKey,
+      timeout: 30000, // 30 second timeout for all Qdrant operations
     });
 
     this.openai = new OpenAI({
