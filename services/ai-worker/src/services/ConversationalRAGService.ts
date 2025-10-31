@@ -692,14 +692,12 @@ export class ConversationalRAGService {
 
       // 3. Determine canon scope and prepare memory metadata
       const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
-      // Use persona name (not Discord username) so AI can properly identify speakers
-      const speakerName = context.activePersonaName || context.userName || 'User';
-      const interactionText = `${speakerName}: ${userMessage}\n${personality.name}: ${aiResponse}`;
+      // Use {user} and {assistant} tokens - actual names injected at retrieval time
+      const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
 
       const memoryMetadata = {
         personaId,
         personalityId: personality.id,
-        personalityName: personality.name,
         sessionId: context.sessionId,
         canonScope,
         timestamp: conversationTimestamp, // Use PostgreSQL timestamp for perfect sync
@@ -721,7 +719,6 @@ export class ConversationalRAGService {
           conversationHistoryId,
           personaId,
           personalityId: personality.id,
-          personalityName: personality.name,
           text: interactionText,
           metadata: memoryMetadata as any, // Cast to any for Prisma Json type
           attempts: 0,

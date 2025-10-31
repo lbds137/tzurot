@@ -122,23 +122,26 @@ export class PgvectorMemoryAdapter {
       paramCount++;
       const sql = `
         SELECT
-          id,
-          persona_id,
-          personality_id,
-          personality_name,
-          content,
-          embedding <=> $1::vector AS distance,
-          session_id,
-          canon_scope,
-          summary_type,
-          channel_id,
-          guild_id,
-          message_ids,
-          senders,
-          created_at
-        FROM memories
-        WHERE ${whereClause}
-          AND embedding <=> $1::vector < $${paramCount}
+          m.id,
+          m.persona_id,
+          m.personality_id,
+          m.content,
+          m.embedding <=> $1::vector AS distance,
+          m.session_id,
+          m.canon_scope,
+          m.summary_type,
+          m.channel_id,
+          m.guild_id,
+          m.message_ids,
+          m.senders,
+          m.created_at,
+          persona.name as persona_name,
+          COALESCE(personality.display_name, personality.name) as personality_name
+        FROM memories m
+        JOIN personas persona ON m.persona_id = persona.id
+        JOIN personalities personality ON m.personality_id = personality.id
+        WHERE ${whereClause.replace(/persona_id/g, 'm.persona_id').replace(/personality_id/g, 'm.personality_id').replace(/created_at/g, 'm.created_at')}
+          AND m.embedding <=> $1::vector < $${paramCount}
         ORDER BY distance ASC
         LIMIT ${limit}
       `;
@@ -155,26 +158,33 @@ export class PgvectorMemoryAdapter {
 
       const memories = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
 
-      // Convert to MemoryDocument format
-      const documents: MemoryDocument[] = memories.map(memory => ({
-        pageContent: memory.content,
-        metadata: {
-          id: memory.id,
-          personaId: memory.persona_id,
-          personalityId: memory.personality_id,
-          personalityName: memory.personality_name,
-          sessionId: memory.session_id,
-          canonScope: memory.canon_scope,
-          summaryType: memory.summary_type,
-          channelId: memory.channel_id,
-          guildId: memory.guild_id,
-          messageIds: memory.message_ids,
-          senders: memory.senders,
-          timestamp: Math.floor(new Date(memory.created_at).getTime() / 1000),
-          distance: memory.distance,
-          score: 1 - memory.distance, // Convert distance back to similarity score
-        },
-      }));
+      // Convert to MemoryDocument format and inject persona/personality names
+      const documents: MemoryDocument[] = memories.map(memory => {
+        // Replace {user} and {assistant} tokens with actual names
+        let content = memory.content;
+        content = content.replace(/\{user\}/g, memory.persona_name);
+        content = content.replace(/\{assistant\}/g, memory.personality_name);
+
+        return {
+          pageContent: content,
+          metadata: {
+            id: memory.id,
+            personaId: memory.persona_id,
+            personalityId: memory.personality_id,
+            personalityName: memory.personality_name,
+            sessionId: memory.session_id,
+            canonScope: memory.canon_scope,
+            summaryType: memory.summary_type,
+            channelId: memory.channel_id,
+            guildId: memory.guild_id,
+            messageIds: memory.message_ids,
+            senders: memory.senders,
+            timestamp: Math.floor(new Date(memory.created_at).getTime() / 1000),
+            distance: memory.distance,
+            score: 1 - memory.distance, // Convert distance back to similarity score
+          },
+        };
+      });
 
       logger.debug(`Retrieved ${documents.length} memories for query (persona: ${options.personaId}, personality: ${options.personalityId || 'all'})`);
       return documents;
@@ -224,7 +234,6 @@ export class PgvectorMemoryAdapter {
           id,
           persona_id,
           personality_id,
-          personality_name,
           source_system,
           content,
           embedding,
@@ -241,7 +250,6 @@ export class PgvectorMemoryAdapter {
           ${memoryId}::uuid,
           ${data.metadata.personaId}::uuid,
           ${data.metadata.personalityId}::uuid,
-          ${data.metadata.personalityName || 'Unknown'},
           'tzurot-v3',
           ${data.text},
           ${`[${embedding.join(',')}]`}::vector(1536),
