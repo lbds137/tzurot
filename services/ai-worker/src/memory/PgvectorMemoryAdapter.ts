@@ -225,8 +225,8 @@ export class PgvectorMemoryAdapter {
         data.text
       );
 
-      // Convert Unix timestamp to Date
-      const createdAt = new Date(data.metadata.timestamp * 1000);
+      // Convert timestamp (already in milliseconds) to Date
+      const createdAt = new Date(data.metadata.timestamp);
 
       // Insert memory with pgvector embedding
       await this.prisma.$executeRaw`
