@@ -333,7 +333,9 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
 
       // 7. Store this interaction in memory (for future retrieval)
-      await this.storeInteraction(personality, userMessage, content, context);
+      // Use the full message content (with attachment transcriptions/descriptions)
+      const fullUserContent = humanMessage.content.toString();
+      await this.storeInteraction(personality, fullUserContent, content, context);
 
       // Extract attachment descriptions for history storage with context
       const attachmentDescriptions = processedAttachments.length > 0
