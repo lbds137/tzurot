@@ -89,14 +89,14 @@ export class PgvectorMemoryAdapter {
       const queryEmbedding = embeddingResponse.data[0].embedding;
 
       // Build WHERE clauses
-      const whereConditions: string[] = ['persona_id = $2'];
+      const whereConditions: string[] = ['persona_id = $2::uuid'];
       const params: any[] = [`[${queryEmbedding.join(',')}]`, options.personaId];
       let paramCount = 2;
 
       // Optional personality filter
       if (options.personalityId) {
         paramCount++;
-        whereConditions.push(`personality_id = $${paramCount}`);
+        whereConditions.push(`personality_id = $${paramCount}::uuid`);
         params.push(options.personalityId);
       }
 
