@@ -674,6 +674,7 @@ export class ConversationalRAGService {
       const conversationRecord = await prisma.conversationHistory.create({
         data: {
           channelId: context.channelId || 'dm',
+          guildId: context.serverId || null,
           personalityId: personality.id,
           personaId: personaId,
           role: 'assistant',

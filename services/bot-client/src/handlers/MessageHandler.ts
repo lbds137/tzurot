@@ -305,7 +305,8 @@ export class MessageHandler {
         personality.id,
         personaId,
         'user',
-        content || '[no text content]'
+        content || '[no text content]',
+        message.guild?.id || null
       );
 
       // Call API Gateway for AI generation (this will process attachments and return descriptions)
