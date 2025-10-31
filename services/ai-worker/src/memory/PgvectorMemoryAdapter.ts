@@ -104,8 +104,8 @@ export class PgvectorMemoryAdapter {
       if (options.excludeNewerThan) {
         paramCount++;
         const excludeDate = new Date(options.excludeNewerThan * 1000);
-        whereConditions.push(`created_at < $${paramCount}`);
-        params.push(excludeDate.toISOString());  // Convert to ISO string for Prisma raw query
+        whereConditions.push(`created_at < $${paramCount}::timestamptz`);
+        params.push(excludeDate.toISOString());
       }
 
       // Build query with vector similarity search
