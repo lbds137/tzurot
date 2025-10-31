@@ -142,6 +142,70 @@ router.post('/qdrant-sync', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /admin/qdrant-enable-indexing
+ * Re-enable indexing on all Qdrant collections after bulk import
+ */
+router.post('/qdrant-enable-indexing', async (req: Request, res: Response) => {
+  try {
+    const { ownerId } = req.body;
+    const config = getConfig();
+
+    // Verify owner authorization
+    if (!ownerId || !config.BOT_OWNER_ID || ownerId !== config.BOT_OWNER_ID) {
+      const errorResponse: ErrorResponse = {
+        error: 'UNAUTHORIZED',
+        message: 'This endpoint is only available to the bot owner',
+        timestamp: new Date().toISOString()
+      };
+      res.status(403).json(errorResponse);
+      return;
+    }
+
+    // Verify Qdrant URLs are configured
+    if (!config.DEV_QDRANT_URL || !config.PROD_QDRANT_URL) {
+      const errorResponse: ErrorResponse = {
+        error: 'CONFIGURATION_ERROR',
+        message: 'DEV_QDRANT_URL and PROD_QDRANT_URL must be configured',
+        timestamp: new Date().toISOString()
+      };
+      res.status(500).json(errorResponse);
+      return;
+    }
+
+    logger.info('[Admin] Re-enabling Qdrant indexing');
+
+    // Execute indexing enablement
+    const syncService = new QdrantSyncService(
+      config.DEV_QDRANT_URL,
+      config.DEV_QDRANT_API_KEY,
+      config.PROD_QDRANT_URL,
+      config.PROD_QDRANT_API_KEY
+    );
+
+    await syncService.enableIndexing();
+
+    logger.info('[Admin] Qdrant indexing re-enabled');
+
+    res.json({
+      success: true,
+      message: 'Indexing re-enabled on all collections. Qdrant will now build indexes in the background.',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    logger.error({ err: error }, '[Admin] Failed to enable indexing');
+
+    const errorResponse: ErrorResponse = {
+      error: 'INDEXING_ERROR',
+      message: error instanceof Error ? error.message : 'Failed to enable indexing',
+      timestamp: new Date().toISOString()
+    };
+
+    res.status(500).json(errorResponse);
+  }
+});
+
+/**
  * POST /admin/personality
  * Create a new AI personality
  */

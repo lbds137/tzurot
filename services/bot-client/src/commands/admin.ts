@@ -50,6 +50,11 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand(subcommand =>
     subcommand
+      .setName('qdrant-enable-indexing')
+      .setDescription('Re-enable indexing after bulk import (triggers index building)')
+  )
+  .addSubcommand(subcommand =>
+    subcommand
       .setName('servers')
       .setDescription('List all servers the bot is in')
   )
@@ -104,6 +109,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       break;
     case 'qdrant-sync':
       await handleQdrantSync(interaction, config);
+      break;
+    case 'qdrant-enable-indexing':
+      await handleQdrantEnableIndexing(interaction, config);
       break;
     case 'servers':
       await handleServers(interaction);
@@ -326,6 +334,63 @@ async function handleQdrantSync(
     logger.error({ err: error }, 'Error during Qdrant sync');
     await interaction.editReply(
       '❌ Error during Qdrant sync.\n' +
+      'Check API gateway logs for details.'
+    );
+  }
+}
+
+/**
+ * Handle /admin qdrant-enable-indexing subcommand
+ */
+async function handleQdrantEnableIndexing(
+  interaction: ChatInputCommandInteraction,
+  config: ReturnType<typeof getConfig>
+): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // Call API Gateway enable-indexing endpoint
+    const gatewayUrl = config.GATEWAY_URL;
+    const response = await fetch(`${gatewayUrl}/admin/qdrant-enable-indexing`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ownerId: interaction.user.id,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error({ status: response.status, error: errorText }, 'Enable indexing failed');
+
+      await interaction.editReply(
+        `❌ Failed to enable indexing (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``
+      );
+      return;
+    }
+
+    await response.json(); // Consume response body
+
+    // Build result embed
+    const embed = new EmbedBuilder()
+      .setColor(0x00FF00)
+      .setTitle('✅ Qdrant Indexing Re-enabled')
+      .setDescription(
+        'Indexing has been re-enabled on all collections.\n\n' +
+        'Qdrant will now build indexes in the background. ' +
+        'Collections will show as "yellow" (optimizing) and eventually turn "green" (ready) when complete.\n\n' +
+        'This may take 10-30 minutes depending on data size and Railway resources.'
+      )
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
+
+  } catch (error) {
+    logger.error({ err: error }, 'Error enabling Qdrant indexing');
+    await interaction.editReply(
+      '❌ Error enabling Qdrant indexing.\n' +
       'Check API gateway logs for details.'
     );
   }
