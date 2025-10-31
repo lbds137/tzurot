@@ -370,7 +370,7 @@ export class QdrantSyncService {
   ): Promise<void> {
     try {
       await client.upsert(collectionName, {
-        wait: true,
+        wait: false, // Don't wait for disk sync on bulk imports (prevents timeouts)
         points: points.map(p => ({
           id: p.id,
           vector: p.vector as number[],
