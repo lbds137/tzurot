@@ -97,11 +97,11 @@ router.post('/qdrant-sync', async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify Qdrant URLs are configured
-    if (!config.DEV_QDRANT_URL || !config.DEV_QDRANT_API_KEY || !config.PROD_QDRANT_URL || !config.PROD_QDRANT_API_KEY) {
+    // Verify Qdrant URLs are configured (API keys are optional)
+    if (!config.DEV_QDRANT_URL || !config.PROD_QDRANT_URL) {
       const errorResponse: ErrorResponse = {
         error: 'CONFIGURATION_ERROR',
-        message: 'DEV_QDRANT_URL, DEV_QDRANT_API_KEY, PROD_QDRANT_URL, and PROD_QDRANT_API_KEY must all be configured',
+        message: 'DEV_QDRANT_URL and PROD_QDRANT_URL must be configured',
         timestamp: new Date().toISOString()
       };
       res.status(500).json(errorResponse);
