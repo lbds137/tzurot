@@ -79,6 +79,7 @@ export class QdrantMemoryService {
   private qdrant: QdrantClient;
   private openai: OpenAI;
   private readonly EMBEDDING_MODEL = config.EMBEDDING_MODEL;
+  private ensuredCollections: Set<string> = new Set(); // Cache to avoid redundant index creation attempts
 
   constructor() {
     const qdrantUrl = config.QDRANT_URL;
@@ -220,7 +221,17 @@ export class QdrantMemoryService {
         return [];
       }
 
-      logger.error({ err: error }, `Failed to search memories for persona: ${personaId}`);
+      const errorDetails = {
+        personaId,
+        personalityId,
+        collectionName: `persona-${personaId}`,
+        queryLength: query.length,
+        limit,
+        scoreThreshold,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+      logger.error({ err: error, ...errorDetails }, `Failed to search memories for persona: ${personaId}`);
       throw error;
     }
   }
@@ -238,7 +249,13 @@ export class QdrantMemoryService {
       return response.data[0].embedding;
 
     } catch (error) {
-      logger.error({ err: error }, 'Failed to generate embedding');
+      const errorDetails = {
+        textLength: text.length,
+        model: this.EMBEDDING_MODEL,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+      logger.error({ err: error, ...errorDetails }, 'Failed to generate embedding from OpenAI');
       throw error;
     }
   }
@@ -302,15 +319,30 @@ export class QdrantMemoryService {
 
       logger.info(`Stored new memory for persona ${personaId} (personality: ${personalityName}/${personalityId}, scope: ${metadata.canonScope || 'personal'})`);
     } catch (error) {
-      logger.error({ err: error }, `Failed to add memory for persona: ${personaId}`);
+      const errorDetails = {
+        personaId,
+        personalityId,
+        personalityName,
+        collectionName: `persona-${personaId}`,
+        canonScope: metadata.canonScope || 'personal',
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+      logger.error({ err: error, ...errorDetails }, `Failed to add memory for persona: ${personaId}`);
       throw error;
     }
   }
 
   /**
    * Ensure a collection exists (create if needed)
+   * Uses in-memory cache to avoid redundant checks and index creation attempts
    */
   private async ensureCollection(collectionName: string): Promise<void> {
+    // Check cache first to avoid redundant operations
+    if (this.ensuredCollections.has(collectionName)) {
+      return;
+    }
+
     try {
       await this.qdrant.getCollection(collectionName);
     } catch (error) {
@@ -332,7 +364,7 @@ export class QdrantMemoryService {
     }
 
     // Ensure required indexes exist (for filtering)
-    // These are safe to call even if indexes already exist
+    // Only attempt once per collection (cached above)
     const indexes = [
       { field: 'createdAt', schema: 'integer' as const },     // Timestamp filtering
       { field: 'personalityId', schema: 'keyword' as const }, // Personality filtering (for persona collections)
@@ -344,7 +376,7 @@ export class QdrantMemoryService {
         await this.qdrant.createPayloadIndex(collectionName, {
           field_name: field,
           field_schema: schema,
-          wait: true, // CRITICAL: Wait for indexing to complete on all existing points
+          wait: false, // Don't block - index creation happens in background
         });
         logger.info(`Created ${field} index for collection: ${collectionName}`);
       } catch (error) {
@@ -352,6 +384,9 @@ export class QdrantMemoryService {
         logger.debug(`Index creation skipped for ${collectionName}.${field}: ${error}`);
       }
     }
+
+    // Cache this collection to avoid redundant checks
+    this.ensuredCollections.add(collectionName);
   }
 
   /**
