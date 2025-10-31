@@ -51,16 +51,16 @@ export class QdrantSyncService {
   private devClient: QdrantClient;
   private prodClient: QdrantClient;
 
-  constructor(devQdrantUrl: string, devQdrantApiKey: string, prodQdrantUrl: string, prodQdrantApiKey: string) {
+  constructor(devQdrantUrl: string, devQdrantApiKey: string | undefined, prodQdrantUrl: string, prodQdrantApiKey: string | undefined) {
     this.devClient = new QdrantClient({
       url: devQdrantUrl,
-      apiKey: devQdrantApiKey,
+      apiKey: devQdrantApiKey || undefined, // Convert empty string to undefined
       timeout: 30000,
     });
 
     this.prodClient = new QdrantClient({
       url: prodQdrantUrl,
-      apiKey: prodQdrantApiKey,
+      apiKey: prodQdrantApiKey || undefined, // Convert empty string to undefined
       timeout: 30000,
     });
   }
