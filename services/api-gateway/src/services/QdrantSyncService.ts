@@ -55,13 +55,13 @@ export class QdrantSyncService {
     this.devClient = new QdrantClient({
       url: devQdrantUrl,
       apiKey: devQdrantApiKey || undefined, // Convert empty string to undefined
-      timeout: 120000, // 2 minutes for bulk operations
+      timeout: 300000, // 5 minutes for TCP proxy stability
     });
 
     this.prodClient = new QdrantClient({
       url: prodQdrantUrl,
       apiKey: prodQdrantApiKey || undefined, // Convert empty string to undefined
-      timeout: 120000, // 2 minutes for bulk operations
+      timeout: 300000, // 5 minutes for TCP proxy stability
     });
   }
 
@@ -325,7 +325,7 @@ export class QdrantSyncService {
       // This avoids loading all points into memory
       let offset: unknown;
       let totalCopied = 0;
-      const batchSize = 200; // Larger batches work well with wait:false
+      const batchSize = 50; // Smaller batches to avoid TCP proxy timeouts
 
       while (true) {
         // Fetch batch
