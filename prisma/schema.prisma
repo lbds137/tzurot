@@ -59,6 +59,8 @@ model Persona {
   usersUsingAsDefault  UserDefaultPersona[]
   personalityConfigs   UserPersonalityConfig[]
   conversationHistory  ConversationHistory[]
+  memories             Memory[]
+  shapesPersonaMappings ShapesPersonaMapping[]
 
   @@index([ownerId])
   @@map("personas")
@@ -202,6 +204,7 @@ model Personality {
   userConfigs         UserPersonalityConfig[]
   conversationHistory ConversationHistory[]
   activatedChannels   ActivatedChannel[]
+  memories            Memory[]
 
   @@index([slug])
   @@map("personalities")
@@ -325,4 +328,85 @@ model ActivatedChannel {
   @@index([channelId])
   @@index([personalityId])
   @@map("activated_channels")
+}
+
+// ============================================================================
+// Long-Term Memory (pgvector)
+// ============================================================================
+
+model Memory {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Persona & Personality (replaces Qdrant collection concept)
+  // NULLABLE for unmapped legacy shapes.inc memories
+  personaId String?  @map("persona_id") @db.Uuid
+  persona   Persona? @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  personalityId   String      @map("personality_id") @db.Uuid
+  personality     Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  personalityName String      @map("personality_name") @db.VarChar(255)
+
+  // Legacy shapes.inc data support
+  legacyShapesUserId String? @map("legacy_shapes_user_id") @db.Uuid
+  sourceSystem       String  @default("tzurot-v3") @map("source_system") @db.VarChar(50)
+
+  // Content & Vector
+  content   String                  @db.Text
+  embedding Unsupported("vector(1536)")?  // pgvector extension, 1536 dims for text-embedding-3-small
+
+  // Summarization tracking
+  isSummarized          Boolean   @default(false) @map("is_summarized")
+  originalMessageCount  Int?      @map("original_message_count") // How many messages were condensed
+  summarizedAt          DateTime? @map("summarized_at")
+
+  // Memory metadata
+  sessionId   String? @map("session_id") @db.VarChar(255)
+  canonScope  String? @map("canon_scope") @db.VarChar(20) // 'global', 'personal', 'session'
+  summaryType String? @map("summary_type") @db.VarChar(50)
+
+  // Context
+  channelId  String?   @map("channel_id") @db.VarChar(20)
+  guildId    String?   @map("guild_id") @db.VarChar(20)
+  messageIds String[]  @map("message_ids") // Array of Discord message IDs
+  senders    String[]  // Array of Discord user IDs who participated
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Indexes for filtering (create these after pgvector index)
+  @@index([personaId])
+  @@index([personalityId])
+  @@index([createdAt(sort: Desc)])
+  @@index([channelId])
+  @@index([guildId])
+  @@index([sessionId])
+  @@index([isSummarized])
+  @@index([legacyShapesUserId])
+  @@index([sourceSystem])
+  @@map("memories")
+}
+
+// ============================================================================
+// Legacy shapes.inc Data Migration Support
+// ============================================================================
+
+// Maps legacy shapes.inc user UUIDs to current tzurot personas
+// Enables incremental migration - users can claim their legacy data over time
+model ShapesPersonaMapping {
+  id String @id @default(uuid()) @db.Uuid
+
+  // Legacy shapes.inc user UUID
+  shapesUserId String @unique @map("shapes_user_id") @db.Uuid
+
+  // Current tzurot persona UUID
+  personaId String  @map("persona_id") @db.Uuid
+  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
+
+  // Migration metadata
+  mappedAt           DateTime @default(now()) @map("mapped_at")
+  mappedBy           String?  @map("mapped_by") @db.Uuid // User who created mapping (for self-service)
+  verificationStatus String   @default("unverified") @map("verification_status") @db.VarChar(50) // unverified, verified, admin_verified
+
+  @@index([personaId])
+  @@map("shapes_persona_mappings")
 }
