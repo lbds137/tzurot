@@ -32,12 +32,14 @@ export class ConversationHistoryService {
     personalityId: string,
     personaId: string,
     role: 'user' | 'assistant' | 'system',
-    content: string
+    content: string,
+    guildId?: string | null
   ): Promise<void> {
     try {
       await this.prisma.conversationHistory.create({
         data: {
           channelId,
+          guildId: guildId || null,
           personalityId,
           personaId,
           role,
@@ -45,7 +47,7 @@ export class ConversationHistoryService {
         },
       });
 
-      logger.debug(`Added ${role} message to history (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
+      logger.debug(`Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
 
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);

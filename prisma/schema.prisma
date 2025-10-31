@@ -1,6 +1,3 @@
-// Tzurot Database Schema - v3 Redesign
-// Clean architecture with no circular dependencies
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,88 +7,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// User Management
-// ============================================================================
-
 model User {
-  id        String @id @default(uuid()) @db.Uuid
-  discordId String @unique @map("discord_id") @db.VarChar(20)
-  username  String @db.VarChar(255)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations (no circular dependencies!)
-  ownedPersonas       Persona[]                @relation("PersonaOwner")
-  ownedLlmConfigs     LlmConfig[]              @relation("LlmConfigOwner")
-  defaultPersonaLink  UserDefaultPersona?
-  personalityOwners   PersonalityOwner[]
-  personalityConfigs  UserPersonalityConfig[]
-  activatedChannels   ActivatedChannel[]
+  id                 String                  @id @default(uuid()) @db.Uuid
+  discordId          String                  @unique @map("discord_id") @db.VarChar(20)
+  username           String                  @db.VarChar(255)
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+  activatedChannels  ActivatedChannel[]
+  ownedLlmConfigs    LlmConfig[]             @relation("LlmConfigOwner")
+  personalityOwners  PersonalityOwner[]
+  ownedPersonas      Persona[]               @relation("PersonaOwner")
+  defaultPersonaLink UserDefaultPersona?
+  personalityConfigs UserPersonalityConfig[]
 
   @@index([discordId])
   @@map("users")
 }
 
-// ============================================================================
-// Reusable Configuration Templates
-// ============================================================================
-
 model Persona {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(255)
-  description String? @db.Text
-  content     String  @db.Text // The actual persona/backstory text
-
-  // User personalization fields
-  preferredName String? @map("preferred_name") @db.VarChar(255)
-  pronouns      String? @db.VarChar(100)
-
-  // Ownership - REQUIRED (every persona has an owner)
-  ownerId String @map("owner_id") @db.Uuid
-  owner   User   @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  usersUsingAsDefault  UserDefaultPersona[]
-  personalityConfigs   UserPersonalityConfig[]
-  conversationHistory  ConversationHistory[]
-  memories             Memory[]
+  id                    String                  @id @default(uuid()) @db.Uuid
+  name                  String                  @db.VarChar(255)
+  description           String?
+  content               String
+  preferredName         String?                 @map("preferred_name") @db.VarChar(255)
+  pronouns              String?                 @db.VarChar(100)
+  ownerId               String                  @map("owner_id") @db.Uuid
+  createdAt             DateTime                @default(now()) @map("created_at")
+  updatedAt             DateTime                @updatedAt @map("updated_at")
+  conversationHistory   ConversationHistory[]
+  memories              Memory[]
+  owner                 User                    @relation("PersonaOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   shapesPersonaMappings ShapesPersonaMapping[]
+  usersUsingAsDefault   UserDefaultPersona[]
+  personalityConfigs    UserPersonalityConfig[]
 
   @@index([ownerId])
   @@map("personas")
 }
 
-// Tracks each user's default persona (no circular dependency)
 model UserDefaultPersona {
-  userId String @unique @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  personaId String  @map("persona_id") @db.Uuid
-  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
+  userId    String   @id @unique @map("user_id") @db.Uuid
+  personaId String   @map("persona_id") @db.Uuid
   updatedAt DateTime @updatedAt @map("updated_at")
+  persona   Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([userId])
   @@index([personaId])
   @@map("user_default_personas")
 }
 
 model SystemPrompt {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(255)
-  description String? @db.Text
-  content     String  @db.Text
-  isDefault   Boolean @default(false) @map("is_default")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
+  id            String        @id @default(uuid()) @db.Uuid
+  name          String        @db.VarChar(255)
+  description   String?
+  content       String
+  isDefault     Boolean       @default(false) @map("is_default")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
   personalities Personality[]
 
   @@index([isDefault])
@@ -99,36 +71,27 @@ model SystemPrompt {
 }
 
 model LlmConfig {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(255)
-  description String? @db.Text
-
-  // Ownership - nullable for global configs, set for user-owned
-  ownerId  String?  @map("owner_id") @db.Uuid
-  owner    User?    @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  isGlobal Boolean  @default(false) @map("is_global")
-  isDefault Boolean @default(false) @map("is_default")
-
-  // LLM parameters
-  model             String   @db.VarChar(255)
-  visionModel       String?  @map("vision_model") @db.VarChar(255)
-  temperature       Decimal? @db.Decimal(3, 2)
-  topP              Decimal? @map("top_p") @db.Decimal(3, 2)
-  topK              Int?     @map("top_k")
-  frequencyPenalty  Decimal? @map("frequency_penalty") @db.Decimal(3, 2)
-  presencePenalty   Decimal? @map("presence_penalty") @db.Decimal(3, 2)
-  repetitionPenalty Decimal? @map("repetition_penalty") @db.Decimal(3, 2)
-  maxTokens         Int?     @map("max_tokens")
-
-  // Memory settings (LTM and STM)
-  memoryScoreThreshold Decimal? @map("memory_score_threshold") @db.Decimal(3, 2)
-  memoryLimit          Int?     @map("memory_limit")
-  contextWindowSize    Int      @default(20) @map("context_window_size") // Moved from Personality
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
+  id                          String                     @id @default(uuid()) @db.Uuid
+  name                        String                     @db.VarChar(255)
+  description                 String?
+  ownerId                     String?                    @map("owner_id") @db.Uuid
+  isGlobal                    Boolean                    @default(false) @map("is_global")
+  isDefault                   Boolean                    @default(false) @map("is_default")
+  model                       String                     @db.VarChar(255)
+  visionModel                 String?                    @map("vision_model") @db.VarChar(255)
+  temperature                 Decimal?                   @db.Decimal(3, 2)
+  topP                        Decimal?                   @map("top_p") @db.Decimal(3, 2)
+  topK                        Int?                       @map("top_k")
+  frequencyPenalty            Decimal?                   @map("frequency_penalty") @db.Decimal(3, 2)
+  presencePenalty             Decimal?                   @map("presence_penalty") @db.Decimal(3, 2)
+  repetitionPenalty           Decimal?                   @map("repetition_penalty") @db.Decimal(3, 2)
+  maxTokens                   Int?                       @map("max_tokens")
+  memoryScoreThreshold        Decimal?                   @map("memory_score_threshold") @db.Decimal(3, 2)
+  memoryLimit                 Int?                       @map("memory_limit")
+  contextWindowSize           Int                        @default(20) @map("context_window_size")
+  createdAt                   DateTime                   @default(now()) @map("created_at")
+  updatedAt                   DateTime                   @updatedAt @map("updated_at")
+  owner                       User?                      @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   personalitiesUsingAsDefault PersonalityDefaultConfig[]
   userPersonalityConfigs      UserPersonalityConfig[]
 
@@ -137,74 +100,47 @@ model LlmConfig {
   @@map("llm_configs")
 }
 
-// Tracks each personality's default LLM config (no circular dependency)
 model PersonalityDefaultConfig {
-  personalityId String      @unique @map("personality_id") @db.Uuid
+  personalityId String      @id @unique @map("personality_id") @db.Uuid
+  llmConfigId   String      @map("llm_config_id") @db.Uuid
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  llmConfig     LlmConfig   @relation(fields: [llmConfigId], references: [id], onDelete: Cascade)
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
-  llmConfigId String    @map("llm_config_id") @db.Uuid
-  llmConfig   LlmConfig @relation(fields: [llmConfigId], references: [id], onDelete: Cascade)
-
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@id([personalityId])
   @@index([llmConfigId])
   @@map("personality_default_configs")
 }
 
-// ============================================================================
-// Personalities
-// ============================================================================
-
 model Personality {
-  id          String  @id @default(uuid()) @db.Uuid
-  name        String  @db.VarChar(255)
-  displayName String? @map("display_name") @db.VarChar(255)
-  slug        String  @unique @db.VarChar(255)
-
-  // Core behavior
-  systemPromptId String?       @map("system_prompt_id") @db.Uuid
-  systemPrompt   SystemPrompt? @relation(fields: [systemPromptId], references: [id], onDelete: SetNull)
-
-  // Default LLM config tracked in separate table (no FK here)
-
-  // Character definition
-  characterInfo          String  @map("character_info") @db.Text
-  personalityTraits      String  @map("personality_traits") @db.Text
-  personalityTone        String? @map("personality_tone") @db.Text
-  personalityAge         String? @map("personality_age") @db.Text
-  personalityAppearance  String? @map("personality_appearance") @db.Text
-  personalityLikes       String? @map("personality_likes") @db.Text
-  personalityDislikes    String? @map("personality_dislikes") @db.Text
-  conversationalGoals    String? @map("conversational_goals") @db.Text
-  conversationalExamples String? @map("conversational_examples") @db.Text
-  customFields           Json?   @map("custom_fields")
-
-  // Voice settings
-  voiceEnabled  Boolean @default(false) @map("voice_enabled")
-  voiceSettings Json?   @map("voice_settings")
-
-  // Image settings
-  imageEnabled  Boolean @default(false) @map("image_enabled")
-  imageSettings Json?   @map("image_settings")
-
-  // Avatar (stored as raw binary data)
-  avatarData Bytes? @map("avatar_data")
-
-  // Memory settings
-  // Memory is always enabled for all personalities
-  // contextWindowSize removed - now in LlmConfig
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  owners              PersonalityOwner[]
-  defaultConfigLink   PersonalityDefaultConfig?
-  userConfigs         UserPersonalityConfig[]
-  conversationHistory ConversationHistory[]
-  activatedChannels   ActivatedChannel[]
-  memories            Memory[]
+  id                     String                    @id @default(uuid()) @db.Uuid
+  name                   String                    @db.VarChar(255)
+  displayName            String?                   @map("display_name") @db.VarChar(255)
+  slug                   String                    @unique @db.VarChar(255)
+  systemPromptId         String?                   @map("system_prompt_id") @db.Uuid
+  characterInfo          String                    @map("character_info")
+  personalityTraits      String                    @map("personality_traits")
+  personalityTone        String?                   @map("personality_tone")
+  personalityAge         String?                   @map("personality_age")
+  personalityAppearance  String?                   @map("personality_appearance")
+  personalityLikes       String?                   @map("personality_likes")
+  personalityDislikes    String?                   @map("personality_dislikes")
+  conversationalGoals    String?                   @map("conversational_goals")
+  conversationalExamples String?                   @map("conversational_examples")
+  customFields           Json?                     @map("custom_fields")
+  voiceEnabled           Boolean                   @default(false) @map("voice_enabled")
+  voiceSettings          Json?                     @map("voice_settings")
+  imageEnabled           Boolean                   @default(false) @map("image_enabled")
+  imageSettings          Json?                     @map("image_settings")
+  avatarData             Bytes?                    @map("avatar_data")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+  activatedChannels      ActivatedChannel[]
+  conversationHistory    ConversationHistory[]
+  memories               Memory[]
+  systemPrompt           SystemPrompt?             @relation(fields: [systemPromptId], references: [id])
+  defaultConfigLink      PersonalityDefaultConfig?
+  owners                 PersonalityOwner[]
+  userConfigs            UserPersonalityConfig[]
 
   @@index([slug])
   @@map("personalities")
@@ -212,15 +148,12 @@ model Personality {
 
 model PersonalityOwner {
   personalityId String      @map("personality_id") @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  role          String      @default("owner") @db.VarChar(50)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-
-  userId String @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  role String @default("owner") @db.VarChar(50) // 'owner', 'editor', 'viewer'
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([personalityId, userId])
   @@index([userId])
@@ -228,26 +161,18 @@ model PersonalityOwner {
   @@map("personality_owners")
 }
 
-// User-specific overrides for personality configuration
 model UserPersonalityConfig {
-  id String @id @default(uuid()) @db.Uuid
-
-  userId String @map("user_id") @db.Uuid
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
   personalityId String      @map("personality_id") @db.Uuid
+  personaId     String?     @map("persona_id") @db.Uuid
+  llmConfigId   String?     @map("llm_config_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  llmConfig     LlmConfig?  @relation(fields: [llmConfigId], references: [id])
+  persona       Persona?    @relation(fields: [personaId], references: [id])
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-
-  // Override user's default persona for this specific personality
-  personaId String?  @map("persona_id") @db.Uuid
-  persona   Persona? @relation(fields: [personaId], references: [id], onDelete: SetNull)
-
-  // Override LLM config for this user+personality combo
-  llmConfigId String?    @map("llm_config_id") @db.Uuid
-  llmConfig   LlmConfig? @relation(fields: [llmConfigId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, personalityId])
   @@index([userId])
@@ -255,29 +180,17 @@ model UserPersonalityConfig {
   @@map("user_personality_configs")
 }
 
-// ============================================================================
-// Conversation Management
-// ============================================================================
-
 model ConversationHistory {
-  id String @id @default(uuid()) @db.Uuid
-
-  channelId String @map("channel_id") @db.VarChar(20)
-
-  personalityId String      @map("personality_id") @db.Uuid
-  personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-
-  // Persona isolation - conversations are segmented by persona, not user
-  // This aligns STM (PostgreSQL) with LTM (Qdrant vector store)
-  personaId String  @map("persona_id") @db.Uuid
-  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
-  role    String @db.VarChar(20) // 'user', 'assistant', 'system'
-  content String @db.Text
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relations
+  id            String         @id @default(uuid()) @db.Uuid
+  channelId     String         @map("channel_id") @db.VarChar(20)
+  guildId       String?        @map("guild_id") @db.VarChar(20) // Null for DMs
+  personalityId String         @map("personality_id") @db.Uuid
+  personaId     String         @map("persona_id") @db.Uuid
+  role          String         @db.VarChar(20)
+  content       String
+  createdAt     DateTime       @default(now()) @map("created_at")
+  persona       Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personality   Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
   pendingMemory PendingMemory?
 
   @@index([channelId, personalityId, createdAt(sort: Desc)])
@@ -285,21 +198,17 @@ model ConversationHistory {
   @@map("conversation_history")
 }
 
-// Pending memories - tracks memories that need to be synced to Qdrant
-// Gets cleaned up after successful Qdrant storage
 model PendingMemory {
-  id                    String   @id @default(uuid()) @db.Uuid
-  conversationHistoryId String   @unique @map("conversation_history_id") @db.Uuid
-  personaId             String   @map("persona_id") @db.Uuid
-  personalityId         String   @map("personality_id") @db.Uuid
-  personalityName       String?  @map("personality_name") @db.VarChar(255)
-  text                  String   @db.Text // The formatted interaction text
-  metadata              Json     // All the metadata for Qdrant
-  createdAt             DateTime @default(now()) @map("created_at")
-  attempts              Int      @default(0)
-  lastAttemptAt         DateTime? @map("last_attempt_at")
-  error                 String?  @db.Text
-
+  id                    String              @id @default(uuid()) @db.Uuid
+  conversationHistoryId String              @unique @map("conversation_history_id") @db.Uuid
+  personaId             String              @map("persona_id") @db.Uuid
+  personalityId         String              @map("personality_id") @db.Uuid
+  text                  String
+  metadata              Json
+  createdAt             DateTime            @default(now()) @map("created_at")
+  attempts              Int                 @default(0)
+  lastAttemptAt         DateTime?           @map("last_attempt_at")
+  error                 String?
   conversationHistory   ConversationHistory @relation(fields: [conversationHistoryId], references: [id], onDelete: Cascade)
 
   @@index([personaId])
@@ -309,20 +218,15 @@ model PendingMemory {
 }
 
 model ActivatedChannel {
-  id String @id @default(uuid()) @db.Uuid
-
-  channelId String @map("channel_id") @db.VarChar(20)
-
+  id            String      @id @default(uuid()) @db.Uuid
+  channelId     String      @map("channel_id") @db.VarChar(20)
   personalityId String      @map("personality_id") @db.Uuid
+  autoRespond   Boolean     @default(true) @map("auto_respond")
+  createdBy     String?     @map("created_by") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  createdByUser User?       @relation(fields: [createdBy], references: [id])
   personality   Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-
-  autoRespond Boolean @default(true) @map("auto_respond")
-
-  createdBy     String? @map("created_by") @db.Uuid
-  createdByUser User?   @relation(fields: [createdBy], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([channelId, personalityId])
   @@index([channelId])
@@ -330,50 +234,28 @@ model ActivatedChannel {
   @@map("activated_channels")
 }
 
-// ============================================================================
-// Long-Term Memory (pgvector)
-// ============================================================================
-
 model Memory {
-  id String @id @default(uuid()) @db.Uuid
+  id                   String                 @id @default(uuid()) @db.Uuid
+  personaId            String?                @map("persona_id") @db.Uuid
+  personalityId        String                 @map("personality_id") @db.Uuid
+  content              String
+  embedding            Unsupported("vector")?
+  isSummarized         Boolean                @default(false) @map("is_summarized")
+  originalMessageCount Int?                   @map("original_message_count")
+  summarizedAt         DateTime?              @map("summarized_at")
+  sessionId            String?                @map("session_id") @db.VarChar(255)
+  canonScope           String?                @map("canon_scope") @db.VarChar(20)
+  summaryType          String?                @map("summary_type") @db.VarChar(50)
+  channelId            String?                @map("channel_id") @db.VarChar(20)
+  guildId              String?                @map("guild_id") @db.VarChar(20)
+  messageIds           String[]               @map("message_ids")
+  senders              String[]
+  createdAt            DateTime               @default(now()) @map("created_at")
+  legacyShapesUserId   String?                @map("legacy_shapes_user_id") @db.Uuid
+  sourceSystem         String                 @default("tzurot-v3") @map("source_system") @db.VarChar(50)
+  persona              Persona?               @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personality          Personality            @relation(fields: [personalityId], references: [id], onDelete: Cascade)
 
-  // Persona & Personality (replaces Qdrant collection concept)
-  // NULLABLE for unmapped legacy shapes.inc memories
-  personaId String?  @map("persona_id") @db.Uuid
-  persona   Persona? @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
-  personalityId   String      @map("personality_id") @db.Uuid
-  personality     Personality @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-  personalityName String      @map("personality_name") @db.VarChar(255)
-
-  // Legacy shapes.inc data support
-  legacyShapesUserId String? @map("legacy_shapes_user_id") @db.Uuid
-  sourceSystem       String  @default("tzurot-v3") @map("source_system") @db.VarChar(50)
-
-  // Content & Vector
-  content   String                  @db.Text
-  embedding Unsupported("vector(1536)")?  // pgvector extension, 1536 dims for text-embedding-3-small
-
-  // Summarization tracking
-  isSummarized          Boolean   @default(false) @map("is_summarized")
-  originalMessageCount  Int?      @map("original_message_count") // How many messages were condensed
-  summarizedAt          DateTime? @map("summarized_at")
-
-  // Memory metadata
-  sessionId   String? @map("session_id") @db.VarChar(255)
-  canonScope  String? @map("canon_scope") @db.VarChar(20) // 'global', 'personal', 'session'
-  summaryType String? @map("summary_type") @db.VarChar(50)
-
-  // Context
-  channelId  String?   @map("channel_id") @db.VarChar(20)
-  guildId    String?   @map("guild_id") @db.VarChar(20)
-  messageIds String[]  @map("message_ids") // Array of Discord message IDs
-  senders    String[]  // Array of Discord user IDs who participated
-
-  // Timestamps
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Indexes for filtering (create these after pgvector index)
   @@index([personaId])
   @@index([personalityId])
   @@index([createdAt(sort: Desc)])
@@ -386,26 +268,14 @@ model Memory {
   @@map("memories")
 }
 
-// ============================================================================
-// Legacy shapes.inc Data Migration Support
-// ============================================================================
-
-// Maps legacy shapes.inc user UUIDs to current tzurot personas
-// Enables incremental migration - users can claim their legacy data over time
 model ShapesPersonaMapping {
-  id String @id @default(uuid()) @db.Uuid
-
-  // Legacy shapes.inc user UUID
-  shapesUserId String @unique @map("shapes_user_id") @db.Uuid
-
-  // Current tzurot persona UUID
-  personaId String  @map("persona_id") @db.Uuid
-  persona   Persona @relation(fields: [personaId], references: [id], onDelete: Cascade)
-
-  // Migration metadata
+  id                 String   @id @default(uuid()) @db.Uuid
+  shapesUserId       String   @unique @map("shapes_user_id") @db.Uuid
+  personaId          String   @map("persona_id") @db.Uuid
   mappedAt           DateTime @default(now()) @map("mapped_at")
-  mappedBy           String?  @map("mapped_by") @db.Uuid // User who created mapping (for self-service)
-  verificationStatus String   @default("unverified") @map("verification_status") @db.VarChar(50) // unverified, verified, admin_verified
+  mappedBy           String?  @map("mapped_by") @db.Uuid
+  verificationStatus String   @default("unverified") @map("verification_status") @db.VarChar(50)
+  persona            Persona  @relation(fields: [personaId], references: [id], onDelete: Cascade)
 
   @@index([personaId])
   @@map("shapes_persona_mappings")
