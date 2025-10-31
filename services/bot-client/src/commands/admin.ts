@@ -270,14 +270,40 @@ async function handleQdrantSync(
 
     if (result.stats) {
       summary.push('\n**Sync Statistics**:');
-      for (const [collection, stats] of Object.entries(result.stats)) {
-        const collStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
+
+      // Sort collections by total sync count (highest first)
+      const sortedStats = Object.entries(result.stats)
+        .map(([collection, stats]) => {
+          const collStats = stats as { devToProd?: number; prodToDev?: number; conflicts?: number };
+          return {
+            collection,
+            devToProd: collStats.devToProd || 0,
+            prodToDev: collStats.prodToDev || 0,
+            conflicts: collStats.conflicts || 0,
+            total: (collStats.devToProd || 0) + (collStats.prodToDev || 0)
+          };
+        })
+        .sort((a, b) => b.total - a.total);
+
+      // Show top 15 collections to avoid Discord's 4096 char limit
+      const topCollections = sortedStats.slice(0, 15);
+
+      for (const { collection, devToProd, prodToDev, conflicts } of topCollections) {
         summary.push(
           `\`${collection}\`: ` +
-          `${collStats.devToProd || 0} dev→prod, ` +
-          `${collStats.prodToDev || 0} prod→dev` +
-          (collStats.conflicts ? `, ${collStats.conflicts} conflicts` : '')
+          `${devToProd} dev→prod, ` +
+          `${prodToDev} prod→dev` +
+          (conflicts ? `, ${conflicts} conflicts` : '')
         );
+      }
+
+      // Show truncation notice if there are more collections
+      if (sortedStats.length > 15) {
+        const remaining = sortedStats.length - 15;
+        const remainingPoints = sortedStats
+          .slice(15)
+          .reduce((sum, s) => sum + s.total, 0);
+        summary.push(`\n*... and ${remaining} more collections (${remainingPoints} points)*`);
       }
     }
 
