@@ -103,7 +103,8 @@ export class PgvectorMemoryAdapter {
       // Exclude newer memories (for conversation history overlap prevention)
       if (options.excludeNewerThan) {
         paramCount++;
-        const excludeDate = new Date(options.excludeNewerThan * 1000);
+        // excludeNewerThan is already in milliseconds - don't multiply by 1000
+        const excludeDate = new Date(options.excludeNewerThan);
         whereConditions.push(`created_at < $${paramCount}::timestamptz`);
         params.push(excludeDate.toISOString());
       }

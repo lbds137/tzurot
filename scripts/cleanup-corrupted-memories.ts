@@ -9,10 +9,12 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '@tzurot/common-types';
 
-const logger = createLogger('CleanupCorruptedMemories');
 const prisma = new PrismaClient();
+
+function log(message: string, data?: any) {
+  console.log(`[CleanupCorruptedMemories] ${message}`, data || '');
+}
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
