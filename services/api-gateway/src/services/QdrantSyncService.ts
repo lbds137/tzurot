@@ -117,6 +117,7 @@ export class QdrantSyncService {
   /**
    * Re-enable indexing on all collections after bulk import
    * Call this after sync() completes to trigger index building
+   * Sets indexing_threshold to 20000 (standard value) which triggers indexing of existing points
    */
   async enableIndexing(): Promise<void> {
     logger.info('[Sync] Re-enabling indexing on all collections');
@@ -127,17 +128,17 @@ export class QdrantSyncService {
       try {
         await this.devClient.updateCollection(collectionName, {
           optimizers_config: {
-            indexing_threshold: 20000, // Standard value - will trigger indexing of existing points
+            indexing_threshold: 20000, // Restore indexing - will trigger background indexing of all existing points
           },
         });
 
-        logger.info({ collection: collectionName }, '[Sync] Indexing enabled');
+        logger.info({ collection: collectionName }, '[Sync] Indexing re-enabled, background indexing will begin');
       } catch (error) {
         logger.error({ err: error, collection: collectionName }, '[Sync] Failed to enable indexing');
       }
     }
 
-    logger.info('[Sync] Indexing re-enabled on all collections');
+    logger.info('[Sync] Indexing re-enabled on all collections. Qdrant will build indexes in background.');
   }
 
   /**
@@ -266,7 +267,8 @@ export class QdrantSyncService {
   }
 
   /**
-   * Copy an entire collection from source to destination
+   * Copy an entire collection from source to destination using streaming pipeline
+   * This approach avoids loading all points into memory and uses async upserts
    */
   private async copyCollection(
     sourceClient: QdrantClient,
@@ -278,12 +280,12 @@ export class QdrantSyncService {
       const sourceCollection = await sourceClient.getCollection(collectionName);
 
       // Create collection in destination with same config
-      // BUT: Disable indexing during bulk import to prevent timeouts
+      // BUT: Disable indexing during bulk import for better performance
       const config = {
         vectors: sourceCollection.config.params.vectors,
         optimizers_config: {
           ...sourceCollection.config.optimizer_config,
-          indexing_threshold: 20000, // Disable indexing until we have >20k points (we have 17k total)
+          indexing_threshold: 0, // Explicitly disable indexing during import
         },
         hnsw_config: {
           on_disk: true, // Store index on disk to save memory
@@ -294,24 +296,50 @@ export class QdrantSyncService {
 
       logger.info({ collection: collectionName }, '[Sync] Created collection in destination');
 
-      // Copy all points
-      const points = await this.fetchAllPoints(sourceClient, collectionName);
+      // Use streaming pipeline: fetch batch → upsert batch → repeat
+      // This avoids loading all points into memory
+      let offset: unknown;
+      let totalCopied = 0;
+      const batchSize = 200; // Larger batches work well with wait:false
 
-      if (points.length > 0) {
-        // Batch upsert (Qdrant supports up to 100 points per request)
-        const batchSize = 100;
-        for (let i = 0; i < points.length; i += batchSize) {
-          const batch = points.slice(i, i + batchSize);
-          await this.upsertPointsBatch(destClient, collectionName, batch);
+      while (true) {
+        // Fetch batch
+        const response = await sourceClient.scroll(collectionName, {
+          limit: batchSize,
+          offset: offset as string | number | undefined,
+          with_payload: true,
+          with_vector: true,
+        });
 
-          logger.info(
-            { collection: collectionName, progress: `${Math.min(i + batchSize, points.length)}/${points.length}` },
-            '[Sync] Copied points batch'
-          );
+        if (!response.points || response.points.length === 0) {
+          break;
         }
+
+        // Upsert batch immediately (wait:false = async background indexing)
+        await destClient.upsert(collectionName, {
+          // wait:false is default - async background indexing, no blocking
+          points: response.points.map(p => ({
+            id: p.id,
+            vector: p.vector as number[],
+            payload: p.payload,
+          })),
+        });
+
+        totalCopied += response.points.length;
+        logger.info(
+          { collection: collectionName, copied: totalCopied },
+          '[Sync] Copied points batch'
+        );
+
+        // Check if there are more points
+        if (!response.next_page_offset) {
+          break;
+        }
+
+        offset = response.next_page_offset;
       }
 
-      logger.info({ collection: collectionName, pointsCopied: points.length }, '[Sync] Collection copy complete');
+      logger.info({ collection: collectionName, pointsCopied: totalCopied }, '[Sync] Collection copy complete');
 
     } catch (error) {
       logger.error({ err: error, collection: collectionName }, 'Failed to copy collection');
@@ -369,6 +397,8 @@ export class QdrantSyncService {
   /**
    * Upsert a single point into a collection
    * Points returned from scroll() have the exact structure needed for upsert()
+   * Uses wait:false (default) for async background indexing
+   * Used during bidirectional sync when comparing individual points
    */
   private async upsertPoint(
     client: QdrantClient,
@@ -377,7 +407,7 @@ export class QdrantSyncService {
   ): Promise<void> {
     try {
       await client.upsert(collectionName, {
-        wait: true, // Wait for disk sync to avoid overwhelming Qdrant
+        // wait:false is default - async background indexing, no blocking
         points: [{
           id: point.id,
           vector: point.vector as number[],
@@ -387,34 +417,6 @@ export class QdrantSyncService {
 
     } catch (error) {
       logger.error({ err: error, collection: collectionName, pointId: point.id }, 'Failed to upsert point');
-      throw error;
-    }
-  }
-
-  /**
-   * Upsert multiple points in batch
-   * Points returned from scroll() have the exact structure needed for upsert()
-   */
-  private async upsertPointsBatch(
-    client: QdrantClient,
-    collectionName: string,
-    points: QdrantPoint[]
-  ): Promise<void> {
-    try {
-      await client.upsert(collectionName, {
-        wait: true, // Wait for disk sync to avoid overwhelming Qdrant
-        points: points.map(p => ({
-          id: p.id,
-          vector: p.vector as number[],
-          payload: p.payload,
-        })),
-      });
-
-      // Brief delay after each batch to let Qdrant catch up
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-    } catch (error) {
-      logger.error({ err: error, collection: collectionName, pointCount: points.length }, 'Failed to upsert points batch');
       throw error;
     }
   }
