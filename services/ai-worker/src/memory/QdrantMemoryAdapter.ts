@@ -83,7 +83,16 @@ export class QdrantMemoryAdapter {
       return documents;
 
     } catch (error) {
-      logger.error({ err: error }, `Failed to query memories for persona: ${options.personaId}`);
+      const errorDetails = {
+        personaId: options.personaId,
+        personalityId: options.personalityId,
+        queryLength: query.length,
+        errorType: error instanceof Error ? error.constructor.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+      logger.error({ err: error, ...errorDetails }, `Failed to query memories for persona: ${options.personaId}`);
+      // Return empty array - query failures shouldn't block conversation generation
+      // But log detailed error info for debugging
       return [];
     }
   }
@@ -114,7 +123,8 @@ export class QdrantMemoryAdapter {
       );
     } catch (error) {
       logger.error({ err: error }, `Failed to add memory for persona: ${data.metadata.personaId}`);
-      // Don't throw - memory storage is non-critical, conversation should continue
+      // Re-throw so pending_memory can be preserved for retry
+      throw error;
     }
   }
 
