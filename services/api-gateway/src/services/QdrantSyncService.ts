@@ -55,13 +55,13 @@ export class QdrantSyncService {
     this.devClient = new QdrantClient({
       url: devQdrantUrl,
       apiKey: devQdrantApiKey || undefined, // Convert empty string to undefined
-      timeout: 30000,
+      timeout: 120000, // 2 minutes for bulk operations
     });
 
     this.prodClient = new QdrantClient({
       url: prodQdrantUrl,
       apiKey: prodQdrantApiKey || undefined, // Convert empty string to undefined
-      timeout: 30000,
+      timeout: 120000, // 2 minutes for bulk operations
     });
   }
 
