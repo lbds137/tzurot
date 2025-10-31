@@ -345,7 +345,7 @@ export class QdrantSyncService {
   ): Promise<void> {
     try {
       await client.upsert(collectionName, {
-        wait: false, // Don't wait for disk sync (prevents timeouts)
+        wait: true, // Wait for disk sync to avoid overwhelming Qdrant
         points: [{
           id: point.id,
           vector: point.vector as number[],
@@ -370,13 +370,16 @@ export class QdrantSyncService {
   ): Promise<void> {
     try {
       await client.upsert(collectionName, {
-        wait: false, // Don't wait for disk sync on bulk imports (prevents timeouts)
+        wait: true, // Wait for disk sync to avoid overwhelming Qdrant
         points: points.map(p => ({
           id: p.id,
           vector: p.vector as number[],
           payload: p.payload,
         })),
       });
+
+      // Brief delay after each batch to let Qdrant catch up
+      await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error) {
       logger.error({ err: error, collection: collectionName, pointCount: points.length }, 'Failed to upsert points batch');
