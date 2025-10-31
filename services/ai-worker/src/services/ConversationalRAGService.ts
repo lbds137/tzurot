@@ -13,7 +13,7 @@ import {
   SystemMessage
 } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { QdrantMemoryAdapter, MemoryQueryOptions } from '../memory/QdrantMemoryAdapter.js';
+import { PgvectorMemoryAdapter, MemoryQueryOptions } from '../memory/PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,
@@ -115,10 +115,10 @@ export interface RAGResponse {
 }
 
 export class ConversationalRAGService {
-  private memoryManager?: QdrantMemoryAdapter;
+  private memoryManager?: PgvectorMemoryAdapter;
   private models = new Map<string, ChatModelResult>();
 
-  constructor(memoryManager?: QdrantMemoryAdapter) {
+  constructor(memoryManager?: PgvectorMemoryAdapter) {
     this.memoryManager = memoryManager;
   }
 

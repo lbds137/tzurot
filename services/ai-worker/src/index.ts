@@ -2,14 +2,14 @@
  * AI Worker - Main Entry Point
  *
  * This service:
- * 1. Connects to Qdrant for vector memory
+ * 1. Connects to pgvector for vector memory
  * 2. Initializes the RAG service
  * 3. Listens to BullMQ queue for AI generation jobs
  * 4. Processes jobs and returns results
  */
 
 import { Worker, Job } from 'bullmq';
-import { QdrantMemoryAdapter } from './memory/QdrantMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from './memory/PgvectorMemoryAdapter.js';
 import { AIJobProcessor, AIJobData, AIJobResult } from './jobs/AIJobProcessor.js';
 import { createLogger, getConfig, parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
 
@@ -57,24 +57,24 @@ async function main(): Promise<void> {
     worker: config.worker
   }, '[AIWorker] Configuration:');
 
-  // Initialize vector memory manager (fails gracefully if Qdrant not configured)
-  let memoryManager: QdrantMemoryAdapter | undefined;
+  // Initialize vector memory manager (pgvector)
+  let memoryManager: PgvectorMemoryAdapter | undefined;
 
-  logger.info('[AIWorker] Initializing Qdrant connection...');
+  logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
-    memoryManager = new QdrantMemoryAdapter();
+    memoryManager = new PgvectorMemoryAdapter();
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
-      logger.info('[AIWorker] Qdrant initialized successfully');
+      logger.info('[AIWorker] Pgvector memory initialized successfully');
     } else {
-      logger.warn('[AIWorker] Qdrant health check failed');
+      logger.warn('[AIWorker] Pgvector health check failed');
       logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
       memoryManager = undefined;
     }
   } catch (error) {
-    logger.error({ err: error }, '[AIWorker] Failed to initialize Qdrant');
+    logger.error({ err: error }, '[AIWorker] Failed to initialize pgvector memory');
     logger.warn('[AIWorker] Continuing without vector memory - responses will have no long-term memory');
     memoryManager = undefined;
   }
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
  * Start a simple HTTP server for health checks
  */
 async function startHealthServer(
-  memoryManager: QdrantMemoryAdapter | undefined,
+  memoryManager: PgvectorMemoryAdapter | undefined,
   worker: Worker
 ): Promise<void> {
   const http = await import('http');
@@ -163,15 +163,15 @@ async function startHealthServer(
     void (async () => {
       if (req.url === '/health') {
         try {
-          const qdrantHealthy = memoryManager !== undefined
+          const memoryHealthy = memoryManager !== undefined
             ? await memoryManager.healthCheck()
             : true; // If memory is disabled, we're still healthy
           const workerHealthy = !(await worker.closing);
 
-          const status = qdrantHealthy && workerHealthy ? 200 : 503;
+          const status = memoryHealthy && workerHealthy ? 200 : 503;
           const health = {
-            status: qdrantHealthy && workerHealthy ? 'healthy' : 'degraded',
-            qdrant: memoryManager !== undefined ? qdrantHealthy : 'disabled',
+            status: memoryHealthy && workerHealthy ? 'healthy' : 'degraded',
+            memory: memoryManager !== undefined ? memoryHealthy : 'disabled',
             worker: workerHealthy,
             timestamp: new Date().toISOString()
           };

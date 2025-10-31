@@ -8,7 +8,7 @@
 
 import { Job } from 'bullmq';
 import { ConversationalRAGService, type RAGResponse } from '../services/ConversationalRAGService.js';
-import { QdrantMemoryAdapter } from '../memory/QdrantMemoryAdapter.js';
+import { PgvectorMemoryAdapter } from '../memory/PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,
@@ -122,7 +122,7 @@ export interface AIJobResult {
 export class AIJobProcessor {
   private ragService: ConversationalRAGService;
 
-  constructor(memoryManager?: QdrantMemoryAdapter) {
+  constructor(memoryManager?: PgvectorMemoryAdapter) {
     this.ragService = new ConversationalRAGService(memoryManager);
   }
 
