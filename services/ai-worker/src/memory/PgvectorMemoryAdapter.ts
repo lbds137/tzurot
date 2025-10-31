@@ -253,7 +253,7 @@ export class PgvectorMemoryAdapter {
           ${data.metadata.messageIds || []}::text[],
           ${data.metadata.senders || []}::text[],
           false,
-          ${createdAt}
+          ${createdAt.toISOString()}::timestamptz
         )
         ON CONFLICT (id) DO NOTHING
       `;
