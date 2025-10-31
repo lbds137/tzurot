@@ -30,70 +30,82 @@ const SYNC_CONFIG = {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   personas: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   user_default_personas: {
     pk: 'user_id',
     updatedAt: 'updated_at',
     uuidColumns: ['user_id', 'persona_id'],
+    timestampColumns: ['updated_at'],
   },
   system_prompts: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   llm_configs: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   personalities: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'system_prompt_id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   personality_default_configs: {
     pk: 'personality_id',
     updatedAt: 'updated_at',
     uuidColumns: ['personality_id', 'llm_config_id'],
+    timestampColumns: ['updated_at'],
   },
   personality_owners: {
     pk: ['personality_id', 'user_id'], // Composite key
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['personality_id', 'user_id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   user_personality_configs: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   conversation_history: {
     pk: 'id',
     createdAt: 'created_at',
     // No updatedAt - append-only
     uuidColumns: ['id', 'persona_id', 'personality_id'],
+    timestampColumns: ['created_at'],
   },
   activated_channels: {
     pk: 'id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'personality_id', 'created_by'],
+    timestampColumns: ['created_at', 'updated_at'],
   },
   memories: {
     pk: 'id',
     createdAt: 'created_at',
     // No updatedAt - append-only
     uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id'],
+    timestampColumns: ['created_at'],
   },
   // Skip pending_memories - transient queue data, doesn't need syncing
 } as const;
@@ -309,13 +321,13 @@ export class DatabaseSyncService {
       if (!devRow && prodRow) {
         // Row only in prod - copy to dev
         if (!dryRun) {
-          await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns);
+          await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns, config.timestampColumns || []);
         }
         prodToDev++;
       } else if (devRow && !prodRow) {
         // Row only in dev - copy to prod
         if (!dryRun) {
-          await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns);
+          await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns, config.timestampColumns || []);
         }
         devToProd++;
       } else if (devRow && prodRow) {
@@ -324,13 +336,13 @@ export class DatabaseSyncService {
 
         if (comparison === 'dev-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns);
+            await this.upsertRow(this.prodClient, tableName, devRow, config.pk, config.uuidColumns, config.timestampColumns || []);
           }
           devToProd++;
           conflicts++;
         } else if (comparison === 'prod-newer') {
           if (!dryRun) {
-            await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns);
+            await this.upsertRow(this.devClient, tableName, prodRow, config.pk, config.uuidColumns, config.timestampColumns || []);
           }
           prodToDev++;
           conflicts++;
@@ -434,7 +446,8 @@ export class DatabaseSyncService {
     tableName: string,
     row: unknown,
     pkField: string | readonly string[],
-    uuidColumns: readonly string[] = []
+    uuidColumns: readonly string[] = [],
+    timestampColumns: readonly string[] = []
   ): Promise<void> {
     if (typeof row !== 'object' || row === null) {
       throw new Error('Row is not an object');
@@ -444,13 +457,27 @@ export class DatabaseSyncService {
 
     // Build column names and values
     const columns = Object.keys(rowObj);
-    const values = Object.values(rowObj);
+    const values = Object.values(rowObj).map((val, i) => {
+      const col = columns[i];
+      // Convert Date objects to ISO strings for timestamp columns
+      if (timestampColumns.includes(col) && val instanceof Date) {
+        return val.toISOString();
+      }
+      return val;
+    });
 
-    // Build parameterized query with UUID casting where needed
+    // Build parameterized query with type casting where needed
     const placeholders = columns.map((col, i) => {
       const placeholder = `$${i + 1}`;
       // Cast to UUID if this column is a UUID type
-      return uuidColumns.includes(col) ? `${placeholder}::uuid` : placeholder;
+      if (uuidColumns.includes(col)) {
+        return `${placeholder}::uuid`;
+      }
+      // Cast to timestamptz if this column is a timestamp type
+      if (timestampColumns.includes(col)) {
+        return `${placeholder}::timestamptz`;
+      }
+      return placeholder;
     }).join(', ');
     const columnList = columns.map(c => `"${c}"`).join(', ');
 
