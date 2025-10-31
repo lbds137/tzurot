@@ -196,8 +196,33 @@ export class QdrantSyncService {
       return { devToProd, prodToDev, conflicts };
     }
 
-    // Collection exists in both - sync points
-    logger.info({ collection: collectionName }, '[Sync] Collection exists in both, comparing points');
+    // Collection exists in both - check if either is empty first
+    const devCount = await this.getPointCount(this.devClient, collectionName);
+    const prodCount = await this.getPointCount(this.prodClient, collectionName);
+
+    // Optimization: if one side is empty, use fast streaming copyCollection instead of slow comparison
+    if (devCount === 0 && prodCount > 0) {
+      logger.info({ collection: collectionName, prodCount }, '[Sync] Dev empty, prod has points - using fast copy');
+      if (!dryRun) {
+        // Delete empty collection in dev and recreate with streaming copy
+        await this.devClient.deleteCollection(collectionName);
+        await this.copyCollection(this.prodClient, this.devClient, collectionName);
+      }
+      return { devToProd: 0, prodToDev: prodCount, conflicts: 0 };
+    }
+
+    if (prodCount === 0 && devCount > 0) {
+      logger.info({ collection: collectionName, devCount }, '[Sync] Prod empty, dev has points - using fast copy');
+      if (!dryRun) {
+        // Delete empty collection in prod and recreate with streaming copy
+        await this.prodClient.deleteCollection(collectionName);
+        await this.copyCollection(this.devClient, this.prodClient, collectionName);
+      }
+      return { devToProd: devCount, prodToDev: 0, conflicts: 0 };
+    }
+
+    // Both have points - do full bidirectional comparison
+    logger.info({ collection: collectionName, devCount, prodCount }, '[Sync] Both have points, comparing');
 
     // Fetch all points from both collections
     const devPoints = await this.fetchAllPoints(this.devClient, collectionName);
