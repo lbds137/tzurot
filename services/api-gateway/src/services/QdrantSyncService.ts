@@ -345,7 +345,7 @@ export class QdrantSyncService {
   ): Promise<void> {
     try {
       await client.upsert(collectionName, {
-        wait: true,
+        wait: false, // Don't wait for disk sync (prevents timeouts)
         points: [{
           id: point.id,
           vector: point.vector as number[],
