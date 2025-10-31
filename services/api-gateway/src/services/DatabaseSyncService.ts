@@ -89,6 +89,12 @@ const SYNC_CONFIG = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'personality_id', 'created_by'],
   },
+  memories: {
+    pk: 'id',
+    createdAt: 'created_at',
+    // No updatedAt - append-only
+    uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id'],
+  },
   // Skip pending_memories - transient queue data, doesn't need syncing
 } as const;
 
