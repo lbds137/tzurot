@@ -115,6 +115,32 @@ export class QdrantSyncService {
   }
 
   /**
+   * Re-enable indexing on all collections after bulk import
+   * Call this after sync() completes to trigger index building
+   */
+  async enableIndexing(): Promise<void> {
+    logger.info('[Sync] Re-enabling indexing on all collections');
+
+    const devCollections = await this.listCollections(this.devClient);
+
+    for (const collectionName of devCollections) {
+      try {
+        await this.devClient.updateCollection(collectionName, {
+          optimizers_config: {
+            indexing_threshold: 20000, // Standard value - will trigger indexing of existing points
+          },
+        });
+
+        logger.info({ collection: collectionName }, '[Sync] Indexing enabled');
+      } catch (error) {
+        logger.error({ err: error, collection: collectionName }, '[Sync] Failed to enable indexing');
+      }
+    }
+
+    logger.info('[Sync] Indexing re-enabled on all collections');
+  }
+
+  /**
    * List all collection names from a Qdrant instance
    */
   private async listCollections(client: QdrantClient): Promise<string[]> {
@@ -252,10 +278,16 @@ export class QdrantSyncService {
       const sourceCollection = await sourceClient.getCollection(collectionName);
 
       // Create collection in destination with same config
-      // Note: We're passing the collection config exactly as Qdrant returns it
+      // BUT: Disable indexing during bulk import to prevent timeouts
       const config = {
         vectors: sourceCollection.config.params.vectors,
-        optimizers_config: sourceCollection.config.optimizer_config,
+        optimizers_config: {
+          ...sourceCollection.config.optimizer_config,
+          indexing_threshold: 20000, // Disable indexing until we have >20k points (we have 17k total)
+        },
+        hnsw_config: {
+          on_disk: true, // Store index on disk to save memory
+        },
         shard_number: sourceCollection.config.params.shard_number,
       };
       await destClient.createCollection(collectionName, config as Parameters<typeof destClient.createCollection>[1]);
