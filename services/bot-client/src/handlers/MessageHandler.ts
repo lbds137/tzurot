@@ -430,30 +430,42 @@ export class MessageHandler {
 
     const multiWordMatch = content.match(multiWordRegex);
     if (multiWordMatch !== null) {
-      // Try longest match first (prioritize "Bambi Prime" over "Bambi")
-      const fullMatch = multiWordMatch[0];
-      const capturedText = fullMatch
-        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
-        .replace(/[.,!?;:)"']+$/, ''); // Remove trailing punctuation
+      // Check ALL matches and return the LONGEST successful match
+      // This ensures "@Bambi Prime" is preferred over "@Bambi" when both are present
+      let longestMatch: { personalityName: string; cleanContent: string } | null = null;
+      let longestMatchLength = 0;
 
-      // Split into words and remove punctuation from each word
-      const words = capturedText.split(/\s+/).map(word => word.replace(/[.,!?;:)"']+$/g, ''));
+      for (const fullMatch of multiWordMatch) {
+        const capturedText = fullMatch
+          .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
+          .replace(/[.,!?;:)"']+$/, ''); // Remove trailing punctuation
 
-      // Try combinations from longest to shortest
-      for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
-        const potentialName = words.slice(0, wordCount).join(' ');
+        // Split into words and remove punctuation from each word
+        const words = capturedText.split(/\s+/).map(word => word.replace(/[.,!?;:)"']+$/g, ''));
 
-        // Check if this personality exists
-        const personality = await this.personalityService.loadPersonality(potentialName);
-        if (personality) {
-          // Create regex to match this specific mention for cleaning
-          const matchRegex = new RegExp(
-            `${escapedChar}${potentialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
-            'gi'
-          );
-          const cleanContent = content.replace(matchRegex, '').trim();
-          return { personalityName: potentialName, cleanContent };
+        // Try combinations from longest to shortest for this match
+        for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
+          const potentialName = words.slice(0, wordCount).join(' ');
+
+          // Check if this personality exists
+          const personality = await this.personalityService.loadPersonality(potentialName);
+          if (personality && potentialName.length > longestMatchLength) {
+            // Found a longer match! Update our result
+            const matchRegex = new RegExp(
+              `${escapedChar}${potentialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
+              'gi'
+            );
+            const cleanContent = content.replace(matchRegex, '').trim();
+            longestMatch = { personalityName: potentialName, cleanContent };
+            longestMatchLength = potentialName.length;
+            break; // Found a match for this captured text, move to next match
+          }
         }
+      }
+
+      // Return the longest match found (if any)
+      if (longestMatch) {
+        return longestMatch;
       }
     }
 
