@@ -358,7 +358,20 @@ export class DatabaseSyncService {
    * Fetch all rows from a table using raw SQL
    */
   private async fetchAllRows(client: PrismaClient, tableName: string): Promise<unknown[]> {
-    // Use raw SQL to bypass Prisma's model validation
+    // Special handling for memories table - cast vector to text for Prisma deserialization
+    if (tableName === 'memories') {
+      const rows = await client.$queryRawUnsafe(`
+        SELECT
+          id, persona_id, personality_id, source_system, content,
+          embedding::text as embedding,
+          session_id, canon_scope, summary_type, channel_id, guild_id,
+          message_ids, senders, created_at, legacy_shapes_user_id
+        FROM "memories"
+      `);
+      return Array.isArray(rows) ? rows : [];
+    }
+
+    // Default: fetch all columns
     const rows = await client.$queryRawUnsafe(`SELECT * FROM "${tableName}"`);
     return Array.isArray(rows) ? rows : [];
   }
@@ -469,6 +482,10 @@ export class DatabaseSyncService {
     // Build parameterized query with type casting where needed
     const placeholders = columns.map((col, i) => {
       const placeholder = `$${i + 1}`;
+      // Cast to vector for embedding column in memories table
+      if (tableName === 'memories' && col === 'embedding') {
+        return `${placeholder}::vector`;
+      }
       // Cast to UUID if this column is a UUID type
       if (uuidColumns.includes(col)) {
         return `${placeholder}::uuid`;
