@@ -23,6 +23,11 @@
  * The mocks only need to be "good enough" for our tests, not perfect replicas.
  * Our passing tests are the safety net.
  *
+ * **ID Generation:**
+ * Currently uses hardcoded default IDs (e.g., '123456789012345678'). If tests need
+ * unique IDs (e.g., testing ID-based lookups), pass explicit IDs via overrides.
+ * Future enhancement: Add resetMockIdCounters() and auto-incrementing IDs if needed.
+ *
  * **Future Evolution: Anti-Corruption Layer**
  * Long-term, we should create minimal interfaces (IAppMessage, etc.) to decouple
  * from Discord.js. This would allow better type safety without the complexity.
