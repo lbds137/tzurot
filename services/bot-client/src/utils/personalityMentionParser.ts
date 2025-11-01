@@ -62,7 +62,7 @@ export async function findPersonalityMention(
 
   const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionCharRegex = new RegExp(`^${escapedChar}`);
-  const trailingPunctuationRegex = /[.,!?;:)"']+$/g;
+  const trailingPunctuationRegex = /[.,!?;:)"']+$/; // No 'g' flag needed - replace() doesn't use lastIndex
 
   // Step 1: Extract all potential personality names from the message
   const potentialMentions = extractPotentialMentions(
@@ -145,6 +145,7 @@ function extractPotentialMentions(
   const potentialMentions = new Map<string, number>(); // name -> word count (for deduplication)
 
   // Extract multi-word mentions (e.g., @Bambi Prime, @Angel Dust)
+  // Regex: first word + up to (MAX_MENTION_WORDS - 1) more words = MAX_MENTION_WORDS total
   const multiWordRegex = new RegExp(
     `${escapedChar}([^\\s${escapedChar}\\n]+(?:\\s+[^\\s${escapedChar}\\n]+){0,${MAX_MENTION_WORDS - 1}})`,
     'gi'
@@ -165,10 +166,10 @@ function extractPotentialMentions(
 
       // Try combinations from longest to shortest for this match
       for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
-        const potentialName = words.slice(0, wordCount).join(' ');
+        const potentialName = words.slice(0, wordCount).join(' ').trim();
 
-        // Deduplicate: only store if we haven't seen this name yet
-        if (!potentialMentions.has(potentialName)) {
+        // Only store non-empty names that we haven't seen yet
+        if (potentialName && !potentialMentions.has(potentialName)) {
           potentialMentions.set(potentialName, wordCount);
         }
       }
@@ -189,8 +190,8 @@ function extractPotentialMentions(
         .replace(trailingPunctuationRegex, '')
         .trim();
 
-      // Ignore Discord user ID mentions (all digits)
-      if (/^\d+$/.test(personalityName)) {
+      // Ignore Discord user ID mentions (all digits) or empty strings
+      if (!personalityName || /^\d+$/.test(personalityName)) {
         continue;
       }
 
