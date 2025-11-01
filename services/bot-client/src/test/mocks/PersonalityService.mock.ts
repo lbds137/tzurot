@@ -5,7 +5,7 @@
  */
 
 import { vi } from 'vitest';
-import type { PersonalityService } from '@tzurot/common-types';
+import type { PersonalityService, LoadedPersonality } from '@tzurot/common-types';
 
 interface MockPersonality {
   name: string;
@@ -49,20 +49,25 @@ export function createMockPersonalityService(
       }
 
       // Return a minimal mock personality object
-      // In real code this would be a full Personality from the database
+      // In real code this would be a full LoadedPersonality from the database
       return {
         id: 'mock-id',
         name: personality.name,
         displayName: personality.displayName,
-        systemPrompt: { content: personality.systemPrompt },
+        systemPrompt: personality.systemPrompt,
         avatarUrl: personality.avatarUrl ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any; // Minimal type assertion for partial mock data
+        slug: personality.name.toLowerCase(),
+        model: 'mock-model',
+        temperature: 0.8,
+        maxTokens: 1000,
+        contextWindow: 4096,
+        characterInfo: '',
+        personalityTraits: '',
+      } as unknown as LoadedPersonality;
     }),
 
     // Add other PersonalityService methods as needed for tests
-    loadAllPersonalities: vi.fn().mockResolvedValue(personalities as any[]),
+    loadAllPersonalities: vi.fn().mockResolvedValue(personalities as unknown as LoadedPersonality[]),
   } as unknown as PersonalityService;
 
   return mockService;

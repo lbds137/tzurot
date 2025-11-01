@@ -55,12 +55,12 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 **Files Needing Tests**:
 - ✅ `utils/personalityMentionParser.ts` - Done
 - ✅ `utils/discordContext.ts` - Done
-- 🎯 `memory/ConversationManager.ts` - Next up
-- ⏳ `handlers/CommandHandler.ts`
-- ⏳ `webhooks/WebhookManager.ts`
-- ⏳ `handlers/MessageHandler.ts` - Large, may need refactoring
-- ⏳ `utils/deployCommands.ts`
-- ⏳ `gateway/GatewayClient.ts`
+- 🎯 `memory/ConversationManager.ts` - Next up (158 lines)
+- ⏳ `handlers/CommandHandler.ts` - (149 lines)
+- ⏳ `webhooks/WebhookManager.ts` - (249 lines)
+- ⚠️ `handlers/MessageHandler.ts` - **May need refactoring first** (468 lines - large file that should be broken up before testing to avoid throwaway tests)
+- ⏳ `utils/deployCommands.ts` - (102 lines)
+- ⏳ `gateway/GatewayClient.ts` - (173 lines)
 
 ---
 
