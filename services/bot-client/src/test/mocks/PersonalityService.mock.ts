@@ -38,9 +38,10 @@ export function createMockPersonalityService(
     personalities.map((p) => [p.name.toLowerCase(), p])
   );
 
-  // Create a properly typed mock service
-  // TypeScript will enforce that all PersonalityService methods are implemented
-  const mockService: PersonalityService = {
+  // Create a mock that implements the PersonalityService interface methods we need
+  // We use double type assertion (as unknown as PersonalityService) because this is a test mock
+  // that only implements the methods we need, not the full class with all properties
+  const mockService = {
     loadPersonality: vi.fn().mockImplementation(async (name: string) => {
       const personality = personalityMap.get(name.toLowerCase());
       if (!personality) {
@@ -61,8 +62,8 @@ export function createMockPersonalityService(
     }),
 
     // Add other PersonalityService methods as needed for tests
-    getAllPersonalities: vi.fn().mockResolvedValue(personalities as any[]),
-  };
+    loadAllPersonalities: vi.fn().mockResolvedValue(personalities as any[]),
+  } as unknown as PersonalityService;
 
-  return mockService; // No type assertion needed - TypeScript verifies the interface!
+  return mockService;
 }
