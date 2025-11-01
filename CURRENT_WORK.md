@@ -19,34 +19,48 @@
 
 **Completed**:
 - ✅ Vitest configuration (root + service-specific)
-- ✅ Type-safe mock factory pattern
-- ✅ Example tests for personality mention parser (22 tests, all passing)
-- ✅ Testing guidelines documentation
-- ✅ V2 lessons learned analysis
-- ✅ Gemini code review integration
+- ✅ Pragmatic mock factory pattern (after 5.5hr journey through 4 iterations)
+- ✅ Discord.js mock factories (User, Guild, Channel, Message, etc.)
+- ✅ Tests for personalityMentionParser (22 tests passing)
+- ✅ Tests for discordContext utilities (17 tests passing)
+- ✅ Comprehensive lessons learned documentation
+- ✅ Gemini MCP consultation integration
 
 **Architecture Highlights**:
 - Co-located tests (`.test.ts` next to source)
-- Type-safe mocks (no `as any` - compiler-enforced)
+- **Pragmatic factory pattern**: Type-safe without over-engineering
+  - `Partial<T>` for overrides
+  - Plain arrow functions for non-spied methods
+  - Strategic `@ts-expect-error` for type predicates
+  - `as unknown as T` final assertion (tests are ground truth)
 - Built-in fake timers (Vitest)
-- Explicit mock factories (not magic presets)
-- Integration-focused test strategy
+- No `as any` - TypeScript discipline enforced
+- 39 tests passing, TypeScript build clean
 
-**Current Work**:
-- Adding more utility test coverage
-- Creating Discord.js mock factories
-- Setting up integration test patterns
+**Key Learning**:
+After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patterns, we landed on a pragmatic approach that prioritizes runtime correctness over compile-time perfection. See `docs/architecture/TESTING_LESSONS_LEARNED.md` for the full 5.5-hour journey.
 
 **Key Files**:
-- `docs/guides/TESTING.md` - Complete testing guide
-- `docs/architecture/TESTING_LESSONS_LEARNED.md` - V2 → V3 migration insights
-- `services/bot-client/src/test/mocks/` - Type-safe mock factories
+- `services/bot-client/src/test/mocks/Discord.mock.ts` - Core mock factories
+- `services/bot-client/src/test/types.ts` - Utility types
+- `docs/architecture/TESTING_LESSONS_LEARNED.md` - Comprehensive post-mortem
 
-**Next Steps**:
-1. Add Discord.js mock factories
-2. Create integration test examples
-3. Add tests for MessageHandler
-4. Expand coverage to other utilities
+**Next Targets** (prioritized by complexity):
+1. **ConversationManager** (158 lines) - Focused service, no external deps
+2. **CommandHandler** (149 lines) - Slash command routing
+3. **WebhookManager** (249 lines) - Discord webhook management
+4. **MessageHandler** (468 lines) - May need refactoring before testing
+5. Integration test patterns
+
+**Files Needing Tests**:
+- ✅ `utils/personalityMentionParser.ts` - Done
+- ✅ `utils/discordContext.ts` - Done
+- 🎯 `memory/ConversationManager.ts` - Next up
+- ⏳ `handlers/CommandHandler.ts`
+- ⏳ `webhooks/WebhookManager.ts`
+- ⏳ `handlers/MessageHandler.ts` - Large, may need refactoring
+- ⏳ `utils/deployCommands.ts`
+- ⏳ `gateway/GatewayClient.ts`
 
 ---
 
