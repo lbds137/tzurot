@@ -69,7 +69,7 @@ export class MessageHandler {
 
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
-        const mentionCheck = await findPersonalityMention(message.content, '@', this.personalityService);
+        const mentionCheck = await findPersonalityMention(message.content, getConfig().BOT_MENTION_CHAR, this.personalityService);
         const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
 
         if (!isReply && !hasMention) {
@@ -91,7 +91,7 @@ export class MessageHandler {
       }
 
       // Check for personality mentions (e.g., "@personality hello")
-      const mentionMatch = await findPersonalityMention(message.content, '@', this.personalityService);
+      const mentionMatch = await findPersonalityMention(message.content, getConfig().BOT_MENTION_CHAR, this.personalityService);
 
       if (mentionMatch !== null) {
         // Load personality from database (with PersonalityService's cache)
