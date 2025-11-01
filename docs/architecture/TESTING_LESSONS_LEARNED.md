@@ -446,6 +446,325 @@ class MessageHandler {
 
 ---
 
+## Discord.js Mock Architecture Evolution (2025-11-01)
+
+### The Journey from Complex to Pragmatic
+
+**Context:** First major mock infrastructure implementation for V3. Discord.js is notoriously difficult to mock due to extensive readonly properties, type predicates, and complex union types.
+
+**Key Participants:**
+- Claude Code (implementation)
+- Gemini (architectural consultation via MCP, 3 consultations)
+- User (pragmatic decision-making)
+
+### Iteration 1: vitest-mock-extended ❌
+
+**Approach:** Use vitest-mock-extended for automatic deep mocking
+
+```typescript
+import { mock } from 'vitest-mock-extended';
+
+const mockUser = mock<User>();
+mockUser.username = 'TestUser'; // Error: readonly property!
+```
+
+**Problem:** Discord.js has extensive readonly properties. vitest-mock-extended creates readonly mocks, requiring `Object.defineProperty` for every field.
+
+**Consultation:** Asked Gemini for alternatives.
+
+**Result:** Abandoned after implementation attempt. Too verbose, doesn't solve readonly issue.
+
+**Time Spent:** ~30 minutes
+
+---
+
+### Iteration 2: Mockable<T> Utility Type ❌
+
+**Approach:** Create utility type to remove readonly modifiers
+
+**Gemini Recommendation:** Use `Mockable<T>` pattern:
+```typescript
+type Mockable<T> = {
+  -readonly [P in keyof T]?: T[P];
+};
+
+export function createMockUser(overrides: Mockable<User> = {}): User {
+  const mockUser: Mockable<User> = {
+    id: '123',
+    username: 'Test',
+    ...overrides,
+  };
+  return mockUser as User;
+}
+```
+
+**Benefits:**
+- Removes readonly modifiers
+- Makes all properties optional
+- Provides autocomplete during mock construction
+- TypeScript validates structure
+
+**Problem:** Object.prototype method conflicts!
+
+```typescript
+// Test code
+createMockUser({ id: 'foo' })
+// Error: { id: string } has toString(): string
+// but User has toString(): `<@${string}>`
+```
+
+**Result:** Tests pass, TypeScript build fails on mock internals and test files (23+ errors).
+
+**Time Spent:** ~2 hours
+
+---
+
+### Iteration 3: MockData<T> with Function/Non-Function Split ❌
+
+**Approach:** Split properties into data and functions to avoid Object.prototype conflicts
+
+**Gemini Recommendation:** Use sophisticated type splitting:
+```typescript
+type NonFunctionKeys<T> = {
+  [K in keyof T]: T[K] extends Function ? never : K;
+}[keyof T];
+
+type FunctionKeys<T> = {
+  [K in keyof T]: T[K] extends Function ? K : never;
+}[keyof T];
+
+type MockData<T> = Partial<Pick<T, NonFunctionKeys<T>>> &
+                   Partial<Pick<T, FunctionKeys<T>>>;
+```
+
+**Benefits:**
+- Separates data properties from methods
+- Should prevent Object.prototype conflicts
+- Maintains autocomplete
+
+**Problems:**
+1. `vi.fn()` returns `Mock<>` which doesn't match type predicate signatures
+2. Template literal return types still conflict
+3. Typed constants required for default values: `const x: MockData<T> = {};`
+4. Still complex, still getting build errors
+
+**Attempted Fix:** Use type assertions `{} as MockData<T>` for defaults
+
+**Result:** Still 23 build errors. Growing complexity, diminishing returns.
+
+**Time Spent:** ~2 hours
+
+---
+
+### Iteration 4: Pragmatic Factory Pattern ✅
+
+**Trigger:** User asked for Gemini consultation on best path forward.
+
+**Gemini's Critical Insight:**
+> "Your tests are passing. This is your ground truth. The TypeScript errors are about the mock's internal structure, not about whether your production code is using the dependency correctly."
+
+**Recommendation:** Strategic combination of approaches:
+1. **Plain arrow functions** for methods you don't spy on
+2. **vi.fn() + @ts-expect-error** for methods you need to spy on
+3. **Partial<T>** for overrides (simple!)
+4. **as unknown as T** for final assertion (honest!)
+
+**Implementation:**
+
+```typescript
+/**
+ * Create a mock Discord User
+ */
+export function createMockUser(overrides: Partial<User> = {}): User {
+  const id = overrides.id ?? '123456789012345678';
+
+  const defaults = {
+    id,
+    username: 'TestUser',
+    discriminator: '0',
+    globalName: 'Test User',
+    bot: false,
+    system: false,
+    tag: 'TestUser#0',
+    // Plain arrow function - we don't need to spy on toString()
+    toString: () => `<@${id}>`,
+  } as Partial<User>;
+
+  return { ...defaults, ...overrides } as unknown as User;
+}
+
+/**
+ * Create a mock Discord Text Channel
+ */
+export function createMockTextChannel(overrides: Partial<TextChannel> = {}): TextChannel {
+  const id = overrides.id ?? '444444444444444444';
+
+  const defaults = {
+    id,
+    name: 'general',
+    type: ChannelType.GuildText,
+    guild: createMockGuild(),
+    parent: null,
+    // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+    isThread: vi.fn(() => false),
+    // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+    isTextBased: vi.fn(() => true),
+    send: vi.fn().mockResolvedValue(null),
+    // Plain arrow functions - we don't need to spy on these
+    toString: () => `<#${id}>`,
+    valueOf: () => id,
+  } as Partial<TextChannel>;
+
+  return { ...defaults, ...overrides } as unknown as TextChannel;
+}
+```
+
+**Key Decisions:**
+
+1. **Ask: "Do I need to spy on this method?"**
+   - **NO:** Plain arrow function (type-safe, simple)
+   - **YES:** `vi.fn()` + `@ts-expect-error` (pragmatic)
+
+2. **Use `@ts-expect-error` strategically:**
+   - Only for unavoidable cases (type predicates, vi.fn() limitations)
+   - Always with explanatory comment
+   - Self-healing: fails if error disappears
+
+3. **Accept `as unknown as T`:**
+   - Honest about what we're doing
+   - Mocks are "good enough" for tests
+   - Tests are the safety net
+
+**Results:**
+- ✅ **39 tests passing** (22 personalityMentionParser, 17 discordContext)
+- ✅ **TypeScript build passes**
+- ✅ **Pre-commit hooks pass**
+- ✅ **Much simpler code** (~300 lines vs complex type gymnastics)
+- ✅ **Easy to understand and maintain**
+
+**Time Spent:** ~1 hour
+
+**Total Time:** ~5.5 hours from start to working solution
+
+---
+
+### Post-Mortem Analysis
+
+#### What We Learned
+
+**1. Perfect Type Safety in Mocks is a Fool's Errand**
+
+Discord.js (and similar complex libraries) have:
+- Readonly properties
+- Type predicates (`this is Type`)
+- Template literal return types (`` `<@${string}>` ``)
+- Deep union types
+- Object.prototype method specializations
+
+Attempting to satisfy all of these with generic types leads to:
+- Diminishing returns
+- Brittle, complex code
+- Hard-to-understand type errors
+- Fighting the type system instead of shipping features
+
+**2. Tests Passing > TypeScript Perfection**
+
+The pragmatic approach acknowledges:
+- Mocks only need to be "good enough" for tests
+- Runtime behavior is what matters
+- Type safety is valuable WHERE IT HELPS
+- But not valuable WHERE IT BLOCKS
+
+**3. Gemini's Value: Breaking Analysis Paralysis**
+
+Three consultations provided:
+1. **Mockable<T> pattern** - Better than vitest-mock-extended
+2. **MockData<T> pattern** - More sophisticated, but still complex
+3. **Pragmatic pattern** - Simple, maintainable, ships
+
+Without consultation #3, we might have spent another 2-4 hours chasing perfect types.
+
+**4. @ts-expect-error is a Tool, Not a Failure**
+
+V2 taught us that `as any` defeats TypeScript's purpose.
+
+But `@ts-expect-error` with clear comments is DIFFERENT:
+- Documents WHY the error is expected
+- Self-healing (fails if error disappears)
+- Explicit, intentional, searchable
+- Used strategically, not everywhere
+
+**5. Simple Beats Complex**
+
+```typescript
+// Complex (Iteration 3): 72 lines of type gymnastics
+type NonFunctionKeys<T> = ...
+type FunctionKeys<T> = ...
+type MockData<T> = ...
+const defaultUserOverrides: MockData<User> = {};
+export function createMockUser(overrides: MockData<User> = defaultUserOverrides): User { ... }
+
+// Pragmatic (Iteration 4): Clear, simple, works
+export function createMockUser(overrides: Partial<User> = {}): User {
+  const defaults = { /* sensible defaults */ } as Partial<User>;
+  return { ...defaults, ...overrides } as unknown as User;
+}
+```
+
+The pragmatic version:
+- Easier to read
+- Easier to debug
+- Easier to extend
+- WORKS
+
+#### Principles Extracted
+
+**1. "Good Enough" is Good Enough**
+
+For mocks, perfection is the enemy of progress. Mocks serve tests. If tests pass and provide value, the mock is sufficient.
+
+**2. Use the Right Tool for the Job**
+
+- Plain functions: For simple value returns
+- `vi.fn()`: For spies and complex behavior
+- `@ts-expect-error`: For unavoidable type system limits
+- `as unknown as`: For honest type assertions
+
+**3. Consult Early, Consult Often**
+
+Gemini consultation saved ~2-4 hours by:
+- Validating approaches before investing heavily
+- Providing alternative patterns
+- Breaking analysis paralysis with pragmatic advice
+
+**4. Listen to the Tests**
+
+If tests pass but TypeScript complains about mock internals, the tests are right. Mock internals don't matter to production code.
+
+#### Documentation for Future
+
+**When mocking complex external libraries:**
+
+1. **Start simple:** Try `Partial<T>` + `as unknown as`
+2. **Add complexity ONLY if needed:** Don't over-engineer upfront
+3. **Ask yourself:** "Do I need to spy on this?"
+   - No → Plain function
+   - Yes → `vi.fn()` + `@ts-expect-error` if needed
+4. **Consult Gemini** if stuck for > 30 minutes
+5. **Ship when tests pass** - don't chase TypeScript perfection
+
+**Red flags that you've over-engineered:**
+
+- [ ] More than 50 lines of utility types
+- [ ] Conditional types with 3+ branches
+- [ ] Type errors you don't understand
+- [ ] Spending >1 hour on type gymnastics
+- [ ] Tests pass but build fails on mock code
+
+**When you see these, STOP and consult.**
+
+---
+
 ## Summary
 
 **V2 taught us:**
