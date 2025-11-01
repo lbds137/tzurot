@@ -248,7 +248,8 @@ describe('personalityMentionParser', () => {
 
   describe('Resource Exhaustion Protection', () => {
     it('should handle excessive mentions gracefully', async () => {
-      // Create message with > MAX_POTENTIAL_MENTIONS (10)
+      // Create message with 15 mentions (> MAX_POTENTIAL_MENTIONS which is 10)
+      // The parser internally limits to 10 mentions for performance
       const excessiveMentions = Array(15)
         .fill('@Lilith')
         .join(' ');
@@ -259,7 +260,7 @@ describe('personalityMentionParser', () => {
         mockPersonalityService
       );
 
-      // Should still work (just truncates internally)
+      // Should still work (parser truncates to first 10 mentions internally)
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
     });
