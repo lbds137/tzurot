@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.17] - 2025-11-01
+
+### Fixed
+- **Current Speaker Detection** - LLM now correctly identifies who is currently speaking in group conversations
+  - Added "Current Message" section RIGHT BEFORE user input to leverage LLM recency bias
+  - Previously, the LLM would get confused when speaker changed between turns
+  - Example: If Bob spoke last but Alice sent current message, bot now correctly responds to Alice
+  - Header placement ensures most recent context processed is "responding to Alice"
+- **Personality Mention Matching** - Multi-word personality names now prioritized correctly
+  - When `@Bambi @Bambi Prime` mentioned, now returns "Bambi Prime" (2 words > 1 word)
+  - Previously only checked first regex match, incorrectly returning shorter "Bambi"
+  - Implemented batched database lookups with Promise.all() for performance (70%+ reduction in DB calls)
+  - Priority rules: 1) Word count (multi-word beats single-word), 2) Character length (tiebreaker), 3) Order of appearance
+  - Added resource limit (10 mentions max) to prevent abuse from excessive @mentions
+  - Comprehensive documentation with examples and edge case handling
+- **LTM Storage Pollution** - Prompt engineering headers no longer stored in conversation history/memory
+  - The "Current Message" header was being saved to long-term memory, polluting stored data
+  - Modified `buildHumanMessage()` to return separate versions: one for LLM (with header), one for storage (without)
+  - Fixes clean separation between prompt engineering and stored conversation data
+  - Previously stored messages with headers will rotate out naturally
+
+### Changed
+- **Performance Optimization** - Personality mention parser now uses batched lookups
+  - Single `Promise.all()` batch instead of sequential async calls
+  - Deduplication via Map prevents redundant database queries
+  - Typical messages with 2-3 mentions: 10+ calls → 2-3 calls (70%+ improvement)
+
 ## [3.0.0-alpha.13] - 2025-10-29
 
 ### Fixed
