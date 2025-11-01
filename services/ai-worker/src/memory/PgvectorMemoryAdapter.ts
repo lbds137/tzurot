@@ -3,7 +3,7 @@
  * PostgreSQL + pgvector adapter for memory retrieval and storage
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
@@ -16,6 +16,22 @@ export interface MemoryQueryOptions {
   personalityId?: string; // Optional: filter to specific personality within persona
   sessionId?: string;
   limit?: number;
+  /**
+   * Minimum cosine similarity score (0-1 range, where 1 = identical vectors)
+   * Default: 0.85 (returns only highly similar memories)
+   *
+   * This represents a MINIMUM similarity threshold - only memories with
+   * similarity >= this value will be returned.
+   *
+   * Internally converted to pgvector distance using: distance < (1 - similarity)
+   * - pgvector cosine distance range: 0-2 (0=identical, 1=orthogonal, 2=opposite)
+   * - For normalized embeddings, practically 0-1
+   *
+   * Examples:
+   * - 0.85 (default) → distance < 0.15 → highly similar memories only
+   * - 0.70 → distance < 0.30 → moderately similar memories
+   * - 0.50 → distance < 0.50 → loosely related memories
+   */
   scoreThreshold?: number;
   excludeNewerThan?: number; // Unix timestamp - exclude memories created after this time
 }
@@ -70,7 +86,7 @@ export class PgvectorMemoryAdapter {
       apiKey: process.env.OPENAI_API_KEY,
     });
     this.embeddingModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
-    logger.info('Pgvector Memory Adapter initialized');
+    logger.info({ embeddingModel: this.embeddingModel }, 'Pgvector Memory Adapter initialized');
   }
 
   /**
@@ -88,46 +104,48 @@ export class PgvectorMemoryAdapter {
       });
       const queryEmbedding = embeddingResponse.data[0].embedding;
 
-      // Build WHERE clauses
-      const whereConditions: string[] = ['persona_id = $2::uuid'];
-      const params: any[] = [`[${queryEmbedding.join(',')}]`, options.personaId];
-      let paramCount = 2;
+      // Format embedding as PostgreSQL vector
+      const embeddingVector = `[${queryEmbedding.join(',')}]`;
+
+      // Build query with vector similarity search
+      const limit = options.limit || 10;
+      // scoreThreshold is MINIMUM similarity (0-1 range)
+      // Default 0.85 = only show highly similar memories
+      const minSimilarity = options.scoreThreshold || 0.85;
+
+      // pgvector distance: 0 = identical, 2 = opposite (practically 0-1 for normalized embeddings)
+      // Cosine Distance = 1 - Cosine Similarity
+      // If we want similarity > 0.85, we need distance < (1 - 0.85) = 0.15
+      const maxDistance = 1 - minSimilarity;
+
+      // Build WHERE conditions using Prisma.sql for safe parameterization
+      const whereConditions: Prisma.Sql[] = [
+        Prisma.sql`m.persona_id = ${options.personaId}::uuid`
+      ];
 
       // Optional personality filter
       if (options.personalityId) {
-        paramCount++;
-        whereConditions.push(`personality_id = $${paramCount}::uuid`);
-        params.push(options.personalityId);
+        whereConditions.push(Prisma.sql`m.personality_id = ${options.personalityId}::uuid`);
       }
 
       // Exclude newer memories (for conversation history overlap prevention)
       if (options.excludeNewerThan) {
-        paramCount++;
         // excludeNewerThan is already in milliseconds - don't multiply by 1000
-        const excludeDate = new Date(options.excludeNewerThan);
-        whereConditions.push(`created_at < $${paramCount}::timestamptz`);
-        params.push(excludeDate.toISOString());
+        const excludeDate = new Date(options.excludeNewerThan).toISOString();
+        whereConditions.push(Prisma.sql`m.created_at < ${excludeDate}::timestamptz`);
       }
 
-      // Build query with vector similarity search
-      const limit = options.limit || 10;
-      const scoreThreshold = options.scoreThreshold || 0.15;
+      // Join WHERE conditions with AND
+      const whereClause = Prisma.join(whereConditions, ' AND ');
 
-      const whereClause = whereConditions.join(' AND ');
-
-      // pgvector distance: 0 = identical, higher = less similar
-      // We want distance < threshold (converted from similarity)
-      // Similarity 0.15 means distance should be < (1 - 0.15) = 0.85
-      const distanceThreshold = 1 - scoreThreshold;
-
-      paramCount++;
-      const sql = `
+      // Build complete query using Prisma.sql (safe from SQL injection)
+      const sqlQuery = Prisma.sql`
         SELECT
           m.id,
           m.persona_id,
           m.personality_id,
           m.content,
-          m.embedding <=> $1::vector AS distance,
+          m.embedding <=> ${Prisma.raw(embeddingVector)}::vector AS distance,
           m.session_id,
           m.canon_scope,
           m.summary_type,
@@ -141,23 +159,21 @@ export class PgvectorMemoryAdapter {
         FROM memories m
         JOIN personas persona ON m.persona_id = persona.id
         JOIN personalities personality ON m.personality_id = personality.id
-        WHERE ${whereClause.replace(/persona_id/g, 'm.persona_id').replace(/personality_id/g, 'm.personality_id').replace(/created_at/g, 'm.created_at')}
-          AND m.embedding <=> $1::vector < $${paramCount}
+        WHERE ${whereClause}
+          AND m.embedding <=> ${Prisma.raw(embeddingVector)}::vector < ${maxDistance}
         ORDER BY distance ASC
         LIMIT ${limit}
       `;
-
-      params.push(distanceThreshold);
 
       logger.debug({
         personaId: options.personaId,
         personalityId: options.personalityId,
         limit,
-        scoreThreshold,
-        distanceThreshold
+        minSimilarity,
+        maxDistance
       }, 'Querying memories with pgvector');
 
-      const memories = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
+      const memories = await this.prisma.$queryRaw<any[]>(sqlQuery);
 
       // Convert to MemoryDocument format and inject persona/personality names
       const documents: MemoryDocument[] = memories.map(memory => {

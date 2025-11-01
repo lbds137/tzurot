@@ -48,6 +48,12 @@ const config = {
  */
 async function main(): Promise<void> {
   logger.info('[AIWorker] Starting AI Worker service...');
+
+  // Validate AI worker-specific required environment variables
+  if (!envConfig.OPENAI_API_KEY) {
+    logger.fatal('OPENAI_API_KEY environment variable is required for memory embeddings');
+    process.exit(1);
+  }
   logger.info({
     redis: {
       host: config.redis.host,
