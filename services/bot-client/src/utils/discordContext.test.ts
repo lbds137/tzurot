@@ -3,11 +3,14 @@
  *
  * Tests the extraction and formatting of Discord environment context
  *
- * Note: Test override object literals trigger TypeScript errors due to Object.prototype methods.
- * These don't affect runtime behavior. Tests pass successfully (17 tests).
+ * **Why @ts-nocheck**: Test override object literals (like `{ id: '123', name: 'foo' }`)
+ * inherit Object.prototype methods (toString, valueOf) that conflict with Discord.js's
+ * specialized type signatures. Adding @ts-expect-error to every mock factory call
+ * (20+ locations) creates noise without value. The mock factories handle this correctly
+ * at runtime with `as unknown as T`. Tests validate the behavior (17 passing tests).
  */
 
-// @ts-nocheck - Test override literals have Object.prototype method conflicts that don't affect runtime
+// @ts-nocheck - Object.prototype conflicts in test literals (see comment above)
 import { describe, it, expect } from 'vitest';
 import { ChannelType } from 'discord.js';
 import { extractDiscordEnvironment, formatEnvironmentForPrompt } from './discordContext.js';
