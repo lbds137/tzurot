@@ -10,6 +10,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest",
+    "test:watch": "vitest --watch",
     "lint": "eslint src",
     "deploy-commands": "tsx scripts/deploy-commands.ts",
     "deploy-commands:railway": "railway run --service bot-client pnpm deploy-commands"
