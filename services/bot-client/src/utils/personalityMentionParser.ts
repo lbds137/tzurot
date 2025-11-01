@@ -19,11 +19,21 @@ export interface PersonalityMentionResult {
 /**
  * Find the best matching personality mention in a message
  *
+ * **Behavior: Longest Match Wins**
  * When multiple personalities are mentioned (e.g., "@Bambi @Bambi Prime"),
  * returns the LONGEST valid personality match to handle overlapping names.
+ * Only ONE personality is returned - multi-personality responses are not yet supported.
+ *
+ * **Examples:**
+ * - "@Bambi @Bambi Prime" → Returns "Bambi Prime" (12 chars > 5 chars)
+ * - "@Lilith @Sarcastic" → Returns "Sarcastic" (9 chars > 6 chars)
+ * - "@Unknown @Lilith" → Returns "Lilith" (ignores unknown personalities)
+ *
+ * **Discord User Filtering:**
+ * Ignores numeric-only mentions (Discord user IDs like <@123456789>)
  *
  * @param content - The message content to search
- * @param mentionChar - The character used for mentions (usually '@')
+ * @param mentionChar - The character used for mentions (from BOT_MENTION_CHAR config)
  * @param personalityService - Service to validate personality names
  * @returns The best matching personality and cleaned content, or null if none found
  */
@@ -107,6 +117,7 @@ async function findMultiWordMention(
 /**
  * Find single-word personality mentions
  * Fallback when multi-word matching finds nothing
+ * Checks ALL matches and returns the longest valid personality
  */
 async function findSingleWordMention(
   content: string,
@@ -124,21 +135,32 @@ async function findSingleWordMention(
     return null;
   }
 
-  const fullMatch = matches[0];
-  const personalityName = fullMatch
-    .replace(new RegExp(`^${escapedChar}`), '')
-    .replace(/[.,!?;:)"']+$/g, '')
-    .trim();
+  // Check ALL matches and return the longest valid personality
+  let longestMatch: PersonalityMentionResult | null = null;
+  let longestMatchLength = 0;
 
-  const personality = await personalityService.loadPersonality(personalityName);
-  if (personality) {
-    const matchRegex = new RegExp(
-      `${escapedChar}${personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
-      'gi'
-    );
-    const cleanContent = content.replace(matchRegex, '').trim();
-    return { personalityName, cleanContent };
+  for (const fullMatch of matches) {
+    const personalityName = fullMatch
+      .replace(new RegExp(`^${escapedChar}`), '')
+      .replace(/[.,!?;:)"']+$/g, '')
+      .trim();
+
+    // Ignore Discord user ID mentions (all digits)
+    if (/^\d+$/.test(personalityName)) {
+      continue;
+    }
+
+    const personality = await personalityService.loadPersonality(personalityName);
+    if (personality && personalityName.length > longestMatchLength) {
+      const matchRegex = new RegExp(
+        `${escapedChar}${personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
+        'gi'
+      );
+      const cleanContent = content.replace(matchRegex, '').trim();
+      longestMatch = { personalityName, cleanContent };
+      longestMatchLength = personalityName.length;
+    }
   }
 
-  return null;
+  return longestMatch;
 }
