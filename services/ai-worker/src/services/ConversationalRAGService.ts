@@ -309,7 +309,7 @@ export class ConversationalRAGService {
       }
 
       // Build human message with attachment descriptions (already processed earlier)
-      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments);
+      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments, context.activePersonaName);
       messages.push(humanMessage);
 
       // DEBUG: Log current message to verify it's not duplicating history
@@ -413,36 +413,45 @@ export class ConversationalRAGService {
    */
   private async buildHumanMessage(
     userMessage: string,
-    processedAttachments: ProcessedAttachment[]
+    processedAttachments: ProcessedAttachment[],
+    activePersonaName?: string
   ): Promise<HumanMessage> {
-    if (processedAttachments.length === 0) {
-      return new HumanMessage(userMessage);
+    // Build the message content
+    let messageContent = userMessage;
+
+    if (processedAttachments.length > 0) {
+      // Get text descriptions for all attachments
+      const descriptions = processedAttachments
+        .map(a => a.description)
+        .filter(d => d && !d.startsWith('['))
+        .join('\n\n');
+
+      // For voice-only messages (no text), use transcription as primary message
+      // For images or mixed content, combine with user message
+      messageContent = userMessage.trim() === 'Hello' && descriptions
+        ? descriptions // Voice message with no text content
+        : userMessage.trim()
+        ? `${userMessage}\n\n${descriptions}` // Text + attachments
+        : descriptions; // Attachments only
+
+      logger.info(
+        {
+          attachmentCount: processedAttachments.length,
+          hasUserText: userMessage.trim().length > 0 && userMessage !== 'Hello',
+          attachmentTypes: processedAttachments.map(a => a.type),
+        },
+        'Built message with attachment descriptions'
+      );
     }
 
-    // Get text descriptions for all attachments
-    const descriptions = processedAttachments
-      .map(a => a.description)
-      .filter(d => d && !d.startsWith('['))
-      .join('\n\n');
+    // Add "Current Message" section to clarify who is speaking
+    // This leverages recency bias - the LLM processes this RIGHT BEFORE the message
+    if (activePersonaName) {
+      const currentMessageHeader = `---\n## Current Message\nYou are now responding to: **${activePersonaName}**\n\n`;
+      messageContent = currentMessageHeader + messageContent;
+    }
 
-    // For voice-only messages (no text), use transcription as primary message
-    // For images or mixed content, combine with user message
-    const fullText = userMessage.trim() === 'Hello' && descriptions
-      ? descriptions // Voice message with no text content
-      : userMessage.trim()
-      ? `${userMessage}\n\n${descriptions}` // Text + attachments
-      : descriptions; // Attachments only
-
-    logger.info(
-      {
-        attachmentCount: processedAttachments.length,
-        hasUserText: userMessage.trim().length > 0 && userMessage !== 'Hello',
-        attachmentTypes: processedAttachments.map(a => a.type),
-      },
-      'Built message with attachment descriptions'
-    );
-
-    return new HumanMessage(fullText);
+    return new HumanMessage(messageContent);
   }
 
   /**
@@ -470,9 +479,9 @@ export class ConversationalRAGService {
     if (participantPersonas.size > 0) {
       const participantsList: string[] = [];
 
-      for (const [personaName, { content, isActive }] of participantPersonas.entries()) {
-        const activeIndicator = isActive ? ' **(CURRENT SPEAKER)**' : '';
-        participantsList.push(`### ${personaName}${activeIndicator}\n${content}`);
+      for (const [personaName, { content }] of participantPersonas.entries()) {
+        // No "current speaker" marker here - we'll clarify that right before the current message
+        participantsList.push(`### ${personaName}\n${content}`);
       }
 
       const pluralNote = participantPersonas.size > 1
