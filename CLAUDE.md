@@ -349,15 +349,27 @@ Planned: Vitest for unit tests, integration tests for service communication
 
 ## Security
 
-### Never Commit
-- API keys or tokens
+### 🚨 NEVER COMMIT THESE - CRITICAL SECURITY VIOLATIONS
+
+**Database Connection Strings**:
+- **NEVER** commit PostgreSQL URLs (format: `postgresql://user:PASSWORD@host:port/db`)
+- **NEVER** commit Redis URLs (format: `redis://user:PASSWORD@host:port`)
+- **NEVER** commit Qdrant URLs with API keys
+- Database URLs contain passwords - committing them = immediate secret rotation required
+- **ALWAYS** use environment variables or Railway secrets for connection strings
+- **ALWAYS** use placeholders like `DATABASE_URL="your-database-url-here"` in examples
+
+**Other Secrets**:
+- API keys or tokens (Discord, OpenRouter, Gemini, OpenAI)
 - Real user data in test files
 - `.env` files (use `.env.example`)
+- Any credential or authentication token
 
 ### Always Use
-- Environment variables for secrets
+- Environment variables for all secrets
 - Railway's secrets management
 - Privacy-conscious logging (no PII)
+- Placeholders in documentation and examples
 
 ## Lessons Learned (v2 → v3)
 
@@ -368,6 +380,17 @@ Planned: Vitest for unit tests, integration tests for service communication
 - ALWAYS run tests before pushing (even for "simple" changes)
 - If tests don't exist, manually test the feature
 - Never assume simple refactors don't need testing
+
+### 2025-10-31 - Database URL Committed to Git History
+**What Happened**: Committed PostgreSQL database URL (with password) to git history, requiring immediate secret rotation.
+
+**Prevention**:
+- **NEVER** commit database URLs - they contain passwords
+- **NEVER** commit connection strings for PostgreSQL, Redis, Qdrant, etc.
+- **ALWAYS** use environment variables or placeholders in scripts
+- **ALWAYS** review commits for credentials before pushing
+- Database URL format contains password: `postgresql://user:PASSWORD@host:port/db`
+- Even in bash command examples, use `$DATABASE_URL` not raw URLs
 
 ### 2025-07-21 - The Git Restore Catastrophe
 **What Happened**: Ran `git restore .` thinking it would "get changes from branch" but it DESTROYED hours of uncommitted work.
