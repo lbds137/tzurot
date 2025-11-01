@@ -2,41 +2,51 @@
 
 > Last updated: 2025-11-01
 
-## Status: Planning Next Features (Post Bug Fix Release)
+## Status: Building Test Infrastructure Foundation
 
-**Current Phase**: Awaiting bug fix merge/release, then tackling heavier feature work
+**Current Phase**: Establishing comprehensive testing framework for v3
 
-**Recent Bug Fixes** (pending merge):
-- PR #192: Fixed current speaker detection (merged)
-- PR #193: Fixed personality mention longest match (pending review)
-- Both will be released as v3.0.0-alpha.17 after testing in dev
+**Recent Completion**:
+- ✅ PR #192, #193, #194 merged and released as v3.0.0-alpha.17
+- ✅ All three bug fixes deployed to production
+- ✅ Unit testing infrastructure established
 
 ## Planned Features (Priority Order)
 
-### 1. Unit Testing Strategy 🧪
+### 1. Unit Testing Infrastructure 🧪✨
 **Priority**: High - Foundation for quality
-**Status**: Planning phase
+**Status**: **Active Development** (Branch: `feat/unit-test-infrastructure`)
 
-**Goal**: Establish proper unit testing for v3 to prevent regressions
+**Completed**:
+- ✅ Vitest configuration (root + service-specific)
+- ✅ Type-safe mock factory pattern
+- ✅ Example tests for personality mention parser (22 tests, all passing)
+- ✅ Testing guidelines documentation
+- ✅ V2 lessons learned analysis
+- ✅ Gemini code review integration
 
-**Key Requirements**:
-- Avoid v2's code duplication issues
-- Test behavior, not implementation
-- Mock external dependencies (database, APIs, Discord)
-- Use fake timers for delays
-- Keep tests simple and readable
+**Architecture Highlights**:
+- Co-located tests (`.test.ts` next to source)
+- Type-safe mocks (no `as any` - compiler-enforced)
+- Built-in fake timers (Vitest)
+- Explicit mock factories (not magic presets)
+- Integration-focused test strategy
 
-**Scope**:
-- Design testing approach and patterns
-- Choose testing utilities and helpers
-- Add coverage for critical paths:
-  - Personality mention parsing
-  - Message handling flow
-  - Conversation history management
-  - Memory retrieval
-  - AI provider integration
+**Current Work**:
+- Adding more utility test coverage
+- Creating Discord.js mock factories
+- Setting up integration test patterns
 
-**Framework**: Vitest (already configured)
+**Key Files**:
+- `docs/guides/TESTING.md` - Complete testing guide
+- `docs/architecture/TESTING_LESSONS_LEARNED.md` - V2 → V3 migration insights
+- `services/bot-client/src/test/mocks/` - Type-safe mock factories
+
+**Next Steps**:
+1. Add Discord.js mock factories
+2. Create integration test examples
+3. Add tests for MessageHandler
+4. Expand coverage to other utilities
 
 ---
 
