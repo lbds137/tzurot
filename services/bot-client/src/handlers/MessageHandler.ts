@@ -14,6 +14,7 @@ import type { LoadedPersonality } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
+import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -68,7 +69,7 @@ export class MessageHandler {
 
         // Check if this message ALSO targets a personality
         const isReply = message.reference !== null;
-        const mentionCheck = await this.findPersonalityMention(message.content);
+        const mentionCheck = await findPersonalityMention(message.content, '@', this.personalityService);
         const hasMention = mentionCheck !== null || message.mentions.has(message.client.user!);
 
         if (!isReply && !hasMention) {
@@ -90,7 +91,7 @@ export class MessageHandler {
       }
 
       // Check for personality mentions (e.g., "@personality hello")
-      const mentionMatch = await this.findPersonalityMention(message.content);
+      const mentionMatch = await findPersonalityMention(message.content, '@', this.personalityService);
 
       if (mentionMatch !== null) {
         // Load personality from database (with PersonalityService's cache)
@@ -407,95 +408,6 @@ export class MessageHandler {
     }
   }
 
-  /**
-   * Find personality mention in message content
-   * Supports multi-word names with spaces (e.g., @Angel Dust, @Bambi Prime)
-   * Uses BOT_MENTION_CHAR from config (@ for prod, & for dev)
-   */
-  private async findPersonalityMention(content: string): Promise<{ personalityName: string; cleanContent: string } | null> {
-    const config = getConfig();
-    const mentionChar = config.BOT_MENTION_CHAR;
-
-    // Escape special regex characters
-    const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-    // Try multi-word mentions FIRST (e.g., @Angel Dust, @Bambi Prime)
-    // This ensures "@Bambi Prime" matches "Bambi Prime" instead of just "Bambi"
-    // Capture up to 4 words after the mention char
-    const MAX_MENTION_WORDS = 4;
-    const multiWordRegex = new RegExp(
-      `${escapedChar}([^\\s${escapedChar}\\n]+(?:\\s+[^\\s${escapedChar}\\n]+){0,${MAX_MENTION_WORDS - 1}})`,
-      'gi'
-    );
-
-    const multiWordMatch = content.match(multiWordRegex);
-    if (multiWordMatch !== null) {
-      // Check ALL matches and return the LONGEST successful match
-      // This ensures "@Bambi Prime" is preferred over "@Bambi" when both are present
-      let longestMatch: { personalityName: string; cleanContent: string } | null = null;
-      let longestMatchLength = 0;
-
-      for (const fullMatch of multiWordMatch) {
-        const capturedText = fullMatch
-          .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
-          .replace(/[.,!?;:)"']+$/, ''); // Remove trailing punctuation
-
-        // Split into words and remove punctuation from each word
-        const words = capturedText.split(/\s+/).map(word => word.replace(/[.,!?;:)"']+$/g, ''));
-
-        // Try combinations from longest to shortest for this match
-        for (let wordCount = Math.min(MAX_MENTION_WORDS, words.length); wordCount >= 1; wordCount--) {
-          const potentialName = words.slice(0, wordCount).join(' ');
-
-          // Check if this personality exists
-          const personality = await this.personalityService.loadPersonality(potentialName);
-          if (personality && potentialName.length > longestMatchLength) {
-            // Found a longer match! Update our result
-            const matchRegex = new RegExp(
-              `${escapedChar}${potentialName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
-              'gi'
-            );
-            const cleanContent = content.replace(matchRegex, '').trim();
-            longestMatch = { personalityName: potentialName, cleanContent };
-            longestMatchLength = potentialName.length;
-            break; // Found a match for this captured text, move to next match
-          }
-        }
-      }
-
-      // Return the longest match found (if any)
-      if (longestMatch) {
-        return longestMatch;
-      }
-    }
-
-    // Fall back to single-word mentions (e.g., @Lilith, @Ha-Shem)
-    // Pattern: @name followed by punctuation, whitespace, or end of string
-    const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
-    let match = content.match(singleWordRegex);
-
-    if (match !== null) {
-      const fullMatch = match[0];
-      const personalityName = fullMatch
-        .replace(new RegExp(`^${escapedChar}`), '') // Remove mention char
-        .replace(/[.,!?;:)"'\s]+$/, ''); // Remove trailing punctuation/whitespace
-
-      // Ignore Discord user ID mentions (all digits)
-      if (/^\d+$/.test(personalityName)) {
-        logger.debug(`[MessageHandler] Ignoring Discord user ID mention: ${personalityName}`);
-        return null;
-      }
-
-      // Check if this personality exists
-      const personality = await this.personalityService.loadPersonality(personalityName);
-      if (personality) {
-        const cleanContent = content.replace(singleWordRegex, '').trim();
-        return { personalityName, cleanContent };
-      }
-    }
-
-    return null;
-  }
 
   /**
    * Handle voice message transcription
