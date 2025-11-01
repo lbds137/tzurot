@@ -107,6 +107,13 @@ const SYNC_CONFIG = {
     uuidColumns: ['id', 'persona_id', 'personality_id', 'legacy_shapes_user_id'],
     timestampColumns: ['created_at'],
   },
+  shapes_persona_mappings: {
+    pk: 'id',
+    createdAt: 'mapped_at',
+    // No updatedAt - mapping records are immutable once created
+    uuidColumns: ['id', 'shapes_user_id', 'persona_id', 'mapped_by'],
+    timestampColumns: ['mapped_at'],
+  },
   // Skip pending_memories - transient queue data, doesn't need syncing
 } as const;
 
