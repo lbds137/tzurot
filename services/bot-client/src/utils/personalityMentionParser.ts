@@ -14,6 +14,7 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
+const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from excessive @mentions
 
 export interface PersonalityMentionResult {
   personalityName: string;
@@ -35,6 +36,7 @@ interface PotentialMention {
  * **Priority Rules:**
  * 1. Word count (more words = higher priority)
  * 2. Character length (longer = higher priority, as tiebreaker)
+ * 3. Order of appearance (if tied on word count and length)
  *
  * **Examples:**
  * - "@Bambi @Bambi Prime" → Returns "Bambi Prime" (2 words > 1 word)
@@ -42,8 +44,16 @@ interface PotentialMention {
  * - "@Lilith @Sarcastic" → Returns "Sarcastic" (both 1 word, so 9 chars > 6 chars)
  * - "@Unknown @Lilith" → Returns "Lilith" (ignores unknown personalities)
  *
+ * **Duplicate Mention Behavior:**
+ * When the selected personality is mentioned multiple times, ALL occurrences are removed from cleanContent.
+ * - "@Bambi Prime @Bambi Prime, how are you?" → Returns "Bambi Prime" with cleanContent ", how are you?"
+ * This is intentional to avoid leaving redundant mentions in the message.
+ *
  * **Discord User Filtering:**
  * Ignores numeric-only mentions (Discord user IDs like <@123456789>)
+ *
+ * **Security:**
+ * Limits processing to MAX_POTENTIAL_MENTIONS (10) to prevent resource exhaustion attacks
  *
  * **Performance:**
  * Batches all personality lookups into a single Promise.all() to minimize database calls
@@ -75,6 +85,15 @@ export async function findPersonalityMention(
   if (potentialMentions.length === 0) {
     logger.debug('[PersonalityMentionParser] No potential mentions found');
     return null;
+  }
+
+  // Security: Limit number of mentions to prevent resource exhaustion
+  if (potentialMentions.length > MAX_POTENTIAL_MENTIONS) {
+    logger.warn(
+      { count: potentialMentions.length, limit: MAX_POTENTIAL_MENTIONS },
+      '[PersonalityMentionParser] Too many mentions, truncating to prevent abuse'
+    );
+    potentialMentions.length = MAX_POTENTIAL_MENTIONS;
   }
 
   logger.debug(
@@ -134,7 +153,35 @@ export async function findPersonalityMention(
 
 /**
  * Extract all potential personality mentions from message content
- * Deduplicates names to avoid redundant database lookups
+ *
+ * This function performs a two-pass extraction to find both multi-word and single-word
+ * personality mentions, then deduplicates them to minimize database lookups.
+ *
+ * **Extraction Strategy:**
+ * 1. **Multi-word pass**: Extracts mentions like "@Bambi Prime", "@Angel Dust"
+ *    - Tries all word combinations from longest to shortest (up to MAX_MENTION_WORDS)
+ *    - Example: "@Bambi Prime" generates candidates: "Bambi Prime", "Bambi"
+ * 2. **Single-word pass**: Extracts mentions like "@Lilith", "@Sarcastic"
+ *    - Filters out Discord user IDs (all-numeric mentions)
+ *    - Filters out empty/whitespace-only names
+ *
+ * **Deduplication:**
+ * Uses a Map to track unique personality names and their word counts.
+ * This prevents redundant database lookups for the same personality.
+ *
+ * **Example:**
+ * Input: "@Bambi @Bambi Prime @Lilith"
+ * Output: [
+ *   { name: "Bambi", wordCount: 1 },
+ *   { name: "Bambi Prime", wordCount: 2 },
+ *   { name: "Lilith", wordCount: 1 }
+ * ]
+ *
+ * @param content - The message content to parse
+ * @param escapedChar - The escaped mention character (e.g., "\\@")
+ * @param mentionCharRegex - Regex to match and remove the mention character
+ * @param trailingPunctuationRegex - Regex to remove trailing punctuation
+ * @returns Array of unique potential mentions with their word counts
  */
 function extractPotentialMentions(
   content: string,
