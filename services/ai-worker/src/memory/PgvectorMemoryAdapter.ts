@@ -153,35 +153,50 @@ export class PgvectorMemoryAdapter {
         whereConditions.push(Prisma.sql`m.created_at < ${excludeDate}::timestamptz`);
       }
 
-      // Join WHERE conditions with AND
+      // Build WHERE clause from conditions
       const whereClause = Prisma.join(whereConditions, ' AND ');
 
-      // Build complete query using Prisma.sql (safe from SQL injection)
-      const sqlQuery = Prisma.sql`
-        SELECT
-          m.id,
-          m.persona_id,
-          m.personality_id,
-          m.content,
-          m.embedding <=> ${Prisma.raw(embeddingVector)}::vector AS distance,
-          m.session_id,
-          m.canon_scope,
-          m.summary_type,
-          m.channel_id,
-          m.guild_id,
-          m.message_ids,
-          m.senders,
-          m.created_at,
-          persona.name as persona_name,
-          COALESCE(personality.display_name, personality.name) as personality_name
-        FROM memories m
-        JOIN personas persona ON m.persona_id = persona.id
-        JOIN personalities personality ON m.personality_id = personality.id
-        WHERE ${whereClause}
-          AND m.embedding <=> ${Prisma.raw(embeddingVector)}::vector < ${maxDistance}
-        ORDER BY distance ASC
-        LIMIT ${limit}
-      `;
+      // Build SQL query using Prisma.join() to safely combine parameterized and raw parts
+      // NOTE: The embedding vector must use Prisma.raw() because:
+      // 1. pgvector requires exact '[n,n,n,...]' format which can't be parameterized
+      // 2. embeddingVector is validated and constructed from numeric array only (safe)
+      // 3. Prisma.raw() cannot be nested in Prisma.sql, so we use Prisma.join() instead
+      const sqlQuery = Prisma.join(
+        [
+          Prisma.sql`
+            SELECT
+              m.id,
+              m.persona_id,
+              m.personality_id,
+              m.content,
+              m.embedding <=> `,
+          Prisma.raw(`'${embeddingVector}'::vector`),
+          Prisma.sql` AS distance,
+              m.session_id,
+              m.canon_scope,
+              m.summary_type,
+              m.channel_id,
+              m.guild_id,
+              m.message_ids,
+              m.senders,
+              m.created_at,
+              persona.name as persona_name,
+              COALESCE(personality.display_name, personality.name) as personality_name
+            FROM memories m
+            JOIN personas persona ON m.persona_id = persona.id
+            JOIN personalities personality ON m.personality_id = personality.id
+            WHERE `,
+          whereClause,
+          Prisma.sql`
+              AND m.embedding <=> `,
+          Prisma.raw(`'${embeddingVector}'::vector`),
+          Prisma.sql` < ${maxDistance}
+            ORDER BY distance ASC
+            LIMIT ${limit}
+          `,
+        ],
+        ''
+      );
 
       logger.debug({
         personaId: options.personaId,
