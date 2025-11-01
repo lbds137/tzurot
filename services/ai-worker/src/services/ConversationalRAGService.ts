@@ -309,7 +309,11 @@ export class ConversationalRAGService {
       }
 
       // Build human message with attachment descriptions (already processed earlier)
-      const humanMessage = await this.buildHumanMessage(userMessage, processedAttachments, context.activePersonaName);
+      const { message: humanMessage, contentForStorage } = await this.buildHumanMessage(
+        userMessage,
+        processedAttachments,
+        context.activePersonaName
+      );
       messages.push(humanMessage);
 
       // DEBUG: Log current message to verify it's not duplicating history
@@ -334,9 +338,9 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Generated ${content.length} chars for ${personality.name} using model: ${modelName}`);
 
       // 7. Store this interaction in memory (for future retrieval)
-      // Use the full message content (with attachment transcriptions/descriptions)
-      const fullUserContent = humanMessage.content.toString();
-      await this.storeInteraction(personality, fullUserContent, content, context);
+      // Use the content WITHOUT the prompt engineering header (contentForStorage)
+      // NOT the modified content with "Current Message" header (humanMessage.content)
+      await this.storeInteraction(personality, contentForStorage, content, context);
 
       // Extract attachment descriptions for history storage with context
       const attachmentDescriptions = processedAttachments.length > 0
@@ -416,7 +420,7 @@ export class ConversationalRAGService {
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
     activePersonaName?: string
-  ): Promise<HumanMessage> {
+  ): Promise<{ message: HumanMessage; contentForStorage: string }> {
     // Build the message content
     let messageContent = userMessage;
 
@@ -445,14 +449,22 @@ export class ConversationalRAGService {
       );
     }
 
+    // Capture content BEFORE adding prompt engineering header
+    // This is what should be stored in conversation history/memory
+    const contentForStorage = messageContent;
+
     // Add "Current Message" section to clarify who is speaking
     // This leverages recency bias - the LLM processes this RIGHT BEFORE the message
+    // NOTE: This header is ONLY for the LLM prompt, NOT for storage
     if (activePersonaName && messageContent.trim()) {
       const currentMessageHeader = `---\n## Current Message\nYou are now responding to: **${activePersonaName}**\n\n`;
       messageContent = currentMessageHeader + messageContent;
     }
 
-    return new HumanMessage(messageContent);
+    return {
+      message: new HumanMessage(messageContent),
+      contentForStorage,
+    };
   }
 
   /**
