@@ -315,7 +315,8 @@ export class ConversationalRAGService {
       // DEBUG: Log current message to verify it's not duplicating history
       if (config.NODE_ENV === 'development') {
         const currentContent = humanMessage.content.toString();
-        logger.debug(`[RAG] Current user message (${currentContent.length} chars): ${currentContent.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${currentContent.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
+        const hasSpeakerHeader = !!context.activePersonaName;
+        logger.debug(`[RAG] Current user message (${currentContent.length} chars, speaker header: ${hasSpeakerHeader}): ${currentContent.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${currentContent.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}`);
       }
 
       // 5. Get the appropriate model (provider determined by AI_PROVIDER env var)
@@ -446,7 +447,7 @@ export class ConversationalRAGService {
 
     // Add "Current Message" section to clarify who is speaking
     // This leverages recency bias - the LLM processes this RIGHT BEFORE the message
-    if (activePersonaName) {
+    if (activePersonaName && messageContent.trim()) {
       const currentMessageHeader = `---\n## Current Message\nYou are now responding to: **${activePersonaName}**\n\n`;
       messageContent = currentMessageHeader + messageContent;
     }
