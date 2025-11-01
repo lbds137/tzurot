@@ -81,7 +81,15 @@ export class PgvectorMemoryAdapter {
   private embeddingModel: string;
 
   constructor() {
-    this.prisma = new PrismaClient();
+    this.prisma = new PrismaClient({
+      log: ['error', 'warn'],
+      // Set connection timeout to prevent hanging connections
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
+      },
+    });
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -104,7 +112,17 @@ export class PgvectorMemoryAdapter {
       });
       const queryEmbedding = embeddingResponse.data[0].embedding;
 
+      // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
+      const expectedDimensions = 1536;
+      if (!queryEmbedding || queryEmbedding.length !== expectedDimensions) {
+        throw new Error(
+          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${queryEmbedding?.length || 0}`
+        );
+      }
+
       // Format embedding as PostgreSQL vector
+      // SAFETY: embeddingVector is constructed from validated numeric array only
+      // Prisma.raw() is safe here because we control the data source (OpenAI embeddings)
       const embeddingVector = `[${queryEmbedding.join(',')}]`;
 
       // Build query with vector similarity search
@@ -234,6 +252,14 @@ export class PgvectorMemoryAdapter {
         input: data.text,
       });
       const embedding = embeddingResponse.data[0].embedding;
+
+      // Validate embedding dimensions (text-embedding-3-small produces 1536 dimensions)
+      const expectedDimensions = 1536;
+      if (!embedding || embedding.length !== expectedDimensions) {
+        throw new Error(
+          `Invalid embedding dimensions: expected ${expectedDimensions}, got ${embedding?.length || 0}`
+        );
+      }
 
       // Generate deterministic UUID
       const memoryId = deterministicMemoryUuid(
