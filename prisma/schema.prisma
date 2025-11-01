@@ -214,6 +214,7 @@ model PendingMemory {
   @@index([personaId])
   @@index([personalityId])
   @@index([createdAt])
+  @@index([attempts, createdAt]) // For pending memory retry queries
   @@map("pending_memories")
 }
 
