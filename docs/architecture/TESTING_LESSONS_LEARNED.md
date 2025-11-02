@@ -1,6 +1,6 @@
 # Testing Lessons Learned: V2 → V3 Migration
 
-**Last Updated:** 2025-11-01
+**Last Updated:** 2025-11-02
 **Status:** Active guidance for v3 testing development
 
 > **Purpose:** Document what worked well in v2's testing architecture, what didn't, and how v3 improves upon it.
@@ -762,6 +762,218 @@ If tests pass but TypeScript complains about mock internals, the tests are right
 - [ ] Tests pass but build fails on mock code
 
 **When you see these, STOP and consult.**
+
+---
+
+## Testing Promise Rejections with Fake Timers (2025-11-02)
+
+### The Problem: PromiseRejectionHandledWarning
+
+**Context:** When implementing retry and timeout utilities (PR #206), all tests were passing but Vitest was showing `PromiseRejectionHandledWarning` messages.
+
+**Symptom:** Tests pass, but 4 unhandled promise rejection warnings appear:
+```
+(node:436282) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 6)
+```
+
+**Impact:** Despite tests passing, this indicates a potential issue with how promise rejections are being tested. In production code, unhandled rejections could crash Node.js.
+
+---
+
+### Root Cause Analysis
+
+**The Race Condition:**
+1. `const promise = withRetry(fn, { maxAttempts: 3 })` - Promise created (no handler yet)
+2. `await vi.runAllTimersAsync()` - Timers advance, causing promise to reject
+3. **Promise is rejected with NO .catch() handler attached** → Node.js issues warning
+4. `await expect(promise).rejects.toThrow()` - Handler attached too late
+
+**Why This Happens:**
+When `vi.runAllTimersAsync()` executes, it synchronously processes all scheduled timers. If your code uses timers to trigger rejections (e.g., retry exhaustion, timeouts), those rejections happen immediately during `runAllTimersAsync()`. At that exact moment, Node.js checks if the promise has a rejection handler. If not, it flags it as unhandled.
+
+---
+
+### Failed Attempts
+
+#### Attempt 1: try/catch with expect.assertions ❌
+```typescript
+it('should throw error', async () => {
+  expect.assertions(2);
+
+  try {
+    const promise = withRetry(fn, { maxAttempts: 3 });
+    await vi.runAllTimersAsync(); // ❌ Rejection happens here
+    await promise;
+  } catch (e: any) {
+    expect(e).toBeInstanceOf(RetryError);
+    expect(e.attempts).toBe(3);
+  }
+});
+```
+
+**Problem:** The `await promise` in the try block doesn't attach its .catch() handler until AFTER `runAllTimersAsync()` completes.
+
+#### Attempt 2: Wrapper function pattern ❌
+```typescript
+it('should throw error', async () => {
+  const action = async () => {
+    const promise = withRetry(fn, { maxAttempts: 3 });
+    await vi.runAllTimersAsync(); // ❌ Still rejects here
+    return promise;
+  };
+
+  await expect(action()).rejects.toThrow(RetryError);
+});
+```
+
+**Problem:** The rejection still occurs inside `action()` before the `.rejects` handler is attached.
+
+---
+
+### Solution: Attach Handlers BEFORE Advancing Timers
+
+**Gemini's Insight:**
+> "You need to ensure that the `.catch()` handler is set up to 'catch' the promise *before* the code that causes the rejection completes."
+
+**The Golden Rule:** Attach assertion handlers BEFORE advancing timers.
+
+**✅ Correct Pattern:**
+```typescript
+it('should throw RetryError after all attempts fail', async () => {
+  const error = new Error('Persistent failure');
+  const fn = vi.fn().mockRejectedValue(error);
+
+  // 1. Create the promise
+  const promise = withRetry(fn, { maxAttempts: 3, initialDelayMs: 100 });
+
+  // 2. Attach the assertion handler BEFORE advancing timers
+  const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+
+  // 3. NOW advance the timers to trigger the rejection
+  await vi.runAllTimersAsync();
+
+  // 4. Await the assertion
+  await assertionPromise;
+
+  // 5. Additional synchronous assertions
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+```
+
+**Why This Works:**
+- `expect(promise).rejects.toThrow()` attaches a `.catch()` handler to the promise immediately
+- When `vi.runAllTimersAsync()` triggers the rejection, the handler is already attached
+- Node.js sees the handler and doesn't issue a warning
+- The `assertionPromise` resolves when the assertion completes
+
+---
+
+### Alternative: try/catch for Error Inspection
+
+**When to use:** You need to inspect multiple properties of the error object.
+
+```typescript
+it('should throw with specific error details', async () => {
+  expect.assertions(3);
+
+  const fn = vi.fn().mockRejectedValue(new Error('Fail'));
+
+  try {
+    const promise = withRetry(fn, { maxAttempts: 3 });
+    await vi.runAllTimersAsync();
+    await promise;
+  } catch (e: any) {
+    expect(e).toBeInstanceOf(RetryError);
+    expect(e.attempts).toBe(3);
+    expect(e.lastError).toBeDefined();
+  }
+});
+```
+
+**Note:** The `await promise` inside the try block actually DOES attach a handler before `runAllTimersAsync()` completes in this pattern, because the entire try block is part of the async function's execution context. However, the `.rejects` pattern is clearer and more idiomatic.
+
+---
+
+### Implementation Results
+
+**Before:**
+- 21 tests passing ✅
+- 4 unhandled promise rejection warnings ⚠️
+
+**After:**
+- 21 tests passing ✅
+- 0 warnings ✅
+- Clean test output
+
+**Time Invested:**
+- Initial frustration: ~30 minutes trying to understand warnings
+- Gemini consultation #1: Understood problem, got initial solution
+- Gemini consultation #2: Refined solution after still seeing warnings
+- Final implementation: ~15 minutes
+- **Total:** ~1 hour (saved vs. trial and error: ~2-3 hours)
+
+---
+
+### Principles Extracted
+
+**1. Order Matters with Fake Timers**
+
+When testing code that:
+- Uses timers to trigger promise rejections
+- Has retry logic with delays
+- Has timeout logic
+
+You MUST attach promise handlers before advancing timers.
+
+**2. `.rejects` is Your Friend**
+
+The `expect().rejects.toThrow()` pattern is specifically designed for this scenario. Use it as your default for testing promise rejections with fake timers.
+
+**3. Separate Promise Creation from Timer Advancement**
+
+```typescript
+// ✅ GOOD: Separate steps
+const promise = asyncFunction();
+const assertion = expect(promise).rejects.toThrow();
+await vi.runAllTimersAsync();
+await assertion;
+
+// ❌ BAD: Combined
+await expect(
+  (async () => {
+    const promise = asyncFunction();
+    await vi.runAllTimersAsync();
+    return promise;
+  })()
+).rejects.toThrow();
+```
+
+**4. Consult When Stuck**
+
+If you see `PromiseRejectionHandledWarning` despite tests passing, don't ignore it. It indicates a test pattern issue that could mask real problems.
+
+---
+
+### Documentation Updates
+
+Added guidance to:
+1. **Global CLAUDE.md** (`~/.claude/CLAUDE.md` → Universal Testing Philosophy)
+2. **Project Testing Guide** (`docs/guides/TESTING.md` → Testing Promise Rejections with Fake Timers)
+3. **This Document** (right here!)
+
+**Rationale:** This is a subtle issue that's easy to encounter when testing async code with fake timers. Well-documented patterns prevent future confusion.
+
+---
+
+### Red Flags for This Issue
+
+Watch for these symptoms:
+- Tests pass but show promise rejection warnings
+- Warnings mention "handled asynchronously"
+- Testing retry logic, timeout logic, or timer-based rejections
+- Using `vi.runAllTimersAsync()` or `vi.advanceTimersByTime()`
+
+**If you see these, apply the "attach handlers before advancing timers" pattern.**
 
 ---
 
