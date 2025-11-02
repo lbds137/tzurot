@@ -12,7 +12,8 @@ import type {
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
-  RequestContext
+  RequestContext,
+  ReferencedMessage
 } from '@tzurot/common-types';
 
 // Re-export shared API types
@@ -23,6 +24,7 @@ export type {
   GenerateResponse,
   LoadedPersonality,
   DiscordEnvironment,
+  ReferencedMessage,
 };
 
 /**
@@ -40,10 +42,6 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
     personaId?: string; // Which persona said this message
     personaName?: string; // Persona's name for context
   }>;
-  referencedMessage?: {
-    author: string;
-    content: string;
-  };
 }
 
 /**

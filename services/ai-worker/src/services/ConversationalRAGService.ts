@@ -80,6 +80,17 @@ export interface DiscordEnvironment {
   };
 }
 
+export interface ReferencedMessage {
+  referenceNumber: number;
+  authorUsername: string;
+  authorDisplayName: string;
+  content: string;
+  embeds: string;
+  timestamp: string;
+  guildName: string;
+  channelName: string;
+}
+
 export interface ConversationContext {
   userId: string;
   channelId?: string;
@@ -98,6 +109,8 @@ export interface ConversationContext {
   attachments?: AttachmentMetadata[];
   // Discord environment context (DMs vs guild, channel info, etc)
   environment?: DiscordEnvironment;
+  // Referenced messages (from replies and message links)
+  referencedMessages?: ReferencedMessage[];
 }
 
 export interface RAGResponse {
@@ -483,6 +496,11 @@ export class ConversationalRAGService {
       ? `\n\n${this.formatEnvironmentContext(context.environment)}`
       : '';
 
+    // Referenced messages (from replies and message links)
+    const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
+      ? `\n\n${this.formatReferencedMessages(context.referencedMessages)}`
+      : '';
+
     // Conversation participants - ALL people involved
     let participantsContext = '';
     if (participantPersonas.size > 0) {
@@ -511,10 +529,10 @@ export class ConversationalRAGService {
         }).join('\n')
       : '';
 
-    const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${participantsContext}${memoryContext}`;
+    const fullSystemPrompt = `${systemPrompt}${dateContext}${environmentContext}${referencesContext}${participantsContext}${memoryContext}`;
 
     // Basic prompt composition logging (always)
-    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
+    logger.info(`[RAG] Prompt composition: system=${systemPrompt.length} dateContext=${dateContext.length} environment=${environmentContext.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} total=${fullSystemPrompt.length} chars`);
 
     // Detailed prompt assembly logging (development only)
     if (config.NODE_ENV === 'development') {
@@ -594,6 +612,35 @@ export class ConversationalRAGService {
     }
 
     return parts.join('\n');
+  }
+
+  /**
+   * Format referenced messages for inclusion in system prompt
+   */
+  private formatReferencedMessages(references: ReferencedMessage[]): string {
+    const lines: string[] = [];
+    lines.push('## Referenced Messages\n');
+    lines.push('The user is referencing the following messages:\n');
+
+    for (const ref of references) {
+      lines.push(`[Reference ${ref.referenceNumber}]`);
+      lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
+      lines.push(`Location: ${ref.guildName} > ${ref.channelName}`);
+      lines.push(`Time: ${ref.timestamp}`);
+
+      if (ref.content) {
+        lines.push(`\nContent:\n${ref.content}`);
+      }
+
+      if (ref.embeds) {
+        lines.push(`\n${ref.embeds}`);
+      }
+
+      lines.push(''); // Empty line between references
+    }
+
+    logger.info(`[RAG] Formatted ${references.length} referenced message(s) for prompt`);
+    return lines.join('\n');
   }
 
   /**
