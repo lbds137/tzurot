@@ -15,10 +15,9 @@ import {
 import { downloadAndStoreAttachments } from '../utils/tempAttachmentStorage.js';
 import type {
   GenerateRequest,
-  GenerateResponse,
-  ErrorResponse
+  GenerateResponse
 } from '../types.js';
-import { ErrorCode } from '../utils/errorResponses.js';
+import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
 
@@ -48,11 +47,7 @@ aiRouter.post('/generate', async (req, res) => {
     const validationResult = generateRequestSchema.safeParse(req.body);
 
     if (!validationResult.success) {
-      const errorResponse: ErrorResponse = {
-        error: ErrorCode.VALIDATION_ERROR,
-        message: 'Invalid request body',
-        timestamp: new Date().toISOString()
-      };
+      const errorResponse = ErrorResponses.validationError('Invalid request body');
       logger.warn(
         {
           errors: validationResult.error.issues,
@@ -61,7 +56,7 @@ aiRouter.post('/generate', async (req, res) => {
         },
         '[AI] Validation error'
       );
-      res.status(400).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -187,13 +182,11 @@ aiRouter.post('/generate', async (req, res) => {
 
         // Note: Cleanup happens via queue event listener, not here
 
-        const errorResponse: ErrorResponse = {
-          error: ErrorCode.JOB_FAILED,
-          message: error instanceof Error ? error.message : 'Job failed or timed out',
-          timestamp: new Date().toISOString()
-        };
+        const errorResponse = ErrorResponses.jobFailed(
+          error instanceof Error ? error.message : 'Job failed or timed out'
+        );
 
-        res.status(500).json(errorResponse);
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }
     }
@@ -220,13 +213,11 @@ aiRouter.post('/generate', async (req, res) => {
       `[AI] Error creating job (${processingTime}ms)`
     );
 
-    const errorResponse: ErrorResponse = {
-      error: ErrorCode.INTERNAL_ERROR,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
 
@@ -246,12 +237,8 @@ aiRouter.post('/transcribe', async (req, res) => {
   try {
     // Validate request has attachments
     if (!req.body.attachments || !Array.isArray(req.body.attachments) || req.body.attachments.length === 0) {
-      const errorResponse: ErrorResponse = {
-        error: ErrorCode.VALIDATION_ERROR,
-        message: 'Missing or invalid attachments array',
-        timestamp: new Date().toISOString()
-      };
-      res.status(400).json(errorResponse);
+      const errorResponse = ErrorResponses.validationError('Missing or invalid attachments array');
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -300,13 +287,11 @@ aiRouter.post('/transcribe', async (req, res) => {
       } catch (error) {
         logger.error({ err: error, jobId: job.id }, `[AI] Transcribe job ${job.id} failed`);
 
-        const errorResponse: ErrorResponse = {
-          error: ErrorCode.JOB_FAILED,
-          message: error instanceof Error ? error.message : 'Transcription failed or timed out',
-          timestamp: new Date().toISOString()
-        };
+        const errorResponse = ErrorResponses.jobFailed(
+          error instanceof Error ? error.message : 'Transcription failed or timed out'
+        );
 
-        res.status(500).json(errorResponse);
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }
     }
@@ -321,13 +306,11 @@ aiRouter.post('/transcribe', async (req, res) => {
   } catch (error) {
     logger.error({ err: error }, '[AI] Error creating transcribe job');
 
-    const errorResponse: ErrorResponse = {
-      error: ErrorCode.INTERNAL_ERROR,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
 
@@ -343,12 +326,8 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     const job = await aiQueue.getJob(jobId);
 
     if (job === undefined) {
-      const errorResponse: ErrorResponse = {
-        error: ErrorCode.JOB_NOT_FOUND,
-        message: `Job ${jobId} not found`,
-        timestamp: new Date().toISOString()
-      };
-      res.status(404).json(errorResponse);
+      const errorResponse = ErrorResponses.jobNotFound(jobId);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -373,12 +352,10 @@ aiRouter.get('/job/:jobId', async (req, res) => {
       '[AI] Error fetching job status'
     );
 
-    const errorResponse: ErrorResponse = {
-      error: ErrorCode.INTERNAL_ERROR,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
