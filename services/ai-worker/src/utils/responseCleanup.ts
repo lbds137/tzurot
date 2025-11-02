@@ -29,8 +29,9 @@ export function stripPersonalityPrefix(
 ): string {
   // Pattern: "PersonalityName: [timestamp] rest of content"
   // or: "PersonalityName: rest of content"
+  // Note: [^\\]]+ ensures timestamp doesn't span lines or contain closing brackets
   const prefixPattern = new RegExp(
-    `^${escapeRegex(personalityName)}:\\s*(?:\\[.*?\\]\\s*)?`,
+    `^${escapeRegex(personalityName)}:\\s*(?:\\[[^\\]]+?\\]\\s*)?`,
     'i' // Case insensitive
   );
 
