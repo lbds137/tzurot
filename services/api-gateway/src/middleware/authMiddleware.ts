@@ -65,7 +65,7 @@ export function requireOwnerAuth(customMessage?: string) {
 
     if (!isValidOwner(ownerId)) {
       const errorResponse = ErrorResponses.unauthorized(customMessage);
-      const statusCode = getStatusCode(errorResponse.error as any);
+      const statusCode = getStatusCode(errorResponse.error);
 
       res.status(statusCode).json(errorResponse);
       return;
