@@ -77,6 +77,33 @@ export async function optimizeAvatar(
 ): Promise<AvatarOptimizationResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
+  // Validate configuration - check individual values first, then relationships
+  if (opts.minQuality < 1 || opts.minQuality > 100) {
+    throw new Error(`Invalid configuration: minQuality must be between 1 and 100, got ${opts.minQuality}`);
+  }
+
+  if (opts.initialQuality < 1 || opts.initialQuality > 100) {
+    throw new Error(`Invalid configuration: initialQuality must be between 1 and 100, got ${opts.initialQuality}`);
+  }
+
+  if (opts.minQuality > opts.initialQuality) {
+    throw new Error(
+      `Invalid configuration: minQuality (${opts.minQuality}) cannot be greater than initialQuality (${opts.initialQuality})`
+    );
+  }
+
+  if (opts.targetWidth <= 0 || opts.targetHeight <= 0) {
+    throw new Error(`Invalid configuration: dimensions must be positive (width: ${opts.targetWidth}, height: ${opts.targetHeight})`);
+  }
+
+  if (opts.maxSizeBytes < 0) {
+    throw new Error(`Invalid configuration: maxSizeBytes cannot be negative, got ${opts.maxSizeBytes}`);
+  }
+
+  if (opts.qualityStep <= 0) {
+    throw new Error(`Invalid configuration: qualityStep must be positive, got ${opts.qualityStep}`);
+  }
+
   // Validate base64 input
   if (!isValidBase64(base64Data)) {
     throw new Error('Invalid base64 image data provided');
@@ -132,8 +159,9 @@ export async function optimizeAvatar(
       exceedsTarget
     };
   } catch (error) {
+    const originalMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error({ err: error }, '[ImageProcessor] Failed to process avatar image');
-    throw new Error('Failed to process avatar image. Ensure it is a valid image format.');
+    throw new Error(`Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`);
   }
 }
 
