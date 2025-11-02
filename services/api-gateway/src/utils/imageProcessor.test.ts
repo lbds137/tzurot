@@ -20,6 +20,21 @@ vi.mock('sharp', () => {
 
   return {
     default: vi.fn((buffer: Buffer) => {
+      // Check if buffer contains text indicating it's not an image
+      const bufferText = buffer.toString('utf8');
+      if (bufferText.includes('just text, not an image')) {
+        // Simulate Sharp throwing an error for invalid image data
+        const instance = createSharpMock(buffer.length);
+
+        instance.png = vi.fn().mockReturnThis();
+
+        instance.toBuffer = vi.fn().mockRejectedValue(
+          new Error('Input buffer contains unsupported image format')
+        );
+
+        return instance;
+      }
+
       // Simulate different sizes based on quality
       // This gets set by the png() call via mockImplementation
       const instance = createSharpMock(buffer.length);
@@ -179,13 +194,13 @@ describe('imageProcessor', () => {
       expect(result.originalSizeKB).toBeCloseTo(1, 1);
     });
 
-    it('should handle empty base64 string', async () => {
+    it('should throw error for empty base64 string', async () => {
       const emptyBuffer = Buffer.alloc(0);
       const base64Data = emptyBuffer.toString('base64');
 
-      const result = await optimizeAvatar(base64Data);
-
-      expect(result.originalSizeKB).toBe(0);
+      await expect(optimizeAvatar(base64Data)).rejects.toThrow(
+        'Invalid base64 image data provided'
+      );
     });
 
     it('should use custom options combined with defaults', async () => {
@@ -329,6 +344,30 @@ describe('imageProcessor', () => {
       });
 
       expect(result.exceedsTarget).toBe(false);
+    });
+
+    it('should throw error for invalid base64 input', async () => {
+      const invalidBase64 = 'not-valid-base64!!!';
+
+      await expect(optimizeAvatar(invalidBase64)).rejects.toThrow(
+        'Invalid base64 image data provided'
+      );
+    });
+
+    it('should throw error for empty string', async () => {
+      await expect(optimizeAvatar('')).rejects.toThrow(
+        'Invalid base64 image data provided'
+      );
+    });
+
+    it('should wrap Sharp errors with user-friendly message', async () => {
+      // Even with valid base64, if Sharp fails to process it (e.g., not an image),
+      // it should throw a user-friendly error
+      const validBase64NotImage = Buffer.from('just text, not an image').toString('base64');
+
+      await expect(optimizeAvatar(validBase64NotImage)).rejects.toThrow(
+        'Failed to process avatar image'
+      );
     });
   });
 });

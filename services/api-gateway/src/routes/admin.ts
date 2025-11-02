@@ -29,7 +29,7 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
       const errorResponse = ErrorResponses.configurationError(
         'Both DEV_DATABASE_URL and PROD_DATABASE_URL must be configured'
       );
-      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -58,7 +58,7 @@ router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) 
       error instanceof Error ? error.message : 'Database sync failed'
     );
 
-    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
 
@@ -90,7 +90,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       const errorResponse = ErrorResponses.validationError(
         'Missing required fields: name, slug, characterInfo, personalityTraits'
       );
-      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -99,7 +99,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       const errorResponse = ErrorResponses.validationError(
         'Invalid slug format. Use only lowercase letters, numbers, and hyphens.'
       );
-      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -112,7 +112,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       const errorResponse = ErrorResponses.conflict(
         `A personality with slug '${slug}' already exists`
       );
-      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -139,7 +139,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
         const errorResponse = ErrorResponses.processingError(
           'Failed to process avatar image. Ensure it is a valid image file.'
         );
-        res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }
     }
@@ -212,7 +212,7 @@ router.post('/personality', requireOwnerAuth(), async (req: Request, res: Respon
       error instanceof Error ? error.message : 'Failed to create personality'
     );
 
-    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
 
@@ -246,7 +246,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
 
     if (!existing) {
       const errorResponse = ErrorResponses.notFound(`Personality with slug '${slug}'`);
-      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+      res.status(getStatusCode(errorResponse.error)).json(errorResponse);
       return;
     }
 
@@ -273,7 +273,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
         const errorResponse = ErrorResponses.processingError(
           'Failed to process avatar image. Ensure it is a valid image file.'
         );
-        res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+        res.status(getStatusCode(errorResponse.error)).json(errorResponse);
         return;
       }
     }
@@ -321,7 +321,7 @@ router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res:
       error instanceof Error ? error.message : 'Failed to edit personality'
     );
 
-    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error)).json(errorResponse);
   }
 });
 

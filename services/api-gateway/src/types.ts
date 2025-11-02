@@ -5,6 +5,8 @@
  * Request types are now in @tzurot/common-types for sharing across services.
  */
 
+import type { ErrorCode } from './utils/errorResponses.js';
+
 // Re-export shared API types from common-types
 export type {
   GenerateRequest,
@@ -13,6 +15,9 @@ export type {
   AttachmentMetadata,
   JobResult
 } from '@tzurot/common-types';
+
+// Re-export ErrorCode for convenience
+export type { ErrorCode } from './utils/errorResponses.js';
 
 /**
  * Health check response
@@ -37,7 +42,7 @@ export interface HealthResponse {
  * Error response format
  */
 export interface ErrorResponse {
-  error: string;
+  error: ErrorCode;
   message: string;
   requestId?: string;
   timestamp: string;
