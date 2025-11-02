@@ -338,11 +338,27 @@ git push --force-with-lease origin feat/your-feature
 
 ## Testing
 
-**Note**: Testing infrastructure is being rebuilt for v3. v2 had extensive Jest tests, but v3 is using a different approach.
+**Framework**: Vitest 4.0.3 with comprehensive test coverage
 
-Current status: Manual testing in production + Railway health checks
+**Current Status**:
+- ✅ **368 tests passing** (218 api-gateway + 150 ai-worker)
+- ✅ Utility functions fully tested
+- ✅ Error handling and retry utilities with 45 tests
+- 🚧 Service layer coverage expanding
+- 🚧 Integration tests planned
 
-Planned: Vitest for unit tests, integration tests for service communication
+**Key Resources**:
+- **[Testing Guide](docs/guides/TESTING.md)** - Comprehensive testing patterns and best practices
+- **[Global Testing Philosophy](~/.claude/CLAUDE.md#universal-testing-philosophy)** - Universal testing principles
+
+**Important Patterns**:
+- Always run tests before pushing (`pnpm test`)
+- Test behavior, not implementation
+- Mock all external dependencies
+- Use fake timers for time-based code
+- See Testing Guide for promise rejection patterns with fake timers
+
+**Next Steps**: Service layer tests, integration tests for service communication
 
 ## Security
 
