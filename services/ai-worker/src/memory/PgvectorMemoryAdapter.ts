@@ -8,6 +8,7 @@ import { OpenAI } from 'openai';
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
 import { createLogger } from '@tzurot/common-types';
+import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 
 const logger = createLogger('PgvectorMemoryAdapter');
 
@@ -211,9 +212,11 @@ export class PgvectorMemoryAdapter {
       // Convert to MemoryDocument format and inject persona/personality names
       const documents: MemoryDocument[] = memories.map(memory => {
         // Replace {user} and {assistant} tokens with actual names
-        let content = memory.content;
-        content = content.replace(/\{user\}/g, memory.persona_name);
-        content = content.replace(/\{assistant\}/g, memory.personality_name);
+        const content = replacePromptPlaceholders(
+          memory.content,
+          memory.persona_name,
+          memory.personality_name
+        );
 
         return {
           pageContent: content,

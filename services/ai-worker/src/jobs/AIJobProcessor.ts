@@ -225,7 +225,8 @@ export class AIJobProcessor {
 
       // Convert conversation history to BaseMessage format
       const conversationHistory = this.convertConversationHistory(
-        context.conversationHistory ?? []
+        context.conversationHistory ?? [],
+        personality.name
       );
 
       // Generate response using RAG
@@ -344,10 +345,11 @@ export class AIJobProcessor {
       createdAt?: string;
       personaId?: string;
       personaName?: string;
-    }[]
+    }[],
+    personalityName: string
   ): BaseMessage[] {
     return history.map(msg => {
-      // Format message with persona name and timestamp
+      // Format message with speaker name and timestamp
       let content = msg.content;
 
       // For user messages, include persona name and timestamp
@@ -365,6 +367,20 @@ export class AIJobProcessor {
         if (parts.length > 0) {
           content = `${parts.join(' ')} ${msg.content}`;
         }
+      }
+
+      // For assistant messages, include personality name and timestamp
+      if (msg.role === 'assistant') {
+        const parts: string[] = [];
+
+        // Use the personality name (e.g., "Lilith")
+        parts.push(`${personalityName}:`);
+
+        if (msg.createdAt) {
+          parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
+        }
+
+        content = `${parts.join(' ')} ${msg.content}`;
       }
 
       if (msg.role === 'user') {

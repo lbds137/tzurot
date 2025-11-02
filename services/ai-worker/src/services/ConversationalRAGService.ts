@@ -28,6 +28,7 @@ import {
   getConfig,
 } from '@tzurot/common-types';
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
+import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -476,7 +477,11 @@ export class ConversationalRAGService {
     relevantMemories: MemoryDocument[],
     context: ConversationContext
   ): string {
-    const systemPrompt = this.buildSystemPrompt(personality);
+    const systemPrompt = this.buildSystemPrompt(
+      personality,
+      context.activePersonaName || 'User',
+      personality.name
+    );
     logger.debug(`[RAG] System prompt length: ${systemPrompt.length} chars`);
 
     // Current date/time context (place early for better awareness)
@@ -791,12 +796,22 @@ export class ConversationalRAGService {
   /**
    * Build comprehensive system prompt from personality character fields
    */
-  private buildSystemPrompt(personality: LoadedPersonality): string {
+  private buildSystemPrompt(
+    personality: LoadedPersonality,
+    userName: string,
+    assistantName: string
+  ): string {
     const sections: string[] = [];
 
     // Start with system prompt (jailbreak/behavior rules)
+    // Replace {user} and {assistant} placeholders with actual names
     if (personality.systemPrompt) {
-      sections.push(personality.systemPrompt);
+      const promptWithNames = replacePromptPlaceholders(
+        personality.systemPrompt,
+        userName,
+        assistantName
+      );
+      sections.push(promptWithNames);
     }
 
     // Add explicit identity statement

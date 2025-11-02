@@ -2,41 +2,65 @@
 
 > Last updated: 2025-11-01
 
-## Status: Planning Next Features (Post Bug Fix Release)
+## Status: Building Test Infrastructure Foundation
 
-**Current Phase**: Awaiting bug fix merge/release, then tackling heavier feature work
+**Current Phase**: Establishing comprehensive testing framework for v3
 
-**Recent Bug Fixes** (pending merge):
-- PR #192: Fixed current speaker detection (merged)
-- PR #193: Fixed personality mention longest match (pending review)
-- Both will be released as v3.0.0-alpha.17 after testing in dev
+**Recent Completion**:
+- ✅ PR #192, #193, #194 merged and released as v3.0.0-alpha.17
+- ✅ All three bug fixes deployed to production
+- ✅ Unit testing infrastructure established
 
 ## Planned Features (Priority Order)
 
-### 1. Unit Testing Strategy 🧪
+### 1. Unit Testing Infrastructure 🧪✨
 **Priority**: High - Foundation for quality
-**Status**: Planning phase
+**Status**: **Active Development** (Branch: `feat/unit-test-infrastructure`)
 
-**Goal**: Establish proper unit testing for v3 to prevent regressions
+**Completed**:
+- ✅ Vitest configuration (root + service-specific)
+- ✅ Pragmatic mock factory pattern (after 5.5hr journey through 4 iterations)
+- ✅ Discord.js mock factories (User, Guild, Channel, Message, etc.)
+- ✅ Tests for personalityMentionParser (22 tests passing)
+- ✅ Tests for discordContext utilities (17 tests passing)
+- ✅ Comprehensive lessons learned documentation
+- ✅ Gemini MCP consultation integration
 
-**Key Requirements**:
-- Avoid v2's code duplication issues
-- Test behavior, not implementation
-- Mock external dependencies (database, APIs, Discord)
-- Use fake timers for delays
-- Keep tests simple and readable
+**Architecture Highlights**:
+- Co-located tests (`.test.ts` next to source)
+- **Pragmatic factory pattern**: Type-safe without over-engineering
+  - `Partial<T>` for overrides
+  - Plain arrow functions for non-spied methods
+  - Strategic `@ts-expect-error` for type predicates
+  - `as unknown as T` final assertion (tests are ground truth)
+- Built-in fake timers (Vitest)
+- No `as any` - TypeScript discipline enforced
+- 39 tests passing, TypeScript build clean
 
-**Scope**:
-- Design testing approach and patterns
-- Choose testing utilities and helpers
-- Add coverage for critical paths:
-  - Personality mention parsing
-  - Message handling flow
-  - Conversation history management
-  - Memory retrieval
-  - AI provider integration
+**Key Learning**:
+After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patterns, we landed on a pragmatic approach that prioritizes runtime correctness over compile-time perfection. See `docs/architecture/TESTING_LESSONS_LEARNED.md` for the full 5.5-hour journey.
 
-**Framework**: Vitest (already configured)
+**Key Files**:
+- `services/bot-client/src/test/mocks/Discord.mock.ts` - Core mock factories
+- `services/bot-client/src/test/types.ts` - Utility types
+- `docs/architecture/TESTING_LESSONS_LEARNED.md` - Comprehensive post-mortem
+
+**Next Targets** (prioritized by complexity):
+1. **ConversationManager** (158 lines) - Focused service, no external deps
+2. **CommandHandler** (149 lines) - Slash command routing
+3. **WebhookManager** (249 lines) - Discord webhook management
+4. **MessageHandler** (468 lines) - May need refactoring before testing
+5. Integration test patterns
+
+**Files Needing Tests**:
+- ✅ `utils/personalityMentionParser.ts` - Done
+- ✅ `utils/discordContext.ts` - Done
+- 🎯 `memory/ConversationManager.ts` - Next up (158 lines)
+- ⏳ `handlers/CommandHandler.ts` - (149 lines)
+- ⏳ `webhooks/WebhookManager.ts` - (249 lines)
+- ⚠️ `handlers/MessageHandler.ts` - **May need refactoring first** (468 lines - large file that should be broken up before testing to avoid throwaway tests)
+- ⏳ `utils/deployCommands.ts` - (102 lines)
+- ⏳ `gateway/GatewayClient.ts` - (173 lines)
 
 ---
 
