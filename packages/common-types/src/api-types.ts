@@ -12,7 +12,8 @@ export type {
   GenerateRequest,
   DiscordEnvironment,
   PersonalityConfig,
-  RequestContext
+  RequestContext,
+  ReferencedMessage
 } from './schemas.js';
 
 /**

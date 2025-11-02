@@ -15,6 +15,7 @@ import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
+import { MessageReferenceExtractor } from '../context/MessageReferenceExtractor.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -27,6 +28,7 @@ export class MessageHandler {
   private conversationHistory: ConversationHistoryService;
   private personalityService: PersonalityService;
   private userService: UserService;
+  private referenceExtractor: MessageReferenceExtractor;
 
   constructor(
     gatewayClient: GatewayClient,
@@ -37,6 +39,10 @@ export class MessageHandler {
     this.conversationHistory = new ConversationHistoryService();
     this.personalityService = new PersonalityService();
     this.userService = new UserService();
+    this.referenceExtractor = new MessageReferenceExtractor({
+      maxReferences: 10,
+      embedProcessingDelayMs: 2500 // 2.5 seconds to allow Discord to process embeds
+    });
   }
 
   /**
@@ -224,6 +230,15 @@ export class MessageHandler {
         }, INTERVALS.TYPING_INDICATOR_REFRESH);
       }
 
+      // Extract referenced messages (from replies and message links)
+      // This waits 2-3 seconds for Discord to process embeds
+      logger.debug('[MessageHandler] Extracting referenced messages');
+      const referencedMessages = await this.referenceExtractor.extractReferences(message);
+
+      if (referencedMessages.length > 0) {
+        logger.info(`[MessageHandler] Extracted ${referencedMessages.length} referenced messages`);
+      }
+
       // Get or create user record
       // Use display name: server nickname > global display name > username
       const displayName = message.member?.displayName || message.author.globalName || message.author.username;
@@ -282,7 +297,7 @@ export class MessageHandler {
       // Extract Discord environment context (DM vs guild, channel info, etc)
       const environment = extractDiscordEnvironment(message);
 
-      // Build context with conversation history and attachments
+      // Build context with conversation history, attachments, and referenced messages
       const context: MessageContext = {
         userId: userId, // Use database UUID, not Discord ID
         userName: message.author.username,
@@ -293,7 +308,8 @@ export class MessageHandler {
         activePersonaName: personaName || undefined,
         conversationHistory,
         attachments,
-        environment
+        environment,
+        referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined
       };
 
       logger.debug(`[MessageHandler] Built context: activePersonaId=${context.activePersonaId}, activePersonaName=${context.activePersonaName}, historyLength=${conversationHistory.length}`);
