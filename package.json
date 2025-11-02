@@ -50,7 +50,6 @@
   },
   "packageManager": "pnpm@8.15.1",
   "dependencies": {
-    "@qdrant/js-client-rest": "^1.15.1",
     "openai": "^6.7.0",
     "uuid": "^13.0.0"
   }

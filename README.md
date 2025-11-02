@@ -11,7 +11,7 @@ Shapes.inc (v2's AI provider) shut down, forcing a complete rewrite. v3 is bette
 - **Vendor Independence**: Clean abstraction for AI providers - never locked in again
 - **TypeScript Throughout**: Full type safety and better IDE support
 - **True Microservices**: Each service has a single, clear responsibility
-- **Long-term Memory**: Qdrant vector database for personality memory across conversations
+- **Long-term Memory**: pgvector for personality memory across conversations
 - **Multiple Providers**: OpenRouter (400+ models) + direct Gemini support
 - **Clean Architecture**: No over-engineered DDD - just simple, maintainable code
 
@@ -123,7 +123,7 @@ const provider = AIProviderFactory.create('openai', {
 ### ✅ Working in Production
 - **Multiple Personalities**: @mention different personalities (@lilith, @default, @sarcastic)
 - **Reply Detection**: Reply to bot messages to continue conversations
-- **Long-term Memory**: Qdrant vector database stores personality memories across sessions
+- **Long-term Memory**: pgvector stores personality memories across sessions
 - **Conversation History**: Contextual responses using recent message history
 - **Webhook Avatars**: Each personality has unique name and avatar
 - **Image Support**: Send images to personalities for analysis
@@ -195,7 +195,7 @@ railway status
 
 ### Local Development with Docker
 
-Local development uses Docker Compose for Redis and Qdrant:
+Local development uses Docker Compose for Redis:
 
 ```bash
 docker-compose up -d
