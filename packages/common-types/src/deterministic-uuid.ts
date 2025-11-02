@@ -84,7 +84,7 @@ export function generateActivatedChannelUuid(channelId: string, personalityId: s
 }
 
 /**
- * Generate deterministic UUID for Qdrant memory point duplication
+ * Generate deterministic UUID for memory point duplication
  * Seed: {originalPointId}:{userId}
  * (Used when duplicating memories for multi-sender conversations)
  */

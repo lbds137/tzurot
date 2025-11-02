@@ -27,11 +27,10 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 ### Microservices Architecture
 - **bot-client**: Discord.js client + webhook management
 - **api-gateway**: Express HTTP API + BullMQ queue
-- **ai-worker**: AI processing + Qdrant vector memory
+- **ai-worker**: AI processing + pgvector memory
 
 ### Infrastructure
-- **Database**: PostgreSQL (user data, conversation history)
-- **Vector DB**: Qdrant (long-term personality memory)
+- **Database**: PostgreSQL (user data, conversation history, vector memory via pgvector)
 - **Queue**: Redis + BullMQ (job processing)
 - **Deployment**: Railway (all services)
 
@@ -134,7 +133,7 @@ bot-client (Discord.js)
     ↓ HTTP
 api-gateway (Express + BullMQ)
     ↓ Redis Queue
-ai-worker (AI + Qdrant)
+ai-worker (AI + pgvector)
     ↓
 OpenRouter/Gemini API
 ```
@@ -145,7 +144,7 @@ OpenRouter/Gemini API
 2. **Vendor Independence** - AI provider abstraction layer prevents vendor lock-in
 3. **TypeScript First** - Full type safety across all services
 4. **Microservices** - Each service has single responsibility
-5. **Long-term Memory** - Qdrant vector DB for personality memory across conversations
+5. **Long-term Memory** - pgvector for personality memory across conversations
 
 ### Service Responsibilities
 
@@ -163,7 +162,7 @@ OpenRouter/Gemini API
 
 **ai-worker**:
 - Job processing from queue
-- Qdrant memory retrieval
+- pgvector memory retrieval
 - AI provider integration (OpenRouter/Gemini)
 - Conversation history management
 - Response generation
@@ -176,7 +175,7 @@ OpenRouter/Gemini API
 - Webhook management (unique appearance per personality)
 - Message chunking (Discord 2000 char limit)
 - Conversation history tracking
-- Long-term memory (Qdrant vectors)
+- Long-term memory (pgvector)
 - Image attachment support
 - Voice transcription support
 - Model indicator in responses
@@ -332,8 +331,8 @@ git push --force-with-lease origin feat/your-feature
 ### Required for ai-worker
 - `REDIS_URL` - Redis connection
 - `DATABASE_URL` - PostgreSQL connection
-- `QDRANT_URL` - Qdrant cloud URL
-- `QDRANT_API_KEY` - Qdrant API key
+- `QDRANT_URL` - Database URL (pgvector is in PostgreSQL)
+- `QDRANT_API_KEY` - N/A (pgvector is in PostgreSQL)
 - `AI_PROVIDER` - "openrouter" or "gemini"
 - `OPENROUTER_API_KEY` - OpenRouter key (if using)
 - `GEMINI_API_KEY` - Gemini key (if using)
@@ -354,7 +353,7 @@ Planned: Vitest for unit tests, integration tests for service communication
 **Database Connection Strings**:
 - **NEVER** commit PostgreSQL URLs (format: `postgresql://user:PASSWORD@host:port/db`)
 - **NEVER** commit Redis URLs (format: `redis://user:PASSWORD@host:port`)
-- **NEVER** commit Qdrant URLs with API keys
+- **NEVER** commit PostgreSQL connection strings
 - Database URLs contain passwords - committing them = immediate secret rotation required
 - **ALWAYS** use environment variables or Railway secrets for connection strings
 - **ALWAYS** use placeholders like `DATABASE_URL="your-database-url-here"` in examples
@@ -386,7 +385,7 @@ Planned: Vitest for unit tests, integration tests for service communication
 
 **Prevention**:
 - **NEVER** commit database URLs - they contain passwords
-- **NEVER** commit connection strings for PostgreSQL, Redis, Qdrant, etc.
+- **NEVER** commit connection strings for PostgreSQL, Redis, etc.
 - **ALWAYS** use environment variables or placeholders in scripts
 - **ALWAYS** review commits for credentials before pushing
 - Database URL format contains password: `postgresql://user:PASSWORD@host:port/db`
@@ -483,7 +482,7 @@ Planned: Vitest for unit tests, integration tests for service communication
 **Databases**:
 - PostgreSQL (Railway addon)
 - Redis (Railway addon)
-- Qdrant (external cloud service)
+- PostgreSQL with pgvector extension
 
 **Deployment**:
 - Auto-deploys from GitHub on push to `feat/v3-continued`
