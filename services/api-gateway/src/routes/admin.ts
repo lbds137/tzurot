@@ -6,9 +6,10 @@
 import express, { Request, Response, Router } from 'express';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { PrismaClient } from '@prisma/client';
-import sharp from 'sharp';
 import { DatabaseSyncService } from '../services/DatabaseSyncService.js';
-import type { ErrorResponse } from '../types.js';
+import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
+import { requireOwnerAuth } from '../middleware/authMiddleware.js';
+import { optimizeAvatar } from '../utils/imageProcessor.js';
 
 const logger = createLogger('admin-routes');
 const router: Router = express.Router();
@@ -18,30 +19,17 @@ const prisma = new PrismaClient();
  * POST /admin/db-sync
  * Bidirectional database synchronization between dev and prod
  */
-router.post('/db-sync', async (req: Request, res: Response) => {
+router.post('/db-sync', requireOwnerAuth(), async (req: Request, res: Response) => {
   try {
-    const { dryRun = false, ownerId } = req.body;
+    const { dryRun = false } = req.body;
     const config = getConfig();
-
-    // Verify owner authorization
-    if (!ownerId || !config.BOT_OWNER_ID || ownerId !== config.BOT_OWNER_ID) {
-      const errorResponse: ErrorResponse = {
-        error: 'UNAUTHORIZED',
-        message: 'This endpoint is only available to the bot owner',
-        timestamp: new Date().toISOString()
-      };
-      res.status(403).json(errorResponse);
-      return;
-    }
 
     // Verify database URLs are configured
     if (!config.DEV_DATABASE_URL || !config.PROD_DATABASE_URL) {
-      const errorResponse: ErrorResponse = {
-        error: 'CONFIGURATION_ERROR',
-        message: 'Both DEV_DATABASE_URL and PROD_DATABASE_URL must be configured',
-        timestamp: new Date().toISOString()
-      };
-      res.status(500).json(errorResponse);
+      const errorResponse = ErrorResponses.configurationError(
+        'Both DEV_DATABASE_URL and PROD_DATABASE_URL must be configured'
+      );
+      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
       return;
     }
 
@@ -66,13 +54,11 @@ router.post('/db-sync', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({ err: error }, '[Admin] Database sync failed');
 
-    const errorResponse: ErrorResponse = {
-      error: 'SYNC_ERROR',
-      message: error instanceof Error ? error.message : 'Database sync failed',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.syncError(
+      error instanceof Error ? error.message : 'Database sync failed'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
   }
 });
 
@@ -80,22 +66,8 @@ router.post('/db-sync', async (req: Request, res: Response) => {
  * POST /admin/personality
  * Create a new AI personality
  */
-router.post('/personality', async (req: Request, res: Response) => {
+router.post('/personality', requireOwnerAuth(), async (req: Request, res: Response) => {
   try {
-    const ownerId = req.headers['x-owner-id'] as string;
-    const config = getConfig();
-
-    // Verify owner authorization
-    if (!ownerId || !config.BOT_OWNER_ID || ownerId !== config.BOT_OWNER_ID) {
-      const errorResponse: ErrorResponse = {
-        error: 'UNAUTHORIZED',
-        message: 'This endpoint is only available to the bot owner',
-        timestamp: new Date().toISOString()
-      };
-      res.status(403).json(errorResponse);
-      return;
-    }
-
     const {
       name,
       slug,
@@ -115,23 +87,19 @@ router.post('/personality', async (req: Request, res: Response) => {
 
     // Validate required fields
     if (!name || !slug || !characterInfo || !personalityTraits) {
-      const errorResponse: ErrorResponse = {
-        error: 'VALIDATION_ERROR',
-        message: 'Missing required fields: name, slug, characterInfo, personalityTraits',
-        timestamp: new Date().toISOString()
-      };
-      res.status(400).json(errorResponse);
+      const errorResponse = ErrorResponses.validationError(
+        'Missing required fields: name, slug, characterInfo, personalityTraits'
+      );
+      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
       return;
     }
 
     // Validate slug format
     if (!/^[a-z0-9-]+$/.test(slug)) {
-      const errorResponse: ErrorResponse = {
-        error: 'VALIDATION_ERROR',
-        message: 'Invalid slug format. Use only lowercase letters, numbers, and hyphens.',
-        timestamp: new Date().toISOString()
-      };
-      res.status(400).json(errorResponse);
+      const errorResponse = ErrorResponses.validationError(
+        'Invalid slug format. Use only lowercase letters, numbers, and hyphens.'
+      );
+      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
       return;
     }
 
@@ -141,12 +109,10 @@ router.post('/personality', async (req: Request, res: Response) => {
     });
 
     if (existing) {
-      const errorResponse: ErrorResponse = {
-        error: 'CONFLICT',
-        message: `A personality with slug '${slug}' already exists`,
-        timestamp: new Date().toISOString()
-      };
-      res.status(409).json(errorResponse);
+      const errorResponse = ErrorResponses.conflict(
+        `A personality with slug '${slug}' already exists`
+      );
+      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
       return;
     }
 
@@ -156,51 +122,24 @@ router.post('/personality', async (req: Request, res: Response) => {
       try {
         logger.info(`[Admin] Processing avatar for personality: ${slug}`);
 
-        // Decode base64
-        const buffer = Buffer.from(avatarData, 'base64');
-        const originalSizeKB = (buffer.length / 1024).toFixed(2);
-        logger.info(`[Admin] Original avatar size: ${originalSizeKB} KB`);
+        const result = await optimizeAvatar(avatarData);
 
-        // Resize and optimize image
-        // Target: 256x256, PNG format, quality adjusted to stay under 200KB
-        let quality = 90;
-        let processed = await sharp(buffer)
-          .resize(256, 256, {
-            fit: 'cover',
-            position: 'center'
-          })
-          .png({ quality })
-          .toBuffer();
+        logger.info(
+          `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
+        );
 
-        // If still too large, reduce quality iteratively
-        while (processed.length > 200 * 1024 && quality > 50) {
-          quality -= 10;
-          processed = await sharp(buffer)
-            .resize(256, 256, {
-              fit: 'cover',
-              position: 'center'
-            })
-            .png({ quality })
-            .toBuffer();
+        if (result.exceedsTarget) {
+          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`);
         }
 
-        const processedSizeKB = (processed.length / 1024).toFixed(2);
-        logger.info(`[Admin] Processed avatar size: ${processedSizeKB} KB (quality: ${quality})`);
-
-        if (processed.length > 200 * 1024) {
-          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${processedSizeKB} KB`);
-        }
-
-        processedAvatarData = processed;
+        processedAvatarData = result.buffer;
 
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
-        const errorResponse: ErrorResponse = {
-          error: 'PROCESSING_ERROR',
-          message: 'Failed to process avatar image. Ensure it is a valid image file.',
-          timestamp: new Date().toISOString()
-        };
-        res.status(400).json(errorResponse);
+        const errorResponse = ErrorResponses.processingError(
+          'Failed to process avatar image. Ensure it is a valid image file.'
+        );
+        res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
         return;
       }
     }
@@ -269,13 +208,11 @@ router.post('/personality', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({ err: error }, '[Admin] Failed to create personality');
 
-    const errorResponse: ErrorResponse = {
-      error: 'INTERNAL_ERROR',
-      message: error instanceof Error ? error.message : 'Failed to create personality',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Failed to create personality'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
   }
 });
 
@@ -283,22 +220,8 @@ router.post('/personality', async (req: Request, res: Response) => {
  * PATCH /admin/personality/:slug
  * Edit an existing AI personality
  */
-router.patch('/personality/:slug', async (req: Request, res: Response) => {
+router.patch('/personality/:slug', requireOwnerAuth(), async (req: Request, res: Response) => {
   try {
-    const ownerId = req.headers['x-owner-id'] as string;
-    const config = getConfig();
-
-    // Verify owner authorization
-    if (!ownerId || !config.BOT_OWNER_ID || ownerId !== config.BOT_OWNER_ID) {
-      const errorResponse: ErrorResponse = {
-        error: 'UNAUTHORIZED',
-        message: 'This endpoint is only available to the bot owner',
-        timestamp: new Date().toISOString()
-      };
-      res.status(403).json(errorResponse);
-      return;
-    }
-
     const { slug } = req.params;
     const {
       name,
@@ -322,12 +245,8 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
     });
 
     if (!existing) {
-      const errorResponse: ErrorResponse = {
-        error: 'NOT_FOUND',
-        message: `Personality with slug '${slug}' not found`,
-        timestamp: new Date().toISOString()
-      };
-      res.status(404).json(errorResponse);
+      const errorResponse = ErrorResponses.notFound(`Personality with slug '${slug}'`);
+      res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
       return;
     }
 
@@ -337,50 +256,24 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
       try {
         logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
 
-        // Decode base64
-        const buffer = Buffer.from(avatarData, 'base64');
-        const originalSizeKB = (buffer.length / 1024).toFixed(2);
-        logger.info(`[Admin] Original avatar size: ${originalSizeKB} KB`);
+        const result = await optimizeAvatar(avatarData);
 
-        // Resize and optimize image
-        let quality = 90;
-        let processed = await sharp(buffer)
-          .resize(256, 256, {
-            fit: 'cover',
-            position: 'center'
-          })
-          .png({ quality })
-          .toBuffer();
+        logger.info(
+          `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
+        );
 
-        // If still too large, reduce quality iteratively
-        while (processed.length > 200 * 1024 && quality > 50) {
-          quality -= 10;
-          processed = await sharp(buffer)
-            .resize(256, 256, {
-              fit: 'cover',
-              position: 'center'
-            })
-            .png({ quality })
-            .toBuffer();
+        if (result.exceedsTarget) {
+          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${result.processedSizeKB} KB`);
         }
 
-        const processedSizeKB = (processed.length / 1024).toFixed(2);
-        logger.info(`[Admin] Processed avatar size: ${processedSizeKB} KB (quality: ${quality})`);
-
-        if (processed.length > 200 * 1024) {
-          logger.warn(`[Admin] Avatar still exceeds 200KB after optimization: ${processedSizeKB} KB`);
-        }
-
-        processedAvatarData = processed;
+        processedAvatarData = result.buffer;
 
       } catch (error) {
         logger.error({ err: error }, '[Admin] Failed to process avatar');
-        const errorResponse: ErrorResponse = {
-          error: 'PROCESSING_ERROR',
-          message: 'Failed to process avatar image. Ensure it is a valid image file.',
-          timestamp: new Date().toISOString()
-        };
-        res.status(400).json(errorResponse);
+        const errorResponse = ErrorResponses.processingError(
+          'Failed to process avatar image. Ensure it is a valid image file.'
+        );
+        res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
         return;
       }
     }
@@ -424,13 +317,11 @@ router.patch('/personality/:slug', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error({ err: error }, '[Admin] Failed to edit personality');
 
-    const errorResponse: ErrorResponse = {
-      error: 'INTERNAL_ERROR',
-      message: error instanceof Error ? error.message : 'Failed to edit personality',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.internalError(
+      error instanceof Error ? error.message : 'Failed to edit personality'
+    );
 
-    res.status(500).json(errorResponse);
+    res.status(getStatusCode(errorResponse.error as any)).json(errorResponse);
   }
 });
 
