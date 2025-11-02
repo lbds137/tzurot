@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.21] - 2025-11-02
+
+### Fixed
+- **Deployment Failure** - Emergency fix for pnpm lockfile mismatch
+  - Regenerated pnpm-lock.yaml after Qdrant dependency removal
+  - Lockfile still contained `@qdrant/js-client-rest` causing frozen-lockfile errors
+  - Resolves deployment failures in Railway and other CI environments
+
 ## [3.0.0-alpha.20] - 2025-11-02
 
 ### Fixed
