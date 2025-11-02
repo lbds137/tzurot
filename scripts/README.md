@@ -2,6 +2,21 @@
 
 Helper scripts for deploying Tzurot v3 to Railway.
 
+## ⚠️ Obsolete Scripts
+
+The following scripts were used for the Qdrant → pgvector migration and are now **obsolete** (migration completed):
+
+**Qdrant-related scripts** (19 files):
+- `scripts/*-migration.cjs` - One-time Qdrant data migration scripts
+- `scripts/check-memory*.ts` - Qdrant memory inspection tools
+- `scripts/import-personality/*` - Used `@qdrant/js-client-rest` for Shapes.inc imports
+
+These scripts **will not work** as `@qdrant/js-client-rest` has been removed from dependencies. They are kept for historical reference only.
+
+If you need to reference the migration process, see:
+- `docs/migration/PGVECTOR_MIGRATION_CHECKLIST.md`
+- `docs/deployment/PRODUCTION_DEPLOYMENT_CHECKLIST.md`
+
 ## Prerequisites
 
 1. **Railway CLI installed:**
