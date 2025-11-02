@@ -47,14 +47,6 @@ export const envSchema = z.object({
   REDIS_PORT: z.string().regex(/^\d+$/).transform(Number).default(6379),
   REDIS_PASSWORD: optionalNonEmptyString(),
 
-  // Qdrant Configuration
-  QDRANT_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
-  QDRANT_API_KEY: optionalNonEmptyString(),
-  DEV_QDRANT_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For qdrant-sync: development Qdrant URL
-  DEV_QDRANT_API_KEY: optionalNonEmptyString(), // For qdrant-sync: development Qdrant API key
-  PROD_QDRANT_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For qdrant-sync: production Qdrant URL
-  PROD_QDRANT_API_KEY: optionalNonEmptyString(), // For qdrant-sync: production Qdrant API key
-
   // Database Configuration
   DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)),
   DEV_DATABASE_URL: z.string().url().optional().or(z.literal('').transform(() => undefined)), // For db-sync: development database URL
@@ -166,14 +158,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     REDIS_HOST: 'localhost',
     REDIS_PORT: 6379,
     REDIS_PASSWORD: undefined,
-
-    // Qdrant
-    QDRANT_URL: undefined,
-    QDRANT_API_KEY: undefined,
-    DEV_QDRANT_URL: undefined,
-    DEV_QDRANT_API_KEY: undefined,
-    PROD_QDRANT_URL: undefined,
-    PROD_QDRANT_API_KEY: undefined,
 
     // Database
     DATABASE_URL: undefined,
