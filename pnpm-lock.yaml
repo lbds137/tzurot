@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@qdrant/js-client-rest':
-        specifier: ^1.15.1
-        version: 1.15.1(typescript@5.9.3)
       openai:
         specifier: ^6.7.0
         version: 6.7.0(zod@4.1.12)
@@ -78,9 +75,6 @@ importers:
       '@prisma/client':
         specifier: ^6.18.0
         version: 6.18.0(prisma@6.18.0)(typescript@5.9.3)
-      '@qdrant/js-client-rest':
-        specifier: ^1.15.1
-        version: 1.15.1(typescript@5.9.3)
       openai:
         specifier: ^6.7.0
         version: 6.7.0(zod@4.1.12)
@@ -127,7 +121,7 @@ importers:
     dependencies:
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.0.0(@browserbasehq/stagehand@1.14.0)(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.0.1)(@qdrant/js-client-rest@1.15.1)(ibm-cloud-sdk-core@5.4.3)(openai@6.7.0)(redis@5.9.0)
+        version: 1.0.0(@browserbasehq/stagehand@1.14.0)(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.0.1)(ibm-cloud-sdk-core@5.4.3)(openai@6.7.0)(redis@5.9.0)
       '@langchain/core':
         specifier: ^1.0.1
         version: 1.0.1(openai@6.7.0)
@@ -966,7 +960,7 @@ packages:
       - ws
     dev: false
 
-  /@langchain/community@1.0.0(@browserbasehq/stagehand@1.14.0)(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.0.1)(@qdrant/js-client-rest@1.15.1)(ibm-cloud-sdk-core@5.4.3)(openai@6.7.0)(redis@5.9.0):
+  /@langchain/community@1.0.0(@browserbasehq/stagehand@1.14.0)(@ibm-cloud/watsonx-ai@1.7.0)(@langchain/core@1.0.1)(ibm-cloud-sdk-core@5.4.3)(openai@6.7.0)(redis@5.9.0):
     resolution: {integrity: sha512-CM4vUZHaFHq8HpWBMIWPO5bo/rmRPJ1/iaJk7s8CghkkQ0WLaZzDtoG/wJKJZMDJOUVCtZKTw+TytlGu00/9dg==}
     engines: {node: '>=20'}
     peerDependencies:
@@ -1333,7 +1327,6 @@ packages:
       '@langchain/classic': 1.0.0(@langchain/core@1.0.1)(openai@6.7.0)
       '@langchain/core': 1.0.1(openai@6.7.0)
       '@langchain/openai': 1.0.0(@langchain/core@1.0.1)
-      '@qdrant/js-client-rest': 1.15.1(typescript@5.9.3)
       binary-extensions: 2.3.0
       expr-eval: 2.0.2
       flat: 5.0.2
