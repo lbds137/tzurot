@@ -66,6 +66,21 @@ export const apiConversationMessageSchema = z.object({
 });
 
 /**
+ * Referenced message schema
+ * Used when a user references other messages via replies or message links
+ */
+export const referencedMessageSchema = z.object({
+  referenceNumber: z.number(),
+  authorUsername: z.string(),
+  authorDisplayName: z.string(),
+  content: z.string(),
+  embeds: z.string(),
+  timestamp: z.string(), // ISO 8601 timestamp string (serialized from Date)
+  guildName: z.string(),
+  channelName: z.string()
+});
+
+/**
  * Personality configuration schema
  * Used in GenerateRequest
  */
@@ -116,7 +131,9 @@ export const requestContextSchema = z.object({
   // Attachments
   attachments: z.array(attachmentMetadataSchema).optional(),
   // Discord environment
-  environment: discordEnvironmentSchema.optional()
+  environment: discordEnvironmentSchema.optional(),
+  // Referenced messages (from replies and message links)
+  referencedMessages: z.array(referencedMessageSchema).optional()
 });
 
 /**
@@ -134,6 +151,7 @@ export const generateRequestSchema = z.object({
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
+export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type PersonalityConfig = z.infer<typeof personalityConfigSchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
