@@ -169,4 +169,35 @@ describe('stripPersonalityPrefix', () => {
       expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
     });
   });
+
+  describe('Integration scenarios', () => {
+    it('should ensure clean storage in conversation_history', () => {
+      // Simulates what ConversationalRAGService.storeInteraction does
+      const rawResponse = 'Emily: [now] Hello! How can I help you today?';
+      const cleanedForStorage = stripPersonalityPrefix(rawResponse, 'Emily');
+
+      // The stored content should NOT have the prefix
+      expect(cleanedForStorage).toBe('Hello! How can I help you today?');
+      expect(cleanedForStorage).not.toContain('Emily:');
+    });
+
+    it('should ensure clean storage in LTM vector database', () => {
+      // Simulates the interactionText format used in storeInteraction
+      const rawResponse = 'Lilith: [2 minutes ago] That sounds interesting!';
+      const cleanedResponse = stripPersonalityPrefix(rawResponse, 'Lilith');
+
+      // The LTM text should use cleaned response
+      const interactionText = `{user}: Hello\n{assistant}: ${cleanedResponse}`;
+      expect(interactionText).toBe('{user}: Hello\n{assistant}: That sounds interesting!');
+      expect(interactionText).not.toContain('Lilith:');
+    });
+
+    it('should handle response without prefix (models that follow instructions)', () => {
+      // Gemini 2.5 Flash doesn't add prefixes - should pass through unchanged
+      const rawResponse = 'Hello! How can I help you today?';
+      const cleanedForStorage = stripPersonalityPrefix(rawResponse, 'Emily');
+
+      expect(cleanedForStorage).toBe(rawResponse);
+    });
+  });
 });
