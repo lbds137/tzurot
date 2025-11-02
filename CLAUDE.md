@@ -330,9 +330,7 @@ git push --force-with-lease origin feat/your-feature
 
 ### Required for ai-worker
 - `REDIS_URL` - Redis connection
-- `DATABASE_URL` - PostgreSQL connection
-- `QDRANT_URL` - Database URL (pgvector is in PostgreSQL)
-- `QDRANT_API_KEY` - N/A (pgvector is in PostgreSQL)
+- `DATABASE_URL` - PostgreSQL connection (includes pgvector for vector memory)
 - `AI_PROVIDER` - "openrouter" or "gemini"
 - `OPENROUTER_API_KEY` - OpenRouter key (if using)
 - `GEMINI_API_KEY` - Gemini key (if using)
