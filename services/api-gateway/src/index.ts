@@ -26,6 +26,7 @@ import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
 import type { HealthResponse, ErrorResponse } from './types.js';
+import { ErrorCode } from './utils/errorResponses.js';
 
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
@@ -103,7 +104,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
       if (!personality || !personality.avatarData) {
         // Not in DB either, return 404
         const errorResponse: ErrorResponse = {
-          error: 'NOT_FOUND',
+          error: ErrorCode.NOT_FOUND,
           message: `Avatar not found for personality: ${slug}`,
           timestamp: new Date().toISOString()
         };
@@ -127,7 +128,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
     } catch (error) {
       logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
       const errorResponse: ErrorResponse = {
-        error: 'INTERNAL_ERROR',
+        error: ErrorCode.INTERNAL_ERROR,
         message: 'Failed to retrieve avatar',
         timestamp: new Date().toISOString()
       };
@@ -270,7 +271,7 @@ app.get('/metrics', async (_req, res) => {
     logger.error({ err: error }, '[Metrics] Failed to get metrics');
 
     const errorResponse: ErrorResponse = {
-      error: 'METRICS_ERROR',
+      error: ErrorCode.METRICS_ERROR,
       message: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
@@ -284,7 +285,7 @@ app.get('/metrics', async (_req, res) => {
  */
 app.use((req, res) => {
   const errorResponse: ErrorResponse = {
-    error: 'NOT_FOUND',
+    error: ErrorCode.NOT_FOUND,
     message: `Route ${req.method} ${req.path} not found`,
     timestamp: new Date().toISOString()
   };
@@ -299,7 +300,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   logger.error({ err }, '[Server] Unhandled error:');
 
   const errorResponse: ErrorResponse = {
-    error: 'INTERNAL_ERROR',
+    error: ErrorCode.INTERNAL_ERROR,
     message: config.env === 'production' ? 'Internal server error' : err.message,
     timestamp: new Date().toISOString()
   };

@@ -60,15 +60,16 @@ const DEFAULT_OPTIONS: Required<AvatarOptimizationOptions> = {
  * Optimize avatar image to meet Discord's requirements
  *
  * Takes a base64-encoded image and:
- * 1. Decodes it to a buffer
- * 2. Resizes to target dimensions (default 256x256)
- * 3. Converts to PNG
- * 4. Iteratively reduces quality if file size exceeds target
+ * 1. Validates base64 format
+ * 2. Decodes it to a buffer
+ * 3. Resizes to target dimensions (default 256x256)
+ * 4. Converts to PNG
+ * 5. Iteratively reduces quality if file size exceeds target
  *
  * @param base64Data - Base64-encoded image data
  * @param options - Optimization options
  * @returns Optimization result with processed buffer and metadata
- * @throws Error if image processing fails
+ * @throws Error if base64 is invalid or image processing fails
  */
 export async function optimizeAvatar(
   base64Data: string,
@@ -76,54 +77,64 @@ export async function optimizeAvatar(
 ): Promise<AvatarOptimizationResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
-  // Decode base64 to buffer
-  const originalBuffer = Buffer.from(base64Data, 'base64');
-  const originalSizeKB = originalBuffer.length / 1024;
+  // Validate base64 input
+  if (!isValidBase64(base64Data)) {
+    throw new Error('Invalid base64 image data provided');
+  }
 
-  logger.info(`[ImageProcessor] Original avatar size: ${originalSizeKB.toFixed(2)} KB`);
+  try {
+    // Decode base64 to buffer
+    const originalBuffer = Buffer.from(base64Data, 'base64');
+    const originalSizeKB = originalBuffer.length / 1024;
 
-  // Start with initial quality
-  let quality = opts.initialQuality;
-  let processed = await sharp(originalBuffer)
-    .resize(opts.targetWidth, opts.targetHeight, {
-      fit: 'cover',
-      position: 'center'
-    })
-    .png({ quality })
-    .toBuffer();
+    logger.info(`[ImageProcessor] Original avatar size: ${originalSizeKB.toFixed(2)} KB`);
 
-  // Iteratively reduce quality if needed
-  while (processed.length > opts.maxSizeBytes && quality > opts.minQuality) {
-    quality -= opts.qualityStep;
-    processed = await sharp(originalBuffer)
+    // Start with initial quality
+    let quality = opts.initialQuality;
+    let processed = await sharp(originalBuffer)
       .resize(opts.targetWidth, opts.targetHeight, {
         fit: 'cover',
         position: 'center'
       })
       .png({ quality })
       .toBuffer();
-  }
 
-  const processedSizeKB = processed.length / 1024;
-  const exceedsTarget = processed.length > opts.maxSizeBytes;
+    // Iteratively reduce quality if needed
+    while (processed.length > opts.maxSizeBytes && quality > opts.minQuality) {
+      quality -= opts.qualityStep;
+      processed = await sharp(originalBuffer)
+        .resize(opts.targetWidth, opts.targetHeight, {
+          fit: 'cover',
+          position: 'center'
+        })
+        .png({ quality })
+        .toBuffer();
+    }
 
-  logger.info(
-    `[ImageProcessor] Processed avatar size: ${processedSizeKB.toFixed(2)} KB (quality: ${quality})`
-  );
+    const processedSizeKB = processed.length / 1024;
+    const exceedsTarget = processed.length > opts.maxSizeBytes;
 
-  if (exceedsTarget) {
-    logger.warn(
-      `[ImageProcessor] Avatar still exceeds ${(opts.maxSizeBytes / 1024).toFixed(0)}KB after optimization: ${processedSizeKB.toFixed(2)} KB`
+    logger.info(
+      `[ImageProcessor] Processed avatar size: ${processedSizeKB.toFixed(2)} KB (quality: ${quality})`
     );
-  }
 
-  return {
-    buffer: processed,
-    originalSizeKB: Number(originalSizeKB.toFixed(2)),
-    processedSizeKB: Number(processedSizeKB.toFixed(2)),
-    quality,
-    exceedsTarget
-  };
+    if (exceedsTarget) {
+      logger.warn(
+        `[ImageProcessor] Avatar still exceeds ${(opts.maxSizeBytes / 1024).toFixed(0)}KB after optimization: ${processedSizeKB.toFixed(2)} KB`
+      );
+    }
+
+    return {
+      buffer: processed,
+      originalSizeKB: Number(originalSizeKB.toFixed(2)),
+      processedSizeKB: Number(processedSizeKB.toFixed(2)),
+      quality,
+      exceedsTarget
+    };
+  } catch (error) {
+    logger.error({ err: error }, '[ImageProcessor] Failed to process avatar image');
+    throw new Error('Failed to process avatar image. Ensure it is a valid image format.');
+  }
 }
 
 /**

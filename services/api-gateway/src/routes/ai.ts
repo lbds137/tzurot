@@ -18,6 +18,7 @@ import type {
   GenerateResponse,
   ErrorResponse
 } from '../types.js';
+import { ErrorCode } from '../utils/errorResponses.js';
 
 const logger = createLogger('AIRouter');
 
@@ -48,7 +49,7 @@ aiRouter.post('/generate', async (req, res) => {
 
     if (!validationResult.success) {
       const errorResponse: ErrorResponse = {
-        error: 'VALIDATION_ERROR',
+        error: ErrorCode.VALIDATION_ERROR,
         message: 'Invalid request body',
         timestamp: new Date().toISOString()
       };
@@ -187,7 +188,7 @@ aiRouter.post('/generate', async (req, res) => {
         // Note: Cleanup happens via queue event listener, not here
 
         const errorResponse: ErrorResponse = {
-          error: 'JOB_FAILED',
+          error: ErrorCode.JOB_FAILED,
           message: error instanceof Error ? error.message : 'Job failed or timed out',
           timestamp: new Date().toISOString()
         };
@@ -220,7 +221,7 @@ aiRouter.post('/generate', async (req, res) => {
     );
 
     const errorResponse: ErrorResponse = {
-      error: 'INTERNAL_ERROR',
+      error: ErrorCode.INTERNAL_ERROR,
       message: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
@@ -246,7 +247,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     // Validate request has attachments
     if (!req.body.attachments || !Array.isArray(req.body.attachments) || req.body.attachments.length === 0) {
       const errorResponse: ErrorResponse = {
-        error: 'VALIDATION_ERROR',
+        error: ErrorCode.VALIDATION_ERROR,
         message: 'Missing or invalid attachments array',
         timestamp: new Date().toISOString()
       };
@@ -300,7 +301,7 @@ aiRouter.post('/transcribe', async (req, res) => {
         logger.error({ err: error, jobId: job.id }, `[AI] Transcribe job ${job.id} failed`);
 
         const errorResponse: ErrorResponse = {
-          error: 'JOB_FAILED',
+          error: ErrorCode.JOB_FAILED,
           message: error instanceof Error ? error.message : 'Transcription failed or timed out',
           timestamp: new Date().toISOString()
         };
@@ -321,7 +322,7 @@ aiRouter.post('/transcribe', async (req, res) => {
     logger.error({ err: error }, '[AI] Error creating transcribe job');
 
     const errorResponse: ErrorResponse = {
-      error: 'INTERNAL_ERROR',
+      error: ErrorCode.INTERNAL_ERROR,
       message: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
@@ -343,7 +344,7 @@ aiRouter.get('/job/:jobId', async (req, res) => {
 
     if (job === undefined) {
       const errorResponse: ErrorResponse = {
-        error: 'JOB_NOT_FOUND',
+        error: ErrorCode.JOB_NOT_FOUND,
         message: `Job ${jobId} not found`,
         timestamp: new Date().toISOString()
       };
@@ -373,7 +374,7 @@ aiRouter.get('/job/:jobId', async (req, res) => {
     );
 
     const errorResponse: ErrorResponse = {
-      error: 'INTERNAL_ERROR',
+      error: ErrorCode.INTERNAL_ERROR,
       message: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
     };
