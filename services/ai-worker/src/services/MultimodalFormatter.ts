@@ -8,19 +8,9 @@
  * - OpenRouter: varies by underlying model
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, type AttachmentMetadata } from '@tzurot/common-types';
 
 const logger = createLogger('MultimodalFormatter');
-
-export interface AttachmentMetadata {
-  url: string;
-  contentType: string;
-  name?: string;
-  size?: number;
-  isVoiceMessage?: boolean;
-  duration?: number;
-  waveform?: string;
-}
 
 /**
  * LangChain multimodal content format (for Gemini, some OpenRouter models)
