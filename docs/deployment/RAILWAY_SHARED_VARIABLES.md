@@ -48,8 +48,8 @@ The script sets variables in three categories:
 **Shared (all services)**:
 - `DATABASE_URL` - PostgreSQL connection (see Database URL Strategy below)
 - `REDIS_URL` - Redis connection (Railway addon provides this automatically)
-- `QDRANT_URL` - Vector database
-- `QDRANT_API_KEY` - Qdrant authentication
+- `N/A (pgvector in PostgreSQL)` - Vector database
+- `N/A (pgvector in PostgreSQL)` - Qdrant authentication
 - `AI_PROVIDER` - Which AI provider to use
 - `GEMINI_API_KEY` - Gemini API key
 - `OPENROUTER_API_KEY` - OpenRouter API key (if using)
@@ -61,7 +61,7 @@ The script sets variables in three categories:
 - `NODE_ENV` - Environment (production/development)
 - `LOG_LEVEL` - Logging verbosity
 
-**Note on Memory**: RAG memory (Qdrant) is always enabled if Qdrant credentials are provided. If Qdrant fails to connect, the system continues without long-term memory. No environment variable needed.
+**Note on Memory**: RAG memory (pgvector) is always enabled using the PostgreSQL database. No environment variable needed.
 
 **bot-client only**:
 - `DISCORD_TOKEN` - Discord bot token
@@ -135,7 +135,7 @@ DATABASE_URL="postgresql://user:pass@region.proxy.rlwy.net:port/db"
 
 The script will fail if these critical variables are missing:
 - `DATABASE_URL`
-- `QDRANT_URL`
+- `N/A (pgvector in PostgreSQL)`
 - `GEMINI_API_KEY`
 - `DISCORD_TOKEN`
 
@@ -290,8 +290,8 @@ Railway will automatically:
 
 **Shared Variables to Add**:
 ```
-QDRANT_URL=https://01b8a4c0-61e2-412c-980c-709e41b1ce3e.us-east-1-1.aws.cloud.qdrant.io:6333
-QDRANT_API_KEY=<your-qdrant-api-key>
+DATABASE_URL=<Railway PostgreSQL URL - includes pgvector>
+# No separate pgvector credentials needed - uses DATABASE_URL
 AI_PROVIDER=openrouter
 GEMINI_API_KEY=<your-gemini-key>
 OPENROUTER_API_KEY=<your-openrouter-key>

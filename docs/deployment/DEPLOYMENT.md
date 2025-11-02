@@ -13,8 +13,7 @@ Tzurot v3 consists of three services:
 
 Plus required infrastructure:
 - **Redis**: For BullMQ job queue
-- **PostgreSQL**: For persistent data (future: user credentials, config)
-- **Qdrant/Pinecone**: Vector database for long-term memory (future)
+- **PostgreSQL**: For persistent data and vector memory (using pgvector extension)
 
 ### Step 1: Create Railway Project
 
@@ -102,8 +101,8 @@ OPENROUTER_API_KEY=your_openrouter_key
 ANTHROPIC_API_KEY=your_anthropic_key  # Alternative
 
 # Optional - Vector DB (future)
-QDRANT_URL=your_qdrant_url
-QDRANT_API_KEY=your_qdrant_key
+# pgvector uses DATABASE_URL (no separate URL needed)
+# pgvector uses DATABASE_URL (no separate credentials)
 
 # Optional
 NODE_ENV=production
@@ -158,8 +157,7 @@ Currently personalities are loaded from JSON files. You have two options:
 |----------|----------|-------------|
 | `REDIS_URL` | Yes | Redis connection string (auto-set) |
 | `OPENROUTER_API_KEY` | Yes | OpenRouter API key |
-| `QDRANT_URL` | No | Qdrant vector DB URL (future) |
-| `QDRANT_API_KEY` | No | Qdrant API key (future) |
+| `DATABASE_URL` | No | PostgreSQL URL (auto-provided by Railway, includes pgvector) |
 
 ### Step 6: Deploy Order
 
@@ -247,8 +245,8 @@ Railway provides built-in monitoring:
 ### Next Steps
 
 Once basic deployment works:
-1. Add PostgreSQL for user credentials (BYOK)
-2. Set up vector database (Qdrant on Railway or Pinecone)
+1. Add PostgreSQL for user credentials (BYOK) and pgvector extension
+2. Run database migrations to enable vector memory
 3. Implement slash commands
 4. Add conversation history and auto-response
 5. Enable "free will" agent system
