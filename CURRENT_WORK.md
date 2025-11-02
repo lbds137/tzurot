@@ -118,7 +118,7 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 ### 3. Message Reference System 🔗
 **Priority**: Medium - Feature parity with v2
-**Status**: Needs architectural planning
+**Status**: Architecture designed, ready for implementation
 
 **Goal**: Extract context from Discord replies and message links
 
@@ -127,24 +127,31 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 - Parse Discord message links (format: `https://discord.com/channels/guild/channel/message`)
 - Look up or create default personas for referenced message authors
 - Add referenced messages as separate prompt section (not mixed with conversation history)
-- Improved embed extraction (v2's approach was incomplete)
+- Improved embed extraction with all fields included
+- Replace message links in user's message with numbered references (e.g., "Reference 1", "Reference 2")
 
 **Technical Approach**:
 - New module: `context/MessageReferenceExtractor.ts`
 - New module: `utils/EmbedParser.ts`
-- Separate prompt section for referenced messages
+- Separate prompt section: "## Referenced Messages"
+- Numbered references paired with message content:
+  - User message: "Check out Reference 1 and Reference 2"
+  - Context section: "[Reference 1] <message content>", "[Reference 2] <message content>"
 - Chronological ordering with same metadata as conversation history
-- Better embed field extraction (images, fields, footers)
+- Full embed extraction: title, description, fields, images, footers, etc.
+- LLM-friendly embed formatting
+
+**Design Decisions**:
+- **Max references**: 10 referenced messages (configurable in personality LLM config)
+- **Embed extraction**: Yes - extract and format all embed fields from referenced messages
+- **Inaccessible channels**: Skip silently (don't error, just exclude)
+- **Link replacement**: Replace Discord message links with "Reference N" (except reply-to, which has no link in content)
+- **Numbering**: Consistent numbering between user message and context section for LLM clarity
 
 **v2 Reference** (read-only, don't copy bad patterns):
 - `origin/feature/enhanced-context-metadata` branch
 - Problems with v2: messy structure, mixed concerns, not modular
 - Keep v3's clean prompt format
-
-**Open Questions**:
-- How many levels deep should we follow message references?
-- Should we extract embeds from referenced messages too?
-- How to handle references to messages in inaccessible channels?
 
 ---
 
