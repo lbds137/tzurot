@@ -19,6 +19,7 @@ import {
   type LoadedPersonality
 } from '@tzurot/common-types';
 import OpenAI from 'openai';
+import { logErrorWithDetails } from '../utils/errorHandling.js';
 
 const logger = createLogger('MultimodalProcessor');
 const config = getConfig();
@@ -28,19 +29,6 @@ export interface ProcessedAttachment {
   description: string; // Text description/transcription for history
   originalUrl: string; // For current turn (send raw media)
   metadata: AttachmentMetadata;
-}
-
-/**
- * Error details structure for logging API errors
- */
-interface ErrorDetails {
-  modelName?: string;
-  errorType?: string;
-  errorMessage: string;
-  apiKeyPrefix?: string;
-  apiResponse?: unknown;
-  statusCode?: unknown;
-  statusText?: unknown;
 }
 
 /**
@@ -186,31 +174,16 @@ async function describeWithVisionModel(
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
-    // Extract detailed error information
-    const errorDetails: ErrorDetails = {
-      modelName,
-      errorType: error?.constructor?.name,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    };
+    const context: Record<string, unknown> = { modelName };
 
-    // Try to extract API response details if available
+    // Extract API response details if available
     if (error && typeof error === 'object') {
-      if ('response' in error) {
-        errorDetails.apiResponse = error.response;
-      }
-      if ('status' in error) {
-        errorDetails.statusCode = error.status;
-      }
-      if ('statusText' in error) {
-        errorDetails.statusText = error.statusText;
-      }
+      if ('response' in error) context.apiResponse = (error as any).response;
+      if ('status' in error) context.statusCode = (error as any).status;
+      if ('statusText' in error) context.statusText = (error as any).statusText;
     }
 
-    logger.error({
-      err: error,
-      ...errorDetails
-    }, 'Vision model invocation failed');
-    throw error;
+    logErrorWithDetails(logger, 'Vision model invocation failed', error, context);
   }
 }
 
@@ -266,32 +239,19 @@ async function describeWithFallbackVision(
       ? response.content
       : JSON.stringify(response.content);
   } catch (error) {
-    // Extract detailed error information
-    const errorDetails: ErrorDetails = {
+    const context: Record<string, unknown> = {
       modelName: config.VISION_FALLBACK_MODEL,
-      errorType: error?.constructor?.name,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
       apiKeyPrefix: config.OPENROUTER_API_KEY?.substring(0, 15) + '...'
     };
 
-    // Try to extract API response details if available
+    // Extract API response details if available
     if (error && typeof error === 'object') {
-      if ('response' in error) {
-        errorDetails.apiResponse = error.response;
-      }
-      if ('status' in error) {
-        errorDetails.statusCode = error.status;
-      }
-      if ('statusText' in error) {
-        errorDetails.statusText = error.statusText;
-      }
+      if ('response' in error) context.apiResponse = (error as any).response;
+      if ('status' in error) context.statusCode = (error as any).status;
+      if ('statusText' in error) context.statusText = (error as any).statusText;
     }
 
-    logger.error({
-      err: error,
-      ...errorDetails
-    }, 'Fallback vision model invocation failed');
-    throw error;
+    logErrorWithDetails(logger, 'Fallback vision model invocation failed', error, context);
   }
 }
 
