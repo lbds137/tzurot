@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/common-types",
-  "version": "3.0.0-alpha.18",
+  "version": "3.0.0-alpha.19",
   "private": true,
   "type": "module",
   "description": "Shared types and validation schemas for Tzurot",
