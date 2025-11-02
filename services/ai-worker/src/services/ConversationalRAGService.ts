@@ -32,6 +32,7 @@ import { createChatModel, getModelCacheKey, type ChatModelResult } from './Model
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
+import { logAndThrow, logAndReturnFallback } from '../utils/errorHandling.js';
 
 const logger = createLogger('ConversationalRAGService');
 const config = getConfig();
@@ -362,9 +363,7 @@ export class ConversationalRAGService {
       };
 
     } catch (error) {
-      // Pino requires error objects to be passed with the 'err' key for proper serialization
-      logger.error({ err: error }, `[RAG] Error generating response for ${personality.name}`);
-      throw error;
+      logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
     }
   }
 
@@ -932,8 +931,7 @@ export class ConversationalRAGService {
 
       return parts.length > 0 ? parts.join('\n') : null;
     } catch (error) {
-      logger.error({ err: error }, `[RAG] Failed to fetch persona ${personaId}`);
-      return null;
+      return logAndReturnFallback(logger, `[RAG] Failed to fetch persona ${personaId}`, error, null);
     }
   }
 
@@ -983,8 +981,7 @@ export class ConversationalRAGService {
 
       return personaId;
     } catch (error) {
-      logger.error({ err: error }, `[RAG] Failed to resolve persona for user ${userId}`);
-      return null;
+      return logAndReturnFallback(logger, `[RAG] Failed to resolve persona for user ${userId}`, error, null);
     }
   }
 
