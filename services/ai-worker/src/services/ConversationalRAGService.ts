@@ -30,6 +30,7 @@ import {
 import { createChatModel, getModelCacheKey, type ChatModelResult } from './ModelFactory.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
+import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 
 const logger = createLogger('ConversationalRAGService');
 const config = getConfig();
@@ -699,7 +700,11 @@ export class ConversationalRAGService {
         return;
       }
 
-      // 2. Save assistant response to conversation_history
+      // 2. Strip personality prefix if model ignored prompt instructions
+      // This ensures clean storage in both conversation_history and vector memory
+      const cleanedResponse = stripPersonalityPrefix(aiResponse, personality.name);
+
+      // 3. Save assistant response to conversation_history
       const conversationRecord = await prisma.conversationHistory.create({
         data: {
           channelId: context.channelId || 'dm',
@@ -707,7 +712,7 @@ export class ConversationalRAGService {
           personalityId: personality.id,
           personaId: personaId,
           role: 'assistant',
-          content: aiResponse,
+          content: cleanedResponse,
         },
         select: {
           id: true,
@@ -720,10 +725,10 @@ export class ConversationalRAGService {
       logger.debug(`[RAG] Saved assistant response to conversation_history (${conversationHistoryId}, persona: ${personaId.substring(0, 8)}...)`);
 
 
-      // 3. Determine canon scope and prepare memory metadata
+      // 4. Determine canon scope and prepare memory metadata
       const canonScope: 'global' | 'personal' | 'session' = context.sessionId ? 'session' : 'personal';
       // Use {user} and {assistant} tokens - actual names injected at retrieval time
-      const interactionText = `{user}: ${userMessage}\n{assistant}: ${aiResponse}`;
+      const interactionText = `{user}: ${userMessage}\n{assistant}: ${cleanedResponse}`;
 
       const memoryMetadata = {
         personaId,
@@ -743,7 +748,7 @@ export class ConversationalRAGService {
         return;
       }
 
-      // 4. Create pending_memory record (safety net for vector storage)
+      // 5. Create pending_memory record (safety net for vector storage)
       const pendingMemory = await prisma.pendingMemory.create({
         data: {
           conversationHistoryId,
@@ -757,13 +762,13 @@ export class ConversationalRAGService {
       pendingMemoryId = pendingMemory.id;
       logger.debug(`[RAG] Created pending_memory (${pendingMemoryId})`);
 
-      // 5. Try to store to vector database
+      // 6. Try to store to vector database
       await this.memoryManager.addMemory({
         text: interactionText,
         metadata: memoryMetadata
       });
 
-      // 6. Success! Delete the pending_memory
+      // 7. Success! Delete the pending_memory
       await prisma.pendingMemory.delete({
         where: { id: pendingMemoryId }
       });
