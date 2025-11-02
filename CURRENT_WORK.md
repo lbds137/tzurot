@@ -156,48 +156,60 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 ---
 
 ### 4. PluralKit Proxy Support 🎭
-**Priority**: Medium-High - Quality of life for many users
-**Status**: Planned after message references
+**Priority**: Medium - Quality of life for many users
+**Status**: Requires implementation (not working correctly now)
 
-**Goal**: Detect and properly handle PluralKit-proxied messages
+**Goal**: Detect PluralKit proxies and link system member personas to the original Discord user
 
 **Context**: PluralKit is a popular Discord bot that allows users with DID/OSDD or similar to have multiple "system members" speaking through proxied webhook messages. When a user sends a message with a PluralKit trigger, PluralKit:
 1. Deletes the original message
 2. Creates a webhook message with the system member's name/avatar
 3. This happens within 1-3 seconds
 
-**Problem**: Currently, we create a new persona for each PluralKit webhook instead of recognizing it's the same user.
+**Current Behavior** (BROKEN):
+- We respond to the original message before PluralKit proxies it
+- We don't wait to see if it gets proxied
+- Webhook messages create personas but they're not linked to the original user
+- No correlation between webhook personas and Discord user IDs
 
-**Features**:
-- Detect PluralKit-proxied webhook messages (based on timing, deletion, webhook patterns)
-- Track original user who sent the message
-- Use the user's actual persona instead of creating webhook personas
-- Maintain consistent conversation history across proxied messages
-- Support for system member names in context (optional enhancement)
+**Correct Behavior** (what we need):
+- See the original message, track it
+- Wait 2-3 seconds (already in place from Message References!)
+- If message gets deleted AND webhook appears → PK proxy detected
+- Correlate webhook message to original Discord user
+- Create/use persona for "User ID + PK member name"
+- Process the **webhook message**, not the original
+- One Discord user can have multiple personas:
+  - Default persona (when not using PK)
+  - "Alice" persona (PK member 1)
+  - "Bob" persona (PK member 2)
+  - etc.
 
 **Technical Approach**:
-- Message deletion tracking (watch for deletions within 3s of send)
-- Webhook message correlation (match content/channel/timing)
-- User association cache (link webhook messages to original users)
-- Leverage the 2-3s delay from Message Reference System (already waits for proxies!)
+- **Message deletion tracking**: Watch for deletions within 3s of send
+- **Webhook correlation**: Match webhook message to deleted message by content/channel/timing
+- **User association cache**: Map webhook message → original Discord user ID
+- **Persona management**: Store `(userId, memberName)` → persona mapping
+- **Process webhook message**: Use the webhook message content, not original
 
-**Learnings from v2**:
-- v2 had `pluralkitMessageStore` and `pluralkitReplyTracker` utilities
-- Tracked deleted messages and correlated with webhook messages
-- Used content similarity matching
-- Had webhook user tracking system
+**Implementation Needs**:
+- New service: `PluralKitDetector`
+- Message deletion event handler
+- Temporary message store (content, user, channel, timestamp)
+- Webhook correlation algorithm (content similarity + timing)
+- User-to-webhook mapping cache
+- Persona lookup by `(userId, memberName)` instead of just `userId`
 
-**v2 Reference Files** (read-only, extract patterns):
-- `src/utils/pluralkitMessageStore.js` - Message deletion tracking
-- `src/utils/pluralkitReplyTracker.js` - Reply correlation
-- `src/utils/webhookUserTracker.js` - User-webhook association
-- `src/handlers/referenceHandler.js` - Integration example
+**v2 Reference** (patterns to extract, not copy):
+- `src/utils/pluralkitMessageStore.js` - Deletion tracking pattern
+- `src/utils/webhookUserTracker.js` - User association pattern
+- `src/handlers/referenceHandler.js` - Correlation logic pattern
 
 **Benefits of Implementing After Message References**:
 - The 2-3s delay is already implemented
-- Message refetch logic is already in place
-- Webhook detection patterns can reuse reference extraction code
-- Lower complexity since infrastructure is ready
+- Message refetch logic already in place
+- Infrastructure for tracking and correlation is similar
+- Can reuse patterns from reference extraction
 
 ---
 
