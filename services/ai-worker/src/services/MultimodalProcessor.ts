@@ -10,23 +10,18 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { createLogger, getConfig, AI_DEFAULTS, TIMEOUTS } from '@tzurot/common-types';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  AI_DEFAULTS,
+  TIMEOUTS,
+  type AttachmentMetadata,
+  type LoadedPersonality
+} from '@tzurot/common-types';
 import OpenAI from 'openai';
 
 const logger = createLogger('MultimodalProcessor');
 const config = getConfig();
-
-export interface AttachmentMetadata {
-  url: string;
-  originalUrl?: string; // Discord CDN URL (preserved for caching lookups)
-  contentType: string;
-  name?: string;
-  size?: number;
-  isVoiceMessage?: boolean;
-  duration?: number;
-  waveform?: string;
-}
 
 export interface ProcessedAttachment {
   type: 'image' | 'audio';
