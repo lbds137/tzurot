@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.20] - 2025-11-02
+
+### Fixed
+- **Response Cleanup Storage** - Personality prefixes now stripped before saving to database
+  - AI-generated prefixes like "Emily: [now]" are now removed before storage
+  - Applied cleanup to both conversation_history and long-term memory (LTM)
+  - Previously, only responses sent to Discord were cleaned; stored data was polluted
+  - Ensures clean data in conversation context and memory retrieval
+
 ### Removed
 - **Qdrant vector database dependency** - Replaced by pgvector (PostgreSQL extension)
   - Removed `@qdrant/js-client-rest` npm package from dependencies
@@ -15,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Migration completed: All vector memory now stored in PostgreSQL using pgvector extension
   - Benefits: Simpler deployment (one less service), reduced costs (no separate Qdrant Cloud subscription), same DATABASE_URL for all data
 
-## [3.0.0-alpha.17] - 2025-11-01
+## [3.0.0-alpha.19] - 2025-11-01
 
 ### Fixed
 - **Current Speaker Detection** - LLM now correctly identifies who is currently speaking in group conversations
