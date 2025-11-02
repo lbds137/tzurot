@@ -18,6 +18,7 @@ import {
   MessageContent,
   createLogger,
   type LoadedPersonality,
+  type AttachmentMetadata,
   AI_DEFAULTS,
   TEXT_LIMITS,
   TIMEOUTS,
@@ -34,16 +35,6 @@ import { stripPersonalityPrefix } from '../utils/responseCleanup.js';
 
 const logger = createLogger('ConversationalRAGService');
 const config = getConfig();
-
-export interface AttachmentMetadata {
-  url: string;
-  contentType: string;
-  name?: string;
-  size?: number;
-  isVoiceMessage?: boolean;
-  duration?: number;
-  waveform?: string;
-}
 
 /**
  * Memory document structure from vector search
