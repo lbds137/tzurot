@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **Qdrant vector database dependency** - Replaced by pgvector (PostgreSQL extension)
+  - Removed `@qdrant/js-client-rest` npm package from dependencies
+  - Removed environment variables: `QDRANT_URL`, `QDRANT_API_KEY`, `DEV_QDRANT_URL`, `DEV_QDRANT_API_KEY`, `PROD_QDRANT_URL`, `PROD_QDRANT_API_KEY`
+  - Removed Qdrant service from docker-compose.yml
+  - Migration completed: All vector memory now stored in PostgreSQL using pgvector extension
+  - Benefits: Simpler deployment (one less service), reduced costs (no separate Qdrant Cloud subscription), same DATABASE_URL for all data
+
 ## [3.0.0-alpha.17] - 2025-11-01
 
 ### Fixed
