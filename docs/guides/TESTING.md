@@ -1,6 +1,6 @@
 # Testing Guide
 
-**Last Updated:** 2025-11-01
+**Last Updated:** 2025-11-02
 **Status:** Foundation complete, expanding coverage
 
 > **Purpose:** Guidelines and patterns for writing tests in Tzurot v3
@@ -265,6 +265,73 @@ describe('Timer-based code', () => {
   });
 });
 ```
+
+### Testing Promise Rejections with Fake Timers
+
+**⚠️ Common Issue:** When testing code that rejects promises after timer delays (e.g., retry logic, timeouts), you may see `PromiseRejectionHandledWarning` even though tests pass.
+
+**The Problem:** A race condition between timer advancement and handler attachment:
+1. Create promise (no handler yet)
+2. Advance timers → rejection occurs
+3. Promise rejected with NO handler → warning
+4. Handler attached too late
+
+**✅ Solution:** Attach assertion handlers BEFORE advancing timers
+
+```typescript
+// ✅ CORRECT: Attach handler before advancing timers
+it('should throw RetryError after all attempts fail', async () => {
+  const fn = vi.fn().mockRejectedValue(new Error('Fail'));
+
+  // 1. Create the promise
+  const promise = withRetry(fn, { maxAttempts: 3, initialDelayMs: 100 });
+
+  // 2. Attach handler BEFORE advancing timers
+  const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+
+  // 3. NOW advance timers to trigger rejection
+  await vi.runAllTimersAsync();
+
+  // 4. Await the assertion
+  await assertionPromise;
+
+  // 5. Additional assertions
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+
+// ❌ INCORRECT: Handler attached too late (causes warnings)
+it('should throw error', async () => {
+  const promise = withRetry(fn, { maxAttempts: 3 });
+
+  await vi.runAllTimersAsync(); // ❌ Rejection happens here
+
+  // ❌ Handler attached after rejection
+  await expect(promise).rejects.toThrow(RetryError);
+});
+```
+
+**Alternative Pattern** (when you need to inspect the error):
+
+```typescript
+it('should throw with specific error details', async () => {
+  expect.assertions(2);
+
+  const fn = vi.fn().mockRejectedValue(new Error('Fail'));
+
+  try {
+    const promise = withRetry(fn, { maxAttempts: 3 });
+    await vi.runAllTimersAsync();
+    await promise;
+  } catch (e: any) {
+    expect(e).toBeInstanceOf(RetryError);
+    expect(e.attempts).toBe(3);
+  }
+});
+```
+
+**Why This Works:** The `expect().rejects` matcher attaches the promise handler immediately when called, preventing the "unhandled rejection" state.
+
+**Reference:** Gemini AI collaboration, PR #206 (2025-11-02)
 
 ---
 
