@@ -1,0 +1,172 @@
+/**
+ * Tests for Response Cleanup Utilities
+ */
+
+import { describe, it, expect } from 'vitest';
+import { stripPersonalityPrefix } from './responseCleanup.js';
+
+describe('stripPersonalityPrefix', () => {
+  describe('Basic prefix stripping', () => {
+    it('should strip basic prefix', () => {
+      expect(stripPersonalityPrefix('Emily: hello', 'Emily')).toBe('hello');
+    });
+
+    it('should strip prefix with timestamp', () => {
+      expect(stripPersonalityPrefix('Emily: [now] hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('Lilith: [2 minutes ago] hey', 'Lilith')).toBe('hey');
+      expect(stripPersonalityPrefix('Bambi Prime: [5 seconds ago] test', 'Bambi Prime')).toBe('test');
+    });
+
+    it('should strip prefix with various timestamp formats', () => {
+      expect(stripPersonalityPrefix('Emily: [now] content', 'Emily')).toBe('content');
+      expect(stripPersonalityPrefix('Emily: [2024-01-01] content', 'Emily')).toBe('content');
+      expect(stripPersonalityPrefix('Emily: [just now] content', 'Emily')).toBe('content');
+    });
+
+    it('should handle extra whitespace', () => {
+      expect(stripPersonalityPrefix('Emily:  hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('Emily: [now]  hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('Emily:    [now]    hello', 'Emily')).toBe('hello');
+    });
+  });
+
+  describe('Case sensitivity', () => {
+    it('should be case-insensitive for personality name', () => {
+      expect(stripPersonalityPrefix('EMILY: hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('emily: hello', 'Emily')).toBe('hello');
+      expect(stripPersonalityPrefix('EmIlY: hello', 'Emily')).toBe('hello');
+    });
+  });
+
+  describe('Special characters in names', () => {
+    it('should handle names with special regex characters', () => {
+      expect(stripPersonalityPrefix('C++Bot: hello', 'C++Bot')).toBe('hello');
+      expect(stripPersonalityPrefix('Test.Name: hi', 'Test.Name')).toBe('hi');
+      expect(stripPersonalityPrefix('A*B: content', 'A*B')).toBe('content');
+      expect(stripPersonalityPrefix('Name[1]: test', 'Name[1]')).toBe('test');
+    });
+
+    it('should handle names with parentheses', () => {
+      expect(stripPersonalityPrefix('Bot(v2): hello', 'Bot(v2)')).toBe('hello');
+    });
+
+    it('should handle names with backslashes', () => {
+      expect(stripPersonalityPrefix('Test\\Name: hello', 'Test\\Name')).toBe('hello');
+    });
+  });
+
+  describe('Multi-word names', () => {
+    it('should handle multi-word personality names', () => {
+      expect(stripPersonalityPrefix('Bambi Prime: hello', 'Bambi Prime')).toBe('hello');
+      expect(stripPersonalityPrefix('Dr. Emily: [now] test', 'Dr. Emily')).toBe('test');
+    });
+  });
+
+  describe('Name mismatch', () => {
+    it('should NOT strip if name does not match', () => {
+      expect(stripPersonalityPrefix('Emily: hello', 'Lilith')).toBe('Emily: hello');
+      expect(stripPersonalityPrefix('Bob: [now] test', 'Alice')).toBe('Bob: [now] test');
+    });
+
+    it('should NOT strip partial name matches', () => {
+      expect(stripPersonalityPrefix('Emily: hello', 'Em')).toBe('Emily: hello');
+      expect(stripPersonalityPrefix('Em: hello', 'Emily')).toBe('Em: hello');
+    });
+  });
+
+  describe('Position sensitivity', () => {
+    it('should NOT strip name in middle of content', () => {
+      const content = 'Hello! Emily: is my name';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
+    });
+
+    it('should NOT strip name on second line', () => {
+      const content = 'First line\nEmily: second line';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
+    });
+
+    it('should only strip from the very beginning', () => {
+      const content = 'Some text Emily: [now] more text';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
+    });
+  });
+
+  describe('Multi-line content', () => {
+    it('should preserve multi-line content after prefix', () => {
+      const content = 'Emily: [now] Line 1\n\nLine 2\n\nLine 3';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe('Line 1\n\nLine 2\n\nLine 3');
+    });
+
+    it('should handle content with actions and dialogue', () => {
+      const content = 'Emily: [now] *reaches out*\n\nHello there!';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe('*reaches out*\n\nHello there!');
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle empty content after prefix', () => {
+      expect(stripPersonalityPrefix('Emily: ', 'Emily')).toBe('');
+      expect(stripPersonalityPrefix('Emily:   ', 'Emily')).toBe('');
+      expect(stripPersonalityPrefix('Emily: [now] ', 'Emily')).toBe('');
+    });
+
+    it('should handle only personality name (no content)', () => {
+      expect(stripPersonalityPrefix('Emily:', 'Emily')).toBe('');
+    });
+
+    it('should return original if no prefix', () => {
+      const content = 'This is regular content';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
+    });
+
+    it('should handle empty string', () => {
+      expect(stripPersonalityPrefix('', 'Emily')).toBe('');
+    });
+  });
+
+  describe('Timestamp bracket variations', () => {
+    it('should match timestamps even with newlines inside brackets', () => {
+      // [^\\]]+ means "anything except ]" which includes newlines
+      // This is acceptable behavior - real timestamps won't span lines anyway
+      const content = 'Emily: [broken\ntimestamp] content';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe('content');
+    });
+
+    it('should handle nested brackets edge case', () => {
+      // [^\\]]+ matches "time [nested", stops at first ]
+      // This leaves "] content" which is acceptable since real timestamps
+      // won't have nested brackets
+      const content = 'Emily: [time [nested]] content';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe('] content');
+    });
+  });
+
+  describe('Unicode and international characters', () => {
+    it('should handle unicode characters in personality names', () => {
+      expect(stripPersonalityPrefix('Amélie: hello', 'Amélie')).toBe('hello');
+      expect(stripPersonalityPrefix('Café: [now] test', 'Café')).toBe('test');
+    });
+
+    it('should handle emoji in names', () => {
+      expect(stripPersonalityPrefix('Bot🤖: hello', 'Bot🤖')).toBe('hello');
+    });
+  });
+
+  describe('Real-world examples', () => {
+    it('should handle the Emily example from the bug report', () => {
+      const content = 'Emily: [now] *my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
+      const expected = '*my entire being glows with a soft, surprised warmth, wings giving an involuntary flutter*\n\nOh my... Lila.';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(expected);
+    });
+
+    it('should handle typical Haiku output', () => {
+      const content = 'Lilith: [2 minutes ago] Hey there! How are you doing?';
+      expect(stripPersonalityPrefix(content, 'Lilith')).toBe('Hey there! How are you doing?');
+    });
+
+    it('should not strip when personality mentions themselves', () => {
+      const content = 'I am Emily, nice to meet you!';
+      expect(stripPersonalityPrefix(content, 'Emily')).toBe(content);
+    });
+  });
+});
