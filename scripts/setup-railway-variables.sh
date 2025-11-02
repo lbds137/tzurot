@@ -144,9 +144,8 @@ echo -e "${YELLOW}Shared Infrastructure Variables${NC}"
 echo -e "${BLUE}ℹ${NC}  Note: DATABASE_URL is usually provided automatically by Railway's Postgres addon"
 echo "   If you're using Railway Postgres, you can skip this (press Enter)"
 echo "   Railway will automatically inject DATABASE_PRIVATE_URL for services"
+echo "   Note: PostgreSQL includes pgvector extension for vector memory"
 DATABASE_URL=$(get_or_prompt "DATABASE_URL" "PostgreSQL connection string (or leave empty to use Railway's)" "true")
-QDRANT_URL=$(get_or_prompt "QDRANT_URL" "Qdrant vector database URL" "false")
-QDRANT_API_KEY=$(get_or_prompt "QDRANT_API_KEY" "Qdrant API key (if using Qdrant Cloud)" "true")
 echo ""
 
 # Shared AI Configuration
@@ -158,7 +157,7 @@ OPENAI_API_KEY=$(get_or_prompt "OPENAI_API_KEY" "OpenAI API key (for embeddings)
 DEFAULT_AI_MODEL=$(get_or_prompt "DEFAULT_AI_MODEL" "Default AI model to use" "false")
 WHISPER_MODEL=$(get_or_prompt "WHISPER_MODEL" "Whisper model for audio transcription" "false")
 VISION_FALLBACK_MODEL=$(get_or_prompt "VISION_FALLBACK_MODEL" "Vision model for image analysis" "false")
-EMBEDDING_MODEL=$(get_or_prompt "EMBEDDING_MODEL" "Embedding model for Qdrant" "false")
+EMBEDDING_MODEL=$(get_or_prompt "EMBEDDING_MODEL" "Embedding model for pgvector" "false")
 echo ""
 
 # Shared Application Settings
@@ -202,9 +201,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 echo -e "${YELLOW}Shared Variables (apply to all services):${NC}"
-echo "  DATABASE_URL: $([ -n "$DATABASE_URL" ] && echo '***set***' || echo 'NOT SET (Railway will provide)')"
-echo "  QDRANT_URL: ${QDRANT_URL:-NOT SET}"
-echo "  QDRANT_API_KEY: $([ -n "$QDRANT_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
+echo "  DATABASE_URL: $([ -n "$DATABASE_URL" ] && echo '***set***' || echo 'NOT SET (Railway will provide with pgvector)')"
 echo "  AI_PROVIDER: ${AI_PROVIDER}"
 echo "  GEMINI_API_KEY: $([ -n "$GEMINI_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
 echo "  OPENROUTER_API_KEY: $([ -n "$OPENROUTER_API_KEY" ] && echo '***set***' || echo 'NOT SET')"
@@ -234,7 +231,6 @@ echo ""
 # Validate required variables
 MISSING_VARS=()
 # DATABASE_URL is optional - Railway Postgres addon provides it automatically
-[ -z "$QDRANT_URL" ] && MISSING_VARS+=("QDRANT_URL")
 [ -z "$DISCORD_TOKEN" ] && MISSING_VARS+=("DISCORD_TOKEN")
 
 # At least one AI provider API key is required
@@ -291,8 +287,6 @@ echo ""
 echo -e "${YELLOW}Setting shared variables...${NC}"
 # Only set DATABASE_URL if provided (Railway Postgres addon provides it automatically otherwise)
 [ -n "$DATABASE_URL" ] && set_variable "shared" "" "DATABASE_URL" "$DATABASE_URL" "PostgreSQL connection (custom)"
-set_variable "shared" "" "QDRANT_URL" "$QDRANT_URL" "Qdrant vector database"
-[ -n "$QDRANT_API_KEY" ] && set_variable "shared" "" "QDRANT_API_KEY" "$QDRANT_API_KEY" "Qdrant API key"
 set_variable "shared" "" "AI_PROVIDER" "$AI_PROVIDER" "AI provider"
 [ -n "$GEMINI_API_KEY" ] && set_variable "shared" "" "GEMINI_API_KEY" "$GEMINI_API_KEY" "Gemini API key"
 [ -n "$OPENROUTER_API_KEY" ] && set_variable "shared" "" "OPENROUTER_API_KEY" "$OPENROUTER_API_KEY" "OpenRouter API key"
