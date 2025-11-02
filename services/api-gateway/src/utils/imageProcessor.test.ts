@@ -370,4 +370,102 @@ describe('imageProcessor', () => {
       );
     });
   });
+
+  describe('Configuration validation', () => {
+    const validBase64 = Buffer.alloc(100).toString('base64');
+
+    it('should throw error when minQuality > initialQuality', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        minQuality: 80,
+        initialQuality: 70
+      })).rejects.toThrow(
+        'Invalid configuration: minQuality (80) cannot be greater than initialQuality (70)'
+      );
+    });
+
+    it('should throw error for minQuality < 1', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        minQuality: 0
+      })).rejects.toThrow(
+        'Invalid configuration: minQuality must be between 1 and 100'
+      );
+    });
+
+    it('should throw error for minQuality > 100', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        minQuality: 101
+      })).rejects.toThrow(
+        'Invalid configuration: minQuality must be between 1 and 100'
+      );
+    });
+
+    it('should throw error for initialQuality < 1', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        initialQuality: 0
+      })).rejects.toThrow(
+        'Invalid configuration: initialQuality must be between 1 and 100'
+      );
+    });
+
+    it('should throw error for initialQuality > 100', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        initialQuality: 101
+      })).rejects.toThrow(
+        'Invalid configuration: initialQuality must be between 1 and 100'
+      );
+    });
+
+    it('should throw error for negative dimensions', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        targetWidth: -100
+      })).rejects.toThrow(
+        'Invalid configuration: dimensions must be positive'
+      );
+    });
+
+    it('should throw error for zero dimensions', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        targetHeight: 0
+      })).rejects.toThrow(
+        'Invalid configuration: dimensions must be positive'
+      );
+    });
+
+    it('should throw error for negative maxSizeBytes', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        maxSizeBytes: -1000
+      })).rejects.toThrow(
+        'Invalid configuration: maxSizeBytes cannot be negative'
+      );
+    });
+
+    it('should throw error for zero qualityStep', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        qualityStep: 0
+      })).rejects.toThrow(
+        'Invalid configuration: qualityStep must be positive'
+      );
+    });
+
+    it('should throw error for negative qualityStep', async () => {
+      await expect(optimizeAvatar(validBase64, {
+        qualityStep: -5
+      })).rejects.toThrow(
+        'Invalid configuration: qualityStep must be positive'
+      );
+    });
+
+    it('should accept valid configuration at boundary values', async () => {
+      const result = await optimizeAvatar(validBase64, {
+        minQuality: 1,
+        initialQuality: 100,
+        targetWidth: 1,
+        targetHeight: 1,
+        maxSizeBytes: 1,
+        qualityStep: 1
+      });
+
+      expect(result).toHaveProperty('buffer');
+    });
+  });
 });

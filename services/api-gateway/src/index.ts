@@ -25,8 +25,8 @@ const pinoHttp = require('pino-http');
 import { aiQueue, checkQueueHealth, closeQueue } from './queue.js';
 import { startCleanup, stopCleanup, getCacheSize } from './utils/requestDeduplication.js';
 import { syncAvatars } from './migrations/sync-avatars.js';
-import type { HealthResponse, ErrorResponse } from './types.js';
-import { ErrorCode } from './utils/errorResponses.js';
+import type { HealthResponse } from './types.js';
+import { ErrorResponses } from './utils/errorResponses.js';
 
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
@@ -103,11 +103,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
 
       if (!personality || !personality.avatarData) {
         // Not in DB either, return 404
-        const errorResponse: ErrorResponse = {
-          error: ErrorCode.NOT_FOUND,
-          message: `Avatar not found for personality: ${slug}`,
-          timestamp: new Date().toISOString()
-        };
+        const errorResponse = ErrorResponses.notFound(`Avatar for personality '${slug}'`);
         res.status(404).json(errorResponse);
         return;
       }
@@ -127,11 +123,7 @@ app.get('/avatars/:slug.png', async (req, res) => {
 
     } catch (error) {
       logger.error({ err: error, slug }, '[Gateway] Error serving avatar');
-      const errorResponse: ErrorResponse = {
-        error: ErrorCode.INTERNAL_ERROR,
-        message: 'Failed to retrieve avatar',
-        timestamp: new Date().toISOString()
-      };
+      const errorResponse = ErrorResponses.internalError('Failed to retrieve avatar');
       res.status(500).json(errorResponse);
     }
   }
@@ -270,11 +262,9 @@ app.get('/metrics', async (_req, res) => {
   } catch (error) {
     logger.error({ err: error }, '[Metrics] Failed to get metrics');
 
-    const errorResponse: ErrorResponse = {
-      error: ErrorCode.METRICS_ERROR,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    };
+    const errorResponse = ErrorResponses.metricsError(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
 
     res.status(500).json(errorResponse);
   }
@@ -284,12 +274,7 @@ app.get('/metrics', async (_req, res) => {
  * 404 handler
  */
 app.use((req, res) => {
-  const errorResponse: ErrorResponse = {
-    error: ErrorCode.NOT_FOUND,
-    message: `Route ${req.method} ${req.path} not found`,
-    timestamp: new Date().toISOString()
-  };
-
+  const errorResponse = ErrorResponses.notFound(`Route ${req.method} ${req.path}`);
   res.status(404).json(errorResponse);
 });
 
@@ -299,11 +284,9 @@ app.use((req, res) => {
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error({ err }, '[Server] Unhandled error:');
 
-  const errorResponse: ErrorResponse = {
-    error: ErrorCode.INTERNAL_ERROR,
-    message: config.env === 'production' ? 'Internal server error' : err.message,
-    timestamp: new Date().toISOString()
-  };
+  const errorResponse = ErrorResponses.internalError(
+    config.env === 'production' ? 'Internal server error' : err.message
+  );
 
   res.status(500).json(errorResponse);
 });

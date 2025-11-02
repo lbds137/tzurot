@@ -6,8 +6,10 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { getConfig } from '@tzurot/common-types';
+import { getConfig, createLogger } from '@tzurot/common-types';
 import { ErrorResponses, getStatusCode } from '../utils/errorResponses.js';
+
+const logger = createLogger('auth-middleware');
 
 /**
  * Extract owner ID from request (checks both header and body)
@@ -64,6 +66,17 @@ export function requireOwnerAuth(customMessage?: string) {
     const ownerId = extractOwnerId(req);
 
     if (!isValidOwner(ownerId)) {
+      // Log unauthorized access attempt for security monitoring
+      logger.warn(
+        {
+          ownerId: ownerId || 'none',
+          path: req.path,
+          method: req.method,
+          ip: req.ip
+        },
+        '[Auth] Unauthorized access attempt'
+      );
+
       const errorResponse = ErrorResponses.unauthorized(customMessage);
       const statusCode = getStatusCode(errorResponse.error);
 
