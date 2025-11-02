@@ -155,7 +155,53 @@ After attempting vitest-mock-extended, Mockable<T>, and complex MockData<T> patt
 
 ---
 
-### 4. Multi-Personality Response Feature 🎭
+### 4. PluralKit Proxy Support 🎭
+**Priority**: Medium-High - Quality of life for many users
+**Status**: Planned after message references
+
+**Goal**: Detect and properly handle PluralKit-proxied messages
+
+**Context**: PluralKit is a popular Discord bot that allows users with DID/OSDD or similar to have multiple "system members" speaking through proxied webhook messages. When a user sends a message with a PluralKit trigger, PluralKit:
+1. Deletes the original message
+2. Creates a webhook message with the system member's name/avatar
+3. This happens within 1-3 seconds
+
+**Problem**: Currently, we create a new persona for each PluralKit webhook instead of recognizing it's the same user.
+
+**Features**:
+- Detect PluralKit-proxied webhook messages (based on timing, deletion, webhook patterns)
+- Track original user who sent the message
+- Use the user's actual persona instead of creating webhook personas
+- Maintain consistent conversation history across proxied messages
+- Support for system member names in context (optional enhancement)
+
+**Technical Approach**:
+- Message deletion tracking (watch for deletions within 3s of send)
+- Webhook message correlation (match content/channel/timing)
+- User association cache (link webhook messages to original users)
+- Leverage the 2-3s delay from Message Reference System (already waits for proxies!)
+
+**Learnings from v2**:
+- v2 had `pluralkitMessageStore` and `pluralkitReplyTracker` utilities
+- Tracked deleted messages and correlated with webhook messages
+- Used content similarity matching
+- Had webhook user tracking system
+
+**v2 Reference Files** (read-only, extract patterns):
+- `src/utils/pluralkitMessageStore.js` - Message deletion tracking
+- `src/utils/pluralkitReplyTracker.js` - Reply correlation
+- `src/utils/webhookUserTracker.js` - User-webhook association
+- `src/handlers/referenceHandler.js` - Integration example
+
+**Benefits of Implementing After Message References**:
+- The 2-3s delay is already implemented
+- Message refetch logic is already in place
+- Webhook detection patterns can reuse reference extraction code
+- Lower complexity since infrastructure is ready
+
+---
+
+### 5. Multi-Personality Response Feature 🎭
 **Priority**: Low - New feature, not v2 parity
 **Status**: Concept phase
 
