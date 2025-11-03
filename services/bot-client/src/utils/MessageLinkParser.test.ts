@@ -121,7 +121,7 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toBe('Check out Reference 1');
+      expect(result).toBe('Check out [Reference 1]');
     });
 
     it('should replace multiple links with correct numbers', () => {
@@ -136,8 +136,8 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toContain('First: Reference 1');
-      expect(result).toContain('Second: Reference 2');
+      expect(result).toContain('First: [Reference 1]');
+      expect(result).toContain('Second: [Reference 2]');
     });
 
     it('should preserve non-link text', () => {
@@ -148,7 +148,7 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toBe('Before Reference 1 after');
+      expect(result).toBe('Before [Reference 1] after');
     });
 
     it('should handle empty link map', () => {
@@ -180,7 +180,7 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toBe('Reference 1');
+      expect(result).toBe('[Reference 1]');
       expect(result).not.toContain('discord.com');
     });
 
@@ -191,7 +191,7 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toBe('Reference 1 and Reference 1');
+      expect(result).toBe('[Reference 1] and [Reference 1]');
     });
 
     it('should handle different URL formats', () => {
@@ -208,9 +208,9 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toContain('PTB: Reference 1');
-      expect(result).toContain('Canary: Reference 2');
-      expect(result).toContain('App: Reference 3');
+      expect(result).toContain('PTB: [Reference 1]');
+      expect(result).toContain('Canary: [Reference 2]');
+      expect(result).toContain('App: [Reference 3]');
     });
 
     it('should handle links at start and end of content', () => {
@@ -224,7 +224,7 @@ describe('MessageLinkParser', () => {
 
       const result = MessageLinkParser.replaceLinksWithReferences(content, linkMap);
 
-      expect(result).toBe('Reference 1 middle text Reference 2');
+      expect(result).toBe('[Reference 1] middle text [Reference 2]');
     });
   });
 

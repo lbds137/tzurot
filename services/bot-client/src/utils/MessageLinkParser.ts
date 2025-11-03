@@ -53,7 +53,7 @@ export class MessageLinkParser {
    * Replace message links with numbered references
    * @param content - Original message content
    * @param linkMap - Map of full URL to reference number
-   * @returns Content with links replaced by "Reference N"
+   * @returns Content with links replaced by "[Reference N]"
    */
   static replaceLinksWithReferences(
     content: string,
@@ -68,7 +68,7 @@ export class MessageLinkParser {
 
     for (const [url, number] of sortedEntries) {
       // Use replaceAll to replace all occurrences (handles duplicate links)
-      result = result.replaceAll(url, `Reference ${number}`);
+      result = result.replaceAll(url, `[Reference ${number}]`);
     }
 
     return result;
