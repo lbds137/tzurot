@@ -487,13 +487,17 @@ export class ConversationalRAGService {
       : '';
 
     // Referenced messages (from replies and message links)
+    const referencedMessagesJson = context.referencedMessages
+      ? JSON.stringify(context.referencedMessages).substring(0, 200)
+      : 'undefined';
+
     logger.info(
       `[RAG] Checking referenced messages: ` +
       `exists=${!!context.referencedMessages}, ` +
       `type=${typeof context.referencedMessages}, ` +
       `isArray=${Array.isArray(context.referencedMessages)}, ` +
       `length=${context.referencedMessages?.length || 0}, ` +
-      `value=${JSON.stringify(context.referencedMessages).substring(0, 200)}`
+      `value=${referencedMessagesJson}`
     );
 
     const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
