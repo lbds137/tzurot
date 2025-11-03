@@ -13,6 +13,7 @@ import {
   MessageContent,
   createLogger,
   type LoadedPersonality,
+  type ReferencedMessage,
   formatRelativeTime,
 } from '@tzurot/common-types';
 import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
@@ -89,6 +90,8 @@ export interface AIJobData {
         };
       };
     };
+    // Referenced messages (from replies and message links)
+    referencedMessages?: ReferencedMessage[];
   };
 
   // User's API key (for BYOK)
