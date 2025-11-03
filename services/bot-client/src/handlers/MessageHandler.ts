@@ -583,12 +583,11 @@ export class MessageHandler {
 
       try {
         // Get or create the user record (creates default persona if needed)
-        // Note: We don't have display name/bio from the referenced message,
-        // so username is used for both parameters
+        // Use the actual Discord display name from the reference (includes server nickname/global display name)
         userId = await this.userService.getOrCreateUser(
           reference.discordUserId,
           reference.authorUsername,
-          reference.authorUsername // Use username as fallback display name
+          reference.authorDisplayName // Preserve actual Discord display name in user record
         );
 
         // Get the persona for this user when interacting with this personality
@@ -599,8 +598,9 @@ export class MessageHandler {
 
         if (!personaName) {
           // Not in history, fetch from database
-          const fetchedName = await this.userService.getPersonaName(personaId);
-          personaName = fetchedName ?? undefined; // Convert null to undefined for consistent handling
+          // Note: Convert null to undefined for TypeScript type compatibility
+          // (Map returns string | undefined, getPersonaName returns string | null)
+          personaName = (await this.userService.getPersonaName(personaId)) ?? undefined;
         }
 
         // Update the authorDisplayName with the persona name
