@@ -443,4 +443,334 @@ describe('MessageReferenceExtractor', () => {
       expect(references[0].guildName).toBe('Direct Messages');
     });
   });
+
+  describe('Conversation History Deduplication', () => {
+    it('should exclude referenced message that is already in conversation history (exact match)', async () => {
+      // Setup: Create extractor with conversation history message IDs
+      const historyMessageIds = ['msg-in-history-123'];
+      const extractor = new MessageReferenceExtractor({
+        conversationHistoryMessageIds: historyMessageIds,
+        embedProcessingDelayMs: 0
+      });
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'msg-in-history-123',
+        content: 'Already in history',
+        author: createMockUser({ username: 'HistoryUser' }),
+        channel: referencedChannel,
+        createdAt: new Date('2025-11-02T10:00:00Z')
+      });
+
+      // Create message that replies to msg-in-history-123
+      const message = createMockMessage({
+        content: 'Reply to history message',
+        reference: { messageId: 'msg-in-history-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      // Extract references
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Reference should be excluded (empty array)
+      expect(references).toHaveLength(0);
+    });
+
+    it('should exclude referenced message within conversation history time range (fuzzy match)', async () => {
+      // Setup: Create extractor with conversation history time range
+      const timeRange = {
+        oldest: new Date('2025-11-02T10:00:00Z'),
+        newest: new Date('2025-11-02T12:00:00Z')
+      };
+      const extractor = new MessageReferenceExtractor({
+        conversationHistoryTimeRange: timeRange,
+        embedProcessingDelayMs: 0
+      });
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'msg-within-range-456',
+        content: 'Message within time range',
+        author: createMockUser({ username: 'RangeUser' }),
+        channel: referencedChannel,
+        createdAt: new Date('2025-11-02T11:00:00Z') // Within range
+      });
+
+      // Create message with reference
+      const message = createMockMessage({
+        content: 'Reply to message in range',
+        reference: { messageId: 'msg-within-range-456' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      // Extract references
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Reference should be excluded (fuzzy match)
+      expect(references).toHaveLength(0);
+    });
+
+    it('should include referenced message outside conversation history time range', async () => {
+      // Setup: Create extractor with conversation history time range
+      const timeRange = {
+        oldest: new Date('2025-11-02T10:00:00Z'),
+        newest: new Date('2025-11-02T12:00:00Z')
+      };
+      const extractor = new MessageReferenceExtractor({
+        conversationHistoryTimeRange: timeRange,
+        embedProcessingDelayMs: 0
+      });
+
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'msg-before-range-789',
+        content: 'Old message from yesterday',
+        author: createMockUser({ username: 'OldUser' }),
+        channel: referencedChannel,
+        createdAt: new Date('2025-11-01T09:00:00Z') // Before range
+      });
+
+      // Create message with reference
+      const message = createMockMessage({
+        content: 'Reply to old message',
+        reference: { messageId: 'msg-before-range-789' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      // Extract references
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Reference should be included (outside time range)
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Old message from yesterday');
+      expect(references[0].authorUsername).toBe('OldUser');
+    });
+
+    it('should exclude message link reference that is in conversation history', async () => {
+      // Setup: Create extractor with conversation history message IDs
+      const historyMessageIds = ['msg-in-history-999'];
+      const extractor = new MessageReferenceExtractor({
+        conversationHistoryMessageIds: historyMessageIds,
+        embedProcessingDelayMs: 0
+      });
+
+      const linkedChannel = createConfiguredChannel({});
+      const linkedMessage = createMockMessage({
+        id: 'msg-in-history-999',
+        content: 'Message already in history',
+        author: createMockUser({ username: 'LinkedHistoryUser' }),
+        channel: linkedChannel
+      });
+
+      const guild = createMockGuild({ id: '123' });
+      const linkTargetChannel = createConfiguredChannel({
+        id: '456',
+        messages: {
+          fetch: vi.fn().mockResolvedValue(linkedMessage)
+        }
+      });
+
+      guild.channels = {
+        cache: createMockCollection([
+          [linkTargetChannel.id, linkTargetChannel]
+        ])
+      } as any;
+
+      const client = {
+        guilds: {
+          cache: createMockCollection([
+            [guild.id, guild]
+          ])
+        }
+      } as any as Client;
+
+      const message = createMockMessage({
+        content: 'Check this https://discord.com/channels/123/456/999',
+        reference: null,
+        client
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Link reference should be excluded
+      expect(references).toHaveLength(0);
+    });
+
+    it('should handle mixed deduplication (some excluded, some included)', async () => {
+      // Setup: Create extractor with both message IDs and time range
+      const historyMessageIds = ['msg-exact-match'];
+      const timeRange = {
+        oldest: new Date('2025-11-02T10:00:00Z'),
+        newest: new Date('2025-11-02T12:00:00Z')
+      };
+      const extractor = new MessageReferenceExtractor({
+        conversationHistoryMessageIds: historyMessageIds,
+        conversationHistoryTimeRange: timeRange,
+        embedProcessingDelayMs: 0
+      });
+
+      // Reply reference: exact match (should be excluded)
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'msg-exact-match',
+        content: 'Exact match message',
+        author: createMockUser({ username: 'ExactUser' }),
+        channel: referencedChannel,
+        createdAt: new Date('2025-11-02T11:00:00Z')
+      });
+
+      // Link 1: fuzzy match (within time range, should be excluded)
+      const linkedChannel1 = createConfiguredChannel({});
+      const linkedMessage1 = createMockMessage({
+        id: 'msg-fuzzy-match',
+        content: 'Fuzzy match message',
+        author: createMockUser({ username: 'FuzzyUser' }),
+        channel: linkedChannel1,
+        createdAt: new Date('2025-11-02T11:30:00Z') // Within range
+      });
+
+      // Link 2: no match (before time range, should be included)
+      const linkedChannel2 = createConfiguredChannel({});
+      const linkedMessage2 = createMockMessage({
+        id: 'msg-before-range',
+        content: 'Old message',
+        author: createMockUser({ username: 'OldUser' }),
+        channel: linkedChannel2,
+        createdAt: new Date('2025-11-01T09:00:00Z') // Before range
+      });
+
+      const guild = createMockGuild({ id: '123' });
+      const linkTargetChannel = createConfiguredChannel({
+        id: '456',
+        messages: {
+          fetch: vi.fn()
+            .mockResolvedValueOnce(linkedMessage1)
+            .mockResolvedValueOnce(linkedMessage2)
+        }
+      });
+
+      guild.channels = {
+        cache: createMockCollection([
+          [linkTargetChannel.id, linkTargetChannel]
+        ])
+      } as any;
+
+      const client = {
+        guilds: {
+          cache: createMockCollection([
+            [guild.id, guild]
+          ])
+        }
+      } as any as Client;
+
+      const message = createMockMessage({
+        content: 'Reply with links https://discord.com/channels/123/456/1 https://discord.com/channels/123/456/2',
+        reference: { messageId: 'msg-exact-match' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+        client
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Only the old message (before range) should be included
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Old message');
+      expect(references[0].authorUsername).toBe('OldUser');
+    });
+
+    it('should deduplicate within references even when not in conversation history', async () => {
+      // Setup: No conversation history provided
+      const extractor = new MessageReferenceExtractor({
+        embedProcessingDelayMs: 0
+      });
+
+      // Reply and link both point to the same message
+      const referencedChannel = createConfiguredChannel({});
+      const referencedMessage = createMockMessage({
+        id: 'same-message-123',
+        content: 'Referenced twice',
+        author: createMockUser({ username: 'SameUser' }),
+        channel: referencedChannel
+      });
+
+      const guild = createMockGuild({ id: '123' });
+      const linkTargetChannel = createConfiguredChannel({
+        id: '456',
+        messages: {
+          fetch: vi.fn().mockResolvedValue(referencedMessage)
+        }
+      });
+
+      guild.channels = {
+        cache: createMockCollection([
+          [linkTargetChannel.id, linkTargetChannel]
+        ])
+      } as any;
+
+      const client = {
+        guilds: {
+          cache: createMockCollection([
+            [guild.id, guild]
+          ])
+        }
+      } as any as Client;
+
+      // Reply to a message AND link to the same message
+      const message = createMockMessage({
+        content: 'Check this https://discord.com/channels/123/456/same-message-123',
+        reference: { messageId: 'same-message-123' } as any,
+        fetchReference: vi.fn().mockResolvedValue(referencedMessage),
+        client
+      });
+
+      const mockChannel = createConfiguredChannel({
+        messages: {
+          fetch: vi.fn().mockResolvedValue(message)
+        }
+      });
+      message.channel = mockChannel;
+
+      const references = await extractor.extractReferences(message);
+
+      // Verify: Only one reference (deduplicated)
+      expect(references).toHaveLength(1);
+      expect(references[0].content).toBe('Referenced twice');
+      expect(references[0].referenceNumber).toBe(1);
+    });
+  });
 });
