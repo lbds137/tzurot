@@ -17,6 +17,7 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { MessageReferenceExtractor } from '../context/MessageReferenceExtractor.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
+import { formatReferencesForDatabase } from '../utils/referenceFormatter.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -333,13 +334,16 @@ export class MessageHandler {
 
       // Save user message to conversation history BEFORE calling AI
       // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
-      // We'll update it later with rich attachment descriptions if needed
+      // Include formatted reference data so it persists in conversation history
+      const formattedReferences = formatReferencesForDatabase(referencedMessages);
+      const contentWithReferences = (messageContentForAI || '[no text content]') + formattedReferences;
+
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         personaId,
         'user',
-        content || '[no text content]',
+        contentWithReferences,
         message.guild?.id || null,
         message.id // Discord message ID for deduplication
       );
@@ -350,12 +354,12 @@ export class MessageHandler {
       // Update user message with rich attachment descriptions if available
       // The AI worker processes attachments and returns rich descriptions
       if (response.attachmentDescriptions || (attachments && attachments.length > 0)) {
-        let enrichedContent = content;
+        let enrichedContent = messageContentForAI || content; // Start with content that has [Reference N] markers
 
         if (response.attachmentDescriptions) {
           // Use rich descriptions from vision/transcription models
-          enrichedContent = content
-            ? `${content}\n\n${response.attachmentDescriptions}`
+          enrichedContent = enrichedContent
+            ? `${enrichedContent}\n\n${response.attachmentDescriptions}`
             : response.attachmentDescriptions;
         } else if (attachments) {
           // Fallback to simple placeholders if processing failed
@@ -372,8 +376,11 @@ export class MessageHandler {
             return `[file: ${a.name || 'attachment'}]`;
           }).join(' ');
 
-          enrichedContent = content ? `${content} ${attachmentDesc}` : attachmentDesc;
+          enrichedContent = enrichedContent ? `${enrichedContent} ${attachmentDesc}` : attachmentDesc;
         }
+
+        // Append formatted references to enriched content
+        enrichedContent += formattedReferences;
 
         // Update the message we saved earlier with enriched content
         await this.conversationHistory.updateLastUserMessage(
