@@ -54,6 +54,9 @@ export class MessageReferenceExtractor {
 
   constructor(options: ReferenceExtractionOptions = {}) {
     this.maxReferences = options.maxReferences ?? 10;
+    // Discord typically processes embeds within 1-2 seconds of message creation
+    // 2.5s provides a safe margin without excessive delay
+    // This also prepares for future PluralKit proxy detection (which takes 1-3s)
     this.embedProcessingDelayMs = options.embedProcessingDelayMs ?? 2500;
     this.conversationHistoryMessageIds = new Set(options.conversationHistoryMessageIds || []);
     this.conversationHistoryTimeRange = options.conversationHistoryTimeRange;
@@ -102,8 +105,23 @@ export class MessageReferenceExtractor {
         // Always track the message ID to prevent duplicates in links
         extractedMessageIds.add(referencedMessage.id);
       } catch (error) {
-        // Silently skip inaccessible messages
-        logger.debug(`[MessageReferenceExtractor] Could not fetch reply reference: ${(error as Error).message}`);
+        // Differentiate between expected and unexpected errors
+        const discordError = error as any;
+        const errorCode = discordError?.code;
+
+        if (errorCode === 10008) {
+          // Unknown Message - deleted or never existed (expected)
+          logger.debug(`[MessageReferenceExtractor] Reply reference not found (deleted or inaccessible)`);
+        } else if (errorCode === 50001 || errorCode === 50013) {
+          // Missing Access / Missing Permissions (expected)
+          logger.debug(`[MessageReferenceExtractor] No permission to access reply reference`);
+        } else {
+          // Unexpected error - log at WARN level for investigation
+          logger.warn({
+            err: error,
+            messageId: updatedMessage.reference.messageId
+          }, '[MessageReferenceExtractor] Unexpected error fetching reply reference');
+        }
       }
     }
 
@@ -130,6 +148,9 @@ export class MessageReferenceExtractor {
       const limitedReferences = references.slice(0, this.maxReferences);
 
       // Update linkMap to only include references that made the cut
+      // Edge case behavior: If a user posts 15 message links, only the first 10 are replaced
+      // with [Reference N]. Links 11-15 remain as raw Discord URLs in the message content.
+      // This prevents context bloat while keeping all links visible to the user.
       const limitedRefNumbers = new Set(limitedReferences.map(r => r.referenceNumber));
       for (const [url, refNum] of linkMap) {
         if (!limitedRefNumbers.has(refNum)) {
@@ -224,8 +245,25 @@ export class MessageReferenceExtractor {
       const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(link.messageId);
       return fetchedMessage;
     } catch (error) {
-      // Silently skip inaccessible messages
-      logger.debug(`[MessageReferenceExtractor] Could not fetch message ${link.messageId}: ${(error as Error).message}`);
+      // Differentiate between expected and unexpected errors
+      const discordError = error as any;
+      const errorCode = discordError?.code;
+
+      if (errorCode === 10008) {
+        // Unknown Message - deleted or never existed (expected)
+        logger.debug(`[MessageReferenceExtractor] Message ${link.messageId} not found (deleted or inaccessible)`);
+      } else if (errorCode === 50001 || errorCode === 50013) {
+        // Missing Access / Missing Permissions (expected)
+        logger.debug(`[MessageReferenceExtractor] No permission to access message ${link.messageId}`);
+      } else {
+        // Unexpected error - log at WARN level for investigation
+        logger.warn({
+          err: error,
+          messageId: link.messageId,
+          guildId: link.guildId,
+          channelId: link.channelId
+        }, '[MessageReferenceExtractor] Unexpected error fetching message from link');
+      }
       return null;
     }
   }
