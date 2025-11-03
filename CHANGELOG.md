@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.24] - 2025-11-03
+
 ### Fixed
 
 - **AI Personality Webhook Persona Creation Bug (PR #212)** - Webhooks from AI personalities no longer create erroneous persona records
