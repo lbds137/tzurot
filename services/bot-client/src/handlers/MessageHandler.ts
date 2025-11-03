@@ -549,6 +549,19 @@ export class MessageHandler {
    * 2. Check if that persona appears in conversation history
    * 3. If yes, use persona name from history; if no, fetch from database
    * 4. Update the authorDisplayName field
+   *
+   * **Conversation History Stability Assumption**:
+   * This method receives a snapshot of conversation history at the time of the message
+   * processing cycle. We assume that conversation history remains stable during a single
+   * message processing cycle (typically <1 second). If conversation history is modified
+   * elsewhere during processing, the persona name Map could be stale. However, this is
+   * unlikely in practice since:
+   * - Message processing is synchronous for a given channel
+   * - Conversation history updates happen after AI response generation
+   * - Reference extraction and enrichment occur before any history updates
+   *
+   * In the rare case of stale history, the worst outcome is fetching from the database
+   * instead of using the cached name - no data corruption occurs.
    */
   private async enrichReferencesWithPersonaNames(
     referencedMessages: ReferencedMessage[],
@@ -565,18 +578,21 @@ export class MessageHandler {
 
     // Enrich each referenced message
     for (const reference of referencedMessages) {
+      let userId: string | undefined;
+      let personaId: string | undefined;
+
       try {
         // Get or create the user record (creates default persona if needed)
         // Note: We don't have display name/bio from the referenced message,
         // so username is used for both parameters
-        const userId = await this.userService.getOrCreateUser(
+        userId = await this.userService.getOrCreateUser(
           reference.discordUserId,
           reference.authorUsername,
           reference.authorUsername // Use username as fallback display name
         );
 
         // Get the persona for this user when interacting with this personality
-        const personaId = await this.userService.getPersonaForUser(userId, personalityId);
+        personaId = await this.userService.getPersonaForUser(userId, personalityId);
 
         // Check if this persona appears in conversation history
         let personaName = personaNameMap.get(personaId);
@@ -584,7 +600,7 @@ export class MessageHandler {
         if (!personaName) {
           // Not in history, fetch from database
           const fetchedName = await this.userService.getPersonaName(personaId);
-          personaName = fetchedName || undefined; // Convert null to undefined
+          personaName = fetchedName ?? undefined; // Convert null to undefined for consistent handling
         }
 
         // Update the authorDisplayName with the persona name
@@ -600,7 +616,10 @@ export class MessageHandler {
           err: error,
           referenceNumber: reference.referenceNumber,
           discordUserId: reference.discordUserId,
-          authorUsername: reference.authorUsername
+          authorUsername: reference.authorUsername,
+          personalityId,
+          userId: userId || 'unknown',
+          personaId: personaId || 'unknown'
         }, '[MessageHandler] Failed to enrich reference with persona name');
         // Keep the original Discord display name on error
       }
