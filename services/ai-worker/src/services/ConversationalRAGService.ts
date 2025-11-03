@@ -108,6 +108,7 @@ export interface RAGResponse {
   retrievedMemories?: number;
   tokensUsed?: number;
   attachmentDescriptions?: string;
+  referencedMessagesDescriptions?: string;
   modelUsed?: string;
 }
 
@@ -280,8 +281,19 @@ export class ConversationalRAGService {
       logger.info(`[RAG] Memory search query: "${searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`);
       const relevantMemories = await this.retrieveRelevantMemories(personality, searchQuery, context);
 
-      // 6. Build the prompt with ALL participant personas and memory context
-      const fullSystemPrompt = await this.buildFullSystemPrompt(personality, participantPersonas, relevantMemories, context);
+      // 6. Format referenced messages (with vision/transcription) for both prompt AND database
+      const referencedMessagesDescriptions = context.referencedMessages && context.referencedMessages.length > 0
+        ? await this.formatReferencedMessages(context.referencedMessages, personality)
+        : undefined;
+
+      // 7. Build the prompt with ALL participant personas and memory context
+      const fullSystemPrompt = await this.buildFullSystemPrompt(
+        personality,
+        participantPersonas,
+        relevantMemories,
+        context,
+        referencedMessagesDescriptions
+      );
 
       // 5. Build conversation history
       const messages: BaseMessage[] = [];
@@ -362,6 +374,7 @@ export class ConversationalRAGService {
         retrievedMemories: relevantMemories.length,
         tokensUsed: (response as any).usage_metadata?.total_tokens,
         attachmentDescriptions,
+        referencedMessagesDescriptions,
         modelUsed: modelName
       };
 
@@ -469,7 +482,8 @@ export class ConversationalRAGService {
     personality: LoadedPersonality,
     participantPersonas: Map<string, { content: string; isActive: boolean }>,
     relevantMemories: MemoryDocument[],
-    context: ConversationContext
+    context: ConversationContext,
+    referencedMessagesFormatted?: string
   ): Promise<string> {
     const systemPrompt = this.buildSystemPrompt(
       personality,
@@ -487,24 +501,14 @@ export class ConversationalRAGService {
       : '';
 
     // Referenced messages (from replies and message links)
-    const referencedMessagesJson = context.referencedMessages
-      ? JSON.stringify(context.referencedMessages).substring(0, 200)
-      : 'undefined';
-
-    logger.info(
-      `[RAG] Checking referenced messages: ` +
-      `exists=${!!context.referencedMessages}, ` +
-      `type=${typeof context.referencedMessages}, ` +
-      `isArray=${Array.isArray(context.referencedMessages)}, ` +
-      `length=${context.referencedMessages?.length || 0}, ` +
-      `value=${referencedMessagesJson}`
-    );
-
-    const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
-      ? `\n\n${await this.formatReferencedMessages(context.referencedMessages, personality)}`
+    // Use pre-formatted text to avoid duplicate vision/transcription API calls
+    const referencesContext = referencedMessagesFormatted
+      ? `\n\n${referencedMessagesFormatted}`
       : '';
 
-    logger.info(`[RAG] referencesContext length after formatting: ${referencesContext.length}`);
+    if (referencesContext) {
+      logger.info(`[RAG] referencesContext length after formatting: ${referencesContext.length}`);
+    }
 
     // Conversation participants - ALL people involved
     let participantsContext = '';

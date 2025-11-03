@@ -27,6 +27,7 @@ export interface GenerateResponse {
   result?: {
     content: string;
     attachmentDescriptions?: string;
+    referencedMessagesDescriptions?: string; // Formatted reference text with vision/transcription
     metadata?: {
       retrievedMemories?: number;
       tokensUsed?: number;
@@ -47,6 +48,7 @@ export interface JobResult {
   result?: {
     content: string;
     attachmentDescriptions?: string; // Rich text descriptions from vision/transcription
+    referencedMessagesDescriptions?: string; // Formatted reference text with vision/transcription
     metadata?: {
       retrievedMemories?: number;
       tokensUsed?: number;
