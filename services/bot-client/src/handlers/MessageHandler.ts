@@ -264,18 +264,22 @@ export class MessageHandler {
       // Extract referenced messages (from replies and message links)
       // This waits 2-3 seconds for Discord to process embeds
       // Uses conversation history for deduplication
-      logger.debug('[MessageHandler] Extracting referenced messages with deduplication');
+      // Also replaces Discord message links with [Reference N] placeholders
+      logger.debug('[MessageHandler] Extracting referenced messages with deduplication and link replacement');
       const referenceExtractor = new MessageReferenceExtractor({
         maxReferences: 10,
         embedProcessingDelayMs: 2500, // 2.5 seconds to allow Discord to process embeds
         conversationHistoryMessageIds,
         conversationHistoryTimeRange
       });
-      const referencedMessages = await referenceExtractor.extractReferences(message);
+      const { references: referencedMessages, updatedContent } = await referenceExtractor.extractReferencesWithReplacement(message);
 
       if (referencedMessages.length > 0) {
         logger.info(`[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
       }
+
+      // Use updatedContent (with Discord links replaced by [Reference N]) for the AI context
+      const messageContentForAI = updatedContent || content || '[no text content]';
 
       // Convert to format expected by AI gateway
       // Include persona info so AI knows which persona is speaking in each message
@@ -315,7 +319,7 @@ export class MessageHandler {
         userName: message.author.username,
         channelId: message.channel.id,
         serverId: message.guild?.id,
-        messageContent: content,
+        messageContent: messageContentForAI, // Use content with links replaced by [Reference N]
         activePersonaId: personaId, // Current speaker's persona
         activePersonaName: personaName || undefined,
         conversationHistory,
