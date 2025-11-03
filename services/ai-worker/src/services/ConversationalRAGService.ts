@@ -653,7 +653,7 @@ export class ConversationalRAGService {
     for (const ref of references) {
       lines.push(`[Reference ${ref.referenceNumber}]`);
       lines.push(`From: ${ref.authorDisplayName} (@${ref.authorUsername})`);
-      lines.push(`Location: ${ref.guildName} > ${ref.channelName}`);
+      lines.push(`Location:\n${ref.locationContext}`);
       lines.push(`Time: ${ref.timestamp}`);
 
       if (ref.content) {

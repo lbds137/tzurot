@@ -10,6 +10,7 @@ import { EmbedParser } from '../utils/EmbedParser.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../utils/embedImageExtractor.js';
 import { createLogger, ReferencedMessage } from '@tzurot/common-types';
+import { extractDiscordEnvironment, formatEnvironmentForPrompt } from '../utils/discordContext.js';
 
 const logger = createLogger('MessageReferenceExtractor');
 
@@ -350,8 +351,11 @@ export class MessageReferenceExtractor {
    * @returns Formatted referenced message
    */
   private formatReferencedMessage(message: Message, referenceNumber: number): ReferencedMessage {
-    const guildName = message.guild?.name ?? 'Direct Messages';
-    const channelName = this.getChannelName(message.channel);
+    // Extract full Discord environment context (server, category, channel, thread)
+    const environment = extractDiscordEnvironment(message);
+
+    // Format location context using the same rich formatter as current messages
+    const locationContext = formatEnvironmentForPrompt(environment);
 
     // Extract regular attachments (files, images, audio, etc.)
     const regularAttachments = extractAttachments(message.attachments);
@@ -373,27 +377,9 @@ export class MessageReferenceExtractor {
       content: message.content,
       embeds: EmbedParser.parseMessageEmbeds(message),
       timestamp: message.createdAt.toISOString(),
-      guildName,
-      channelName,
+      locationContext,
       attachments: allAttachments.length > 0 ? allAttachments : undefined
     };
-  }
-
-  /**
-   * Get channel name from a Discord channel
-   * @param channel - Discord channel
-   * @returns Channel name
-   */
-  private getChannelName(channel: Channel): string {
-    if (channel.isDMBased()) {
-      return 'Direct Message';
-    }
-
-    if ('name' in channel) {
-      return `#${channel.name}`;
-    }
-
-    return 'Unknown Channel';
   }
 
   /**
