@@ -487,6 +487,12 @@ export class ConversationalRAGService {
       : '';
 
     // Referenced messages (from replies and message links)
+    logger.info({
+      hasReferencedMessages: !!context.referencedMessages,
+      referencedMessagesCount: context.referencedMessages?.length || 0,
+      referencedMessagesType: typeof context.referencedMessages
+    }, '[RAG] Checking for referenced messages in context');
+
     const referencesContext = context.referencedMessages && context.referencedMessages.length > 0
       ? `\n\n${await this.formatReferencedMessages(context.referencedMessages, personality)}`
       : '';
