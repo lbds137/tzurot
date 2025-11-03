@@ -483,89 +483,6 @@ describe('MessageReferenceExtractor', () => {
       expect(references).toHaveLength(0);
     });
 
-    it('should exclude referenced message within conversation history time range (fuzzy match)', async () => {
-      // Setup: Create extractor with conversation history time range
-      const timeRange = {
-        oldest: new Date('2025-11-02T10:00:00Z'),
-        newest: new Date('2025-11-02T12:00:00Z')
-      };
-      const extractor = new MessageReferenceExtractor({
-        conversationHistoryTimeRange: timeRange,
-        embedProcessingDelayMs: 0
-      });
-
-      const referencedChannel = createConfiguredChannel({});
-      const referencedMessage = createMockMessage({
-        id: 'msg-within-range-456',
-        content: 'Message within time range',
-        author: createMockUser({ username: 'RangeUser' }),
-        channel: referencedChannel,
-        createdAt: new Date('2025-11-02T11:00:00Z') // Within range
-      });
-
-      // Create message with reference
-      const message = createMockMessage({
-        content: 'Reply to message in range',
-        reference: { messageId: 'msg-within-range-456' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
-      });
-
-      const mockChannel = createConfiguredChannel({
-        messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
-      });
-      message.channel = mockChannel;
-
-      // Extract references
-      const references = await extractor.extractReferences(message);
-
-      // Verify: Reference should be excluded (fuzzy match)
-      expect(references).toHaveLength(0);
-    });
-
-    it('should include referenced message outside conversation history time range', async () => {
-      // Setup: Create extractor with conversation history time range
-      const timeRange = {
-        oldest: new Date('2025-11-02T10:00:00Z'),
-        newest: new Date('2025-11-02T12:00:00Z')
-      };
-      const extractor = new MessageReferenceExtractor({
-        conversationHistoryTimeRange: timeRange,
-        embedProcessingDelayMs: 0
-      });
-
-      const referencedChannel = createConfiguredChannel({});
-      const referencedMessage = createMockMessage({
-        id: 'msg-before-range-789',
-        content: 'Old message from yesterday',
-        author: createMockUser({ username: 'OldUser' }),
-        channel: referencedChannel,
-        createdAt: new Date('2025-11-01T09:00:00Z') // Before range
-      });
-
-      // Create message with reference
-      const message = createMockMessage({
-        content: 'Reply to old message',
-        reference: { messageId: 'msg-before-range-789' } as any,
-        fetchReference: vi.fn().mockResolvedValue(referencedMessage)
-      });
-
-      const mockChannel = createConfiguredChannel({
-        messages: {
-          fetch: vi.fn().mockResolvedValue(message)
-        }
-      });
-      message.channel = mockChannel;
-
-      // Extract references
-      const references = await extractor.extractReferences(message);
-
-      // Verify: Reference should be included (outside time range)
-      expect(references).toHaveLength(1);
-      expect(references[0].content).toBe('Old message from yesterday');
-      expect(references[0].authorUsername).toBe('OldUser');
-    });
 
     it('should exclude message link reference that is in conversation history', async () => {
       // Setup: Create extractor with conversation history message IDs
@@ -625,15 +542,10 @@ describe('MessageReferenceExtractor', () => {
     });
 
     it('should handle mixed deduplication (some excluded, some included)', async () => {
-      // Setup: Create extractor with both message IDs and time range
+      // Setup: Create extractor with message IDs for exact matching
       const historyMessageIds = ['msg-exact-match'];
-      const timeRange = {
-        oldest: new Date('2025-11-02T10:00:00Z'),
-        newest: new Date('2025-11-02T12:00:00Z')
-      };
       const extractor = new MessageReferenceExtractor({
         conversationHistoryMessageIds: historyMessageIds,
-        conversationHistoryTimeRange: timeRange,
         embedProcessingDelayMs: 0
       });
 
@@ -643,37 +555,23 @@ describe('MessageReferenceExtractor', () => {
         id: 'msg-exact-match',
         content: 'Exact match message',
         author: createMockUser({ username: 'ExactUser' }),
-        channel: referencedChannel,
-        createdAt: new Date('2025-11-02T11:00:00Z')
+        channel: referencedChannel
       });
 
-      // Link 1: fuzzy match (within time range, should be excluded)
-      const linkedChannel1 = createConfiguredChannel({});
-      const linkedMessage1 = createMockMessage({
-        id: 'msg-fuzzy-match',
-        content: 'Fuzzy match message',
-        author: createMockUser({ username: 'FuzzyUser' }),
-        channel: linkedChannel1,
-        createdAt: new Date('2025-11-02T11:30:00Z') // Within range
-      });
-
-      // Link 2: no match (before time range, should be included)
-      const linkedChannel2 = createConfiguredChannel({});
-      const linkedMessage2 = createMockMessage({
-        id: 'msg-before-range',
-        content: 'Old message',
-        author: createMockUser({ username: 'OldUser' }),
-        channel: linkedChannel2,
-        createdAt: new Date('2025-11-01T09:00:00Z') // Before range
+      // Link: no match (should be included)
+      const linkedChannel = createConfiguredChannel({});
+      const linkedMessage = createMockMessage({
+        id: 'msg-not-in-history',
+        content: 'Not in history',
+        author: createMockUser({ username: 'OtherUser' }),
+        channel: linkedChannel
       });
 
       const guild = createMockGuild({ id: '123' });
       const linkTargetChannel = createConfiguredChannel({
         id: '456',
         messages: {
-          fetch: vi.fn()
-            .mockResolvedValueOnce(linkedMessage1)
-            .mockResolvedValueOnce(linkedMessage2)
+          fetch: vi.fn().mockResolvedValue(linkedMessage)
         }
       });
 
@@ -692,7 +590,7 @@ describe('MessageReferenceExtractor', () => {
       } as any as Client;
 
       const message = createMockMessage({
-        content: 'Reply with links https://discord.com/channels/123/456/1 https://discord.com/channels/123/456/2',
+        content: 'Reply with link https://discord.com/channels/123/456/999',
         reference: { messageId: 'msg-exact-match' } as any,
         fetchReference: vi.fn().mockResolvedValue(referencedMessage),
         client
@@ -707,10 +605,11 @@ describe('MessageReferenceExtractor', () => {
 
       const references = await extractor.extractReferences(message);
 
-      // Verify: Only the old message (before range) should be included
+      // Verify: Only the link (not in history) should be included
+      // Reply reference excluded due to exact match
       expect(references).toHaveLength(1);
-      expect(references[0].content).toBe('Old message');
-      expect(references[0].authorUsername).toBe('OldUser');
+      expect(references[0].content).toBe('Not in history');
+      expect(references[0].authorUsername).toBe('OtherUser');
     });
 
     it('should deduplicate within references even when not in conversation history', async () => {

@@ -253,26 +253,20 @@ export class MessageHandler {
         historyLimit
       );
 
-      // Extract Discord message IDs and time range for deduplication
+      // Extract Discord message IDs for deduplication
       const conversationHistoryMessageIds = history
         .map(msg => msg.discordMessageId)
         .filter((id): id is string => id !== undefined);
 
-      const conversationHistoryTimeRange = history.length > 0 ? {
-        oldest: history[0].createdAt,
-        newest: history[history.length - 1].createdAt
-      } : undefined;
-
       // Extract referenced messages (from replies and message links)
       // This waits 2-3 seconds for Discord to process embeds
-      // Uses conversation history for deduplication
+      // Uses conversation history message IDs for exact deduplication
       // Also replaces Discord message links with [Reference N] placeholders
       logger.debug('[MessageHandler] Extracting referenced messages with deduplication and link replacement');
       const referenceExtractor = new MessageReferenceExtractor({
         maxReferences: 10,
         embedProcessingDelayMs: 2500, // 2.5 seconds to allow Discord to process embeds
-        conversationHistoryMessageIds,
-        conversationHistoryTimeRange
+        conversationHistoryMessageIds
       });
       const { references: referencedMessages, updatedContent } = await referenceExtractor.extractReferencesWithReplacement(message);
 
@@ -582,15 +576,19 @@ export class MessageHandler {
       let personaId: string | undefined;
 
       try {
-        // Check if this is a webhook message from the bot (AI personality response)
-        // If so, skip persona creation - we don't want to create personas for AI personalities
+        // Check if this is a webhook message
+        // Skip persona creation for ALL webhooks (AI personalities, PluralKit, etc.)
+        // We'll handle PluralKit personas properly when we implement that feature
         const webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
-        if (webhookPersonality) {
+        const isWebhook = webhookPersonality || reference.webhookId;
+
+        if (isWebhook) {
           logger.debug({
             referenceNumber: reference.referenceNumber,
-            personalityName: webhookPersonality,
+            webhookId: reference.webhookId,
+            cachedPersonality: webhookPersonality,
             authorDisplayName: reference.authorDisplayName
-          }, '[MessageHandler] Skipping persona enrichment - message is from AI personality webhook');
+          }, '[MessageHandler] Skipping persona enrichment - message is from webhook');
           continue; // Skip this reference, keep original display name
         }
 

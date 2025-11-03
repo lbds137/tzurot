@@ -72,6 +72,7 @@ export const apiConversationMessageSchema = z.object({
 export const referencedMessageSchema = z.object({
   referenceNumber: z.number(),
   discordMessageId: z.string(), // Discord message ID (for webhook detection)
+  webhookId: z.string().optional(), // Discord webhook ID if message was sent via webhook
   discordUserId: z.string(), // Discord user ID for persona lookup
   authorUsername: z.string(),
   authorDisplayName: z.string(),
