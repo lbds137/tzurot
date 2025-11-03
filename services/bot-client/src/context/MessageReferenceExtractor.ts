@@ -245,13 +245,31 @@ export class MessageReferenceExtractor {
     sourceMessage: Message
   ): Promise<Message | null> {
     try {
-      const guild = sourceMessage.client.guilds.cache.get(link.guildId);
+      // Try to get guild from cache first
+      let guild = sourceMessage.client.guilds.cache.get(link.guildId);
+
+      // If not in cache, try to fetch it (bot might be in the guild but it's not cached)
       if (!guild) {
-        logger.info({
-          guildId: link.guildId,
-          messageId: link.messageId
-        }, '[MessageReferenceExtractor] Guild not accessible for message link');
-        return null;
+        try {
+          logger.debug({
+            guildId: link.guildId,
+            messageId: link.messageId
+          }, '[MessageReferenceExtractor] Guild not in cache, attempting fetch...');
+
+          guild = await sourceMessage.client.guilds.fetch(link.guildId);
+
+          logger.info({
+            guildId: link.guildId,
+            guildName: guild.name
+          }, '[MessageReferenceExtractor] Successfully fetched guild');
+        } catch (fetchError) {
+          logger.info({
+            guildId: link.guildId,
+            messageId: link.messageId,
+            err: fetchError
+          }, '[MessageReferenceExtractor] Guild not accessible for message link');
+          return null;
+        }
       }
 
       // Try to get channel from cache first (works for regular channels)
