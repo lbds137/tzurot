@@ -28,7 +28,6 @@ export class MessageHandler {
   private conversationHistory: ConversationHistoryService;
   private personalityService: PersonalityService;
   private userService: UserService;
-  private referenceExtractor: MessageReferenceExtractor;
 
   constructor(
     gatewayClient: GatewayClient,
@@ -39,10 +38,6 @@ export class MessageHandler {
     this.conversationHistory = new ConversationHistoryService();
     this.personalityService = new PersonalityService();
     this.userService = new UserService();
-    this.referenceExtractor = new MessageReferenceExtractor({
-      maxReferences: 10,
-      embedProcessingDelayMs: 2500 // 2.5 seconds to allow Discord to process embeds
-    });
   }
 
   /**
@@ -230,16 +225,7 @@ export class MessageHandler {
         }, INTERVALS.TYPING_INDICATOR_REFRESH);
       }
 
-      // Extract referenced messages (from replies and message links)
-      // This waits 2-3 seconds for Discord to process embeds
-      logger.debug('[MessageHandler] Extracting referenced messages');
-      const referencedMessages = await this.referenceExtractor.extractReferences(message);
-
-      if (referencedMessages.length > 0) {
-        logger.info(`[MessageHandler] Extracted ${referencedMessages.length} referenced messages`);
-      }
-
-      // Get or create user record
+      // Get or create user record FIRST (needed for conversation history query)
       // Use display name: server nickname > global display name > username
       const displayName = message.member?.displayName || message.author.globalName || message.author.username;
 
@@ -257,13 +243,39 @@ export class MessageHandler {
 
       logger.debug(`[MessageHandler] User persona lookup: personaId=${personaId}, personaName=${personaName}, userId=${userId}, personalityId=${personality.id}`);
 
-      // Get conversation history from PostgreSQL
+      // Get conversation history from PostgreSQL (needed for reference deduplication)
       const historyLimit = personality.contextWindow || 20;
       const history = await this.conversationHistory.getRecentHistory(
         message.channel.id,
         personality.id,
         historyLimit
       );
+
+      // Extract Discord message IDs and time range for deduplication
+      const conversationHistoryMessageIds = history
+        .map(msg => msg.discordMessageId)
+        .filter((id): id is string => id !== undefined);
+
+      const conversationHistoryTimeRange = history.length > 0 ? {
+        oldest: history[0].createdAt,
+        newest: history[history.length - 1].createdAt
+      } : undefined;
+
+      // Extract referenced messages (from replies and message links)
+      // This waits 2-3 seconds for Discord to process embeds
+      // Uses conversation history for deduplication
+      logger.debug('[MessageHandler] Extracting referenced messages with deduplication');
+      const referenceExtractor = new MessageReferenceExtractor({
+        maxReferences: 10,
+        embedProcessingDelayMs: 2500, // 2.5 seconds to allow Discord to process embeds
+        conversationHistoryMessageIds,
+        conversationHistoryTimeRange
+      });
+      const referencedMessages = await referenceExtractor.extractReferences(message);
+
+      if (referencedMessages.length > 0) {
+        logger.info(`[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
+      }
 
       // Convert to format expected by AI gateway
       // Include persona info so AI knows which persona is speaking in each message
@@ -323,7 +335,8 @@ export class MessageHandler {
         personaId,
         'user',
         content || '[no text content]',
-        message.guild?.id || null
+        message.guild?.id || null,
+        message.id // Discord message ID for deduplication
       );
 
       // Call API Gateway for AI generation (this will process attachments and return descriptions)
@@ -379,11 +392,14 @@ export class MessageHandler {
       const isWebhookChannel = message.guild !== null &&
         (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
 
+      let firstMessageId: string | null = null;
+
       if (isWebhookChannel) {
         // For webhooks, split content and send directly (no prefix needed)
         const chunks = preserveCodeBlocks(contentWithIndicator);
 
-        for (const chunk of chunks) {
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
           const sentMessage = await this.webhookManager.sendAsPersonality(
             message.channel as TextChannel | ThreadChannel,
             personality,
@@ -393,6 +409,11 @@ export class MessageHandler {
           // Store webhook message in Redis for reply routing (7 day TTL)
           if (sentMessage) {
             await storeWebhookMessage(sentMessage.id, personality.name);
+
+            // Track first message ID for conversation history
+            if (i === 0) {
+              firstMessageId = sentMessage.id;
+            }
           }
         }
       } else {
@@ -401,11 +422,28 @@ export class MessageHandler {
         const dmContent = `**${personality.displayName}:** ${contentWithIndicator}`;
         const chunks = preserveCodeBlocks(dmContent);
 
-        for (const chunk of chunks) {
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
           const sentMessage = await message.reply(chunk);
           // Store DM message in Redis for reply routing (7 day TTL)
           await storeWebhookMessage(sentMessage.id, personality.name);
+
+          // Track first message ID for conversation history
+          if (i === 0) {
+            firstMessageId = sentMessage.id;
+          }
         }
+      }
+
+      // Update the assistant message in conversation history with Discord message ID
+      // This enables deduplication when users reference recent assistant messages
+      if (firstMessageId) {
+        await this.conversationHistory.updateLastAssistantMessageId(
+          message.channel.id,
+          personality.id,
+          personaId,
+          firstMessageId
+        );
       }
 
       logger.info(`[MessageHandler] Response sent as ${personality.displayName} (with ${conversationHistory.length} history messages)`);

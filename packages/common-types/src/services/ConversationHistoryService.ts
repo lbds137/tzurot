@@ -15,6 +15,7 @@ export interface ConversationMessage {
   createdAt: Date;
   personaId: string;
   personaName?: string; // The persona's name for display in context
+  discordMessageId?: string; // Discord snowflake ID for deduplication with referenced messages
 }
 
 export class ConversationHistoryService {
@@ -33,7 +34,8 @@ export class ConversationHistoryService {
     personaId: string,
     role: 'user' | 'assistant' | 'system',
     content: string,
-    guildId?: string | null
+    guildId?: string | null,
+    discordMessageId?: string
   ): Promise<void> {
     try {
       await this.prisma.conversationHistory.create({
@@ -44,10 +46,11 @@ export class ConversationHistoryService {
           personaId,
           role,
           content,
+          discordMessageId: discordMessageId || null,
         },
       });
 
-      logger.debug(`Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
+      logger.debug(`Added ${role} message to history (channel: ${channelId}, guild: ${guildId || 'DM'}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}..., discord: ${discordMessageId || 'none'})`);
 
     } catch (error) {
       logger.error({ err: error }, `Failed to add message to conversation history`);
@@ -128,6 +131,7 @@ export class ConversationHistoryService {
           content: true,
           createdAt: true,
           personaId: true,
+          discordMessageId: true,
           persona: {
             select: {
               name: true,
@@ -146,6 +150,7 @@ export class ConversationHistoryService {
         createdAt: msg.createdAt,
         personaId: msg.personaId,
         personaName: msg.persona.preferredName || msg.persona.name,
+        discordMessageId: msg.discordMessageId || undefined,
       }));
 
       logger.debug(`Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`);
@@ -197,6 +202,7 @@ export class ConversationHistoryService {
           content: true,
           createdAt: true,
           personaId: true,
+          discordMessageId: true,
           persona: {
             select: {
               name: true,
@@ -219,6 +225,7 @@ export class ConversationHistoryService {
         createdAt: msg.createdAt,
         personaId: msg.personaId,
         personaName: msg.persona.preferredName || msg.persona.name,
+        discordMessageId: msg.discordMessageId || undefined,
       }));
 
       // Next cursor is the ID of the last message (in desc order, before reversal)
@@ -241,6 +248,54 @@ export class ConversationHistoryService {
         messages: [],
         hasMore: false,
       };
+    }
+  }
+
+  /**
+   * Update the most recent assistant message with Discord message ID
+   * Used to enable deduplication of referenced messages
+   */
+  async updateLastAssistantMessageId(
+    channelId: string,
+    personalityId: string,
+    personaId: string,
+    discordMessageId: string
+  ): Promise<boolean> {
+    try {
+      // Find the most recent assistant message for this persona
+      const lastMessage = await this.prisma.conversationHistory.findFirst({
+        where: {
+          channelId,
+          personalityId,
+          personaId,
+          role: 'assistant',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (!lastMessage) {
+        logger.warn(`No assistant message found to update (channel: ${channelId}, personality: ${personalityId}, persona: ${personaId.substring(0, 8)}...)`);
+        return false;
+      }
+
+      // Update with Discord message ID
+      await this.prisma.conversationHistory.update({
+        where: {
+          id: lastMessage.id,
+        },
+        data: {
+          discordMessageId,
+        },
+      });
+
+      logger.debug(`Updated assistant message ${lastMessage.id} with Discord ID ${discordMessageId}`);
+      return true;
+
+    } catch (error) {
+      logger.error({ err: error }, `Failed to update assistant message with Discord ID`);
+      return false;
     }
   }
 

@@ -181,20 +181,22 @@ model UserPersonalityConfig {
 }
 
 model ConversationHistory {
-  id            String         @id @default(uuid()) @db.Uuid
-  channelId     String         @map("channel_id") @db.VarChar(20)
-  guildId       String?        @map("guild_id") @db.VarChar(20) // Null for DMs
-  personalityId String         @map("personality_id") @db.Uuid
-  personaId     String         @map("persona_id") @db.Uuid
-  role          String         @db.VarChar(20)
-  content       String
-  createdAt     DateTime       @default(now()) @map("created_at")
-  persona       Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
-  personality   Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
-  pendingMemory PendingMemory?
+  id               String         @id @default(uuid()) @db.Uuid
+  channelId        String         @map("channel_id") @db.VarChar(20)
+  guildId          String?        @map("guild_id") @db.VarChar(20) // Null for DMs
+  personalityId    String         @map("personality_id") @db.Uuid
+  personaId        String         @map("persona_id") @db.Uuid
+  role             String         @db.VarChar(20)
+  content          String
+  discordMessageId String?        @map("discord_message_id") @db.VarChar(20) // Discord snowflake ID for deduplication
+  createdAt        DateTime       @default(now()) @map("created_at")
+  persona          Persona        @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  personality      Personality    @relation(fields: [personalityId], references: [id], onDelete: Cascade)
+  pendingMemory    PendingMemory?
 
   @@index([channelId, personalityId, createdAt(sort: Desc)])
   @@index([personaId])
+  @@index([discordMessageId])
   @@map("conversation_history")
 }
 
