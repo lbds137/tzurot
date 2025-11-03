@@ -31,6 +31,7 @@ export class GatewayClient {
   ): Promise<{
     content: string;
     attachmentDescriptions?: string;
+    referencedMessagesDescriptions?: string;
     metadata?: {
       retrievedMemories?: number;
       tokensUsed?: number;

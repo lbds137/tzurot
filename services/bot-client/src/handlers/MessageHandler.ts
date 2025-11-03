@@ -334,34 +334,32 @@ export class MessageHandler {
 
       // Save user message to conversation history BEFORE calling AI
       // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
-      // Include formatted reference data so it persists in conversation history
-      const formattedReferences = formatReferencesForDatabase(referencedMessages);
-      const contentWithReferences = (messageContentForAI || '[no text content]') + formattedReferences;
-
+      // Start with just the message content - we'll add rich attachment/reference descriptions after AI processing
       await this.conversationHistory.addMessage(
         message.channel.id,
         personality.id,
         personaId,
         'user',
-        contentWithReferences,
+        messageContentForAI || '[no text content]',
         message.guild?.id || null,
         message.id // Discord message ID for deduplication
       );
 
-      // Call API Gateway for AI generation (this will process attachments and return descriptions)
+      // Call API Gateway for AI generation (this will process attachments/references and return descriptions)
       const response = await this.gatewayClient.generate(personality, context);
 
-      // Update user message with rich attachment descriptions if available
-      // The AI worker processes attachments and returns rich descriptions
-      if (response.attachmentDescriptions || (attachments && attachments.length > 0)) {
+      // Update user message with rich descriptions if available
+      // The AI worker processes both attachments and references, returning descriptions with vision/transcription
+      if (response.attachmentDescriptions || response.referencedMessagesDescriptions || (attachments && attachments.length > 0) || referencedMessages.length > 0) {
         let enrichedContent = messageContentForAI || content; // Start with content that has [Reference N] markers
 
+        // Add attachment descriptions
         if (response.attachmentDescriptions) {
           // Use rich descriptions from vision/transcription models
           enrichedContent = enrichedContent
             ? `${enrichedContent}\n\n${response.attachmentDescriptions}`
             : response.attachmentDescriptions;
-        } else if (attachments) {
+        } else if (attachments && attachments.length > 0) {
           // Fallback to simple placeholders if processing failed
           const attachmentDesc = attachments.map(a => {
             if (a.isVoiceMessage) {
@@ -379,8 +377,15 @@ export class MessageHandler {
           enrichedContent = enrichedContent ? `${enrichedContent} ${attachmentDesc}` : attachmentDesc;
         }
 
-        // Append formatted references to enriched content
-        enrichedContent += formattedReferences;
+        // Add reference descriptions (with vision/transcription from AI worker)
+        if (response.referencedMessagesDescriptions) {
+          // Use rich descriptions from AI worker (includes vision/transcription)
+          enrichedContent += `\n\n${response.referencedMessagesDescriptions}`;
+        } else if (referencedMessages.length > 0) {
+          // Fallback to simple formatting if AI processing failed
+          const formattedReferences = formatReferencesForDatabase(referencedMessages);
+          enrichedContent += formattedReferences;
+        }
 
         // Update the message we saved earlier with enriched content
         await this.conversationHistory.updateLastUserMessage(

@@ -114,6 +114,7 @@ export interface AIJobResult {
   success: boolean;
   content?: string;
   attachmentDescriptions?: string;
+  referencedMessagesDescriptions?: string;
   error?: string;
   metadata?: {
     retrievedMemories?: number;
@@ -277,6 +278,7 @@ export class AIJobProcessor {
         success: true,
         content: cleanedContent,
         attachmentDescriptions: response.attachmentDescriptions,
+        referencedMessagesDescriptions: response.referencedMessagesDescriptions,
         metadata: {
           retrievedMemories: response.retrievedMemories,
           tokensUsed: response.tokensUsed,
