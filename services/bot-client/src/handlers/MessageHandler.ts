@@ -276,7 +276,11 @@ export class MessageHandler {
       const { references: referencedMessages, updatedContent } = await referenceExtractor.extractReferencesWithReplacement(message);
 
       if (referencedMessages.length > 0) {
-        logger.info(`[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
+        logger.info({
+          count: referencedMessages.length,
+          referenceNumbers: referencedMessages.map(r => r.referenceNumber),
+          authors: referencedMessages.map(r => r.authorUsername)
+        }, `[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
       }
 
       // Use updatedContent (with Discord links replaced by [Reference N]) for the AI context
@@ -319,7 +323,13 @@ export class MessageHandler {
         referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined
       };
 
-      logger.debug(`[MessageHandler] Built context: activePersonaId=${context.activePersonaId}, activePersonaName=${context.activePersonaName}, historyLength=${conversationHistory.length}`);
+      logger.debug({
+        activePersonaId: context.activePersonaId,
+        activePersonaName: context.activePersonaName,
+        historyLength: conversationHistory.length,
+        hasReferencedMessages: !!context.referencedMessages,
+        referencedMessagesCount: context.referencedMessages?.length || 0
+      }, `[MessageHandler] Built context for AI request`);
 
       // Save user message to conversation history BEFORE calling AI
       // This ensures proper chronological ordering (user message timestamp < assistant response timestamp)
