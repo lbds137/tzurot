@@ -287,12 +287,12 @@ export class ConversationalRAGService {
         : undefined;
 
       // 7. Build the prompt with ALL participant personas and memory context
+      // Note: We no longer pass references to system prompt - they're appended to the human message instead
       const fullSystemPrompt = await this.buildFullSystemPrompt(
         personality,
         participantPersonas,
         relevantMemories,
-        context,
-        referencedMessagesDescriptions
+        context
       );
 
       // 5. Build conversation history
@@ -317,11 +317,12 @@ export class ConversationalRAGService {
         }
       }
 
-      // Build human message with attachment descriptions (already processed earlier)
+      // Build human message with attachment AND reference descriptions
       const { message: humanMessage, contentForStorage } = await this.buildHumanMessage(
         userMessage,
         processedAttachments,
-        context.activePersonaName
+        context.activePersonaName,
+        referencedMessagesDescriptions
       );
       messages.push(humanMessage);
 
@@ -416,7 +417,7 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Build human message with attachments
+   * Build human message with attachments and references
    *
    * For both images and voice messages, we use text descriptions instead of
    * raw media data. This matches how we handle conversation history and:
@@ -427,7 +428,8 @@ export class ConversationalRAGService {
   private async buildHumanMessage(
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
-    activePersonaName?: string
+    activePersonaName?: string,
+    referencedMessagesDescriptions?: string
   ): Promise<{ message: HumanMessage; contentForStorage: string }> {
     // Build the message content
     let messageContent = userMessage;
@@ -454,6 +456,20 @@ export class ConversationalRAGService {
           attachmentTypes: processedAttachments.map(a => a.type),
         },
         'Built message with attachment descriptions'
+      );
+    }
+
+    // Append referenced messages (with vision/transcription already processed)
+    if (referencedMessagesDescriptions) {
+      messageContent = messageContent
+        ? `${messageContent}\n\n${referencedMessagesDescriptions}`
+        : referencedMessagesDescriptions;
+
+      logger.info(
+        {
+          referencesLength: referencedMessagesDescriptions.length
+        },
+        'Appended referenced messages to current message'
       );
     }
 
