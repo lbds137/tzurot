@@ -77,8 +77,7 @@ export const referencedMessageSchema = z.object({
   content: z.string(),
   embeds: z.string(),
   timestamp: z.string(), // ISO 8601 timestamp string (serialized from Date)
-  guildName: z.string(),
-  channelName: z.string(),
+  locationContext: z.string(), // Rich formatted location context (Server/Category/Channel/Thread)
   attachments: z.array(attachmentMetadataSchema).optional() // Attachments from referenced message
 });
 

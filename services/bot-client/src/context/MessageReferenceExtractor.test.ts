@@ -411,8 +411,8 @@ describe('MessageReferenceExtractor', () => {
       const references = await extractor.extractReferences(message);
 
       expect(references).toHaveLength(1);
-      expect(references[0].guildName).toBe('Test Server');
-      expect(references[0].channelName).toBe('#general');
+      expect(references[0].locationContext).toContain('Test Server');
+      expect(references[0].locationContext).toContain('general');
     });
 
     it('should handle DM messages correctly', async () => {
@@ -440,7 +440,7 @@ describe('MessageReferenceExtractor', () => {
       const references = await extractor.extractReferences(message);
 
       expect(references).toHaveLength(1);
-      expect(references[0].guildName).toBe('Direct Messages');
+      expect(references[0].locationContext).toContain('Direct Message');
     });
   });
 
