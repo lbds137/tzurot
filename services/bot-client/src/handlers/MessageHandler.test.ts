@@ -376,7 +376,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
           referenceNumber: 1,
           discordUserId: 'discord-123',
           authorUsername: 'testuser',
-          authorDisplayName: 'Test Display',
+          authorDisplayName: 'Test Display Name',
           content: 'Test',
           embeds: '',
           timestamp: new Date().toISOString(),
@@ -395,11 +395,11 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         'personality-123'
       );
 
-      // Verify: getOrCreateUser called with discordUserId and username
+      // Verify: getOrCreateUser called with discordUserId, username, and actual display name
       expect(mockUserService.getOrCreateUser).toHaveBeenCalledWith(
         'discord-123',
         'testuser',
-        'testuser' // Falls back to username for display name
+        'Test Display Name' // Uses actual Discord display name
       );
     });
 
