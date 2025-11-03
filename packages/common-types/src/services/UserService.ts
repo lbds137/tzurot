@@ -50,43 +50,75 @@ export class UserService {
         const personaId = generatePersonaUuid(username, userId);
 
         // Create user, default persona, and link in a transaction
-        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          // Create user
-          await tx.user.create({
-            data: {
-              id: userId,
-              discordId,
-              username
+        try {
+          await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            // Create user
+            logger.debug({ userId, discordId, username }, '[UserService] Creating user record');
+            try {
+              await tx.user.create({
+                data: {
+                  id: userId,
+                  discordId,
+                  username
+                }
+              });
+              logger.debug({ userId }, '[UserService] User record created successfully');
+            } catch (userError) {
+              logger.error({ err: userError, userId, discordId, username }, '[UserService] FAILED to create user record');
+              throw userError;
+            }
+
+            // Create default persona for user
+            // Use display name (e.g., "Alt Hime") as preferredName, fallback to username
+            const personaDisplayName = displayName || username;
+            // Use Discord bio if available, otherwise leave empty
+            const personaContent = bio || '';
+            logger.debug({ personaId, username, preferredName: personaDisplayName, ownerId: userId }, '[UserService] Creating persona record');
+            try {
+              await tx.persona.create({
+                data: {
+                  id: personaId,
+                  name: username, // Keep username as identifier
+                  preferredName: personaDisplayName, // Use display name for showing to AI
+                  description: 'Default persona',
+                  content: personaContent,
+                  ownerId: userId
+                }
+              });
+              logger.debug({ personaId }, '[UserService] Persona record created successfully');
+            } catch (personaError) {
+              logger.error({ err: personaError, personaId, username, ownerId: userId }, '[UserService] FAILED to create persona record');
+              throw personaError;
+            }
+
+            // Link persona as user's default
+            logger.debug({ userId, personaId }, '[UserService] Creating userDefaultPersona link');
+            try {
+              await tx.userDefaultPersona.create({
+                data: {
+                  userId: userId,
+                  personaId: personaId,
+                  updatedAt: new Date()
+                }
+              });
+              logger.debug({ userId, personaId }, '[UserService] UserDefaultPersona link created successfully');
+            } catch (linkError) {
+              logger.error({ err: linkError, userId, personaId }, '[UserService] FAILED to create userDefaultPersona link');
+              throw linkError;
             }
           });
 
-          // Create default persona for user
-          // Use display name (e.g., "Alt Hime") as preferredName, fallback to username
-          const personaDisplayName = displayName || username;
-          // Use Discord bio if available, otherwise leave empty
-          const personaContent = bio || '';
-          await tx.persona.create({
-            data: {
-              id: personaId,
-              name: username, // Keep username as identifier
-              preferredName: personaDisplayName, // Use display name for showing to AI
-              description: 'Default persona',
-              content: personaContent,
-              ownerId: userId
-            }
-          });
-
-          // Link persona as user's default
-          await tx.userDefaultPersona.create({
-            data: {
-              userId: userId,
-              personaId: personaId,
-              updatedAt: new Date()
-            }
-          });
-        });
-
-        logger.info(`Created new user: ${username} (${discordId}) with default persona`);
+          logger.info(`[UserService] Transaction completed: Created user ${username} (${discordId}) with default persona`);
+        } catch (transactionError) {
+          logger.error({
+            err: transactionError,
+            userId,
+            personaId,
+            discordId,
+            username
+          }, '[UserService] Transaction FAILED - all changes should be rolled back');
+          throw transactionError;
+        }
 
         user = { id: userId };
       }
