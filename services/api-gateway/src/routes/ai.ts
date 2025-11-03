@@ -169,6 +169,15 @@ aiRouter.post('/generate', async (req, res) => {
           `[AI] Job ${job.id} completed after ${totalTime}ms`
         );
 
+        // Debug: Check if referencedMessagesDescriptions is in the result
+        if (result && typeof result === 'object') {
+          logger.info({
+            hasAttachmentDescriptions: 'attachmentDescriptions' in result,
+            hasReferencedMessagesDescriptions: 'referencedMessagesDescriptions' in result,
+            resultKeys: Object.keys(result)
+          }, '[AI] Job result inspection');
+        }
+
         // Note: Cleanup happens via queue event listener, not here
         // This ensures ai-worker has finished fetching all attachments
 
