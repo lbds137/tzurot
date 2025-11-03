@@ -10,7 +10,7 @@ import { TextChannel, ThreadChannel } from 'discord.js';
 import { GatewayClient } from '../gateway/GatewayClient.js';
 import { WebhookManager } from '../webhooks/WebhookManager.js';
 import { ConversationHistoryService, PersonalityService, UserService, preserveCodeBlocks, createLogger, getConfig, INTERVALS } from '@tzurot/common-types';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality, ReferencedMessage, ConversationMessage } from '@tzurot/common-types';
 import type { MessageContext } from '../types.js';
 import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from '../redis.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
@@ -276,11 +276,15 @@ export class MessageHandler {
       });
       const { references: referencedMessages, updatedContent } = await referenceExtractor.extractReferencesWithReplacement(message);
 
+      // Enrich referenced messages with persona names instead of Discord display names
       if (referencedMessages.length > 0) {
+        await this.enrichReferencesWithPersonaNames(referencedMessages, history, personality.id);
+
         logger.info({
           count: referencedMessages.length,
           referenceNumbers: referencedMessages.map(r => r.referenceNumber),
-          authors: referencedMessages.map(r => r.authorUsername)
+          authors: referencedMessages.map(r => r.authorUsername),
+          personaNames: referencedMessages.map(r => r.authorDisplayName)
         }, `[MessageHandler] Extracted ${referencedMessages.length} referenced messages (after deduplication)`);
       }
 
@@ -534,6 +538,72 @@ export class MessageHandler {
       logger.error({ err: error }, '[MessageHandler] Error transcribing voice message');
       await message.reply('Sorry, I couldn\'t transcribe that voice message.').catch(() => {});
       return undefined;
+    }
+  }
+
+  /**
+   * Enrich referenced messages with persona names instead of Discord display names
+   *
+   * For each referenced message:
+   * 1. Look up the user's persona for the current personality
+   * 2. Check if that persona appears in conversation history
+   * 3. If yes, use persona name from history; if no, fetch from database
+   * 4. Update the authorDisplayName field
+   */
+  private async enrichReferencesWithPersonaNames(
+    referencedMessages: ReferencedMessage[],
+    conversationHistory: ConversationMessage[],
+    personalityId: string
+  ): Promise<void> {
+    // Build a map of personaId -> personaName from conversation history for fast lookup
+    const personaNameMap = new Map<string, string>();
+    for (const msg of conversationHistory) {
+      if (msg.personaName) {
+        personaNameMap.set(msg.personaId, msg.personaName);
+      }
+    }
+
+    // Enrich each referenced message
+    for (const reference of referencedMessages) {
+      try {
+        // Get or create the user record (creates default persona if needed)
+        // Note: We don't have display name/bio from the referenced message,
+        // so username is used for both parameters
+        const userId = await this.userService.getOrCreateUser(
+          reference.discordUserId,
+          reference.authorUsername,
+          reference.authorUsername // Use username as fallback display name
+        );
+
+        // Get the persona for this user when interacting with this personality
+        const personaId = await this.userService.getPersonaForUser(userId, personalityId);
+
+        // Check if this persona appears in conversation history
+        let personaName = personaNameMap.get(personaId);
+
+        if (!personaName) {
+          // Not in history, fetch from database
+          const fetchedName = await this.userService.getPersonaName(personaId);
+          personaName = fetchedName || undefined; // Convert null to undefined
+        }
+
+        // Update the authorDisplayName with the persona name
+        if (personaName) {
+          reference.authorDisplayName = personaName;
+          logger.debug(`[MessageHandler] Enriched reference ${reference.referenceNumber}: ${reference.authorUsername} -> ${personaName}`);
+        } else {
+          logger.warn(`[MessageHandler] Could not find persona name for reference ${reference.referenceNumber} (persona: ${personaId})`);
+        }
+
+      } catch (error) {
+        logger.error({
+          err: error,
+          referenceNumber: reference.referenceNumber,
+          discordUserId: reference.discordUserId,
+          authorUsername: reference.authorUsername
+        }, '[MessageHandler] Failed to enrich reference with persona name');
+        // Keep the original Discord display name on error
+      }
     }
   }
 }
