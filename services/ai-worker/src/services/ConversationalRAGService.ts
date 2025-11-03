@@ -670,10 +670,31 @@ export class ConversationalRAGService {
 
               lines.push(`- Voice Message (${attachment.duration}s) [transcription failed]`);
             }
+          } else if (attachment.contentType?.startsWith('image/')) {
+            // Process images through vision model
+            try {
+              logger.info({
+                referenceNumber: ref.referenceNumber,
+                url: attachment.url,
+                name: attachment.name
+              }, 'Processing image in referenced message through vision model');
+
+              const { describeImage } = await import('./MultimodalProcessor.js');
+              const imageDescription = await describeImage(attachment, personality);
+
+              lines.push(`- Image (${attachment.name}): ${imageDescription}`);
+            } catch (error) {
+              logger.error({
+                err: error,
+                referenceNumber: ref.referenceNumber,
+                url: attachment.url
+              }, 'Failed to process image in referenced message');
+
+              lines.push(`- Image (${attachment.name}) [vision processing failed]`);
+            }
           } else {
             // For other attachments, just note them
-            const attachmentType = attachment.contentType?.startsWith('image/') ? 'Image' : 'File';
-            lines.push(`- ${attachmentType}: ${attachment.name} (${attachment.contentType})`);
+            lines.push(`- File: ${attachment.name} (${attachment.contentType})`);
           }
         }
       }
