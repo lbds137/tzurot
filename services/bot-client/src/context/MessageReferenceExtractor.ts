@@ -371,6 +371,7 @@ export class MessageReferenceExtractor {
 
     return {
       referenceNumber,
+      discordMessageId: message.id,
       discordUserId: message.author.id,
       authorUsername: message.author.username,
       authorDisplayName: message.author.displayName ?? message.author.username,
