@@ -58,6 +58,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-123',
+          webhookId: undefined,
           discordUserId: 'user-123',
           authorUsername: 'testuser',
           authorDisplayName: 'Test User Discord Name',
@@ -102,6 +103,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-456',
+          webhookId: undefined,
           discordUserId: 'user-456',
           authorUsername: 'otheruser',
           authorDisplayName: 'Other User Discord Name',
@@ -149,6 +151,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-789',
+          webhookId: undefined,
           discordUserId: 'user-789',
                     authorUsername: 'missinguser',
                     authorDisplayName: 'Original Discord Name',
@@ -183,6 +186,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-error',
+          webhookId: undefined,
           discordUserId: 'user-error',
                     authorUsername: 'erroruser',
                     authorDisplayName: 'Fallback Name',
@@ -218,6 +222,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-123',
+          webhookId: undefined,
           discordUserId: 'user-123',
           authorUsername: 'testuser',
           authorDisplayName: originalDisplayName,
@@ -269,6 +274,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-1',
+          webhookId: undefined,
           discordUserId: 'user-1',
                     authorUsername: 'user1',
                     authorDisplayName: 'User 1 Discord',
@@ -280,6 +286,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 2,
           discordMessageId: 'msg-2',
+          webhookId: undefined,
           discordUserId: 'user-2',
                     authorUsername: 'user2',
                     authorDisplayName: 'User 2 Discord',
@@ -332,6 +339,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'msg-123',
+          webhookId: undefined,
           discordUserId: 'user-123',
                     authorUsername: 'testuser',
                     authorDisplayName: 'Discord Name',
@@ -378,6 +386,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'discord-123',
+          webhookId: undefined,
           discordUserId: 'discord-123',
                     authorUsername: 'testuser',
                     authorDisplayName: 'Test Display Name',
@@ -411,6 +420,7 @@ describe('MessageHandler - enrichReferencesWithPersonaNames', () => {
         {
           referenceNumber: 1,
           discordMessageId: 'discord-456',
+          webhookId: undefined,
           discordUserId: 'discord-456',
                     authorUsername: 'user',
                     authorDisplayName: 'Display',
