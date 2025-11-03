@@ -122,6 +122,14 @@ aiRouter.post('/generate', async (req, res) => {
       }, `[AI] Request includes ${request.context.referencedMessages.length} referenced message(s)`);
     }
 
+    // Debug: Verify referencedMessages is in jobData before queueing
+    logger.info({
+      requestId,
+      hasReferencedMessagesInJobData: !!jobData.context.referencedMessages,
+      referencedMessagesCountInJobData: jobData.context.referencedMessages?.length || 0,
+      jobDataContextKeys: Object.keys(jobData.context)
+    }, '[AI] Job data inspection before queueing');
+
     // Add job to queue
     const job = await aiQueue.add('generate', jobData, {
       jobId: `req-${requestId}` // Use predictable job ID for tracking
