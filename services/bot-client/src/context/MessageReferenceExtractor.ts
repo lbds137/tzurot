@@ -251,7 +251,19 @@ export class MessageReferenceExtractor {
         return null;
       }
 
-      const channel = guild.channels.cache.get(link.channelId);
+      // Try to get channel from cache first (works for regular channels)
+      let channel: Channel | null = guild.channels.cache.get(link.channelId) || null;
+
+      // If not in channels cache, it might be a thread - fetch it
+      if (!channel) {
+        try {
+          channel = await sourceMessage.client.channels.fetch(link.channelId);
+        } catch (fetchError) {
+          logger.debug(`[MessageReferenceExtractor] Channel ${link.channelId} not found in cache or via fetch`);
+          return null;
+        }
+      }
+
       if (!channel || !this.isTextBasedChannel(channel)) {
         logger.debug(`[MessageReferenceExtractor] Channel ${link.channelId} not accessible or not text-based`);
         return null;
