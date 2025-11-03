@@ -16,6 +16,7 @@ import { storeWebhookMessage, getWebhookPersonality, storeVoiceTranscript } from
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { MessageReferenceExtractor } from '../context/MessageReferenceExtractor.js';
+import { extractAttachments } from '../utils/attachmentExtractor.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -298,18 +299,7 @@ export class MessageHandler {
       logger.debug(`[MessageHandler] Conversation history: ${conversationHistory.length} messages, ${messagesWithPersonaName} have personaName`);
 
       // Extract attachments if present (images, audio, etc)
-      const attachments = message.attachments.size > 0
-        ? Array.from(message.attachments.values()).map(attachment => ({
-            url: attachment.url,
-            contentType: attachment.contentType || 'application/octet-stream',
-            name: attachment.name,
-            size: attachment.size,
-            // Discord.js v14 voice message metadata
-            isVoiceMessage: attachment.duration !== null,
-            duration: attachment.duration ?? undefined,
-            waveform: attachment.waveform ?? undefined
-          }))
-        : undefined;
+      const attachments = extractAttachments(message.attachments);
 
       // Extract Discord environment context (DM vs guild, channel info, etc)
       const environment = extractDiscordEnvironment(message);

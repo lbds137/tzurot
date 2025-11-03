@@ -7,6 +7,7 @@
 import { Message, TextChannel, ThreadChannel, Channel } from 'discord.js';
 import { MessageLinkParser, ParsedMessageLink } from '../utils/MessageLinkParser.js';
 import { EmbedParser } from '../utils/EmbedParser.js';
+import { extractAttachments } from '../utils/attachmentExtractor.js';
 import { createLogger, ReferencedMessage } from '@tzurot/common-types';
 
 const logger = createLogger('MessageReferenceExtractor');
@@ -238,6 +239,7 @@ export class MessageReferenceExtractor {
   private formatReferencedMessage(message: Message, referenceNumber: number): ReferencedMessage {
     const guildName = message.guild?.name ?? 'Direct Messages';
     const channelName = this.getChannelName(message.channel);
+    const attachments = extractAttachments(message.attachments);
 
     return {
       referenceNumber,
@@ -247,7 +249,8 @@ export class MessageReferenceExtractor {
       embeds: EmbedParser.parseMessageEmbeds(message),
       timestamp: message.createdAt.toISOString(),
       guildName,
-      channelName
+      channelName,
+      attachments
     };
   }
 
