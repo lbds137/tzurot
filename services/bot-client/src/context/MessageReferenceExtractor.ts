@@ -90,16 +90,30 @@ export class MessageReferenceExtractor {
 
     // Extract reply-to reference (if present)
     if (updatedMessage.reference?.messageId) {
+      logger.info({
+        hasReference: true,
+        messageId: updatedMessage.reference.messageId
+      }, '[MessageReferenceExtractor] Message has reply reference, attempting to fetch');
+
       try {
         const referencedMessage = await updatedMessage.fetchReference();
 
         // Skip if message is already in conversation history
         if (!this.shouldIncludeReference(referencedMessage)) {
-          logger.debug(`[MessageReferenceExtractor] Skipping reply reference ${referencedMessage.id} - already in conversation history`);
+          logger.info({
+            messageId: referencedMessage.id,
+            reason: 'already in conversation history'
+          }, `[MessageReferenceExtractor] Skipping reply reference - already in conversation history`);
         } else {
           // Format and add the reply reference
           const replyReference = this.formatReferencedMessage(referencedMessage, 1);
           references.push(replyReference);
+          logger.info({
+            messageId: referencedMessage.id,
+            referenceNumber: 1,
+            author: referencedMessage.author.username,
+            contentPreview: referencedMessage.content.substring(0, 50)
+          }, '[MessageReferenceExtractor] Added reply reference');
         }
 
         // Always track the message ID to prevent duplicates in links
