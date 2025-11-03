@@ -71,6 +71,7 @@ export const apiConversationMessageSchema = z.object({
  */
 export const referencedMessageSchema = z.object({
   referenceNumber: z.number(),
+  discordUserId: z.string(), // Discord user ID for persona lookup
   authorUsername: z.string(),
   authorDisplayName: z.string(),
   content: z.string(),
