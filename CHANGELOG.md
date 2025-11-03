@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0-alpha.23] - 2025-11-03
+
+### Added
+- **Persona Name Enrichment for References (PR #210)** - Referenced messages now show persona names instead of Discord nicknames
+  - Added `discordUserId` field to `ReferencedMessage` schema for persona lookup
+  - Implemented `enrichReferencesWithPersonaNames()` method in MessageHandler
+  - References now display consistent user representation matching conversation history
+  - Example: "Lila (@lilashabbat)" instead of "Lila Shabbat Nachiel | טענת שטן (@lilashabbat)"
+  - Graceful fallback to Discord display name on errors
+  - Performance optimized: O(1) Map lookup from conversation history before database fetch
+  - Comprehensive test coverage: 10 new unit tests (100% passing)
+
+### Fixed
+- Discord display names now properly preserved when creating user records
+  - Uses actual Discord display name (server nickname/global name) instead of username
+  - Better for user management and debugging
+  - Fixes issue where username was used twice in `getOrCreateUser()` calls
+
+### Improved
+- Enhanced error logging with additional context (personalityId, userId, personaId)
+- Added detailed documentation for conversation history stability assumptions
+- Type safety improvements for null/undefined handling in persona name fetches
+
+### Documentation
+- Added comprehensive multi-personality support improvement document
+  - Documents future enhancement for multiple @mentions per message
+  - Includes implementation challenges, test cases, and phased plan
+  - Captures code review insights from PR #210 for future reference
+  - Estimated 3-week effort, deferred until core features stable
+
 ## [3.0.0-alpha.22] - 2025-11-03
 
 ### Fixed
