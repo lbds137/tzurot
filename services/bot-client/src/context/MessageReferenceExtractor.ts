@@ -247,7 +247,10 @@ export class MessageReferenceExtractor {
     try {
       const guild = sourceMessage.client.guilds.cache.get(link.guildId);
       if (!guild) {
-        logger.debug(`[MessageReferenceExtractor] Guild ${link.guildId} not accessible`);
+        logger.info({
+          guildId: link.guildId,
+          messageId: link.messageId
+        }, '[MessageReferenceExtractor] Guild not accessible for message link');
         return null;
       }
 
@@ -257,19 +260,46 @@ export class MessageReferenceExtractor {
       // If not in channels cache, it might be a thread - fetch it
       if (!channel) {
         try {
+          logger.debug({
+            channelId: link.channelId,
+            messageId: link.messageId
+          }, '[MessageReferenceExtractor] Channel not in cache, fetching...');
+
           channel = await sourceMessage.client.channels.fetch(link.channelId);
+
+          logger.debug({
+            channelId: link.channelId,
+            channelType: channel?.type,
+            isThread: channel?.isThread?.() || false
+          }, '[MessageReferenceExtractor] Channel fetched successfully');
         } catch (fetchError) {
-          logger.debug(`[MessageReferenceExtractor] Channel ${link.channelId} not found in cache or via fetch`);
+          logger.warn({
+            err: fetchError,
+            channelId: link.channelId,
+            messageId: link.messageId
+          }, '[MessageReferenceExtractor] Failed to fetch channel');
           return null;
         }
       }
 
       if (!channel || !this.isTextBasedChannel(channel)) {
-        logger.debug(`[MessageReferenceExtractor] Channel ${link.channelId} not accessible or not text-based`);
+        logger.info({
+          channelId: link.channelId,
+          hasChannel: !!channel,
+          isTextBased: channel?.isTextBased?.() || false,
+          hasMessages: channel && 'messages' in channel
+        }, '[MessageReferenceExtractor] Channel not text-based or inaccessible');
         return null;
       }
 
       const fetchedMessage = await (channel as TextChannel | ThreadChannel).messages.fetch(link.messageId);
+
+      logger.info({
+        messageId: link.messageId,
+        channelId: link.channelId,
+        author: fetchedMessage.author.username
+      }, '[MessageReferenceExtractor] Successfully fetched message from link');
+
       return fetchedMessage;
     } catch (error) {
       // Differentiate between expected and unexpected errors
