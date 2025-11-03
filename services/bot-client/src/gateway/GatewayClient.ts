@@ -97,11 +97,8 @@ export class GatewayClient {
 
       logger.info(`[GatewayClient] Job completed: ${data.jobId}`);
 
-      return {
-        content: data.result.content,
-        attachmentDescriptions: data.result.attachmentDescriptions,
-        metadata: data.result.metadata
-      };
+      // Return entire result object to avoid manual field omissions causing bugs
+      return data.result;
 
     } catch (error) {
       logger.error({ err: error }, '[GatewayClient] Generation failed');
