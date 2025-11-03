@@ -641,7 +641,15 @@ export class MessageHandler {
         // 2. Discord webhookId: Catches PluralKit, expired cache, cross-channel refs, or other bot instances
         // Skip persona creation for ALL webhooks (AI personalities, PluralKit, etc.)
         // We'll handle PluralKit personas properly when we implement that feature
-        const webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
+        let webhookPersonality = null;
+        try {
+          webhookPersonality = await getWebhookPersonality(reference.discordMessageId);
+        } catch (error) {
+          logger.warn(
+            { err: error, discordMessageId: reference.discordMessageId },
+            '[MessageHandler] Redis lookup failed for webhook detection, falling back to webhookId'
+          );
+        }
         const isWebhook = webhookPersonality || reference.webhookId;
 
         if (isWebhook) {
